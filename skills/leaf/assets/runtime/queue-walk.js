@@ -1,6 +1,6 @@
 /* The On me walk: `m` and Shift+`m` page through everything waiting on the user,
-   in page order: the On me list the panel shows first (queue-panel.js). The panel opens with
-   `g M`, as the Threads panel opens with `g T` and `t` walks the threads.
+   in page order: the list the floating panel's On me view shows. The view opens with
+   `g M`, as Threads opens with `g T` and `t` walks the threads.
 
    What waits on the user is the application's one reading, `queues.on_user`
    (the server's `served_state.queues`, with this tab's sends placed against it): each open
@@ -14,10 +14,9 @@
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
    lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
    onto the widget the action was made on, the element, or the page's head; the
-   version's approval by the chrome showing it, travel onto the banner's control or
-   the floating panel's own arrival (banner.js, `registerApprovalPresentation`).
-   An On panel row arrives through the same function (`arriveAtItem`), for an item on
-   either list or one that is done.
+   version's approval by the floating panel's own arrival (page-status.js,
+   `registerApprovalPresentation`). An On me row arrives through the same function
+   (`arriveAtItem`), for an item on either list or one that is done.
 
    A walk starts from the user's place, in this order:
 
@@ -30,7 +29,7 @@
    the chrome is a binding badge, not a page position, so its controls do not become the
    walk's origin. The user stands on an item when they stand in its ask, in its thread
    (`threadHere`), or in its widget or element, and the press steps off it. Standing on
-   a to-do Done ends, `x` is that Done, a step on the banner's row under a finger
+   a to-do Done ends, `x` is that Done, a step in the panel's row under a finger
    (`queue-api.js`, `done`): the user's `todo_end`, which leaves On me in the turn it is
    pressed.
 
@@ -74,7 +73,7 @@ import { drawnThreadId } from "./thread/selectors.js";
 import { watchProjection } from "./projection-watch.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
-import { approvalTarget, presentedApproval } from "./banner.js";
+import { approvalTarget, presentedApproval } from "./page-status.js";
 
 const QUALIFIER = "waiting on me";
 const WITHIN = "waiting on me here";

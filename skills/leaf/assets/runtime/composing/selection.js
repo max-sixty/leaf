@@ -144,7 +144,6 @@ function wordsOf(element) {
 export let composerOpen = false;
 
 export function createSelectionComposer({
-  panelIsOpen,
   setReact,
   reactionTokens,
   reactionAvailable,
@@ -756,20 +755,17 @@ export function createSelectionComposer({
         // card or title, never back on its page target. A later
         // gesture may already have moved the user elsewhere while presentation was
         // settling.
-        if (shouldReveal || panelIsOpen()) {
+        if (shouldReveal) {
           const destination = await revealSent({
-            part: shouldReveal ? "thread" : "reply",
-            focus: shouldReveal,
+            part: "thread",
+            focus: true,
             travel: false,
             flash: false,
-            intent: shouldReveal
-              ? restrictUserIntent(currentIntent, revealAvailable)
-              : currentIntent,
+            intent: restrictUserIntent(currentIntent, revealAvailable),
             origin,
           });
           const thread = destination && closestAcross(destination, THREAD);
-          if (shouldReveal && mayReveal() && thread)
-            currentIntent.handoff(() => landSent(thread));
+          if (mayReveal() && thread) currentIntent.handoff(() => landSent(thread));
         }
       },
     });

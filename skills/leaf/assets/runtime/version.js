@@ -65,10 +65,7 @@
  * fetched again. Reading position is restored even after a patch because content above
  * it may have changed height.
  *
- * `versionsOffered` controls the destination, picker, and button; `versionsToWalk`
- * controls the menu's local scope. Keep picker rows available wherever the menu can
- * open, including when the platform dismisses it. Scopes sharing a title merge their
- * rows; an unavailable contributor supplies none.
+ * `versionsOffered` controls the destination and the Versions row.
  */
 import {
   nextAnimation,
@@ -99,16 +96,15 @@ import {
   onStanding,
   onUserInput,
   focused,
-  closeLayer,
   inputCount,
 } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
 import { patchTree, patchRetains } from "./dom-children.js";
 import { move } from "./dom-move.js";
-import { labelOf, PRESS, savedReadingSettled } from "./keyboard/bindings.js";
-import { commandShortcut } from "./keyboard/control-keys.js";
-import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
+import { savedReadingSettled } from "./keyboard/bindings.js";
+import { commandSteps } from "./keyboard/control-keys.js";
+import { pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
 import { notice } from "./notifications.js";
 import {
@@ -155,8 +151,7 @@ import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, reveal } from "./widget-elements.js";
 import { settleResidency } from "./content-layout.js";
 import { keeps } from "./keeps.js";
-import { returnToBannerControl, showNews } from "./banner-toolbar.js";
-import { allButCommandReference, pageScope } from "./keyboard/register.js";
+import { PAGE_CONTROL_RANK, registerPageControl } from "./page-controls.js";
 import { pointerAt, restorePointer } from "./pointer.js";
 
 import { reportPageError } from "./layer-client.js";
@@ -165,7 +160,6 @@ import { watchProjection } from "./projection-watch.js";
 
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
-import { rowWalk } from "./walk-position.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
 import { foldWidgetStates, askValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
@@ -174,15 +168,7 @@ import {
   quoted,
   stageWidgetDescriptors,
 } from "./widget-descriptors.js";
-import {
-  latestChip,
-  latestVersionLabel,
-  versionBtn,
-  versionPicker,
-  versionMenu,
-  closeVersionMenu,
-  versionMenuIsOpen,
-} from "./version-picker.js";
+import { latestVersionLabel, versionPicker } from "./version-picker.js";
 import {
   preloadWidgets,
   patchDocument,
@@ -325,7 +311,6 @@ const draftRevisions = () => {
 };
 const versionCount = () => runtime.versions.length + draftRevisions().size;
 const versionsOffered = () => versionCount() > 0;
-const versionsToWalk = () => versionCount() > 1;
 const behindCurrent = () =>
   runtime.active !== null && runtime.currentRevision !== null && !runtime.showsActive;
 // Which version a page behind the latest shows, in the few words a notice beside the
@@ -338,7 +323,6 @@ const shownBehind = () =>
       ? `v${runtime.currentStamp}`
       : `v${runtime.currentStamp} of ${runtime.active.version}`;
 
-let versionsWalkable = false;
 function menuRows(state, notes) {
   const latest = state.versions.at(-1)?.version;
   const entries = state.versions.map((entry) => ({
@@ -437,19 +421,34 @@ function pickerModel(state) {
 function paintPicker() {
   const model = pickerModel(runtime.state);
   versionPicker.present(model);
-  showNews(latestChip, model.latest.news);
   repaint();
-  const walkable = versionsToWalk();
-  if (walkable !== versionsWalkable) {
-    versionsWalkable = walkable;
-    paintKeys();
-  }
 }
 let pickerWatch = null;
 const presentPicker = () => pickerWatch?.refresh();
 // The picker's reading for another presentation of the same versions, the floating
 // panel's Versions view, derived where it is read so that paint follows its inputs.
 export const versionsReading = () => pickerModel(runtime.state);
+// Versions, a list of the floating panel's own, and a newer page to open, as rows of the
+// page's controls.
+registerPageControl({
+  key: "versions",
+  rank: PAGE_CONTROL_RANK.versions,
+  label: "Versions",
+  value: () => versionsReading().picker.token,
+  shortcut: () => commandSteps("version.open"),
+  disabled: () => !versionsReading().picker.offered,
+  group: "page",
+});
+registerPageControl({
+  key: "latest",
+  rank: PAGE_CONTROL_RANK.latest,
+  label: () => versionsReading().latest.label,
+  offered: () => versionsReading().latest.news,
+  disabled: () => versionsReading().latest.disabled,
+  urgent: "new",
+  press: () => versionPicker.latest(),
+  group: "page",
+});
 
 // ---------- version diff ----------
 // "Changes since vN": blocks (paragraphs, list items, Leaf elements) whose text
@@ -1064,175 +1063,6 @@ export function createVersionController({
   const VIEW_KEY = "lf-view";
   const HANDOFF_KEY = "lf-revision-handoff";
 
-  // A menu is a transient reading of the picker, not a layer over the next control a
-  // user Tabs to. Its comparison checkboxes are real internal Tab stops, so offer an
-  // exit only from the boundary control in the direction being travelled. The native row
-  // below closes the menu first and then leaves the browser to complete that same Tab.
-  const atVersionBoundary = (end) => versionPicker.atBoundary(end);
-
-  const numberedVersionRoutes = () => versionPicker.numberedRoutes();
-  const OPEN_NUMBER = {
-    id: "version.open-number",
-    keys: () => numberedVersionRoutes().map(({ binding }) => binding),
-    routes: numberedVersionRoutes,
-    label: () => {
-      const routes = numberedVersionRoutes();
-      return routes.length > 1
-        ? `${routes[0].binding}–${routes.at(-1).binding}`
-        : routes[0]?.binding;
-    },
-    description: "Open a numbered version",
-    title: "open version",
-    when: () => versionsToWalk() && numberedVersionRoutes().length > 0,
-    // The focused menu and its fixed picker delegate each numbered key to the
-    // native row. Its view closes the menu and activates that exact entry once.
-  };
-  // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
-  // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
-  // button, and the row says so with no `run`. A row's Compare is the same comparison for the
-  // pointer, which has no walk to state it with. Exact number keys are shared with the
-  // fixed menu picker below, so they stay visible in this focused scope and survive a
-  // browser hand-back that lands at its door.
-  //
-  // v is the one row worth a key of its own: the current page is where the walk ends, and
-  // where a user who came for the current state is going. It is local to the menu, so the
-  // page-level destination remains the complete `g V` route rather than a second meaning for
-  // a bare letter.
-  //
-  // This scope is live only while there is a list to walk. The picker below stays live for
-  // every open menu so page-level Leaf shortcuts remain suspended while the browser owns
-  // the transient layer.
-  const NEWEST = {
-    id: "version.current",
-    keys: ["v"],
-    title: "open the current page",
-    // A stamped row is deliberately historical, including the newest one. This key names
-    // the live page instead, sharing the same route as the arrival chip while the focused
-    // row remains Enter's exact-version destination.
-    run: () => goActive(),
-  };
-  // The walk marks as it goes, which is what the list is for: the note says in words
-  // what a version changed and the page behind the menu then says it in the passages
-  // themselves, without the user having to leave the list to find out. A note is
-  // Claude's sentence about a version and the marks are the version's own account of
-  // itself, so reading them together is the only way to tell the two apart. The list
-  // runs newest first, so its ends are the latest and the earliest version.
-  const [walk, edge] = rowWalk({
-    id: "version",
-    noun: "Version",
-    plural: "versions",
-    rows: () => versionPicker.rows(),
-    steps: ["later", "earlier", "latest", "earliest"],
-    // A press at either end lands on the row it started from and calls nothing here:
-    // the walk states a comparison, so landing is not free — it would re-fetch the base
-    // and say its count again for a press that moved nothing.
-    //
-    // The comparison the row states: its own version as the base, or none at all where
-    // that version is not older than the one being read. So the user walks down to mark
-    // from further back and back up to stop, and the row that stops it is the version
-    // they are reading — the end of the walk in the direction they came from, which is
-    // why it needs no key of its own and no user has to be told where it is — and,
-    // the page having no key for a comparison, the whole of the way off one.
-    landed: (row) => {
-      const version = +row.dataset.lfVersion;
-      if (comparable(version)) showComparison(version);
-      else setDiff(false);
-    },
-  });
-  const VERSION_WALK = {
-    ...walk,
-    description: "Walk the versions, marking what changed since the one shown",
-    title: "walk — marking changes",
-    when: versionsToWalk,
-  };
-  const VERSION_EDGE = { ...edge, when: versionsToWalk };
-
-  // The picker represents the menu being open, not whether it has multiple versions to walk.
-  // It suspends page shortcuts and owns exact numbered destinations plus the Tab-boundary
-  // handoff that a popover does not provide. Light dismissal stays native; Escape is the
-  // menu's own row (`version.close`), which closes it and returns the user to More.
-  const VERSIONS = {
-    title: "In the versions menu",
-    ready: savedReadingSettled,
-    root: () => versionMenu,
-    when: versionsOffered,
-    at: versionMenuIsOpen,
-    // Opening the modal reference dismisses this popover. Retain the menu-boundary
-    // reading so the reference documents its rows as unavailable in the remaining scene.
-    liveInCommandReference: true,
-    // A picker over the page suspends the page, which the two transient contexts above
-    // this one always did and this one did not — so a user in the middle of choosing a
-    // version could press `l` and take focus out of the menu into the leaves drawer, `d`
-    // and scroll a page they were not looking at, or `c` and open the composer under the
-    // list. None of it fails loudly: the press does exactly what it says on a page the
-    // user has stopped reading. The worst of them was a page-level key that set a
-    // comparison base, which the walk they were standing in then disagreed with — that
-    // key is the menu's own business now, and the claim is what would have held it either
-    // way. The claim is also what narrows the line to the menu's own keys, so what the
-    // picker takes and what it offers are one statement rather than a suspension the
-    // surfaces have to be told about separately.
-    claims: allButCommandReference,
-    rows: [
-      VERSION_WALK,
-      VERSION_EDGE,
-      OPEN_NUMBER,
-      // Two rows, both live at either end of a one-row menu, so the line prints both at
-      // once — and while they shared a word it printed it twice, leaving the user to
-      // tell them apart by their keycaps. The direction is the whole difference between
-      // them and it is what each says.
-      //
-      // Their `when` reads where focus stands, which is a dispatch question: the press
-      // closes the menu only from the end it is held to. The reference asks a different
-      // one — does this scene offer the capability — and it asks it of a menu the modal
-      // has just dismissed, so a position predicate answers no for both and the pair
-      // would be the only rows in this scope the reference can never name. They say so
-      // themselves, and the reference marks them unreachable the way it marks the
-      // numbered destinations beside them.
-      {
-        id: "version.leave-forward",
-        keys: ["Tab"],
-        description: "Leave the versions menu forward",
-        title: "leave forward",
-        native: true,
-        // A held Tab is still one continuous trip through the controls. When its repeated
-        // keydown reaches the boundary, closing is part of that press just as it is for a
-        // fresh Tab; only the platform's focus move remains native.
-        repeat: true,
-        when: () => atVersionBoundary(-1),
-        commandReferenceWhen: () => true,
-        run: closeVersionMenu,
-      },
-      {
-        id: "version.leave-backward",
-        keys: ["Shift+Tab"],
-        description: "Leave the versions menu backward",
-        title: "leave backward",
-        native: true,
-        repeat: true,
-        when: () => atVersionBoundary(0),
-        commandReferenceWhen: () => true,
-        run: closeVersionMenu,
-      },
-      // The menu is a layer over the page and its parent is the page, so the one press
-      // that closes it lands the user back there rather than on the picker in the
-      // banner, which is chrome they may never have stood on: `g V` runs the press from
-      // the picker, and the browser would hand focus back to it. Leaf performs the whole
-      // result — close, then land — so the press is not the platform's to complete.
-      {
-        id: "version.close",
-        keys: ["Escape"],
-        description: "Close the versions menu",
-        title: "close",
-        // Exact travel is the menu's unfamiliar action and keeps the compact line's
-        // second slot from either door. Escape remains live and stays in the complete
-        // reference as the platform-standard close.
-        promoteEscape: false,
-        run: () =>
-          closeLayer(closeVersionMenu, () => returnToBannerControl(versionBtn)),
-      },
-    ],
-  };
-
   // g V names the versions, and what each one changed: the chrome's Versions, which the
   // press opens or puts away, as its menu row does.
   const PICKER = {
@@ -1263,7 +1093,6 @@ export function createVersionController({
     if (LIVE_ROOT) {
       if (runtime.showsActive) return;
       forceActivation = true;
-      closeVersionMenu();
       readAndApply();
       return;
     }
@@ -1575,11 +1404,13 @@ export function createVersionController({
         doc.documentElement,
         authoredHtmlAttributes,
       );
-      // Delivery states each revision's declared review and page Layout on its root,
-      // where the theme reads the banner's rows and the Layout its body's geometry, so
-      // the arriving revision's come across with it.
-      for (const name of ["data-lf-review", "data-lf-layout"])
-        keeps(document.documentElement, name, doc.documentElement.getAttribute(name));
+      // Delivery states each revision's page Layout on its root, where the Layout reads
+      // its body's geometry, so the arriving revision's comes across with it.
+      keeps(
+        document.documentElement,
+        "data-lf-layout",
+        doc.documentElement.getAttribute("data-lf-layout"),
+      );
       authoredBodyAttributes = replaceAuthoredAttributes(
         document.body,
         doc.body,
@@ -1702,8 +1533,7 @@ export function createVersionController({
     const activates = (retains) =>
       target.revision > runtime.currentRevision &&
       !hasPending() &&
-      (!midComposition(retains) || forceActivation) &&
-      !versionMenuIsOpen();
+      (!midComposition(retains) || forceActivation);
     // The revision either install leaves this document showing. State application reads
     // it to judge the answer before the install edits anything, and adopts the answer
     // against it afterwards, so the document's revision and the state that speaks for it
@@ -2506,50 +2336,13 @@ export function createVersionController({
       },
       compare: pressComparison,
       latest: goActive,
-      toggle: repaint,
     });
-    keys(
-      versionMenu,
-      "In the versions menu",
-      [
-        VERSION_WALK,
-        VERSION_EDGE,
-        OPEN_NUMBER,
-        // The browser's own, the row being a real <button> — no `run`, or the press would
-        // click a control the platform has already activated. The word is the line's all the
-        // same, and the keys are the shared fact rather than this row's reading of it:
-        // spelled by hand, it said Enter and left Space unnamed on a control that answers
-        // both.
-        {
-          id: "version.activate",
-          keys: PRESS,
-          title: "open that version",
-        },
-        NEWEST,
-      ],
-      { when: versionsToWalk, ready: savedReadingSettled },
-    );
     pickerWatch = watchProjection(document.body, paintPicker);
     presentPicker();
   }
 
-  // The arrival chip's route spans two rows — the picker the page opens and the menu's own
-  // key for the live page — so it is composed here rather than painted from one row's
-  // `control`. Painted in the repaint frame beside every other control name, through
-  // `keeps`, so a restated title is not news to whatever is reading the page.
-  function paintShortcuts() {
-    keeps(
-      latestChip,
-      "title",
-      `${latestChip.dataset.lfKeyTitle} (${commandShortcut(PICKER.id)} ${labelOf(NEWEST)})`,
-    );
-  }
-
-  pageScope("versions", VERSIONS);
-
   return {
     PICKER,
-    paintShortcuts,
     prepareActivation,
     aimArrival,
     installArrival,

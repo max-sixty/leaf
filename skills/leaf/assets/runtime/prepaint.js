@@ -228,8 +228,6 @@
   // preference is the size the panel was left at (`row`, the comment field and its
   // counts, or `mark`, the leaf alone in the window's corner), one for every page on
   // the origin, read here so the first paint already stands at it.
-  // TODO(2026-10-16): the attribute goes with the banner it hides (theme.css).
-  root.setAttribute("data-lf-floating-chrome", "");
   const restKey = "lf-chrome-rest";
   const restValues = ["row", "mark"];
   const storedRest = userStore.get(restKey);

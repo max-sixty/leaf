@@ -3,19 +3,18 @@
    News arriving without the user's send gesture may show a notice but does
    not move focus or scroll the panel. `notice` is the one visible surface for a
    moment's news — a recorded gesture, an arrived version, a refused send — and it
-   stands in one seat at a time: the bottom status line, in place of the current walk
-   position, which returns when the notice fades, or on a phone the banner's status
-   words, which return the same way (chrome.css, `--lf-notice-seat`). The live region
-   hears the same words. It is text rather than a control: what a notice names, the
-   banner's own buttons reach. There is no second surface for news, so nothing floats in
-   a corner to become a stale pointer target. */
+   stands in one seat: the floating panel's seat for passing words, in place of the
+   current walk position, which returns when the notice fades (floating-panel.js,
+   `passing`). The live region hears the same words. It is text rather than a control:
+   what a notice names, the panel's own controls reach. There is no second surface for
+   news, so nothing floats in a corner to become a stale pointer target. */
 import { el } from "./widget-elements.js";
 import { afterScript } from "./rendering.js";
 
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
 
-// How long a notice holds the status line before the line's own words come back: long
+// How long a notice holds its seat before the seat's own words come back: long
 // enough to read a recorded acknowledgement, short enough that the state behind it is
 // never far away.
 const NOTICE_MS = 4000;
@@ -34,9 +33,8 @@ const noticePresenters = new Set();
 export const noticeReading = () => noticePresentation;
 export const noticeVisible = () => noticePresentation.visible;
 
-// Each seat that can draw the notice, the bottom status and the banner's status words,
-// registers one synchronous invalidation door, and the stylesheet shows the notice in
-// one of them. A notice acknowledges a gesture before its caller returns; routing this
+// The seat that draws the notice registers one synchronous invalidation door. A notice
+// acknowledges a gesture before its caller returns; routing this
 // through the shared frame repaint would turn that same-turn contract into eventual
 // feedback. Taking a notice down acknowledges nothing, so it is drawn at the end of the
 // turn's script, still before paint: a gesture that takes one notice down and puts the
@@ -66,8 +64,8 @@ export function announce(msg) {
 }
 
 // The acknowledgement of a gesture ("Moved to Done — sent"), an arrival ("Updated
-// to v3"), a refusal ("Nothing to send — the box is empty"): the quiet status at the page
-// foot. A sentence that is also a button for four seconds is a target
+// to v3"), a refusal ("Nothing to send — the box is empty"): the quiet words in the
+// panel's seat. A sentence that is also a button for four seconds is a target
 // the user cannot learn.
 function showNotice(msg, background = null) {
   presentNotice(msg, true, Boolean(background));
@@ -81,7 +79,7 @@ function showNotice(msg, background = null) {
   }, NOTICE_MS);
 }
 
-// A producer may retire a deferred assertion before it reaches the status line.
+// A producer may retire a deferred assertion before it reaches the seat.
 // Skip it without spending a visible interval, then take the next queued group.
 function showBackground(entry) {
   while (entry) {

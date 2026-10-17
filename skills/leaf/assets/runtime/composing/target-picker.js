@@ -16,7 +16,7 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { bannerFoot, shownBox } from "../geometry.js";
+import { shownBox } from "../geometry.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
@@ -48,7 +48,6 @@ import { beginWalk, walkPosition } from "../walk-position.js";
 
 import {
   allButCommandReference,
-  coveringAuxiliarySurface,
   pageCommand,
   pageScope,
 } from "../keyboard/register.js";
@@ -118,8 +117,7 @@ export function createTargetPicker({
   readTargets,
   armChanged,
 }) {
-  const canChoose = () =>
-    anchoringIsReady() && !coveringAuxiliarySurface() && !pointerModeActive();
+  const canChoose = () => anchoringIsReady() && !pointerModeActive();
 
   let pickerOpen = false;
   let pageSearchOpen = false;
@@ -296,9 +294,8 @@ export function createTargetPicker({
   }
 
   function startingMatch(found) {
-    const top = bannerFoot();
     const next = found.findIndex(
-      (segments) => rangeOf(segments).getBoundingClientRect().bottom > top,
+      (segments) => rangeOf(segments).getBoundingClientRect().bottom > 0,
     );
     return next === -1 ? 0 : next;
   }
@@ -529,7 +526,6 @@ export function createTargetPicker({
           targetShown(target) ? targetBounds(target, reading) : null,
         ])
         .filter(([, rect]) => rect);
-      const top = bannerFoot();
       return seated.map(([target, rect]) => {
         const steps = [...target.code];
         return {
@@ -538,7 +534,7 @@ export function createTargetPicker({
             key: hintRenderKey(hintElement(target)),
             className: `lf-key-badge lf-key-hint lf-target-picker-hint${
               target === current ? " lf-current" : ""
-            }${rect.clippedTop || rect.top < top ? " lf-in" : ""}`,
+            }${rect.clippedTop || rect.top < 0 ? " lf-in" : ""}`,
             hintCode: target.code,
             sequence: keySequenceModel(
               steps,
@@ -550,7 +546,7 @@ export function createTargetPicker({
           // Control keys sit just outside their own upper-left corner. Owner keys
           // stay before the owner; neither route writes a key into its target.
           left: rect.left,
-          top: Math.max(top, rect.top),
+          top: Math.max(0, rect.top),
         };
       });
     },
@@ -564,8 +560,8 @@ export function createTargetPicker({
     chrome: hintChrome,
   });
 
-  // A mark for each box the match's words take, while a covering surface leaves any of
-  // it in sight, standing over what holds the words and carried by what carries them
+  // A mark for each box the match's words take, while any of it is in sight, standing
+  // over what holds the words and carried by what carries them
   // (`anchorFor`).
   function paintSearchMatches() {
     const segments = matches[active];

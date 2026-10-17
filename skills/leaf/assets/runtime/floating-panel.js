@@ -1,10 +1,9 @@
-/* The floating panel: Leaf's chrome as one box hovering over the foot of the page, in
- * place of the banner and the bottom bar. It is another presentation of what the banner, the bottom
- * bar, Threads and the On panel already own, so it reads their readings and calls their
- * commands: the status (`statusReading`), the toolbar's rows (`bannerRows`), the threads
- * (`readThreads`), the queues (`readQueues`), the versions (`versionPicker`), the
- * drafts (drafts.js) and the passing notices (notifications.js). It decides only how
- * they are shown.
+/* The floating panel: Leaf's chrome, as one box hovering over the foot of the page. It
+ * presents what other owners hold, so it reads their readings and calls their commands:
+ * the status and approval (page-status.js), the page's controls (`pageControls`,
+ * page-controls.js), the threads (`readThreads`), the queues (`readQueues`), the
+ * versions (`versionPicker`), the drafts (drafts.js) and the passing notices
+ * (notifications.js). It decides only how they are shown.
  *
  * The box has three sizes, and which it stands at follows what the user does, so no
  * setting chooses it:
@@ -23,7 +22,7 @@
  *   not miss, such as a failed save or reading an older version, tinted by its tone and
  *   with at most one press (`ROW_NOTICES`); the field gives it room, so the marks keep
  *   their seats. The empty
- *   field says what the agent is doing or wants, in the banner's own words
+ *   field says what the agent is doing or wants, in the status's words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a thread it says whose turn it is. A status that reports reads dimmer
  *   than anything written, and while the agent works it carries the one sheen that marks
@@ -79,7 +78,7 @@
  * its place with a "‹ Menu /" crumb at its head, which still moves the user's eye from
  * the menu to the panel's top. A
  * keyboard's convenience for where the reader stands, such as Resume writing, stands
- * under Navigate only where no keyboard is there to reach it (banner-toolbar.js, the
+ * under Navigate only where no keyboard is there to reach it (page-controls.js, the
  * `keys` group). The field the user clicks in is the field they write in: a page
  * comment where no thread is open, a reply where one is: the reply box every view of a
  * thread draws (thread/replies.js), with its ↑ to the user's last message, which Leaf's
@@ -111,13 +110,13 @@ import {
   approve,
   registerApprovalPresentation,
   statusReading,
-} from "./banner.js";
+} from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageRung } from "./keyboard/register.js";
 import { advertisesKeys, rowArrows } from "./keyboard/bindings.js";
 import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.js";
-import { bannerRows, watchBannerRows } from "./banner-toolbar.js";
+import { pageControls, watchPageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
@@ -155,7 +154,7 @@ import { move } from "./dom-move.js";
 import {
   registerStatusContextPresentation,
   statusContextReading,
-} from "./keyboard/shortcut-bar.js";
+} from "./keyboard/status-context.js";
 import { reducedMotion } from "./motion.js";
 import { pagePresented } from "./page-paint.js";
 import { onReadingInterrupted, readingIsContinuous } from "./reading-continuity.js";
@@ -195,24 +194,20 @@ const FADE_MS = 90;
 // through each other.
 const OUT_MS = 60;
 
-// The menu's groups, each a list of the toolbar rows declaring it, in the menu's place.
+// The menu's groups, each a list of the page's controls declaring it, in the menu's place.
 const GROUPS = Object.freeze({
   navigate: "Navigate",
   annotate: "Annotations",
   about: "About this page",
 });
-// Rows the panel draws itself rather than pressing the native control: Threads, On and
-// All pages as views, Versions as a list in the menu's place.
-const OWN_VIEWS = Object.freeze(["threads", "queue", "leaves", "versions"]);
-// Rows held elsewhere, so the menu and its groups leave them out: by the panel's row or
-// its views, or, for picking an element to comment on, by the page itself, where
-// selecting words or pressing `s` already starts it.
+// Rows the panel opens itself: All pages as a view, Versions as a list in the menu's
+// place.
+const OWN_VIEWS = Object.freeze(["leaves", "versions"]);
+// Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot,
+// or, for picking an element to comment on, by the page itself, where selecting words
+// or pressing `s` already starts it.
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze([
-  "threads",
-  "queue",
-  "page-comment",
-  "approval",
   "keyboard",
   `command:${FOLD}`,
   "command:target.picker.open",
@@ -343,10 +338,10 @@ export function createFloatingPanel({
     keeps(host, "data-corner", near ? "" : null);
   });
   host.addEventListener("pointerleave", () => keeps(host, "data-corner", null));
-  // The row stands over the window's foot as the bottom bar did, so what the page
-  // reveals stands clear of it. A view opened above it is itself read, and stands over
-  // the page only while it is used, so it leaves the page's room alone; but what it
-  // stands over is hidden while it does, as under a side panel (`declareOccluder`).
+  // The row stands over the window's foot, so what the page reveals stands clear of it.
+  // A view opened above it is itself read, and stands over the page only while it is
+  // used, so it leaves the page's room alone; but what it stands over is hidden while it
+  // does (`declareOccluder`).
   declareWindowChrome(() => {
     const box = row.getBoundingClientRect();
     return box.width > 0 && box.height > 0 ? [box] : [];
@@ -438,7 +433,7 @@ export function createFloatingPanel({
                 input_id: part.source.item,
                 reply_id: part.source.event_id,
                 reply_kind: "work",
-                presentation_kind: "banner_words",
+                presentation_kind: "status_words",
                 surface: "panel",
               })
             : null;
@@ -470,7 +465,7 @@ export function createFloatingPanel({
   // What the empty field says, and whose reading it is (`says`): once the caret is in
   // a field that takes words, where they go; a passing notice while one stands; a
   // resolved thread's way back; else on the page what the agent is doing or wants, in
-  // the banner's words, and in a thread whose turn it is.
+  // the status's words, and in a thread whose turn it is.
   function fieldReading(key, input) {
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
@@ -642,7 +637,7 @@ export function createFloatingPanel({
       .filter((word) => word && word !== said)
       .join(" · ");
   };
-  const rows = () => bannerRows();
+  const rows = () => pageControls();
 
   // ---------- navigation ----------
   const routeKey = (route) =>
@@ -718,8 +713,7 @@ export function createFloatingPanel({
     caretToField = true;
     clearRow();
   }
-  // Resolving a thread opened from Threads moves the user on, as the banner's Threads
-  // panel does (thread-card.js, `#prepareLanding`): to the open thread after it, or
+  // Resolving a thread opened from Threads moves the user on: to the open thread after it, or
   // before it at the end, standing on its view so `r`, `t` and Escape go on from there;
   // or, with none left, back to the list. A thread opened from elsewhere goes back to
   // where it came from. Taking the resolve back, or the log refusing it, stands the
@@ -1325,7 +1319,7 @@ export function createFloatingPanel({
   function rootTemplate() {
     const all = rows();
     // The panel's own views lead, in the order the user reaches for them; the rest of
-    // the page's rows follow in the toolbar's order.
+    // the page's rows follow in their rank's order.
     const lead = OWN_VIEWS;
     const page = all
       .filter((entry) => groupOf(entry) === "page" && listed(entry))
@@ -1340,10 +1334,10 @@ export function createFloatingPanel({
       all.some((entry) => groupOf(entry) === group && listed(entry)),
     );
     // The state is said once: in a word, over its one line, and under that only what
-    // the banner's disclosure adds to the line (`statusModel`, `adds`), since the menu
-    // is reached by pointer, key and finger alike.
+    // the status adds to the line (`statusModel`, `adds`), since the menu is reached by
+    // pointer, key and finger alike.
     const { tone, summary, summaryParts, adds, addsParts, publication } = status();
-    // A published page's introduction keeps its links, as the banner's does.
+    // A published page's introduction keeps its links.
     const explains = publication
       ? html`${publication.copy}${
             publication.examplesUrl
@@ -1817,7 +1811,7 @@ export function createFloatingPanel({
     seatHeights.clear();
     return true;
   };
-  // The On me door, as the mark and the banner's control press it: the view on the
+  // The On me door, as the mark and `g M` press it: the view on the
   // user's list, turned to it where the view shows the agent's, else opened or closed.
   function openOnMe() {
     const turned = chooseQueueTab("you");
@@ -1868,8 +1862,7 @@ export function createFloatingPanel({
     const said = message
       ? ""
       : asking
-        ? messageReading(asking, { panel: false, reactions: [], workflows: [] }).body
-            .plainText
+        ? messageReading(asking, { reactions: [], workflows: [] }).body.plainText
         : ask?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
@@ -1985,8 +1978,8 @@ export function createFloatingPanel({
     </section>`;
   }
 
-  // The version's approval is answered here, in the banner control's place: arriving at
-  // it, as `m` and an On panel row do, opens this view on its card and stands on its
+  // The version's approval is answered here: arriving at it, as `m` and an On me row
+  // do, opens this view on its card and stands on its
   // Approve, or once it is answered on its Undo, or the card itself.
   const approvalControl = () => {
     const card = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
@@ -2510,7 +2503,7 @@ export function createFloatingPanel({
 
     // The next step of what the user is doing now, such as leaving Draw mode or
     // commenting on the words a finger selected, stands in the counts' place while that
-    // gesture holds it, as it stands on the banner's row (banner-toolbar.js, `gesture`).
+    // gesture holds it (page-controls.js, `gesture`).
     const steps = rows().filter((entry) => entry.gesture);
     keeps(quick, "data-steps", steps.length ? "" : null);
     if (steps.length) {
@@ -2744,7 +2737,7 @@ export function createFloatingPanel({
       title: `close ${titleOf(trail.at(-1)).toLowerCase()}`,
       description: `Close ${titleOf(trail.at(-1))}`,
       // Putting a view away returns the user to the page, where the view's thread or
-      // list took them from, as closing the banner's Threads panel does.
+      // list took them from.
       out: () => {
         close();
         letGo();
@@ -3010,11 +3003,15 @@ export function createFloatingPanel({
     });
     // Upgrade turns the status to its loading words without a publication.
     document.addEventListener(UPGRADE, () => paint(), { once: true });
-    registerApprovalPresentation({ target: approvalControl, arrive: arriveAtApproval });
+    registerApprovalPresentation({
+      target: approvalControl,
+      arrive: arriveAtApproval,
+      repaint: () => paint(),
+    });
     // A passing notice is said in the empty field, the one seat this chrome gives it.
     registerNoticePresentation(() => paint());
     registerStatusContextPresentation(() => paint());
-    watchBannerRows(() => paint());
+    watchPageControls(() => paint());
     // A comparison started or stopped changes the versions without a publication.
     versionPicker.watch(() => paint());
     document.addEventListener("lf-chrome-preference", () => paint());
@@ -3040,5 +3037,8 @@ export function createFloatingPanel({
     // `finishPlacement`).
     responseHome: responseSeat,
     revealResponse: clearRow,
+    // Where the reader stood before stepping into the panel, while they are in it
+    // (navigation.js, `currentItem`).
+    heldPlace: () => (standingIn(host) ? heldStanding : null),
   };
 }

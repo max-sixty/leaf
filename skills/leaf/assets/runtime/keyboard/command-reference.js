@@ -21,7 +21,10 @@
 
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
-   the reference to reopen with an explanation. */
+   the reference to reopen with an explanation.
+
+   `?` opens it from anywhere a key reaches, and the page's controls carry the same
+   door as their Keyboard shortcuts row (page-controls.js), for a pointer. */
 import {
   showNativeLayer,
   closeNativeLayer,
@@ -70,7 +73,8 @@ import {
 import { closeControl, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { renderedOrder } from "../shadow.js";
-import { ELEMENTS, pageScope, pageScopes } from "./register.js";
+import { ELEMENTS, pageCommand, pageScope, pageScopes } from "./register.js";
+import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
   merge,
@@ -81,7 +85,7 @@ import {
 } from "./scopes.js";
 import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
-import { availableCommandRoutes, userIn } from "./dispatch.js";
+import { availableCommandRoutes, executeCommand, userIn } from "./dispatch.js";
 import { reachScrollers } from "../reach.js";
 import { registerReadingRegion } from "../reading-regions.js";
 
@@ -111,24 +115,8 @@ const commandReferenceClose = closeControl({
   className: "lf-command-reference-close",
 });
 
-// What the user is sent back to when the reference closes. The shortcut shelf is the one
-// surface that can stand behind it, and it declares itself here rather than being read from
-// here: the bar that owns the shelf already reads this module, so the edge only goes one
-// way. The close control's name and its Escape row read this one answer, so the button and
-// the key cannot promise different destinations.
-let expandedBarBehindReference = () => false;
-export const declareExpandedBarBehindReference = (reading) => {
-  expandedBarBehindReference = reading;
-};
-
-function presentCommandReferenceClose() {
-  const title = expandedBarBehindReference()
-    ? "Back to more shortcuts"
-    : "Close the command reference";
-  keeps(commandReferenceClose, "data-lf-key-title", title);
-  keeps(commandReferenceClose, "aria-label", title);
-}
-presentCommandReferenceClose();
+commandReferenceClose.dataset.lfKeyTitle = "Close the command reference";
+commandReferenceClose.setAttribute("aria-label", "Close the command reference");
 
 // Every scope the page has, gathered by title, for the reference. This is not the current
 // stack: the catalog answers what the user could do here, so it includes a card grip's
@@ -794,7 +782,6 @@ function commandReferenceTemplate() {
 
 function presentCommandReference() {
   updateCommandReferenceView();
-  presentCommandReferenceClose();
   render(commandReferenceTemplate(), commandReferenceDialog);
   // The combobox belongs to the native editor, not its component host. Element
   // references keep its result relationships valid across the editor's shadow root.
@@ -890,9 +877,8 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // may have closed under the user while the reference was up — which is where a user
   // who pressed `?` from the page was all along. A closed dialog's search box keeps focus
   // until the browser's next focus fixup, so the repaint below would read the user as
-  // still typing there, and the shortcut bar would keep the More it hands back to
-  // standing down: the close releases it with the dialog, and hands the user back once
-  // its repaint has drawn that More again.
+  // still typing there: the close releases it with the dialog, and hands the user back
+  // once its repaint has run.
   if (!open) {
     stopReferenceReading?.();
     stopReferenceReading = null;
@@ -1038,17 +1024,40 @@ pageScope("command reference", {
     {
       id: "command.reference.close",
       keys: ["Escape"],
-      description: () =>
-        expandedBarBehindReference()
-          ? "Back to more keyboard shortcuts"
-          : "Close the command reference",
-      title: () =>
-        expandedBarBehindReference()
-          ? "back to more shortcuts"
-          : "close command reference",
+      description: "Close the command reference",
+      title: "close command reference",
       control: () => commandReferenceClose,
       runFromCommandReference: false,
       run: () => closeCommandReference(),
     },
   ],
+});
+
+// What a press must end before the reference opens over it, such as an armed Go-to
+// sequence or react mode, which boot supplies (`mountCommandReference`).
+let closeInteractions = () => {};
+export function mountCommandReference({ beforeOpening }) {
+  closeInteractions = beforeOpening;
+}
+const openReference = () => {
+  closeInteractions();
+  openCommandReference((id) => executeCommand(id));
+};
+
+// `?`, from wherever a key reaches.
+pageCommand({
+  id: "command.reference.open",
+  touch: false,
+  runFromCommandReference: false,
+  keys: ["?"],
+  title: "Command reference",
+  run: openReference,
+});
+registerPageControl({
+  key: "keyboard",
+  rank: PAGE_CONTROL_RANK.keyboard,
+  label: "Keyboard shortcuts",
+  shortcut: ["?"],
+  group: "page",
+  press: openReference,
 });

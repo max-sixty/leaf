@@ -21,12 +21,9 @@
    (`doors`, floating-panel.js), as its marks and menu rows open them. Completing one that
    opens a surface leaves the user in that surface, whose own Escape step is the way out
    of it — the same step for a surface the user already had, and none of this sequence's
-   to declare; completing the mnemonic again closes it. These destinations remain available when an auxiliary surface
-   covers the page: the sequence belongs to that modal surface while the inert document's
-   ordinary scopes remain unavailable.
+   to declare; completing the mnemonic again closes it.
 
-   Named destinations contribute complete command rows, including native controls whose
-   activation stays with their own owner. Each has an unbound semantic route for the
+   Named destinations contribute complete command rows. Each has an unbound semantic route for the
    command reference and a prefixed keyboard presentation; arming the sequence changes
    which keys reach it, not whether its capability exists. Another owner contributes a
    complete row through `directDestinations`. `TARGET_KINDS`
@@ -35,12 +32,9 @@
    activation elements collapse to one candidate, while distinct overlapping actions remain
    distinct.
 
-   Arming paints `data-lf-go-to-active` on the body and puts the same overlay hint shape on named
-   banner destinations and visible page targets. Named destinations show the complete
-   sequence and stay put through a scroll, since they stand on fixed chrome; the session
-   takes them as its fixed chips and spreads the generated ones around them. Generated
-   targets show only their suffix; the shortcut bar and reference retain that shared
-   prefix. A moving page target cannot carry a readable opaque route, so the generated
+   Arming paints `data-lf-go-to-active` on the body and puts an overlay hint on each
+   visible page target. Generated targets show only their suffix; the reference retains
+   that shared prefix. A moving page target cannot carry a readable opaque route, so the generated
    part of the map is withheld until the scene settles. Escape removes one typed letter,
    then a filter, then closes the sequence. A letter from the hint alphabet is consumed
    even when a scene refresh made it invalid, with explicit feedback instead of an
@@ -49,9 +43,7 @@
 
    A press may deliberately leave layers standing while moving focus outside them. That is
    not an Escape rung, because it gives no layer back. The Go-to address states what
-   remains open: `g p` returns to the document and keeps beside-page surfaces open,
-   including panel narrowing. A surface covering the document cannot make that promise,
-   so its ordinary Escape rung remains the route back.
+   remains open: `g p` returns to the document and keeps the panel's open view.
 
    A destination declares no way back. `g T`, `g M` and `g L` may exchange one of the
    panel's views for another, and the surface the user ends in owns the one step that
@@ -80,10 +72,10 @@ import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import { mapButton } from "../page-map-dialog.js";
 
 import { claimsEsc, saying } from "./scopes.js";
 import { repaint } from "../repaint.js";
+import { pageScroller } from "../scrolling.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
@@ -94,8 +86,8 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
 export function createGoToSequence({
   doors,
-  elements: { banner },
   hintChrome,
+  openPageMap,
   directDestinations,
   scrollToElement,
   leavesOffered,
@@ -104,9 +96,7 @@ export function createGoToSequence({
   visibleMarginEntries,
   glideTo,
   placeThreadEdge,
-  seenScroller,
   stopGlide,
-  coveringAuxiliarySurface,
 }) {
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
@@ -200,7 +190,7 @@ export function createGoToSequence({
       keys: ["Shift+p"],
       description: "Open the Page Map dialog",
       title: "Page Map dialog",
-      control: () => mapButton,
+      run: () => openPageMap(),
       when: () => true,
     },
   ];
@@ -389,39 +379,6 @@ export function createGoToSequence({
     >
   `;
 
-  // Named destinations in the banner use the same detached chip and key sequence as page
-  // targets. The shared placement pass centers the hint in the open space below and keeps
-  // it clear of its control if the viewport forces it elsewhere. Controls folded into the
-  // closed overflow menu have no visible place to label; their routes remain in the key
-  // line and complete reference.
-  const directDestinationHint = (row) => {
-    const control = word(row.control);
-    if (
-      !control ||
-      !banner.contains(control) ||
-      !control.checkVisibility() ||
-      !live(row) ||
-      bindings(row).length === 0
-    )
-      return null;
-    const box = control.getBoundingClientRect();
-    if (!box.width || !box.height) return null;
-    const steps = [...sequencePrefix(), labelOf(row)].filter(Boolean);
-    const model = Object.freeze({
-      key: hintRenderKey(row),
-      className: "lf-key-badge lf-key-hint lf-go-to-hint",
-      hintCode: null,
-      kind: null,
-      marginEntryKey: null,
-      targetId: null,
-      commandId: row.id,
-      address: steps.join(" "),
-      sequence: keySequenceModel(steps, progressStates(steps, sequenceKeys())),
-    });
-    return { model, target: box, placement: "below", left: box.left, top: box.top };
-  };
-  const directDestinationHints = () =>
-    GO_TO_SCOPE.rows.map(directDestinationHint).filter(Boolean);
   // The armed window owns every key wherever focus sits. The shared hint session holds
   // the map, the typed prefix, the audible walk, and the scroll freeze; this owner holds
   // only which kind filter the user has asked for.
@@ -465,14 +422,13 @@ export function createGoToSequence({
       all: "All go-to hints.",
     },
     chrome: hintChrome,
-    extras: directDestinationHints,
   });
 
   function setGoToSequence(on) {
     // Armed over a control that has claimed Escape, one press would have two owners — the
     // control's rung and the sequence's cancel — so the sequence refuses to arm there at all.
     if (on && !goToActive && claimsEsc(focused())) return;
-    if (on) stopGlide(seenScroller());
+    if (on) stopGlide(pageScroller);
     goToActive = on;
     // The sequence itself reveals page navigation such as a roomy contents map. Publish that
     // state before taking the visible-scene reading so those routes enter the same map as
@@ -522,7 +478,7 @@ export function createGoToSequence({
   const GO_TO_SCOPE = {
     title: "Go to",
     escape: "inner",
-    root: () => coveringAuxiliarySurface() ?? document,
+    root: () => document,
     reach: "with g armed",
     sequence: sequenceKeys,
     sequencePrefix,
@@ -575,12 +531,11 @@ export function createGoToSequence({
       },
       {
         id: "navigation.page.focus",
-        // This changes focus without unwinding an open surface. A covering surface
-        // makes the page inert, so its Escape rung remains the route back.
+        // This changes focus without unwinding an open surface.
         keys: PAGE_RETURN_KEYS,
         description: "Focus the page",
         title: "page",
-        when: () => atGoToTargets() && !coveringAuxiliarySurface(),
+        when: () => atGoToTargets(),
         run: () => {
           setGoToSequence(false);
           letGo();
@@ -668,7 +623,7 @@ export function createGoToSequence({
         when: atGoToTargets,
         run: (binding) => {
           setGoToSequence(false); // before the travel, so the arrival's own scrolling paints nothing
-          const box = seenScroller();
+          const box = pageScroller;
           glideTo(box, binding === "g" ? 0 : box.scrollHeight);
         },
       },
@@ -709,9 +664,6 @@ export function createGoToSequence({
     keys: ["g"],
     description: "Show hints for targets, panels, and page edges",
     title: "go to",
-    // The sequence is still a route out of a covering auxiliary surface; its own scope
-    // moves its root to that surface while armed.
-    covering: true,
     // No `when`: the window this press stands up always holds at least the page's edges.
     run: () => setGoToSequence(true),
   };
@@ -728,7 +680,6 @@ export function createGoToSequence({
       ...destination,
       keys: [],
       touch: destination.touch ?? false,
-      covering: true,
       lineWhen: () => false,
     });
 

@@ -10,4 +10,12 @@
 export const chromeRoot = document.createElement("div");
 chromeRoot.className = "lf-chrome";
 
+// The foreground: the floating panel, the hint layers and the chrome's own dialogs and
+// popovers, over the margin's rows. It is an open, nonmodal dialog, so the native layers
+// opened inside it join the browser's own layer order. Opened by its markup rather than
+// `show()`, it performs no dialog focusing steps, so mounting the chrome borrows no
+// author's focus.
 export const chromeForeground = document.createElement("dialog");
+chromeForeground.className = "lf-ui lf-foreground";
+chromeForeground.setAttribute("open", "");
+chromeForeground.setAttribute("role", "presentation");

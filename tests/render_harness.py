@@ -1683,7 +1683,7 @@ def panel_menu(page, at=None):
     The menu holds the rows it opened with while it stands (floating-panel.js,
     `holdMenu`), a row news took away staying disabled and one news offered waiting for
     the next opening, so a reading of it is a reading of the moment it opened. A row's
-    `data-row` is its key among the page's control rows (banner-toolbar.js, `row`)."""
+    `data-row` is its key among the page's control rows (page-controls.js)."""
     host = page.locator(PANEL)
     leaf = page.locator(".lf-fp-leaf")
     menu = page.locator(".lf-fp-menu")

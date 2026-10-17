@@ -856,7 +856,6 @@ sizes.observe(pageScroller);
 addEventListener("resize", () => nextRender(measureRegions), { passive: true });
 
 export {
-  serverNow,
   saidNow,
   clockValue,
   readingPaint,

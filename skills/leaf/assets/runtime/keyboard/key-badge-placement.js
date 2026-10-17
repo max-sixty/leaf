@@ -22,7 +22,6 @@
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
 import {
-  bannerFoot,
   layoutWindow,
   windowChromeBoxes,
   shownParts,
@@ -51,12 +50,11 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
 
 export function keyBadgePlacement() {
   const clips = new Map();
-  const covered = bannerFoot();
-  const room = { ...layoutWindow(), top: covered };
+  const room = layoutWindow();
   const chrome = windowChromeBoxes();
   const kept = [...chrome];
 
-  // What the user can see of a box: the window, less the banner standing over its top.
+  // What the user can see of a box: the window.
   //
   // Chrome at the foot stays in it, so a map's members are never decided by it: the bar
   // states the armed map's own keys and changes width as the user filters them, so a map
@@ -159,7 +157,7 @@ export function keyBadgePlacement() {
     return (aims.length ? aims : [box]).some((aim) => {
       const onTop = elementFromPointAcross(
         clamp((aim.left + aim.right) / 2, 0, room.right - 1),
-        clamp((aim.top + aim.bottom) / 2, covered, room.bottom - 1),
+        clamp((aim.top + aim.bottom) / 2, room.top, room.bottom - 1),
       );
       if (!member) return !inChrome(onTop);
       return exposure === "self"
@@ -231,7 +229,7 @@ export function keyBadgePlacement() {
         /** @type {DOMRect & {held?: boolean}} */
         const place = new DOMRect(
           clamp(left, 0, right - start.width),
-          clamp(top, covered, bottom - start.height),
+          clamp(top, room.top, bottom - start.height),
           start.width,
           start.height,
         );

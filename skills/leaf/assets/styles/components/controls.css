@@ -507,7 +507,7 @@ svg[data-lf-icon] {
  * widest line in its own face, with no script. The words take no part in that width:
  * they fill the room and are cut past it with an ellipsis, so the control never widens
  * when its words change. Rejected: the room as a least width, which let a long label
- * widen its control and shift the banner beside it, too often and in too many places
+ * widen its control and shift the controls beside it, too often and in too many places
  * to oversee (the user's decision, 2026-10-14). Cut words stay whole in the element's
  * text and accessible name; generated content is in neither. The room wraps at its
  * spaces, so it never holds the element wider than its container. The words' line is
@@ -546,9 +546,8 @@ svg[data-lf-icon] {
 :is(.lf-btn, .button).primary:not(:disabled, [aria-disabled="true"]):hover {
   background: var(--accent-tint);
 }
-/* Two selectors, two mechanisms, one look: the platform's own on the banner's real
-   buttons, and the attribute wireInput sets, which is the only one a span press can
-   wear. */
+/* Two selectors, two mechanisms, one look: the platform's own on a real button, and the
+   attribute wireInput sets, which is the only one a span press can wear. */
 :is(.lf-btn, .button):disabled,
 :is(.lf-btn, .button)[aria-disabled="true"] {
   opacity: 0.55;

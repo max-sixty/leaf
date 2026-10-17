@@ -17,7 +17,6 @@
 import { bindings, commandRoutes, routedCommand, spell, word } from "./bindings.js";
 import { availableCommandRoutes } from "./dispatch.js";
 import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
-import { coveringAuxiliarySurface } from "./register.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
 import { renderedUnder } from "../shadow.js";
@@ -219,12 +218,8 @@ export function createCommandHints({ presentedControl }) {
       seats.place([]);
       return;
     }
-    // A covering auxiliary surface does not invalidate the commands or their accessible
-    // shortcuts, but it does hide the page controls outside it that binding-badge faces
-    // claim to label. What a surface standing over the page hides is shownRect's to say,
-    // which the placement below reads.
-    const covering = coveringAuxiliarySurface();
-    const covered = (control) => covering && !renderedUnder(control, covering);
+    // What a surface standing over the page hides is shownRect's to say, which the
+    // placement below reads.
     const placement = keyBadgePlacement();
     const bindingBadgeClaims = new Map();
     for (const { bindingBadge } of visualRoutes)
@@ -248,7 +243,6 @@ export function createCommandHints({ presentedControl }) {
       // A control the window does not show cannot show its face either, and wearing
       // the face only to measure it away would write it twice on every scroll.
       if (
-        covered(control) ||
         !bindingBadge?.isConnected ||
         bindingBadgeClaims.get(bindingBadge) !== 1 ||
         !placement.visibleBounds(control)
@@ -282,7 +276,6 @@ export function createCommandHints({ presentedControl }) {
 
     const chips = [];
     for (const { binding, control, bindingBadge } of visualRoutes) {
-      if (covered(control)) continue;
       if (bindingBadge && worn.has(bindingBadge)) continue;
       const presented = presentedControl(control) ?? control;
       if (!presented.checkVisibility()) continue;

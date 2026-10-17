@@ -5,8 +5,8 @@
  * passage inside one, or a part of a widget, such as a projected datum or a visual
  * part. A thread travels to its anchor's place, a fragment link to its element, an ask
  * to its own arrival region, and a module's `navigateToDatum` to the part its
- * reference names. Every route shares three steps: `revealAddressed` draws the part,
- * `reveal` opens what holds it, and `clearFor` clears the surface covering it. Each
+ * reference names. Every route shares two steps: `revealAddressed` draws the part,
+ * and `reveal` opens what holds it. Each
  * route says where it lands, what takes focus and how to scroll; `arrive` then does
  * the reveal, painting, focus and scrolling, and no route does them itself. When the
  * reveal replaces a visible view, the destination lands at once instead of scrolling
@@ -38,7 +38,6 @@ import {
 } from "./anchor-resolution.js";
 import {
   clippedPlace,
-  clipsPast,
   landingBand,
   placeBox,
   placeHolder,
@@ -72,7 +71,6 @@ export function scrollToFragment(element) {
 
 /** @param {{
  *   anchors: any,
- *   surfaces: any,
  *   refreshThread: () => unknown,
  *   focusForNavigation: any,
  *   threadFocusTarget: any,
@@ -80,7 +78,6 @@ export function scrollToFragment(element) {
  * }} travel */
 export function createAnchorTravel({
   anchors,
-  surfaces,
   refreshThread,
   focusForNavigation,
   threadFocusTarget,
@@ -124,14 +121,10 @@ export function createAnchorTravel({
   // Resolve fresh after exposure, presentation and focus. A replaced view lands
   // immediately so it never paints at the old view's offset; final placement alone
   // commits the prepared departure, after the destination still stands through focus.
-  async function arrive(
-    resolve,
-    { intent, present = null, keep = false, departure = null },
-  ) {
+  async function arrive(resolve, { intent, present = null, departure = null }) {
     const first = resolve();
     const holder = first && placeHolder(first.where);
     if (!holder || !intent()) return false;
-    if (!keep) intent.handoff(() => surfaces.clearFor(holder));
     const disclosures = [holder, ...(first.reveal ?? [])].map((target) =>
       reveal(target, intent),
     );
@@ -266,8 +259,8 @@ export function createAnchorTravel({
   // own (an ask's arrival region), built on the reading it is handed. Clearing a surface
   // can take the focus out of it, so the caller's retained `intent` hands the gesture
   // over to where that leaves the user rather than reading the move as a newer one.
-  /** @param {{landing?: () => unknown, url?: URL, keep?: boolean, intent: any}} trip */
-  function prepareTrip({ landing = null, url, keep = false, intent }) {
+  /** @param {{landing?: () => unknown, url?: URL, intent: any}} trip */
+  function prepareTrip({ landing = null, url, intent }) {
     const write = prepareEntry();
     const continuing = landing && stillLanded();
     const arrival = landing && {
@@ -276,14 +269,7 @@ export function createAnchorTravel({
     };
     let moving;
     return {
-      plan(where, { there = (readable) => readable(where), required = [] } = {}) {
-        // A compound destination promises its answering or editing surface as well
-        // as the context the reader lands on. Apply the same clearance policy to
-        // each; a broad context can remain visible while its narrow control is hidden.
-        if (where && !keep)
-          intent.handoff(() => {
-            for (const place of new Set([where, ...required])) surfaces.clearFor(place);
-          });
+      plan(where, { there = (readable) => readable(where) } = {}) {
         moving = !(where && there(readableDestination));
         return moving;
       },
@@ -441,18 +427,12 @@ export function createAnchorTravel({
   }
 
   // A destination's box and what of it the user can see, which is that box less the
-  // window and whatever clips it, or null when none of it shows. The selected surface is
-  // read past: it can be cleared for travel; any other occluder is not.
+  // window and whatever clips it, or null when none of it shows.
   function seenOf(where) {
     const holder = placeHolder(where);
     if (!holder) return null;
     const destination = placeBox(where);
-    const selected = surfaces.selectedSurface();
-    const seen = clippedPlace(
-      where,
-      selected ? clipsPast([selected]) : new Map(),
-      destination,
-    );
+    const seen = clippedPlace(where, new Map(), destination);
     return seen && { holder, destination, seen };
   }
 
@@ -505,10 +485,10 @@ export function createAnchorTravel({
   };
 
   /** @param {string} id
-   * @param {{part?: any, focus?: boolean, keep?: boolean, presented?: any, intent?: any}} [options] */
+   * @param {{part?: any, focus?: boolean, presented?: any, intent?: any}} [options] */
   async function scrollToThread(
     id,
-    { part = null, focus = true, keep = false, presented = null, intent } = {},
+    { part = null, focus = true, presented = null, intent } = {},
   ) {
     const mayArrive = retainTravel(intent);
     const thread = threadNamed(id);
@@ -519,7 +499,7 @@ export function createAnchorTravel({
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     const landing = () => threadDestination(id);
-    const departure = prepareTrip({ landing, keep, intent: mayArrive });
+    const departure = prepareTrip({ landing, intent: mayArrive });
     if (destination || hydrating) departure.plan(destination);
     if (hydrating) {
       const source = sectionOf(anchor);
@@ -558,7 +538,6 @@ export function createAnchorTravel({
           if (presented) await presented;
           if (mayArrive()) await refreshThread();
         },
-        keep,
       },
     );
   }

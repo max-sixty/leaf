@@ -151,7 +151,7 @@ export function createPrimaryReader(
     const candidate = held.prepare(
       {
         threads: collection.threads.map((thread) =>
-          threadReading(thread, "outlet", { ...commands, nativeAuthored: true }, {}),
+          threadReading(thread, "outlet", { ...commands, nativeAuthored: true }),
         ),
       },
       { row: false },
@@ -259,7 +259,7 @@ export function createPrimaryReader(
       let view = views.get(item.identity);
       if (!view) {
         if (item.kind === "thread")
-          view = new ThreadView("outlet", { ...commands, nativeAuthored: true });
+          view = new ThreadView({ ...commands, nativeAuthored: true });
         else if (item.kind === "news") {
           const notice = newsNotice();
           view = { node: notice.node, notice, dispose() {} };
@@ -347,7 +347,6 @@ export function createPrimaryReader(
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {
-            panel: false,
             nativeAuthored: true,
             reactions: message.reactions,
             workflows: message.workflows,

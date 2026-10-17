@@ -1,7 +1,5 @@
 import {
-  dismissBannerControls,
   progressFace,
-  scrollIntoView,
   threadAttention,
   workflowLabel
 } from "./bundle-user-intent.js";
@@ -13,12 +11,10 @@ import {
   excerptWords
 } from "./bundle-passage-facts.js";
 import {
-  closeNativeLayer,
   commandAvailable,
   commandBinding,
   commandRoutes,
   controlAvailabilityOutput,
-  el,
   elementDirective,
   iconElement,
   isCommandScope,
@@ -29,18 +25,13 @@ import {
 } from "./bundle-page-paint.js";
 import {
   afterScript,
-  canPlaceFocus,
   focusDestination,
   focused,
-  inputCount,
-  isNativeLayer,
   keeps
 } from "./bundle-sample-visibility.js";
 import {
   html,
-  nothing,
-  render,
-  repeat
+  render
 } from "./bundle-queued-work.js";
 
 // runtime/contribution-model.js
@@ -908,203 +899,6 @@ function registerContribution({ key, target, source = target, read, activate }) 
   return registration;
 }
 
-// runtime/version-picker.js
-var LATEST_FAILED = "Latest edit couldn't be shown";
-var INITIAL_LATEST = "New page available \u2192 open v999";
-var EMPTY = Object.freeze([]);
-var INITIAL = Object.freeze({
-  picker: Object.freeze({
-    offered: false,
-    token: "Draft",
-    compared: false,
-    news: false,
-    keyTitle: "Draft",
-    ariaLabel: "Draft"
-  }),
-  latest: Object.freeze({
-    disabled: false,
-    keyTitle: "Open the current page",
-    label: INITIAL_LATEST,
-    shown: null
-  }),
-  rows: EMPTY,
-  selection: Object.freeze({
-    base: null,
-    currentRevision: null,
-    on: false,
-    pendingBase: null,
-    baseRevision: null
-  })
-});
-var VersionPickerView = class {
-  #activate = null;
-  #compare = null;
-  #displayedRows = EMPTY;
-  #latest = null;
-  #model = INITIAL;
-  #toggle = null;
-  #openingInput = null;
-  constructor() {
-    this.button = el("button", "lf-btn lf-version");
-    this.menu = el("div", "lf-ui lf-version-menu");
-    this.latestChip = el("button", "lf-ui lf-btn lf-latest-chip");
-    this.menu.id = "lf-versions";
-    this.menu.setAttribute("popover", "auto");
-    this.menu.setAttribute("role", "menu");
-    this.menu.setAttribute("aria-label", "Versions");
-    this.button.setAttribute("popovertarget", this.menu.id);
-    this.menu.addEventListener("beforetoggle", (event) => {
-      if (event.newState === "open") {
-        this.#openingInput = inputCount();
-        dismissBannerControls();
-      }
-    });
-    this.menu.addEventListener("toggle", (event) => {
-      if (event.newState === "open") {
-        const arrival = this.#selectedRow();
-        if (arrival && canPlaceFocus() && inputCount() === this.#openingInput) {
-          focusDestination(arrival, "move");
-          scrollIntoView(arrival, { block: "nearest" });
-        }
-      } else {
-        this.#openingInput = null;
-        this.#displayedRows = this.#model.rows;
-        this.#renderMenu();
-      }
-      this.#toggle?.();
-    });
-    this.latestChip.onclick = () => this.latest();
-    this.present(INITIAL);
-  }
-  configure({ activate, compare, latest, toggle }) {
-    this.#activate = activate;
-    this.#compare = compare;
-    this.#latest = latest;
-    this.#toggle = toggle;
-  }
-  isOpen() {
-    return isNativeLayer(this.menu);
-  }
-  close() {
-    if (this.isOpen()) closeNativeLayer(this.menu);
-  }
-  rows() {
-    return [...this.menu.querySelectorAll(".lf-version-row")];
-  }
-  stops() {
-    return [...this.menu.querySelectorAll("button:not(:disabled)")].filter(
-      (control) => control.getClientRects().length
-    );
-  }
-  atBoundary(end) {
-    return focused() === this.stops().at(end);
-  }
-  #selectedRow() {
-    const { base, currentRevision } = this.#model.selection;
-    return this.rows().find(
-      (row) => base !== null ? row.dataset.lfVersion === String(base) : row.dataset.lfRevision === String(currentRevision)
-    ) ?? this.rows()[0];
-  }
-  numberedRoutes() {
-    return this.rows().map((control) => ({ control, version: +control.dataset.lfVersion })).filter(({ version }) => version >= 1 && version <= 9).sort((left, right) => left.version - right.version).map(({ control, version }) => ({
-      id: `version.open-v${version}`,
-      binding: String(version),
-      title: `open v${version}`,
-      control
-    }));
-  }
-  // The picker's commands, and word of each reading it presents, for another
-  // presentation of the same versions, the floating panel's Versions view, which draws
-  // its own rows from `versionsReading` (version.js).
-  #listeners = /* @__PURE__ */ new Set();
-  watch(listener) {
-    this.#listeners.add(listener);
-    return () => this.#listeners.delete(listener);
-  }
-  activate(entry) {
-    this.#activate?.(entry);
-  }
-  compare(version) {
-    this.#compare?.(version);
-  }
-  latest() {
-    this.#latest?.();
-  }
-  present(model) {
-    this.#model = model;
-    for (const listener of this.#listeners) listener(model);
-    const { picker, latest } = model;
-    if (!picker.offered) this.close();
-    this.button.toggleAttribute("disabled", !picker.offered);
-    keeps(this.button, "aria-haspopup", picker.offered ? "menu" : null);
-    this.button.classList.toggle("on", picker.compared);
-    this.button.toggleAttribute("data-lf-news", picker.news);
-    keeps(this.button, "data-lf-key-title", picker.keyTitle);
-    keeps(this.button, "aria-label", picker.ariaLabel);
-    render(`Showing ${picker.token}`, this.button);
-    this.latestChip.toggleAttribute("disabled", latest.disabled);
-    keeps(this.latestChip, "data-lf-key-title", latest.keyTitle);
-    render(latest.label, this.latestChip);
-    if (!this.isOpen()) this.#displayedRows = model.rows;
-    this.#renderMenu();
-  }
-  #renderMenu() {
-    const { selection } = this.#model;
-    render(
-      html`${repeat(
-        this.#displayedRows,
-        // Draft and stamped destinations can share a revision and remain distinct.
-        (entry) => `${entry.version === null ? "draft" : "version"}:${entry.revision}`,
-        (entry) => {
-          const compared = selection.on && selection.baseRevision !== null && entry.revision >= selection.baseRevision && entry.revision <= selection.currentRevision;
-          const pending = entry.version === selection.pendingBase;
-          return html`
-            <button
-              class=${`lf-version-row${compared ? " lf-compared" : ""}`}
-              role="menuitem"
-              data-lf-revision=${entry.revision}
-              data-lf-version=${entry.version ?? nothing}
-              aria-current=${entry.current ? "true" : nothing}
-              @click=${() => {
-            this.close();
-            this.#activate?.(entry);
-          }}
-            >
-              <span class="lf-version-num">${entry.name}</span>
-              ${entry.note ? html`<span class="lf-version-note">${entry.note}</span>` : nothing}
-            </button>
-            ${entry.comparable ? html`<button
-                    class="lf-version-diff"
-                    role="menuitemcheckbox"
-                    data-lf-version=${entry.version}
-                    aria-label=${`Compare with v${entry.version}`}
-                    title=${`Mark what changed since v${entry.version}`}
-                    aria-checked=${String(
-            pending || selection.on && entry.version === selection.base
-          )}
-                    aria-busy=${pending ? "true" : nothing}
-                    @click=${() => {
-            this.close();
-            this.#compare?.(entry.version);
-          }}
-                  >
-                    Compare
-                  </button>` : nothing}
-          `;
-        }
-      )}`,
-      this.menu
-    );
-  }
-};
-var versionPicker = new VersionPickerView();
-var versionBtn = versionPicker.button;
-var versionMenu = versionPicker.menu;
-var latestChip = versionPicker.latestChip;
-var versionMenuIsOpen = () => versionPicker.isOpen();
-var closeVersionMenu = () => versionPicker.close();
-var latestVersionLabel = ({ failed = false, activeLabel = null } = {}) => failed ? LATEST_FAILED : activeLabel ? `New page available \u2192 open ${activeLabel}` : INITIAL_LATEST;
-
 // runtime/margin-model.js
 var RESTING_MARGIN_ENTRY_BUDGET = 2;
 var TOGGLE = Object.freeze({ icon: "more", label: "More options" });
@@ -1458,12 +1252,5 @@ export {
   focusedOfferOf,
   canFold,
   clusterProjection,
-  marginInventory,
-  versionPicker,
-  versionBtn,
-  versionMenu,
-  latestChip,
-  versionMenuIsOpen,
-  closeVersionMenu,
-  latestVersionLabel
+  marginInventory
 };

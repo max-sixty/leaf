@@ -77,12 +77,7 @@ export class ReplyContinuity {
   }
 
   #visible() {
-    return (
-      this.#owner.isConnected &&
-      (this.#owner.localName !== "details" || this.#owner.open) &&
-      this.#row?.isConnected &&
-      growthIsSeen(this.#row)
-    );
+    return this.#owner.isConnected && this.#row?.isConnected && growthIsSeen(this.#row);
   }
   // `writing` are the boxes the presentation opens, closes or changes the words of, as
   // rewrites do, whose own height changes the extent follows.
@@ -93,11 +88,7 @@ export class ReplyContinuity {
     this.#presenting = writing
       .filter((node) => node.isConnected)
       .map((node) => ({ node, height: node.getBoundingClientRect().height }));
-    const body =
-      this.#owner.localName === "details"
-        ? getComputedStyle(this.#owner, "::details-content")
-        : getComputedStyle(this.#owner);
-    const extent = parseFloat(body.blockSize);
+    const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
     // Natural measurement can briefly clamp a surrounding scroller before the gap
     // settles. Use the shared synchronous place keeper to pay for that reflow only.
     // A floating surface owns its position; correcting the page scroller for growth
@@ -106,7 +97,7 @@ export class ReplyContinuity {
       ? null
       : placeKeeper(scrollerFor(this.#owner), {
           items: ".lf-reply-continuity",
-          identity: (node) => node.dataset.id,
+          identity: (node) => node.dataset.thread,
           preferred: () => this.#owner,
         });
     return { extent, place, held: place?.take({ spans: false }) };
@@ -115,11 +106,7 @@ export class ReplyContinuity {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
     this.#presenting = [];
-    if (
-      !this.#row?.isConnected ||
-      (this.#owner.localName === "details" && !this.#owner.open)
-    )
-      return this.release();
+    if (!this.#row?.isConnected) return this.release();
     if (!this.#visible()) {
       reading?.place?.finish(reading.held);
       return this.#releaseSpace();
@@ -127,10 +114,7 @@ export class ReplyContinuity {
     this.#retainWriting();
     if (reading != null) {
       const { extent, place, held } = reading;
-      const body =
-        this.#owner.localName === "details"
-          ? getComputedStyle(this.#owner, "::details-content")
-          : getComputedStyle(this.#owner);
+      const body = getComputedStyle(this.#owner);
       const written = presenting
         .filter(({ node }) => node.isConnected)
         .reduce(
@@ -170,11 +154,7 @@ export class ReplyContinuity {
     if (!this.#visible()) return this.#releaseSpace();
     this.#departure?.();
     this.#departure = whenNone([this.#row], growthIsSeen, () => {
-      if (
-        !this.#owner.isConnected ||
-        (this.#owner.localName === "details" && !this.#owner.open)
-      )
-        this.release();
+      if (!this.#owner.isConnected) this.release();
       else this.#releaseSpace();
     });
   }

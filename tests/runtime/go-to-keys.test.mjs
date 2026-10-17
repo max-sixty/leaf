@@ -10,15 +10,11 @@ import test from "node:test";
 
 import { createGoToSequence } from "/runtime/keyboard/go-to-sequence.js";
 import { dispatchKey } from "/runtime/keyboard/dispatch.js";
-import {
-  pageCommand,
-  registerCoveringAuxiliarySurface,
-} from "/runtime/keyboard/register.js";
+import { pageCommand } from "/runtime/keyboard/register.js";
 import { liveEl } from "/runtime/notifications.js";
 import { applicationState } from "/runtime/semantic-state.js";
 
 applicationState.setPhase("ready");
-registerCoveringAuxiliarySurface(() => null);
 
 // A page command on a letter of the hint alphabet, as `e` opens reactions on a page.
 const reacted = [];
@@ -35,20 +31,18 @@ pageCommand({
 const door = { shows: () => false, press: () => {} };
 const goTo = createGoToSequence({
   doors: { threads: door, queue: door, leaves: door },
-  elements: { banner: document.createElement("header") },
-  hintChrome: { barriers: () => [], lineBox: () => null, viewportTop: () => 0 },
+  openPageMap: () => {},
+  hintChrome: { barriers: () => [] },
   directDestinations: () => [],
   scrollToElement: () => {},
   leavesOffered: () => false,
   glideTo: () => {},
   placeThreadEdge: () => {},
-  seenScroller: () => document.scrollingElement,
   stopGlide: () => {},
-  coveringAuxiliarySurface: () => null,
 });
 
 const press = (key) =>
-  dispatchKey(new window.KeyboardEvent("keydown", { key, cancelable: true }), {});
+  dispatchKey(new window.KeyboardEvent("keydown", { key, cancelable: true }));
 
 test("a letter is the page command's until Go-to is armed, then a hint miss that leaves the sequence standing", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });

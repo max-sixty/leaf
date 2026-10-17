@@ -83,7 +83,6 @@ import {
   bindingEnabled,
   declaredBindings,
   allBindings,
-  lineOf,
   titleOf,
   descriptionOf,
   commandEntries,
@@ -388,42 +387,12 @@ function announceInvocation(invocation) {
   );
 }
 
-function invokeCommand(command, beforeCommand) {
+function invokeCommand(command) {
   const invocation = invocationFor(command.row, command.binding, command.entry);
   if (!invocation) return false;
-  beforeCommand?.(invocation.row);
   announceInvocation(invocation);
   invocation.run();
   return true;
-}
-
-// The visible owner of one binding after its own ordering and claims. The shortcut line
-// asks this once for Escape; its other bindings retain the cheaper single declaration-order
-// walk. Keeping this resolution here makes the shown unwind step the one dispatch will run.
-export function lineOwner(binding) {
-  const nearer = shadow();
-  for (const scope of stack(binding)) {
-    const owners = scope.rows.filter(
-      (row) =>
-        bindings(row).includes(binding) &&
-        !nearer.takes(binding, row, scope) &&
-        commandEntries(row, [binding]).length > 0 &&
-        lineOf(row) !== false,
-    );
-    if (owners.length > 1)
-      throw new Error(
-        `leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ` +
-          owners.map(titleOf).join("; "),
-      );
-    if (owners.length)
-      return {
-        scope,
-        row: owners[0],
-        visible: !scope.sequence && word(owners[0].lineWhen) === false ? false : true,
-      };
-    nearer.past(scope);
-  }
-  return null;
 }
 
 // Reference invocation names a command directly, so another row on the same key does not
@@ -477,14 +446,13 @@ export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
 
 // Scoping is the DOM's, but the resolver's stack, rather than listener order, says
 // which command wins. The controller leaves composing input to the IME.
-export function dispatchKey(ev, { beforeCommand }) {
+export function dispatchKey(ev) {
   const matched = resolveKey(ev);
   if (!matched || matched === INPUT_PENDING) return false;
   // Repeats are consumed even for a command that runs once. A native row performs
   // its own half before leaving the browser's half of the same press intact.
   if (!matched.native) ev.preventDefault();
   if (ev.repeat && !matched.row.repeat) return true;
-  beforeCommand?.(matched.row);
   announceInvocation(matched);
   matched.run();
   return true;
@@ -578,8 +546,8 @@ export function invokePress({ id, row, binding }) {
   invocation.run();
   return true;
 }
-export function executeCommand(id, beforeCommand) {
+export function executeCommand(id) {
   const command = commandFor(id);
   if (!command) return false;
-  return invokeCommand(command, beforeCommand);
+  return invokeCommand(command);
 }

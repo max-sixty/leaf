@@ -1,7 +1,6 @@
-/* The floating panel (runtime/floating-panel.js): one box over the foot of the page in
-   place of the banner and the bottom bar, unless the reader asked for them
-   (`html[data-lf-floating-chrome]`, prepaint.js). The theme keeps its row's room at the
-   page's foot (theme.css).
+/* The floating panel (runtime/floating-panel.js): Leaf's chrome, one box over the foot
+   of the page. The theme keeps its row's room at the page's foot (theme.css,
+   `--lf-foot-room`).
 
    The panel stands on the page's own ground, set off by a hairline and the faintest
    shadow, with 12px corners: part of the page rather than a widget laid on it. Its
@@ -13,24 +12,6 @@
    there, where the 48% the status first wore read 3.1:1. The user chose a dim
    status, so it stays the dimmest words in the panel. Every row is one line. */
 @scope (.lf-chrome) {
-  html[data-lf-floating-chrome] :scope {
-    /* What passes, a notice, the Go-to filter's word or a walk's position, is said in
-       the panel's one seat for it (floating-panel.js, `passing`), so the bars and the
-       foot's status line stand down. */
-    --lf-notice-seat: panel;
-    .lf-banner,
-    .lf-shortcut-bar,
-    .lf-bottom-status {
-      display: none !important;
-    }
-    /* Page search's box stands over the panel's row, centred on it as the row is,
-       where Previous, Next and Close search stand while it is open, rather than at the
-       head of the window, where the banner it hung under was. */
-    .lf-page-search {
-      top: auto;
-      bottom: calc(var(--lf-bottom-bar-h) - var(--lf-floating-gap) + 8px);
-    }
-  }
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark(
       var(--paper),
@@ -60,7 +41,7 @@
     /* A view is as tall as what it holds, up to this: the window less the row's band
        and a band of the page above the box, so a long thread or list reads in most of
        the window while the page still shows over it. */
-    --lf-fp-view-height: calc(100dvh - var(--lf-bottom-bar-h) - 160px);
+    --lf-fp-view-height: calc(100dvh - var(--lf-foot-room) - 160px);
   }
 
   /* The surface: a layer over the whole window, cut to the box's outline by the
@@ -69,7 +50,7 @@
   .lf-fp-ground {
     position: fixed;
     inset: 0;
-    z-index: calc(var(--lf-z-banner) - 1);
+    z-index: calc(var(--lf-z-panel) - 1);
     pointer-events: none;
     filter: drop-shadow(var(--raise-2));
   }
@@ -88,7 +69,7 @@
 
   .lf-floating-panel {
     position: fixed;
-    z-index: var(--lf-z-banner);
+    z-index: var(--lf-z-panel);
     pointer-events: auto;
     bottom: calc(var(--lf-floating-gap) + var(--lf-safe-bottom));
     left: 0;

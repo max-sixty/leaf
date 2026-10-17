@@ -39,7 +39,6 @@ import { offlineInteractive } from "../context.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
 const PAGE = Symbol("the page's own keys");
-const COVERING = Symbol("the page's keys inside a covering auxiliary surface");
 const RUNGS = Symbol("Escape's fallback ladder");
 
 // The universal route out of a native layer's keyboard boundary, named here because the
@@ -48,7 +47,6 @@ const COMMAND_REFERENCE = "command.reference.open";
 
 const STACK = [
   "command reference",
-  "expanded shortcut bar",
   "page map",
   "go to",
   "response options",
@@ -66,14 +64,12 @@ const STACK = [
   "composer",
   "text entry",
   "thread",
-  "panel",
-  COVERING,
   "link",
   "disclosure",
   // The modes keep their own letters here and declare their Escape on the ladder,
   // because a mode is the stance the whole page is in and a surface opened while one
-  // holds is opened inside it: a send made in Design mode opens Threads, and the panel
-  // comes off first.
+  // holds is opened inside it: a view the floating panel opens in Design mode comes off
+  // first.
   "draw mode",
   "design mode",
   PAGE,
@@ -87,10 +83,7 @@ const STACK = [
 const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
   "margin options", // the margin entry cluster the user unfolded
-  "drawer", // the drawer that holds the edge
   "floating panel", // the menu or view the floating panel opened above its row
-  "narrowing", // the narrowing the user put on the thread list
-  "panel", // the thread panel
   "draw mode", // the drawing surface over the page
   "design mode", // the mode that comments on the layer
   "page", // whatever is left, in the chrome, and back onto the page
@@ -106,8 +99,6 @@ const PAGE_COMMANDS = [
   "page.search.repeat",
   "thread.walk",
   "queue.walk",
-  // Scrolling is available in the page and in a covering auxiliary surface, which reuses
-  // the rows marked `covering` while the modal floor suspends the rest of page scope.
   "page.move",
   "scroll.move",
   "reading.align.top",
@@ -127,8 +118,6 @@ const PAGE_COMMANDS = [
   "design.mode.enter",
   "annotations.toggle",
   "panel.floating.fold",
-  // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the
-  // permanent More control instead of spending a hint slot on it.
   COMMAND_REFERENCE,
   // A real key the browser owns, and one gesture that is not a key at all. Neither says a
   // word for the line, so neither is ever promised as the next press.
@@ -141,7 +130,6 @@ const commands = new Map();
 const rungs = new Map();
 let resolved = null;
 let validated = false;
-let coveringSurface = null;
 
 const place = (where, name) => {
   if (!where.includes(name))
@@ -172,8 +160,7 @@ export function pageScope(name, declaration) {
 }
 
 /** Declare one row of the page's own scope. `PAGE_COMMANDS` ranks it against every other
- * feature's; `covering: true` keeps it reachable while an auxiliary surface covers the
- * document. */
+ * feature's. */
 export function pageCommand(row) {
   place(PAGE_COMMANDS, row.id);
   if (commands.has(row.id)) throw new Error(`leaf: ${row.id} is declared twice`);
@@ -246,21 +233,11 @@ function assemble() {
     throw new Error(
       `leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`,
     );
-  const covering = rows.filter((row) => row.covering);
   return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
-    // Rooted at the surface the live step is inside, so a step off a covering panel or
-    // drawer survives the floor that surface establishes while the page below it does not.
+    // Rooted at the surface the live step is inside.
     if (name === RUNGS)
       return { root: () => rung()?.root ?? document, rows: [BACK_OUT] };
-    if (name === COVERING)
-      return {
-        title: "In the covering auxiliary surface",
-        root: coveringAuxiliarySurface,
-        when: () => Boolean(coveringAuxiliarySurface()),
-        at: () => Boolean(coveringAuxiliarySurface()),
-        rows: covering,
-      };
     if (typeof name !== "string") return name;
     return scopes.get(name) ?? [];
   });
@@ -284,7 +261,7 @@ export function pageScopes() {
   }
   return resolved;
 }
-// The presses a finger reaches through a banner control rather than a key (AGENTS.md,
+// The presses a finger reaches through a row of the page's controls rather than a key (AGENTS.md,
 // "Touch routes"): each a page command declares, in line order, and each a page scope's
 // rows declare, scope by scope in STACK order, so the first that stands is the one the
 // user is innermost in. Read from the live register, since a scope may join or leave it.
@@ -312,11 +289,3 @@ export const textEntryScope = () => scopes.get("text entry")?.[0];
 // binding cannot correct it.
 export const allButCommandReference = (binding) =>
   !bindings(universalCommandReference()).includes(binding);
-
-// The auxiliary layer's surface reading, held here because the dispatcher's own closure
-// stops at this register: it resolves a press against the register and the focused scope,
-// and an edge to the surface owner would give it that owner's whole initialization graph.
-export function registerCoveringAuxiliarySurface(read) {
-  coveringSurface = read;
-}
-export const coveringAuxiliarySurface = () => coveringSurface();

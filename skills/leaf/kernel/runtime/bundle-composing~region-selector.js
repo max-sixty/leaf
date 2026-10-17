@@ -136,7 +136,7 @@ function createRegionSelector({
     paintKeys();
     try {
       const { blob, warnings } = await pageImage(clip, {
-        exclude: [".lf-region-capture", ".lf-shortcut-bar", ".lf-banner"]
+        exclude: [".lf-region-capture", ".lf-floating-panel", ".lf-fp-ground"]
       });
       if (ended || ticket !== attempt) return;
       if (revision !== runtime.currentRevision)

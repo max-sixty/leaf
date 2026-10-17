@@ -142,7 +142,7 @@ import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { focusThread, threadFocusStop } from "./focus.js";
+import { focusThread } from "./focus.js";
 import { isReaction, messageKey, threadKey } from "./model.js";
 import { allThreads, threadIdNamed, threadState } from "./state.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
@@ -524,13 +524,8 @@ onStanding((node, cause) => {
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
   const id = drawnThreadId(thread);
-  const title = thread && threadFocusStop(thread);
   const arrived =
-    id !== null &&
-    id !== standing &&
-    (cause === "move" ||
-      cause === "step" ||
-      (cause === "press" && title !== thread && node === title));
+    id !== null && id !== standing && (cause === "move" || cause === "step");
   standing = id;
   if (arrived) showHeld(id);
 });

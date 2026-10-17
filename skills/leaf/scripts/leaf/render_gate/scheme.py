@@ -170,7 +170,7 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
     Each wait here says which arrival it gave up on, and what the page was still
     asking for. The caller reads a timeout raised out of this function as one it
     cannot attribute, and the reading it would otherwise fall back on — that the
-    runtime never injected its banner — is wrong for the case that actually
+    runtime never injected its chrome — is wrong for the case that actually
     happens: a subresource the page never receives leaves the document at
     `interactive` with the runtime already running, no console entry, and no
     error. The request still open is the only thing that names the file.
@@ -307,7 +307,7 @@ def _render_scheme(
         pre_upgrade = start_with_pre_upgrade_proof(page, url)
         wait_for_probe(page, "runtimeStarted")
     except PlaywrightTimeout:
-        return explained("no-banner")
+        return explained("no-runtime")
     except PlaywrightError as error:
         return probe_failure(error)
     except PreUpgradeFailed as error:

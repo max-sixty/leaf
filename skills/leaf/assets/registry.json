@@ -178,7 +178,7 @@
               }
             }
           },
-          "text": "A design comment is about how the page looks or behaves, not what it says. Its anchor's `section` is an authored element's id or, if it starts `lf-`, a part of Leaf's chrome, such as `lf-banner`, `lf-threads` (the Threads panel), `lf-queue` (the On panel), `lf-versions` or `lf-composer`. `part`, when present, describes the control, region or picture the user clicked. Fix it in this page's source. If the behavior belongs to a package's widget, or the user asks for a wider fix, change the package as the Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor on the stamp. A fix to Leaf itself is the user's to raise (the Leaf skill's \"Improve Leaf through use\"). Your reply reports the stamped version that carries the fix."
+          "text": "A design comment is about how the page looks or behaves, not what it says. Its anchor's `section` is an authored element's id or, if it starts `lf-`, a part of Leaf's chrome, such as `lf-fp-menu` (the floating panel's menu), `lf-composer` or `lf-command-reference`. `part`, when present, describes the control, region or picture the user clicked. Fix it in this page's source. If the behavior belongs to a package's widget, or the user asks for a wider fix, change the package as the Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor on the stamp. A fix to Leaf itself is the user's to raise (the Leaf skill's \"Improve Leaf through use\"). Your reply reports the stamped version that carries the fix."
         },
         {
           "when": {

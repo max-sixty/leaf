@@ -158,8 +158,8 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
     """The On panel is two tabs, the lists the `m` walk and the banner's counts read,
     and the open tab is its title. Each list shows its open items, then folds its own
     Done: what left that list. Here the agent's Done holds a to-do it ended and the
-    replies it sent, and the user's fills as they answer. The prose question is an
-    agent opening comment, which asks implicitly. The agent's count opens the agent's
+    replies it sent, and the user's fills as they answer. The agent's opening comment
+    carries a question widget. The agent's count opens the agent's
     list, and every other way in opens the user's. A row arrives where `m` would. A
     reply the user sends joins the agent's list as it is sent, and its thread leaves the
     user's for the user's Done once the server has read the reply. A door pressed while
@@ -175,7 +175,10 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
             d, {"author": author, "revision": 1, **agent, **event}
         )
 
-    asked = said("agent", kind="comment", text="Weekly?", anchor={"section": "cadence"})
+    asked = said(
+        "agent", kind="comment", text="Weekly?", anchor={"section": "cadence"},
+        markup='<lf-ask id="cadence-question">Weekly?</lf-ask>',
+    )
     said("user", kind="comment", text="Tighten this.", anchor={"section": "notes"})
     rebuild = said(
         "user", kind="comment", text="Rebuild them.", anchor={"section": "notes"}
@@ -262,10 +265,10 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
     expect(panel).to_have_accessible_name("On me")
     expect(tabs).to_have_text(["On me · 2", "On Agent · 2"])
     rows = page.evaluate(QUEUE_ROW_SAYS)
-    # A question asked in a thread is answered there, so its row says Thread.
+    # The widget names its row, even when a reply in its thread answers it.
     assert [(row["list"], row["word"], row["title"]) for row in rows] == [
         ("you", "Options", "Which channel first?"),
-        ("you", "Thread", "Weekly?"),
+        ("you", "Question", "Weekly?"),
     ], rows
     assert rows[1]["where"].startswith("§ Release"), rows
     # Nothing has left the user's list yet, so it has no Done.

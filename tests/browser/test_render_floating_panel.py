@@ -539,6 +539,7 @@ def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
         "Which build should ship? These are the candidates:\n\n- #4813 schedule\n"
         "- #4812 manual",
         author="agent",
+        question="Which build should ship?",
     )
     page = floating(browser, url)
     page.locator(".lf-fp-on-user").click()

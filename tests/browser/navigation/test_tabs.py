@@ -173,11 +173,11 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     expect(you_button).to_be_focused()
     assert you_button.evaluate("element => element.matches(':focus-visible')")
     page.keyboard.press("Space")
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
     expect(you_button).to_be_focused()
 
     for view, thread, visible, title in (
-        ("you", "2be2443f0bb6cc49fc86b52f340e6073", 2, "Workshop room photo"),
+        ("you", "2be2443f0bb6cc49fc86b52f340e6073", 1, "Workshop room photo"),
         ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
         ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 4, "Afternoon workshop"),
         ("progress", "bg-progress-question", 4, "Schedule checks"),
@@ -237,7 +237,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
             ).to_have_count(0)
 
     page.locator('#bg-panel-presets [data-view="you"]').click()
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
+    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
     find = frame.get_by_role("searchbox", name="Find in threads")
     find.click()
     find.fill("xyz-nothing")

@@ -179,8 +179,10 @@ WIDENED_TABLE_PAGE = leaf_page(
     "agent's status, for as long as the walk stands there.</td><td>The line over the "
     "field says it. It takes its own room in the panel, so it covers nothing.</td></tr>"
     * 3
-    + "</tbody></table>"
-    + "<p>Prose after the table, so the page scrolls.</p>" * 40,
+    + '<tr><th>Command</th><td colspan="2"><pre id="command"><code>uv run pytest '
+    "tests/browser/margin/test_scrollers.py</code></pre></td></tr></tbody></table>"
+    + "<p>Prose after the table, so the page scrolls.</p>"
+    * 40,
 )
 
 
@@ -191,7 +193,8 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     translation away from what it marked: at 1728px a comment's pin on a header sat
     over the column beside it, and the Alt outline 300px left of the table. In each
     engine the pin stands on the header it marks and keeps that place through a
-    scroll, and the outline Alt raises after the scroll stands on the table."""
+    scroll, the outline Alt raises after the scroll stands on the table, and a code
+    block's Copy, which CSS anchors alone, shows in the block's corner."""
     browser = request.getfixturevalue(engine)
     comment = _comment_on("grid", quote="Caret in the field")
     page = open_page(browser, serve(WIDENED_TABLE_PAGE, events=[comment]))
@@ -220,6 +223,14 @@ def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     page.keyboard.up("Alt")
     assert outline["x"] == pytest.approx(table["x"], abs=1), (outline, table)
     assert outline["y"] == pytest.approx(table["y"], abs=1), (outline, table)
+    code = page.locator("#command").bounding_box()
+    page.mouse.move(code["x"] + 5, code["y"] + code["height"] / 2)
+    copy = page.locator(".lf-code-copy")
+    expect(copy).to_have_css("opacity", "1")
+    corner = copy.bounding_box()
+    inset = code["x"] + code["width"] - corner["x"] - corner["width"]
+    assert 0 <= inset <= 8, (corner, code)
+    assert 0 <= corner["y"] - code["y"] <= 8, (corner, code)
 
 
 def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):

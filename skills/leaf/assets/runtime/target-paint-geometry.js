@@ -231,13 +231,7 @@ function standIn(stand, placed, anchored) {
 // `at` as `rect` was, or from `stood.origin`, the client point its containing frame's
 // corner stands at. Without a size, `rect` is a point, the box's corner, and the box
 // keeps its own size.
-export function standBox(
-  box,
-  rect,
-  stood,
-  anchor,
-  at = anchor && anchorBox(anchor),
-) {
+export function standBox(box, rect, stood, anchor, at = anchor && anchorBox(anchor)) {
   if (stood.anchored) {
     anchorAt(box, anchor, rect, at, stood.visibility ?? "always");
     return;

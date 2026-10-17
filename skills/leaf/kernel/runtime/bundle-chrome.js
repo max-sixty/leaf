@@ -1294,7 +1294,7 @@ function laidOut(el) {
   return { left, top };
 }
 function movement(style) {
-  const matrix = style.transform === "none" ? null : new DOMMatrixReadOnly(style.transform);
+  const matrix = style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
   const moves = Boolean(matrix) || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none";
   const slides = style.rotate === "none" && style.scale === "none" && (style.offsetPath === "none" || style.offsetRotate === "0deg") && (!matrix || matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1);
   return { moves, slides };

@@ -57,12 +57,7 @@
 import { afterPresentation } from "../presentation.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
-import {
-  anchorBox,
-  anchorElement,
-  anchorFor,
-  anchorName,
-} from "../css-anchors.js";
+import { anchorBox, anchorElement, anchorFor, anchorName } from "../css-anchors.js";
 import { shownBand } from "../geometry.js";
 import { containingReadingRegionFor } from "../reading-regions.js";
 import { upFrom, renderedParent } from "../shadow.js";

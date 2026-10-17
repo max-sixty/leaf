@@ -395,7 +395,7 @@ function laidOut(el) {
 // Whether `style` moves its box at all, and whether only by a translation.
 function movement(style) {
   const matrix =
-    style.transform === "none" ? null : new DOMMatrixReadOnly(style.transform);
+    style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
   const moves =
     Boolean(matrix) ||
     style.translate !== "none" ||
@@ -406,7 +406,12 @@ function movement(style) {
     style.rotate === "none" &&
     style.scale === "none" &&
     (style.offsetPath === "none" || style.offsetRotate === "0deg") &&
-    (!matrix || (matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1));
+    (!matrix ||
+      (matrix.is2D &&
+        matrix.a === 1 &&
+        matrix.b === 0 &&
+        matrix.c === 0 &&
+        matrix.d === 1));
   return { moves, slides };
 }
 // How far the translations on `el` and its ancestors move its box, or null where one of

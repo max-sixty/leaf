@@ -608,7 +608,8 @@ document, and the runtime relies on it (next entry).
   anchor, it returns where the anchor stood before.
 - **Affected:** every box anchored in a table granted room, which `layouts.css`
   translates into place, and in any box a page transforms: margin rows and pins,
-  the Alt outline, key chips, the comment box and the thread card.
+  the Alt outline, key chips, the comment box, the thread card, and a code block's
+  Copy, whose CSS-only anchor takes the shift on each reveal (`code-copy.js`).
 - **Observed, 2026-10-16, Firefox 155:** `anchor()` resolves to the anchor's box
   as laid out, before the `transform`, `translate`, `rotate`, `scale` or
   `offset-path` on it or an ancestor; relative positioning is counted. The spec counts transforms, as

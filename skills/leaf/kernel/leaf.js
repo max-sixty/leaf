@@ -6394,16 +6394,28 @@ function createFloatingPanel({
   let onPageSeat = false;
   const unplaced = /* @__PURE__ */ new Set();
   let stood = null;
+  let rewriting = false;
+  const holdThread = (height) => {
+    const top = trail.at(-1);
+    if (top?.view !== "thread" || rooms.has(routeKey(top)) || height === null)
+      return false;
+    rooms.set(routeKey(top), height);
+    return true;
+  };
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
-  onStanding((node, cause, left) => {
+  onStanding((node, cause) => {
     const top = trail.at(-1);
     if (top?.view !== "thread" || cause === "drop") return;
-    const key = routeKey(top);
     const view = openView();
-    if (inRewrite(node) && view && renderedUnder(node, view)) {
-      if (rooms.has(key) || stood === null) return;
-      rooms.set(key, stood);
-    } else if (!inRewrite(left) || !rooms.delete(key)) return;
+    const writing2 = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
+    if (writing2 === rewriting) return;
+    if (writing2) {
+      rewriting = holdThread(stood);
+      if (!rewriting) return;
+    } else {
+      rewriting = false;
+      rooms.delete(routeKey(top));
+    }
     paint();
   });
   function holdRoom() {
@@ -6530,6 +6542,7 @@ function createFloatingPanel({
     const changed = (before ? routeKey(before) : null) !== (after2 ? routeKey(after2) : null);
     if (changed) {
       rooms.clear();
+      rewriting = false;
       quoteExpanded = false;
       waiting = null;
       placed = null;
@@ -6992,6 +7005,8 @@ function createFloatingPanel({
               aria-controls="lf-fp-quote"
               @click=${() => {
       quoteExpanded = !quoteExpanded;
+      holdThread(openView()?.offsetHeight ?? null);
+      rewriting = false;
       paint();
     }}
             >

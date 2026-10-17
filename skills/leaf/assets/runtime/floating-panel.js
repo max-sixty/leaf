@@ -962,24 +962,40 @@ export function createFloatingPanel({
   // then handed the panel as their last resort (`reveal`): On the page has nowhere to
   // take the user from those.
   const unplaced = new Set();
-  // A rewrite opens in place of the user's message, in a box the reply box's size,
-  // which may stand taller than the words it replaces. In a card it grows down from the
-  // message's head; a thread's view stands on its foot and would carry that head up. So
-  // while the caret is in a rewrite, the view keeps the height it last stood at (`stood`,
-  // read where the reader's drawing lands), and what follows the message moves down
-  // inside it, revealed by scrolling (thread/reply-landing.js, `revealEditor`). It
-  // follows its messages again once the caret leaves the rewrites.
+  // A thread's view stands on its foot, so what grows in it carries its head, and all
+  // the view holds, up the window. That is the growth news and the user's own turns
+  // make (`fitAnswer`), but a press in the view growing what it shows would carry the
+  // press itself, or the words it opened, from under the user. So such a press holds the
+  // view at the height it stood at, and what it grows goes on below inside the view:
+  // Full quote, for the rest of this opening, since closing it again would carry the
+  // press down; and a rewrite, which opens in place of the user's message in a box the
+  // reply box's size, taller than the words it replaces, for as long as the caret stays
+  // in the rewrites (`stood`, read where the reader's drawing lands), its lower lines
+  // revealed by scrolling (thread/reply-landing.js, `revealEditor`). A card grows down
+  // from the same press, so there the press stays put by itself.
   let stood = null;
+  let rewriting = false;
+  const holdThread = (height) => {
+    const top = trail.at(-1);
+    if (top?.view !== "thread" || rooms.has(routeKey(top)) || height === null)
+      return false;
+    rooms.set(routeKey(top), height);
+    return true;
+  };
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
-  onStanding((node, cause, left) => {
+  onStanding((node, cause) => {
     const top = trail.at(-1);
     if (top?.view !== "thread" || cause === "drop") return;
-    const key = routeKey(top);
     const view = openView();
-    if (inRewrite(node) && view && renderedUnder(node, view)) {
-      if (rooms.has(key) || stood === null) return;
-      rooms.set(key, stood);
-    } else if (!inRewrite(left) || !rooms.delete(key)) return;
+    const writing = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
+    if (writing === rewriting) return;
+    if (writing) {
+      rewriting = holdThread(stood);
+      if (!rewriting) return;
+    } else {
+      rewriting = false;
+      rooms.delete(routeKey(top));
+    }
     paint();
   });
   function holdRoom() {
@@ -1163,6 +1179,7 @@ export function createFloatingPanel({
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
     if (changed) {
       rooms.clear();
+      rewriting = false;
       quoteExpanded = false;
       waiting = null;
       placed = null;
@@ -1824,6 +1841,8 @@ export function createFloatingPanel({
               aria-controls="lf-fp-quote"
               @click=${() => {
                 quoteExpanded = !quoteExpanded;
+                holdThread(openView()?.offsetHeight ?? null);
+                rewriting = false;
                 paint();
               }}
             >

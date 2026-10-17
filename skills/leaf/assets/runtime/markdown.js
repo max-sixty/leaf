@@ -137,16 +137,20 @@ function inlineSourcePositions(source, raw, at, limit) {
 
 // Native parser tokens, each located in the exact source. Opening inline tokens carry
 // the paired construct's whole span and the span of its words for editor decoration.
+// Native block rules record markers before container prefixes are restored. Their
+// line-relative spans survive newline normalization when mapped onto the source.
 export function placedMarkdownTokens(source) {
   const tokens = markdownTokens(source);
   if (!tokens) return [];
   const starts = [0];
-  for (let at = 0; at < source.length; at++)
-    if (source[at] === "\n") starts.push(at + 1);
+  for (let at = 0; at < source.length; at++) {
+    if (source[at] === "\r" && source[at + 1] === "\n") at++;
+    if (source[at] === "\r" || source[at] === "\n") starts.push(at + 1);
+  }
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
-  for (const token of tokens) {
+  for (const [index, token] of tokens.entries()) {
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
@@ -154,7 +158,21 @@ export function placedMarkdownTokens(source) {
         token.map &&
         (token.nesting === 1 || token.type === "fence" || token.type === "code_block")
       )
-        found.push({ token, from, to, words: token.nesting ? null : token.content });
+        found.push({
+          token,
+          from,
+          to,
+          markers: token.meta?.markers?.map(([line, a, b]) => [
+            starts[line] + a,
+            starts[line] + b,
+          ]),
+          // A heading's inline token owns its content lines, excluding Setext syntax.
+          contentLines:
+            token.type === "heading_open"
+              ? tokens[index + 1].map.map((at) => starts[at])
+              : undefined,
+          words: token.nesting ? null : token.content,
+        });
       continue;
     }
     const positions = inlineSourcePositions(

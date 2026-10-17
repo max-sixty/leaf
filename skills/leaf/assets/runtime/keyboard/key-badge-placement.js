@@ -1,5 +1,5 @@
 /* Shared visibility for addressable targets and placement for command
-   binding badges. The banner clips every target's usable box. A binding face hangs off its
+   binding badges. The chrome clips every target's usable box. A binding face hangs off its
    control's upper-left corner, and off another of its corners where that one would cover
    a different control: a digit laid over a neighbour's corner reads as that neighbour's.
    It may move back inside the viewport, but it yields wherever that move would cover
@@ -133,7 +133,7 @@ export function keyBadgePlacement() {
     box && clip ? clearOfChrome(intersect(box, clip), box.top) : null;
 
   // Whether the user can see what this box was measured from. Geometry cannot answer it:
-  // a panel, a drawer, a fixed sheet or an ordinary page box covers a member without clipping
+  // a panel, a fixed sheet or an ordinary page box covers a member without clipping
   // its rectangle. Ask the rendered stack inside the box, and make the member itself answer,
   // a cover being exactly the case where something else does. Most chrome answers, which is
   // how a card behind the open panel leaves the map; the bar and the status line take no
@@ -233,7 +233,7 @@ export function keyBadgePlacement() {
           start.width,
           start.height,
         );
-        // Pulled down below the banner or up above the window's foot, the chip is held
+        // Pulled down below the window's head or up above its foot, the chip is held
         // by that edge rather than by its control's corner.
         place.held = Math.abs(place.top - top) >= 0.5;
         return place;

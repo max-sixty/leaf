@@ -274,8 +274,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // the caller's that holds it elsewhere, as a rewrite's stands at its message's head.
       submitIn = null,
       // The attachment shelf stands on the side the box grows toward, so attaching never
-      // moves the words being written. A box held by its top, as the page comment card
-      // hangs from the banner, takes it below the field; one held by its foot, as a
+      // moves the words being written. A box held by its top takes it below the field; one held by its foot, as a
       // reply pinned to its scroller's foot, above.
       mediaBelow = false,
     },
@@ -448,7 +447,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // Everything the box shows about its standing, written only where it differs from
     // what stands: a text node replaced inside the chrome restyles far more than the node.
     const paint = (contextualHint) => {
-      // Read the shared logical focus so this hint agrees with the shortcut bar and rings.
+      // Read the shared logical focus so this hint agrees with the key chips and rings.
       const standing = focused() === ta;
       const advertising = advertisesKeys();
       const sendKeys = advertising ? submitLabel() : "";
@@ -739,7 +738,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       },
       { capture: true },
     );
-    // The box's own scope: one row, so the shortcut bar's word, the command reference dialog's sentence and
+    // The box's own scope: one row, so the hint's word, the command reference dialog's sentence and
     // the press are the same object. Every box the runtime wires gets it — the general box,
     // each thread's reply, the selection composer, a widget thread — where the reference
     // used to carry one row saying "in the focused composer" for a sequence that fires in all

@@ -93,7 +93,7 @@ export function createAnchorTravel({
   // commits that only once the trip arrives. A destination the user can already read
   // where they are is no departure. A trip that names its `landing` while part of the
   // last trip's landing still shows continues that journey, whether it goes to a
-  // thread or the On panel, and replaces the journey's entry, which already holds
+  // thread or On me, and replaces the journey's entry, which already holds
   // where the journey began. Choosing another authored passage by pointer or Tab, or
   // moving off the landing, ends the journey, and the next trip saves the new place.
   // A journey is not a walk: steps of the thread walk, of the queue walk and presses
@@ -296,8 +296,7 @@ export function createAnchorTravel({
   // the browser's: the navigation has already added the entry Back returns to, whoever
   // followed it — a press on a page link or a reply's reference, a Go-to hint. What the
   // platform lacks for a page place is travel's to add, the same as for any other
-  // destination: clear the surface hiding it (a covering Threads panel left the page
-  // scrolling behind it, the link's own thread still in front), and reveal what holds
+  // destination: clear the surface hiding it, and reveal what holds
   // it, which reaches a widget's own disclosure as well as `hidden="until-found"` (a
   // worker in a shut goal is `display: none`, and the browser landed on nothing). It
   // then lands by the browser's fragment placement rule and puts focus
@@ -439,7 +438,7 @@ export function createAnchorTravel({
   // Whether travel to `where` would leave the page as it stands: the destination stands
   // whole inside the band a landing aims for (`landingBand`) and nothing cuts it. Being
   // in front of the user (`seenRect`) is not enough, since a destination half cut off or
-  // pressed against the banner is one a landing still moves.
+  // pressed against the window's head is one a landing still moves.
   function readableDestination(where) {
     const shown = seenOf(where);
     if (!shown) return false;

@@ -233,7 +233,7 @@ const commandReferenceBinding = (value) =>
     .replace(/\s+/g, " ");
 
 // Titles are written for the surface that shows them most: a compact lowercase word
-// for the shortcut bar, a sentence for a route only the reference shows. Listed
+// for a hint, a sentence for a route only the reference shows. Listed
 // together, the reference starts every one with a capital, as a menu does.
 const listedTitle = (title) =>
   `${title.charAt(0).toLocaleUpperCase()}${title.slice(1)}`;

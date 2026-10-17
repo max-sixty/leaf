@@ -133,7 +133,7 @@ export const tabStops = (root) =>
 // that already declares a stop keeps its own. What wants this is an arrival at an
 // element nobody owns — a go-to hint completing on a fold, a heading or a link's
 // fragment; the reference handing a user back to the block they were reading; the skip
-// link landing on the banner when none of its controls will take them. Each is "the
+// link landing on the floating panel when none of its controls will take them. Each is "the
 // user is now here", and each needs the browser's sequential focus navigation starting
 // point to move with them, which is what `focus()` does and what nothing else does.
 //
@@ -990,7 +990,7 @@ export function rove(items, stop) {
 }
 
 // Where a layer hands the user back when it closes: the control they stood on as it
-// opened, or the one its opener names, as a drawer's door. Recorded once at the opening
+// opened, or the one its opener names, as a menu row's door. Recorded once at the opening
 // (`openLayer`) and read by the close (`openerOf`), so no layer keeps its own record.
 // The body is nowhere, so a layer opened from it hands back nothing and lets go.
 const openers = new WeakMap();
@@ -1200,7 +1200,7 @@ export function controlNavigationKeys(node) {
 
 // Landing the user in the document. One act at both ends of the ladder, and for every
 // step that would otherwise leave them on Leaf's own apparatus, because standing on an
-// ask out on the page and standing on a banner button are the same state — the user
+// ask out on the page and standing on a panel button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
 // user lands, since that is the whole of what the rung is for, and letting go of an ask

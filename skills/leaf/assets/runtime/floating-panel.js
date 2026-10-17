@@ -1462,7 +1462,7 @@ export function createFloatingPanel({
   // the row's notice opens this view to say (`failedSave`); then the versions the picker
   // lists, the one shown marked, each a press that travels
   // there and says the note its stamp gave it after its name, cut to the row and whole
-  // on hover, as the bars' picker shows it; with Compare where the picker offers it;
+  // on hover; with Compare where the picker offers it;
   // then the version's approval, where
   // the page asks for one, with why a press would not approve yet.
   function versionsList() {

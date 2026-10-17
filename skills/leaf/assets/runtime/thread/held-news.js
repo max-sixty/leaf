@@ -63,8 +63,7 @@
    and a notice calls a changed message an edit.
    A closed card holds nothing, since its title row draws at one size whatever it says.
    A reply pinned to its scrollport lets a turn joining the thread's end grow up into
-   the room scrolled past (thread-list.js, `followThreadEnd`), though nothing that
-   changes above that end. A held change leaves the controls it touches drawn as they
+   the room scrolled past, though nothing that changes above that end. A held change leaves the controls it touches drawn as they
    were, and a press on one means what it drew (actions.js, `setReaction` and
    `settle`) and shows what the thread holds.
 
@@ -92,7 +91,8 @@
 
    Held news also shows once growth anywhere in the seat would move nothing the user
    sees: none of it stands where a change of size moves what is seen (geometry.js,
-   `growthIsSeen`), as when it is scrolled under the banner. A press into the thread, such as into its reply box, shows
+   `growthIsSeen`), as when it is scrolled under the chrome. A press into the thread,
+   such as into its reply box, shows
    nothing: it asks for what it lands on, and drawing the news would move that under the
    press. Where the destination is itself held, a message or an ask in a held turn, or a
    thread a seat holds whole, the route shows it first (`showHeld`), since nothing

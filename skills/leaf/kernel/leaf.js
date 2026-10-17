@@ -818,8 +818,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     // the caller's that holds it elsewhere, as a rewrite's stands at its message's head.
     submitIn = null,
     // The attachment shelf stands on the side the box grows toward, so attaching never
-    // moves the words being written. A box held by its top, as the page comment card
-    // hangs from the banner, takes it below the field; one held by its foot, as a
+    // moves the words being written. A box held by its top takes it below the field; one held by its foot, as a
     // reply pinned to its scroller's foot, above.
     mediaBelow = false
   }) {
@@ -8762,15 +8761,15 @@ function createQueueWalk({
   function walk(dir, region = null, origin = walkOrigin()) {
     const list = stopsOf(region);
     if (!list.length) return Promise.resolve(false);
-    const { row: next2, wrapped } = step(list, dir, region, origin);
-    const ready = arriveAt(next2).then((arrived) => {
+    const { row: next, wrapped } = step(list, dir, region, origin);
+    const ready = arriveAt(next).then((arrived) => {
       if (!arrived) return false;
       announce2(
         beginWalk("queue", null, () => position(region), wrapped) ?? walkPositionLabel(
           null,
-          list.indexOf(next2) + 1,
+          list.indexOf(next) + 1,
           list.length,
-          `${region ? WITHIN : QUALIFIER} \xB7 ${next2.noun}`
+          `${region ? WITHIN : QUALIFIER} \xB7 ${next.noun}`
         )
       );
       return true;
@@ -8860,7 +8859,6 @@ function createQueueWalk({
     ]
   });
   const arriveAtItem = (item) => arriveAt(stopOf(item));
-  const next = () => walk(1);
   let wentTo = null;
   onStanding((node, cause) => {
     if (cause === "step") return;
@@ -8881,7 +8879,7 @@ function createQueueWalk({
     const shown = asks2.map((ask) => askPlace(ask).node).find((node) => node && seenRect(node, clips));
     return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
   }
-  return { mount, arriveAtItem, next, nextWithin };
+  return { mount, arriveAtItem, nextWithin };
 }
 
 // runtime/keyboard/command-hints.js

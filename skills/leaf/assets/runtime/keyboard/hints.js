@@ -22,7 +22,7 @@
    placement pass keeps every generated route visible. Unlike an ordinal address, an
    opaque hint has no meaning once its face is hidden, so collisions are spread rather
    than removed. Geometry belongs to each caller and is passed in so this module
-   introduces no ownership cycle through the shortcut bar. */
+   introduces no ownership cycle through its callers. */
 import { bindingEnabled, spell } from "./bindings.js";
 import { html, render } from "/vendor/browser-runtime.js";
 import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
@@ -478,7 +478,7 @@ export function createHintSession({
     const drawn = new Set(plans.map((chip) => chip.candidate));
     if (wasWalking && current && !drawn.has(current)) at = -1;
     draw(plans);
-    // The shortcut bar was painted before geometry retired the browsed hint, and a map
+    // The keys were painted before geometry retired the browsed hint, and a map
     // that has just emptied or filled changes which of the caller's rows stand.
     if ((wasWalking && at < 0) || emptyBefore !== (candidates.length === 0)) repaint();
   }

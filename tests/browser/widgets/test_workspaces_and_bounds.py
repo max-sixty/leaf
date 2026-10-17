@@ -546,7 +546,7 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     room = page.evaluate(
         """() => {
           const probe = document.createElement('div');
-          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-bottom-bar-h)';
+          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-foot-room)';
           document.body.append(probe);
           const band = probe.getBoundingClientRect().height;
           probe.remove();

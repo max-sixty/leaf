@@ -65,7 +65,7 @@ export function shadowStage(host, nodes) {
     marksSheet,
     ...widgetSheets.values(),
   ];
-  // A root is the one place the shortcut bar's watch cannot reach on its own: a `toggle`
+  // A root is the one place the key paint's watch cannot reach on its own: a `toggle`
   // from inside one is not composed, and a MutationObserver does not cross the
   // boundary either. A focus move inside it reaches the document as no event at all.
   watchDisclosures(root);

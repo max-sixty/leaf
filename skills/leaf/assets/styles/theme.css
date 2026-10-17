@@ -1328,7 +1328,7 @@ th:not([scope="row"]),
 
 /* The block an option row is about (§): its `for`, which lf-options writes.
  * It points; it never supplies the row's words, so it
- * reads as what it is — an id, written the way the thread panel writes an element
+ * reads as what it is — an id, written the way a thread writes an element
  * anchor — and rides at the line's end with the mark, out of the way of what the row
  * says.
  *

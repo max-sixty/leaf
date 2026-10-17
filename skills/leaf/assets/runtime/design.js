@@ -154,7 +154,7 @@ export function createDesignMode({
     if (records.some(movesPage)) pageGeometry.pageShifted();
   });
   let legendFrame = 0;
-  // One tag's height, measured once: where a box's top is nearer the banner than this,
+  // One tag's height, measured once: where a box's top is nearer the window's head than this,
   // the tag sits inside.
   let legendTagH = 0;
   function queueLegend() {

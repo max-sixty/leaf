@@ -34,10 +34,7 @@
    the ordinary text-entry row to return to the panel, keeping the query. Exact input
    rows stand before the general text-entry claim, which stands before ancestor widgets.
 
-   A page command that a covering surface should not drop says so with `covering`, and
-   gates its own liveness on what it can reach there, rather than living as a copy in
-   the surface's scope. `c` answers that way from a covering Threads panel, reading the
-   one comment destination the page reads. `activeCommandLabel` projects the
+   `activeCommandLabel` projects the
    dispatcher's live result into the destination composition box's placeholder. Each
    box's `aria-label` remains its shortcut-free accessible name.
 
@@ -114,7 +111,7 @@ import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js
 const pageHas = scopeAvailable;
 export const userIn = (scope) => {
   // Native modality excludes everything below its layer floor. An explicitly inert
-  // subtree can also stand inside that floor (the suspended bottom bar in Threads),
+  // subtree can also stand inside that floor,
   // and none of its latent scopes may answer a key or advertise a live command.
   if (excludedByInert(scopeRoot(scope))) return false;
   return !scope.at || scope.at();

@@ -40,7 +40,7 @@ const PAGE = Symbol("the page's own keys");
 const RUNGS = Symbol("Escape's fallback ladder");
 
 // The universal route out of a native layer's keyboard boundary, named here because the
-// boundary is the dispatcher's rather than the shortcut bar's.
+// boundary is the dispatcher's rather than a presentation's.
 const COMMAND_REFERENCE = "command.reference.open";
 
 const STACK = [

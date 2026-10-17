@@ -59,7 +59,7 @@ async function readState(bound) {
     if (!admitResponse(res)) return null;
     // A refusal is not state: the server answers a missing key with error-shaped JSON
     // at 401. A live server refusing the key and a dead one both leave the page
-    // unreachable from here; the banner says which, since only the refused key has a
+    // unreachable from here; the page status says which, since only the refused key has a
     // recourse the user takes (`runtime.keyRefused`).
     if (!res.ok) return null;
     try {
@@ -189,7 +189,7 @@ export function createStateFeed({
     // a page whose first answer did not present must still present on a later one. An
     // answer with nothing in it — an unreachable server, a refused key, a layer that has
     // moved on and is reloading — still presents, since the authored page under an
-    // unreachable server is a page, and saying so is the banner's job.
+    // unreachable server is a page, and saying so is the page status's job.
     // The buffered first read is already out, so the slot starts held: a tick or a freshness
     // answer arriving while it is still unanswered queues a trailing read behind it instead
     // of opening a second one alongside.
@@ -384,7 +384,7 @@ const LOOK_MS = 250;
 const FIRST_READ_TIMEOUT_MS = 120_000;
 
 // How long every read after that may take. These have no wait beside them, and the
-// banner's one honesty mechanism about the server runs through a read that *completed*
+// page status's one honesty mechanism about the server runs through a read that *completed*
 // with nothing: its `unreachable` reach is the only path to OFFLINE_LINE, and a read still
 // in flight holds the slot, so freshness or a clock tick only queues a trailing read
 // behind it. This bound is therefore the whole time a user watching a live page can be

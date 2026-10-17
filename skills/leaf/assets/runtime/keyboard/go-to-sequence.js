@@ -340,7 +340,7 @@ export function createGoToSequence({
   }
 
   // Every complete route starts with the same stable prefix. A partial generated hint is
-  // added to the live sequence so the shortcut bar and chips can paint how far it has advanced.
+  // added to the live sequence so the chips can paint how far it has advanced.
   const sequencePrefix = () => [labelOf(OPEN_GO_TO)].filter(Boolean);
   const sequenceKeys = () =>
     [...sequencePrefix(), targetFilter?.key, ...hints.prefix()].filter(Boolean);

@@ -140,7 +140,6 @@ import {
   threadState,
   todoLabel,
   transferDraft,
-  universalCommandReference,
   watchDraft,
   watchDrafts,
   watchThreadSurfaces,
@@ -2089,11 +2088,9 @@ function commandSteps(id) {
   return [];
 }
 function controlRows() {
-  const more = universalCommandReference();
   const controls = /* @__PURE__ */ new Map();
   for (const scope of pageScopes())
     for (const row of scope?.rows ?? []) {
-      if (row === more) continue;
       const control = word(row.control);
       if (!control) continue;
       const active = live(row) && bindings(row).length > 0;
@@ -4300,7 +4297,7 @@ function createAnnotationInventory({
         // passage and paints additions there, so the user learns what changed without
         // travelling to the other version and back. Where it kept none, the press is the
         // travel it always was, and `discloses` answering null is what says so — to the
-        // margin entry's relation, to the shortcut bar's word for the press, and to the
+        // margin entry's relation, to the hint's word for the press, and to the
         // reference.
         discloses: () => inlineComparison(target),
         activate: () => {

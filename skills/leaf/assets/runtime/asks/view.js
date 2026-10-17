@@ -20,7 +20,7 @@
 
    Every widget arrival shares the same retained-intent travel. Frozen thread sources
    are materialized at their exact owning message through the thread owner. A page
-   source arrives below the banner, at its declared context region or the nearest
+   source arrives at the window's head, at its declared context region or the nearest
    fitting heading/text block supplied by its document. A destination already readable
    on every clipped edge keeps its scroll position. DOM measurements and renderer
    nodes never enter the ask record.
@@ -206,7 +206,7 @@ export function createAskView({
   // their focus rested on — a second thread on the child rather than the next line of their
   // own. The agent's reply put both back. Nothing the user did moved either. An
   // answered ask leaves both worklists but stays in the active inventory: the
-  // On panel's Done rows can return the user to it, and standing there restores
+  // On me's Done rows can return the user to it, and standing there restores
   // the same numeric action route so they can revise the recorded answer.
   function standingAsk(held = focused()) {
     if (!held || held === document.body) return null;
@@ -291,7 +291,7 @@ export function createAskView({
   // same place was marked or not by how the user had reached it.
   //
   // Pointer and keyboard arrivals share this location reading, as they share the
-  // focused control's ring. A On panel row's press lands the focus by script
+  // focused control's ring. An On me row's press lands the focus by script
   // after a click, and the ask it brought the user to must show where they are.
   //
   // The ask wears it, and so does every box it shows through (shownParts): the ask is
@@ -303,7 +303,7 @@ export function createAskView({
   // ask itself, and the fallback answers the wrapper any page can still style boxless
   // in a line, the same way the thread's mark does (paintAnchors).
   //
-  // The On panel's row for the ask is a second surface showing this one fact, so it
+  // On me's row for the ask is a second surface showing this one fact, so it
   // is painted from this one reading rather than from a mark the panel keeps for itself —
   // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
   // stylesheet is written against the attribute, not against the page), so wearing the
@@ -355,7 +355,7 @@ export function createAskView({
   // place that cannot misfire, because it holds a lent tab stop rather than a decision:
   // the widget's context routes are live there and Space decides nothing.
   //
-  // Chrome is excluded because it has nothing to restore: a On panel row and a
+  // Chrome is excluded because it has nothing to restore: an On me row and a
   // margin entry for the same ask are keyed by that id already, so a patch hands each of
   // them back as the same element, still holding the focus the user put on it.
   function captureStanding() {
@@ -386,7 +386,7 @@ export function createAskView({
   // an edit to a phrase, and what explains it is the sentence it stands in and the heading
   // over that — so it can never satisfy "a question must name itself without context outside
   // the question", and no x-ask-context can be written round it. Landing on the change alone put
-  // its own top edge under the banner and took that sentence with it: the user arrived
+  // its own top edge under the window's head and took that sentence with it: the user arrived
   // at ✓ Accept with nothing on screen saying what they were accepting. So where the
   // author has not declared a region, the document supplies one in the shape a declared
   // region has.
@@ -409,15 +409,15 @@ export function createAskView({
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
     // paragraph before the change fits every time, and the press then scrolls the page up
-    // by the banner's clearance instead of travelling to the ask.
+    // by the head room's clearance instead of travelling to the ask.
     // A region also has to begin at or above the change: it is the run-up to it, and one
     // starting below would be a region the change is not in. Document order alone does
     // not promise that — a preceding block can be painted lower — and the span such a
     // region measures is negative, which fits every screen there is.
     // The screen the user can use is the room a landing at the region's start leaves
     // for the run down to the ask's foot (landing-scroll.js, `landingRoom`): clear
-    // of the banner over its top and the bottom bar over its bottom, so an ask's foot
-    // that fits is one the user can read rather than one under the shortcut bar.
+    // of the window's head over its top and the floating panel's room over its bottom,
+    // so an ask's foot that fits is one the user can read rather than one under the panel.
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
@@ -488,10 +488,10 @@ export function createAskView({
   //
   // Whether the ask itself is readable is travel's question (`readable`), asked of
   // every edge through whatever clips it or stands over it — an ask half cut off by a
-  // board's own scroller, or reaching under the thread panel, is not in front of the
+  // board's own scroller, or reaching under the floating panel, is not in front of the
   // user for having a box inside the window. This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
-  // clear of the banner too.
+  // clear of the window's head too.
   function framed(record, region, ask, box, readable) {
     return (
       readable(ask) &&
@@ -503,7 +503,7 @@ export function createAskView({
   }
 
   // Standing on one ask: what m and Shift+m do once the queue walk has decided on an ask
-  // (queue-walk.js), what a On panel row does, and what a Page Map entry does having
+  // (queue-walk.js), what an On me row does, and what a Page Map entry does having
   // been told outright. One
   // function because it is one act — a second would be a second answer to "how do I put
   // the user on an ask", and the two would drift the first time either the reveal or the
@@ -522,12 +522,11 @@ export function createAskView({
       ? await materializeAsk(next, mayArrive)
       : reachAsk(next);
     if (!mayArrive() || !target) return false;
-    // A page ask starts below the banner so its context comes before its control, and
+    // A page ask starts at the window's head so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
     // or the one the document supplies for a change that cannot declare one. Whether this
     // press moves the page is `framed`'s answer, and travel's departure owns what follows
-    // from it: clearing a surface that hides the ask (a covering drawer, or the thread
-    // panel standing over it), and whether the press is a departure. It runs before the
+    // from it: clearing a surface that hides the ask, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
     // Capture the outgoing place before reveal can reshape it; only a successful
     // arrival commits the departure. A thread ask is

@@ -335,7 +335,7 @@ export function createMarginProjection({
 
   // A viewport posture change can replace the focused full thread with its
   // compact action. Reconcile after resize delivery so the browser can finish its
-  // own focus and popover bookkeeping before that node changes shape. Panel and drawer
+  // own focus and popover bookkeeping before that node changes shape. Panel
   // changes notify this runtime directly through their owners.
 
   // A margin cluster is hoisted away from the page target it belongs to, so ancestry
@@ -418,7 +418,7 @@ export function createMarginProjection({
     );
   }
 
-  // The rows in front of the user (`seenRect`): one under the banner or the bottom bar,
+  // The rows in front of the user (`seenRect`): one under the floating panel,
   // or scrolled out of a pane, is no row the walk or the rail's way in may land on.
   function visibleRows() {
     const clips = new Map();
@@ -1501,7 +1501,7 @@ export function createMarginProjection({
   // showing its threads. The card shows the threads of the target the user stands at,
   // which is what lets both be up at once, and goes when they stand anywhere else on the
   // page, let go, or press outside all three. Keyboard focus passing through the chrome
-  // at large — the banner, a drawer — is working on the page rather than a place on it,
+  // at large — the floating panel, its views — is working on the page rather than a place on it,
   // and leaves the card; a press anywhere else is the user's attention moving, and
   // takes it, as a press on another page place does.
   //

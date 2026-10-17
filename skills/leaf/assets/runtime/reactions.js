@@ -389,7 +389,7 @@ export function createReactionController({
         // scrolled out of the list: it comes into view to be answered, since a list
         // hung from a trigger out of view would neither show nor stay open, and it
         // closes once none of the trigger is in front of the user (`seenRect`). The
-        // list stands in the top layer, above the thread panel, so a surface standing
+        // list stands in the top layer, above the floating panel, so a surface standing
         // over the trigger does not take it away; a scroll carrying the trigger out of
         // sight does.
         scrollIntoReadingBand(picker.trigger, picker.trigger, "nearest", "instant");

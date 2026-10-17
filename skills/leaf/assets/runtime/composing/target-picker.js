@@ -81,8 +81,8 @@ const searchCount = (position, total) => `${position} of ${total}`;
 
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
-// chosen target; `/` opens the page's text search directly or from that map. The banner's
-// Select element opens this same picker, and its Cancel selection closes it. A choice
+// chosen target; `/` opens the page's text search directly or from that map. The floating
+// panel's Select element opens this same picker. A choice
 // in Design mode keeps that mode's design intent; Draw reserves the page for ink and
 // offers no picker. Area capture also claims the page until it ends. While the picker
 // stands, the page is armed as it is under a held Alt (aim.js): a mouse shows the target

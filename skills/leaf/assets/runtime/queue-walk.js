@@ -237,7 +237,7 @@ export function createQueueWalk({
     );
   }
 
-  // An answered ask is arrived at the same way, which is how the On panel's Done
+  // An answered ask is arrived at the same way, which is how On me's Done
   // rows return the user to one to review or revise it.
   function arriveAt(stop) {
     if (stop.kind === "ask") {
@@ -294,7 +294,7 @@ export function createQueueWalk({
       : null;
 
   // The to-do Done ends now. Under a finger with a keyboard beside it, as on a tablet,
-  // Tab onto the banner's Done step takes focus through Leaf's own controls and the
+  // Tab onto the floating panel's Done step takes focus through Leaf's own controls and the
   // page's body, where the user stands on no item, so while focus is there and no
   // caret or selection stands on the page the step keeps the to-do it was shown for,
   // if it is still on the user; anywhere else, the to-do the user stands on.
@@ -375,7 +375,7 @@ export function createQueueWalk({
   });
 
   // Where `m` lands on a to-do the user ends with Done, Done is a key, and a step on the
-  // banner's row under a finger. Its row in the On panel carries the same Done.
+  // floating panel's row under a finger. Its row in On me carries the same Done.
   pageScope("todo", {
     title: "On a to-do waiting on me",
     ready: savedReadingSettled,
@@ -396,13 +396,8 @@ export function createQueueWalk({
     ],
   });
 
-  // An On panel row arrives where the walk would (queue-panel.js), whichever list
-  // its item is on.
+  // An On me row arrives where the walk would, whichever list its item is on.
   const arriveAtItem = (item) => arriveAt(stopOf(item));
-
-  // The On panel's Next on me, which is `m` pressed from wherever the user
-  // stands (queue-panel.js).
-  const next = () => walk(1);
 
   // The id of the ask the user last went to, for a walk within a region pressed from
   // outside it. Sequential navigation passes over what it crosses, so it keeps the ask.
@@ -436,5 +431,5 @@ export function createQueueWalk({
       : walk(toward, within, here);
   }
 
-  return { mount, arriveAtItem, next, nextWithin };
+  return { mount, arriveAtItem, nextWithin };
 }

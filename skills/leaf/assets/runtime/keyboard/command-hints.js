@@ -9,7 +9,7 @@
  * bindings to one original command share a face, with a reachable contextual alias
  * preferred. Every remaining reachable binding stays in the accessible projection.
  *
- * Paint after the shortcut bar's layout, so placement sees current fixed chrome.
+ * Paint after the chrome's layout, so placement sees current fixed chrome.
  * The lent face is restored when its command leaves reach; stale source references
  * have already been rejected by the dispatcher. Accessible shortcuts compose with
  * existing control scopes through scopes.js rather than a second attribute writer.
@@ -231,7 +231,7 @@ export function createCommandHints({ presentedControl }) {
 
     // Reuse a widget's page-local binding badge where it has one. Besides preserving the
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
-    // the fixed shortcut bar above it. One face belongs to one action, and every part of
+    // the fixed chrome above it. One face belongs to one action, and every part of
     // it must be visible on top; otherwise the ordinary core chip carries the same route.
     // That can be read only off the face as it would stand, so the face stays lent while
     // its route stands: one that is not exposed keeps the digit and its box but turns

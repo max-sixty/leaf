@@ -20,7 +20,7 @@
    by key alone, on every pointer (composing/selection.js). An explicit addressable target
    opens and focuses that field. On desktop, selecting a passage leaves the field open
    but unfocused. Selection observed outside a completed page gesture offers Comment
-   on selection in the banner, as does selection on touch screens;
+   on selection in the floating panel, as does selection on touch screens;
    its press captures the passage, clears the native selection menu, and opens the field.
    Until that press the native handles and menu have the passage to themselves. The
    field grows in place and never transfers text into a second composer card. A
@@ -357,8 +357,8 @@ export function createResponseSurface({
   // anchor, so c from an ask and an aimed press on the same ask unwind alike.
   // There is no saved pre-command focus: standing on an option comments on its ask,
   // and closing returns to the ask itself. A drawing's proxy is the fallback, not
-  // the parent, even for a user who pressed it: focused, its face stands under the
-  // banner, away from the drawing it is about (chrome.css). A quoted selection clears to
+  // the parent, even for a user who pressed it: focused, its face stands at the
+  // window's head, away from the drawing it is about (chrome.css). A quoted selection clears to
   // the page; a removed subject has no parent to land on.
   const returnPlaces = (anchor) =>
     anchor && !anchor.quote ? [anchorTargetAt(anchor), visualActionAnchor(anchor)] : [];
@@ -788,7 +788,7 @@ export function createResponseSurface({
     });
   }
   let primaryPointerPressed = false;
-  // Whether the page's own words stood selected when the shortcut bar was last painted.
+  // Whether the page's own words stood selected when the keys were last painted.
   // Escape owns the selection from its first glyph. Paint only that crossing, including
   // a selection begun in a label whose pointer press is not a page-word gesture; growing
   // a selection that already stands needs no repaint on each drag frame.
@@ -834,7 +834,7 @@ export function createResponseSurface({
       });
     // Opening or acting in chrome is a route away from the page, not a new selection
     // gesture. Keep the native touch passage verbatim while focus moves
-    // through the banner, its sibling popovers, and their controls.
+    // through the floating panel, its popovers, and their controls.
     if (selectionOffered && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
       pointerSelecting = false;
@@ -876,11 +876,6 @@ export function createResponseSurface({
   // the press rather than about who receives it: the aim takes a press away from the page
   // (see claimPress) and must not take this with it, or the command reference stays up over
   // the composer that press just opened. Hence one function, called from both.
-  // The two side panels are absent from it on purpose. A float answers the press in front
-  // of it and stands down behind it; the thread panel and the leaves drawer are
-  // auxiliary surfaces the user stood up, kept through a reload (AUXILIARY_SURFACE_KEY) and so
-  // through a click all the more — a drawer any press removes cannot be watched while
-  // working, which is the drawer's point. Each closes by its own button, its key, or Esc.
   function standDown(target) {
     // A native modal owns its press; the composer behind it remains inert.
     if (nativeLayers().some((layer) => layer.kind === "modal")) return;
@@ -1294,9 +1289,8 @@ export function createResponseSurface({
   // c goes where commenting happens: a live selection gets the composer (what the floating
   // button does), an element click's pending 💬 gets that, an open thread the user is
   // standing in gets its own reply box, the item they are standing in gets the box
-  // belonging to it, and otherwise the page's general box, in the card under the banner's
-  // Comment on the page. c names and focuses the box directly; g T independently names
-  // the list. Never the panel's collapse: c doubled as the toggle once, so with the panel
+  // belonging to it, and otherwise the page's general box, the floating panel's field. c
+  // names and focuses the box directly; g T independently names the list. Never the panel's collapse: c doubled as the toggle once, so with the panel
   // standing open the key that promised “comment” answered “close”. Backing out is
   // whatever the box is standing in.
   //

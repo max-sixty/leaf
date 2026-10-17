@@ -430,7 +430,7 @@ export function createAnnotationInventory({
         // passage and paints additions there, so the user learns what changed without
         // travelling to the other version and back. Where it kept none, the press is the
         // travel it always was, and `discloses` answering null is what says so — to the
-        // margin entry's relation, to the shortcut bar's word for the press, and to the
+        // margin entry's relation, to the hint's word for the press, and to the
         // reference.
         discloses: () => inlineComparison(target),
         activate: () => {
@@ -446,7 +446,7 @@ export function createAnnotationInventory({
 
     // A to-do the agent opened on a page widget or element stands beside it, as Working
     // with the line of the start running on it, or as an open to-do under its title.
-    // A thread's to-do is its thread's attention (above); the page's is the banner's. A
+    // A thread's to-do is its thread's attention (above); the page's is the floating panel's. A
     // to-do on the user is on their list, On me, instead.
     for (const todo of runtime.todos) {
       if (

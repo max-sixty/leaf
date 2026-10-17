@@ -260,7 +260,7 @@ function syncContributionTurn(control, awaitsUser) {
 }
 
 // Whether a reading carries agent content the user has not taken in: the same
-// Thread `unread` the panel and banner paint, as one attribute both surfaces share.
+// Thread `unread` the panel and the margin paint, as one attribute both surfaces share.
 export function syncContributionUnread(control, count) {
   control.toggleAttribute("data-lf-unread", Boolean(count));
 }

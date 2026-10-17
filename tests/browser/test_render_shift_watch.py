@@ -797,6 +797,44 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         assert names_move(errors, protected), errors
 
 
+@pytest.mark.parametrize("taken_down", [True, False])
+def test_a_control_shown_again_elsewhere_is_no_move(browser, taken_down):
+    """A control taken off the page and later shown again where the page has since
+    moved, as a thread's news notice is, appears there; one standing while the page
+    moves under it is carried."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<div id="above" style="height:100px"></div>'
+            '<div id="seat"><button id="notice">1 new</button></div>'
+            # A box with nothing to read, which the notice's return moves, so Chrome
+            # reports a shift in the frame it returns in.
+            '<div style="height:20px;background:gray"></div></body>'
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """takenDown => {
+          const notice = document.getElementById('notice');
+          if (takenDown) notice.remove();
+          document.getElementById('above').style.height = '200px';
+          window.__notice = notice;
+        }""",
+        taken_down,
+    )
+    paint(page)
+    if taken_down:
+        page.evaluate("() => document.getElementById('seat').append(window.__notice)")
+        paint(page)
+        judge_watches()
+        return
+    judge_watches()
+    errors = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert names_move(errors, "button#notice"), errors
+
+
 @pytest.mark.parametrize(
     "fault, protected",
     [

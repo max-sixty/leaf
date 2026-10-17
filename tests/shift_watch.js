@@ -2237,6 +2237,16 @@
     };
   };
   const pendingMotion = [];
+  // Whether a frame's reading held `node`. A node that left the page keeps its last
+  // reading in the ledger, so a node that returns elsewhere, as a notice taken down
+  // and later shown again does, would otherwise read as carried from where it last
+  // stood; what returns is a new reading, which no motion compares.
+  const frameNodes = new WeakMap();
+  const readIn = (frame, node) => {
+    let held = frameNodes.get(frame.nodes);
+    if (!held) frameNodes.set(frame.nodes, (held = new Set(frame.nodes)));
+    return held.has(node);
+  };
   const protectedMotion = (around) => {
     const growth = appendGrowth(around);
     for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
@@ -2299,6 +2309,8 @@
             fromPaint.paintable &&
             toPaint.paintable &&
             (fromPaint.visible || toPaint.visible) &&
+            readIn(around[before], node) &&
+            readIn(around[after], node) &&
             !permittedAppend(node, previousRect, currentRect, around, growth) &&
             !permittedReflow({ node, previousRect, currentRect }, around)
           )

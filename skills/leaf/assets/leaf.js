@@ -327,9 +327,15 @@ const version = createVersionController({
   readAndApply: (...args) => app.readAndApply(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
-  captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
-  restoreRetainedStanding: (standing) =>
-    app?.overlay?.restoreStanding(standing) ?? false,
+  // The chrome the reader stands in: a margin card or entry, and the panel's thread.
+  captureRetainedStanding: () => ({
+    margin: app?.overlay?.captureStanding() ?? null,
+    panel: floatingPanel.captureStanding(),
+  }),
+  restoreRetainedStanding: ({ margin, panel }) => {
+    const panelShown = floatingPanel.restoreStanding(panel);
+    return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
+  },
   captureAskStanding: () => asks.captureStanding(),
   restoreAskStanding: (standing) => asks.restoreStanding(standing),
   versions: { press: () => floatingPanel.doors.versions.press() },

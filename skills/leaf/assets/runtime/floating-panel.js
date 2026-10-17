@@ -2619,7 +2619,10 @@ export function createFloatingPanel({
         label: "Latest",
         title: latest.keyTitle,
         disabled: latest.disabled,
-        run: () => putAwayThen(() => versionPicker.latest()),
+        // The notice stands in the row, beside whatever view is open, so its press
+        // puts nothing away: a revision installed under an open thread hands back
+        // the reply being written there (version.js, `restoreEditingContinuity`).
+        run: () => versionPicker.latest(),
       },
     };
   }
@@ -2964,6 +2967,33 @@ export function createFloatingPanel({
     return present({ release: true }).then(() => true);
   }
 
+  // A live revision that loads a fresh document carries the thread open here, and where
+  // its view was read to, across it (version.js, the revision handoff): the reader is
+  // still at it, so the view comes back as they left it, without taking focus, which
+  // the reply's own editing continuity hands back. A view opened by the user's next
+  // visit does not come back (restore-state.js); this is not that.
+  function captureStanding() {
+    const top = trail.at(-1);
+    const view = openView();
+    if (top?.view !== "thread" || !view) return null;
+    return {
+      thread: threadByKey(top.thread)?.key ?? top.thread,
+      scroll: view.scrollTop,
+    };
+  }
+  function restoreStanding(standing) {
+    const thread = standing && threadByKey(standing.thread);
+    if (!thread) return false;
+    open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
+    landAtEnd = null;
+    void present({ release: true }).then(() => {
+      const view = openView();
+      if (view && trail.at(-1)?.thread === thread.key)
+        moveScrollerBy(view, standing.scroll - view.scrollTop);
+    });
+    return true;
+  }
+
   // The page's comment box in this chrome, as `c` and Resume writing find it
   // (composing/surface.js, `commentDestination`).
   const pageComment = Object.freeze({
@@ -3063,6 +3093,8 @@ export function createFloatingPanel({
     pageComment,
     doors,
     showForSample,
+    captureStanding,
+    restoreStanding,
     // The anchored comment box opening in its home (`responseSeat`) clears the row for
     // it, where the composer then takes the caret (composing/surface.js,
     // `finishPlacement`).

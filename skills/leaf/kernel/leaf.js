@@ -7587,7 +7587,10 @@ function createFloatingPanel({
         label: "Latest",
         title: latest.keyTitle,
         disabled: latest.disabled,
-        run: () => putAwayThen(() => versionPicker.latest())
+        // The notice stands in the row, beside whatever view is open, so its press
+        // puts nothing away: a revision installed under an open thread hands back
+        // the reply being written there (version.js, `restoreEditingContinuity`).
+        run: () => versionPicker.latest()
       }
     };
   }
@@ -7862,6 +7865,27 @@ function createFloatingPanel({
     }
     return present({ release: true }).then(() => true);
   }
+  function captureStanding() {
+    const top = trail.at(-1);
+    const view = openView();
+    if (top?.view !== "thread" || !view) return null;
+    return {
+      thread: threadByKey(top.thread)?.key ?? top.thread,
+      scroll: view.scrollTop
+    };
+  }
+  function restoreStanding(standing2) {
+    const thread = standing2 && threadByKey(standing2.thread);
+    if (!thread) return false;
+    open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
+    landAtEnd = null;
+    void present({ release: true }).then(() => {
+      const view = openView();
+      if (view && trail.at(-1)?.thread === thread.key)
+        moveScrollerBy(view, standing2.scroll - view.scrollTop);
+    });
+    return true;
+  }
   const pageComment = Object.freeze({
     get box() {
       return pageEditor().input;
@@ -7947,6 +7971,8 @@ function createFloatingPanel({
     pageComment,
     doors,
     showForSample,
+    captureStanding,
+    restoreStanding,
     // The anchored comment box opening in its home (`responseSeat`) clears the row for
     // it, where the composer then takes the caret (composing/surface.js,
     // `finishPlacement`).
@@ -10597,8 +10623,15 @@ var version = createVersionController({
   readAndApply: (...args) => app.readAndApply(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
-  captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
-  restoreRetainedStanding: (standing2) => app?.overlay?.restoreStanding(standing2) ?? false,
+  // The chrome the reader stands in: a margin card or entry, and the panel's thread.
+  captureRetainedStanding: () => ({
+    margin: app?.overlay?.captureStanding() ?? null,
+    panel: floatingPanel.captureStanding()
+  }),
+  restoreRetainedStanding: ({ margin, panel }) => {
+    const panelShown = floatingPanel.restoreStanding(panel);
+    return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
+  },
   captureAskStanding: () => asks.captureStanding(),
   restoreAskStanding: (standing2) => asks.restoreStanding(standing2),
   versions: { press: () => floatingPanel.doors.versions.press() }

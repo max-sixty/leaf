@@ -47,7 +47,7 @@
  * use their own stores.
  *
  * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin standing, mechanical carry, and ask standing. A newer
+ * comparison, pointer, margin and panel standing, mechanical carry, and ask standing. A newer
  * revision may consume it, but ordinary reloads and history travel cannot replay it.
  * Explicit historical travel carries reading position and the decision landmark, without
  * mechanical carry or ask standing. State application serializes responses and remains

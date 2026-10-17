@@ -1041,6 +1041,13 @@
   .lf-fp-messages {
     padding: 0 8px;
   }
+  .lf-fp-messages .lf-msg-editor {
+    margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
+  }
+  .lf-fp-messages .lf-msg-editor .lf-compose-field > leaf-text {
+    min-height: calc(var(--lf-fp-line) - 2px);
+    padding-block: calc((var(--lf-fp-line) - 2px - 1lh) / 2);
+  }
   .lf-fp-menu {
     position: fixed;
     position-anchor: --lf-fp-leaf;

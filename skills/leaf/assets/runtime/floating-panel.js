@@ -919,6 +919,7 @@ export function createFloatingPanel({
   const fit = sizeObserver(() => {
     landReader();
     fitAnswer();
+    stood = openView()?.offsetHeight ?? null;
   });
   const follow = sizeObserver(() => followBox());
   addEventListener("resize", () => {
@@ -961,6 +962,26 @@ export function createFloatingPanel({
   // then handed the panel as their last resort (`reveal`): On the page has nowhere to
   // take the user from those.
   const unplaced = new Set();
+  // A rewrite opens in place of the user's message, in a box the reply box's size,
+  // which may stand taller than the words it replaces. In a card it grows down from the
+  // message's head; a thread's view stands on its foot and would carry that head up. So
+  // while the caret is in a rewrite, the view keeps the height it last stood at (`stood`,
+  // read where the reader's drawing lands), and what follows the message moves down
+  // inside it, revealed by scrolling (thread/reply-landing.js, `revealEditor`). It
+  // follows its messages again once the caret leaves the rewrites.
+  let stood = null;
+  const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  onStanding((node, cause, left) => {
+    const top = trail.at(-1);
+    if (top?.view !== "thread" || cause === "drop") return;
+    const key = routeKey(top);
+    const view = openView();
+    if (inRewrite(node) && view && renderedUnder(node, view)) {
+      if (rooms.has(key) || stood === null) return;
+      rooms.set(key, stood);
+    } else if (!inRewrite(left) || !rooms.delete(key)) return;
+    paint();
+  });
   function holdRoom() {
     const top = trail.at(-1);
     if (!top || top.view === "thread" || rooms.has(routeKey(top))) return false;

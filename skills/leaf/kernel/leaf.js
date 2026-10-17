@@ -6383,6 +6383,7 @@ function createFloatingPanel({
   const fit = sizeObserver(() => {
     landReader();
     fitAnswer();
+    stood = openView()?.offsetHeight ?? null;
   });
   const follow = sizeObserver(() => followBox());
   addEventListener("resize", () => {
@@ -6392,6 +6393,19 @@ function createFloatingPanel({
   const rooms = /* @__PURE__ */ new Map();
   let onPageSeat = false;
   const unplaced = /* @__PURE__ */ new Set();
+  let stood = null;
+  const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  onStanding((node, cause, left) => {
+    const top = trail.at(-1);
+    if (top?.view !== "thread" || cause === "drop") return;
+    const key = routeKey(top);
+    const view = openView();
+    if (inRewrite(node) && view && renderedUnder(node, view)) {
+      if (rooms.has(key) || stood === null) return;
+      rooms.set(key, stood);
+    } else if (!inRewrite(left) || !rooms.delete(key)) return;
+    paint();
+  });
   function holdRoom() {
     const top = trail.at(-1);
     if (!top || top.view === "thread" || rooms.has(routeKey(top))) return false;

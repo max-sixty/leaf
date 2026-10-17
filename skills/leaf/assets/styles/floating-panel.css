@@ -1261,6 +1261,17 @@
   .lf-fp-messages {
     padding: 0 8px;
   }
+  /* A rewrite in a thread's view is the reply box of the field below it, at the field's
+     height, frame included: its words keep the message's face, set in the field's
+     line, and its place, the box reaching back over their inset as in a card's
+     transcript (response.css). */
+  .lf-fp-messages .lf-msg-editor {
+    margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
+  }
+  .lf-fp-messages .lf-msg-editor .lf-compose-field > leaf-text {
+    min-height: calc(var(--lf-fp-line) - 2px);
+    padding-block: calc((var(--lf-fp-line) - 2px - 1lh) / 2);
+  }
 
   /* ---------- the leaf's menu ---------- */
   /* It stands over the leaf, its trigger, however tall a view open above the row makes

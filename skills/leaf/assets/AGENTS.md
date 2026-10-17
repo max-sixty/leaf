@@ -81,7 +81,8 @@ representative desktop viewport.
 - **A runtime region whose contents rearrange inside it declares `data-lf-reflow`.**
   The message header declares `text`: its labels may rewrap, its controls stay put. A
   thread card's transcript declares `append`: it may grow at its end, by new messages or by a last
-  child marked `data-lf-append-tail` such as the working message, and only the reply
+  child marked `data-lf-append-tail` such as the working message, growing or giving way
+  to the answer that takes its place, and only the reply
   row and later cards move with that growth. When the growth would push a reply row the
   user just sent below its landing band, the transcript scrolls instead
   (`sendLanding` in `thread/reply-landing.js`). Put the attribute on the box that owns

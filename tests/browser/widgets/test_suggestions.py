@@ -19,7 +19,6 @@ from render_cases_interaction import (
 from render_cases_layout import unfolded_button
 from render_cases_navigation import actions
 from render_harness import (
-    PANEL,
     consume_browser_errors,
     expect_comment_notes,
     holding,
@@ -37,6 +36,8 @@ from render_harness import (
     undo,
 )
 
+from browser.widgets import expect_accept_all
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
@@ -45,20 +46,6 @@ def expect_no_notice(page, words):
     field's place (floating-panel.js), so a decision the live region alone announces
     leaves the field saying something else."""
     expect(panel_field(page)).not_to_have_attribute("placeholder", re.compile(words))
-
-
-def expect_accept_all(page, count):
-    """Read the leaf's menu offering Accept all for `count` pending suggestions, enabled,
-    then put the menu away; `count` 0 reads no such row at all."""
-    menu = panel_menu(page)
-    row = menu.locator('.lf-fp-item[data-row="blanket:accept"]')
-    if count:
-        expect(row).to_be_enabled()
-        expect(row).to_contain_text(f"Accept all ({count})")
-    else:
-        expect(row).to_have_count(0)
-    page.locator(".lf-fp-leaf").click()
-    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):

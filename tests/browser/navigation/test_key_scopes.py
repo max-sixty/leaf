@@ -1881,7 +1881,7 @@ def test_comment_escape_returns_to_its_authored_parent(browser, serve, entry):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect(ask).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment on the ask")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment on the question")
     page.keyboard.press("Escape")
     assert page.evaluate("document.activeElement === document.body")
 

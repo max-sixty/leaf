@@ -308,7 +308,12 @@ export function createPrimaryReader(
             // The part draws whichever row the view holds: its own, or the session's
             // row it takes from a view that can draw the thread no more, the user
             // still in it (replies.js, `carry`).
-            const reply = createReplyView(item.key, commands.reply, {
+            const redraw = () => {
+              for (const row of node.querySelectorAll(":scope > .lf-thread-reply"))
+                if (row !== reply.node) row.remove();
+              move(node, reply.node, node.firstChild);
+            };
+            const reply = createReplyView(item.key, commands.reply, redraw, {
               onChange: () => {
                 if (joined) void update().catch(() => {});
               },
@@ -316,11 +321,6 @@ export function createPrimaryReader(
               hint,
               accessibleName,
               sent,
-              redraw: () => {
-                for (const row of node.querySelectorAll(":scope > .lf-thread-reply"))
-                  if (row !== reply.node) row.remove();
-                move(node, reply.node, node.firstChild);
-              },
             });
             joined = true;
             node.append(reply.node);

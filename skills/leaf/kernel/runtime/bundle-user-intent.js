@@ -4434,8 +4434,7 @@ function handOver(target, owner) {
   return owner;
 }
 function carry(target, owner) {
-  const giver = owner.binding;
-  if (target === owner || owner.retired || !target.binding?.take || giver && (!giver.give || owner.row.checkVisibility()))
+  if (target === owner || owner.retired || !target.binding || owner.binding && owner.row.checkVisibility())
     return target;
   const session = compositions.get(owner.context);
   if (session && session.owner !== owner && session.owner !== target) return target;
@@ -4452,9 +4451,9 @@ function parkRow(row) {
 }
 function releaseReplies(surface) {
   for (const { owner } of compositions.values()) {
-    if (!owner?.binding?.give || !surface.contains(owner.row)) continue;
+    if (!owner?.binding || !surface.contains(owner.row)) continue;
     const shown = [...views2.get(owner.context)].find(
-      (view) => view !== owner && view.binding.take && view.controls.input.checkVisibility()
+      (view) => view !== owner && view.controls.input.checkVisibility()
     );
     if (shown) handOver(shown, owner);
     else {
@@ -4583,11 +4582,10 @@ async function restoreReplyEditing(editing, land2) {
       compositions.delete(context);
   }
 }
-function createReplyView(key, commands2, {
+function createReplyView(key, commands2, redraw, {
   onChange = () => {
   },
   editLast = null,
-  redraw = null,
   hint = "Reply",
   accessibleName = "Reply",
   sent = null
@@ -4606,22 +4604,20 @@ function createReplyView(key, commands2, {
   let composition = fresh();
   const binding = { ...commands2, onChange, editLast, sent };
   let detach = attach(composition, binding);
-  if (redraw) {
-    binding.give = () => {
-      detach({ handingOn: true });
-      composition = fresh();
-      detach = attach(composition, binding);
-      return redraw;
-    };
-    binding.take = (owner) => {
-      if (standingIn(composition.row)) focused().blur();
-      detach();
-      composition.retired = true;
-      composition = owner;
-      detach = attach(composition, binding);
-      redraw();
-    };
-  }
+  binding.give = () => {
+    detach({ handingOn: true });
+    composition = fresh();
+    detach = attach(composition, binding);
+    return redraw;
+  };
+  binding.take = (owner) => {
+    if (standingIn(composition.row)) focused().blur();
+    detach();
+    composition.retired = true;
+    composition = owner;
+    detach = attach(composition, binding);
+    redraw();
+  };
   return {
     get node() {
       return composition.row;
@@ -4635,7 +4631,7 @@ function createReplyView(key, commands2, {
     // document, `shown`, so the move keeps the user in the row (dom-move.js).
     claim(shown) {
       const owner = compositions.get(composition.context)?.owner;
-      if (binding.take && owner && owner !== composition && !owner.binding && !owner.retired && shown())
+      if (owner && owner !== composition && !owner.binding && !owner.retired && shown())
         binding.take(owner);
     },
     dispose: () => detach()
@@ -6471,10 +6467,9 @@ var ThreadView = class {
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
-    return createReplyView(model.key, this.#commands.reply, {
+    return createReplyView(model.key, this.#commands.reply, () => this.repaint(), {
       onChange: replyChanged,
-      editLast: this.#rewrites.editLast,
-      redraw: () => this.repaint()
+      editLast: this.#rewrites.editLast
     });
   }
   commit() {

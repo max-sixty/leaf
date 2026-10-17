@@ -423,15 +423,15 @@ export async function restoreReplyEditing(editing, land) {
 // draft, input, delivery and recovery lifetime rather than constructing another one.
 // A presentation may say what its empty box reads (`hint`) and is named
 // (`accessibleName`), and where its box stays for the next turn, as the floating
-// panel's field does, land a send itself (`sent`) rather than stand on the thread. It
-// draws the view's row again on `redraw`, as the view takes another in its place.
+// panel's field does, land a send itself (`sent`) rather than stand on the thread. The
+// view draws its row again on `redraw`, as it takes another in its place.
 export function createReplyView(
   key,
   commands,
+  redraw,
   {
     onChange = () => {},
     editLast = null,
-    redraw,
     hint = "Reply",
     accessibleName = "Reply",
     sent = null,

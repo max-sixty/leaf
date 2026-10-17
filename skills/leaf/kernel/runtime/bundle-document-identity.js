@@ -6442,7 +6442,12 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
           } else {
             let joined2 = false;
             const { hint, accessibleName, sent } = item.options;
-            const reply = createReplyView(item.key, commands.reply, {
+            const redraw = () => {
+              for (const row of node.querySelectorAll(":scope > .lf-thread-reply"))
+                if (row !== reply.node) row.remove();
+              move(node, reply.node, node.firstChild);
+            };
+            const reply = createReplyView(item.key, commands.reply, redraw, {
               onChange: () => {
                 if (joined2) void update().catch(() => {
                 });
@@ -6526,6 +6531,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       destinations.set(item.key, parts);
     }
     for (const [parent, nodes] of children) orderChildren(parent, nodes);
+    for (const view of views.values())
+      view.reply?.claim(() => view.node.isConnected && !view.node.hidden);
     const widgets = [...readApplication().document.descriptors.values()].filter(
       (descriptor) => descriptor.document.kind === "thread" && renderedUnder(elementById(descriptor.id), owner)
     ).map((descriptor) => descriptor.id);

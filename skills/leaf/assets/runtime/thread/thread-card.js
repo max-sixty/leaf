@@ -1180,10 +1180,9 @@ export class ThreadView {
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
-    return createReplyView(model.key, this.#commands.reply, {
+    return createReplyView(model.key, this.#commands.reply, () => this.repaint(), {
       onChange: replyChanged,
       editLast: this.#rewrites.editLast,
-      redraw: () => this.repaint(),
     });
   }
 

@@ -6454,14 +6454,17 @@ function createFloatingPanel({
     if (waiting?.message === next.message) return;
     const arriving = !waiting;
     waiting = next;
-    paint();
-    if (!arriving || !atEnd) return;
-    const foot = view.querySelector(".lf-fp-foot")?.getBoundingClientRect();
-    const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
-    const by = Math.min(Math.max(below, 0), from());
-    if (Math.abs(by) < 0.5) return;
-    moveScrollerBy(view, by);
-    placed = view.scrollTop;
+    nextRender(() => {
+      if (waiting !== next || openView() !== view) return;
+      paint();
+      if (!arriving || !atEnd || !turn.isConnected) return;
+      const foot = view.querySelector(".lf-fp-foot")?.getBoundingClientRect();
+      const below = foot ? turn.getBoundingClientRect().bottom - foot.top : 0;
+      const by = Math.min(Math.max(below, 0), from());
+      if (Math.abs(by) < 0.5) return;
+      moveScrollerBy(view, by);
+      placed = view.scrollTop;
+    });
   }
   function showAnswer() {
     const answer = waiting;
@@ -6924,6 +6927,25 @@ function createFloatingPanel({
     whole: (view) => openIn(view) ? openView() : null
   });
   const declareView = (view) => view && declareThreadParts(view, viewParts);
+  const viewRegions = /* @__PURE__ */ new Map();
+  let regionCount = 0;
+  function regionViews() {
+    for (const [view, stop] of viewRegions)
+      if (!view.isConnected) {
+        stop();
+        viewRegions.delete(view);
+      }
+    for (const view of stage.querySelectorAll(".lf-fp-view"))
+      if (!viewRegions.has(view))
+        viewRegions.set(
+          view,
+          registerReadingRegion({
+            id: `floating-panel-view-${++regionCount}`,
+            host: view,
+            body: view
+          })
+        );
+  }
   declareView(head);
   declareView(replyOutlet);
   let quoteExpanded = false;
@@ -7452,6 +7474,7 @@ function createFloatingPanel({
       stage
     );
     if (restoreFocus && heldView === shownView()) restoreFocus(heldView);
+    regionViews();
     const outlet = outletOf();
     if (outlet !== fitted) {
       fit.disconnect();

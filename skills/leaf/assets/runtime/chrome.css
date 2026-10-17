@@ -1352,6 +1352,20 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 }
 @scope (.lf-chrome) {
+  .lf-foreground {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 0;
+    height: 0;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    overflow: visible;
+    background: transparent;
+    color: inherit;
+  }
   .lf-region-capture {
     position: fixed;
     inset: 0;

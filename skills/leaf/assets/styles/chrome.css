@@ -216,6 +216,23 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 }
 /* Everything below is private to the chrome: no widget or page class can match it. */
 @scope (.lf-chrome) {
+  /* The foreground dialog (chrome.js) is an empty box at the document's origin, so what
+     it holds positions against the window or that origin and never reads its size. Left
+     to the browser's dialog face, it drew an empty bordered square where the page ends. */
+  .lf-foreground {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 0;
+    height: 0;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    overflow: visible;
+    background: transparent;
+    color: inherit;
+  }
   /* Capture paint leaves page hit tests intact; the controller owns its input. */
   .lf-region-capture {
     position: fixed;

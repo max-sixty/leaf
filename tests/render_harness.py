@@ -1084,9 +1084,15 @@ def undo(page):
 # takes an async predicate's promise as a truthy answer and returns at once.
 AVAILABLE_COMMANDS = """async () => {
   const {availableCommandRoutes} = await window.__lfCheckApi();
-  window.__lfAvailableCommands = () => Object.fromEntries(
-    [...availableCommandRoutes()].map(([row, keys]) =>
-      [row.id, [...keys].filter((key) => typeof key === 'string').sort()]));
+  // A command can stand in more than one scope, such as a widget's own and the Ask's
+  // digit for it, so the keys of every row with its id are the keys that reach it.
+  window.__lfAvailableCommands = () => {
+    const reached = {};
+    for (const [row, keys] of availableCommandRoutes())
+      reached[row.id] = [...new Set([...(reached[row.id] ?? []),
+        ...[...keys].filter((key) => typeof key === 'string')])].sort();
+    return reached;
+  };
   return window.__lfAvailableCommands();
 }"""
 

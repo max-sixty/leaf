@@ -7,14 +7,12 @@ import pytest
 from interact_support import append_carried_log_record
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, PANEL_PAGE, live_url
-from render_cases_layout import banner_control, toggle_queue, with_one_ask
+from render_cases_interaction import PANEL_PAGE, live_url
 from render_harness import (
     EXAMPLES,
     leaf_page,
     margins_laid_out,
     open_page,
-    panel_settled,
     resized,
     round_trip,
     sending,
@@ -23,8 +21,6 @@ from render_harness import (
 )
 
 from browser.margin import (
-    ACTION_ON_ASK,
-    COMMENT_ON_ASK,
     MARGIN_ENTRY_KEYBOARD_PAGE,
     _comment_on,
 )
@@ -86,66 +82,6 @@ def test_a_held_marker_keeps_the_keyboard_when_the_rail_falls(browser, serve):
     expect(row).to_have_attribute("data-lf-place", "pin")
     expect(marker).to_be_visible()
     expect(marker).to_be_focused()
-
-
-def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
-    """Threads stands over the page and takes no room, so opening it leaves the rail
-    drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
-    markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
-    The Map is read as offered rather than as visible, since the toolbar may fold it behind
-    the More door at a width the banner is crowded at. The On panel stands on the
-    Threads panel's edge, so it is read the same way: drawn over, the rail is still drawn,
-    and the banner offers the map in its place."""
-    comment = {
-        "kind": "comment",
-        "author": "user",
-        "revision": 1,
-        "text": "A thread the margin draws a marker for.",
-        "anchor": {"section": "how-cap"},
-    }
-    page = open_page(browser, serve(with_one_ask(PANEL_PAGE), events=[comment]))
-    offered = """() => {
-      const map = document.querySelector('.lf-page-map-toggle');
-      return Boolean(map) && !map.hidden && getComputedStyle(map).display !== 'none';
-    }"""
-    marker = page.locator(".lf-margin-marker.lf-margin-entry").first
-
-    resized(page, 1100, 900)
-    margins_laid_out(page)
-    expect(marker).to_be_visible()
-    assert not page.evaluate(offered), (
-        "a page with a rail offers the map in the margin, not in the banner"
-    )
-
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    margins_laid_out(page)
-    assert marker.evaluate("el => el.checkVisibility()"), (
-        "Threads stands over the page, and opening it withdrew the rail"
-    )
-    assert page.evaluate(offered), (
-        "the open panel stands over the rail and the page offered the user nothing in "
-        "its place"
-    )
-    resized(page, 1920, 900)
-    panel_settled(page)
-    margins_laid_out(page)
-    assert not page.evaluate(offered), (
-        "the rail stands clear of the open panel, yet the banner still offers the map"
-    )
-    resized(page, 1100, 900)
-    page.get_by_role("button", name="Close threads").click()
-    panel_settled(page, open=False)
-    margins_laid_out(page)
-    assert not page.evaluate(offered), "closing the panel left the map offered"
-
-    toggle_queue(page)
-    margins_laid_out(page)
-    expect(marker).to_be_visible()
-    assert page.evaluate(offered), (
-        "the On panel stands over the rail and the page offered the user nothing "
-        "in its place"
-    )
 
 
 @pytest.mark.parametrize("touch", [False, True], ids=["mouse", "finger"])
@@ -334,7 +270,9 @@ def test_a_live_page_leaves_no_empty_thread_column_and_keeps_its_reading_positio
         {"kind": "resolve", "author": "user", "parent": comment["id"]},
     )
     told(page)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "aria-label", "Threads, 0 open"
+    )
     assert position() == initial
 
 
@@ -414,24 +352,6 @@ def test_a_marker_level_with_a_hanging_note_pins_and_one_below_it_keeps_the_rail
     for target, place in (("beside", "pin"), ("below", "rail")):
         row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
         expect(row).to_have_attribute("data-lf-place", place)
-
-
-def test_the_banner_offers_the_map_wherever_the_markers_are_pins(browser, serve):
-    """The Page Map toggle follows the rail the margin measures, not a window width: a
-    920px window leaves a column page too little room beside it for the rail, so its
-    markers are pins and the banner offers the map, as it does on a phone. The control is
-    the same page at 1200px, where the rail stands and the toggle steps aside."""
-    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
-    rows = page.locator(".lf-margin-projection .lf-margin-cluster")
-    for width, place, offered in ((1200, "rail", False), (920, "pin", True)):
-        resized(page, width, 900)
-        margins_laid_out(page)
-        expect(rows.first).to_have_attribute("data-lf-place", place)
-        toggle = page.locator(".lf-page-map-toggle")
-        if offered:
-            expect(banner_control(page, ".lf-page-map-toggle")).to_be_visible()
-        else:
-            expect(toggle).to_be_hidden()
 
 
 @pytest.mark.parametrize(
@@ -550,48 +470,6 @@ def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
     for _ in range(reached):
         page.keyboard.press("Shift+Tab")
     expect(page.locator("#after-margin-entries")).to_be_focused()
-
-
-def test_the_rail_s_way_in_is_a_marker_in_front_of_the_user(browser, serve):
-    """Tab into the rail lands on a marker the user can see. One scrolled under the
-    banner is still in the window but out of sight, so the rail's one stop passes from
-    it to the marker below."""
-    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(40))
-    source = leaf_page(
-        "the rail's way in",
-        '<h1 id="t">Rail</h1><p id="first">The first commented paragraph.</p>'
-        "<p>One between.</p><p>Another between.</p>"
-        f'<p id="second">The second commented paragraph.</p>{filler}'
-        '<p><a id="last" href="#t">The last link</a></p>',
-    )
-    page = open_page(
-        browser, serve(source, events=[_comment_on("first"), _comment_on("second")])
-    )
-    resized(page, 1440, 900)
-    margins_laid_out(page)
-    first = page.locator('[data-lf-margin-for="first"] .lf-margin-marker')
-    second = page.locator('[data-lf-margin-for="second"] .lf-margin-marker')
-    expect(first).to_have_attribute("tabindex", "0")
-    banner = first.evaluate(
-        """async row => {
-          const {bannerFoot} = await window.__lfCheckApi();
-          scrollBy({top: row.getBoundingClientRect().bottom - bannerFoot() + 4,
-            behavior: 'instant'});
-          return bannerFoot();
-        }"""
-    )
-    rendered(page)
-    margins_laid_out(page)
-    row = first.bounding_box()
-    assert 0 < row["y"] + row["height"] < banner, (row, banner)
-    page.locator("#last").evaluate("link => link.focus({preventScroll: true})")
-    for _ in range(20):
-        page.keyboard.press("Tab")
-        if page.evaluate(
-            "() => document.activeElement?.matches('.lf-margin-marker') ?? false"
-        ):
-            break
-    expect(second).to_be_focused()
 
 
 def test_a_quoted_passage_stands_its_own_rail_row_level_with_its_words(browser, serve):

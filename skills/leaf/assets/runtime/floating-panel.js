@@ -1154,7 +1154,8 @@ export function createFloatingPanel({
     const view = shownView();
     // A thread opens with the caret in its reply, as the one field means, once Leaf's
     // reader has drawn the reply there; a list a key opened stands on its first row, or
-    // its first control where it has none; one a pointer opened holds focus itself.
+    // its first control where it has none, or itself where it holds neither, as an
+    // empty Threads does; one a pointer opened holds focus itself.
     if (route.view === "thread") {
       // A finger opening a thread reads it first; the keyboard rises when they tap in.
       if (coarse()) return;
@@ -1167,19 +1168,18 @@ export function createFloatingPanel({
       return;
     }
     const target = keyed
-      ? (listRows()[0] ?? view?.querySelector("button, input"))
+      ? (listRows()[0] ?? view?.querySelector("button, input") ?? view)
       : view;
     if (target) focusDestination(target, "move");
   }
 
   // Whether the gesture now under way came from the keyboard: a key arriving in a view
-  // stands on its first control, a pointer in the view itself, with no ring drawn.
+  // stands on its first control, a pointer in the view itself, with no ring drawn. A key
+  // is a key wherever it is pressed: `g T` from the page opens Threads as a key in the
+  // panel does, whatever the last gesture inside the panel was.
   let keyed = false;
   onUserInput((event) => {
-    if (
-      ["keydown", "pointerdown"].includes(event.type) &&
-      event.composedPath().includes(host)
-    )
+    if (["keydown", "pointerdown"].includes(event.type))
       keyed = event.type === "keydown";
   });
 

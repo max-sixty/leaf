@@ -8570,12 +8570,12 @@ function createFloatingPanel({
       });
       return;
     }
-    const target = keyed2 ? listRows()[0] ?? view?.querySelector("button, input") : view;
+    const target = keyed2 ? listRows()[0] ?? view?.querySelector("button, input") ?? view : view;
     if (target) focusDestination(target, "move");
   }
   let keyed2 = false;
   onUserInput((event) => {
-    if (["keydown", "pointerdown"].includes(event.type) && event.composedPath().includes(host))
+    if (["keydown", "pointerdown"].includes(event.type))
       keyed2 = event.type === "keydown";
   });
   const menuItem = (label2, end, press, {

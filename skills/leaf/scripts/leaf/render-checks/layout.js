@@ -284,7 +284,7 @@ function marginReading(main) {
 // interaction, and text consequences.
 //
 // `tinyBoxes` ensures each declared widget upgrades to a usable box. `unreachableWords`
-// catches rendered words outside reachable flow. `misplacedBoxes` asks each container's
+// catches undeclared text nodes under widget chrome. `misplacedBoxes` asks each container's
 // actual overflow behavior. Do not exempt a box merely because an ancestor declares
 // `overflow`.
 export function misplacedBoxes() {

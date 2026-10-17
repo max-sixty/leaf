@@ -250,7 +250,7 @@ const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 // What passes in the panel's one seat for words that pass: a notice while one shows,
 // else what the status line says between notices, the Go-to filter's word or a walk's
-// position ("1 of 3 waiting on me · Ask"). The user asked on 16 October that whatever
+// position ("1 of 3 waiting on me · Options"). The user asked on 16 October that whatever
 // is not anchored to the page stand at the panel rather than against the window.
 // `answers` marks a notice answering what the user did, the one kind the leaf's peek
 // says over an open view (`paintPeek`).

@@ -8174,6 +8174,12 @@ function ownedAskControl(source, commandSource) {
   const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
   return !selector || closestAcross(commandSource, selector) === source;
 }
+function askWord(ask) {
+  if (ask.source.kind === "reply") return "Thread";
+  if (ask.source.kind === "approval") return "Approval";
+  const word = addressableWord(askPlace(ask).source) || ask.source.tag.replace(/^lf-/, "");
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
 function askWords(ask) {
   if (ask.answer === null) return "";
   if (ask.source.kind === "approval") return "Approved";
@@ -8382,6 +8388,7 @@ export {
   declareThreadKeys,
   queueTitle,
   ownedAskControl,
+  askWord,
   askWords,
   askEnding,
   acceptData,

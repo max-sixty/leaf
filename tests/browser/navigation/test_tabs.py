@@ -328,7 +328,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     expect(approve).to_have_text("Approve version")
     expect(approve).to_be_disabled()
     expect(approve).to_have_attribute(
-        "title", "Answer every ask before approving this work"
+        "title", "Answer every open widget before approving this work"
     )
 
     option = page.locator("#bg-choice-street")

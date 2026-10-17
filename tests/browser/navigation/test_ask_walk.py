@@ -303,7 +303,7 @@ def test_keys_answer_an_ask_from_its_marks(browser, serve):
 
     page.keyboard.press("m")
     position = page.locator(".lf-walk-position")
-    expect(position).to_have_text("1 of 4 waiting on me · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Options")
     expect(position).to_have_attribute("aria-hidden", "true")
     expect(position.locator("xpath=parent::*")).to_have_class(
         re.compile("lf-bottom-status")
@@ -331,7 +331,7 @@ def test_keys_answer_an_ask_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
-    expect(position).to_have_text("1 of 4 waiting on me · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Options")
     expect(
         page.locator(
             "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
@@ -386,7 +386,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     position = page.locator(".lf-walk-position")
     page.keyboard.press("m")
-    expect(position).to_have_text("1 of 4 waiting on me · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Options")
     page.evaluate(
         """async () => {
           const {widgetController} = await window.__lfWidgetApi();
@@ -407,7 +407,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     page.evaluate("() => { rejectAskReveal(new Error('ask reveal probe')); }")
     page.wait_for_function("window.askRevealRejected === true")
     shortcut_bar_text(page)
-    assert position.text_content() == "1 of 4 waiting on me · Ask"
+    assert position.text_content() == "1 of 4 waiting on me · Options"
     assert position.get_attribute("data-lf-boundary") is None
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert [said(error) for error in take_browser_errors(page)] == [
@@ -422,7 +422,7 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     position = page.locator(".lf-walk-position")
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    expect(position).to_have_text("1 of 4 waiting on me · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Options")
     page.evaluate(
         """() => {
           const held = new Promise(resolve => { window.releaseAskReveal = resolve; });
@@ -445,7 +445,7 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
-    assert position.text_content() == "1 of 4 waiting on me · Ask"
+    assert position.text_content() == "1 of 4 waiting on me · Options"
     assert position.get_attribute("data-lf-boundary") is None
 
 

@@ -46,6 +46,9 @@
     --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
+    /* The narrowest a mark or the leaf stands, larger under a finger. A mark with a
+       count keeps its count's room besides, which is wider (`.lf-fp-on-user`). */
+    --lf-fp-aim: 32px;
     /* The row's one line: the leaf, each mark and press beside the field, and the
        field's first line of words are each this tall, and the row stands them all on
        its foot, so every one of them is centred on the line the words are written on. */
@@ -408,7 +411,7 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    min-width: 32px;
+    min-width: var(--lf-fp-aim);
     min-height: var(--lf-fp-line);
     padding: 0 7px;
     color: var(--lf-fp-muted);
@@ -1400,6 +1403,7 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
       --lf-fp-line: 34px;
+      --lf-fp-aim: 34px;
     }
     .lf-fp-row {
       padding: 7px;
@@ -1412,9 +1416,8 @@
     :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
       min-height: 34px;
     }
-    .lf-fp-leaf,
-    .lf-fp-chip {
-      min-width: 34px;
+    .lf-fp-leaf {
+      min-width: var(--lf-fp-aim);
     }
   }
   @media (prefers-reduced-motion: reduce) {

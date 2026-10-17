@@ -2637,6 +2637,35 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
 
 
+def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
+    """Each mark keeps its count's room whether or not it has a number, under a finger
+    as under a mouse, so a question arriving in a reply puts On me's count in that room
+    and moves nothing beside it. The finger's larger aim floor once stood in place of
+    that room, so the mark widened by the digit as the count came."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Should the rollout wait?")
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+    marks = page.locator(".lf-fp-quick")
+    on_me = page.locator(".lf-fp-on-user")
+    expect(on_me.locator(".lf-fp-num")).to_have_text("")
+    before = [box.bounding_box() for box in (marks, on_me)]
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Which week suits?",
+        '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
+        '<lf-option id="this">This week</lf-option>'
+        '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
+    )
+    told(page)
+    expect(on_me.locator(".lf-fp-num")).to_have_text("1")
+    assert [box.bounding_box() for box in (marks, on_me)] == before
+
+
 def test_a_finger_finds_the_keyboard_s_conveniences_under_navigate(browser, serve):
     """Where no keyboard is there to reach them, the conveniences the desk's menu leaves
     to their keys stand under Navigate, so a finger keeps a way to each."""

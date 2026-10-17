@@ -1088,7 +1088,7 @@ export function createMarginProjection({
     if (selected) {
       const fresh = pageInventory.find((entry) => entry.key === selected.entry.key);
       if (!fresh || !fresh.items.some((item) => item.kind === "comment"))
-        closePreview(landOnEntry);
+        closePreview();
       else {
         const owner = threadMarginEntry(fresh);
         if (

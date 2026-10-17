@@ -1320,11 +1320,11 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     # A child's startup does not take focus from the page it arrives in.
     assert page.evaluate("document.activeElement.tagName") != "IFRAME"
     # Each frame takes its page's height, so the containing page scrolls it whole:
-    # the child's viewport ends where its page does.
+    # the child's viewport ends where its page does, the room the page keeps at its
+    # foot for the panel's row included.
     for practice in (child, other):
         assert practice.evaluate(
-            "Math.abs(document.querySelector('main').getBoundingClientRect().bottom"
-            " - innerHeight) <= 1"
+            "Math.abs(document.body.getBoundingClientRect().bottom - innerHeight) <= 1"
         )
 
     # The first click lands on the child's control; there is no entry step.
@@ -1371,6 +1371,10 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     }""")
     parent_storage = page.evaluate(
         "[Object.keys(localStorage), Object.keys(sessionStorage)]"
+    )
+    # The child's panel stands at the foot of its frame, which the host scrolls to.
+    second.evaluate(
+        "sample => sample.scrollIntoView({block: 'end', behavior: 'instant'})"
     )
     write(page_comment(other), "Keep the other sample's draft.")
     reset.scroll_into_view_if_needed()
@@ -2166,7 +2170,7 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
     assert page.locator(LEAVES).evaluate(
         "view => view.contains(document.activeElement)"
     ), "the leaving row dropped the user out of All pages"
-    page.keyboard.press("ArrowDown")
+    page.keyboard.press("Home")
     expect(rows.first).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(rows.nth(1)).to_be_focused()

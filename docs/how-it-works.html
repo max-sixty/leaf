@@ -1369,7 +1369,7 @@ flowchart LR
   accDescr: Replies appear in threads, asks and to-dos in the On panel, stamped versions on the page, reports on their widgets, and status in the banner and nearby labels.
   subgraph Sources["Who writes it"]
     Reply["agent: leaf response reply · proactive leaf thread reply · leaf thread open"]
-    Awaits["agent: leaf response reply --ask · leaf task open --on user"]
+    Awaits["agent: an lf-ask in a reply · leaf task open --on user"]
     Stamp["agent: leaf page stamp"]
     Report["agent: leaf page report"]
     Status["agent: leaf task start · leaf status"]
@@ -1439,9 +1439,9 @@ flowchart LR
                 <strong><code>leaf response reply &lt;answer.ref&gt;</code></strong> An
                 answer in the user's thread, which clears the label beside their
                 comment. It says what it leaves: <code>--done</code> when it delivers
-                what they asked, <code>--ask</code> when it asks them back, or
-                <code>--todo</code> when it promises work, which stays on the agent's
-                list, On Claude, until the agent ends it.
+                what they asked, a question in an <code>lf-ask</code> when it asks them
+                back, or <code>--todo</code> when it promises work, which stays on the
+                agent's list, On Claude, until the agent ends it.
               </li>
               <li id="updates-written-followup">
                 <strong><code>leaf thread reply … &lt;thread&gt;</code></strong> A later
@@ -1449,12 +1449,14 @@ flowchart LR
                 first reply promised.
               </li>
               <li id="updates-written-question">
-                <strong><code>leaf response reply … --ask</code></strong> A prose ask
-                for the user, which stays open until they reply or settle it with a
-                reaction, or the agent ends it with <code>leaf task end</code>: as
-                answered elsewhere when the user answered in chat, or as withdrawn. The
-                thread reads <em>My turn to answer</em>, and the ask joins the user's
-                list, On me, in the On panel.
+                <strong
+                  ><code>leaf response reply … --markup '&lt;lf-ask&gt;…'</code></strong
+                >
+                A question for the user, which stays open until they reply or settle it
+                with a reaction, or the agent ends it with <code>leaf task end</code>:
+                as answered elsewhere when the user answered in chat, or as withdrawn.
+                The thread reads <em>My turn to answer</em>, and the question joins the
+                user's list, On me, in the On panel.
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task open … --on user</code></strong> Something the
@@ -3029,7 +3031,7 @@ flowchart TD
               thread panels, and the On panel. An ask contains a request for user input,
               its answer, and its lifecycle; widgets own their typed answer values. The
               On panel lists what each side has to act on, in the user's own voice.
-              <em>On me</em> holds widget and prose asks, stamped-version sign-off, and
+              <em>On me</em> holds widget asks, questions, stamped-version sign-off, and
               to-dos the agent put on the user. <em>On Claude</em>, named for the agent,
               holds unanswered updates and the agent's open to-dos. The panel shows one
               list at a time, under a tab named for it, and folds what left that list
@@ -3951,8 +3953,7 @@ flowchart TD
                     it is open, answered or withdrawn.
                   </td>
                   <td>
-                    <code>widget:</code>, <code>reply:</code> or <code>approval:</code>,
-                    then its source
+                    <code>widget:</code> or <code>approval:</code>, then its source
                   </td>
                 </tr>
                 <tr id="ontology-todo">

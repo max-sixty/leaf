@@ -31,8 +31,9 @@
 // the page beside them stays live.
 // The selected auxiliary surface shares one native dialog envelope outside this
 // geometry owner; the reference and Page Map retain their own native layers. `--lf-room` and
-// `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is the named
-// `lf-content-frame` style container a margin resident asks for them. The bottom bar is
+// `--lf-sidebar-posture` are CSS-owned readings resolved on the box the page's Layout
+// arranges (`main` or a child of it; layouts.css), which is the named `lf-content-frame`
+// style container a margin resident asks for them. The bottom bar is
 // a stated height (`--lf-bottom-bar-h`, theme.css) rather than a reading, so whatever has to
 // end above it reads that token.
 

@@ -28,6 +28,7 @@ from leaf.files import version_revisions
 from leaf.findings import Finding
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.page_view import CandidatePageView, PageView
+from leaf.plans import plan_error
 from leaf.projection import (
     authored_positions,
     generated_children,
@@ -734,14 +735,23 @@ def admission_error(
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
         or _todo_error(view, event, readings)
+        or _plan_error(event, readings)
     )
+
+
+def _plan_error(event: dict, readings) -> Finding | None:
+    """A plan's outline nests one level at a time and names only items the page
+    holds (`plans.plan_error`)."""
+    if event["kind"] != "plan":
+        return None
+    return plan_error(event, readings.log.todos, readings.work.all_asks["all"])
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a widget that seats work, an element, or the page; a
     to-do on a thread comes from the reply that promises it. A completing note and
     `todo_end` share completion authority.
-    A `todo_end` also admits an agent withdrawal of a prose ask; a
+    A `todo_end` also admits an agent's end of an ask answered in words; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -804,6 +814,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         user_widget_error=user_widget_error,
         owed=owed,
         asks=lambda: readings.work.all_asks["all"],
+        registry=readings.work.registry,
     )
 
 

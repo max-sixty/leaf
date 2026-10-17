@@ -192,8 +192,9 @@ export function messageReading(
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
     // thread shows as its working message until an answer folds it (thread-card.js).
     progress: Boolean(message.ephemeral),
-    // What an answer leaves standing, while it stands: "Waiting on me" for the prose ask the
-    // user owes, "To-do open" for work it promised and has not ended (thread-card.js).
+    // What an answer leaves standing, while it stands: "Waiting on me" for the question the
+    // user owes words to, "To-do open" for work it promised and has not ended
+    // (thread-card.js).
     leaves,
     version: message.content_version,
     seq: moved(message).seq,

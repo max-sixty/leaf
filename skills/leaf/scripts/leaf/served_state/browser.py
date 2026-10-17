@@ -253,6 +253,9 @@ def browser_state(
         # Every to-do, open and ended, the one record the browser reads each from
         # (`work_reading.WorkReading.page_todos`).
         "todos": todos,
+        # The agent's outline of the work, its steps naming to-dos and asks by id
+        # (`plans.plan_reading`), or None.
+        "plan": durable.plan,
         "receipts": [event for event in events if event.get("attempt")],
         # Every thread whose history each logged event changes
         # (`thread_context.thread_memberships`), which the browser reads for the

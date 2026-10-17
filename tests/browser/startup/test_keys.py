@@ -176,6 +176,7 @@ def test_local_thread_keys_distinguish_local_matches_from_complete_history(
         "author": "agent",
         "revision": 1,
         "text": "A question for the reader.",
+        "markup": '<lf-ask id="agent-question-widget">A question for the reader.</lf-ask>',
     }
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     held, release = _hold_startup(page, "state")

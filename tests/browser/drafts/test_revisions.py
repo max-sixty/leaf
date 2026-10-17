@@ -49,7 +49,9 @@ def test_an_automatic_revision_keeps_the_empty_panel_reply_focused(
     """A revision, installed in place or as a fresh document, leaves the Threads
     panel's empty reply box focused and empty."""
     url = live_url(serve(REPLY_HOST_PAGE))
-    root = panel_comment(serve.page_dir, "Should reads fall back?", author="agent")
+    root = panel_comment(
+        serve.page_dir, "Should reads fall back?", author="agent", question="Fall back?"
+    )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)

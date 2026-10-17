@@ -1546,16 +1546,14 @@ button.lf-media-open {
 .lf-margin-preview .lf-msg-text {
   padding-inline-end: var(--lf-comment-text-end);
 }
-.lf-margin-preview .lf-msg-editor leaf-text {
+.lf-margin-preview .lf-msg-editor .lf-compose-field > leaf-text {
+  min-height: 0;
   padding-inline-end: calc(var(--lf-comment-text-end) - 1px);
 }
 .lf-fab-bar .lf-compose-field,
 .lf-margin-preview .lf-msg-editor .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
-}
-.lf-margin-preview .lf-msg-editor .lf-compose-field {
-  --lf-compose-h: 0px;
 }
 .lf-response-control {
   box-sizing: border-box;
@@ -1733,8 +1731,8 @@ html[data-lf-draw-mode] main {
 }
 .lf-code-copy {
   position: absolute;
-  top: calc(anchor(top, -9999px) + var(--lf-code-copy-inset));
-  left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset));
+  top: calc(anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-code-copy-dy, 0px));
+  left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) + var(--lf-code-copy-dx, 0px));
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
   z-index: 1;

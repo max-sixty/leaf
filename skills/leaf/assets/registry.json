@@ -430,7 +430,7 @@
     "answering": {
       "reply": [
         {
-          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even reading the source: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. It shows at once and starts the update, which reads Working until you answer. Do the work and put the result on the page, with what shows it (captures, a figure, the numbers). Then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, as a question may not, answer it with that reply at once. The page holds the work; the thread holds only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If the revision removes the thread's anchor, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject left the page. Each answer takes `--done` when it delivers what was asked, `--ask` when it asks the user something back, or `--todo \"<what you owe>\"` when it promises work beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\").",
+          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even reading the source: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. It shows at once and starts the update, which reads Working until you answer. Do the work and put the result on the page, with what shows it (captures, a figure, the numbers). Then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, as a question may not, answer it with that reply at once. The page holds the work; the thread holds only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If the revision removes the thread's anchor, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject left the page. Each answer takes `--done` when it delivers what was asked, or `--todo \"<what you owe>\"` when it promises work beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\"). To ask the user something back, put the question in an `lf-ask` in `--markup`; it waits on them until their next message there.",
           "when": {
             "properties": {
               "answer": {
@@ -444,7 +444,7 @@
           }
         },
         {
-          "text": "Leaf streams your opening message into the thread and posts your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. For widgets, an ask awaiting the user (`--ask`), work promised beyond this turn (`--todo`), a title or moving the thread, reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`); it posts at once, and your final message is then not posted.",
+          "text": "Leaf streams your opening message into the thread and posts your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. For widgets, a question awaiting the user (an `lf-ask` in `--markup`), work promised beyond this turn (`--todo`), a title or moving the thread, reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`); it posts at once, and your final message is then not posted.",
           "when": {
             "properties": {
               "answer": {
@@ -1092,6 +1092,55 @@
           "additionalProperties": false
         }
       },
+      "plan": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "plan" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "steps": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depth": { "type": "integer", "minimum": 0, "maximum": 8 },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80,
+                        "pattern": "\\S",
+                        "not": { "pattern": "[\\r\\n]" }
+                      },
+                      "state": { "enum": ["open", "working", "done", "dropped"] }
+                    },
+                    "required": ["depth", "title", "state"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depth": { "type": "integer", "minimum": 0, "maximum": 8 },
+                      "item": { "type": "string", "minLength": 1 }
+                    },
+                    "required": ["depth", "item"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "steps"],
+          "additionalProperties": false
+        }
+      },
       "todo_end": {
         "record": {
           "type": "object",
@@ -1532,8 +1581,8 @@
   },
   "$keys": {
     "description": "The meaning of each x- key an element declaration may carry, one member per key. The registry lint admits exactly these keys: it refuses a member for a key it does not admit, and a missing member for one it does. A layer may override a member to describe its own reading of a key, but cannot add a key. The site's registry reference is generated from this entry, so authors, the lint and the site read the same text.",
-    "x-ask-context": "The element frames the asks inside it: its leading heading gives their prompt, and going to one of those asks lands on the element. `lf-ask` declares it; a widget that asks on its own needs no frame. Each ask keeps its own id, answer and completion, and where frames nest, it uses the nearest. Leaf calls the element a question unless its x-word module returns another word.",
-    "x-awaits": "The widget asks the user for input while its authored attributes match `when`. The ask's id is `widget:<source-id>` and never changes. `value` names the x-state verb whose state is the typed answer, and `answered` says when the ask is complete ($awaits); they are separate because a partial value can exist while the ask is open, and an empty value can be a complete answer. `all` names the outcome one banner control can give every ask of this kind at once. Once created, an ask stays answered or withdrawn after `when` stops matching; an element that never matched creates none, and neither does a quoted widget (x-exhibit). A `restated` event asks again. While the agent owes a reply in a thread about the ask, anchored inside the widget, or inside its x-ask-context but no other ask, the agent is its next actor and the ask stays unanswered. A widget in a thread message keeps its ask after the thread closes. Asks and to-dos are separate records, and the user's On me list reads asks directly.",
+    "x-ask-context": "The element frames the asks inside it: its leading heading gives their prompt, and going to one of those asks lands on the element. `lf-ask` declares it; a widget that asks on its own needs no frame. Each ask keeps its own id, answer and completion, and where frames nest, it uses the nearest.",
+    "x-awaits": "The widget asks the user for input while its authored attributes match `when`. The ask's id is `widget:<source-id>` and never changes. `value` names the x-state verb whose state is the typed answer, and `answered` says when the ask is complete ($awaits); they are separate because a partial value can exist while the ask is open, and an empty value can be a complete answer. `all` names the outcome one banner control can give every ask of this kind at once. Once created, an ask stays answered or withdrawn after `when` stops matching; an element that never matched creates none, and neither does a quoted widget (x-exhibit). A `restated` event asks again. While the agent owes a reply in a thread about the ask, anchored inside the widget, or inside its x-ask-context but no other ask, the agent is its next actor and the ask stays unanswered. A widget in a thread message keeps its ask after the thread closes. With `reply` in place of `value` and `answered`, the user's words answer the ask instead of its state: the next user message in the thread whose message holds it, or a reaction there whose token settles it, or on the page a user message in a thread anchored inside it; the agent's `todo_end` on its id ends it unanswered. `yields` makes a widget ask nothing while it holds another widget that declares x-awaits, so a frame around a decision widget stays one ask. Asks and to-dos are separate records, and the user's On me list reads asks directly.",
     "x-thread-seat": "The module puts a thread box (`threadBox`) in each element that matches `when` on authored attributes, not on attributes an x-state record writes. The box shows, as text, the threads anchored exactly to that element; the Threads panel keeps the full view. An element inside thread markup or quoted content gets no box. On a widget that also asks (x-awaits), the box is where the user answers in words: while a thread there waits on the agent, the ask leaves the user's On me list, but it is still unanswered and the widget's controls still work. `hold` labels a second send button whose comment carries `holds`, naming the widget. The widget is held while that thread is open; resolving the thread releases it. Removing the widget removes only the box, not its threads.",
     "x-content": "The required content: `markup` (the author's markup), `members` (only this element's declared member elements), `data` (one <pre> holding text in the notation the description names, with & < > escaped as &amp; &lt; &gt;), or `empty`.",
     "x-data": "The widget's named external-data inputs. Each input names a `$data.contracts` contract and the string attribute whose authored value is the page's source id, and follows that source's current value; where an optional source attribute is absent, a widget reads null. A document binds each source to one contract, and a later document may rebind it; each document reads the value against its own contract and reports a mismatch as a source error. A module subscribes by widget and input name, never by a source name.",
@@ -1569,7 +1618,7 @@
     "x-withdrawn-as": "The deciding outcome that declines the proposal. It answers the ask without closing the widget's `resolves` thread. A revision may also remove an unanswered proposal outright, whether or not it has retirable members; ids from earlier versions don't prevent it.",
     "x-within": "The regions (element declarations) inside which a member may sit at any depth instead of as its owner's direct child. It belongs to the nearest owner x-owners names around that region, and `page check` refuses it anywhere else. A playground control written inside `lf-playground-preview` stays where it is written, beside the item it changes, instead of in the rail.",
     "x-name": "The attribute that holds the element's title, which the page uses to name the element elsewhere, as the activity feed does. Declare it only where an attribute is the title, as a column's or a tab's `label` is; a section is already titled by its heading, a disclosure by its summary, and a titled member by its leading <strong>. An attribute the element merely shows first, such as a metric's value, is not its title.",
-    "x-word": "The module gives a word for the widget's kind through `lfWord()`, as `lf-suggestion` returns \"insertion\", \"deletion\" or \"rewrite\" depending on its children. Leaf uses it when naming the widget in a panel row or comment anchor; without one, it calls an x-ask-context widget a question and anything else by its tag name without the prefix. The module may also describe the widget through `lfSays()`, where its text alone doesn't convey its structure, such as a rewrite's old and new text; otherwise Leaf reads the element's text.",
+    "x-word": "The widget's word for its kind, which Leaf uses when naming the widget in a panel row, a walk or a comment anchor: a fixed word, as `lf-ask` says \"question\", or `module`, where the module gives one through `lfWord()`, as `lf-suggestion` returns \"insertion\", \"deletion\" or \"rewrite\" depending on its children. Without one, Leaf calls the widget by its tag name without the prefix. With `module`, the module may also describe the widget through `lfSays()`, where its text alone doesn't convey its structure, such as a rewrite's old and new text; otherwise Leaf reads the element's text.",
     "x-work": "`true`: the agent may open its own to-do on this widget with `leaf task open` even when no update on it is open, and the to-do shows beside the widget. Only a block widget whose x-content is markup may declare it, and markup content does not imply it: markup can itself be a control, or sit in a hidden panel."
   },
   "$state": {
@@ -1596,7 +1645,7 @@
     "all": "The outcome a blanket yes gives, where one banner control answers every ask of this kind at once (`Accept all (3)`). It must be an `outcome` of the widget's deciding verb, which must be an answering verb, and the module must expose a method named for that verb taking the outcome, so each ask records its own decision. Without it, the user answers each ask where it is."
   },
   "$restated": {
-    "description": "A boolean attribute saying this revision rewrote words the user already decided on, so the decision no longer applies and the user is asked again. Put it on the element the decision rests on: an `lf-draft` or `lf-suggestion`, or the `lf-card` or `lf-option` inside a board or group. It retracts every action that named that element: a rewritten card drops only that card's moves, while a rewritten option takes back the whole pick it was part of.",
+    "description": "A boolean attribute saying this revision rewrote words the user already decided on, so the decision no longer applies and the user is asked again. Put it on the element the decision rests on: an `lf-draft` or `lf-suggestion`, the `lf-card` or `lf-option` inside a board or group, or an `lf-ask` whose question you rewrote, which then waits on an answer given after the stamp. It retracts every action that named that element: a rewritten card drops only that card's moves, while a rewritten option takes back the whole pick it was part of.",
     "why": "Decisions are recorded against the revision the user saw and survive ordinary edits, so change presentation and wording directly. Use this attribute only when the decision itself should no longer apply; the log records the retraction and keeps the original answer.",
     "when": "When a revision makes a decision no longer apply and needs a fresh answer, write the new content, mark the element the decision names, and say why in the stamp note. Changing decided wording or presentation alone needs no marker. An unused or repeated marker does no harm.",
     "once": "Put the marker only on the revision that retracts the decision; stamping records the retraction. Leave it off later revisions unless they withdraw another decision.",

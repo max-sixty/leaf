@@ -46,11 +46,7 @@
    leaving moves nothing on the banner: "On me: 0" opens a panel that says so. Before
    the log's first answer it says only "On me", since a count read from no log would
    be a claim. */
-import {
-  addressableLabel,
-  addressableName,
-  addressableWord,
-} from "./addressable-names.js";
+import { addressableLabel, addressableName } from "./addressable-names.js";
 import {
   queueBtn,
   queueList,
@@ -67,7 +63,6 @@ import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
 import { itemNoun, itemOutcome } from "./queues.js";
-import { registry } from "./registry.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -78,7 +73,7 @@ import {
   PresentationRetentionError,
 } from "./semantic-state.js";
 import { renderedOrder, under } from "./shadow.js";
-import { askEnding } from "./asks/answer.js";
+import { askEnding, askWord } from "./asks/answer.js";
 import { readAsks } from "./asks/model.js";
 import { askPlace } from "./asks/place.js";
 import { readThreads } from "./thread/state.js";
@@ -90,10 +85,9 @@ import { lastMovedAt } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
 
-// A widget ask says its widget's word, or Ask; a prose ask says Thread; a to-do on
-// either side says To-do. Response obligations keep their own Reply or Answer wording.
+// An item a source registered says its source's word (`askWord`); a to-do on either
+// side says To-do. Response obligations keep their own Reply or Answer wording.
 const WORDS = Object.freeze({
-  ask: "Ask",
   resend: "Resend",
   answer: "Answer",
   reply: "Reply",
@@ -102,15 +96,6 @@ const WORDS = Object.freeze({
 });
 const wordOf = (item, noun) => WORDS[noun];
 const HEADINGS = "h1, h2, h3, h4, h5, h6";
-
-function askWord(item) {
-  const ask = item.ask;
-  if (ask.source.kind === "reply") return "Thread";
-  if (ask.source.kind === "approval") return "Approval";
-  const word =
-    registry[ask.source.tag]?.["x-word"] && addressableWord(askPlace(ask).source);
-  return word ? word.charAt(0).toUpperCase() + word.slice(1) : "Ask";
-}
 
 // The section a page element stands in: the last heading before it whose parent also
 // holds it, so a heading inside an earlier ask, or one closing an earlier section, is
@@ -211,7 +196,7 @@ export function createQueuePanel({
   function row(item, list) {
     const thread = threadOf(item.thread);
     const noun = itemNoun(item);
-    const word = noun === "ask" ? askWord(item) : wordOf(item, noun);
+    const word = noun === "ask" ? askWord(item.ask) : wordOf(item, noun);
     const where = (
       list === "done"
         ? [wherePart(ended(item)), wherePart(place(item, thread))]

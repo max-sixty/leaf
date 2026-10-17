@@ -3112,6 +3112,109 @@ aside.note { --lf-resident: note; display: none }
     expect(main).to_have_count(0)
 
 
+def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve):
+    """A page Layout's box is `main`, or a child of a `main` that carries none, and its
+    parent is the shell it is placed in. A column whose box is a child of `main` takes
+    the same column, margin residents, contents map and breakouts as one on `main`
+    itself, at a width where the shell must shift the column for its sidebar, and a
+    workspace whose box is a child fills the window as it does on `main`. A `main` the
+    page narrows, borders or gives scrollbar gutters is the shell the child column
+    measures, so nothing it holds stands past its edges or over its border or gutters."""
+    column_body = """
+<h1>Migration plan</h1>
+<aside class="sidebar" id="route"><nav aria-label="Route"><a href="#move">Move</a></nav></aside>
+<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<h2 id="move">Move</h2>
+<p>Shift one cohort at a time while keeping the old readers available.</p>
+<div id="room" data-width="available">Available evidence.</div>
+<div style="height: 1200px"></div>
+"""
+    workspace_body = """
+<header><h1>Queue</h1></header>
+<div id="regions"><p>Work one item at a time.</p></div>
+"""
+    reading = """() => {
+      const box = document.getElementById('box'), main = document.querySelector('main');
+      const target = box ?? main;
+      const rect = (node) => {
+        const b = node.getBoundingClientRect();
+        return [Math.round(b.left), Math.round(b.right), Math.round(b.top),
+                Math.round(b.bottom)];
+      };
+      const measured = {
+        box: rect(target),
+        margin: target.getAttribute('data-lf-margin'),
+        regions: rect(document.getElementById('regions') ?? target),
+        shifted: document.body.style.getPropertyValue('--lf-column-shift'),
+        main: rect(main),
+        inner: [Math.round(rect(main)[0] + main.clientLeft),
+                Math.round(rect(main)[0] + main.clientLeft + main.clientWidth)],
+      };
+      for (const id of ['route', 'frequency', 'room', 'contents']) {
+        const node = document.getElementById(id);
+        if (node) {
+          const style = getComputedStyle(node);
+          measured[id] = [rect(node), style.float, style.position];
+        }
+      }
+      return measured;
+    }"""
+
+    def without_main(reading):
+        return {k: v for k, v in reading.items() if k not in ("main", "inner")}
+
+    def measured(body, layout, width, head=""):
+        on_main = leaf_page("layout box", body, layout=layout, head=head)
+        in_child = leaf_page(
+            "layout box",
+            f'<section id="box" class="layout-{layout}">{body}</section>',
+            layout=None,
+            head=head,
+        )
+        readings = []
+        for source in (on_main, in_child):
+            page = open_page(browser, serve(source))
+            resized(page, width, 800)
+            readings.append(page.evaluate(reading))
+            assert root_overflow(page) == 0, readings[-1]
+            page.close()
+        return readings
+
+    on_main, in_child = measured(column_body, "column", 1160)
+    assert on_main["margin"] == "rail sidebar", on_main
+    assert on_main["shifted"], on_main
+    assert without_main(in_child) == without_main(on_main)
+    mapped = column_body.replace(
+        '<nav aria-label="Route"><a href="#move">Move</a></nav>',
+        '<lf-toc id="contents"></lf-toc>',
+    )
+    on_main, in_child = measured(mapped, "column", 1440)
+    assert on_main["margin"] == "rail map note", on_main
+    assert on_main["contents"][2] == "fixed", on_main
+    assert without_main(in_child) == without_main(on_main)
+    on_main, in_child = measured(workspace_body, "workspace", 1280)
+    assert without_main(in_child) == without_main(on_main)
+    assert on_main["regions"][3] > 700, on_main
+
+    narrowed = "<style>main { max-width: 900px; margin-inline: auto; }</style>"
+    _, in_child = measured(column_body, "column", 1440, head=narrowed)
+    left, right = in_child["main"][:2]
+    assert right - left == 900, in_child
+    for edges in (in_child["box"], in_child["room"][0]):
+        assert left <= edges[0] and edges[1] <= right, in_child
+
+    bordered = (
+        "<style>main { border-inline: 100px solid; height: 700px; overflow-y: auto;"
+        " scrollbar-gutter: stable both-edges; }"
+        " main::-webkit-scrollbar { width: 40px; }</style>"
+    )
+    _, in_child = measured(column_body, "column", 1400, head=bordered)
+    left, right = in_child["inner"]
+    assert left - in_child["main"][0] == 140, in_child
+    for edges in (in_child["box"], in_child["route"][0], in_child["room"][0]):
+        assert left <= edges[0] and edges[1] <= right, in_child
+
+
 def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
     browser, serve
 ):

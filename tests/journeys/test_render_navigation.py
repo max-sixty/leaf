@@ -1121,6 +1121,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
         "Is this the passage you meant?",
         {"section": "p2", "quote": "neighbouring block"},
         "agent",
+        question="Is this the passage you meant?",
     )
     page = open_page(browser, url)
     page.set_viewport_size({"width": 1200, "height": 844})
@@ -1771,7 +1772,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
-    expect(sheet.locator(".lf-page-map-group")).to_have_count(3)
+    expect(sheet.locator(".lf-page-map-group")).to_have_count(4)
     expect(
         sheet.get_by_role(
             "searchbox", name="Find an action, status, or location in Page Map"
@@ -1782,7 +1783,12 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # A visible Margin entry shares the generated target map. Activating the hint
     # opens the same thread preview as its marker.
-    go_to_address(page, "Margin entry", "p1")
+    page.keyboard.press("g")
+    margin_hints = page.locator(
+        f'{CHIPS}[data-lf-go-to-kind="Margin entry"][data-lf-go-to-target="p1"]'
+    )
+    expect(margin_hints).to_have_count(2)
+    page.keyboard.type(margin_hints.first.get_attribute("data-lf-hint-code"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")  # onto the element the thread is about

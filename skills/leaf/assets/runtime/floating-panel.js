@@ -45,7 +45,11 @@
  *   this (2026-10-14), reversing the line lying over the view's foot in 12px of room
  *   every open view kept for it whether or not it showed (#2902). Rejected: that
  *   overlay, whose room stood under every view's last words for a line that repeated
- *   the head or the placeholder.
+ *   the head or the placeholder. A walk's position and Go-to's word go unsaid there
+ *   too: they last while the user stands where they were said, which, for a walk that
+ *   reached the block being read, is as long as the user writes, so the peek, made for
+ *   a passing answer, lay on the view's last words that whole time. The empty field
+ *   says them until the caret enters it.
  * - **Opened**: a view above the same row (On, Threads or a thread), what the user
  *   reads there, with where they are at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away, Escape once the caret has
@@ -147,6 +151,7 @@ import { queueTitle } from "./queue-title.js";
 import { itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
 import { askEnding } from "./asks/answer.js";
+import { askedInWords } from "./asks/model.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -246,14 +251,17 @@ const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 // What passes in the panel's one seat for words that pass: a notice while one shows,
 // else what the status line says between notices, the Go-to filter's word or a walk's
-// position ("1 of 3 waiting on me · Ask"). The user asked on 16 October that whatever
+// position ("1 of 3 waiting on me · Options"). The user asked on 16 October that whatever
 // is not anchored to the page stand at the panel rather than against the window.
+// `answers` marks a notice answering what the user did, the one kind the leaf's peek
+// says over an open view (`paintPeek`).
 function passing() {
   const notice = noticeReading();
-  if (notice.visible) return notice;
+  if (notice.visible)
+    return { message: notice.message, visible: true, answers: !notice.news };
   const { goTo, walk } = statusContextReading();
   const message = goTo ?? (walk?.shown ? walk.text : "");
-  return { message, visible: Boolean(message), news: false };
+  return { message, visible: Boolean(message), answers: false };
 }
 // What the leaf's colour says, in a word, at the head of its menu.
 const TONE_WORDS = Object.freeze({
@@ -1577,7 +1585,7 @@ export function createFloatingPanel({
   const outletOf = () => openView()?.querySelector(".lf-fp-outlet") ?? null;
   function nominate(collection, parts) {
     const top = trail.at(-1);
-    // On draws each prose ask as its message, in its card's outlet.
+    // On draws each question asked in words as its message, in its card's outlet.
     if (top?.view === "queue") {
       for (const outlet of stage.querySelectorAll(
         ".lf-fp-view:not([data-leaving]) .lf-fp-asked",
@@ -1713,14 +1721,15 @@ export function createFloatingPanel({
   function onItemCard(item, list) {
     const ask = item.kind === "ask" ? item.ask : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
-    // A prose ask is a message in its thread, and reads as that message, drawn whole by
-    // Leaf's reader as the thread draws it (`nominate`), images and all: its words cut
-    // to text would end at whatever they introduce. The thread names it above, where it
-    // has a name of its own rather than the message's opening words. Where the page's
-    // package draws its conversations instead, Leaf's reader draws none here, and the
-    // message's words stand for it under the thread's name.
+    // A question asked in words is a message in its thread, and reads as that message,
+    // drawn whole by Leaf's reader as the thread draws it (`nominate`), images and all:
+    // its words cut to text would end at whatever they introduce. The thread names it
+    // above, where it has a name of its own rather than the message's opening words.
+    // Where the page's package draws its conversations instead, Leaf's reader draws
+    // none here, and the message's words stand for it under the thread's name.
+    const inWords = ask !== null && askedInWords(ask);
     const asking =
-      ask?.source.kind === "reply" && thread
+      inWords && thread
         ? thread.msgs.find((candidate) => candidate.id === ask.message)
         : null;
     const message = asking && presentation?.primary !== false ? asking : null;
@@ -1738,7 +1747,9 @@ export function createFloatingPanel({
     const prompt = said && said.trim() !== title.trim() ? said : "";
     const answered = ask && ask.status !== "open";
     const choices =
-      ask && !answered && ask.source.kind === "widget" ? askView.choicesOf(ask) : null;
+      ask && !answered && ask.source.kind === "widget" && !inWords
+        ? askView.choicesOf(ask)
+        : null;
     const gesture = answered ? answerGesture(ask) : null;
     const discuss = thread
       ? html`<button
@@ -1814,7 +1825,7 @@ export function createFloatingPanel({
         >
           Done</button
         >${discuss}${arrive}`;
-    else if (ask?.source.kind === "reply" && thread)
+    else if (inWords && thread)
       answers = html`<button
         type="button"
         class="lf-fp-answer"
@@ -2305,11 +2316,11 @@ export function createFloatingPanel({
     // in it. Who reads them goes unsaid: every word written here goes to the page's one
     // agent. With nothing to say the line is gone, and while a view is open it is gone
     // too: the leaf's peek says a notice answering the user there (`paintPeek`), and
-    // news arriving goes unsaid, since the view shows it.
+    // news arriving, a walk's position and Go-to's word go unsaid (`passing`).
     const empty = draftOf(input) === "";
     const notice = passing();
     const covered = notice.visible && (!empty || reading.says === "destination");
-    overView = Boolean(top) && covered && !notice.news;
+    overView = Boolean(top) && covered && notice.answers;
     keeps(context, "data-notice", covered ? "" : null);
     keepsText(
       contextWords,

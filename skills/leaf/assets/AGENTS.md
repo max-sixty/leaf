@@ -119,14 +119,17 @@ representative desktop viewport.
   (`../references/module-authoring.md`, "First paint"). Check: the widget quality check
   `keeps-first-box`, which fails on any finding `tests/known_widget_findings.py`
   doesn't list.
-- **Generated interface appears in its final position.** Reserve space before a
-  generated control appears. Feedback may repaint a control or change its label, but
-  never its size: `data-lf-room` (`controls.css`) sizes a label to the widest of the
-  words it can show. A parent laying out adjacent actions keeps their hit areas apart.
-- **An unlikely event fits into what is already there.** Reserve no space for a state
-  the user rarely meets, such as a failed save. Show it in a surface already on screen,
-  and let the user's gesture expand it: `lf-file-editor.js` reports a file conflict in
-  its status line and opens the two versions only on Compare.
+- **Generated interface appears in its final position.** Hold room before first paint
+  only for what will be drawn, such as a widget's upgraded controls. Feedback may
+  repaint a control or change its label, but never its size: `data-lf-room`
+  (`controls.css`) sizes a label to the widest of the words it can show. A parent
+  laying out adjacent actions keeps their hit areas apart.
+- **What may appear fits into what is already there.** Hold no empty room for a state
+  that may never come, however likely: a failed save, a rewrite the user hasn't opened.
+  Show it in a slot already on screen, as a message's head carries its delivery and its
+  Edit beside the author, and let the user's gesture make the room it needs:
+  `lf-file-editor.js` reports a file conflict in its status line and opens the two
+  versions only on Compare, and a rewrite grows its message only once opened.
 - **A gesture shows the result the page can draw as it is made** (root `AGENTS.md`,
   "The document starts state; the log changes it"). `standGesture` in `drafts.js`
   handles a send and the refusal that returns the words to their box. The new content
@@ -388,6 +391,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a box is at its scroll end                                                                    | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
 | The page's `main`                                                                                     | `passages.js` `pageDocument`                                                       |
+| The box the page's Layout arranges, and the shell it stands in (its parent)                           | `passages.js` `layoutBox`                                                          |
 | Whether a place is already shown, and the space a landing needs                                       | `landing-scroll.js` `alreadyShown`, `landingRoom`                                  |
 | Bring something into view without scrolling the page around it, or only inside one box (its `within`) | `landing-scroll.js` `scrollIntoView` (_lint_)                                      |
 | Move a box to its end, or by an amount                                                                | `scrolling.js` `scrollToEnd`, `moveScrollerBy` (_lint_)                            |

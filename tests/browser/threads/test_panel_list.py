@@ -746,8 +746,7 @@ def test_finding_narrows_the_list_and_says_how_much_of_it_is_left(browser, serve
 
 def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     """Which threads the user still owes an answer to is a question the log already
-    answers: an agent comment asks by construction, and a reply may declare another
-    ask. So the panel reads the log rather than keeping a record of what this user
+    answers: an agent's question waits on them until they answer it. So the panel reads the log rather than keeping a record of what this user
     has read — nothing to go stale in a second tab, and nothing to remember across a
     reload.
 
@@ -755,7 +754,9 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     mine = panel_comment(d, "Six weeks reads long.", {"section": "lede"})
-    theirs = panel_comment(d, "Is forty enough?", {"section": "how-cap"}, "agent")
+    theirs = panel_comment(
+        d, "Is forty enough?", {"section": "how-cap"}, "agent", question="Forty?"
+    )
 
     page = open_page(browser, url)
     # The key belongs to the panel, not to the page: a list the user is not looking at
@@ -881,8 +882,8 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"to": asked, "for": asked},
-        "One choice remains. Which store should own the result?",
-        ask=True,
+        "One choice remains.",
+        markup='<lf-ask id="store-owner">Which store should own the result?</lf-ask>',
     )
     page = open_page(
         browser,
@@ -1001,8 +1002,8 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
 def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser, serve):
     """Thread narrowing changes presentation, not the admitted ask inventory.
 
-    After both asks are answered, hiding a thread with the On you filter keeps
-    both canonical records in Done and preserves the page-wide completion count.
+    With one ask answered, hiding a thread with the On me filter keeps
+    the other canonical record on the page and preserves the completion count.
     """
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
@@ -1013,9 +1014,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser,
     question = page.locator(".lf-thread-panel lf-options[choose]").first
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
     round_trip(page)
-    question.locator(".lf-done").click()
-    round_trip(page)
-    expect_asks_answered(page, "2/2")
+    expect_asks_answered(page, "1/2")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
@@ -1025,14 +1024,13 @@ def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser,
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
     ).to_have_count(1)
-    expect_asks_answered(page, "2/2")
+    expect_asks_answered(page, "1/2")
     banner_control(page, ".lf-queue").click()
     page.locator(".lf-queue-done > summary").click()
     done = page.locator(".lf-queue-done .lf-queue-row[data-lf-kind='ask']")
-    expect(done).to_have_count(2)
+    expect(done).to_have_count(1)
     assert set(done.evaluate_all("rows => rows.map(row => row.dataset.lfAt)")) == {
         "widget:off-workaround-review",
-        "widget:off-slip",
     }
 
 
@@ -1045,7 +1043,9 @@ def test_a_reply_that_takes_its_card_out_of_the_view_takes_the_user_with_it(
     (the user's decision, 2026-10-07, #46 on the rewrite survey)."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
-    theirs = panel_comment(d, "Is forty enough?", {"section": "how-cap"}, "agent")
+    theirs = panel_comment(
+        d, "Is forty enough?", {"section": "how-cap"}, "agent", question="Forty?"
+    )
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)

@@ -266,8 +266,9 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_ask(page_dir):
             "author": "agent",
             "parent": root["id"],
             "responds": root["id"],
-            "ask": True,
-            "text": "Which option?",
+            "text": "One question:",
+            "markup": '<lf-ask id="option">Which option?</lf-ask>',
+            "revision": 1,
         },
     )
     append_carried_log_record(
@@ -292,7 +293,9 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_ask(page_dir):
 
 def test_settling_reaction_closes_an_agent_root_ask(page_dir):
     publish(page_dir)
-    question = thread_model.cmd_comment(page_dir, "", "", "", "Is forty enough?", None)
+    question = thread_model.cmd_comment(
+        page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
+    )
     [before] = served_thread(page_state(page_dir)["browser"])["threads"]
     assert before["user_prompt"]["message"] == question["id"]
     assert before["attention"]["kind"] == "needs_user"

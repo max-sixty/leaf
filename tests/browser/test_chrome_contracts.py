@@ -295,8 +295,9 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
             "author": "agent",
             "agent": "Codex",
             "parent": first,
-            "text": "Which of the two should stay?",
-            "ask": True,
+            "revision": 1,
+            "text": "One question:",
+            "markup": '<lf-ask id="which-stays">Which of the two should stay?</lf-ask>',
         },
     )
     page = open_page(browser, url)
@@ -361,7 +362,9 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
     browser fixture's shift watch fails anything that moves. The news lands well after
     the user's last input."""
     url = serve(PANEL_PAGE)
-    asked = panel_comment(serve.page_dir, "Is forty enough?", author="agent")
+    asked = panel_comment(
+        serve.page_dir, "Is forty enough?", author="agent", question="Forty?"
+    )
     other = panel_comment(serve.page_dir, "A thread waiting on nobody.")
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -695,7 +698,7 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
     page = open_page(browser, url)
     resized(page, 1440, 900)
     approval = page.locator(".lf-signoff")
-    reason = "Answer every ask before approving this work"
+    reason = "Answer every open widget before approving this work"
     expect(approval).to_have_attribute("aria-disabled", "true")
     expect(approval).to_have_attribute("aria-description", reason)
     expect(approval).to_be_disabled()

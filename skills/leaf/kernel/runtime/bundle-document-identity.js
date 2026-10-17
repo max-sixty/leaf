@@ -42,6 +42,7 @@ import {
   anchorLabel,
   askHolding,
   askPlace,
+  askedInWords,
   beginThreadSeats,
   beginWalk,
   blocksOnScreen,
@@ -200,7 +201,8 @@ import {
   targetElement,
   targetPlace,
   targetSegments,
-  visualPartLabel
+  visualPartLabel,
+  widgetWord
 } from "./bundle-chrome.js";
 import {
   initialOrigin,
@@ -2079,7 +2081,10 @@ function createAnchorTravel({
               at: current.where,
               behavior: "instant",
               when: () => !readableDestination(current.where) || !readableDestination(input)
-            }
+            },
+            // The subject and editor can occupy different parts of a tall
+            // page. Finish on the box the user asked to write in.
+            { at: input, block: "nearest", behavior: "instant" }
           ] : [{ at: current.where, behavior: "instant" }]
         };
       },
@@ -7014,8 +7019,7 @@ function userObligations(page, threadView) {
       thread: null
     });
   for (const ask of threadView.asks.user) {
-    const version = ask.source.kind === "reply" ? ask.source.version : null;
-    held.set(JSON.stringify(["thread", ask.thread, ask.id, version]), {
+    held.set(JSON.stringify(["thread", ask.thread, ask.id]), {
       source: ask.id,
       thread: ask.thread
     });
@@ -7764,7 +7768,7 @@ function mountApplication(dependencies) {
       if (!ask) return Promise.resolve(false);
       if (ask.source.kind === "approval")
         return queueActions2.open(JSON.stringify(["ask", ask.id]));
-      if (ask.source.kind === "reply") {
+      if (ask.thread !== null && askedInWords(ask)) {
         showHeld(ask.thread);
         return threadDestinations.openPageThread(ask.message, {
           part: "message"
@@ -8174,11 +8178,15 @@ function ownedAskControl(source, commandSource) {
   const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
   return !selector || closestAcross(commandSource, selector) === source;
 }
+function askWord(ask) {
+  if (ask.source.kind === "approval") return "Approval";
+  const word = widgetWord(ask.source.tag, elementById(ask.source.id));
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
 function askWords(ask) {
   if (ask.answer === null) return "";
   if (ask.source.kind === "approval") return "Approved";
-  if (ask.source.kind === "reply")
-    return ask.answer.value.text ?? ask.answer.value.token ?? "";
+  if (askedInWords(ask)) return ask.answer.value.text ?? ask.answer.value.token ?? "";
   const source = elementById(ask.source.id);
   const formatter = (
     /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */
@@ -8382,6 +8390,7 @@ export {
   declareThreadKeys,
   queueTitle,
   ownedAskControl,
+  askWord,
   askWords,
   askEnding,
   acceptData,

@@ -1120,6 +1120,14 @@ def test_a_rewrite_leaves_a_card_at_the_windows_foot_as_it_stood(browser, serve)
     rendered(page)
     for edge, at in zip(editor.evaluate(column), text_column):
         assert abs(edge - at) < 0.5, (editor.evaluate(column), text_column)
+    # Open, the rewrite takes the message's place exactly: the card neither grows nor
+    # scrolls the rewrite's top under the message's head, and its words keep their line.
+    for side in ("y", "height"):
+        assert abs(card.bounding_box()[side] - stood["card"][side]) < 0.5
+    assert not card.locator(".lf-thread-transcript").evaluate(
+        "t => t.scrollHeight > t.clientHeight"
+    )
+    assert abs(editor.evaluate(FIRST_LINE)[1] - stood["words"][1]) < 0.5
     page.keyboard.press("Enter")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     rendered(page)

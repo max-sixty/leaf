@@ -21,13 +21,14 @@ from render_cases_interaction import (
 )
 from render_harness import (
     CARRIED_PAGE,
+    PANEL_THREAD,
     SAMPLE_PAGE,
     active_digit_bindings,
+    available_commands,
     compare_with,
     open_page,
     resized,
     round_trip,
-    shortcut_bar_text,
     stamp_page,
     told,
     wait_for_revision,
@@ -116,12 +117,11 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
 
     page.keyboard.press("m")
     mark = page.locator("#storage-evict .lf-pick")
-    line = shortcut_bar_text(page)
-    # The Ask's own numbered actions are what the line offers, under the one context the
-    # question owns, with the way out of the standing ahead of them as it is anywhere
-    # the user is holding something.
-    assert active_digit_bindings(page) == "1–3", line
-    assert "let go" in line, line
+    # The Ask's own numbered actions are what the keys reach, under the one context the
+    # question owns, with Escape's way out of the standing beside them as it is
+    # anywhere the user is holding something.
+    assert active_digit_bindings(page) == "1–3"
+    assert "Escape" in available_commands(page)["navigation.release"]
     option_hints = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(option_hints).to_have_text(["1", "2"])
     expect(option_hints.first).to_be_visible()
@@ -152,7 +152,8 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
             "#storage-options > lf-option > .lf-key-badge[data-lf-binding-badge]"
         )
     ).to_have_text(["1", "2"])
-    assert shortcut_bar_text(page) == line
+    assert active_digit_bindings(page) == "1–3"
+    assert "Escape" in available_commands(page)["navigation.release"]
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
     expect(box).not_to_be_focused()
@@ -174,7 +175,6 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     )
     expect(box).to_have_attribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter")
     expect(page.locator("#storage-options > lf-option[data-lf-added]")).to_have_count(0)
-    assert "add and select option" in shortcut_bar_text(page)
     page.keyboard.press("Enter")
     added = page.locator("#storage-options > lf-option[data-lf-added]")
     expect(added).to_contain_text("Keep both layers")
@@ -198,20 +198,21 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     page.close()
 
-    # Native focus scrolling reads the fixed shortcut bar as part of the root scrollport's
-    # unavailable foot. In a phone window the field otherwise lands underneath that line:
+    # Native focus scrolling reads the floating panel as part of the root scrollport's
+    # unavailable foot. In a phone window the field otherwise lands underneath the panel:
     # geometrically in the viewport, but neither visible nor operable as the next stop.
     #
-    # Short enough that the ask's own foot is under the line when the user arrives, which
-    # is the only arrangement in which the claim can be read at all. With the whole ask on
-    # screen a Tab stop is already where the browser would put it, nothing scrolls, and the
-    # reading goes green over the travel it is about; the assertion before the presses says
-    # so rather than leaving it to the window's height to be right. Chrome's focus
-    # scroll moves a stop only when it stands wholly outside the padded band, so the
-    # window is one where the arrival leaves the field wholly under the bottom bar.
+    # Short enough that the ask's own foot is under the panel when the user arrives,
+    # which is the only arrangement in which the claim can be read at all. With the whole
+    # ask on screen a Tab stop is already where the browser would put it, nothing
+    # scrolls, and the reading goes green over the travel it is about; the assertion
+    # before the presses says so rather than leaving it to the window's height to be
+    # right. Chrome's focus scroll moves a stop only when it stands wholly outside the
+    # padded band, so the window is one where the arrival leaves the field wholly under
+    # the panel.
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     resized(page, 390, 600)
-    clearance = """() => document.querySelector('.lf-shortcut-bar').getBoundingClientRect().top
+    clearance = """() => document.querySelector('.lf-fp-card').getBoundingClientRect().top
       - document.querySelector('#storage-options > .lf-another')
         .getBoundingClientRect().bottom"""
     # An unframed page ask arrives in two document scrolls, an instant one to reveal it
@@ -223,13 +224,13 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     page.emulate_media(reduced_motion="reduce")
     page.keyboard.press("m")
     covered = page.evaluate(clearance)
-    assert covered < 0, f"the arrival left the add field {covered}px clear of the line"
+    assert covered < 0, f"the arrival left the add field {covered}px clear of the panel"
     for _ in range(3):
         page.keyboard.press("Tab")
     box = page.locator("#storage-options > .lf-another leaf-text")
     expect(box).to_be_focused()
     landed = page.evaluate(clearance)
-    assert landed >= 20, f"the shortcut bar covers the add field by {-landed}px"
+    assert landed >= 0, f"the panel covers the add field by {-landed}px"
 
 
 def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
@@ -277,7 +278,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     card_button.click()
     expect(page.locator(".lf-live")).to_contain_text("checking the shard")
     expect(page.locator(".lf-thread")).to_have_count(0)
-    expect(page.locator(".lf-thread-panel .lf-msg-sending")).to_have_count(0)
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
     expect(page.locator("#card-migration > .lf-msg-sending")).to_have_count(0)
     expect(card_button).to_have_class(re.compile(r"\blf-margin-entry\b"))
     card_button.evaluate("node => { node.dataset.identityProbe = 'kept' }")

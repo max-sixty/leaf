@@ -49,6 +49,7 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     expect_asks_answered,
+    expect_panel_says,
     holding,
     http_error_console,
     is_problem,
@@ -115,19 +116,6 @@ def undo_offered(page, offered=True):
         "offered => (window.__lfAvailableCommands()['history.undo']?.includes('z')"
         " ?? false) === offered",
         arg=offered,
-    )
-
-
-def expect_notice(page, words):
-    """Wait until the panel says a passing notice holding `words`: in the empty field's
-    place, on the line over the field, or in the leaf's peek over an open view."""
-    page.wait_for_function(
-        """words => [
-          document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder'),
-          document.querySelector('.lf-fp-context')?.textContent,
-          document.querySelector('.lf-fp-peek')?.textContent,
-        ].some((said) => said?.includes(words))""",
-        arg=words,
     )
 
 
@@ -471,7 +459,7 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
         "card-heater"
     ]
     assert _traffic(page).sends == 1
-    expect_notice(page, "is already in use")
+    expect_panel_says(page, "is already in use")
 
 
 def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
@@ -1536,7 +1524,7 @@ def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, s
     for key in ["Enter", "ArrowRight", "Enter"]:
         page.keyboard.press(key)
     holding(page, refused, 2, "the move the rollout would not take")
-    expect_notice(page, "isn't ready yet")
+    expect_panel_says(page, "isn't ready yet")
     # The same gesture throughout: a refusal that admits nothing cannot mint a second.
     assert len(set(refused)) == 1
 

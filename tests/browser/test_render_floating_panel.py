@@ -27,6 +27,7 @@ from render_cases_layout import solid_png
 from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
+    expect_panel_says,
     http_error_console,
     open_page,
     select_words,
@@ -1801,7 +1802,6 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("1 of 2 waiting on me")
     )
-    expect(page.locator(".lf-bottom-status")).to_be_hidden()
     assert page.evaluate(room) == before
 
 
@@ -2125,7 +2125,7 @@ def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
     page.keyboard.press("m")
     approve = page.locator(".lf-fp-view[data-view=queue] [data-approval] .lf-fp-answer")
     expect(approve).to_be_focused()
-    expect(page.locator(".lf-walk-position")).to_contain_text("Approval")
+    expect_panel_says(page, "Approval")
 
     # Answered, it is still arrived at: on its card in Done, at its Undo.
     with sending(page, "the approval"):

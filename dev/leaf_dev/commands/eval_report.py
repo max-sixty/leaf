@@ -48,20 +48,17 @@ def condition(column: str) -> str:
 
 
 def measures(sample: dict) -> dict:
-    """What a sample's author spent over its phases, the final version's code, and
-    whether its final decision values were recovered correctly."""
+    """What a sample's author spent over its phases, and whether its final
+    decision values were recovered correctly."""
     recorded = sample["diagnostics"]["phases"]
     comparison = sample["diagnostics"]["comparison"]
     session = [
         recorded.get(str(p), {}).get("trace", {}) for p in comparison["author_phases"]
     ]
-    final = recorded.get(comparison["phases"][""], {})
     return {
         "minutes": observed_sum(p.get("minutes") for p in session),
         "cost": observed_sum(p.get("cost_usd") for p in session),
         "turns": observed_sum(p.get("turns") for p in session),
-        "css": final.get("css_lines"),
-        "script": final.get("script_lines"),
         "applied": sample["checks"].get("decision-applied"),
     }
 
@@ -339,8 +336,6 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
         ("minutes", "All author phases (min)", ".1f", ""),
         ("cost", "Reported author cost", ".2f", "$"),
         ("turns", "Author turns", ".0f", ""),
-        ("css", "Final CSS lines", ".0f", ""),
-        ("script", "Final script lines", ".0f", ""),
     ]
     if "_before_decision" in comparison["phases"]:
         metrics.append(("applied", "Final decision correct", ".0%", ""))

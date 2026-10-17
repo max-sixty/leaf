@@ -25,10 +25,9 @@ the page's state, without the conversation. A comment that directs an outcome is
 the user's pick for that item, so recording it as chosen is correct; whether the
 agent did is recorded, not checked.
 
-Each phase records what the author spent and wrote, from the session's records
-between the harness's `eval_phase` marks: time, turns, tokens and cost (`resumed`),
-the CSS and script lines in the files it authored. The user agent and the
-readers spend too; that is the harness's, recorded apart.
+Each phase records what the author spent, from the session's records between the
+harness's `eval_phase` marks: time, turns, tokens and cost (`resumed`). The user
+agent and the readers spend too; that is the harness's, recorded apart.
 
 The sample's output is what a judge needs: the user's request, the later messages,
 the author's answer to the comment, and each version's screenshots by width,
@@ -51,7 +50,6 @@ from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import turbohtml
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
@@ -766,31 +764,6 @@ def authored_files(page: Path, condition: str) -> list[Path]:
     return sorted(f for f in found if f.is_file() and f.suffix in AUTHORED)
 
 
-def authored_lines(page: Path, condition: str) -> dict[str, int]:
-    """Non-blank CSS and script lines across the authored files, inline or separate,
-    and the count of `style` attributes."""
-    counts = {"css_lines": 0, "script_lines": 0, "style_attributes": 0}
-
-    def lines(text: str) -> int:
-        return sum(1 for line in text.splitlines() if line.strip())
-
-    for file in authored_files(page, condition):
-        if file.suffix == ".css":
-            counts["css_lines"] += lines(file.read_text())
-        elif file.suffix in (".js", ".mjs"):
-            counts["script_lines"] += lines(file.read_text())
-        elif file.suffix == ".html":
-            # The parsed tree, template contents included, so a live sample's code
-            # counts as the author's too.
-            tree = turbohtml.parse(file.read_text())
-            counts["css_lines"] += sum(lines(e.text) for e in tree.select("style"))
-            counts["script_lines"] += sum(
-                lines(e.text) for e in tree.select("script:not([src])")
-            )
-            counts["style_attributes"] += len(tree.select("[style]"))
-    return counts
-
-
 def comment_answer(run: Run, reply: str) -> str:
     """What the author told the user about their comment, where it was asked: its
     replies on the comment's thread in Leaf, its chat reply in HTML. The judge reads
@@ -1016,7 +989,6 @@ def execute_scenario(
                 row |= {
                     "page": str(page),
                     "gate": reading,
-                    **authored_lines(page, condition),
                 }
                 if phase == 3:
                     answer = comment_answer(run, summary["reply"])

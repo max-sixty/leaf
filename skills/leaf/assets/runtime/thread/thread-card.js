@@ -1445,9 +1445,9 @@ export class ThreadView {
     const label = `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-summary-expand ${progress
-        ? "lf-progress-expand"
-        : ""}"
+      class="lf-thread-disclosure lf-summary-expand ${
+        progress ? "lf-progress-expand" : ""
+      }"
       data-lf-room=${progress ? `Show ${subject}` : nothing}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}

@@ -462,7 +462,9 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
         page.clock.fast_forward(46_000)
         expect(preview.locator(".lf-msg-meta time").last).to_have_text("1m ago")
         rendered(page)
-        assert disclosure.bounding_box()["x"] == pytest.approx(before_tick["x"], abs=0.5)
+        assert disclosure.bounding_box()["x"] == pytest.approx(
+            before_tick["x"], abs=0.5
+        )
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):

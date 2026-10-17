@@ -390,6 +390,9 @@ summary {
 .lf-msg-head > .lf-thread-disclosure {
   padding-block: 0;
 }
+.lf-msg-head > .lf-progress-expand {
+  margin-inline-start: auto;
+}
 .lf-thread-disclosure:hover {
   text-decoration: underline;
   text-underline-offset: 3px;

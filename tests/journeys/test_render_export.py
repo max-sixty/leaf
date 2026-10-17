@@ -1201,9 +1201,7 @@ def test_playground_examples_keep_their_offline_interaction_mode(
     expect(offline.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(
         1
     )
-    expect(
-        offline.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")
-    ).to_have_count(0)
+    expect(offline.locator(".lf-floating-panel")).to_have_count(0)
     expect(offline.locator(".lf-playground-submit")).to_be_disabled()
     expect(offline.locator(".lf-playground-unavailable")).to_have_text(
         "Submission unavailable: no agent or server is available."

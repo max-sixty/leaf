@@ -6897,7 +6897,7 @@ var ThreadView = class {
     return html`<button
       type="button"
       class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
-      data-sizing-label=${progress ? `Show ${subject}` : nothing}
+      data-lf-room=${progress ? `Show ${subject}` : nothing}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ids.map((id) => `lf-summary-originals-${this.#viewId}-${id}`).join(" ")}

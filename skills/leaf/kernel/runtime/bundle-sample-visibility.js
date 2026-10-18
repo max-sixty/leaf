@@ -510,6 +510,7 @@ function paintFocus(node) {
 }
 var refreshFocusPaint = () => {
   const node = paintDestination?.deref();
+  if (node?.isConnected && node !== deepFocus() && node !== heldByLabel()) return;
   if (node?.isConnected) watchStandingAround(node);
   paintFocus(node?.isConnected ? node : null);
 };

@@ -222,7 +222,9 @@ function statusWords({
 // (the floating panel's menu), whether it `asks` the user to act, such as to nudge the
 // agent, answer what it declared it waits for, approve in its own session, or reload,
 // which a seat can draw louder than a status that only reports, and the
-// `actionableWork` whose change is announced.
+// `actionableWork` whose change is announced. Each reading the user acts on differently
+// has its own `kind`, since a change of kind is what the banner announces: a server that
+// went away and then starts refusing this tab's key asks something new of the user.
 export function pageStatus(state, { reach = "reached" } = {}) {
   if (reach === "broken")
     return {
@@ -233,22 +235,22 @@ export function pageStatus(state, { reach = "reached" } = {}) {
       adds: "",
       asks: true,
     };
+  if (reach === "refused")
+    return {
+      kind: "refused",
+      tone: "offline",
+      summary: "Key refused — open Leaf's link in a new tab",
+      explanation: KEY_REFUSED_LINE,
+      adds: "Keep this tab open so pending changes can send.",
+      asks: true,
+    };
   if (reach !== "reached")
     return {
       kind: "unreachable",
       tone: "offline",
-      ...(reach === "refused"
-        ? {
-            summary: "Key refused — open Leaf's link in a new tab",
-            explanation: KEY_REFUSED_LINE,
-            adds: "Keep this tab open so pending changes can send.",
-            asks: true,
-          }
-        : {
-            summary: "Server offline — reconnecting; keep page open",
-            explanation: OFFLINE_LINE,
-            adds: "",
-          }),
+      summary: "Server offline — reconnecting; keep page open",
+      explanation: OFFLINE_LINE,
+      adds: "",
     };
   const { publication } = state;
   // A published page's status line says who answers there; its introduction and links
@@ -353,7 +355,7 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" ");
 }
-const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
+const WITHOUT_QUEUES = new Set(["broken", "refused", "unreachable", "publication"]);
 
 // What the chrome shows for a status (`pageStatus`, or a reading of startup's own),
 // beside the page's `queues` (`readQueues`) and the `agent` they wait on: the leaf's

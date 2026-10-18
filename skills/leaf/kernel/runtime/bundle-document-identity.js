@@ -147,6 +147,7 @@ import {
   workflowLabel
 } from "./bundle-user-intent.js";
 import {
+  holdingError,
   raiseError
 } from "./bundle-errors.js";
 import {
@@ -2761,8 +2762,12 @@ function pickerModel(state) {
     })
   });
 }
+var holdFailedSave = holdingError();
 function paintPicker() {
   const model = pickerModel(runtime.state);
+  holdFailedSave(
+    model.latest.failed ? "Latest edit not shown: it failed its check (see Versions)" : null
+  );
   versionPicker.present(model);
   repaint();
 }
@@ -5328,12 +5333,18 @@ function createDelivery({
 }) {
   let draining = false;
   async function deliver(entry) {
-    let announced = false;
+    const retrying = holdingError();
     const retry = async (message) => {
-      if (!announced) notice(message);
-      announced = true;
+      retrying(message);
       await retryPause();
     };
+    try {
+      return await tries(entry, retry);
+    } finally {
+      retrying(null);
+    }
+  }
+  async function tries(entry, retry) {
     for (; ; ) {
       if (!ledger.nameEvents(entry)) return { accepted: null };
       const { event } = entry;

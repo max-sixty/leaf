@@ -16,14 +16,14 @@ var errorsReading = () => errors;
 function registerErrorPresentation(present) {
   presenters.add(present);
 }
-function raiseError(message, { subject = null } = {}) {
+function raiseError(message, { subject = null, announce: speak = true } = {}) {
   const id = ++raised;
-  if (!unsaid.length)
+  if (speak && !unsaid.length)
     queueMicrotask(() => {
       announce(unsaid.map((said) => said.replace(/\.$/, "")).join(". "));
       unsaid = [];
     });
-  unsaid.push(message);
+  if (speak) unsaid.push(message);
   publish([
     Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
     ...errors
@@ -50,6 +50,16 @@ function dismissError(id) {
   if (errors.some((entry) => entry.id === id))
     publish(errors.filter((entry) => entry.id !== id));
 }
+function holdingError({ announce: speak = true } = {}) {
+  let held = null;
+  let said = null;
+  return (message) => {
+    if (message === said) return;
+    held?.clear();
+    held = message ? raiseError(message, { announce: speak }) : null;
+    said = message;
+  };
+}
 function dismissErrors() {
   if (errors.length) publish([]);
 }
@@ -61,5 +71,6 @@ export {
   passErrors,
   seeErrors,
   dismissError,
+  holdingError,
   dismissErrors
 };

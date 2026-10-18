@@ -189,7 +189,7 @@ import {
   restorePlace,
   textBlocks,
 } from "./reading-place.js";
-import { raiseError } from "./errors.js";
+import { holdingError, raiseError } from "./errors.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 
@@ -419,8 +419,17 @@ function pickerModel(state) {
 
 // The page before its first accepted state has a null `runtime.state`. Version controls
 // read the immutable document revision and the accepted root.
+// The agent's latest save failing its check is an error the user should see wherever
+// they are (errors.js), held while the page shows the last one that passed; Versions
+// says what the check found.
+const holdFailedSave = holdingError();
 function paintPicker() {
   const model = pickerModel(runtime.state);
+  holdFailedSave(
+    model.latest.failed
+      ? "Latest edit not shown: it failed its check (see Versions)"
+      : null,
+  );
   versionPicker.present(model);
   repaint();
 }

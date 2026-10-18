@@ -188,6 +188,7 @@ import {
   dismissError,
   dismissErrors,
   errorsReading,
+  holdingError,
   passErrors,
   raiseError,
   registerErrorPresentation,
@@ -5545,20 +5546,22 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
       adds: "",
       asks: true
     };
+  if (reach2 === "refused")
+    return {
+      kind: "refused",
+      tone: "offline",
+      summary: "Key refused \u2014 open Leaf's link in a new tab",
+      explanation: KEY_REFUSED_LINE,
+      adds: "Keep this tab open so pending changes can send.",
+      asks: true
+    };
   if (reach2 !== "reached")
     return {
       kind: "unreachable",
       tone: "offline",
-      ...reach2 === "refused" ? {
-        summary: "Key refused \u2014 open Leaf's link in a new tab",
-        explanation: KEY_REFUSED_LINE,
-        adds: "Keep this tab open so pending changes can send.",
-        asks: true
-      } : {
-        summary: "Server offline \u2014 reconnecting; keep page open",
-        explanation: OFFLINE_LINE,
-        adds: ""
-      }
+      summary: "Server offline \u2014 reconnecting; keep page open",
+      explanation: OFFLINE_LINE,
+      adds: ""
     };
   const { publication } = state;
   if (publication)
@@ -5642,7 +5645,7 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
   const named = (items, whom) => items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" ");
 }
-var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "unreachable", "publication"]);
+var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "refused", "unreachable", "publication"]);
 function statusModel(status, queues, agent) {
   const { kind, tone: tone2, summary, asks: asks2 = false, publication = null } = status;
   let { explanation, adds } = status;
@@ -5758,8 +5761,12 @@ function paintTab() {
 }
 var saidKind;
 var saidActionableWork;
+var holdUnreached = holdingError({ announce: false });
 function paintStatus() {
   const current = currentStatus();
+  holdUnreached(
+    ["unreachable", "refused", "broken"].includes(current?.status.kind) ? current.status.summary : null
+  );
   if (!current) return;
   const { status, model } = current;
   const { kind, actionableWork = null } = (
@@ -5810,7 +5817,7 @@ async function approve() {
   if (approving || !approveVersion) return;
   const reason = approvalReading()?.reason;
   if (reason) {
-    notice(reason);
+    raiseError(reason);
     return;
   }
   approving = true;
@@ -7676,7 +7683,7 @@ function createFloatingPanel({
     keeps(
       field,
       "title",
-      reading.says === "status" ? status().explanation || status().summary : null
+      reading.says === "status" ? status().explanation || status().summary : reading.says === "error" ? reading.words : null
     );
     const [error] = sayable();
     const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
@@ -7746,19 +7753,6 @@ function createFloatingPanel({
       quick
     );
   }
-  function failedSave() {
-    const { latest } = versionsReading();
-    if (!latest.failed) return null;
-    return {
-      says: "Latest edit not shown",
-      tone: "danger",
-      press: {
-        label: "Why",
-        title: latest.error,
-        run: () => showMenuAt({ view: "versions" })
-      }
-    };
-  }
   function olderVersion() {
     const { latest } = versionsReading();
     if (latest.shown === null) return null;
@@ -7789,7 +7783,7 @@ function createFloatingPanel({
     if (!approvalReading()?.approved) return null;
     return { says: `\u2713 ${versionsReading().picker.token} approved`, tone: "ok" };
   }
-  const ROW_NOTICES = [failedSave, olderVersion, website, approvedVersion];
+  const ROW_NOTICES = [olderVersion, website, approvedVersion];
   const rowNotice = () => {
     for (const read of ROW_NOTICES) {
       const notice2 = read();

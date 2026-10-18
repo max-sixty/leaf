@@ -1692,6 +1692,77 @@ def test_layout_style_and_widgets_never_read_each_other():
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 
+def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
+    """A box marked by a thick edge on one side is not also rounded (assets/AGENTS.md,
+    "Visual grammar"): a stripe bent around a corner reads as decoration rather than a
+    contour, and marks a state another face already shows. A state is one whole contour,
+    or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
+    `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
+    stripe is a side's border of 2px or more or an inset shadow offset
+    along one axis only. The reading is per rule, so a radius another rule gives the
+    same box passes it."""
+    sides = re.compile(
+        r"border-(?:left|right|top|bottom|inline-start|inline-end|block-start|"
+        r"block-end)(?:-width)?"
+    )
+    inset = re.compile(r"(?:^|,)\s*inset\s+(-?[\d.]+)(?:px)?\s+(-?[\d.]+)(?:px)?\s+0")
+
+    def thick(value):
+        return any(float(px) >= 2 for px in re.findall(r"([\d.]+)px", value))
+
+    def edged(declarations):
+        return any(
+            sides.fullmatch(name)
+            and thick(value)
+            or name == "box-shadow"
+            and any(
+                (abs(float(x)) >= 2) != (abs(float(y)) >= 2)
+                for x, y in inset.findall(value)
+            )
+            for name, value in declarations
+        )
+
+    def rounded(declarations):
+        return any(
+            re.fullmatch(r"border(?:-[a-z-]+)?-radius", name)
+            and not re.fullmatch(r"(0(px)?\s*)+", value)
+            for name, value in declarations
+        )
+
+    sheets = [
+        (sheet.relative_to(ROOT), sheet)
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for sheet in sorted(root.rglob("*.css"))
+        if "vendor" not in sheet.parts
+        and not sheet.read_text().startswith("/* @noformat Generated from ")
+    ]
+    for root in (ROOT / "examples", ROOT / "docs"):
+        sheets += [
+            (sheet.relative_to(ROOT), sheet)
+            for sheet in sorted(root.rglob("*.css"))
+            if not sheet.parent.name.startswith("corpus")
+        ]
+    for page in sorted(
+        [*(ROOT / "examples").rglob("*.html"), *(ROOT / "docs").glob("*.html")]
+    ):
+        if page.name.startswith("corpus"):
+            continue
+        styles = re.findall(r"<style[^>]*>(.*?)</style>", page.read_text(), re.DOTALL)
+        if styles:
+            sheet = tmp_path / page.relative_to(ROOT).with_suffix(".css")
+            sheet.parent.mkdir(parents=True, exist_ok=True)
+            sheet.write_text("\n".join(styles))
+            sheets.append((page.relative_to(ROOT), sheet))
+    assert len(sheets) > 20, sheets
+    found = [
+        f"{where}: {selector}"
+        for where, sheet in sheets
+        for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
+        if edged(declarations) and rounded(declarations)
+    ]
+    assert not found, "a rounded box edged on one side:\n" + "\n".join(found)
+
+
 def test_every_token_a_sheet_reads_is_set_somewhere():
     """A `var(--name)` with no fallback reads a property something sets: a sheet's
     declaration or `@property`, or a module or delivery writing it by name. One nothing

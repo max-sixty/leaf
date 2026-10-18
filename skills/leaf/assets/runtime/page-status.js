@@ -21,12 +21,13 @@ import { el } from "./widget-elements.js";
 import { WEBSITE_DELIVERY, runtime, runtimeResource } from "./context.js";
 import { chromeRoot } from "./chrome.js";
 import { pagePresented } from "./page-paint.js";
-import { announce, notice } from "./notifications.js";
+import { announce } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
 import { readQueues } from "./queue-api.js";
 import { approvalBlockingAsks } from "./asks/model.js";
+import { holdingError, raiseError } from "./errors.js";
 
 // ---------- status ----------
 // Upgrade opens new comments before the buffered saved reading is applied.
@@ -134,8 +135,17 @@ function paintTab() {
 // begins waiting for user input or approval, not on every observed work step or poll.
 let saidKind;
 let saidActionableWork;
+// A status that reaches nothing, or a reading the page could not apply, is an error the
+// user should see wherever they are (errors.js), held while the status says it. The
+// status announces a change of kind in its own words already.
+const holdUnreached = holdingError({ announce: false });
 function paintStatus() {
   const current = currentStatus();
+  holdUnreached(
+    ["unreachable", "refused", "broken"].includes(current?.status.kind)
+      ? current.status.summary
+      : null,
+  );
   if (!current) return;
   const { status, model } = current;
   const { kind, actionableWork = null } = /** @type {any} */ (status);
@@ -213,12 +223,12 @@ export const approvalReading = () => {
 };
 
 // The one approval press, whichever control the user made it on. A refused press
-// answers with its reason where every user sees it.
+// raises its reason as an error (errors.js).
 export async function approve() {
   if (approving || !approveVersion) return;
   const reason = approvalReading()?.reason;
   if (reason) {
-    notice(reason);
+    raiseError(reason);
     return;
   }
   approving = true;

@@ -28,6 +28,8 @@ from render_cases_layout import (
 )
 from render_harness import (
     LONG_PAGE,
+    consume_browser_errors,
+    http_error_console,
     nudge,
     open_page,
     panel_settled,
@@ -49,7 +51,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
     The chrome once flipped to the offline colour and rewrote its line while the live
     region went on holding whatever it last said, so a user who is not watching the
     chrome learned nothing. A kind changing — work starting, a turn ending, the server
-    going — is what is worth interrupting for, and what it says is the status's own
+    going, then refusing this tab's key — is what is worth interrupting for, and what it says is the status's own
     sentence rather than a second account of it. The age moving and a count turning over
     are not kinds and stay out of the region."""
     url = serve(SUGGESTION_PAGE)
@@ -98,8 +100,16 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
         nudge(serve.page_dir)
         expect(page.locator(".lf-fp-leaf .lf-dot.offline")).to_be_visible()
         expect(live).to_contain_text("Server offline")
+        # The server coming back to refuse this tab's key asks something new of the
+        # user, so it is heard though the dot stays offline.
+        page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
+        expect(live).to_contain_text("no longer accepts this tab's key")
+        # The refused reads recur on the page's clock until it closes.
+        page.close()
+        consume_browser_errors(page, http_error_console(401))
     finally:
-        page.unroute("**/api/**")
+        if not page.is_closed():
+            page.unroute("**/api/**")
 
 
 def test_the_neighbour_reading_detects_a_whole_row_moving_on_press(browser):

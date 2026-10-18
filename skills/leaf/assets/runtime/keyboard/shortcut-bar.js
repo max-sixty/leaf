@@ -94,12 +94,14 @@ import { walkPosition } from "../walk-position.js";
 import { declareWindowChrome } from "../geometry.js";
 import { pageUpgraded } from "../page-paint.js";
 import { closeLayer } from "../focus.js";
+import { isNativeLayer } from "../shadow-tree.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
   bannerStanding,
   restoreBannerStanding,
   dismissBannerControls,
+  overflowMenu,
   registerBannerControl,
 } from "../banner-toolbar.js";
 
@@ -338,12 +340,15 @@ const openCompleteReference = (returnTo = null) =>
 const keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
 keyboardSettings.type = "button";
 keyboardSettings.addEventListener("click", () => {
-  // More borrows the reader's place. The reference must read that original scope,
-  // so its contextual commands can act on the source the reader came from.
-  const held = bannerStanding();
-  closeLayer(dismissBannerControls, () => restoreBannerStanding(held));
-  const returnTo = bannerControlDoor(keyboardSettings);
-  openCompleteReference(returnTo);
+  // More borrows the reader's place, while the floating panel presses this control
+  // after returning focus to its own leaf. Only More owes a borrowed-place return.
+  if (isNativeLayer(overflowMenu)) {
+    const held = bannerStanding();
+    closeLayer(dismissBannerControls, () => restoreBannerStanding(held));
+    openCompleteReference(bannerControlDoor(keyboardSettings));
+  } else {
+    openCompleteReference();
+  }
 });
 registerBannerControl({
   key: "keyboard",

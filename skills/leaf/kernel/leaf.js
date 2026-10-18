@@ -7520,10 +7520,13 @@ var openCompleteReference = (returnTo = null) => openCommandReference((id) => ex
 var keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
 keyboardSettings.type = "button";
 keyboardSettings.addEventListener("click", () => {
-  const held = bannerStanding();
-  closeLayer(dismissBannerControls, () => restoreBannerStanding(held));
-  const returnTo = bannerControlDoor(keyboardSettings);
-  openCompleteReference(returnTo);
+  if (isNativeLayer(overflowMenu)) {
+    const held = bannerStanding();
+    closeLayer(dismissBannerControls, () => restoreBannerStanding(held));
+    openCompleteReference(bannerControlDoor(keyboardSettings));
+  } else {
+    openCompleteReference();
+  }
 });
 registerBannerControl({
   key: "keyboard",

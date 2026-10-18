@@ -64,17 +64,21 @@
    an offscreen target carries its surface into view as scrolling approaches it.
    Growing never scrolls the page. A surface that outgrows the room on its side slides
    inside the boundary, over its passage or element if it must, and once it fills the
-   boundary scrolls its own content. What it paints is what the boundary holds: the
-   comment box's frame reserves its card's head row and reply row unpainted (`reserve`),
-   and the one at the end it grows toward may stand past the boundary (`overhang`),
-   which also lets the frame grow that much taller than the boundary. So the words the
-   user typed hold still until the field itself meets the window's edge, and Send,
-   which needs that row inside, moves the words by the overhang. The user asked (2026-10-17) for a box beside its passage
-   to grow down from its top rather than slide. Rejected: holding the whole frame
-   inside, which slid the field as soon as its unpainted reply row met the edge, while
-   the field itself still had room. Only a card opening under or over its target
+   boundary scrolls its own content. Only a card opening under or over its target
    scrolls the reading region, as far as it can, to make the room it needs (`makeRoom`),
    so it opens clear of that target.
+
+   What a surface paints is what the boundary holds. The comment box's frame reserves
+   its card's head row and reply row unpainted (`reserve`), and the one at the end it
+   grows toward may stand past the boundary (`overhang`), which also lets the frame
+   grow that much taller than the boundary. So the words the user typed hold still
+   until the field itself meets the window's edge, and Send, which needs that row
+   inside, moves the words by the overhang. The user asked (2026-10-17) for a box
+   beside its passage to grow down from its top rather than slide. Rejected: holding
+   the whole frame inside, which slid the field as soon as its unpainted reply row met
+   the edge, while the field itself still had room; and letting the reserve overhang
+   only by the room the frame left, which kept a long draft's Send still but slid the
+   field two lines per line as it neared the window's height.
 
    A surface may hold one edge at an offset of its own choosing (`hold`), in client
    pixels from its line: `row` beside, and under or over the edge of `clear` it stands

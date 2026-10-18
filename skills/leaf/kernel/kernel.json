@@ -14,7 +14,7 @@
     "runtime/annotation-overlay/anchor-paint.js": "81e783f4de7a88e66d22e08c78778f5606fb4857875759439655c26a7e61eef5",
     "runtime/annotation-overlay/annotation-layer.js": "69b625f4c6bdc657da9e9952d8e9349c93dcd7526066b03e8701a47e7a69b699",
     "runtime/annotation-overlay/check-api.js": "e329869cd53d08ea0a8e423cc6a7fe1fbb22311cc172881aacc5f9274051b5c7",
-    "runtime/annotation-overlay/comment-placement.js": "f13ea52f9cfb3281f502287df7ea89adee6c5729b14c5fa8a700bb453d4e14b0",
+    "runtime/annotation-overlay/comment-placement.js": "9c108a9f650cd28ca71c5fc261fa53549d3ed0b10a1191ff682085f136b51c3c",
     "runtime/annotation-overlay/composing/drawing-paint.js": "b6820364fe6c4daf3abffa1884ac59cc761dc2d7df70a28c6f34059f44f7c0e1",
     "runtime/annotation-overlay/composing/floating-response.js": "d1145d148b1e0fdf14e11f8a0471a9517b6753b495c3dc009880ad2ea39e485b",
     "runtime/annotation-overlay/floating.js": "8e0bd00f4285f8087c19e253652cd86a83987b0cbaed475c8ac9f16deaf1ed90",

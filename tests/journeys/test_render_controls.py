@@ -4473,11 +4473,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         "the ring cases name examples that no longer exist: "
         + ", ".join(sorted(missing))
     )
-    # The sampled pages first, so the ring cases run as they did before the walk took
-    # in every example: with the walk-only pages first, CI once found triage-board's
-    # target hint unlit, which no local run reproduced.
-    for name in (*RING_EXAMPLES, *sorted(set(RING_EXAMPLE_FILES) - set(RING_EXAMPLES))):
-        example = RING_EXAMPLE_FILES[name]
+    for name, example in RING_EXAMPLE_FILES.items():
         # Serving the path lays in the example's shipped log and message widgets.
         # The chrome's page also carries a passage's thread, which the Page Map lists.
         anchored = [("triage-lede", "Migration 0041")] if name == RING_CHROME else ()

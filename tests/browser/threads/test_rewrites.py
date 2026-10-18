@@ -1054,6 +1054,185 @@ def test_typing_in_a_long_rewrite_keeps_the_view(browser, serve):
     assert abs(after - before) < 30, (before, after)
 
 
+def test_a_rewrite_leaves_a_card_at_the_windows_foot_as_it_stood(browser, serve):
+    """A card whose target stands low in the window stands against the window's foot,
+    where it grows no taller than the room under its top, or than it has stood. Saving
+    a rewrite of its message unchanged left the message a scrolling box clipped
+    mid-line, as did discarding words shortened in the rewrite: the open rewrite was
+    shorter than the message, and the card shrank with it from the top, the window's
+    foot keeping its foot, and grew no taller than it then stood. It now grows back to
+    the tallest it stood while its line stays put.
+
+    Unchanged words were shorter in the card's rewrite because its field ended them
+    17px further out than the message did, so lines rewrapped as it opened. They now
+    end where the message's do."""
+    url = serve(LONG_PAGE)
+    mine = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": (
+                "/dispatch\n\nI think this makes sense, but we need to think about "
+                "how to change our Todos first, to handle a tree structure.\n\nLay out "
+                "options for our ontology.\n\nAlso, look first at how we can complete "
+                "any existing clean-ups, given recent changes, as a precursor to "
+                "embarking on adding this\n\nThen after that we can come back to this "
+                "session and look at changing our implementation"
+            ),
+            "anchor": {"section": "p30"},
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1512, 860)
+    page.locator("#p30").evaluate("n => n.scrollIntoView({block: 'end'})")
+    rendered(page)
+    page.locator('[data-lf-margin-for="p30"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    message = card.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    words = message.locator(".lf-msg-text")
+    editor = message.locator(".lf-msg-editor leaf-text")
+    expect(message).to_be_visible()
+    rendered(page)
+    assert card.get_attribute("data-lf-plane") == "window", (
+        "the card does not stand against the window's foot, so this proves nothing"
+    )
+    column = """n => { const r = n.getBoundingClientRect(), s = getComputedStyle(n);
+      return [r.left + parseFloat(s.paddingLeft) + parseFloat(s.borderLeftWidth),
+              r.right - parseFloat(s.paddingRight) - parseFloat(s.borderRightWidth)]; }"""
+    text_column = words.evaluate(column)
+
+    def standing():
+        return {
+            "card": card.bounding_box(),
+            "words": words.evaluate(FIRST_LINE),
+            "scrolls": card.locator(".lf-thread-transcript").evaluate(
+                "t => t.scrollHeight > t.clientHeight"
+            ),
+        }
+
+    stood = standing()
+    assert not stood["scrolls"]
+
+    def as_it_stood():
+        now = standing()
+        for side in ("y", "height"):
+            assert abs(now["card"][side] - stood["card"][side]) < 0.5, (now, stood)
+        assert abs(now["words"][1] - stood["words"][1]) < 0.5, (now, stood)
+        assert not now["scrolls"], now
+
+    words.dblclick()
+    expect(editor).to_be_focused()
+    rendered(page)
+    for edge, at in zip(editor.evaluate(column), text_column):
+        assert abs(edge - at) < 0.5, (editor.evaluate(column), text_column)
+    # Open, the rewrite takes the message's place exactly: the card neither grows nor
+    # scrolls the rewrite's top under the message's head, and its words keep their line.
+    for side in ("y", "height"):
+        assert abs(card.bounding_box()[side] - stood["card"][side]) < 0.5
+    assert not card.locator(".lf-thread-transcript").evaluate(
+        "t => t.scrollHeight > t.clientHeight"
+    )
+    assert abs(editor.evaluate(FIRST_LINE)[1] - stood["words"][1]) < 0.5
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    rendered(page)
+    as_it_stood()
+
+    words.dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Short.")
+    rendered(page)
+    page.keyboard.press("Escape")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    rendered(page)
+    as_it_stood()
+
+
+def test_a_card_at_the_windows_foot_grows_back_to_how_it_stood(browser, serve):
+    """A message taller than the rewrite's field, which scrolls past half the window,
+    shrinks a card standing against the window's foot as its rewrite opens. The card
+    kept its foot there and dropped its top, and once saved unchanged it came back a
+    scrolling box clipped by what it had shrunk, as it did once shorter words were saved
+    and then the long ones again. It now grows back to the tallest it stood while its
+    line stays put."""
+    url = serve(LONG_PAGE)
+    line = "The steel pair held through the frost of February, and the bracket with it."
+    long = "\n\n".join([line] * 9)
+    mine = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": long,
+            "anchor": {"section": "p30"},
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1512, 860)
+    page.locator("#p30").evaluate("n => n.scrollIntoView({block: 'end'})")
+    rendered(page)
+    page.locator('[data-lf-margin-for="p30"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    message = card.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    body = message.locator(".lf-msg-body")
+    editor = message.locator(".lf-msg-editor leaf-text")
+    expect(message).to_be_visible()
+    rendered(page)
+    assert card.get_attribute("data-lf-plane") == "window", (
+        "the card does not stand against the window's foot, so this proves nothing"
+    )
+
+    def standing():
+        return {
+            "card": card.bounding_box(),
+            "words": body.bounding_box()["y"],
+            "scrolls": card.locator(".lf-thread-transcript").evaluate(
+                "t => t.scrollHeight > t.clientHeight"
+            ),
+        }
+
+    stood = standing()
+    assert not stood["scrolls"]
+
+    def as_it_stood():
+        now = standing()
+        for side in ("y", "height"):
+            assert abs(now["card"][side] - stood["card"][side]) < 0.5, (now, stood)
+        assert abs(now["words"] - stood["words"]) < 0.5, (now, stood)
+        assert not now["scrolls"], now
+
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    rendered(page)
+    assert editor.evaluate("n => n.scrollHeight > n.clientHeight"), (
+        "the rewrite's field holds the whole message, so nothing shrinks"
+    )
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    rendered(page)
+    as_it_stood()
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Short.")
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-text")).to_have_text("Short.")
+    rendered(page)
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text(long)
+    rendered(page)
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    rendered(page)
+    as_it_stood()
+
+
 def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
     """With a changed rewrite left open higher in the thread, saving a shorter one below
     it followed the open one and not the saved one, so the reply box jumped back down

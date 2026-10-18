@@ -1671,6 +1671,7 @@ function commentPlacement() {
   let moved = false;
   let held2 = null;
   let reading = null;
+  let tallest = null;
   let edge = "top";
   let pressHeld = null;
   let pressAnswered = null;
@@ -1684,6 +1685,7 @@ function commentPlacement() {
     moved = false;
     held2 = null;
     reading = null;
+    tallest = null;
     edge = "top";
     pressHeld = null;
     pressAnswered = null;
@@ -1751,10 +1753,8 @@ function commentPlacement() {
     // holds the foot only where the surface stands above what it is about; any other
     // change keeps the edge held now.
     edgeFor: (turn) => turn ? side === "top" ? "foot" : "top" : edge,
-    // The held edge's offset for `options`' `hold`, and the height between the held
-    // top and foot, which caps a held surface no shorter than it last stood.
+    // The held edge's offset for `options`' `hold`.
     heldAt: (edge2) => held2 && { [edge2]: held2[edge2] },
-    heldHeight: () => held2 ? held2.foot - held2.top : 0,
     scrolled() {
       input = null;
     },
@@ -1883,7 +1883,11 @@ function commentPlacement() {
       const size = ui.size({
         ...overflow,
         apply(state) {
-          const { scale } = measure(state);
+          const { scale, line: line2 } = measure(state);
+          const stood2 = held2 ? Math.max(
+            held2.foot - held2.top,
+            tallest && Math.abs(tallest.line - line2) < 0.5 ? tallest.height : 0
+          ) / scale.y : 0;
           const lane = carriedInline !== null ? boundary.right - (column ?? clear.left) - carriedInline : across ? boundary.right - (inlineStart + (inline ?? 0) * scale.x) : side === "right" ? boundary.right - box.right - COMMENT_GAP : clear.left - boundary.left - COMMENT_GAP;
           fit({
             side,
@@ -1892,6 +1896,7 @@ function commentPlacement() {
               Math.min(state.availableWidth, lane / scale.x)
             ),
             height: state.availableHeight,
+            stood: stood2,
             scale
           });
         }
@@ -1975,7 +1980,12 @@ function commentPlacement() {
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line2) * scale.y;
-      const spot = { top, foot: top + middlewareData.held.height * scale.y };
+      const height = middlewareData.held.height * scale.y;
+      const spot = { top, foot: top + height };
+      tallest = {
+        height: tallest && Math.abs(tallest.line - line2) < 0.5 ? Math.max(tallest.height, height) : height,
+        line: line2
+      };
       held2 = { ...spot, ...reading };
       return { scale };
     }

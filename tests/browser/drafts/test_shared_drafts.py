@@ -15,6 +15,7 @@ from render_harness import (
     _until,
     draft_control,
     draft_key,
+    expect_panel_says,
     held_stale,
     holding,
     open_page,
@@ -158,9 +159,9 @@ def test_a_general_comment_appends_one_event_across_tabs(browser, serve, one_use
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
-    first.locator(".lf-general .lf-compose-submit").click()
+    first.locator(".lf-fp-send").click()
     holding(first, held, 1, "the first general send")
-    second.locator(".lf-general .lf-compose-submit").click()
+    second.locator(".lf-fp-send").click()
     round_trip(second)
 
     held[0].continue_()
@@ -214,14 +215,12 @@ def test_failed_settlement_keeps_the_base_for_a_chained_nondurable_edit(
     )
 
     write(page_comment(local), first)
-    local.locator(".lf-general .lf-compose-submit").click()
+    local.locator(".lf-fp-send").click()
     round_trip(local)
-    expect(local.locator(".lf-general leaf-text")).to_have_js_property("value", "")
+    expect(page_comment(local)).to_have_js_property("value", "")
     write(page_comment(local), second)
-    expect(local.locator(".lf-general .lf-compose-submit")).to_have_attribute(
-        "aria-disabled", "false"
-    )
-    local.locator(".lf-general .lf-compose-submit").click()
+    expect(local.locator(".lf-fp-send")).to_have_attribute("aria-disabled", "false")
+    local.locator(".lf-fp-send").click()
     _until(local, lambda traffic: traffic.sends == 2, "sent the chained generation")
     round_trip(local)
 
@@ -389,7 +388,7 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
                     "error": "the earlier execution was refused",
                 },
             )
-        expect(first.locator(".lf-notice")).to_contain_text("Couldn't send")
+        expect_panel_says(first, "Couldn't send")
         expected_error = Finding(
             "console-error",
             values={

@@ -20,6 +20,7 @@ from render_cases_navigation import call_diff, call_node, source_revision
 from render_harness import (
     leaf_page,
     open_page,
+    panel_settled,
     refuse,
     reported_browser_errors,
     resized,
@@ -33,7 +34,18 @@ from render_harness import (
     write,
 )
 
+from browser.threads import open_panel_thread
+
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def comment_id(page_dir, text):
+    """The id of the thread whose root comment says `text`."""
+    return next(
+        event["id"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment" and event["text"] == text
+    )
 
 
 def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, serve):
@@ -841,18 +853,24 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     write(draft, "Keep this helper")
     with sending(page, "the call comment"):
         draft.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
+    helper = comment_id(serve.page_dir, "Keep this helper")
+    expect(open_panel_thread(page, helper).locator(".lf-anchor-status")).to_have_count(
+        0
+    )
     capture(
         call_node("work()", "app.py", 31),
         call_node("work()", "app.py", 41, children=[dict(shared, line=9)]),
         dict(third_work, line=61, children=[dict(unfocused, line=10)]),
     )
     told(page)
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
+    expect(open_panel_thread(page, helper).locator(".lf-anchor-status")).to_have_text(
+        "Earlier data"
+    )
 
     # Removing one duplicate must not transfer its comment to the surviving call,
     # even when that survivor becomes occurrence zero in the next capture.
-    page.keyboard.press("Escape")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
     log = call_node("log()", "app.py", 10)
     capture(
         call_node(
@@ -882,8 +900,10 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         )
     )
     told(page)
-    comment = page.locator(".lf-thread").filter(has_text="Remove this log")
-    expect(comment.locator(".lf-anchor-status")).to_have_text("Earlier data")
+    removed = comment_id(serve.page_dir, "Remove this log")
+    expect(open_panel_thread(page, removed).locator(".lf-anchor-status")).to_have_text(
+        "Earlier data"
+    )
 
 
 @pytest.mark.parametrize("quote_anchor", [True, False], ids=["passage", "whole-datum"])
@@ -969,13 +989,6 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     if quote_anchor:
         expected_anchor["quote"] = "Original source words."
     assert comment["anchor"] == expected_anchor
-    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
-    assert (
-        page.locator(".lf-thread .lf-anchor-status").evaluate(
-            "el => getComputedStyle(el).borderTopWidth"
-        )
-        == "0px"
-    )
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_css("opacity", "1")
     rendered(page)
@@ -993,6 +1006,11 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     assert datum["x"] < reopened["x"] + reopened["width"]
     assert reopened["x"] < datum["x"] + datum["width"]
     assert reopened["y"] == pytest.approx(datum["y"] + datum["height"] + 8, abs=2)
+    # The thread's own head says the words it quotes are earlier data, as a plain word
+    # rather than a boxed badge.
+    status = open_panel_thread(page, comment["id"]).locator(".lf-anchor-status")
+    expect(status).to_have_text("Earlier data")
+    assert status.evaluate("el => getComputedStyle(el).borderTopWidth") == "0px"
 
 
 def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):

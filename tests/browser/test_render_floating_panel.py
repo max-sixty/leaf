@@ -2564,7 +2564,8 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
 def test_skip_to_leaf_controls_lands_in_the_panel(browser, serve):
     """The page's first Tab stop, Skip to Leaf controls, lands in the panel that stands
     for Leaf's controls: in its field, or on the leaf where the field takes no words, as
-    in a resolved thread, or while the panel is folded."""
+    in a resolved thread, or while the panel is folded. A resolved thread's field says
+    no error either, so the leaf's dot marks one raised there."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
@@ -2581,6 +2582,13 @@ def test_skip_to_leaf_controls_lands_in_the_panel(browser, serve):
     page.locator(".lf-fp-filters button", has_text="Resolved").click()
     page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread").first.click()
     expect(settle).to_have_text("Reopen", use_inner_text=True)
+    page.evaluate(
+        "async () => (await window.__lfWidgetApi()).raiseError('Couldn\\'t load v1')"
+    )
+    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-floating-panel")).not_to_have_attribute(
+        "data-says", "error"
+    )
     skip.focus()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-fp-leaf")).to_be_focused()

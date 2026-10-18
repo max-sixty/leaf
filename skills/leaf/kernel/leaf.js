@@ -7996,7 +7996,7 @@ function createFloatingPanel({
       });
     return replyOptions.get(key);
   };
-  const fieldInput = () => field.firstElementChild === replyOutlet ? replyInput() : pageEditor().input;
+  const fieldInput = () => field.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
   function retype() {
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
@@ -9662,10 +9662,7 @@ function createFloatingPanel({
     sync: () => pageEditor().sync()
   });
   function enter() {
-    const top = trail.at(-1);
-    const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
-    const takesWords = !thread || replyAvailable(thread);
-    const input = prefs().rest !== "mark" && takesWords ? fieldInput() : null;
+    const input = prefs().rest !== "mark" ? fieldInput() : null;
     focusDestination(input ?? leaf, "move");
   }
   function mount(parent) {

@@ -598,9 +598,14 @@ export function createFloatingPanel({
       });
     return replyOptions.get(key);
   };
-  // The editor standing in the field now, the page's or the open thread's reply.
+  // The editor standing in the field now, the page's or the open thread's reply; none
+  // while a resolved thread's field says how to reopen it instead.
   const fieldInput = () =>
-    field.firstElementChild === replyOutlet ? replyInput() : pageEditor().input;
+    field.firstElementChild !== replyOutlet
+      ? pageEditor().input
+      : replyOutlet.hidden
+        ? null
+        : replyInput();
   // Words arriving in an empty field, or the last of them going, re-seat the row.
   function retype() {
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
@@ -2879,10 +2884,7 @@ export function createFloatingPanel({
   // them: the field, where words go, or the leaf, while the panel is folded to it.
   // A resolved thread's field takes no words, so there the leaf is where they begin.
   function enter() {
-    const top = trail.at(-1);
-    const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
-    const takesWords = !thread || replyAvailable(thread);
-    const input = prefs().rest !== "mark" && takesWords ? fieldInput() : null;
+    const input = prefs().rest !== "mark" ? fieldInput() : null;
     focusDestination(input ?? leaf, "move");
   }
 

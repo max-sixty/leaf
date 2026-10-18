@@ -221,6 +221,7 @@ import {
   dismissError,
   dismissErrors,
   errorsReading,
+  holdingError,
   passErrors,
   raiseError,
   registerErrorPresentation,
@@ -5916,22 +5917,24 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
       adds: "",
-      items: true
+      asks: true
+    };
+  if (reach2 === "refused")
+    return {
+      kind: "refused",
+      tone: "offline",
+      summary: "Key refused \u2014 open Leaf's link in a new tab",
+      explanation: KEY_REFUSED_LINE,
+      adds: "Keep this tab open so pending changes can send.",
+      asks: true
     };
   if (reach2 !== "reached")
     return {
       kind: "unreachable",
       tone: "offline",
-      ...reach2 === "refused" ? {
-        summary: "Key refused \u2014 open Leaf's link in a new tab",
-        explanation: KEY_REFUSED_LINE,
-        adds: "Keep this tab open so pending changes can send.",
-        items: true
-      } : {
-        summary: "Server offline \u2014 reconnecting; keep page open",
-        explanation: OFFLINE_LINE,
-        adds: ""
-      }
+      summary: "Server offline \u2014 reconnecting; keep page open",
+      explanation: OFFLINE_LINE,
+      adds: ""
     };
   const { publication } = state;
   if (publication)
@@ -5989,7 +5992,7 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
     explanationParts,
     adds: textOf(addsParts),
     addsParts,
-    items: asked || waitsThere,
+    asks: asked || waitsThere,
     actionableWork
   };
 }
@@ -6022,9 +6025,9 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
     widest: `On ${short}: 99`
   };
 }
-var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "unreachable", "publication"]);
+var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "refused", "unreachable", "publication"]);
 function statusModel(status, queues, agent) {
-  const { kind, tone, summary, items: items2 = false, publication = null } = status;
+  const { kind, tone, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
   let explanationParts = [...status.explanationParts ?? textParts(explanation)];
   let addsParts = [...status.addsParts ?? textParts(adds)];
@@ -6057,7 +6060,7 @@ function statusModel(status, queues, agent) {
     summaryParts: status.summaryParts ?? textParts(summary),
     explanationParts,
     addsParts,
-    items: items2,
+    asks,
     queues: counted.summary,
     queuesWidest: counted.widest,
     explanation,
@@ -7264,6 +7267,7 @@ function currentStatus() {
   return { status, model: statusModel(status, readQueues(), agentName()) };
 }
 var statusReading = () => currentStatus()?.model ?? null;
+var holdUnreached = holdingError({ announce: false });
 function paintStatus() {
   renderSessionReference();
   const state = runtime.state;
@@ -7273,6 +7277,10 @@ function paintStatus() {
   }
   const current = currentStatus();
   if (current) presentStatus(current);
+  const kind = current?.status.kind;
+  holdUnreached(
+    ["unreachable", "refused", "broken"].includes(kind) ? current.status.summary : null
+  );
 }
 var statusWatch = watchProjection(document.body, paintStatus);
 document.addEventListener(
@@ -7876,7 +7884,7 @@ function createFloatingPanel({
     explanationParts: [{ text: "Connecting\u2026", source: null }],
     adds: "",
     addsParts: [],
-    items: false,
+    asks: false,
     publication: null
   };
   const status = () => statusReading() ?? CONNECTING;
@@ -9304,11 +9312,11 @@ function createFloatingPanel({
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
-    keeps(host, "data-items", status().items ? "" : null);
+    keeps(host, "data-asks", status().asks ? "" : null);
     keeps(
       field,
       "title",
-      reading.says === "status" ? status().explanation || status().summary : null
+      reading.says === "status" ? status().explanation || status().summary : reading.says === "error" ? reading.words : null
     );
     const [error] = sayable();
     const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
@@ -9378,19 +9386,6 @@ function createFloatingPanel({
       quick
     );
   }
-  function failedSave() {
-    const { latest } = versionsReading();
-    if (!latest.failed) return null;
-    return {
-      says: "Latest edit not shown",
-      tone: "danger",
-      press: {
-        label: "Why",
-        title: latest.error,
-        run: () => showMenuAt({ view: "versions" })
-      }
-    };
-  }
   function olderVersion() {
     const { latest } = versionsReading();
     if (latest.shown === null) return null;
@@ -9418,7 +9413,7 @@ function createFloatingPanel({
     if (!approvalReading()?.approved) return null;
     return { says: `\u2713 ${versionsReading().picker.token} approved`, tone: "ok" };
   }
-  const ROW_NOTICES = [failedSave, olderVersion, website, approvedVersion];
+  const ROW_NOTICES = [olderVersion, website, approvedVersion];
   const rowNotice = () => {
     for (const read of ROW_NOTICES) {
       const notice2 = read();

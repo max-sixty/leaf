@@ -343,7 +343,7 @@
   }
   /* The shared reduced-motion guard (surfaces.css) stops at the field's closed tree. */
   @media (prefers-reduced-motion: no-preference) {
-    .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-items])
+    .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
       .lf-fp-field
       leaf-text::part(placeholder) {
       /* The quiet face is ink at 48% (`--lf-fp-quiet`). */
@@ -355,25 +355,25 @@
      legible as words, so a request stands apart from a report. It stays quiet, at the
      words' own weight and short of full strength: the user found full-strength
      medium-weight green bold for a line that stands at rest (15 October). */
-  .lf-floating-panel[data-says="status"][data-items]
+  .lf-floating-panel[data-says="status"][data-asks]
     .lf-fp-field
     leaf-text::part(placeholder) {
-    color: color-mix(in srgb, var(--lf-fp-items) 70%, transparent);
+    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
   }
-  .lf-floating-panel[data-items] {
-    --lf-fp-items: var(--ink);
+  .lf-floating-panel[data-asks] {
+    --lf-fp-asks: var(--ink);
   }
-  .lf-floating-panel[data-items][data-tone="working"] {
-    --lf-fp-items: var(--accent);
+  .lf-floating-panel[data-asks][data-tone="working"] {
+    --lf-fp-asks: var(--accent);
   }
-  .lf-floating-panel[data-items][data-tone="listening"] {
-    --lf-fp-items: var(--ok-ink);
+  .lf-floating-panel[data-asks][data-tone="listening"] {
+    --lf-fp-asks: var(--ok-ink);
   }
-  .lf-floating-panel[data-items][data-tone="away"] {
-    --lf-fp-items: var(--warn-ink);
+  .lf-floating-panel[data-asks][data-tone="away"] {
+    --lf-fp-asks: var(--warn-ink);
   }
-  .lf-floating-panel[data-items][data-tone="offline"] {
-    --lf-fp-items: var(--danger-ink);
+  .lf-floating-panel[data-asks][data-tone="offline"] {
+    --lf-fp-asks: var(--danger-ink);
   }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
@@ -485,8 +485,8 @@
   :where(.lf-floating-panel) .lf-fp-row-notice-press:hover {
     background: none;
   }
-  /* Its tone tints it: a failed save in danger, an older version in warning, the
-     website's notice in the accent, an approval in ok. */
+  /* Its tone tints it: an older version in warning, the website's notice in the
+     accent, an approval in ok. */
   .lf-fp-row-notice-face {
     display: inline-flex;
     align-items: center;
@@ -497,10 +497,6 @@
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font-size: 12px;
-    &[data-tone="danger"] {
-      --lf-fp-notice-tint: var(--danger-tint);
-      --lf-fp-notice-ink: var(--danger-ink);
-    }
     &[data-tone="warn"] {
       --lf-fp-notice-tint: var(--warn-tint);
       --lf-fp-notice-ink: var(--warn-ink);

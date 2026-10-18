@@ -222,7 +222,9 @@ function statusWords({
 // (the floating panel's menu), whether it `asks` the user to act, such as to nudge the
 // agent, answer what it declared it waits for, approve in its own session, or reload,
 // which a seat can draw louder than a status that only reports, and the
-// `actionableWork` whose change is announced.
+// `actionableWork` whose change is announced. Each reading the user acts on differently
+// has its own `kind`, since a change of kind is what the banner announces: a server that
+// went away and then starts refusing this tab's key asks something new of the user.
 export function pageStatus(state, { reach = "reached" } = {}) {
   if (reach === "broken")
     return {
@@ -231,24 +233,24 @@ export function pageStatus(state, { reach = "reached" } = {}) {
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
       adds: "",
-      items: true,
+      asks: true,
+    };
+  if (reach === "refused")
+    return {
+      kind: "refused",
+      tone: "offline",
+      summary: "Key refused — open Leaf's link in a new tab",
+      explanation: KEY_REFUSED_LINE,
+      adds: "Keep this tab open so pending changes can send.",
+      asks: true,
     };
   if (reach !== "reached")
     return {
       kind: "unreachable",
       tone: "offline",
-      ...(reach === "refused"
-        ? {
-            summary: "Key refused — open Leaf's link in a new tab",
-            explanation: KEY_REFUSED_LINE,
-            adds: "Keep this tab open so pending changes can send.",
-            items: true,
-          }
-        : {
-            summary: "Server offline — reconnecting; keep page open",
-            explanation: OFFLINE_LINE,
-            adds: "",
-          }),
+      summary: "Server offline — reconnecting; keep page open",
+      explanation: OFFLINE_LINE,
+      adds: "",
     };
   const { publication } = state;
   // A published page's status line says who answers there; its introduction and links
@@ -317,7 +319,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     explanationParts,
     adds: textOf(addsParts),
     addsParts,
-    items: asked || waitsThere,
+    asks: asked || waitsThere,
     actionableWork,
   };
 }
@@ -371,7 +373,7 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
     widest: `On ${short}: 99`,
   };
 }
-const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
+const WITHOUT_QUEUES = new Set(["broken", "refused", "unreachable", "publication"]);
 
 // What the banner shows for a status (`pageStatus`, or a reading of startup's own),
 // beside the page's `queues` (`readQueues`) and the `agent` they wait on: the dot's
@@ -380,7 +382,7 @@ const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
 // publication's introduction and links, which
 // remain an ordinary reading row rather than children of the status disclosure button.
 export function statusModel(status, queues, agent) {
-  const { kind, tone, summary, items = false, publication = null } = status;
+  const { kind, tone, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
   let explanationParts = [...(status.explanationParts ?? textParts(explanation))];
   let addsParts = [...(status.addsParts ?? textParts(adds))];
@@ -415,7 +417,7 @@ export function statusModel(status, queues, agent) {
     summaryParts: status.summaryParts ?? textParts(summary),
     explanationParts,
     addsParts,
-    items,
+    asks,
     queues: counted.summary,
     queuesWidest: counted.widest,
     explanation,

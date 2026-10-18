@@ -266,28 +266,28 @@
     cursor: text;
   }
   @media (prefers-reduced-motion: no-preference) {
-    .lf-floating-panel[data-says=status][data-tone=working]:not([data-items]) .lf-fp-field leaf-text::part(placeholder) {
+    .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
       --lf-sheen-rest: 0.48;
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
   }
-  .lf-floating-panel[data-says=status][data-items] .lf-fp-field leaf-text::part(placeholder) {
-    color: color-mix(in srgb, var(--lf-fp-items) 70%, transparent);
+  .lf-floating-panel[data-says=status][data-asks] .lf-fp-field leaf-text::part(placeholder) {
+    color: color-mix(in srgb, var(--lf-fp-asks) 70%, transparent);
   }
-  .lf-floating-panel[data-items] {
-    --lf-fp-items: var(--ink);
+  .lf-floating-panel[data-asks] {
+    --lf-fp-asks: var(--ink);
   }
-  .lf-floating-panel[data-items][data-tone=working] {
-    --lf-fp-items: var(--accent);
+  .lf-floating-panel[data-asks][data-tone=working] {
+    --lf-fp-asks: var(--accent);
   }
-  .lf-floating-panel[data-items][data-tone=listening] {
-    --lf-fp-items: var(--ok-ink);
+  .lf-floating-panel[data-asks][data-tone=listening] {
+    --lf-fp-asks: var(--ok-ink);
   }
-  .lf-floating-panel[data-items][data-tone=away] {
-    --lf-fp-items: var(--warn-ink);
+  .lf-floating-panel[data-asks][data-tone=away] {
+    --lf-fp-asks: var(--warn-ink);
   }
-  .lf-floating-panel[data-items][data-tone=offline] {
-    --lf-fp-items: var(--danger-ink);
+  .lf-floating-panel[data-asks][data-tone=offline] {
+    --lf-fp-asks: var(--danger-ink);
   }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
@@ -389,10 +389,6 @@
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font-size: 12px;
-    &[data-tone=danger] {
-      --lf-fp-notice-tint: var(--danger-tint);
-      --lf-fp-notice-ink: var(--danger-ink);
-    }
     &[data-tone=warn] {
       --lf-fp-notice-tint: var(--warn-tint);
       --lf-fp-notice-ink: var(--warn-ink);

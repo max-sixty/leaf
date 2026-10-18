@@ -1777,7 +1777,15 @@ def test_failed_primary_reader_restores_the_same_native_ask_in_core(browser, ser
     in_panel = page.locator(PANEL_THREAD).locator("lf-option#email")
     expect(in_panel).to_be_visible()
     assert in_panel.evaluate("node => node === nativeOption")
-    # Drawing again, the package's reader takes the place, and the thread, back.
+    # Drawing again, the package's reader takes the place, and the thread, back. The
+    # user has put the panel's view away first: a redraw is news, which may not carry
+    # what they are reading out of the panel into the page.
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    # Chrome reports no shift within 500ms of input, so the redraw lands after it.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
     page.evaluate("document.querySelector('#workspace').presentation.update()")
     email = page.locator("lf-option#email")
     expect(email).to_be_visible()

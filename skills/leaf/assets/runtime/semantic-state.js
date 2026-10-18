@@ -244,14 +244,28 @@ export const applicationPresenter = ({
 };
 
 // How many times a caller has said the document changed under every region. A reading
-// derived from the page's own nodes, rather than from the root, keys on it.
+// derived from the page's own nodes, rather than from the root, keys on it. It is an
+// outside reading, so a paint that reads one follows it: a watched paint
+// (`watchProjection`), which `presentDocument` does not call, repaints when the nodes it
+// drew from change, as the floating panel's quote does when a datum's label does. The
+// regions it calls hear it after they have claimed, which owes them nothing more.
 let documentChanges = 0;
-export const documentChanged = () => documentChanges;
+const documentListeners = new Set();
+const documentReading = outsideReading(
+  () => documentChanges,
+  (moved) => {
+    documentListeners.add(moved);
+    return () => documentListeners.delete(moved);
+  },
+);
+export const documentChanged = () => documentReading.read();
 
 /** Claim every document-wide region for the root as it stands now. */
 export const presentDocument = () => {
   documentChanges += 1;
   for (const present of documentPresenters) void present();
+  const round = {};
+  for (const moved of [...documentListeners]) moved(round);
   return schedule.passed();
 };
 

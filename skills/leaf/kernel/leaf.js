@@ -6021,12 +6021,20 @@ function createFloatingPanel({
   );
   host.append(minimize);
   const CORNER = { across: 64, down: 24 };
-  host.addEventListener("pointermove", (event) => {
+  let pointer = null;
+  const readCorner = () => {
     const box = card.getBoundingClientRect();
-    const near = event.target === minimize || minimize.contains(event.target) || event.clientX >= box.right - CORNER.across && event.clientY <= box.top + CORNER.down;
+    const near = pointer !== null && pointer.x >= box.right - CORNER.across && pointer.y <= box.top + CORNER.down;
     keeps(host, "data-corner", near ? "" : null);
+  };
+  host.addEventListener("pointermove", (event) => {
+    pointer = { x: event.clientX, y: event.clientY };
+    readCorner();
   });
-  host.addEventListener("pointerleave", () => keeps(host, "data-corner", null));
+  host.addEventListener("pointerleave", () => {
+    pointer = null;
+    readCorner();
+  });
   declareWindowChrome(() => {
     const box = row.getBoundingClientRect();
     return box.width > 0 && box.height > 0 ? [box] : [];
@@ -6452,7 +6460,10 @@ function createFloatingPanel({
     fitAnswer();
     stood = openView()?.offsetHeight ?? null;
   });
-  const follow = sizeObserver(() => followBox());
+  const follow = sizeObserver(() => {
+    readCorner();
+    followBox();
+  });
   addEventListener("resize", () => {
     outline = null;
     followBox();

@@ -640,9 +640,13 @@ customElements.define('lf-quote-subject', class extends HTMLElement {
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     disclosure.click()
     expect(disclosure).to_have_attribute("aria-expanded", "true")
+    # The relabel alone repaints the quote, by the time the page has drawn it: nothing
+    # the press began is still painting, and no later paint is waited for.
+    rendered(page)
     page.evaluate(
         "window.quoteSubject.show('Current plan', 'The revised requirement uses automatic review.')"
     )
-    expect(quote).to_contain_text("Current plan")
+    rendered(page)
+    assert "Current plan" in quote.inner_text()
     expect(disclosure).to_have_attribute("aria-expanded", "true")
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")

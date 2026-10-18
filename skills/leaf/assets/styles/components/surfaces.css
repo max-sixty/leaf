@@ -335,7 +335,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    band does not count, so a landing clears them. A box in a header that sticks at its
    top (reach.js marks it, `paintSlot`) stands at its own slot when stuck, so its margin
    also takes the band's room back (`--lf-head-inset`, none) and a control focused there
-   counts as shown; anywhere else the margin keeps the focus ring's room. A page tab
+   counts as shown; anywhere else the margin keeps the focus ring's landing room. A page tab
    strip, which the band covers whole, comes out negative by its height, so its names
    count as shown too. */
 :where([data-lf-sticks]) {

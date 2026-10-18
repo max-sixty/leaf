@@ -501,18 +501,27 @@
               parseFloat(s.opacity) < 1
             );
           };
+          // The level a box's side paints at inside the box holding both sides: the
+          // outermost stacking context on its way up, at its z-index, or at nought for a
+          // context that names none.
+          const level = (n) => {
+            let z = 0;
+            for (let a = n; a && !(holds(a, el) && holds(a, over)); a = above(a)) {
+              const s = getComputedStyle(a);
+              if (stacked(s, above(a))) z = parseFloat(s.zIndex) || 0;
+              else if (forms(a)) z = 0;
+            }
+            return z;
+          };
           let under = false;
           let hoisted = false;
-          // The z-index the cover's side last named on the way up, which places it among
-          // the control's side once the walk reaches the box holding both.
-          let lift = 0;
           for (let a = over; a && control >= 0;) {
-            // Neither side ranked at the stepped-in point, so their order is the order
-            // of the two sides inside the box holding both: a control lifted clear of the
-            // layer paints over a cover that is not. A shot's rail, sticky at z-index 1,
-            // is the case: its buttons' rings run onto the image the rail stands above.
+            // Neither side ranked at the stepped-in point, so their order is that of the
+            // two sides inside the box holding both: a control whose side paints at a
+            // higher level paints over the cover. A shot's rail, sticky at z-index 1, is
+            // the case: its buttons' rings run onto the image the rail stands above.
             if (holds(a, el)) {
-              under = clears(el) && lift <= 0;
+              under = level(el) > level(over);
               break;
             }
             const acs = getComputedStyle(a);
@@ -523,7 +532,6 @@
               break;
             }
             if (acs.zIndex !== "auto") {
-              lift = parseFloat(acs.zIndex) || 0;
               let context = above(a);
               while (context && !holds(context, el) && !forms(context))
                 context = above(context);

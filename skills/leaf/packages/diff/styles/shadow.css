@@ -434,7 +434,7 @@
    scroller's `scroll-padding` clears what stands over the whole of it, the banner and a
    page tab strip; this is the rest of the same sum. Only where the header pins: unpinned,
    it covers nothing. The code's sideways scroller is a tab stop of its own, and its focus
-   clears the header and the ring's room beside it; as a box that scrolls it starts
+   clears the header and the ring's landing room beside it; as a box that scrolls it starts
    `--lf-top` again for what it holds, so the layer's reading of the headers over it
    cannot reach it there. */
 :scope:host(.lf-rendered[data-lf-diff-pinned]) [data-line] {

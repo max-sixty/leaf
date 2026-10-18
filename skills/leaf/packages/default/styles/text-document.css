@@ -82,12 +82,12 @@
     --lf-top: 0px;
   }
 }
-/* A long capture becomes a keyboard-reachable scroller inside the evidence frame. Its
-   lines are positioned boxes on the capture's ground, which paint over an outline on
-   the listing itself, so the ring is drawn on a later box over it, as the Threads list
-   draws its own (chrome.css, .lf-threads-frame); the listing's own layer keeps its
-   lines under that box. The ring stands inside, since the figure clips at its rounded
-   corners. */
+/* A long capture's `pre` becomes a keyboard-reachable scroller inside the evidence
+   frame. Its lines are positioned boxes on the capture's ground, which paint over an
+   outline on the `pre` itself, so the ring is drawn on a later box over it, as the
+   Threads list draws its own (chrome.css, .lf-threads-frame); the `pre`'s zero layer
+   keeps its lines under that box. The ring stands inside, since the figure clips at
+   its rounded corners. */
 :scope:is(lf-text-document) .lf-text-document-listing {
   position: relative;
 }

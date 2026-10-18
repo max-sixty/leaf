@@ -28,7 +28,6 @@ import { repaint } from "./repaint.js";
 import { sizeObserver } from "./rendering.js";
 import {
   announce,
-  notice,
   noticeReading,
   registerNoticePresentation,
 } from "./notifications.js";
@@ -41,6 +40,7 @@ import { WEBSITE_DELIVERY } from "./context.js";
 import { readQueues } from "./queue-api.js";
 import { approvalBlockingAsks } from "./asks/model.js";
 import { focusDestination, tabStops } from "./focus.js";
+import { raiseError } from "./errors.js";
 
 const INITIAL = Object.freeze({
   tone: "",
@@ -689,7 +689,7 @@ export function mountBanner({ approveVersion, observeFeedback }) {
     // A refused press answers with its reason where every user sees it.
     const { reason } = approvalWords();
     if (reason) {
-      notice(reason);
+      raiseError(reason);
       return;
     }
     approving = true;

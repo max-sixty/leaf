@@ -77,6 +77,7 @@ import {
   threadNamed,
   writingIn
 } from "./bundle-user-intent.js";
+import "./bundle-errors.js";
 import "./bundle-widget-upgrade.js";
 import "./bundle-media.js";
 import {

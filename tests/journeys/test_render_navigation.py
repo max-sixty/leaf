@@ -2454,7 +2454,15 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(setting).not_to_be_checked()
     comment = reference.locator('tr[data-lf-command="comment.create"]')
     expect(comment.locator("kbd")).to_have_count(0)
-    # Turning a binding off leaves its command actionable in the reference.
+    # Disabling the key makes the command actionable even from the text field where
+    # that key was previously reserved for typing.
+    page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
+    expect(
+        comment.get_by_role("button", name="Comment on the page", exact=True)
+    ).to_have_attribute("data-lf-available", "true")
+    page.get_by_role("button", name="Close the command reference").click()
+    page.locator("body").focus()
+    settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
     comment.get_by_role("button", name="Comment on the page", exact=True).click()
     field = page.get_by_role("textbox", name="Comment on the page", exact=True)
@@ -2544,10 +2552,12 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.keyboard.press("1")
     expect(note).to_be_focused()
 
+    page.locator("body").focus()
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Select element")
     reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()
+    rendered(page)
     expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
     page.keyboard.press("Escape")

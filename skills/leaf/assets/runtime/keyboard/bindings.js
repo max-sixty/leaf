@@ -233,15 +233,17 @@ export const routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
 export const quickShortcuts = () => document.documentElement.lfKeyboard.quick;
 export const setQuickShortcuts = (on) =>
   document.documentElement.lfKeyboard.setQuick(on);
-export const bindingEnabled = (binding) => {
+export const bindingEnabledFor = (binding, quick) => {
   const { key, mods } = parsed(binding);
   return (
-    quickShortcuts() ||
+    quick ||
     key.length !== 1 ||
     key === " " ||
     mods.some((mod) => mod !== "Shift")
   );
 };
+export const bindingEnabled = (binding) =>
+  bindingEnabledFor(binding, quickShortcuts());
 export const bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact

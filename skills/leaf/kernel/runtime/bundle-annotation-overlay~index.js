@@ -2807,6 +2807,14 @@ function createFloatingResponsePlacement({
       rows.reduce((height, row) => height + row, 0) + parseFloat(style.rowGap) * (rows.length - 1) + parseFloat(style.paddingTop)
     );
   };
+  const frameReserve = () => {
+    const style = getComputedStyle(fabBar);
+    const scale = fabBar.getBoundingClientRect().height / parseFloat(style.height) || 1;
+    return {
+      top: parseFloat(style.paddingTop) * scale,
+      bottom: parseFloat(style.paddingBottom) * scale
+    };
+  };
   const fabFits = () => {
     const boundary = floatBoundary();
     return boundary.width > 0 && Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width);
@@ -3016,6 +3024,7 @@ function createFloatingResponsePlacement({
         column: place.column,
         margin: place.margin,
         boundary,
+        reserve: frameReserve(),
         fit({ width, scale }) {
           if (!stillCurrent()) return;
           setWidth(width, scale.x);

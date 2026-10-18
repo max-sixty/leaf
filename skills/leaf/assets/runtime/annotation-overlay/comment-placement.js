@@ -64,7 +64,15 @@
    an offscreen target carries its surface into view as scrolling approaches it.
    Growing never scrolls the page. A surface that outgrows the room on its side slides
    inside the boundary, over its passage or element if it must, and once it fills the
-   boundary scrolls its own content. Only a card opening under or over its target
+   boundary scrolls its own content. What it paints is what the boundary holds: the
+   comment box's frame reserves its card's head row and reply row unpainted (`reserve`),
+   and the one at the end it grows toward may stand past the boundary, by no more than
+   the room the frame leaves there. So the words the user typed hold still until the
+   field itself meets the window's edge, and Send, which needs that row inside, moves
+   the words by the overhang. The user asked (2026-10-17) for a box beside its passage
+   to grow down from its top rather than slide. Rejected: holding the whole frame
+   inside, which slid the field as soon as its unpainted reply row met the edge, while
+   the field itself still had room. Only a card opening under or over its target
    scrolls the reading region, as far as it can, to make the room it needs (`makeRoom`),
    so it opens clear of that target.
 
@@ -553,6 +561,7 @@ export function commentPlacement() {
         boundary,
         fit,
         hold = null,
+        reserve = null,
       },
     ) {
       const minimumWidth = cardMinimum();
@@ -587,6 +596,19 @@ export function commentPlacement() {
             boundary.right - Math.min(minimumWidth, boundary.width),
           );
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
+      // The unpainted reserve at the end the surface grows toward may stand past the
+      // boundary, by no more than the room the surface leaves in it, so a surface that
+      // fills the boundary stands wholly inside. Shift reads it as negative padding.
+      const growing = side === "top" ? "top" : "bottom";
+      const overhang = (state) => ({
+        [growing]: -Math.min(
+          reserve?.[growing] ?? 0,
+          Math.max(
+            0,
+            boundary.height - state.rects.floating.height * measure(state).scale.y,
+          ),
+        ),
+      });
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
         mainAxis: !across,
@@ -728,8 +750,9 @@ export function commentPlacement() {
         }),
         holding,
         heldEdge && sizing,
-        ui.shift({
+        ui.shift((state) => ({
           ...overflow,
+          padding: overhang(state),
           mainAxis: true,
           crossAxis: true,
           limiter: {
@@ -769,7 +792,7 @@ export function commentPlacement() {
               return limited;
             },
           },
-        }),
+        })),
         !heldEdge && sizing,
       ].filter(Boolean);
       return {

@@ -675,11 +675,12 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     assert abs(returned["height"] - compact["height"]) <= 1, (compact, returned)
 
 
-# Where the side comment and what it holds stand: the bar's edges, the field's top and
-# its scroll (the first line stands at that top only while the field is unscrolled), and
-# The visible action's top.
+# Where the side comment and what it holds stand: the painted field's edges (the bar's
+# frame around it reserves the sent card's rows unpainted), the words' top and their
+# scroll (the first line stands at that top only while the field is unscrolled), and
+# the visible action's top.
 SIDE_COMMENT = """() => {
-  const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+  const bar = document.querySelector('.lf-fab-bar .lf-compose-field').getBoundingClientRect();
   const field = document.querySelector('.lf-fab-input');
   const send = document.querySelector('.lf-fab-bar .lf-compose-field > button:not([hidden])');
   return {top: bar.top, bottom: bar.bottom, field: field.getBoundingClientRect().top,
@@ -691,7 +692,8 @@ SIDE_COMMENT = """() => {
 def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     browser, serve
 ):
-    """A side editor at the window foot grows upward, then scrolls within its frame."""
+    """A side editor near the window foot grows down to it, then upward, then scrolls
+    within its frame."""
     page = open_page(
         browser,
         serve(
@@ -722,7 +724,16 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
           .shownWindow({gap: 8}).bottom"""
     )
     assert resting["bottom"] < foot - 20, (resting, foot)
+    # Its frame's unpainted reply row already stands past the foot, and the words
+    # stay where the user wrote them while the field itself has room (the user saw
+    # them rise as soon as the frame met the foot).
     write(field, "\n".join(f"Line {n}" for n in range(6)))
+    rendered(page)
+    grown = page.evaluate(SIDE_COMMENT)
+    assert bar.bounding_box()["y"] + bar.bounding_box()["height"] > foot, grown
+    assert grown["top"] == pytest.approx(resting["top"], abs=0.5), (resting, grown)
+    assert grown["bottom"] < foot, (grown, foot)
+    write(field, "\n".join(f"Line {n}" for n in range(9)))
     rendered(page)
     risen = page.evaluate(SIDE_COMMENT)
     assert risen["bottom"] == pytest.approx(foot, abs=1), (risen, foot)
@@ -735,7 +746,8 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
 
 
 def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
-    """The attached side stays stable while vertical shift consumes free room."""
+    """The attached side stays stable while vertical shift consumes free room. The
+    field is what must stay in the window; the bar's unpainted frame may not."""
     page = open_page(
         browser,
         serve(
@@ -759,7 +771,8 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     target.click(modifiers=["Alt"])
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
-    compact = bar.bounding_box()
+    painted = bar.locator(".lf-compose-field")
+    compact = painted.bounding_box()
     compact_target = target.bounding_box()
     placement = bar.get_attribute("data-lf-placement")
     ceiling = page.evaluate(
@@ -777,7 +790,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
           return field.scrollHeight > field.clientHeight;
         }"""
     )
-    box = bar.bounding_box()
+    box = painted.bounding_box()
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
     assert box["y"] < compact["y"] - 20, (compact, box)
     assert abs(box["x"] - compact["x"]) <= 1, (compact, box)
@@ -785,7 +798,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     write(field, "Short again")
     rendered(page)
-    returned = bar.bounding_box()
+    returned = painted.bounding_box()
     returned_target = target.bounding_box()
     assert abs(returned["x"] - compact["x"]) <= 1, (compact, returned)
     assert (
@@ -3751,7 +3764,8 @@ def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
     rendered(page)
     geometry = page.evaluate("""() => {
       const quote = window.phoneQuote.getBoundingClientRect();
-      const field = document.querySelector('.lf-fab-bar').getBoundingClientRect();
+      const field = document.querySelector('.lf-fab-bar .lf-compose-field')
+        .getBoundingClientRect();
       return {quote: quote.toJSON(), field: field.toJSON(), height: innerHeight};
     }""")
     quote, bar = geometry["quote"], geometry["field"]

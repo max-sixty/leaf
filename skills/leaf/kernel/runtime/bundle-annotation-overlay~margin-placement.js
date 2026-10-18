@@ -1805,7 +1805,8 @@ function commentPlacement() {
       margin = null,
       boundary,
       fit,
-      hold = null
+      hold = null,
+      reserve = null
     }) {
       const minimumWidth = cardMinimum();
       const across = vertical(side);
@@ -1824,6 +1825,16 @@ function commentPlacement() {
         boundary.right - Math.min(minimumWidth, boundary.width)
       );
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
+      const growing = side === "top" ? "top" : "bottom";
+      const overhang = (state) => ({
+        [growing]: -Math.min(
+          reserve?.[growing] ?? 0,
+          Math.max(
+            0,
+            boundary.height - state.rects.floating.height * measure(state).scale.y
+          )
+        )
+      });
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
         mainAxis: !across,
@@ -1912,39 +1923,40 @@ function commentPlacement() {
         }),
         holding,
         heldEdge && sizing,
-        ui.shift({
+        ui.shift((state) => ({
           ...overflow,
+          padding: overhang(state),
           mainAxis: true,
           crossAxis: true,
           limiter: {
             ...attachment,
-            fn(state) {
+            fn(state2) {
               if (unanchored) {
                 heldIn = true;
-                return { x: state.x, y: state.y };
+                return { x: state2.x, y: state2.y };
               }
-              const limited = across ? attachment.fn(state) : {
-                x: state.x,
+              const limited = across ? attachment.fn(state2) : {
+                x: state2.x,
                 y: clamp(
-                  state.y,
-                  measure(state).line - state.rects.floating.height,
-                  measure(state).last
+                  state2.y,
+                  measure(state2).line - state2.rects.floating.height,
+                  measure(state2).last
                 )
               };
               if (moved)
                 for (const axis of ["x", "y"]) {
-                  const own = state.middlewareData.hold.spot[axis];
+                  const own = state2.middlewareData.hold.spot[axis];
                   limited[axis] = clamp(
-                    state[axis],
+                    state2[axis],
                     Math.min(limited[axis], own),
                     Math.max(limited[axis], own)
                   );
                 }
-              heldIn = Math.abs(limited.y - state.y) < 0.5;
+              heldIn = Math.abs(limited.y - state2.y) < 0.5;
               return limited;
             }
           }
-        }),
+        })),
         !heldEdge && sizing
       ].filter(Boolean);
       return {

@@ -154,6 +154,17 @@ export function createFloatingResponsePlacement({
         parseFloat(style.paddingTop),
     );
   };
+  // The frame's transparent head and foot, which hold the card's head row and reply
+  // row for Send (annotation-chrome.css), in client pixels. Placement lets the one the
+  // box grows toward stand past the boundary (comment-placement.js).
+  const frameReserve = () => {
+    const style = getComputedStyle(fabBar);
+    const scale = fabBar.getBoundingClientRect().height / parseFloat(style.height) || 1;
+    return {
+      top: parseFloat(style.paddingTop) * scale,
+      bottom: parseFloat(style.paddingBottom) * scale,
+    };
+  };
   const fabFits = () => {
     const boundary = floatBoundary();
     return (
@@ -403,8 +414,9 @@ export function createFloatingResponsePlacement({
     // The frame may grow to the whole boundary on any side, past the room its held edge
     // leaves, since shift slides it inside. Native tracks reserve the furniture and give
     // the editor what remains. Typing never scrolls the page to make room. The box grows
-    // from the edge that holds it, then slides inside the window, over its passage if it
-    // must, and once it fills the window scrolls its own words.
+    // from the edge that holds it until its painted field meets the window's edge, then
+    // slides inside the window, over its passage if it must, and once it fills the
+    // window scrolls its own words.
     const setHeight = (scale) => {
       if (!response.open) return;
       fabBar.style.setProperty(
@@ -440,6 +452,7 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
+          reserve: frameReserve(),
           fit({ width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);

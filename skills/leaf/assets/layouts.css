@@ -82,7 +82,7 @@
       inline-size: min(100%, var(--col));
       justify-self: center;
       margin: 0;
-      padding: var(--page-pad-start) var(--col-pad) 0;
+      padding: var(--sp-4) var(--col-pad) 0;
     }
     html[data-lf-interactive]
       body

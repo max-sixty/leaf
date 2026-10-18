@@ -57,12 +57,16 @@ def test_views_switch_without_moving_the_list_and_follow_history(browser, serve)
         box = tab.bounding_box()
         page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         expect(tab).to_have_attribute("aria-selected", "true")
-        # The open view's row stands out from the list's ground, focused or not.
-        row, ground = tab.evaluate(
-            """tab => [tab, tab.closest('.lf-tabstrip')].map(node =>
-              getComputedStyle(node).backgroundColor)"""
+        # The open view's name wears the face every strip's open tab wears: a raised
+        # fill on the strip's ground, outlined, focused or not.
+        face, ground, contour = tab.evaluate(
+            """tab => {
+              const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
+              const strip = getComputedStyle(tab.closest('.lf-tabstrip'));
+              return [name.backgroundColor, strip.backgroundColor, name.boxShadow];
+            }"""
         )
-        assert row not in (ground, "rgba(0, 0, 0, 0)"), (row, ground)
+        assert face != ground and "inset" in contour, (face, ground, contour)
         at = settled()
         after = strip.bounding_box()
         assert all(after[k] == pytest.approx(before[k], abs=1) for k in after), (

@@ -71,13 +71,15 @@
   outline-offset: var(--lf-tab-focus-gap);
 }
 /* Every name reserves the same square face; selection paints it without changing any
- * control's measure. */
+ * control's measure. The face's fill alone barely parts from the strip's ground, in
+ * the dark scheme least, so its contour carries the state. */
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
   display: inline-block;
   padding: 2px 5px;
 }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
   background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--border-2);
   color: var(--ink);
 }
 /* System colors can remove the selected fill. Keep selection visible independently
@@ -405,7 +407,9 @@
   /* The page's views (the root set of a `main` that carries no Layout; lf-tabs.js). The
    * page lays them out (layouts.css, "A page of views"): the list in a column down the
    * left and the open view beside it, arranged by its own Layout. The set draws no
-   * frame. The list sticks under the banner, ruled off from the views, so it stands in
+   * frame; its list wears the ground and the open tab's face every strip wears, so the
+   * open view reads as it does in any set. The list sticks under the banner, ruled off
+   * from the views, so it stands in
    * one place whichever view is open and wherever it is read, and scrolls on its own
    * where it holds more names than the window's height. On a phone it is a row over the
    * view, scrolled sideways. */
@@ -429,23 +433,10 @@
     border-bottom: 0;
     border-inline-end: 1px solid var(--rule);
     border-radius: 0;
-    --lf-tabstrip-bg: var(--paper);
     min-block-size: 0;
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow="views"] > .lf-tabstrip > .lf-tabstrip-scroll {
     display: none;
-  }
-  /* The list stands on the page's own ground, where the name's raised face would not
-   * show, so the open view's whole row is raised and marked at the edge facing it. */
-  :scope:is(lf-tabs)[data-lf-tabs-flow="views"].lf-rendered
-    > .lf-tabstrip
-    .lf-tab-btn[aria-selected="true"] {
-    border-radius: var(--r);
-    background: var(--card);
-    box-shadow:
-      inset 3px 0 0 var(--accent),
-      0 0 0 1px var(--rule);
-    color: var(--ink);
   }
   /* A view is a section of the page, not a box on it: like `main`, it trims its edges
    * and draws nothing, and its Layout sets its padding. */
@@ -486,14 +477,6 @@
       > .lf-tabstrip
       .lf-tab-summary {
       display: none;
-    }
-    :scope:is(lf-tabs)[data-lf-tabs-flow="views"].lf-rendered
-      > .lf-tabstrip
-      .lf-tab-btn[aria-selected="true"] {
-      border-radius: var(--r) var(--r) 0 0;
-      box-shadow:
-        inset 0 -3px 0 var(--accent),
-        0 0 0 1px var(--rule);
     }
   }
   /* Horizontal indexes stay with the panel they identify. Each set owns its

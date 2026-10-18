@@ -1544,6 +1544,7 @@
 }
 .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
   background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--border-2);
   color: var(--ink);
 }
 @media (forced-colors: active) {
@@ -1801,17 +1802,10 @@
     border-bottom: 0;
     border-inline-end: 1px solid var(--rule);
     border-radius: 0;
-    --lf-tabstrip-bg: var(--paper);
     min-block-size: 0;
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow=views] > .lf-tabstrip > .lf-tabstrip-scroll {
     display: none;
-  }
-  :scope:is(lf-tabs)[data-lf-tabs-flow=views].lf-rendered > .lf-tabstrip .lf-tab-btn[aria-selected=true] {
-    border-radius: var(--r);
-    background: var(--card);
-    box-shadow: inset 3px 0 0 var(--accent), 0 0 0 1px var(--rule);
-    color: var(--ink);
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=views] > lf-tab:not([hidden]) {
     padding: 0;
@@ -1844,10 +1838,6 @@
     }
     :scope:is(lf-tabs)[data-lf-tabs-flow=views].lf-rendered > .lf-tabstrip .lf-tab-summary {
       display: none;
-    }
-    :scope:is(lf-tabs)[data-lf-tabs-flow=views].lf-rendered > .lf-tabstrip .lf-tab-btn[aria-selected=true] {
-      border-radius: var(--r) var(--r) 0 0;
-      box-shadow: inset 0 -3px 0 var(--accent), 0 0 0 1px var(--rule);
     }
   }
   :scope:is(lf-tabs):not([list=side], [data-lf-tabs-flow=views]) {

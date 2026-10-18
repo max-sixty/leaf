@@ -142,8 +142,14 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     reading rather than editing, so no version and no log has a word to say about
     it.
     """
+    # Hidden-until-found retains its own box. Custom card spacing must return on
+    # disclosure, without spending empty space while the decision is collapsed.
+    source = SETTLED_PAGE.replace(
+        "</head>",
+        "<style>#transport > lf-option {padding: 11px; min-height: 80px}</style></head>",
+    )
     page = open_page(
-        browser, serve(SETTLED_PAGE, anchored=[("opt-strict", "arrives logged out")])
+        browser, serve(source, anchored=[("opt-strict", "arrives logged out")])
     )
     group = page.locator("#transport")
     height = "el => Math.round(el.getBoundingClientRect().height)"
@@ -153,6 +159,9 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     row = page.locator("#transport .lf-settled")
     assert row.inner_text().startswith("Settled: Lax cookie")
     assert row.get_attribute("aria-expanded") == "false"
+    assert collapsed == row.evaluate(height), (
+        "hidden cards or controls keep empty space"
+    )
 
     row.focus()
     page.keyboard.press("?")
@@ -168,6 +177,8 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     row.press("ArrowRight")
     opened = group.evaluate(height)
     assert page.locator("#transport lf-option:visible").count() == 3
+    expect(page.locator("#opt-lax")).to_have_css("padding-top", "11px")
+    expect(page.locator("#opt-lax")).to_have_css("min-height", "80px")
     assert opened > collapsed * 3, (
         f"collapsing saved {opened - collapsed}px of {opened}px — a settled group "
         f"that still costs most of its open height isn't a sweep"

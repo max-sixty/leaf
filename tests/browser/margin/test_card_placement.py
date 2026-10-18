@@ -2,6 +2,7 @@
 through news, presses, reflows and scrolls, panes included."""
 
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from leaf import thread as thread_model
@@ -455,6 +456,21 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     page.keyboard.type("Also check the dark scheme, " * 6, delay=0)
     rendered(page)
     assert close.bounding_box() == pytest.approx(head, abs=0.5)
+
+    if how == "press":
+        age = preview.locator(".lf-msg-meta time").last
+        timestamp = datetime.fromisoformat(age.get_attribute("datetime"))
+        page.clock.set_fixed_time(timestamp + timedelta(seconds=30))
+        ticked(page)
+        expect(age).to_have_text("just now")
+        before_tick = disclosure.bounding_box()
+        page.clock.set_fixed_time(timestamp + timedelta(seconds=60))
+        ticked(page)
+        expect(age).to_have_text("1m ago")
+        rendered(page)
+        assert disclosure.bounding_box()["x"] == pytest.approx(
+            before_tick["x"], abs=0.5
+        )
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):

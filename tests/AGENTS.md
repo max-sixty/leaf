@@ -1,5 +1,12 @@
 # Testing leaf
 
+This suite protects shipped Leaf behavior. Tests of developer tools belong in
+`dev/tests/`, outside product CI and landing gates; `dev/AGENTS.md` owns their scope
+and opt-in commands. A product test may use `leaf_dev` to build or serve its fixture:
+what the test proves, rather than what it imports, decides where it belongs.
+PR CI time is scarce: add coverage there for consequential product failures that
+should block landing. A check being quick is not sufficient reason to include it.
+
 Root `AGENTS.md`'s **Stage** says what a test here protects and when to rewrite or
 delete one. Agents wrote most of this suite, and many of its tests assert the shape the
 code had when they were written rather than behavior a user depends on.

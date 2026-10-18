@@ -46,6 +46,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     url = serve(source)
     page = open_page(browser, url)
     toc = page.get_by_role("navigation", name="On this page")
+    toc.locator("summary").click()
 
     expect(toc.get_by_role("link")).to_have_count(3)
     assert toc.get_by_role("link").all_text_contents() == [
@@ -78,7 +79,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
         verify_geometry
     )
 
-    details = page.locator("main details")
+    details = page.locator("main > details")
     expect(details).not_to_have_attribute("open", "")
     toc.get_by_role("link", name="Move the readers").click()
     expect(details).to_have_attribute("open", "")
@@ -102,7 +103,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     # On first parse this id does not exist yet. The shared arrival pass runs after every
     # widget settles, so a copied link still reveals and reaches the heading it names.
     direct = open_page(browser, url + hrefs[1])
-    expect(direct.locator("main details")).to_have_attribute("open", "")
+    expect(direct.locator("main > details")).to_have_attribute("open", "")
     expect(direct).to_have_url(re.compile(f"{re.escape(hrefs[1])}$"))
     direct.wait_for_function(
         "heading => { const box = heading.getBoundingClientRect(); "
@@ -454,10 +455,12 @@ def test_a_table_of_contents_link_is_a_finger_s_aim(browser, serve):
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, url, context=touch)
+    page.locator("lf-toc summary").tap()
     links = page.get_by_role("navigation", name="On this page").get_by_role("link")
     expect(links).to_have_count(2)
     assert all(h >= 44 for h in links.evaluate_all(heights))
     mouse = open_page(browser, url)
+    mouse.locator("lf-toc summary").click()
     links = mouse.get_by_role("navigation", name="On this page").get_by_role("link")
     expect(links).to_have_count(2)
     assert all(24 <= h < 30 for h in links.evaluate_all(heights))
@@ -484,6 +487,7 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     )
     page = open_page(browser, serve(source))
     toc = page.get_by_role("navigation", name="On this page")
+    toc.locator("summary").click()
 
     assert toc.get_by_role("link").all_text_contents() == [
         "Prepare the readers",
@@ -670,6 +674,7 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     }
 
     toc = page.get_by_role("navigation", name="On this page")
+    toc.locator("summary").click()
     assert toc.get_by_role("link").evaluate_all(
         "links => links.map(link => link.getAttribute('href'))"
     ) == ["#section-two", "#section-three"]

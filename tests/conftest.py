@@ -392,11 +392,9 @@ def pytest_collection_modifyitems(config, items):
         or config.getoption("lf")
         or any(_names_tests(Path(arg.split("::", 1)[0])) for arg in config.args)
     )
-    # Every collected test names its tier, whatever runs it, so a module outside
-    # every tier directory is refused by each selection.
-    tiers = [run_tier(item) for item in items]
     if config.getoption("--run-nightly") or selected:
         return
+    tiers = [run_tier(item) for item in items]
     reached = {"main"} if config.getoption("--run-main") else set()
     changed = None
     if since := config.getoption("--changed-since"):
@@ -412,10 +410,12 @@ def pytest_collection_modifyitems(config, items):
 
 
 def _names_tests(path):
-    """Whether an argument names tests inside `tests/`, a tier directory or a file in
-    one, rather than the whole suite."""
+    """Whether an argument selects product tests narrowly or opts into dev tests."""
     path = path.resolve()
-    return path.exists() and path.is_relative_to(TESTS) and path != TESTS
+    return path.exists() and (
+        (path.is_relative_to(TESTS) and path != TESTS)
+        or path.is_relative_to(TESTS.parent / "dev" / "tests")
+    )
 
 
 def _base_sources(root, since):

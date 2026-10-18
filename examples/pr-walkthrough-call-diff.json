@@ -1,0 +1,284 @@
+{
+  "mode": "diff",
+  "from": "d4de46b5db84ca3e34b1dce1a70e7601a4087937",
+  "to": "9ca8f78b3a44fd43451de777ca00616147b11789",
+  "trees": [
+    {
+      "entry": "compute_combined_diff",
+      "ascii": "  compute_combined_diff(branch, head, worktree_path, repo)\n  ├─ new String()\n  ├─ new String()\n  ├─ as_deref()\n  ├─ repo.default_branch()\n  ├─ Some()\n  ├─ if !is_default_branch && let Some(spec) = repo.branch_diff_spec(head)\n+    ├─ repo.prepare_diff()\n+    ├─ cloned()\n+    ├─ iter()\n     ├─ run_branch_diff()\n     └─ run_branch_diff()\n  ├─ if let Some(wt_path) = worktree_path\n-    ├─ to_string()\n-    ├─ wt_path.display()\n-    ├─ if let Ok(wt_stat) = repo.run_command(&[\"-C\", &path, \"diff\", \"HEAD\", \"--stat\"]) && !wt_stat.trim().is_empty()\n-       └─ stat.push_str()\n-    ├─ wt_diff_args.extend()\n-    ├─ wt_diff_args.extend()\n-    ├─ if let Ok(wt_diff) = repo.run_command(&wt_diff_args) && !wt_diff.trim().is_empty()\n-       └─ diff.push_str()\n+    ├─ prepare_diff(diff, stat)\n+    ├─ repo.worktree_at()\n+    ├─ if let Ok(wt_stat) = prepared.capture([\"--stat\"]) && !wt_stat.trim().is_empty()\n+       └─ stat.push_str()\n+    └─ if let Ok(wt_diff) = prepared.capture_with_git_options(DIFF_PREFIX_OVERRIDES, std::iter::empty::<&str>()) && !wt_diff.trim().is_empty()\n+       └─ diff.push_str()\n  ├─ if diff.trim().is_empty()\n  └─ Some()",
+      "tree": {
+        "key": "compute_combined_diff",
+        "label": "compute_combined_diff(branch, head, worktree_path, repo)",
+        "status": "same",
+        "kind": "call",
+        "file": "src/summary.rs",
+        "line": 228,
+        "children": [
+          {
+            "key": "new String",
+            "label": "new String()",
+            "status": "same",
+            "kind": "call",
+            "file": "src/summary.rs",
+            "line": 234,
+            "children": []
+          },
+          {
+            "key": "new String",
+            "label": "new String()",
+            "status": "same",
+            "kind": "call",
+            "file": "src/summary.rs",
+            "line": 235,
+            "children": []
+          },
+          {
+            "key": "as_deref",
+            "label": "as_deref()",
+            "status": "same",
+            "kind": "call",
+            "file": "src/summary.rs",
+            "line": 239,
+            "children": []
+          },
+          {
+            "key": "repo.default_branch",
+            "label": "repo.default_branch()",
+            "status": "same",
+            "kind": "call",
+            "file": "src/summary.rs",
+            "line": 239,
+            "children": []
+          },
+          {
+            "key": "Some",
+            "label": "Some()",
+            "status": "same",
+            "kind": "call",
+            "file": "src/summary.rs",
+            "line": 239,
+            "children": []
+          },
+          {
+            "key": "if:!is_default_branch && let Some(spec) = repo.branch_diff_spec(head)",
+            "label": "if !is_default_branch && let Some(spec) = repo.branch_diff_spec(head)",
+            "status": "same",
+            "kind": "branch",
+            "file": "src/summary.rs",
+            "line": 240,
+            "children": [
+              {
+                "key": "repo.prepare_diff",
+                "label": "repo.prepare_diff()",
+                "status": "added",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 245,
+                "children": []
+              },
+              {
+                "key": "cloned",
+                "label": "cloned()",
+                "status": "added",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 245,
+                "children": []
+              },
+              {
+                "key": "iter",
+                "label": "iter()",
+                "status": "added",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 245,
+                "children": []
+              },
+              {
+                "key": "run_branch_diff",
+                "label": "run_branch_diff()",
+                "status": "same",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 253,
+                "children": []
+              },
+              {
+                "key": "run_branch_diff",
+                "label": "run_branch_diff()",
+                "status": "same",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 254,
+                "children": []
+              }
+            ]
+          },
+          {
+            "key": "if:let Some(wt_path) = worktree_path",
+            "label": "if let Some(wt_path) = worktree_path",
+            "status": "same",
+            "kind": "branch",
+            "file": "src/summary.rs",
+            "line": 258,
+            "children": [
+              {
+                "key": "to_string",
+                "label": "to_string()",
+                "status": "removed",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 261,
+                "children": []
+              },
+              {
+                "key": "wt_path.display",
+                "label": "wt_path.display()",
+                "status": "removed",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 261,
+                "children": []
+              },
+              {
+                "key": "if:let Ok(wt_stat) = repo.run_command(&[\"-C\", &path, \"diff\", \"HEAD\", \"--stat\"]) && !wt_stat.trim().is_empty()",
+                "label": "if let Ok(wt_stat) = repo.run_command(&[\"-C\", &path, \"diff\", \"HEAD\", \"--stat\"]) && !wt_stat.trim().is_empty()",
+                "status": "removed",
+                "kind": "branch",
+                "file": "src/summary.rs",
+                "line": 262,
+                "endLine": 263,
+                "children": [
+                  {
+                    "key": "stat.push_str",
+                    "label": "stat.push_str()",
+                    "status": "removed",
+                    "kind": "call",
+                    "file": "src/summary.rs",
+                    "line": 265,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "key": "wt_diff_args.extend",
+                "label": "wt_diff_args.extend()",
+                "status": "removed",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 268,
+                "children": []
+              },
+              {
+                "key": "wt_diff_args.extend",
+                "label": "wt_diff_args.extend()",
+                "status": "removed",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 269,
+                "children": []
+              },
+              {
+                "key": "if:let Ok(wt_diff) = repo.run_command(&wt_diff_args) && !wt_diff.trim().is_empty()",
+                "label": "if let Ok(wt_diff) = repo.run_command(&wt_diff_args) && !wt_diff.trim().is_empty()",
+                "status": "removed",
+                "kind": "branch",
+                "file": "src/summary.rs",
+                "line": 270,
+                "endLine": 271,
+                "children": [
+                  {
+                    "key": "diff.push_str",
+                    "label": "diff.push_str()",
+                    "status": "removed",
+                    "kind": "call",
+                    "file": "src/summary.rs",
+                    "line": 273,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "key": "prepare_diff",
+                "label": "prepare_diff(diff, stat)",
+                "status": "added",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 259,
+                "children": []
+              },
+              {
+                "key": "repo.worktree_at",
+                "label": "repo.worktree_at()",
+                "status": "added",
+                "kind": "call",
+                "file": "src/summary.rs",
+                "line": 259,
+                "children": []
+              },
+              {
+                "key": "if:let Ok(wt_stat) = prepared.capture([\"--stat\"]) && !wt_stat.trim().is_empty()",
+                "label": "if let Ok(wt_stat) = prepared.capture([\"--stat\"]) && !wt_stat.trim().is_empty()",
+                "status": "added",
+                "kind": "branch",
+                "file": "src/summary.rs",
+                "line": 260,
+                "endLine": 261,
+                "children": [
+                  {
+                    "key": "stat.push_str",
+                    "label": "stat.push_str()",
+                    "status": "added",
+                    "kind": "call",
+                    "file": "src/summary.rs",
+                    "line": 263,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "key": "if:let Ok(wt_diff) = prepared.capture_with_git_options(DIFF_PREFIX_OVERRIDES, std::iter::empty::<&str>()) && !wt_diff.trim().is_empty()",
+                "label": "if let Ok(wt_diff) = prepared.capture_with_git_options(DIFF_PREFIX_OVERRIDES, std::iter::empty::<&str>()) && !wt_diff.trim().is_empty()",
+                "status": "added",
+                "kind": "branch",
+                "file": "src/summary.rs",
+                "line": 265,
+                "endLine": 267,
+                "children": [
+                  {
+                    "key": "diff.push_str",
+                    "label": "diff.push_str()",
+                    "status": "added",
+                    "kind": "call",
+                    "file": "src/summary.rs",
+                    "line": 269,
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "key": "if:diff.trim().is_empty()",
+            "label": "if diff.trim().is_empty()",
+            "status": "same",
+            "kind": "branch",
+            "file": "src/summary.rs",
+            "line": 273,
+            "children": []
+          },
+          {
+            "key": "Some",
+            "label": "Some()",
+            "status": "same",
+            "kind": "call",
+            "file": "src/summary.rs",
+            "line": 277,
+            "children": []
+          }
+        ]
+      }
+    }
+  ],
+  "ascii": "calldiff diff d4de46b5db84ca3e34b1dce1a70e7601a4087937 → 9ca8f78b3a44fd43451de777ca00616147b11789\n\n  compute_combined_diff(branch, head, worktree_path, repo)\n  ├─ new String()\n  ├─ new String()\n  ├─ as_deref()\n  ├─ repo.default_branch()\n  ├─ Some()\n  ├─ if !is_default_branch && let Some(spec) = repo.branch_diff_spec(head)\n+    ├─ repo.prepare_diff()\n+    ├─ cloned()\n+    ├─ iter()\n     ├─ run_branch_diff()\n     └─ run_branch_diff()\n  ├─ if let Some(wt_path) = worktree_path\n-    ├─ to_string()\n-    ├─ wt_path.display()\n-    ├─ if let Ok(wt_stat) = repo.run_command(&[\"-C\", &path, \"diff\", \"HEAD\", \"--stat\"]) && !wt_stat.trim().is_empty()\n-       └─ stat.push_str()\n-    ├─ wt_diff_args.extend()\n-    ├─ wt_diff_args.extend()\n-    ├─ if let Ok(wt_diff) = repo.run_command(&wt_diff_args) && !wt_diff.trim().is_empty()\n-       └─ diff.push_str()\n+    ├─ prepare_diff(diff, stat)\n+    ├─ repo.worktree_at()\n+    ├─ if let Ok(wt_stat) = prepared.capture([\"--stat\"]) && !wt_stat.trim().is_empty()\n+       └─ stat.push_str()\n+    └─ if let Ok(wt_diff) = prepared.capture_with_git_options(DIFF_PREFIX_OVERRIDES, std::iter::empty::<&str>()) && !wt_diff.trim().is_empty()\n+       └─ diff.push_str()\n  ├─ if diff.trim().is_empty()\n  └─ Some()"
+}

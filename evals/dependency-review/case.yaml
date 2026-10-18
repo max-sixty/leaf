@@ -1,0 +1,15 @@
+# Added during the 2026-10-15 authoring UX loop, before any pilot results.
+# Covers correction of substantive topology in a labeled diagram and final plan.
+# Integration pilot; no expected widget or diagram engine is named.
+description: Dependency review
+metadata:
+  purpose: Review a partner-delivery dependency diagram, correct its receipt-index
+    relationship, and preserve the selected mitigation with its operational costs.
+  tags:
+    - workflow
+    - diagram
+  conditions:
+    - leaf
+    - html
+  executor: leaf_dev.arrangement_eval
+  scenario: dependency-review

@@ -48,8 +48,9 @@ representative desktop viewport.
 - **A control takes only its own room.** Leaf never reserves a strip, a row or
   full-width padding to seat one small control. The control joins a line that is
   already there, such as a head, the line over a field or a row's end, or a corner its
-  content leaves free. The floating panel's more-room mark stands on the line over its
-  field (`floating-panel.js`, `expand`) rather than in a strip of its own over the words.
+  content leaves free. The floating panel's more-room mark stands in the corner a long
+  draft leaves free over the leaf (`floating-panel.js`, `expand`) rather than in a strip
+  of its own over the words.
 - **Auxiliary surfaces open over the page and never change its geometry.** The On
   panel, the thread panel and the Pages drawer take no space from the page;
   `auxiliary-surfaces.js` decides whether one sits beside a live page or covers it
@@ -270,12 +271,13 @@ every `.lf-ui` control. A page stylesheet explicitly marked `data-controls` or
 a theme package's `controls.css` grants access (`runtime/page-sheets.js`).
 `runtime/stylesheets.js` says which sheets the document and shadow roots adopt.
 
-A `:has()` rule restyles far more than it means to in two shapes. When its rightmost
-compound has no class, id, attribute or type, every runtime write restyles every
-element (`test_no_has_rule_restyles_the_whole_document`); key it by a class its owner
-writes. When it sits on the chrome root, `body` or `html`, every write below re-evaluates
-it (`test_no_has_rule_stands_on_a_root`); have the condition's owner set an attribute
-on the styled element instead.
+A `:has()` rule can make a local write invalidate a whole page or the chrome.
+An unkeyed rightmost compound can widen the invalidation targets; a condition on the
+chrome root, `body` or `html` can be re-evaluated on writes below it. Prefer a class
+that names the targets or a condition its owner sets on the styled element.
+Confirm the cost in the browser: `leaf-dev profile SOURCE TRANSITION` reports
+forced style recalculations, their element counts, and style invalidations with
+the writes that caused them.
 
 ### The browser answers first
 

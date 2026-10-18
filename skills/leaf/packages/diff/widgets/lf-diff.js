@@ -923,7 +923,9 @@ async function parsedFiles(source) {
     .filter((section) => section.startsWith("diff --git "));
   if (!files.length) throw new Error("empty diff");
   if (files.length !== sections.length)
-    throw new Error("diff needs one file per diff --git section");
+    throw new Error(
+      "Expected a Git patch with a diff --git header for each file; preserve the file headers from git diff.",
+    );
   const owners = new Map();
   for (const [index, file] of files.entries()) {
     file.record = fileRecord(file, sections[index]);

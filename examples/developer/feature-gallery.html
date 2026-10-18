@@ -34,6 +34,11 @@
         font: 500 var(--t-6)/1.3 var(--sans);
       }
 
+      #bg-outcome > lf-option {
+        padding: 1rem;
+        min-block-size: 5rem;
+      }
+
       .bg-feature-detail {
         color: var(--ink-2);
         font-weight: 400;
@@ -666,17 +671,22 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
             <h2>
               <strong>Decisions</strong
-              ><span class="bg-feature-detail">: answers in context</span>
+              ><span class="bg-feature-detail">: settled answers in context</span>
             </h2>
             <p id="bg-readings-guide">
-              A recorded answer stays visible in the widget that owns it; the Page Map
-              adds no second status.
+              The meeting point is decided. Open <strong>Settled: At reception</strong>
+              to inspect the alternatives, then close it. The spacious cards return to
+              one disclosure line, leaving no empty card space before Sign-off.
             </p>
             <lf-ask id="bg-outcome-ask">
               <h3>Where should the sample group meet?</h3>
-              <lf-options id="bg-outcome" choose>
-                <lf-option id="bg-outcome-door">At the door</lf-option>
-                <lf-option id="bg-outcome-desk" chosen>At reception</lf-option>
+              <lf-options id="bg-outcome" choose settled>
+                <lf-option id="bg-outcome-door">
+                  <strong>At the door</strong> Wait outside the building.
+                </lf-option>
+                <lf-option id="bg-outcome-desk" chosen>
+                  <strong>At reception</strong> Meet inside, beside the welcome desk.
+                </lf-option>
               </lf-options>
             </lf-ask>
           </section>
@@ -1712,9 +1722,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item: each row shows its name and
-              summary, and rows sharing a <code>group</code> sit under that group's
-              heading. The <code>lf-tally</code> above it counts the queue's asks still
-              to answer.
+              summary, with the chosen outcome on its own line. Rows sharing a
+              <code>group</code> sit under that group's heading. The
+              <code>lf-tally</code> above it counts the queue's asks still to answer.
             </p>
             <ul id="bg-side-list-steps">
               <li>
@@ -1725,13 +1735,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 carries an open mark.
               </li>
               <li>
-                Answer the ask: its row shows a check and the option you picked, and the
-                tally says Answered. Undo puts the open mark and the count back.
+                Choose Fix, then Escalate to engineering: the row keeps its name and
+                summary while the outcome changes on its own line. Undo restores Fix
+                without moving the rows; undo again restores the open mark and tally.
               </li>
               <li>
                 Narrow the window below the set's 36rem: the list becomes a row above
-                the item, each group's name before its first row, and the rows keep only
-                the check.
+                the item, with each group's name before its first row. The chosen
+                outcome remains below the summary; unusually long answers ellipsize.
               </li>
             </ul>
             <p id="bg-side-left">
@@ -1756,6 +1767,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     >
                     <lf-option id="bg-side-4107-close"
                       ><strong>Close</strong> Ask them to roll it back.</lf-option
+                    >
+                    <lf-option id="bg-side-4107-escalate"
+                      ><strong>Escalate to engineering</strong> Send the certificate
+                      failure and logs.</lf-option
                     >
                   </lf-options>
                 </lf-ask>

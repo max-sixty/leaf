@@ -9,8 +9,11 @@ selected layer whole also preserves its declaration-driven dynamic imports.
 A bundle contains exact source bytes, resources, their dependency edges, MIME
 types, the effective registry, and implementation provenance. Its canonical
 manifest determines its digest, and carries a second ``executable`` digest over
-the inputs an already-open document cannot re-evaluate in place. The HTML
-revision file is the commit marker: the complete bundle is made durable before
+the inputs an already-open document cannot re-evaluate in place. Scripts include
+their patch region: head and body scripts stay installed while main is patched.
+Moving a script across those regions reloads, so a retained script cannot duplicate
+an arriving main script. Moving among containers within main without changing
+script order, or editing prose, does not reload. The HTML revision file is the commit marker: the complete bundle is made durable before
 that file appears. Users never discover a staged or incomplete revision,
 including after a process crash. A publication that also changes the log stages
 its bundle, records the exact bundle name in its first admitted prerequisite,
@@ -294,10 +297,11 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
             if function.type == "import" and (
                 arguments := node.child_by_field_name("arguments")
             ):
-                named = arguments.named_children
-                if len(named) == 1 and named[0].type == "string":
-                    literal = named[0]
-        if literal is not None:
+                literal = next(
+                    (child for child in arguments.named_children if not child.is_extra),
+                    None,
+                )
+        if literal is not None and literal.type == "string":
             imports.append(
                 (
                     literal.start_byte,
@@ -788,6 +792,7 @@ def _capture_artifact(
                 "scripts": [
                     {
                         "attrs": script["attrs"],
+                        "patch_region": script["patch_region"],
                         "body": _digest(script.get("body", "").encode("utf-8")),
                     }
                     for script in sorted(

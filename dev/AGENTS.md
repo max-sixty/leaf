@@ -14,6 +14,12 @@ tracked tree unchanged.
 
 ## Where tooling goes
 
+Developer tools should stay easy to change while using them. Let a failed local run
+show what needs fixing; do not build product-level defensive machinery around an
+experiment. Benchmark runners tell an agent what to do and let a judge assess the
+result. Use Promptfoo for the matrix, repetitions, concurrency, assertions and result
+storage; keep custom code for the native agent and Leaf interactions being measured.
+
 When agents keep writing the same throwaway script, make it a `leaf-dev` command: a
 module in `leaf_dev/commands/` that owns the job. The CLI finds commands there by
 module name, `journey_chart.py` for `leaf-dev journey-chart`. Tooling that CI, a hook or an
@@ -79,6 +85,30 @@ here that the others import, never through `sys.path`, `PYTHONPATH` or a file pa
   samples, their cost and the verdicts to a Leaf page.
 - `leaf-dev eval-ui-review` runs the internal viewer-review diagnostics
   (`evals/ui-review-detection/README.md`).
+
+## Tests
+
+Developer-tool tests live in `dev/tests/` and run only when explicitly requested.
+They are outside PR CI, main-push CI, the daily suite and landing gates, including
+when this branch changes them. Keep product guarantees in `tests/`; do not move
+one here merely because its fixture uses a developer helper.
+
+Benchmarks need only a couple of broad smoke tests showing that a task reaches the
+agent and its result reaches the grader. Work out detailed failures while running
+the experiment. Do not accumulate a test per helper, output field, failure branch
+or research probe. Other developer tools can retain focused tests where they save
+work, but adding them does not make them a CI gate.
+
+Run only the relevant selection while developing:
+
+```bash
+uv run pytest dev/tests/test_evals.py -q -n0
+uv run pytest dev/tests/model/test_stills.py -q -n0
+pnpm run test:evals
+```
+
+`uv run pytest dev/tests` explicitly selects all Python developer-tool tests. The
+Node evaluator smoke test is separate from `pnpm check`.
 
 ## Examples and previews
 

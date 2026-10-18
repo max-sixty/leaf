@@ -378,10 +378,10 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("c")
     expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
     expect(line).to_contain_text("send")
-    # A send key on an empty box is answered, not swallowed — silence reads as a
-    # send that happened.
+    # A send key on an empty box is answered to a listener, not swallowed — silence
+    # reads as a send that happened. The empty box shows it to anyone who sees it.
     page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-notice")).to_contain_text("Nothing to send")
+    expect(page.locator(".lf-live")).to_contain_text("Nothing to send")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()

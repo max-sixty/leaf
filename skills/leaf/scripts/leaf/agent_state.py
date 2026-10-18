@@ -6,7 +6,9 @@ The reading uses one transaction and holds the two lists the active view serves
 resends; On <agent> (`on_agent`) holds the answers the agent owes, its work in hand
 and its to-dos. The ask inventory (`asks`) also retains finished records, whatever
 their `status`. `source` states whether a document is live and whether an invalid
-source save leaves the last valid version active. A page this Leaf cannot serve as
+source save leaves the last valid version active. Before the first valid revision,
+an invalid candidate registry leaves no active document or readable vocabulary; its
+source error still remains readable. A page this Leaf cannot serve as
 vendored (`layer.incompatible_layer`) is still read, its `source.error` the refusal
 naming the re-vendor: the reading gives the agent the page's context, and the error
 says not to act on it before `page init`.
@@ -24,7 +26,7 @@ from .files import revision_path
 from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
 from .refusals import Refused
-from .registry.storage import layer_metadata, require_registry
+from .registry.storage import layer_metadata
 from .revision_artifact import active_enclosing
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
@@ -90,7 +92,7 @@ def _base_state(
     presence_reading: dict,
     threads: dict,
     stored_data: dict,
-    registry: dict,
+    registry: dict | None,
 ) -> dict:
     return {
         "page": str(page_dir),
@@ -120,7 +122,11 @@ def _base_state(
             "dir": DATA_DIR,
             "errors": data_errors(stored_data),
         },
-        "data_bindings": page_data_binding_inventory(page_dir, registry, events),
+        "data_bindings": (
+            page_data_binding_inventory(page_dir, registry, events)
+            if registry is not None
+            else {}
+        ),
         "measurement_lag": [],
         # What is on the user (On me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
@@ -317,8 +323,9 @@ def _page_state(
     appears under `source.error` while that revision remains active. The document
     itself is not repeated here: `active.file` is its HTML, which an agent reads
     beside `state`."""
-    registry = require_registry(page_dir)
-    served, reading, stored_data = read_served_page(read_page(page_dir, events))
+    context = read_page(page_dir, events)
+    registry = context.registry
+    served, reading, stored_data = read_served_page(context)
     active = served["active"]
     if active is not None:
         active["file"] = (

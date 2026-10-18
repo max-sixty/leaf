@@ -645,10 +645,10 @@ def test_page_fixture_renders(browser, serve, source):
     The gate (render_gate.version.render_version) is the pass `page check --render`
     runs on agent-authored pages, so this sweep also proves the gate a user's page
     goes through: in both color schemes, no fail-soft error box, no console warning or
-    error, every visible widget occupies real space, no sideways scroll, no words on
-    screen a selection can't reach. A widget that upgrades into a 1x1 box, or a
-    heading painted by a pseudo-element, is the shape of failure a static lint cannot
-    see.
+    error, every visible widget occupies real space, no sideways scroll, no unmarkable
+    elements or undeclared text nodes under widget chrome. A widget that upgrades into
+    a 1x1 box, or a heading hidden from comment anchoring under widget chrome, is the
+    shape of failure a static lint cannot see.
 
     The still_page then goes through each journey that must leave it as it found it:
     left alone (`rest_findings`), read for framing and the runtime's apparatus,

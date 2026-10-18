@@ -384,7 +384,7 @@
   },
   "lf-trace": {
     "description": "A commentable Playwright recording with action phases, native captured frames and saved accessibility elements.",
-    "x-instructions": "Bind it to an imported playwright-trace source. Say what the recording shows, and make each result under review directly reachable with a named lf-trace-bookmark, preferably a successful expectation's After checkpoint, using imported ids and a label naming the result. The viewer supplies its own controls and opens at the earliest authored moment it can resolve. Native input records no timestamp or held duration, so the timeline places inputs at their calls; describe input timing at that resolution. Equal elapsed times in two recordings don't mean equal states. A comment on an image pins that image; one on a saved element pins the labeled checkpoint and tree path, which can be at a different time. Keep the linked Playwright viewer running for DOM snapshots, element picking, source, console and network. To pair results across recordings, put the viewers in one lf-trace-compare and give matching bookmarks the same key: choosing a keyed moment then selects each recording's own target, while manual seeking moves each one independently.",
+    "x-instructions": "Bind it to an imported playwright-trace source. Say what the recording shows, and make each result under review directly reachable with a named lf-trace-bookmark, preferably a successful expectation's After checkpoint, using imported ids and a label naming the result. The viewer supplies its own controls and opens at the earliest authored moment it can resolve. Native input records no timestamp or held duration, so the timeline places inputs at their calls; describe input timing at that resolution. Equal elapsed times in two recordings don't mean equal states. A comment on an image pins that image; one on a saved element pins the labeled checkpoint and tree path, which can be at a different time. Keep the linked Playwright viewer running for DOM snapshots, element picking, source, console and network. To pair results across recordings, put the viewers in one lf-trace-compare and give matching bookmarks the same key: selecting a bookmark finds its explicit peer while every recording retains its original timeline. The author instructions describe how to record comparable journeys.",
     "type": "object",
     "properties": {
       "id": {
@@ -445,7 +445,7 @@
   },
   "lf-trace-compare": {
     "description": "Several Playwright recordings inspected together, with their results paired by key.",
-    "x-instructions": "Put one `lf-trace` per recording inside it, each with a `label` naming its recording, and give the bookmarks for the same result the same `key`. Choosing a keyed result then shows each recording's own capture of it; seeking by hand moves each recording separately.",
+    "x-instructions": "Put one `lf-trace` per recording inside it, each with a `label`, and give bookmarks for corresponding steps the same `key`. Selecting a bookmark finds its peer; source switches keep image scale. Original timelines, timestamps and durations stay visible. Equal elapsed times do not establish corresponding inputs or results. Follow the author instructions' Record comparable journeys convention when capturing a pair.",
     "type": "object",
     "properties": {
       "id": {

@@ -1094,6 +1094,18 @@ def available_commands(page):
     return page.evaluate(AVAILABLE_COMMANDS)
 
 
+def wait_for_check_api(page, predicate: str, arg=None, **kwargs):
+    """Wait until `predicate(api, arg)`, a synchronous function of the runtime's check
+    API (runtime/check-api.js), returns a truthy value, and return its handle.
+
+    The API arrives by a dynamic import, so it is resolved first and left on the page:
+    `wait_for_function` takes an async predicate's promise as a truthy answer."""
+    page.evaluate("async () => { window.__lfCheck = await window.__lfCheckApi(); }")
+    return page.wait_for_function(
+        f"(arg) => ({predicate})(window.__lfCheck, arg)", arg=arg, **kwargs
+    )
+
+
 # A request a test stops is cancelled rather than failed. The page cannot tell the two
 # apart — both reject the fetch the runtime awaits and leave it on the same `catch`.
 # The console can tell them apart, which is what the reason is chosen for:

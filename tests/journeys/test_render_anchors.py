@@ -6,7 +6,7 @@ from html import escape
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, record_claim
+from interact_support import append_carried_log_record, record_claim, wait_for
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -533,9 +533,10 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(touch.locator("#plain")).to_have_css("padding-top", "12px")
 
     def copied(expected):
-        touch.wait_for_function(
-            "async (expected) => (await navigator.clipboard.readText()) === expected",
-            arg=expected,
+        wait_for(
+            lambda: touch.evaluate("navigator.clipboard.readText()"),
+            lambda text: text == expected,
+            failure="the clipboard never held the copied text",
         )
 
     touch_pre = touch.locator("#plain")
@@ -647,6 +648,10 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     suffix_uncovered()
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
+    # The control takes no press while it still says its last copy succeeded.
+    touch.wait_for_function(
+        "() => !document.querySelector('.lf-chrome .lf-code-copy').isCopying"
+    )
     touch.keyboard.press("Enter")
     copied(fitting)
     expect(touch_pre).to_be_focused()

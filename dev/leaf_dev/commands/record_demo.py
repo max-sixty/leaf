@@ -18,6 +18,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
@@ -268,15 +269,24 @@ class DemoWaiter:
 
 def wait_for_listening(page: Page) -> dict:
     """Hold the canonical listening reading and wait for the page to present it."""
-    state = page.wait_for_function(
-        """async () => {
+    # Polled here: `wait_for_function` takes an async predicate's promise as a truthy
+    # answer and returns at once.
+    deadline = time.monotonic() + 30
+    while True:
+        state = page.evaluate(
+            """async () => {
             const response = await fetch('/api/state');
             if (!response.ok) throw new Error(`Leaf state: HTTP ${response.status}`);
-            const state = await response.json();
-            return state.activity.kind === 'listening' && state;
-        }""",
-        polling=100,
-    ).json_value()
+            return response.json();
+        }"""
+        )
+        if state["activity"]["kind"] == "listening":
+            break
+        if time.monotonic() > deadline:
+            raise click.ClickException(
+                f"the page never listened; its activity is {state['activity']!r}"
+            )
+        page.wait_for_timeout(100)
     wait_until_ready(page, state)
     return state
 

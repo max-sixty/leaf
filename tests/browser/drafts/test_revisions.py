@@ -27,6 +27,7 @@ from render_harness import (
     stored_draft_text,
     ticked,
     told,
+    wait_for_check_api,
     wait_for_revision,
     write,
 )
@@ -473,15 +474,11 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     )
     expect(editor).to_have_js_property("value", before["value"])
     expect(page.locator("body")).to_have_attribute("data-lf-reading", first_reading)
-    page.wait_for_function(
-        "async()=> (await window.__lfCheckApi()).applicationPresented()"
-    )
+    wait_for_check_api(page, "api => api.applicationPresented()")
     errors = consume_browser_errors(page, "mechanical caret fixture failed")
     assert len(errors) == 1, errors
     assert "Revision continuity failed" in errors[0].values["text"], errors
-    page.wait_for_function(
-        "async()=> (await window.__lfCheckApi()).readApplication().document.revision===2"
-    )
+    wait_for_check_api(page, "api => api.readApplication().document.revision === 2")
     reported = [
         event
         for event in events_model.read_events(serve.page_dir)

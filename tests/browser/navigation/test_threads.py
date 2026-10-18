@@ -24,6 +24,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    wait_for_check_api,
     write,
 )
 
@@ -234,10 +235,13 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
     expect(page.locator("#arrival")).to_be_focused()
     expect(page.locator("#arrival")).to_be_in_viewport()
     page.go_back()
-    page.wait_for_function("""async () => {
-      const {walkOrigin} = await window.__lfCheckApi();
-      return walkOrigin().place?.id === 'source';
-    }""")
+    if surface == "margin":
+        # The card closed as the link left it, so Back returns the user to its passage.
+        wait_for_check_api(page, "api => api.walkOrigin().place?.id === 'source'")
+    else:
+        # The panel's thread stays open, so Back returns the user to the link in it,
+        # and the walk goes on from that thread.
+        expect(link).to_be_focused()
     page.go_forward()
     expect(page.locator("#arrival")).to_be_focused()
     page.keyboard.press("t")

@@ -2582,17 +2582,15 @@ def resize_findings(page, path):
     def at_width(width):
         resized(page, width, 900)
         rendered(page)
-        page.wait_for_function(
+        page.evaluate(
             """async () => {
             const {readingRegions} = await window.__lfCheckApi();
             const boxes = new Set([document.scrollingElement, ...readingRegions().map(region => region.body)]);
             for (const box of boxes) box.scrollTo({left: 0, top: 0, behavior: 'instant'});
-            return true;
-        }""",
-            timeout=render_checks_model.SERVED_TIMEOUT_MS,
-        ).dispose()
+        }"""
+        )
         rendered(page)
-        reading = page.wait_for_function(
+        positions = page.evaluate(
             """async () => {
             const {readingRegions} = await window.__lfCheckApi();
             const position = box => [box.scrollLeft, box.scrollTop];
@@ -2600,13 +2598,8 @@ def resize_findings(page, path):
                 ['$page', position(document.scrollingElement)],
                 ...readingRegions().map(region => [region.id, position(region.body)]),
             ]);
-        }""",
-            timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        }"""
         )
-        try:
-            positions = reading.json_value()
-        finally:
-            reading.dispose()
         return [
             *reader_state(page),
             "scroll positions: " + json.dumps(positions, sort_keys=True),

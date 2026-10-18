@@ -221,6 +221,7 @@ import {
   dismissError,
   dismissErrors,
   errorsReading,
+  holdingError,
   passErrors,
   raiseError,
   registerErrorPresentation,
@@ -7263,6 +7264,7 @@ function currentStatus() {
   return { status, model: statusModel(status, readQueues(), agentName()) };
 }
 var statusReading = () => currentStatus()?.model ?? null;
+var holdUnreached = holdingError({ announce: false });
 function paintStatus() {
   renderSessionReference();
   const state = runtime.state;
@@ -7272,6 +7274,10 @@ function paintStatus() {
   }
   const current = currentStatus();
   if (current) presentStatus(current);
+  const kind = current?.status.kind;
+  holdUnreached(
+    kind === "unreachable" || kind === "broken" ? current.status.summary : null
+  );
 }
 var statusWatch = watchProjection(document.body, paintStatus);
 document.addEventListener(
@@ -9307,7 +9313,7 @@ function createFloatingPanel({
     keeps(
       field,
       "title",
-      reading.says === "status" ? status().explanation || status().summary : null
+      reading.says === "status" ? status().explanation || status().summary : reading.says === "error" ? reading.words : null
     );
     const [error] = sayable();
     const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
@@ -9377,19 +9383,6 @@ function createFloatingPanel({
       quick
     );
   }
-  function failedSave() {
-    const { latest } = versionsReading();
-    if (!latest.failed) return null;
-    return {
-      says: "Latest edit not shown",
-      tone: "danger",
-      press: {
-        label: "Why",
-        title: latest.error,
-        run: () => showMenuAt({ view: "versions" })
-      }
-    };
-  }
   function olderVersion() {
     const { latest } = versionsReading();
     if (latest.shown === null) return null;
@@ -9417,7 +9410,7 @@ function createFloatingPanel({
     if (!approvalReading()?.approved) return null;
     return { says: `\u2713 ${versionsReading().picker.token} approved`, tone: "ok" };
   }
-  const ROW_NOTICES = [failedSave, olderVersion, website, approvedVersion];
+  const ROW_NOTICES = [olderVersion, website, approvedVersion];
   const rowNotice = () => {
     for (const read of ROW_NOTICES) {
       const notice2 = read();

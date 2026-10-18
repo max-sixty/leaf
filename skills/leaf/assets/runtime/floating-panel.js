@@ -21,10 +21,9 @@
  *   answering a gesture show immediately.
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
  *   Threads, with at most one small notice beside the marks for a state the user should
- *   not miss, such as a failed save or reading an older version, tinted by its tone and
- *   with at most one press (`ROW_NOTICES`); the field gives it room, so the marks keep
- *   their seats. The empty
- *   field says what the agent is doing or wants, in the banner's own words
+ *   not miss, such as reading an older version, tinted by its tone and with at most one
+ *   press (`ROW_NOTICES`); the field gives it room, so the marks keep their seats. The
+ *   empty field says what the agent is doing or wants, in the banner's own words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a thread it says whose turn it is. A status that reports reads dimmer
  *   than anything written, and while the agent works it carries the one sheen that marks
@@ -1495,12 +1494,12 @@ export function createFloatingPanel({
   }
 
   // Where the agent's latest save failed its check, first what the check found, which
-  // the row's notice opens this view to say (`failedSave`); then the versions the picker
-  // lists, the one shown marked, each a press that travels
-  // there and says the note its stamp gave it after its name, cut to the row and whole
-  // on hover, as the bars' picker shows it; with Compare where the picker offers it;
-  // then the version's approval, where
-  // the page asks for one, with why a press would not approve yet.
+  // its error points here to read (version.js, `holdFailedSave`); then the versions
+  // the picker lists, the one shown marked, each a press that travels there and says
+  // the note its stamp gave it after its name, cut to the row and whole on hover, as
+  // the bars' picker shows it; with Compare where the picker offers it; then the
+  // version's approval, where the page asks for one, with why a press would not
+  // approve yet.
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
@@ -2437,7 +2436,11 @@ export function createFloatingPanel({
     keeps(
       field,
       "title",
-      reading.says === "status" ? status().explanation || status().summary : null,
+      reading.says === "status"
+        ? status().explanation || status().summary
+        : reading.says === "error"
+          ? reading.words
+          : null,
     );
     // An error stands over the words its subject holds, such as a refused send's,
     // which the user's first key or press there brings back (`errorCover`).
@@ -2535,21 +2538,6 @@ export function createFloatingPanel({
   // it reads does. The slot shows the first that holds, most urgent first, so the
   // field's room never goes to a stack of them. Each case is a reading below; a new
   // one joins `ROW_NOTICES` in its place.
-  // The agent's latest save failed its check, so the page shows the last one that
-  // passed; Why opens Versions, which says what the check found.
-  function failedSave() {
-    const { latest } = versionsReading();
-    if (!latest.failed) return null;
-    return {
-      says: "Latest edit not shown",
-      tone: "danger",
-      press: {
-        label: "Why",
-        title: latest.error,
-        run: () => showMenuAt({ view: "versions" }),
-      },
-    };
-  }
   // The page shows an older version than the latest: the menu's row that opens the
   // latest says so too, but only once the menu is open, while the counts beside it
   // follow the version shown with no word of why.
@@ -2583,7 +2571,7 @@ export function createFloatingPanel({
     if (!approvalReading()?.approved) return null;
     return { says: `✓ ${versionsReading().picker.token} approved`, tone: "ok" };
   }
-  const ROW_NOTICES = [failedSave, olderVersion, website, approvedVersion];
+  const ROW_NOTICES = [olderVersion, website, approvedVersion];
   const rowNotice = () => {
     for (const read of ROW_NOTICES) {
       const notice = read();

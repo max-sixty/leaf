@@ -389,10 +389,6 @@
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font-size: 12px;
-    &[data-tone=danger] {
-      --lf-fp-notice-tint: var(--danger-tint);
-      --lf-fp-notice-ink: var(--danger-ink);
-    }
     &[data-tone=warn] {
       --lf-fp-notice-tint: var(--warn-tint);
       --lf-fp-notice-ink: var(--warn-ink);

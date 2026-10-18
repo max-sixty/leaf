@@ -4688,6 +4688,20 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                         seen_faults.add(fault)
                         faults.append(fault)
                 stops += 1
+                if found != expected and scope == "target hints":
+                    _cdp = page.context.new_cdp_session(page)
+                    _cdp.send("DOM.enable"); _cdp.send("CSS.enable")
+                    _root = _cdp.send("DOM.getDocument", {"depth": -1, "pierce": True})["root"]["nodeId"]
+                    _n = _cdp.send("DOM.querySelector", {"nodeId": _root, "selector": ".lf-target-picker-hint.lf-current"})["nodeId"]
+                    _diag = [page.evaluate("() => { const e = document.querySelector('.lf-target-picker-hint.lf-current'); return e ? [e.getAttribute('style'), getComputedStyle(e).boxShadow, e.matches(':hover'), e.parentElement.className] : 'none in light DOM'; }")]
+                    if _n:
+                        _st = _cdp.send("CSS.getMatchedStylesForNode", {"nodeId": _n})
+                        for _m in _st["matchedCSSRules"]:
+                            _props = [(_p["name"], _p.get("value"), "text" in _p) for _p in _m["rule"]["style"]["cssProperties"] if "shadow" in _p["name"]]
+                            if _props:
+                                _diag.append((_m["rule"]["selectorList"]["text"][:120], _m["rule"]["origin"], _props))
+                        _diag.append(("inline", _st.get("inlineStyle", {}).get("cssText")))
+                    raise AssertionError(f"DIAG {_diag}")
                 assert found == expected, (
                     f"{selector or scope} {where} did not exhibit "
                     + ", ".join(sorted(expected - found))

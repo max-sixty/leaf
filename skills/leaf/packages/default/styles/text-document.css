@@ -82,10 +82,29 @@
     --lf-top: 0px;
   }
 }
-/* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
-   Keep its generic focus ring inside that frame: the figure clips at its rounded
-   corners, so an outside ring loses a pixel on three sides. */
-:scope:is(lf-text-document) pre[data-lf-focus] {
+/* A long capture becomes a keyboard-reachable scroller inside the evidence frame. Its
+   lines are positioned boxes on the capture's ground, which paint over an outline on
+   the listing itself, so the ring is drawn on a later box over it, as the Threads list
+   draws its own (chrome.css, .lf-threads-frame); the listing's own layer keeps its
+   lines under that box. The ring stands inside, since the figure clips at its rounded
+   corners. */
+:scope:is(lf-text-document) .lf-text-document-listing {
+  position: relative;
+}
+:scope:is(lf-text-document) .lf-text-document-listing > pre {
+  position: relative;
+  z-index: 0;
+}
+:scope:is(lf-text-document) .lf-text-document-listing > pre[data-lf-focus] {
+  outline: none;
+}
+:scope:is(lf-text-document) .lf-text-document-listing:has(> pre[data-lf-focus])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 

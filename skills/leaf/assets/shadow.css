@@ -119,13 +119,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   outline-offset: var(--focus-ring-gap);
 }
 :where(:focus, [data-lf-focus]) {
-  scroll-margin-block: var(--focus-ring-room);
+  scroll-margin-block: var(--focus-ring-landing);
 }
 :where([data-lf-sticks]) {
   --lf-head-inset: 0px;
 }
 :where(:focus, [data-lf-focus]) {
-  scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top)) + var(--lf-head-inset, calc(var(--focus-ring-room) + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px));
+  scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top)) + var(--lf-head-inset, calc(var(--focus-ring-landing) + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px));
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])) {
   cursor: pointer;

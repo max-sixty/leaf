@@ -1271,7 +1271,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 [data-lf-ask] {
   outline: var(--lf-ask-ring, var(--focus-ring));
   outline-offset: var(--focus-ring-gap);
-  scroll-margin-block: var(--focus-ring-room);
+  scroll-margin-block: var(--focus-ring-landing);
 }
 @keyframes lf-runtime-4f3c2a8d-working {
   to {
@@ -2554,7 +2554,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     --lf-bottom: calc(var(--lf-thread-reply-h, 0px) + var(--focus-ring-room));
   }
   :is(.lf-threads > .lf-thread-compact > .lf-thread-content, .lf-threads > .lf-thread-compact > .lf-thread-content *) {
-    scroll-margin-bottom: calc(var(--lf-bottom) + var(--focus-ring-room));
+    scroll-margin-bottom: calc(var(--lf-bottom) + var(--focus-ring-landing));
   }
   .lf-thread-compact > .lf-thread-reply::after {
     content: "";

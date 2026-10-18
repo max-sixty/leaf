@@ -503,8 +503,18 @@
           };
           let under = false;
           let hoisted = false;
+          // The z-index the cover's side last named on the way up, which places it among
+          // the control's side once the walk reaches the box holding both.
+          let lift = 0;
           for (let a = over; a && control >= 0;) {
-            if (holds(a, el)) break;
+            // Neither side ranked at the stepped-in point, so their order is the order
+            // of the two sides inside the box holding both: a control lifted clear of the
+            // layer paints over a cover that is not. A shot's rail, sticky at z-index 1,
+            // is the case: its buttons' rings run onto the image the rail stands above.
+            if (holds(a, el)) {
+              under = clears(el) && lift <= 0;
+              break;
+            }
             const acs = getComputedStyle(a);
             const ranked = inside.indexOf(a);
             if (ranked >= 0) {
@@ -513,6 +523,7 @@
               break;
             }
             if (acs.zIndex !== "auto") {
+              lift = parseFloat(acs.zIndex) || 0;
               let context = above(a);
               while (context && !holds(context, el) && !forms(context))
                 context = above(context);
@@ -579,9 +590,10 @@
   }
 
   // A keyboard stop this sweep has not reached, one it has, or the document boundary.
-  // This deliberately waits for no settled geometry: focus paint is synchronous, and the
-  // ring samples (RING_CASES) own ring geometry. Avoiding a layout-settlement probe at
-  // every Tab is what makes a complete native-stop sweep cheap.
+  // This deliberately waits for no settled geometry: focus paint, and the scroll that
+  // brings a stop into view, are synchronous, so the rings a stop lights read as it
+  // lands. Avoiding a layout-settlement probe at every Tab keeps a complete native-stop
+  // sweep affordable.
   function newStop() {
     const e = deepFocus();
     if (!e || e === document.body || e === document.documentElement) return "empty";

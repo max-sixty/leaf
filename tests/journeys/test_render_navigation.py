@@ -455,6 +455,11 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
     page = open_page(browser, url, context=context)
     page.evaluate("() => document.fonts.ready")
     navigation = page.locator("#pr-contents")
+    disclosure = navigation.locator("summary")
+    if disclosure.is_visible() and not navigation.locator("details").evaluate(
+        "node => node.open"
+    ):
+        disclosure.click()
     first = navigation.get_by_role("link", name="Review finding", exact=True)
     expect(first).to_be_in_viewport()
     if width < 500:
@@ -481,6 +486,10 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
 
     # Begin again at the opening, and take the native tab order to another route.
     navigate(page, url)
+    if disclosure.is_visible() and not navigation.locator("details").evaluate(
+        "node => node.open"
+    ):
+        disclosure.click()
     page.evaluate(RELEASE_FOCUS)
     invariant = navigation.get_by_role("link", name="Review invariants", exact=True)
     for _ in range(30):

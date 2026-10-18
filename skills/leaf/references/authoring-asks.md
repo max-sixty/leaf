@@ -20,7 +20,8 @@ An `lf-ask` keeps the prose's width. When it frames a figure above its options, 
 options sit side by side under the figure, so question, figure and options share the
 window. Give a table, chart, playground or other wide surface inside an `lf-ask` its
 own `data-width`, such as `data-width="available"` for a playground that uses every
-column it gets (`page-layout.md`, "Bounds and widths").
+column it gets (`page-layout.md`, "Bounds and widths"). A page whose subject is that
+surface is a workspace instead (`page-authoring.md`, "Composing a page").
 
 Write asks the user can answer independently in page order. If a later ask depends on
 an earlier answer, pose it in the next turn rather than writing every branch.

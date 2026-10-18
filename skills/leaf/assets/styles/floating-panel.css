@@ -485,8 +485,8 @@
   :where(.lf-floating-panel) .lf-fp-row-notice-press:hover {
     background: none;
   }
-  /* Its tone tints it: a failed save in danger, an older version in warning, the
-     website's notice in the accent, an approval in ok. */
+  /* Its tone tints it: an older version in warning, the website's notice in the
+     accent, an approval in ok. */
   .lf-fp-row-notice-face {
     display: inline-flex;
     align-items: center;
@@ -497,10 +497,6 @@
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font-size: 12px;
-    &[data-tone="danger"] {
-      --lf-fp-notice-tint: var(--danger-tint);
-      --lf-fp-notice-ink: var(--danger-ink);
-    }
     &[data-tone="warn"] {
       --lf-fp-notice-tint: var(--warn-tint);
       --lf-fp-notice-ink: var(--warn-ink);

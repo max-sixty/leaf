@@ -756,6 +756,7 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     source_path = ROOT / "examples" / "code-comparison.html"
     source = source_path.read_text(encoding="utf-8")
     page = open_page(browser, live_url(serve(source_path)))
+    page.get_by_role("tab", name="Comment on the reader").click()
     page.locator("#target-reader-heading").scroll_into_view_if_needed()
     page.keyboard.press("l")
     page.locator("#target-reader-heading").click()

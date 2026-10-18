@@ -40,7 +40,7 @@ import { WEBSITE_DELIVERY } from "./context.js";
 import { readQueues } from "./queue-api.js";
 import { approvalBlockingAsks } from "./asks/model.js";
 import { focusDestination, tabStops } from "./focus.js";
-import { raiseError } from "./errors.js";
+import { holdingError, raiseError } from "./errors.js";
 
 const INITIAL = Object.freeze({
   tone: "",
@@ -625,6 +625,10 @@ function currentStatus() {
   return { status, model: statusModel(status, readQueues(), agentName()) };
 }
 export const statusReading = () => currentStatus()?.model ?? null;
+// A status that reaches nothing, or a reading the page could not apply, is an error the
+// user should see wherever they are (errors.js), held while the status says it. The
+// banner announces a change of status in its own words already.
+const holdUnreached = holdingError({ announce: false });
 function paintStatus() {
   renderSessionReference();
   const state = runtime.state;
@@ -634,6 +638,10 @@ function paintStatus() {
   }
   const current = currentStatus();
   if (current) presentStatus(current);
+  const kind = current?.status.kind;
+  holdUnreached(
+    ["unreachable", "refused", "broken"].includes(kind) ? current.status.summary : null,
+  );
 }
 const statusWatch = watchProjection(document.body, paintStatus);
 document.addEventListener(

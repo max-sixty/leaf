@@ -20,8 +20,8 @@ widget keys its rules for that case on `@container style(--lf-full-height: 1)`, 
 reads its parent, and fits what it shows to the height. It declares
 `--lf-holds-height: 1` on each part that scrolls within it, and sets
 `--lf-full-height: inherit` on each box that passes the height down, as a playground
-does to its panes. The property doesn't inherit, so a widget nested in a section or tab
-is not told and grows with its content.
+does to its panes. An Ask passes it to its answer. The property doesn't inherit, so a
+widget nested in a section is not told and grows with its content.
 
 A module that builds its own panes, such as a playground's controls beside its preview,
 marks each generated box `data-lf-reading-role="pane"` and `data-lf-generated`, with a

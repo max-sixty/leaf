@@ -261,7 +261,7 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     found += map(Finding.read, unmarkable)
     found += _overflow(column["overflow"], column["misplaced"]).values()
     found += _scrollbars(scrollbars).values()
-    for kind in ("clipped", "unreachable", "covered"):
+    for kind in ("clipped", "covered"):
         found += map(Finding.read, reachability[kind])
     found += context.devtools.findings()
     found += map(Finding.read, missing_threads)
@@ -284,6 +284,8 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
     # undeclared root's words silently anchor quotes astray. Generated controls
     # are UI rather than page words, so their implementation roots are exempt.
     undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", context.registry)
+    # Words a widget's own chrome holds with nothing saying whose they are.
+    unreachable = evaluate_probe(page, "unreachableWords")
     # x-verbatim promises the words this scheme renders. Source provenance was
     # captured before upgrade, so anonymous page and frozen-message owners have the
     # same coordinate as the file reading without acquiring authored ids. Its file
@@ -317,6 +319,7 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
         found.append(Finding("tiny-boxes", values={"boxes": tiny}))
     if undeclared_shadow:
         found.append(Finding("undeclared-shadow", values={"hosts": undeclared_shadow}))
+    found += map(Finding.read, unreachable)
     found += dishonest_verbatim
     found += map(Finding.read, silent)
     # One mistake is on every instance, so one finding per tag and attribute.

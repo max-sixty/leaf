@@ -491,8 +491,16 @@ function paintFocus(node) {
 // Retained moves preserve native focus without emitting a focus event. Recompute
 // only its derived ancestry when the rendered tree changes, including slot moves.
 // Attribute paint is outside this observation, so it cannot schedule itself.
+//
+// A destination still drawn into the tree but no longer holding focus, and not held
+// by a label press, has had focus leave it for nowhere, and the `focusout` reading
+// that decides whether that was a drop or a move has yet to run. Its ancestry is no
+// standing until then, so the paint keeps what it drew and that reading repaints:
+// painting the node where a change has just moved it would draw marks the reading
+// takes straight back off.
 const refreshFocusPaint = () => {
   const node = paintDestination?.deref();
+  if (node?.isConnected && node !== deepFocus() && node !== heldByLabel()) return;
   if (node?.isConnected) watchStandingAround(node);
   paintFocus(node?.isConnected ? node : null);
 };

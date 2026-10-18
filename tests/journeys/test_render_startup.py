@@ -50,6 +50,7 @@ from render_harness import (
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.startup import HELD_KEYS_PAGE, _hold_startup
+from browser.threads import open_panel_thread
 
 
 def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
@@ -421,7 +422,10 @@ def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
 
 def test_thread_timestamps_age_without_new_state(browser, serve):
     page = open_page(browser, serve(LONG_PAGE, comments=1))
-    page.keyboard.press("c")
+    [comment] = [
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    ]
+    open_panel_thread(page, comment["id"])
     timestamp = page.locator(".lf-msg-head time").first
     expect(timestamp).to_have_text("just now")
     held = []

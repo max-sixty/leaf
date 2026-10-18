@@ -330,7 +330,7 @@ SECTIONED_PANE_PAGE = leaf_page(
 
 
 THREE_PART_ITEM_PAGE = leaf_page(
-    "a three-part Ask as the workspace",
+    "a three-part item as the workspace",
     """
   <lf-ask id="workspace-ask">
     <h2>Which release should go out?</h2>
@@ -499,7 +499,7 @@ def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
 
 
 def test_an_item_with_more_than_one_answer_part_keeps_each_parts_height(browser, serve):
-    """An Ask passes the height on only when it is a heading and one answer, which then
+    """An item passes the height on only when it is a heading and one answer, which then
     takes what is left. With context between the heading and the options there is no one
     box to give it to, so nothing is drawn over the options and none is squeezed. The
     control is a heading and a playground, whose answer the workspace holds."""
@@ -915,7 +915,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     """Replaceable log evidence does not become the authority for release state.
 
     The release escape path is a question the operator answers: the page lists it
-    among its Asks, and the pick reaches the agent as an action naming the option."""
+    among its items, and the pick reaches the agent as an action naming the option."""
     example = ROOT / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
     expect_items_answered(page, "0/1")

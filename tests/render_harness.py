@@ -1040,7 +1040,7 @@ def plant_quiet_word(page, selector, holding):
 # reading answers that against an `/api/state` answer, and names no transport.
 # Counting answered requests said the same thing only while a fixed interval made them
 # the same thing: the page now asks when its freshness reading says the page has moved, so a
-# count of asks started here reaches the answer that carries the news only by luck of
+# count of items started here reaches the answer that carries the news only by luck of
 # the ordering.
 def told(page, *, until=None):
     """Wait until the page has taken in everything the server now holds.
@@ -1076,7 +1076,7 @@ def nudge(page_dir):
     """Give the page a reason to ask, changing nothing it shows.
 
     The page asks for state when its freshness reading says the page has moved, and the
-    reading names file stamps. A test that wants the page's next ask — to park it, or to
+    reading names file stamps. A test that wants the page's next item — to park it, or to
     watch it refused — used to wait for the poll's timer; now it moves the revisions
     directory stamp, which the state fingerprint reads without changing page content.
     """
@@ -1654,7 +1654,7 @@ def shortcut_bar_text(page):
 
 
 def active_digit_bindings(page):
-    """Read reachable digits without inventing a page-owned aggregate Ask command.
+    """Read reachable digits without inventing a page-owned aggregate item command.
 
     Widgets assign their contextual aliases. The dispatcher is the canonical reader of
     which declared keys can execute where focus stands, including native shadowing.
@@ -1734,8 +1734,8 @@ def expect_banner_control_offered(control, *, offered=True):
         expect(control).to_have_css("display", "none")
 
 
-# How many of the page's active Asks are answered, as "answered/total": the publisher's
-# own Ask reading, which the On panel's Done list and the `m` walk select from. Before
+# How many of the page's active items are answered, as "answered/total": the publisher's
+# own item reading, which the On panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
 _ITEMS_ANSWERED = """async () => {
   const { readApplication } = await window.__lfCheckApi();
@@ -1751,7 +1751,7 @@ _ITEMS_ANSWERED = """async () => {
 
 
 def expect_items_answered(page, answered: str) -> None:
-    """Wait until the page's Ask reading holds `answered` ("answered/total").
+    """Wait until the page's item reading holds `answered` ("answered/total").
 
     The deadline bounds a hang; on expiry the failure names the reading the page held.
     """
@@ -1764,7 +1764,7 @@ def expect_items_answered(page, answered: str) -> None:
         )
     except PlaywrightTimeout as error:
         held = page.evaluate("() => window.__lfItemsAnswered()")
-        raise AssertionError(f"answered Asks read {held}, not {answered}") from error
+        raise AssertionError(f"answered items read {held}, not {answered}") from error
 
 
 def open_page(

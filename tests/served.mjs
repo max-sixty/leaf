@@ -47,8 +47,8 @@ export function servedReading(name) {
   return structuredClone(RECORDS.readings[name]);
 }
 
-// An ask as On me lists it, holding `ask`; `changes` set where it stands, for a
-// test whose served reading states its asks by hand.
+// An item as On me lists it, holding `ask`; `changes` set where it stands, for a
+// test whose served reading states its items by hand.
 export const servedRecordItem = (item, changes) =>
   served("record_item", {
     id: item.id,
@@ -61,7 +61,7 @@ export const servedRecordItem = (item, changes) =>
 // The same admitted undo/refusal/revision sequence used by the Python fold test.
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
 
-// Cross-runtime typed ask values use the same real server fold.
+// Cross-runtime typed item values use the same real server fold.
 export const servedItemValues = () => structuredClone(RECORDS.item_values);
 
 // `state_definition_cases.json`'s pairs as the definitions Python records.

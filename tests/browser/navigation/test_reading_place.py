@@ -281,7 +281,7 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     browser, serve, concealment
 ):
     """Reading choices have passage grain: touching the current words or operating
-    controls does not turn consecutive thread/Ask travel into separate Back stops."""
+    controls does not turn consecutive thread/item travel into separate Back stops."""
     concealed = {
         "none": "",
         "hidden": "<div hidden><p>Concealed source background.</p></div>",
@@ -484,10 +484,10 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(
 
 
 def test_back_returns_from_an_item_the_walk_travelled_to(browser, serve):
-    """The Ask walk records the same history the thread walk does: one entry for a
-    journey to Asks somewhere else however far it goes, so Back returns to where the
-    user was reading before it, and a journey that crosses from threads to Asks is still
-    one journey."""
+    """The item walk records the same history the thread walk does: one entry for a
+    journey to items somewhere else however far it goes, so Back returns to where the
+    user was reading before it, and a journey that crosses from threads to items is
+    still one journey."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -552,7 +552,7 @@ def test_back_returns_from_an_item_the_walk_travelled_to(browser, serve):
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
     )
 
-    # From the bottom again: `t` travels to the thread just below the first Ask, and
+    # From the bottom again: `t` travels to the thread just below the first item, and
     # `m` from there to the second continues that journey rather than starting another,
     # so one Back skips the thread's landing and returns to the bottom.
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
@@ -569,7 +569,7 @@ def test_back_returns_from_an_item_the_walk_travelled_to(browser, serve):
 
 
 def test_back_returns_from_an_item_whose_context_the_arrival_brings_in(browser, serve):
-    """An Ask in front of the user whose arrival region is not still moves the page,
+    """An item in front of the user whose arrival region is not still moves the page,
     since the arrival puts the region's start at the top of the window, and a press
     that moves the page records where the user was reading. A draft declares no region,
     so its region runs up from the heading its context starts under."""

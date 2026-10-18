@@ -217,7 +217,7 @@ test("an open thread stays reachable while Page Map retains every action in orde
   );
 });
 
-test("thread aggregation preserves canonical user attention and ask precedence", () => {
+test("thread aggregation preserves canonical user attention and item precedence", () => {
   const recovery = marker("recovery", "comment", {
     userAttention: { label: "Not answered", reason: "workflow" },
   });

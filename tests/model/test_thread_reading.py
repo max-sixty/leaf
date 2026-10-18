@@ -523,7 +523,7 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     envelope = json.loads(json.dumps(payload).replace(payload["id"], "<delivery>"))
     [batch] = envelope["batches"]
     assert batch["threads"][0]["summary_hint"]
-    # The event carries the ask as well as the digest, so an agent that reads only
+    # The event carries the item as well as the digest, so an agent that reads only
     # what is new can still choose whether to summarize the older discussion.
     [event] = batch["events"]
     assert any("summary_hint" in batch["handling"][h] for h in event["handling"])

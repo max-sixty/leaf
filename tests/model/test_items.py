@@ -1,4 +1,4 @@
-"""One ask inventory, its canonical values, and its presentation context."""
+"""One item inventory, its canonical values, and its presentation context."""
 
 import json
 from copy import deepcopy
@@ -164,7 +164,7 @@ def test_pinned_document_uses_unrequested_intermediate_history_for_registration(
 def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
     """A revision captured its thread widgets under its own registry, so a view
     pinned to it classifies their decisions there. A decision whose operation that
-    registry defines otherwise is none in that view: the ask it answers stays open
+    registry defines otherwise is none in that view: the item it answers stays open
     and the thread the user's, while the active view reads it answered and the
     thread waiting on the agent to pick it up."""
 
@@ -352,7 +352,7 @@ def answered_in_words(*later):
 
 
 def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
-    """An lf-ask holding no widget asks in words: it waits on the user, titled by its
+    """An lf-ask holding no widget items in words: it waits on the user, titled by its
     words, until their next message in its thread, which is its answer."""
     [item] = served_thread(model.reading(page(""), answered_in_words()))["items"]["all"]
     assert (item["id"], item["status"], item["next_actor"]) == ("widget:q", "open", "user")
@@ -472,7 +472,7 @@ def test_a_frame_around_a_decision_widget_stays_one_item():
 
 
 def lists(state) -> tuple[list, list, list]:
-    """On me and On <agent> as served, and the open asks whose next move is the
+    """On me and On <agent> as served, and the open items whose next move is the
     agent's."""
     queues = state["views"]["1"]["queues"]
     items = [*page_items(state)["all"], *state["views"]["1"]["thread"]["items"]["all"]]
@@ -508,9 +508,9 @@ FRAMED = model.leaf_page(
     ids=["option", "frame", "display-only", "elsewhere"],
 )
 def test_a_comment_on_an_item_is_the_agents_turn_until_the_agent_replies(anchor, held):
-    """The user's comment about an open ask hands it to the agent without answering
-    it: the ask leaves On me while the comment's answer stands on On <agent>, and comes
-    back once the agent replies. A comment on one ask leaves its framed sibling with
+    """The user's comment about an open item hands it to the agent without answering
+    it: the item leaves On me while the comment's answer stands on On <agent>, and comes
+    back once the agent replies. A comment on one item leaves its framed sibling with
     the user, one on the frame's heading or on a widget there that asks nothing is
     about both, and one elsewhere about none."""
     comment = {
@@ -937,7 +937,7 @@ def _element(content: list, id: str) -> dict | None:
     ids=lambda case: case["id"],
 )
 def test_an_element_is_named_as_the_browser_names_it(case):
-    """An ask's prompt is its element's name, read off the document by the rule
+    """An item's prompt is its element's name, read off the document by the rule
     the browser's `addressableName` reads off the live page."""
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
     node = _element(document.authoring.content, "it")

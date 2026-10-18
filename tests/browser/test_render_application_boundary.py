@@ -633,11 +633,11 @@ APPROVAL_PAGE = leaf_page(
 
 
 def test_approval_waits_for_a_reading_of_the_log(browser, serve):
-    """An offline page that never read its log cannot say its Asks are answered.
+    """An offline page that never read its log cannot say its items are answered.
 
     The first state read is refused, so presentation releases the authored page under the
-    offline banner with no admitted reading. Nothing then says whether the authored Ask
-    still stands, and approval stays shut rather than reading that silence as every Ask
+    offline banner with no admitted reading. Nothing then says whether the authored item
+    still stands, and approval stays shut rather than reading that silence as every item
     answered."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route("**/api/state*", refuse)
@@ -659,7 +659,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     """An answer the log has not taken in cannot open the irreversible approval.
 
     The pick is the user's at once — that is their own gesture drawn on their own
-    widget. Which Asks still stand is the server's fold, so the count and the gate
+    widget. Which items still stand is the server's fold, so the count and the gate
     move when the state this POST returns is adopted, and not before."""
     page = open_page(browser, serve(APPROVAL_PAGE))
     approval = page.locator(".lf-signoff")
@@ -1880,7 +1880,7 @@ def package_workspace(serve, *, before_reader="", primary=True):
 
 
 def test_package_answer_summary_waits_for_widget_completion(browser, serve):
-    """A selected value remains partial until the multiple-choice ask is done."""
+    """A selected value remains partial until the multiple-choice item is done."""
     url = package_workspace(serve)
     append_carried_log_record(
         serve.page_dir,
@@ -1898,12 +1898,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("2 asks on me")
+    expect(counts).to_have_text("2 waiting on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: these picks are complete", exact=True
         ).click()
-    expect(counts).to_have_text("1 asks on me · 1 answered · Chat")
+    expect(counts).to_have_text("1 waiting on me · 1 answered · Chat")
 
 
 def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):

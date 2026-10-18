@@ -65,7 +65,7 @@ from browser.navigation import (
     color_cue_markup,
 )
 
-# An ask's digits beside a page-scoped command with a context key of its own,
+# An item's digits beside a page-scoped command with a context key of its own,
 # registered the way an authored module does.
 QUICK_KEYS_PAGE = leaf_page(
     "quick keys",
@@ -308,7 +308,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-detail > footer")).to_contain_text(
         "This revision incorporates both answers"
     )
-    # The revision settles both questions; the ask inventory retains answers
+    # The revision settles both questions; the item inventory retains answers
     # after an authored revision settles their sources (`items.py`).
     expect_items_answered(page, "2/2")
 
@@ -420,7 +420,7 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
         "enables shared refreshes for web clients"
     )
     expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
-    # The Ask reading keeps an Ask the user answered after a later version settles it
+    # The item reading keeps an item the user answered after a later version settles it
     # (`items.py`, the retained answered inventory).
     expect_items_answered(page, "1/1")
 
@@ -1112,7 +1112,7 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
 def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     """Narrowing and page standing unwind before their surrounding surfaces.
 
-    A thread or Ask inside Threads leaves through the panel's own steps: its
+    A thread or item inside Threads leaves through the panel's own steps: its
     narrowing, then the panel.
     """
     url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
@@ -1144,7 +1144,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    # A page Ask stood on while a drawer the keyboard opened stands beside the page.
+    # A page item stood on while a drawer the keyboard opened stands beside the page.
     page = open_page(browser, serve(ITEMS_PAGE))
     line = page.locator(".lf-shortcut-bar")
     page.keyboard.press("g")
@@ -1160,7 +1160,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-queue-panel.open")).to_have_count(0)
 
-    # `m` from a heading into a thread's Ask, with the panel already beside the page:
+    # `m` from a heading into a thread's item, with the panel already beside the page:
     # Escape closes the panel, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     line = page.locator(".lf-shortcut-bar")
@@ -1326,7 +1326,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         {"kind": "resolve", "author": "user", "parent": thread},
     )
     round_trip(page)
-    expect(page.locator('.lf-margin-marker[data-lf-kinds~="ask"]')).to_have_count(0)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="on-me"]')).to_have_count(0)
     page.locator("#opts-decision").evaluate(
         "node => document.scrollingElement.scrollTo(0, node.offsetTop)"
     )
@@ -1392,7 +1392,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "node => getComputedStyle(node).backgroundColor"
     )
 
-    # The ask route may scroll these hyperlinks out of the visible target map.
+    # The item route may scroll these hyperlinks out of the visible target map.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")

@@ -86,7 +86,7 @@ _RECORD_VALUE = {
 }
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves asks and threads because they
+# present or absent). One condition shape serves items and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -99,7 +99,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local ask is answered: a map from each answering x-state verb to the
+# When a local item is answered: a map from each answering x-state verb to the
 # condition its current state meets. An empty condition means the verb's state stands
 # (a non-empty attribute or value record, otherwise an action in force). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member

@@ -91,7 +91,7 @@ const publicationWords = (published) => [
 ];
 
 // The updates an open turn picked up, by kind: a comment in a thread, or an answer to an
-// ask. A lone update is the user's own; several are counted.
+// item. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "the comment" : "the answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;

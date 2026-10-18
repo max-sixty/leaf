@@ -1,4 +1,4 @@
-"""Widget actions and decisions: verbs local to their owning widget, declared Ask
+"""Widget actions and decisions: verbs local to their owning widget, declared item
 conditions, replay and undo, and suggestion settlements retiring their slots."""
 
 import json
@@ -51,7 +51,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_projected_attribute_opens_an_item_captured_from_authored_markup(
     browser, serve
 ):
-    """Predicate operands survive upgrade even when the Ask starts closed."""
+    """Predicate operands survive upgrade even when the item starts closed."""
     entry = {
         "description": "A test-owned conditional Ask.",
         "type": "object",
@@ -120,13 +120,13 @@ customElements.define("lf-conditional", class extends LeafElement {
         if count:
             expect_items_answered(page, "0/1")
             banner_control(page, ".lf-queue").click()
-        # The phase move is the agent's to answer. The ask leaves the user's
+        # The phase move is the agent's to answer. The item leaves the user's
         # queue when its condition closes, retaining its withdrawn inventory row.
         expect(
-            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='ask']")
+            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='widget']")
         ).to_have_count(count)
         withdrawn = page.locator(
-            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='ask']"
+            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='widget']"
         )
         expect(withdrawn).to_have_count(1 - count)
         if not count:

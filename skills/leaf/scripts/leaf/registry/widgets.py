@@ -334,19 +334,19 @@ def _validate_widget_interactions(
     answered = awaits.get("answered", {})
     if entry.get("x-awaits") is not None and not answered and not awaits.get("reply"):
         raise registry_error("awaits-unanswered", path, tag)
-    # The user answers their own ask, so only a verb the user writes can answer it.
+    # The user answers their own item, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):
         raise registry_error("awaits-verbs", path, tag, verbs=unknown)
     if awaits and not awaits.get("reply") and awaits["value"] not in user_verbs:
         raise registry_error("awaits-value", path, tag)
-    # A retired ask was asked and has ended, so the flag that retires it has to be
+    # A retired item was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.
     retired = awaits.get("retired")
     if retired and awaits.get("when", {}).get(retired) != [False]:
         raise registry_error("awaits-retired", path, tag, flag=retired)
-    # A blanket answer is one decision per ask, taken through the widget's deciding
-    # verb, so it names an outcome that verb declares and the verb answers the ask.
+    # A blanket answer is one decision per item, taken through the widget's deciding
+    # verb, so it names an outcome that verb declares and the verb answers the item.
     if (blanket := awaits.get("all")) and (
         deciding_verb(entry) not in answered or blanket not in deciding_outcomes(entry)
     ):

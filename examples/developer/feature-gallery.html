@@ -240,9 +240,9 @@
       import { afterPresentation, commands, readItems } from "/runtime/widget-api.js";
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const ask = readItems().all.find((q) => q.id === "widget:bg-choice");
+        const item = readItems().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
-        output.textContent = JSON.stringify(ask, null, 2);
+        output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;
       });
 
@@ -376,7 +376,7 @@
             </h2>
             <p id="bg-core-surfaces-guide">
               An <code>lf-ask</code> puts a heading and context around the choice below.
-              <strong>On me</strong> lists everything waiting on you: open asks, threads
+              <strong>On me</strong> lists everything waiting on you: open items, threads
               whose question is yours to answer (such as the gallery thread about a
               pasted image), to-dos the agent put on you, and updates whose reply failed
               and need sending again.
@@ -397,12 +397,12 @@
                 Press either, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the experimental
                 On panel opens where Threads opens, on the list you pressed, with a tab
                 for the other. What left each list is folded under it as Done: answered
-                asks under On me, sent replies and ended to-dos under the agent's. Press
+                items under On me, sent replies and ended to-dos under the agent's. Press
                 Enter on a row: it goes where <kbd>m</kbd> would.
               </li>
               <li>
                 On a stamped page that asks for sign-off, find the version approval
-                among the asks: its row leads to the banner's Approve control, approving
+                among the items: its row leads to the banner's Approve control, approving
                 answers it, and Undo reopens it.
               </li>
               <li>
@@ -421,15 +421,15 @@
               </lf-options>
             </lf-ask>
             <details id="bg-question-api">
-              <summary>Inspect the ask record</summary>
+              <summary>Inspect the item record</summary>
               <p>
-                The map's ask is <code>widget:bg-choice</code> whether or not it has an
+                The map's item is <code>widget:bg-choice</code> whether or not it has an
                 <code>lf-ask</code> wrapper. Choose a map, then read its current record:
                 <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
               <button id="bg-read-question" class="button" type="button">
-                Read current ask
+                Read current item
               </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
@@ -447,7 +447,7 @@
                   button.
                 </li>
                 <li>
-                  Press <kbd>m</kbd> until it lands on the to-do, after the ask above,
+                  Press <kbd>m</kbd> until it lands on the to-do, after the item above,
                   then press <kbd>x</kbd>, or under a finger the banner's
                   <strong>Done</strong>: the to-do moves to On me's Done fold, and the
                   agent is told.
@@ -455,7 +455,7 @@
               </ul>
             </section>
             <section id="bg-widget-shortcut-hints">
-              <h3>Inline hints outside an ask</h3>
+              <h3>Inline hints outside a question</h3>
               <p>
                 Tab into this sample: <kbd>1</kbd> appears beside its button. Press
                 <kbd>1</kbd>: the note gets focus, the hint disappears, and digits type
@@ -703,7 +703,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: approve a version</span>
               </h3>
               <p id="bg-signoff-guide">
-                This gallery deliberately leaves sample asks unanswered, so
+                This gallery deliberately leaves sample items unanswered, so
                 <strong>Approve version</strong> remains unavailable. On a settled page
                 it records approval for the current version; <kbd>z</kbd>, or “Undo” in
                 “More page controls” on a touch screen, takes that approval back.
@@ -885,7 +885,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   focus and selection stay.
                 </li>
                 <li>
-                  Try it on a focused ask: its question aligns. Try it on a focused
+                  Try it on a focused question: its heading aligns. Try it on a focused
                   thread in Threads: its card aligns inside the panel. In a bounded
                   reading area, the block aligns within that area's own scroller.
                 </li>
@@ -1163,7 +1163,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <ul id="bg-thread-api-steps">
                 <li>
-                  Answer the channel ask inside its message, write a reply, and switch
+                  Answer the channel question inside its message, write a reply, and switch
                   layouts before sending: the same draft follows the conversation.
                 </li>
                 <li>
@@ -1663,11 +1663,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-ask-across">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
             <h2>
-              <strong>An ask around its figure</strong
+              <strong>A question around its figure</strong
               ><span class="bg-feature-detail">: options laid across</span>
             </h2>
             <p id="bg-ask-across-guide">
-              This ask holds a chart and ends in one list of titled options. Under the
+              This question holds a chart and ends in one list of titled options. Under the
               chart the three cards stand side by side, so the question, the chart and
               every option fit one window; narrow the window and the cards stack.
             </p>
@@ -1724,14 +1724,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               The tab list stands left of the open item: each row shows its name and
               summary, with the chosen outcome on its own line. Rows sharing a
               <code>group</code> sit under that group's heading. The
-              <code>lf-tally</code> above it counts the queue's asks still to answer.
+              <code>lf-tally</code> above it counts the queue's items still to answer.
             </p>
             <ul id="bg-side-list-steps">
               <li>
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Press Next on me in the tally: it opens the first item's ask, whose row
+                Press Next on me in the tally: it opens the first item, whose row
                 carries an open mark.
               </li>
               <li>
@@ -1904,7 +1904,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: annotations beside their targets</span>
             </h3>
             <p id="bg-margin-layer-guide">
-              Leaf places threads, unanswered asks, actions, changes, and delivery or
+              Leaf places threads, unanswered items, actions, changes, and delivery or
               work status beside the content they concern. With enough room beside the
               reading column, their controls stand in the rail. Where the rail is
               absent, the same controls appear as pins near their targets on the page.
@@ -1938,7 +1938,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <strong>Action pins without a rail.</strong> This practice page has no
               rail. The suggestion's “Accept” and “Reject” controls appear as pins
               beside the proposed wording. Choose either, then use “Undo” to restore the
-              suggestion. These annotations work without a thread or an ask.
+              suggestion. These annotations work without a thread or an item.
             </p>
             <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
               <template id="bg-margin-layer-actions-page" data-sample data-rail="none">

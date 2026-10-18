@@ -12,10 +12,10 @@
    panel shows the other list turns it to the door's (drawers.js, `views`). Which tab is
    open is the panel's own view state, which the log never holds.
 
-   On me holds asks, to-dos on the user and resends; On <agent> holds answers the agent
-   owes, its work in hand and its to-dos. Each ask carries its source and answer; only a
+   On me holds items, to-dos on the user and resends; On <agent> holds answers the agent
+   owes, its work in hand and its to-dos. Each item carries its source and answer; only a
    to-do on the user offers Done. This view renders the publisher's selections and
-   never recreates asks from to-do rows.
+   never recreates items from to-do rows.
 
    EXPERIMENTAL. Expect its groups, rows, wording and routes to change as the panel
    is used, and change them freely.
@@ -24,14 +24,14 @@
    `queues.on_user` and `queues.on_agent` (the server's `served_state.queues`, with this
    tab's sends placed against it), the same lists the `m` walk steps through and the
    banner counts; what is done is `done`, served beside them from ended to-dos,
-   answered or withdrawn asks and the agent's sent replies. So a reply the user sends
+   answered or withdrawn items and the agent's sent replies. So a reply the user sends
    joins On <agent> in the turn it is sent, and leaves On me when the server's reading
    of it arrives, as the banner's counts do.
 
    Each row says what kind of item it is, the item's title or opening words, and where it
    is: the passage or section it stands at, and its age, stage or outcome. A press or
    Enter on a row arrives exactly as `m` does (`queue-walk.js`, `arriveAtItem`), so the
-   panel and the walk cannot disagree about where an item is. An ask's row, and the row
+   panel and the walk cannot disagree about where an item is. An item's row, and the row
    of a page widget action the user must send again, stands at that element
    (`declareSide`), so a walk or a comment from a focused row starts there. A row whose
    to-do the user ends with Done carries that Done (`queue-list.js`), the walk's own
@@ -98,7 +98,7 @@ const wordOf = (item, noun) => WORDS[noun];
 const HEADINGS = "h1, h2, h3, h4, h5, h6";
 
 // The section a page element stands in: the last heading before it whose parent also
-// holds it, so a heading inside an earlier ask, or one closing an earlier section, is
+// holds it, so a heading inside an earlier item, or one closing an earlier section, is
 // not this element's.
 function sectionWords(element) {
   if (!element || inChrome(element)) return "";
@@ -150,7 +150,7 @@ export function createQueuePanel({
         : "";
     if (itself) return `§ ${itself}`;
     if (!thread) {
-      // A widget answering an ask is where that ask is.
+      // A widget answering an item is where that item is.
       const own = elementById(item.subject.id);
       const record = own && itemHolding(readItems().all, own);
       return sectionWords(record ? itemPlace(record).context : own);
@@ -188,7 +188,7 @@ export function createQueuePanel({
       return [wherePart(item.running.text), wherePart(shortAgo(item.running.ts))];
     return [];
   }
-  // An ask names how it ended, a to-do its outcome, and a reply that it was sent.
+  // An item names how it ended, a to-do its outcome, and a reply that it was sent.
   function ended(item) {
     if (carriesItem(item)) return itemEnding(item.item);
     return [itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ");
@@ -203,8 +203,8 @@ export function createQueuePanel({
         : [wherePart(place(item, thread)), ...when(item, thread)]
     ).filter((part) => part.text);
     const words = queueTitle(item);
-    // The element a row stands at: an ask, or a page widget whose action the user must send
-    // again. A reply the agent owes an update stands nowhere, so an ask's own row is the one
+    // The element a row stands at: an item, or a page widget whose action the user must send
+    // again. A reply the agent owes an update stands nowhere, so an item's own row is the one
     // row standing at it.
     const at =
       carriesItem(item) ||

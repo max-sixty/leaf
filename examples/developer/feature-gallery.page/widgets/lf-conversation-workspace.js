@@ -272,7 +272,7 @@ customElements.define(
     paintObligations() {
       const items = readItems();
       const answered = items.all.filter((item) => item.status === "answered");
-      // Counts cover every ask; this summary lists completed widget choices, not the
+      // Counts cover every item; this summary lists completed widget choices, not the
       // words that answered a question (an lf-ask).
       const labels = items.all
         .filter(
@@ -286,7 +286,7 @@ customElements.define(
       keepsText(
         this.counts,
         [
-          `${items.user.length} asks on me`,
+          `${items.user.length} waiting on me`,
           ...(answered.length ? [`${answered.length} answered`] : []),
           ...labels,
         ].join(" · "),

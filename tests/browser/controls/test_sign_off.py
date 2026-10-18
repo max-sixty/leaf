@@ -1,4 +1,4 @@
-"""Sign-off approval and the asks it joins: where the control stands, how a press
+"""Sign-off approval and the items it joins: where the control stands, how a press
 records, is taken back or refused, and when it waits."""
 
 import re
@@ -62,7 +62,7 @@ def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
 
 
 def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
-    """The declared ask puts the button there, and the press posts `done`.
+    """The declared item puts the button there, and the press posts `done`.
 
     Drive the shipped browser through the real POST door, since a button that merely
     looks right says nothing about the event the agent's loop receives.
@@ -148,7 +148,7 @@ def test_required_approval_is_an_item_until_approved(browser, serve, width):
 
 
 def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
-    """Approval, its ask and its history agree during send, undo and refusal.
+    """Approval, its item and its history agree during send, undo and refusal.
 
     Holding each POST proves the result is visible before admission; a definitive
     refusal restores the same admitted approval through every consumer.
@@ -313,7 +313,7 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
 
 
 def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
-    """On a phone Approval stands behind More as a waiting ask, and More wears
+    """On a phone Approval stands behind More as a waiting item, and More wears
     its dot and names both reasons. Approving takes the dot down and taking the
     approval back puts it up again; on a desk Approval stands on the row and More
     wears no dot for it."""
@@ -374,7 +374,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     back with nothing anywhere saying why.
 
     The subject is the project widget SEATED_ITEM_ENTRY declares, whose seat is where a
-    user most often starts such a thread; any thread anchored on an ask splits it the
+    user most often starts such a thread; any thread anchored on an item splits it the
     same way, and the reading under test never asks which widget it is."""
     url = serve(
         leaf_page(

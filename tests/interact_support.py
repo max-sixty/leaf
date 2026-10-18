@@ -195,7 +195,7 @@ def model_layer(*packages: str) -> dict:
 
 
 def queue_board_registry(registry: dict) -> dict:
-    """A page-owned queue asks until all cards leave its Queued column.
+    """A page-owned queue stays an item until all cards leave its Queued column.
 
     Extend the board's position verb with a completion condition to exercise
     answers spanning units without a presentation-specific package.
@@ -722,7 +722,7 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     registry = files_model.read_json(page_dir / "registry.json")
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     cleanup_model.write_json(page_dir / "registry.json", registry)
-    # An Ask, so a pick answers it; the markup already records that pick, so the
+    # An item, so a pick answers it; the markup already records that pick, so the
     # answer owes no version of its own and only the thread is left to settle.
     source = page_dir / "index.html"
     source.write_text(
@@ -1014,7 +1014,7 @@ def state_json(d):
 
 
 def items_on_user(state):
-    """Widget asks on the user's list, On me, retaining source and prompt identity."""
+    """Widget items on the user's list, On me, retaining source and prompt identity."""
     return [
         {
             "id": item["id"],

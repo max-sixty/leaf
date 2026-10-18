@@ -1,4 +1,4 @@
-"""The On panel: the rows that name each open and answered Ask, their identity, order
+"""The On panel: the rows that name each open and answered item, their identity, order
 and repaints, and the drawer that holds them."""
 
 from datetime import datetime, timedelta
@@ -51,12 +51,12 @@ def test_the_on_panel_names_an_item_a_message_carries(browser, serve):
     on the page is read: the decision's own words, its label first, run together and cut at
     the row's cap. `startswith` for that reason — the cut is the panel's business and
     this is about which words reach it, which is the whole of what the row asserts for
-    a page-borne ask two tests below.
+    a page-borne item two tests below.
 
     It read `rp-decision` before, and then read the label alone: a veto on chrome threw the
     reading away, and lifting it left the panel over the widget standing in for the
     widget's own chrome, so only a declared label got out. The reading is rooted at the
-    ask now, so the layer above it is nobody's apparatus and the words underneath are
+    item now, so the layer above it is nobody's apparatus and the words underneath are
     the widget's own."""
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(
@@ -91,7 +91,7 @@ def test_the_on_panel_names_an_item_a_message_carries(browser, serve):
 
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_visible()
-    # The Ask is the user's one item; the comment the reply carried it in is still owed
+    # The item is the user's one item; the comment the reply carried it in is still owed
     # an answer, which is the agent's.
     rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["list"] == "you"]
     assert len(rows) == 1, rows
@@ -100,7 +100,7 @@ def test_the_on_panel_names_an_item_a_message_carries(browser, serve):
 
 
 def test_a_change_says_which_of_the_three_it_is(browser, serve):
-    """An On panel row names its Ask by kind and then by the decision's own opening words,
+    """An On panel row names its item by kind and then by the decision's own opening words,
     and for a change those opening words are whichever half comes first — the current
     text, where there is one. So a deletion arrived in the list under the words it was
     proposing to remove, with nothing to tell it from the insertion above it, which was
@@ -134,7 +134,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
 
 
 def test_the_on_me_control_opens_open_and_answered_items(browser, serve):
-    """The banner's On me control lists every open Ask under On me, in document
+    """The banner's On me control lists every open item under On me, in document
     order, and every answered one under Done with its current answer, so the user can
     review and revise. A twelfth widget joins by declaring x-awaits.
 
@@ -174,7 +174,7 @@ def test_the_on_me_control_opens_open_and_answered_items(browser, serve):
         if row["list"] == "you":
             assert row["w"] > 100 and row["h"] > 20, f"{row['at']}'s row has no size"
 
-    # The Ask leads with its authored heading rather than the first option's answer.
+    # The item leads with its authored heading rather than the first option's answer.
     said = {r["at"]: r for r in rows}
     assert said["widget:live-question"]["title"].startswith(
         "Where should sessions live?"
@@ -185,10 +185,10 @@ def test_the_on_me_control_opens_open_and_answered_items(browser, serve):
     assert said["widget:honored"]["where"].startswith("Answered: Two-tier gates"), said
 
     # Answered, and the row moves to Done as the route back, saying its current answer.
-    # The pick is a move the agent now owes a reply, which is its row and not the Ask's.
+    # The pick is a move the agent now owes a reply, which is its row and not the item's.
     page.locator("#lq-token").click()
     expect_items_answered(page, "2/5")
-    expect(page.locator("button.lf-queue-row[data-lf-kind='ask']")).to_have_count(5)
+    expect(page.locator("button.lf-queue-row[data-lf-kind='widget']")).to_have_count(5)
     answered = {r["at"]: r for r in page.evaluate(QUEUE_ROW_SAYS)}
     assert answered["widget:live-question"]["list"] == "done", answered
     assert answered["widget:live-question"]["where"].startswith(
@@ -550,7 +550,7 @@ def test_failed_item_paints_report_once_and_retain_their_prior_faces(browser, se
           window.__lfItemRows = [...list.querySelectorAll('button.lf-queue-row')];
           window.__lfItemBulk = document.querySelector('.lf-answer-all');
           const bulkFace = window.__lfItemBulk.querySelector('lf-item-banner-face');
-          for (const [face, name] of [[list, 'Queue list'], [bulkFace, 'Ask banner']]) {
+          for (const [face, name] of [[list, 'Queue list'], [bulkFace, 'item banner']]) {
             const render = face.render.bind(face);
             face.render = () => {
               face.render = render;
@@ -579,7 +579,7 @@ def test_failed_item_paints_report_once_and_retain_their_prior_faces(browser, se
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert sorted(said(error) for error in take_browser_errors(page)) == [
-        "leaf: Presentation failed: deliberate Ask banner failure",
+        "leaf: Presentation failed: deliberate item banner failure",
         "leaf: Presentation failed: deliberate Queue list failure",
     ]
     holding(page, held, 2, "the gesture and the page's report of its failure")
@@ -593,7 +593,7 @@ def test_a_completed_item_persists_and_its_done_row_can_revise_by_keyboard(
     browser, serve
 ):
     """Completion keeps the same concise route back through the existing action model:
-    the On panel's Done row, reached and opened from the keyboard, arrives at the Ask."""
+    the On panel's Done row, reached and opened from the keyboard, arrives at the item."""
     page = open_page(browser, serve(ITEM_WITH_CONTEXT_PAGE))
     resized(page, 1200, 900)
     expect_items_answered(page, "0/1")
@@ -607,7 +607,7 @@ def test_a_completed_item_persists_and_its_done_row_can_revise_by_keyboard(
     expect_items_answered(page, "1/1")
 
     # With nothing on the user, the panel opens on its Done's door; Enter opens it and
-    # the row below is the Ask's.
+    # the row below is the item's.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(page.locator(".lf-queue-done > summary")).to_be_focused()
@@ -636,7 +636,7 @@ def test_a_completed_item_persists_and_its_done_row_can_revise_by_keyboard(
 def test_an_answered_boxless_item_reopens_on_its_visible_revision_control(
     browser, serve
 ):
-    """An On panel row's arrival preserves Ask semantics when its source has no box to focus."""
+    """An On panel row's arrival preserves item semantics when its source has no box to focus."""
     page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
     resized(page, 560, 620)
     expect_items_answered(page, "0/4")
@@ -667,7 +667,7 @@ def test_a_drawer_the_user_left_open_comes_back_open(browser, serve):
     rule the thread panel already keeps. Which makes the reload the one moment a
     drawer is put up by something other than a press, and that is where it broke — the
     restore ran while the module was still evaluating and filled the drawer from a
-    reading of the page's active Asks declared further down the file, so the user who
+    reading of the page's active items declared further down the file, so the user who
     had left it open got a ReferenceError instead of a page.
 
     Nothing static could have caught it and neither could the render gate, which
@@ -735,7 +735,7 @@ def test_a_drawer_sliding_out_takes_no_focus(browser, serve):
 
 
 def test_a_drawer_standing_over_most_of_an_item_clears_for_it(browser, serve):
-    """The drawer stands over the page, so an Ask its row sends the user to may be under it.
+    """The drawer stands over the page, so an item its row sends the user to may be under it.
     Drawn wide but still leaving a usable page, the drawer stays live and stands over most of
     the column; pressing a row then clears the drawer, as travel clears any surface hiding
     its destination, rather than landing the user on a decision they cannot see. Beside
@@ -766,8 +766,8 @@ def test_a_drawer_standing_over_most_of_an_item_clears_for_it(browser, serve):
 
 
 def test_a_row_stands_the_user_on_the_item_it_names(browser, serve):
-    """Pressing a row uses the same arrival as the Ask walk. It scrolls there, rings the
-    Ask, and stands the user on its opening context; its controls are the next Tab
+    """Pressing a row uses the same arrival as the On me walk. It scrolls there, rings the
+    item, and stands the user on its opening context; its controls are the next Tab
     stops, while the numeric action map is already available for direct revision.
 
     The ring lands in two places for one reason: the decision on the page and its row on the

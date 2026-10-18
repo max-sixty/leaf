@@ -62,7 +62,7 @@ def question_options(id: str, words: str = "Warm or cool?") -> list[str]:
 
 
 def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
-    """Discovery reads the user's actual queue, including all three ask
+    """Discovery reads the user's actual queue, including all three item
     sources, and keeps agent work after On me reaches zero."""
     asking(page_dir)
     [item] = state_json(page_dir)["queues"]["on_user"]
@@ -89,7 +89,7 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
     assert kinds(queue["queues"]["on_agent"]) == [("todo", mine["id"])]
     assert queue["source"]["live"] is True
 
-    # An invalid save preserves the last valid document's asks and reports
+    # An invalid save preserves the last valid document's items and reports
     # the source error beside them rather than implying the user owes nothing.
     source = (page_dir / "index.html").read_text()
     (page_dir / "index.html").write_text(source.replace('id="choice"', 'id="plan"'))
@@ -129,10 +129,10 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
 
 
 def test_required_approval_is_an_item_for_its_exact_stamp_until_approved(page_dir):
-    """Required sign-off is one ask with a typed answer for its exact stamp.
+    """Required sign-off is one item with a typed answer for its exact stamp.
 
     It cannot block its own approval, and neither drafts nor another version
-    supply an answer. Undo restores the same ask without creating a to-do.
+    supply an answer. Undo restores the same item without creating a to-do.
     """
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
     source = source.replace(
@@ -608,9 +608,9 @@ def test_an_opening_item_retains_its_answer_in_the_item_inventory(page_dir, answ
 
 
 def test_an_item_ends_at_the_reaction_that_settles_it(page_dir):
-    """A reaction answers an ask only when its token settles (`$reactions`): one
-    that doesn't leaves the ask on the user, and the one that does is the
-    outcome the ended ask records."""
+    """A reaction answers an item only when its token settles (`$reactions`): one
+    that doesn't leaves the item on the user, and the one that does is the
+    outcome the ended item records."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -667,7 +667,7 @@ def test_an_item_ends_at_the_reaction_that_settles_it(page_dir):
 
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     """A thread whose reply failed is one item on the user, named by the thread, and an
-    ask the agent then leaves in it makes it that ask rather than a second
+    question the agent then leaves in it makes it that item rather than a second
     item: `m` stops at a thread once."""
     publish(page_dir)
     comment = append_carried_log_record(
@@ -1197,7 +1197,7 @@ def test_a_start_line_is_one_sentence(page_dir):
 
 
 def asking(page_dir):
-    """Publish the fixture page with its Ask's widget named, so the Ask is open."""
+    """Publish the fixture page with its item's widget named, so the item is open."""
     (page_dir / "index.html").write_text(
         PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
     )
@@ -1305,7 +1305,7 @@ def test_a_thread_item_remains_distinct_from_explicit_user_work(page_dir):
 
 
 def test_the_user_ends_only_explicit_user_work_and_not_an_item(page_dir):
-    """Done ends explicit user work; widget asks retain their source lifecycle."""
+    """Done ends explicit user work; widget items retain their source lifecycle."""
     asking(page_dir)
     mine = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
     [item] = items_on_user(state_json(page_dir))
@@ -1318,9 +1318,9 @@ def test_the_user_ends_only_explicit_user_work_and_not_an_item(page_dir):
 
 
 def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_dir):
-    """A decision widget's ask follows its state. The agent ends a question `done`
+    """A decision widget's item follows its state. The agent ends a question `done`
     when the user answered it elsewhere and `dropped` when it no longer applies;
-    neither invents the user's answer, and `failed` says nothing about an ask."""
+    neither invents the user's answer, and `failed` says nothing about an item."""
     asking(page_dir)
     [item] = items_on_user(state_json(page_dir))
     asked = []
@@ -1405,7 +1405,7 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
 
 
 def test_user_work_cannot_duplicate_a_widget_item(page_dir):
-    """An ask owns the request; opening user work must name that canonical id."""
+    """An item owns the request; opening user work must name that canonical id."""
     asking(page_dir)
     [item] = items_on_user(state_json(page_dir))
     [result] = command_findings(

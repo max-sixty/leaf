@@ -1554,7 +1554,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
 
 def test_shipped_data_opens_in_its_package_projection(site, served_example, browser):
     """The page backend delivers package data through the live state contract, and
-    the page counts every Ask it declares."""
+    the page counts every item it declares."""
     stored = data_model.source_file(
         site / "examples" / "command-hub", "atlas-worktrees"
     )
@@ -1573,7 +1573,7 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
             "xpath=following-sibling::dd[1]"
         )
     ).to_have_text("running")
-    # The inventory includes request Decisions beside state Asks.
+    # The inventory includes request Decisions beside state items.
     expect_items_answered(page, "0/5")
     expect_banner_control_offered(page.locator(".lf-queue"))
 

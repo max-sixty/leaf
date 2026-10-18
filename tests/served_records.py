@@ -34,7 +34,7 @@ def _served(events: tuple[dict, ...]) -> dict:
     }
 
 
-# Something of every kind on each list: a widget ask, a question, a to-do the agent put
+# Something of every kind on each list: a widget item, a question, a to-do the agent put
 # on the user, a reply that failed and a page action whose pickup failed are on On me;
 # a comment owed a reply and a to-do the agent has in hand are on On <agent>.
 BOTH_SIDES = (
@@ -164,7 +164,7 @@ def build() -> dict:
         "state_definitions": state_definition_cases(),
         "readings": {
             # A required approval of the exact stamped document, with no other
-            # asks. Keep the whole browser reading for local approval folds.
+            # items. Keep the whole browser reading for local approval folds.
             "approval": served_reading(SIGN_OFF_PAGE, (READY,)),
             # The same version once the user approved it.
             "approved": served_reading(
@@ -262,8 +262,8 @@ def build() -> dict:
                     },
                 ),
             ),
-            # One ask answered and one open, and a to-do the agent ended beside one it
-            # still holds: only the answered ask and the ended to-do are done.
+            # One item answered and one open, and a to-do the agent ended beside one it
+            # still holds: only the answered item and the ended to-do are done.
             "done": served_reading(
                 ITEM_PAGE,
                 (
@@ -332,7 +332,7 @@ ITEM_PAGE = leaf_page(
 
 
 def _served_record_item() -> dict:
-    """One ask as On me lists it (`served_state.queues`)."""
+    """One item as On me lists it (`served_state.queues`)."""
     state = served_reading(ITEM_PAGE, BOTH_SIDES)
     return next(
         item
@@ -346,7 +346,7 @@ def item_value_cases():
 
     These isolate the state boundary from event admission, pairing authored markup
     with its browser initial state and value actions in force. Both runtimes fold
-    the same operation specs; no ask-specific store participates.
+    the same operation specs; no item-specific store participates.
     """
     cases = []
 

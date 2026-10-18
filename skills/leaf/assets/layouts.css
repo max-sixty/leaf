@@ -256,7 +256,7 @@
    * the render check names (layout.js, `off-axis`).
    *
    * A block breaks out only from a holder whose content box is the column's, such as
-   * the column itself, a section or an Ask standing in it. One in a box standing in from the
+   * the column itself, a section or an lf-ask standing in it. One in a box standing in from the
    * column (a list item, a quotation, a page's own indented block) or one the page
    * arranged keeps to its holder, and the runtime marks it so (`data-lf-kept`,
    * prepaint.js `breakouts`): the room beside it is not the page's to give, and its
@@ -287,7 +287,7 @@
      * because its proximity outranks order, letting these rules beat a later rule of
      * equal specificity in this layer, such as a tile's margin (`.layout-tiles > *`).
      * A widget holding authored blocks (`x-content: markup`), one of which breaks out,
-     * shares the arithmetic, so it may span that block: an Ask does (ask.css). `wide`
+     * shares the arithmetic, so it may span that block: an lf-ask does (ask.css). `wide`
      * and `available` each refine the second rule. */
     :where(:is(main, main > *):is(.layout-column, .layout-sidebar)) {
       :is(

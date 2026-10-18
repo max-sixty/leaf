@@ -734,7 +734,7 @@ const versionApproved = readPart((root) =>
 );
 
 // What Approval says now: its `text`, its `title`, why a press is refused (`reason`,
-// null where it approves) and whether it is `open`. The asks holding approval are null
+// null where it approves) and whether it is `open`. The items holding approval are null
 // before the page has read the log and so cannot say which those are.
 function approvalWords() {
   const approved = versionApproved();
@@ -772,7 +772,7 @@ function drawApproval() {
   presentApproval(words);
   // Approval is open while a press would approve this version, and behind More, on a
   // phone, that puts More's dot up. A refused press does not: the dot comes up when the
-  // last ask holding approval is answered, which is when the user can act on it.
+  // last item holding approval is answered, which is when the user can act on it.
   markBannerControl(approveBtn, words.open ? "approval open" : null);
   repaint();
 }

@@ -1,4 +1,4 @@
-/* A seated Ask whose press paints optimistically before dispatching settlement. */
+/* A seated item whose press paints optimistically before dispatching settlement. */
 import {
   keeps,
   keepsText,

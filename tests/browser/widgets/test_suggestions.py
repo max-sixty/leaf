@@ -327,7 +327,7 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
 
 
 def test_the_item_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serve):
-    """Stepping the Asks opens the closed <details> a change waits inside, and does
+    """Stepping the items opens the closed <details> a change waits inside, and does
     it in the same task as the arrival. The row un-waits on the runtime's reveal signal
     rather than at the observer's next frame: settled asynchronously, the arrival landed
     on a display:none element and the user stayed where they were — at the previous

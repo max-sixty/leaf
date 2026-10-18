@@ -1,4 +1,4 @@
-"""Canonical asks from widgets and stamped page sign-off.
+"""Canonical items from widgets and stamped page sign-off.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
@@ -16,9 +16,9 @@ items on the user's list.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; `answered_elsewhere`, a reply-answered
-ask the agent ended `done` because the user answered on another surface, with no
-answer value; and `withdrawn`, an ask the document no longer makes or a
-reply-answered ask the agent ended `dropped`. A state-answered ask never takes
+item the agent ended `done` because the user answered on another surface, with no
+answer value; and `withdrawn`, an item the document no longer makes or a
+reply-answered item the agent ended `dropped`. A state-answered item never takes
 `answered_elsewhere`: an answer given elsewhere goes into the widget's declared
 state in a revision, which records the value itself."""
 
@@ -56,12 +56,12 @@ from leaf.thread_context import widget_messages
 
 
 def local_item_entry(entry: dict) -> bool:
-    """Whether a widget can originate an ask when its predicate holds."""
+    """Whether a widget can originate an item when its predicate holds."""
     return entry.get("x-awaits") is not None
 
 
 def replied(entry: dict) -> bool:
-    """Whether the user's own words answer this widget's ask (`x-awaits.reply`)
+    """Whether the user's own words answer this widget's item (`x-awaits.reply`)
     rather than its state."""
     return bool((entry.get("x-awaits") or {}).get("reply"))
 
@@ -85,7 +85,7 @@ def holds_items(record: dict, records: list[dict], registry: dict) -> bool:
 
 
 def settle_by_words(record: dict, answer: dict | None, ending: dict | None) -> None:
-    """Settle a reply-answered ask from the user's message that answers it and the
+    """Settle a reply-answered item from the user's message that answers it and the
     agent's `todo_end` on its id, whichever came first. An end records no answer,
     since the user's words are not in the log; a message after an end reopens
     nothing, as the end already retired it."""
@@ -162,8 +162,8 @@ def event_reference(event: dict | None) -> dict | None:
 
 
 def approval_blocking(records: list[dict]) -> list[dict]:
-    """The asks that keep a version from being approved: each open widget
-    ask someone still owes, on the page or in a widget an agent sent. The append
+    """The items that keep a version from being approved: each open widget
+    item someone still owes, on the page or in a widget an agent sent. The append
     door refuses a sign-off while one stands, and the browser view serves their ids
     so the approve control says the same."""
     return [
@@ -185,11 +185,11 @@ def collection(records: list[dict]) -> dict:
 
 
 def approval_item(document, revision: int, events: list) -> dict | None:
-    """Sign-off for an exact public stamp as one canonical ask.
+    """Sign-off for an exact public stamp as one canonical item.
 
     Draft revisions owe none. Only a done event in force for this public version
-    supplies the typed answer; an undo makes the same ask open again.
-    Approval admission counts widget asks alone, so this record cannot
+    supplies the typed answer; an undo makes the same item open again.
+    Approval admission counts widget items alone, so this record cannot
     block its own answer.
     """
     version = stamped_version(events, revision)
@@ -296,7 +296,7 @@ def previously_requested(
 
 
 def answer_verbs(entry: dict) -> dict:
-    """Each x-state verb whose current state answers this widget's local ask,
+    """Each x-state verb whose current state answers this widget's local item,
     mapped to the condition that state has to meet (x-awaits.answered)."""
     return (entry.get("x-awaits") or {}).get("answered") or {}
 
@@ -316,7 +316,7 @@ def verb_answers(
     The condition reads current state and nothing else. `empty` asks the projected
     containment the verb's position records leave; an attribute or value record reads
     through authored markup as well as the fold, so a version that honors the answer
-    keeps it answered and a cleared value opens the ask again; any other verb answers
+    keeps it answered and a cleared value opens the item again; any other verb answers
     while one of its actions stands on the widget.
     """
     condition = answer_verbs(entry)[verb]
@@ -349,7 +349,7 @@ def item_answered(
     registry: dict,
     holders: dict[str, dict] | None = None,
 ) -> bool:
-    """Whether the user's own state answers this ask: one of its answering verbs'
+    """Whether the user's own state answers this item: one of its answering verbs'
     conditions holds."""
     if holders is None:
         holders = projected_action_holders(projection, byid, registry)
@@ -362,14 +362,14 @@ def item_answered(
 def sections_with_agent(threads: dict) -> set[str]:
     """The sections anchoring an open thread whose next word is the agent's.
 
-    An open ask such a thread is about is the agent's turn rather than the user's:
+    An open item such a thread is about is the agent's turn rather than the user's:
     the user has said something about it and waits on the reply, so it leaves
     their list until the agent answers. That is not an answer, since the widget's
-    state is untouched, and the ask stays open, its controls live. The browser
+    state is untouched, and the item stays open, its controls live. The browser
     receives the lists this leaves rather than deciding again, so the banner's
     count and `page state` cannot disagree about whose turn it is.
 
-    Which kind of thread does not enter into it: a seat's, a quote on the ask's
+    Which kind of thread does not enter into it: a seat's, a quote on the item's
     words, a design note, or one the agent opened that the user has answered."""
     return {
         anchor["section"]
@@ -381,11 +381,11 @@ def sections_with_agent(threads: dict) -> set[str]:
 
 
 def discussed(records: list[dict], sections: set[str], within: dict) -> None:
-    """Hand each open ask a thread anchored on `sections` is about to the agent.
+    """Hand each open item a thread anchored on `sections` is about to the agent.
 
-    A section is about the innermost ask whose widget encloses it, answered or not;
-    failing one, about every ask whose prompt target (its framing
-    enclosing widget) is the innermost to enclose it. So a note on one ask's
+    A section is about the innermost item whose widget encloses it, answered or not;
+    failing one, about every item whose prompt target (its framing
+    enclosing widget) is the innermost to enclose it. So a note on one item's
     option leaves its framed sibling with the user, and one on the frame's heading
     is about them all. `within` is the document's containment (`Passages.enclosing`).
     """
@@ -481,7 +481,7 @@ def answering_action(
     registered: bool = False,
 ) -> bool:
     """Whether an action of `verb`, in force in `projection`, answers its widget's
-    ask: the instance asks or retains an earlier registration, and the verb's
+    item: the instance asks or retains an earlier registration, and the verb's
     own condition holds with it in place. Editable answers retain user provenance
     after the author suppresses the request. Admission stamps `meaning.answer` on
     exactly these."""
@@ -503,7 +503,7 @@ def answering_action(
 
 
 class _ItemReducer:
-    """One page or frozen-thread ask fold over a shared state projection."""
+    """One page or frozen-thread item fold over a shared state projection."""
 
     def __init__(
         self,
@@ -725,7 +725,7 @@ class _ItemReducer:
                 if self.local[id(record)]
                 else "withdrawn"
             )
-            # A reply-answered ask has no state; its reading settles it from the
+            # A reply-answered item has no state; its reading settles it from the
             # conversation (`settle_by_words`).
             value_verb = entry["x-awaits"].get("value")
             value, has_content = (
@@ -803,9 +803,9 @@ def page_item_readings(
     revision: int | None = None,
     events: list = (),
 ) -> dict:
-    """Asks in one document basis; a discussion changes attention, not answer:
-    an ask a thread with the agent is about is the agent's (`sections_with_agent`).
-    A reply-answered ask is the exception, since a message about it is its answer:
+    """Items in one document basis; a discussion changes attention, not answer:
+    an item a thread with the agent is about is the agent's (`sections_with_agent`).
+    A reply-answered item is the exception, since a message about it is its answer:
     the first user message in a thread opened inside it, after the stamped version
     that last restated it (`$restated`), so a rewritten question is asked again.
     `ends` holds the agent's `todo_end` on each id."""
@@ -855,11 +855,11 @@ def thread_item_readings(
     *,
     reading: FrozenThreadReading | None = None,
 ) -> dict:
-    """Frozen widget asks retain inventory when their containing thread closes,
+    """Frozen widget items retain inventory when their containing thread closes,
     with no next actor. While the thread is open, a user turn after the message
-    that asks hands the ask to the agent until the agent answers that turn, as a
-    thread anchored on a page ask does (`sections_with_agent`). That turn instead
-    answers a reply-answered ask, as does a reaction on the message whose token
+    that asks hands the item to the agent until the agent answers that turn, as a
+    thread anchored on a page item does (`sections_with_agent`). That turn instead
+    answers a reply-answered item, as does a reaction on the message whose token
     settles it; `ends` holds the agent's `todo_end` on each id."""
     reading = reading or frozen_thread_reading(events, registry)
     reducer = _ItemReducer(

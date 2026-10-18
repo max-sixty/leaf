@@ -1094,7 +1094,7 @@ export function createFloatingPanel({
     if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
     paint();
     // The reader draws what the view arriving holds, and lets go of what the one
-    // leaving held: a thread's messages, or the asks On shows as messages.
+    // leaving held: a thread's messages, or the items On shows as messages.
     const drawn =
       reading || before?.view === "queue" ? present({ release: reading }) : null;
     if (!changed || reducedMotion() || !pagePresented()) {
@@ -1671,12 +1671,12 @@ export function createFloatingPanel({
       }`;
   }
 
-  // ---------- On: asks answered where they are read ----------
+  // ---------- On: items answered where they are read ----------
   // The lists are the publisher's (`readQueues`): what waits on the user and on the
   // agent, a tab each, and under each what left it, its Done (`owner`). The view has no
   // name of its own: its title is the open tab's. An item the user answers here stays
   // where it stood, saying its answer and offering Undo, until the view closes, so
-  // answering one ask never carries the next under the pointer. Done stands open under
+  // answering one item never carries the next under the pointer. Done stands open under
   // the list rather than folded, since a fold opening would grow the view up from under
   // the pointer that opened it.
   let queueTab = "you";
@@ -1710,7 +1710,7 @@ export function createFloatingPanel({
     };
   };
 
-  // The undo list's entry for the gesture that answered an ask, where it can still be
+  // The undo list's entry for the gesture that answered an item, where it can still be
   // taken back (undo.js).
   const answerGesture = (item) => {
     const id = item?.answer?.event?.id ?? item?.answer?.event;
@@ -1871,7 +1871,7 @@ export function createFloatingPanel({
     const card = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
     return card?.querySelector("button") ?? card;
   };
-  // An approval is an ask, always On me's, open or done.
+  // An approval is an item, always On me's, open or done.
   function arriveAtApproval() {
     chooseQueueTab("you");
     open({ view: "queue" }, { reopen: true, focus: false });

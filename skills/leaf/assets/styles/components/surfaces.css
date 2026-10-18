@@ -316,7 +316,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 /* Where the user stands wears a ring outside its box, so a scroll that brings the focus
    into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
-   room at the scroller's edge: an Ask landed at the top of a scrolling pane stood flush
+   room at the scroller's edge: an item landed at the top of a scrolling pane stood flush
    with it, the top of its ring cut off under the pane's header rule. `:focus` makes
    that room available to the landing before the focus mark paints after the script.
    At no weight, like the ring. */

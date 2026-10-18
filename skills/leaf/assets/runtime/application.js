@@ -104,7 +104,7 @@ export function mountApplication(dependencies) {
     const released = ledger
       .releasable()
       .filter((entry) => attempts.has(entry.event.attempt));
-    // Widget updates and the thread, projection, and ask owners have now committed
+    // Widget updates and the thread, projection, and item owners have now committed
     // this surviving semantic reading; removing an accounted record is a semantic no-op,
     // and a key whose liveness read the record hears it leave through its own reading.
     if (!released.length) return false;

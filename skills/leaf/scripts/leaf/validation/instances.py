@@ -188,7 +188,7 @@ def unasked(rec: dict, entry: dict) -> dict:
     """The `x-awaits.when` conditions a widget never met, as attribute and the values
     it would ask at, or none where it asks, was asked, or can be made to ask.
 
-    The flag `x-awaits.retired` names is how an author ends an ask already
+    The flag `x-awaits.retired` names is how an author ends an item already
     asked, such as a settled decision kept with its context, so failing on it alone
     leaves the widget counted. A condition a recorded value writes can still be met
     by a gesture."""
@@ -209,14 +209,14 @@ def unasked(rec: dict, entry: dict) -> dict:
 
 
 def item_context_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """A context supplies a leading title and arrival region for nested asks.
+    """A context supplies a leading title and arrival region for nested items.
 
-    Context never owns ask identity or registration. Any number of sources
+    Context never owns item identity or registration. Any number of sources
     can select it, and each source retains its independent answer and lifecycle.
     A context framing widgets none of which asks shows a question the On me list
     never counts and the user can't answer, so the error names what each framed
     widget lacks to ask (`unasked`). A context framing no widget asks only if it
-    declares its own reply-answered ask (`x-awaits.reply`), and then needs no
+    declares its own reply-answered item (`x-awaits.reply`), and then needs no
     heading: its words are the question.
     """
 
@@ -243,7 +243,7 @@ def item_context_errors(document: SourceDocument, registry: dict) -> list[Findin
     errors = []
     for region in regions:
         held = framed[id(region)]
-        # The ask's title is what the shared name rule reads, so this asks that rule
+        # The item's title is what the shared name rule reads, so this asks that rule
         # rather than restating a shape it accepts. It must be a heading as well, the
         # question's place in the outline and in heading navigation.
         title = leading_title_node(document.authoring.node_of(region))
@@ -429,7 +429,7 @@ def reference_errors(
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Conditional asks and thread seats need an id when they are live.
+    """Conditional items and thread seats need an id when they are live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.

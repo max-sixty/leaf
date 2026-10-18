@@ -1149,7 +1149,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     page.evaluate(
         "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
     )
-    with sending(page, "answer the package's native Ask"):
+    with sending(page, "answer the package's native item"):
         email.get_by_role("checkbox").click()
     expect(workspace.locator(".counts")).to_contain_text("Email")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
@@ -1172,7 +1172,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     # One reply answers both questions. Counts include them, while the
     # compact answer summary names only widget choices instead of repeating words.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 asks on me · 3 answered · Email"
+        "0 waiting on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
@@ -1514,7 +1514,7 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
     assert email.evaluate(
         "node => node === originalOption && node.getRootNode() === document"
     )
-    with sending(page, "answer the unchanged native Ask after reader replacement"):
+    with sending(page, "answer the unchanged native item after reader replacement"):
         email.click()
     expect(replacement.locator(".counts")).to_contain_text("Email")
     replacement.get_by_role("button", name="Keep it concise.", exact=True).click()

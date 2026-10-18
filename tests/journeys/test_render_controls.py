@@ -2170,7 +2170,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
 
     # Every secondary contribution stays behind the door in registration order. The
     # identities do not matter to the layout contract; register them through the toolbar's
-    # internal contribution boundary, just as asynchronous Ask and Page Map owners do.
+    # internal contribution boundary, just as asynchronous item and Page Map owners do.
     page.evaluate(
         """async () => {
           const toolbar = await window.__lfCheckApi();
@@ -3934,7 +3934,7 @@ def test_covering_threads_keeps_the_user_inside(browser, serve):
 
 def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, serve):
     """The On panel gets the covering auxiliary surface contract rather than a drawer-specific
-    focus trap. Its exact Ask and reading place survive both responsive crossings, its
+    focus trap. Its exact item and reading place survive both responsive crossings, its
     reading keys move its own list, and closing returns to its door without moving the
     document behind it."""
     page = open_page(browser, serve(MANY_ITEMS_PAGE))
@@ -3954,7 +3954,7 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
     identity = row.get_attribute("data-lf-at")
     list_box = drawer.locator(".lf-drawer-list")
     list_at = list_box.evaluate("el => el.scrollTop")
-    assert identity and list_at > 0, "the fixture established no Ask reading place"
+    assert identity and list_at > 0, "the fixture established no item reading place"
 
     for _ in range(rows.count() + 3):
         page.keyboard.press("Tab")

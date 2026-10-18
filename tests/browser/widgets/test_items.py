@@ -1,5 +1,5 @@
-"""Asks: how options lay out and answers clear, the keyboard walk and its arrival, the
-digit bindings and badges an Ask projects, and the ring around a decision."""
+"""Items: how options lay out and answers clear, the keyboard walk and its arrival, the
+digit bindings and badges an item projects, and the ring around a decision."""
 
 import re
 
@@ -76,7 +76,7 @@ ACROSS_ITEM_PAGE = leaf_page(
 
 
 ACROSS_WIDE_ITEM_PAGE = leaf_page(
-    "options laid across a widened Ask",
+    "options laid across a widened item",
     "<div>" + ACROSS_ITEM.format(id="wide", width=' data-width="wide"') + "</div>",
     layout="sidebar",
 )
@@ -98,12 +98,12 @@ ACROSS_GEOMETRY = """(id) => {
 
 
 def test_an_item_framing_a_figure_lays_its_options_across(browser, serve):
-    """An Ask holding a figure before its option list sets the titled options side by
+    """An item holding a figure before its option list sets the titled options side by
     side under the figure in columns of one width, as many as
     its width holds, so the question, its figure and every option share a window. Where
     fewer fit, a card left over on the last row keeps its column's width, and where only
     one fits they stack. Where the heading sits, in an hgroup after an eyebrow, and a
-    paragraph after the list change nothing. The arrangement belongs to that Ask's own
+    paragraph after the list change nothing. The arrangement belongs to that item's own
     list: a group nested in one of its options keeps its options one to a row."""
     page = open_page(browser, serve(ACROSS_ITEM_PAGE))
     resized(page, 1440, 900)
@@ -123,7 +123,7 @@ def test_an_item_framing_a_figure_lays_its_options_across(browser, serve):
 
 def test_options_laid_across_take_a_widened_items_width(browser, serve):
     """The column bounds a line of text, and no card's line is wider than its column, so
-    an Ask granted the wide measure for its figure lays its cards under all of it rather
+    an item granted the wide measure for its figure lays its cards under all of it rather
     than at the measure beside an empty strip. Room for more columns than it has
     options holds no empty column beside them: the three cards share the whole row."""
     page = open_page(browser, serve(ACROSS_WIDE_ITEM_PAGE))
@@ -194,7 +194,7 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
 
 
 def test_clearing_an_answer_reopens_its_item_and_shuts_the_approval_gate(browser, serve):
-    """An answer verb with an empty recorded value leaves its Ask unanswered."""
+    """An answer verb with an empty recorded value leaves its item unanswered."""
     html = leaf_page(
         "approval after a cleared pick",
         """
@@ -220,7 +220,7 @@ def test_clearing_an_answer_reopens_its_item_and_shuts_the_approval_gate(browser
     page.route("**/api/event", lambda route: held.append(route))
     pick.click()
     holding(page, held, 1, "the cleared selection")
-    # The pick clears under the user at once; whether that leaves the Ask unanswered
+    # The pick clears under the user at once; whether that leaves the item unanswered
     # is the log's reading, and the gate waits for it.
     expect(page.locator("#release-ship")).not_to_have_attribute("chosen", "")
 
@@ -239,8 +239,8 @@ def test_the_item_reading_counts_completed_items_against_the_active_total(browse
 
     The count used to be a query for `lf-suggestion:not([data-lf-state])`: perfect for
     suggestions, and silently nothing for every other thing a page waits on. What
-    makes an instance an Ask is now the entry's own attribute condition, and the entry
-    explicitly names which state verbs answer it — so this page's five active Asks are
+    makes an instance an item is now the entry's own attribute condition, and the entry
+    explicitly names which state verbs answer it — so this page's five active items are
     one authored answer, a live question, a change nobody has decided, and two explicit
     questions nested in tasks.
 
@@ -275,10 +275,10 @@ def test_a_key_walks_the_page_s_open_items(browser, serve):
     """t/T step the open threads; m/M step the things the page is waiting on the user
     for. The category letter stays under one finger: lowercase advances and Shift goes
     back. Both walks repeat when held because walking often takes several presses.
-    Both come round from either end to the other, so a press past the last ask carries
+    Both come round from either end to the other, so a press past the last item carries
     on from the first.
 
-    The landing is marked on the ask and stands the user on it, which is the same
+    The landing is marked on the item and stands the user on it, which is the same
     element the scroll has just brought to the top of the window — a walk that landed the
     control instead put them on whatever the decision's context and evidence had pushed
     off the bottom of the screen. Its contributed actions are directly addressable there;
@@ -289,7 +289,7 @@ def test_a_key_walks_the_page_s_open_items(browser, serve):
     for expected in [*ITEMS_IN_ORDER, ITEMS_IN_ORDER[0]]:
         page.keyboard.press("m")
         # The ring is painted from the focus, in the frame after the press, so waiting
-        # for it on the Ask this press stepped to is both the wait and the assertion —
+        # for it on the item this press stepped to is both the wait and the assertion —
         # a bare count would pass on the ring an earlier press left in place.
         expect(page.locator(f"#{expected}[data-lf-item]")).to_have_count(1)
         # And exactly one decision wears it, the user standing in one place at a time.
@@ -314,10 +314,10 @@ def test_a_key_walks_the_page_s_open_items(browser, serve):
         expect_items_answered(page, "1/5")
 
     # Every request has an answering control, so the walk never has to leave a borrowed
-    # tab stop on an Ask it has left. A generated custom element may now be the public
+    # tab stop on an item it has left. A generated custom element may now be the public
     # role-bearing control itself, so a dash in its tag no longer means authored widget
-    # paint. Ask ids are the exact ownership boundary this assertion is about; the
-    # currently standing Ask alone may retain the stop that focus is using.
+    # paint. Item ids are the exact ownership boundary this assertion is about; the
+    # currently standing item alone may retain the stop that focus is using.
     expect(page.locator(STANDING_ITEM)).to_have_count(1)
     assert (
         page.evaluate(
@@ -339,7 +339,7 @@ def test_a_key_walks_the_page_s_open_items(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("on me")
 
-    # Leaving the ask takes the place off the count the way it takes the ring off the
+    # Leaving the item takes the place off the count the way it takes the ring off the
     # page: a click into the prose is the user standing nowhere in the list.
     page.locator("#h").click()
     expect(page.locator(STANDING_ITEM)).to_have_count(0)
@@ -359,14 +359,14 @@ def test_a_key_walks_the_page_s_open_items(browser, serve):
 
 def test_an_item_the_user_stands_on_survives_the_window_losing_focus(browser, serve):
     """Another app taking key focus for a moment, such as macOS verifying a newly
-    installed binary, blurs the Ask the user stands on but leaves it the document's
+    installed binary, blurs the item the user stands on but leaves it the document's
     focused area, and the browser puts them back on it when the window returns. The tab
-    stop the walk lent the Ask is held through that blur. Taking it back made the Ask
+    stop the walk lent the item is held through that blur. Taking it back made the item
     unfocusable while focused, the browser dropped the user to the body, and the window
     came back with them standing nowhere.
 
     Headless Playwright cannot take system focus from its window, so the test delivers
-    the platform's blur at the Ask while it stays the focused area, which is what the
+    the platform's blur at the item while it stays the focused area, which is what the
     window losing focus does."""
     page = open_page(browser, serve(ITEMS_PAGE))
     first = page.locator(f"#{ITEMS_IN_ORDER[0]}")
@@ -441,7 +441,7 @@ def test_an_item_arrival_starts_with_the_context_that_frames_it(browser, serve):
     )
     assert standing["pick"] > standing["height"], (
         f"the first pick is on screen at this size, so standing on it would have been no "
-        f"worse than standing on the Ask and nothing below is evidence: {standing}"
+        f"worse than standing on the item and nothing below is evidence: {standing}"
     )
     assert 0 <= standing["top"] < standing["height"], (
         f"the walk left the user standing off the screen it had just scrolled: "
@@ -458,16 +458,16 @@ def test_an_item_arrival_starts_with_the_context_that_frames_it(browser, serve):
         }"""
     )
     assert abs(landed["item"] - landed["clear"]) <= 2, (
-        f"the Ask starts at {landed['item']:.1f}px instead of below the banner and its "
+        f"the item starts at {landed['item']:.1f}px instead of below the banner and its "
         f"ring's room at {landed['clear']:.1f}px"
     )
     assert landed["options"] > landed["item"] + 100, (
-        "the arrival did not leave the Ask's context above its options"
+        "the arrival did not leave the item's context above its options"
     )
 
     # Tab remains the complementary route into the widget's controls. Read after the
     # landing above, because a Tab onto a control below the fold scrolls to it and would
-    # take the arrival's own geometry with it. The Ask action context remains the same;
+    # take the arrival's own geometry with it. The item action context remains the same;
     # its key badges may move to the shared chrome when Linux font metrics leave a local
     # badge clipped, but the controls retain the same semantic routes.
     page.keyboard.press("Tab")
@@ -487,10 +487,10 @@ def test_an_item_arrival_starts_with_the_context_that_frames_it(browser, serve):
 
 
 def test_the_item_itself_binds_each_contributed_action(browser, serve):
-    """a lands semantic focus on the Ask; digits work its exact action list there.
+    """a lands semantic focus on the item; digits work its exact action list there.
 
     The list is contributed by the decision widget rather than inferred from generated
-    descendants: options own controls inside the Ask, while a suggestion's margin entries are
+    descendants: options own controls inside the item, while a suggestion's margin entries are
     hoisted into the shared margin. Each widget declares the aliases forwarded by
     the keyboard layer; a digit activates the original command without first moving
     focus into the widget.
@@ -527,7 +527,7 @@ def test_the_item_itself_binds_each_contributed_action(browser, serve):
 
 
 def test_item_contextual_bindings_are_independent_of_widget_bindings(browser, serve):
-    """An Ask digit aliases a command without replacing its focused widget binding."""
+    """An item digit aliases a command without replacing its focused widget binding."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     resized(page, 900, 900)
 
@@ -580,8 +580,8 @@ def test_item_contextual_bindings_are_independent_of_widget_bindings(browser, se
         ).all_text_contents()
     ) == ["1", "2", "3"]
 
-    # The Ask's third route invokes the original command. Once the command's own control
-    # is focused, both equivalent intrinsic bindings and the independent Ask digit remain
+    # The item's third route invokes the original command. Once the command's own control
+    # is focused, both equivalent intrinsic bindings and the independent item digit remain
     # reachable routes to that command.
     page.keyboard.press("3")
     expect(inspect).to_have_attribute("data-activated", "1")
@@ -637,7 +637,7 @@ def test_item_contextual_bindings_are_independent_of_widget_bindings(browser, se
 
 
 def test_a_widget_digit_shadows_only_the_matching_item_alias(browser, serve):
-    """A focused widget digit suppresses its Ask alias without taking other digits.
+    """A focused widget digit suppresses its item alias without taking other digits.
     A command whose computed title is not text is refused in that command's name."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
@@ -664,8 +664,8 @@ def test_a_widget_digit_shadows_only_the_matching_item_alias(browser, serve):
 
     inspect = page.get_by_role("button", name="Inspect")
     page.keyboard.press("m")
-    # The control's own scope names its keys wherever the user stands; the Ask adds
-    # the widget's explicitly declared digit that reaches it from the Ask.
+    # The control's own scope names its keys wherever the user stands; the item adds
+    # the widget's explicitly declared digit that reaches it from the item.
     expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
     inspect.focus()
     expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
@@ -769,7 +769,7 @@ def test_item_action_binding_badges_use_the_available_card_action_seats(browser,
         assert item_point["y"] == pytest.approx(focused_point["y"], abs=0.5)
 
     # The Add press must enter the tab order in the input event itself. A paint on
-    # the next frame can come after the next Tab and send focus to the next Ask.
+    # the next frame can come after the next Tab and send focus to the next item.
     page.evaluate("""() => document.addEventListener('input', () => {
       window.__addEmptyAtInput = document.querySelector(
         '#live-question .lf-compose-submit').hasAttribute('data-lf-empty');
@@ -859,7 +859,7 @@ def test_item_actions_replace_unusable_package_binding_badge_faces(browser, serv
         }"""
     )
 
-    # The Ask's bindings are chrome, painted on the frame after the press that enters it.
+    # The item's bindings are chrome, painted on the frame after the press that enters it.
     page.keyboard.press("m")
     for control, binding in (
         ("#disconnected-face", "3"),
@@ -892,8 +892,8 @@ def test_item_binding_badges_do_not_cover_their_key_line(browser, serve):
     page = open_page(browser, serve(BINDING_BADGE_PAGE))
     resized(page, 900, 520)
 
-    # The first Ask uses titled cards, whose trailing binding badges cannot meet the leading
-    # shortcut bar. Step to the compact row Ask, where both occupy the leading edge.
+    # The first item uses titled cards, whose trailing binding badges cannot meet the leading
+    # shortcut bar. Step to the compact row item, where both occupy the leading edge.
     #
     # The walk arrives and then travels, in that order and in one task, so the arrival is
     # the fact each stillness reading is taken behind. Stillness on its own answers the
@@ -942,7 +942,7 @@ def test_item_binding_badges_do_not_cover_their_key_line(browser, serve):
           };
         }"""
     )
-    assert geometry["chips"], "the fixture did not leave an Ask binding badge on screen"
+    assert geometry["chips"], "the fixture did not leave an item binding badge on screen"
     assert all(
         chip["right"] <= geometry["line"]["left"]
         or geometry["line"]["right"] <= chip["left"]
@@ -958,8 +958,8 @@ def test_an_item_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
     """A change to a phrase has no region to declare, so the document supplies one.
 
     An x-ask-context widget states its own arrival region: a heading, the context, then the
-    control. A suggestion can stand mid-sentence, so it can never satisfy "an ask must
-    name itself without context outside the ask" and no region can be written round it.
+    control. A suggestion can stand mid-sentence, so it can never satisfy "an item must
+    name itself without context outside the item" and no region can be written round it.
     Arriving on the change alone put its own top edge under the banner and took the
     sentence and the heading with it, leaving the user on the change with nothing on
     screen saying what they would be accepting.
@@ -1052,15 +1052,15 @@ def test_an_arrival_region_fits_above_the_bottom_bar(browser, serve):
 def test_an_arrival_does_not_reach_back_into_the_item_before_it(browser, serve):
     """The heading over a change is the one it stands under, not the last one written.
 
-    Two asks in a row is the ordinary way to write two, and the second here has no
+    Two items in a row is the ordinary way to write two, and the second here has no
     heading of its own under its container. The nearest heading written before it is
-    then the first ask's own, and arriving there would put a different question in
+    then the first item's own, and arriving there would put a different question in
     front of the user as this change's context. A candidate has to share a container
     with the change for that reason, which also stops the search at the part of the
     document the change is in.
 
     The change is reached from the foot of the page rather than by stepping forward off
-    the ask above it. Arriving at that ask leaves this one on screen already, where the
+    the item above it. Arriving at that item leaves this one on screen already, where the
     press deliberately moves nothing and there is no travel to read.
     """
     page = open_page(browser, serve(ITEMS_IN_A_ROW_PAGE))
@@ -1071,7 +1071,7 @@ def test_an_arrival_does_not_reach_back_into_the_item_before_it(browser, serve):
     )
     scroll_settled(page)
 
-    page.keyboard.press("Shift+m")  # back to the nearest ask above, which is the change
+    page.keyboard.press("Shift+m")  # back to the nearest item above, which is the change
     expect(page.locator("#ar-sug")).to_be_focused()
     scroll_settled(page)
 
@@ -1089,35 +1089,35 @@ def test_an_arrival_does_not_reach_back_into_the_item_before_it(browser, serve):
         }"""
     )
     assert landed["otherFoot"] <= landed["change"], (
-        "the fixture no longer has the previous ask standing above this one"
+        "the fixture no longer has the previous item standing above this one"
     )
-    # The previous ask's heading is close enough to reach: without the container bound
+    # The previous item's heading is close enough to reach: without the container bound
     # it fits the screen from its own top to this change's foot, so it would be chosen
     # and the user would start on the question they are not being asked.
     assert landed["foot"] - landed["other"] <= landed["view"] - landed["clear"], (
-        "the fixture has moved the two asks too far apart for the wrong heading to be "
+        "the fixture has moved the two items too far apart for the wrong heading to be "
         "reachable, so this test can no longer tell the container bound is working"
     )
     assert abs(landed["other"] - landed["clear"]) > 2, (
-        "the arrival put the previous ask's heading below the banner, so the user "
+        "the arrival put the previous item's heading below the banner, so the user "
         "starts on the question they are not being asked"
     )
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
 
 
 def test_an_item_inside_a_card_is_brought_into_that_card(browser, serve):
-    """The arrival places a region out on the page; the ask may be in a box of its own.
+    """The arrival places a region out on the page; the item may be in a box of its own.
 
     The placement moves whichever scroller the region belongs to, and for a region on
-    the page that is never the card's. So the ask's own box comes into view first, which
+    the page that is never the card's. So the item's own box comes into view first, which
     is the one pass that moves a nested scroller. Handing the placement the region alone
-    left the ask unscrolled in its card, with the ring and focus on a change the user
+    left the item unscrolled in its card, with the ring and focus on a change the user
     could not see — and the walk's next press repeated the same non-arrival.
     """
     page = open_page(browser, serve(ITEM_IN_A_CARD_PAGE))
     resized(page, 900, 500)
 
-    # The card hides the ask to begin with, or the reveal has nothing to do — and the
+    # The card hides the item to begin with, or the reveal has nothing to do — and the
     # region really is outside the card, or the region's own reveal would scroll the card
     # whatever the arrival did, and a green result would say nothing about it.
     assert page.evaluate(
@@ -1168,7 +1168,7 @@ def test_an_item_already_in_front_of_the_user_is_not_travelled_to(browser, serve
 
     Rebuilding a view the user is already looking at is motion that says nothing, and
     it costs them whatever adjustment they had made within it. The gate reads what the
-    page shows of the ask rather than what its own box claims, which is the reading
+    page shows of the item rather than what its own box claims, which is the reading
     commentOnAddressable makes before its own travel.
 
     The first press is the control: the walk does travel, from a page that opens above
@@ -1182,7 +1182,7 @@ def test_an_item_already_in_front_of_the_user_is_not_travelled_to(browser, serve
     expect(page.locator("#sc-sug")).to_be_focused()
     scroll_settled(page)
     arrived = page.evaluate("() => document.scrollingElement.scrollTop")
-    assert arrived > 0, "the walk did not travel to the ask at all"
+    assert arrived > 0, "the walk did not travel to the item at all"
 
     # A little above that arrival: the region's start is still clear of the banner and
     # the change's foot is still on screen, so this is the same view with the user's
@@ -1198,7 +1198,7 @@ def test_an_item_already_in_front_of_the_user_is_not_travelled_to(browser, serve
     # that: frames held still before a glide starts read the same as a page that never
     # moved, and only the announcement puts the read behind the decision.
     observe_live_region(page)
-    page.keyboard.press("m")  # one ask, so the walk stays on it
+    page.keyboard.press("m")  # one item, so the walk stays on it
     page.wait_for_function(
         "() => window.__lfLiveRegionChanges.some("
         "words => words.includes('waiting on me'))"
@@ -1208,7 +1208,7 @@ def test_an_item_already_in_front_of_the_user_is_not_travelled_to(browser, serve
     expect(page.locator("#sc-sug")).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == held, (
-        "the walk travelled to an ask the user could already see"
+        "the walk travelled to an item the user could already see"
     )
 
 
@@ -1237,7 +1237,7 @@ def test_the_item_walk_starts_from_where_the_user_is(browser, serve):
     page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
     page.keyboard.press("m")
     expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-item", "1")
-    # The walk scrolls to the ask it arrived at, and the next walk measures from what
+    # The walk scrolls to the item it arrived at, and the next walk measures from what
     # that scroll leaves in front of the user, so the scroll has to have landed.
     scroll_settled(page)
 
@@ -1323,7 +1323,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     assert page.evaluate(fully_shown), "the walk left the change out of the window"
 
     # What wears the mark: the wrapper, which carries the id every reader of the mark
-    # asks after. Not the slots, and not the empty span the widget prepends to itself to
+    # items after. Not the slots, and not the empty span the widget prepends to itself to
     # anchor its controls from — a 2px mark of its own beside the change is not the
     # promise.
     marks = page.evaluate("""() => [...document.querySelectorAll('main [data-lf-item]')].map(e => {
@@ -1420,7 +1420,7 @@ def test_a_commented_item_does_not_wear_its_ring_on_the_runtime_s_own_note(
 
     The order is why nothing caught it. The note is written after the marks are placed,
     so the first paint of a page sees no note and the ring is right; it moves onto the
-    pixel on the next pass — which the Ask walk always is, the user having pressed a
+    pixel on the next pass — which the On me walk always is, the user having pressed a
     key. So the fault needs a comment on the page *and* a repaint, and shows as a 1px
     ring beside the change instead of on it.
 

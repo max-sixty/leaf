@@ -44,9 +44,9 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     A preview can name a gallery section directly: arriving at a fragment held in a
     closed tab is one runtime path whichever section it names, so one arrival proves
     it, and the same page answers which tab holds every other destination. Each core
-    surface then opens and shows the gallery's own content: its Ask in the On panel, its
-    open, resolved, and media threads in Threads, its earlier version, the other open
-    page, and at phone width its Page Map. Live external data, the Threads tab's
+    surface then opens and shows the gallery's own content: its item in the On panel,
+    its open, resolved, and media threads in Threads, its earlier version, the other
+    open page, and at phone width its Page Map. Live external data, the Threads tab's
     presets operating a sample's panel, sign-off gating, design comments and transport
     refusal are real journeys on it too.
 

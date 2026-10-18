@@ -1,5 +1,5 @@
 """What registry validation refuses in a widget declaration: detail schemas, extensions,
-formats, patterns, rendering owners, asks, retirement and references."""
+formats, patterns, rendering owners, items, retirement and references."""
 
 import json
 
@@ -172,7 +172,7 @@ def test_the_registry_door_holds_a_detail_schema_to_the_keys_it_names(page_dir):
 
 
 def test_the_resolves_attribute_belongs_to_a_widget_with_a_local_item(page_dir):
-    """Admission reads `resolves` off the widget whose Ask an action answers, so the
+    """Admission reads `resolves` off the widget whose item an action answers, so the
     name on a widget that asks nothing declares a thread nothing would ever close."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-board"]["properties"]["resolves"] = {"type": "string"}
@@ -293,7 +293,7 @@ def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, code, at, va
         (_report_without_upgrade, "needs-upgrade", {}),
         # Only an agent verb declares `text`.
         (_user_verb_text, "invalid-extensions", {}),
-        # The user answers their own Ask; the agent's news never does.
+        # The user answers their own item; the agent's news never does.
         (_agent_verb_answers, "awaits-verbs", {}),
         (_body_record_with_prose, "body-content", {}),
         (_body_record_with_nested_widget, "body-nested", {}),
@@ -511,7 +511,7 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
         decide["detail"]["required"].append("part")
         decide["unit"] = "part"
     else:
-        # An agent verb never answers an Ask, so the suggestion stops asking one.
+        # An agent verb never answers an item, so the suggestion stops asking one.
         suggestion.pop("x-awaits")
         suggestion.pop("x-withdrawn-as")
         suggestion["properties"].pop("resolves")
@@ -614,7 +614,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     The widget is simply absent from every consumer, exactly as if the feature had
     never been wired up.
     Same for an answering verb the widget does not declare, which would hold its
-    Ask open for a state no gesture writes."""
+    Item open for a state no gesture writes."""
     registry = json.loads((page_dir / "registry.json").read_text())
     if key == "x-awaits":
         declaration = {
@@ -645,7 +645,7 @@ def test_a_local_item_declares_its_answered_condition(page_dir):
 
 
 def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
-    """A part record does not answer its whole Ask merely by being in force."""
+    """A part record does not answer its whole item merely by being in force."""
     registry = queue_board_registry(
         json.loads((page_dir / "registry.json").read_text())
     )

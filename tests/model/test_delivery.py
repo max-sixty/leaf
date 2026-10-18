@@ -346,7 +346,7 @@ def test_delivery_distinguishes_composing_an_item_from_changing_input_in_hand(pa
         page_dir, {"kind": "undo", "author": "user", "undoes": completed["id"]}
     )
     assert undone["attention"]
-    # The Ask is unfinished again, but the agent is already acting on its pick.
+    # The item is unfinished again, but the agent is already acting on its pick.
     changed = action("choice", "choose", {"value": ["backfill-first"]})
     assert changed["attention"]
     assert append_command(

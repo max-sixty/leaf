@@ -69,7 +69,7 @@ def panel_comment(d, text, anchor=None, author="user", *, question=None):
 
 
 def answered_comment(d, text, anchor):
-    """A user's thread the agent has replied to, so an ask it is about waits on the
+    """A user's thread the agent has replied to, so an item it is about waits on the
     user again rather than on that reply (`asks.sections_with_agent`)."""
     root = panel_comment(d, text, anchor)
     append_carried_log_record(
@@ -161,7 +161,7 @@ STACKED_OPTIONS_PAGE = leaf_page(
 </div>
 """,
 )
-# A heading-first Ask in every shape its choice group takes: cards, rows, and a settled
+# A heading-first item in every shape its choice group takes: cards, rows, and a settled
 # collapse. The question belongs to the document region; the group only owns answers.
 ITEM_SHAPES_PAGE = leaf_page(
     "asked",
@@ -592,8 +592,8 @@ ITEM_WITH_CONTEXT_PAGE = leaf_page(
 )
 
 
-# An ask that cannot declare an arrival region of its own: the change is a phrase inside a
-# sentence, and what explains it is that sentence and the heading over it. One ask, so the
+# An item that cannot declare an arrival region of its own: the change is a phrase inside a
+# sentence, and what explains it is that sentence and the heading over it. One item, so the
 # walk stays on it and a second press can be asked what it does to a page the user has
 # already adjusted.
 SUGGESTION_IN_CONTEXT_PAGE = leaf_page(
@@ -614,9 +614,9 @@ SUGGESTION_IN_CONTEXT_PAGE = leaf_page(
 )
 
 
-# Two asks written one after the other, which is the ordinary way to write two. The change
+# Two items written one after the other, which is the ordinary way to write two. The change
 # has no heading of its own under its container, so the nearest heading written before it
-# is the previous ask's own — a different question, and not this change's context. The
+# is the previous item's own — a different question, and not this change's context. The
 # suggestion is a sibling of the decision rather than nested in a section for exactly that
 # reason: with a section heading of its own there would be a nearer candidate and the
 # container bound would never be asked.
@@ -641,12 +641,12 @@ ITEMS_IN_A_ROW_PAGE = leaf_page(
 )
 
 
-# An ask inside a scroller of its own, below that scroller's own band. The arrival places
+# An item inside a scroller of its own, below that scroller's own band. The arrival places
 # the region, and the box that moves for a region is whichever one scrolls it — for a
-# region out on the page, never this card's. So the ask has to be brought into its card by
+# region out on the page, never this card's. So the item has to be brought into its card by
 # the reveal that runs first, or the ring and focus land on a change the card hides.
 #
-# The card holds no text block before the ask, which is what puts the region outside it:
+# The card holds no text block before the item, which is what puts the region outside it:
 # the spacer is a bare div, so the nearest candidate is the section's own heading. With a
 # paragraph in there the region would be inside the card and that region's own reveal
 # would scroll the card, whatever the arrival did — the shape this page exists to avoid.
@@ -887,7 +887,7 @@ LIVE_KEYS_DECISION = """<lf-ask id="lk-decision"><h2>Which one?</h2>
 </lf-options></lf-ask>"""
 
 # A revision that restates the question the user is answering, which is the revision
-# they most need to stay with. The Ask keeps its id and its options keep theirs, but every
+# they most need to stay with. The item keeps its id and its options keep theirs, but every
 # element in it is rewritten, so nothing inside it is the node the user was holding.
 LIVE_KEYS_ITEM_REWRITTEN = LIVE_KEYS_V1.replace(
     "<title>Live keys first</title>", "<title>Live keys rewritten</title>"
@@ -1353,8 +1353,8 @@ THREAD_ITEMS = [
 ]
 
 # A widget the shipped packages no longer have: one the user owes an answer on that
-# also seats a thread of its own. A thread anchored on any ask splits the user's list
-# from the unanswered decisions while the agent has the next word, taking the ask off
+# also seats a thread of its own. A thread anchored on any item splits the user's list
+# from the unanswered decisions while the agent has the next word, taking the item off
 # the list without answering it (`asks.sections_with_agent`); a seat is where a
 # user most often starts one. `lf-options` supplied the pair until 292de9c made the
 # user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
@@ -1407,7 +1407,7 @@ SEATED_ITEM_LAYER = {SEATED_ITEM_TAG: SEATED_ITEM_ENTRY}
 SEATED_ITEM_WIDGETS = {f"{SEATED_ITEM_TAG}.js": SEATED_ITEM_MODULE}
 
 
-# A block proposal whose new text holds an ask of its own.
+# A block proposal whose new text holds an item of its own.
 NESTED_PROPOSAL_PAGE = leaf_page(
     "nested proposal",
     """

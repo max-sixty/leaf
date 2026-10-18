@@ -6,7 +6,7 @@
  * of bare labels is a question about the page and reads as compact sans rows, each
  * naming the block it is about (`for`). A rule true of one form puts the form predicate
  * in its selector, so no rule resets another form's state. Cards lay across only where
- * the context asks (`--lf-options-across`, ask.css); that is an arrangement of the
+ * the enclosing lf-ask asks (`--lf-options-across`, ask.css); that is an arrangement of the
  * titled form, not a third form.
  *
  * Chips are inline-block in front of the title, so a titled option's band lands on its
@@ -24,7 +24,7 @@
  * and Done. What every cell owes is stated over every child; only what one kind alone
  * answers names it. */
 /* Whether a joined group lays its titled options across. The holder declares it, as an
- * ask framing a figure does (ask.css); it does not inherit, so a nested group keeps its
+ * lf-ask framing a figure does (ask.css); it does not inherit, so a nested group keeps its
  * own. */
 @property --lf-options-across {
   syntax: "<integer>";
@@ -203,7 +203,7 @@
 }
 /* The mark the upgrade injects is both the keyboard path and the state. On a live card it
  * stands in the state slot at the card's opening edge, empty until picked, so a user who
- * has not hovered still sees where the press lands. The ask's binding badge takes the
+ * has not hovered still sees where the press lands. The item's binding badge takes the
  * same slot; the slot is reserved beside the chips and title on every card, so neither
  * moves or covers the words. A document-only chosen card keeps the compact caption below. */
 :scope:is(lf-options):has(> lf-option > strong) > lf-option[chosen] {
@@ -389,7 +389,7 @@
   outline-offset: var(--focus-ring-gap);
   border-radius: 4px;
 }
-/* The ask's action keys, on the cells they bind. The gutter reads status, badge, then
+/* The item's action keys, on the cells they bind. The gutter reads status, badge, then
  * prose. A card aligns its digit with its content's top; a row centres it. */
 :scope:is(lf-option) > .lf-key-badge {
   position: absolute;
@@ -399,7 +399,7 @@
 :scope:is(lf-options):has(> lf-option > strong) > lf-option > .lf-key-badge {
   top: 8px;
 }
-/* Done completes a multiple-choice ask. Its pressed state paints the answer without
+/* Done completes a multiple-choice item. Its pressed state paints the answer without
  * writing into the author's markup; it is the joined control's final cell. */
 :scope:is(lf-options) > lf-options-done > .lf-done[aria-pressed="true"] {
   color: var(--ok-ink);
@@ -576,9 +576,9 @@
       max-inline-size: none;
     }
   }
-  /* Focus inside the control is carried by the exact row, so the ask's location ring
-   * around it is suppressed rather than reading as a second border. The ask is matched
-   * as a widget root as well as a descendant, so an ask at the page's top level is
+  /* Focus inside the control is carried by the exact row, so the item's location ring
+   * around it is suppressed rather than reading as a second border. The item is matched
+   * as a widget root as well as a descendant, so an item at the page's top level is
    * reached too. */
   :is(:scope, :scope *)[data-lf-item]:has(
       lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]

@@ -611,7 +611,7 @@ def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
 def test_an_answered_item_moves_into_a_collapsed_section_with_its_pick_in_force(
     page_dir,
 ):
-    """The route `authoring-revisions.md` gives finished work: the answered Ask goes
+    """The route `authoring-revisions.md` gives finished work: the answered item goes
     to a collapsed section whole, under the words the user picked it under."""
     live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
     (page_dir / "index.html").write_text(
@@ -1111,7 +1111,7 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
     `GET /api/state` activates the source under the page's exclusive lock and then
     asks every revision in the history what its own document and registry said, for
-    the ids, asks and data bindings it declared. A revision bundle holds a couple of
+    the ids, items and data bindings it declared. A revision bundle holds a couple of
     hundred resource files, so answering through `read_artifact` made one request
     cost the revision count times the bundle: seconds per request where the page
     directory is on a network filesystem, with every other reader queued behind the

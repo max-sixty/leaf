@@ -188,7 +188,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
    It is an outline, so it moves nothing. A widget carrying the location itself stands
    it down with `--lf-item-ring: none` on the decision. */
 /* The ring stands outside the decision, so a landing keeps its room at the scroller's
-   edge, as a margin entry's does (theme.css): an ask landed at the top of a scrolling
+   edge, as a margin entry's does (theme.css): an item landed at the top of a scrolling
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
 [data-lf-item] {
   outline: var(--lf-item-ring, var(--focus-ring));
@@ -1143,7 +1143,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   /* Both rings this row can wear, inset together. A control packed into a list states
      its own inset (theme.css, --focus-ring), because the list clips to its padding box.
-     The second ring is the standing ask's (markHere), which the row naming that ask
+     The second ring is the standing item's (markHere), which the row naming that item
      mirrors while the panel is open. Done's door is a stop in the same list. */
   .lf-queue-row:is([data-lf-focus], [data-lf-item]),
   .lf-queue-done > summary[data-lf-focus] {
@@ -2806,7 +2806,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     top: 0;
     display: block;
   }
-  /* Ask binding badges sit on the answer control's upper-left corner: the single digit is
+  /* Item binding badges sit on the answer control's upper-left corner: the single digit is
      a local label for the control it touches. */
   .lf-command-binding-badge {
     transform: translate(-50%, -50%);

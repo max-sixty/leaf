@@ -61,7 +61,7 @@ child's tag lists the widget in `x-owners`, requires only an `id`, and has
 `x-content: markup`.
 
 The added child belongs to its parent. Its entry may have a module and a shadow root for
-presentation, but `package check` refuses one that declares state, asks, work, history,
+presentation, but `package check` refuses one that declares state, items, work, history,
 data, visual parts, or a thread seat or surface of its own; the parent's controller
 records and presents
 it. Removing the child doesn't withdraw the parent's actions, so a parent selection
@@ -77,10 +77,11 @@ agent's report. A widget with such a verb also declares a boolean `overruled` at
 which a version sets to keep its authored state over the report. A worker that reacts to
 the user follows their actions with `leaf page events PAGE --follow`.
 
-`x-awaits` makes each matching widget pose an ask. Its `value` names the verb whose
+`x-awaits` makes each matching widget put an item on the user's list, On me. Its
+`value` names the verb whose
 state is the answer: the recorded value, or a recordless verb's latest `detail`. An
 options group uses `"value": "choose"` for the selected ids; a playground's unrecorded
-`choose` gives its submitted settings. `x-awaits.answered` separately says when the ask
+`choose` gives its submitted settings. `x-awaits.answered` separately says when the item
 is complete: `{}` once the verb has a state, `when` for instances with matching
 attributes, and `empty` while the named container has no members. A page-owned queue can
 declare:
@@ -94,23 +95,24 @@ declare:
 }
 ```
 
-The ask is answered once the marked column is empty, and returning a card reopens it. A
+The item is answered once the marked column is empty, and returning a card reopens it. A
 draft declares `"value": "edit", "answered": {"edit": {}}`, and an options group answers
 on `choose` for single choice and on Done's `answer` for multiple choice. A partial
-choice can be open and an empty selection complete. If the ask's `when` stops holding,
-a complete ask stays answered and an incomplete one is withdrawn.
+choice can be open and an empty selection complete. If the widget's `when` stops
+holding, a complete item stays answered and an incomplete one is withdrawn.
 
-`x-awaits.retired` names the attribute an author sets to close an ask but keep it on the
-page, such as a decided question collapsed with its options; the ask's `when` must
-require it to be absent. A wrapper like `lf-ask`, declared with `x-ask-context`, gives
-a nested ask its heading and where the user lands, and must hold at least one widget
-that asks or was retired.
+`x-awaits.retired` names the attribute an author sets to close an item but keep its
+widget on the page, such as a decided question collapsed with its options; `when` must
+require it to be absent. `x-awaits.encloses`, which `lf-ask` declares, makes a wrapper
+give the items inside it its heading and where the user lands; it asks nothing itself
+while it holds one, and with a heading it must hold at least one widget that asks or
+was retired.
 
 The module reads and records this state through `widgetController(owner)`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
 words answers with `static answerWords` ([module-state.md, "Declared widget
-state"](module-state.md#declared-widget-state)), and reads asks with `readItems()`
-([module-reading.md, "Reading asks and obligation
+state"](module-state.md#declared-widget-state)), and reads items with `readItems()`
+([module-reading.md, "Reading items and obligation
 queues"](module-reading.md#reading-items-and-obligation-queues)).
 
 ## References between widgets

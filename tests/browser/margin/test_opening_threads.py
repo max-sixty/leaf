@@ -286,7 +286,7 @@ def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
     resized(page, 1600, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="ask"]').first
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="on-me"]').first
     expect(marker).not_to_have_attribute("aria-controls", re.compile(".+"))
     expect(marker).not_to_have_attribute("aria-expanded", re.compile(".+"))
     marker.hover()

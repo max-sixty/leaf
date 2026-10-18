@@ -98,7 +98,7 @@ has tried; settle that before building it.
 ### Agent and author experience
 
 - **Decide whether `page check` should still refuse an `lf-ask` without a leading
-  heading.** The heading is the ask's title in the On panel, the banner
+  heading.** The heading is the question's title in the On panel, the banner
   and the `m` announcement, which all show an empty title without one, and the
   `lf-ask` instructions already ask for it. Wait until the other narrow checks
   removed in October 2026 have been gone a while; if pages written since still
@@ -126,7 +126,8 @@ has tried; settle that before building it.
   [recovered Codex rerun](notes/agent-usability-evals.md#recovered-codex-comparison-2026-10-14)
   split six pairs into two Leaf wins, two HTML wins and two order-sensitive splits.
   Judging now separates making decisions from reading the final record; the
-  ask-authoring reference also distinguishes user requests from agent-proposed asks.
+  decision-authoring reference also distinguishes user requests from agent-proposed
+  decisions.
   [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
   using current code and an unfamiliar author; two samples per task do not settle
   which compositions work generally.
@@ -135,7 +136,7 @@ has tried; settle that before building it.
   card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
   options on 2026-10-12. Score the change with `evals/` before and after.
 - **Draw the agent's plan, and tell agents to write one.** `leaf task plan` records
-  the agent's breakdown as one outline whose steps are plain or name a to-do or ask
+  the agent's breakdown as one outline whose steps are plain or name a to-do or item
   (`plans.py`), served as `plan` in the browser state and `page state`. Nothing draws
   it yet. Draw it on the floating panel's On view: the goal, its steps in order with
   done ones ticked in place, the current one marked, "2 of 5" and its elapsed time,
@@ -477,11 +478,11 @@ on 2026-10-07.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Derive the waiting banner from the page's open ask.** Consider using the ask's
+- **Derive the waiting banner from the page's open item.** Consider using the item's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
-  several open asks and an informational page before choosing how the banner
+  several open items and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
-  ask alone does not explain the wait.
+  item alone does not explain the wait.
 
 ### Development velocity
 
@@ -566,7 +567,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
 - **Tell the agent when to ask before ending its own to-do.** The agent ends its to-dos
-  itself, and asks first, with a widget ask or a question in a thread, when the result
+  itself, and asks first, with a decision widget or a question in a thread, when the result
   needs the user's sign-off, as the user decided. The shipped
   instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.

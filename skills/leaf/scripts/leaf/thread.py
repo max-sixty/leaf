@@ -395,8 +395,8 @@ def post_reply(
     the user's message is answered and the work stays on the agent in one write.
 
     ``ephemeral`` posts progress at the same response address without answering it.
-    It remains content, and cannot carry an ask, a to-do, widgets, failure or relocation.
-    Progress on an update the agent owes says what it has in hand, so it also takes that
+    It remains content, and cannot carry an item, a to-do, widgets, failure or
+    relocation. Progress on an update the agent owes says what it has in hand, so it also takes that
     update in hand with its text as the line (`todos.start_reading`), which is why that
     text is one line: the update reads Working beside its thread and in the banner, and
     the user's message gets the agent's first words and its Working line from one
@@ -850,8 +850,8 @@ def fail_answer(
     - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; an open reply reservation refuses it until its
       turn gives the reply up;
-    - a `markup` answer takes a failed pickup: the user's answer to the ask stands in the
-      log, and answering again sends a new answer.
+    - a `markup` answer takes a failed pickup: the user's answer to the item stands in the log,
+      and answering again sends a new answer.
 
     An update with no answer outstanding writes nothing, except that a repeated reply
     receipt is found by its `attempt` and returned. `only_if_unclaimed` leaves an update

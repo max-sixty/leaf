@@ -849,10 +849,10 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
 
 def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
     """A scroll the card rides with its cluster leaves the page's DOM as it was: the
-    card, its target's trace, the marks, and the Ask's binding badges stand in the plane
-    the scroll carries them with, and each owner on the scroll path writes only what
-    changed. Chrome repaints the whole document for any write while a highlight holds a
-    range, which a page with a quoted comment always has."""
+    card, its target's trace, the marks, and the item's binding badges stand in the
+    plane the scroll carries them with, and each owner on the scroll path writes only
+    what changed. Chrome repaints the whole document for any write while a highlight
+    holds a range, which a page with a quoted comment always has."""
     page = open_page(browser, serve(ITEM_PAGE, events=[COMMENT_ON_ITEM, QUOTED_ON_ITEM]))
     resized(page, 1440, 600)
     marker = page.locator('[data-lf-margin-for="bracket"] .lf-margin-marker')
@@ -880,12 +880,12 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     held at the window's top, below the banner, in the window's plane, so the scroll
     writes nothing. Stood level with the element's clipped top instead, the card sat
     under the banner in the page's plane: the browser carried it with each scroll
-    frame and the next placement pulled it back, and Shift+a up to an Ask with a
+    frame and the next placement pulled it back, and Shift+a up to an item with a
     thread shook its card. Once the element's foot passes the window's top, the card
-    leaves with it. On an Ask's options, the binding badge the banner holds in stands
+    leaves with it. On an item's options, the binding badge the banner holds in stands
     in the window's plane too, for the same reason."""
     comment = {**COMMENT_ON_ITEM, "anchor": {"section": target}}
-    # Give the last Ask room to pass above the viewport before scroll reaches the
+    # Give the last item room to pass above the viewport before scroll reaches the
     # document's end; the fixture otherwise stops with #bracket still visible.
     source = ITEM_PAGE.replace(
         "</main>", '<div style="height: 800px" aria-hidden="true"></div></main>'

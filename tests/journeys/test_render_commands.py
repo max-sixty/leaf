@@ -225,9 +225,9 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
-    Each open Ask, a suggestion as much as an lf-ask, gets the window `m` brings it
+    Each open item, a suggestion as much as an lf-ask, gets the window `m` brings it
     into, as the user working the page meets it, including those `m` reaches past a
-    page widget move handed back to the user, which is a stop of its own and no Ask."""
+    page widget move handed back to the user, which is a stop of its own and no item."""
     tiles = "".join(
         f"<dl id='m{i}'><dt>metric {i}</dt><dd>{i}</dd></dl>" for i in range(4)
     )
@@ -254,8 +254,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             layout="sidebar",
         )
     )
-    # The first Ask is answered, and the host gave up on picking the answer up, which
-    # hands the move back: the walk's first stop is that widget, ahead of every Ask.
+    # The first item is answered, and the host gave up on picking the answer up, which
+    # hands the move back: the walk's first stop is that widget, ahead of every item.
     moved = append_command(
         serve.page_dir,
         {

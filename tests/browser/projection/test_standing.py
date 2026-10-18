@@ -1,5 +1,5 @@
-"""Where the user stands (the ring, Escape, travel, the Ask walk) and the presses, Asks,
-controls and drafts they keep across a revision."""
+"""Where the user stands (the ring, Escape, travel, the item walk) and the presses,
+items, controls and drafts they keep across a revision."""
 
 import json
 import re
@@ -56,7 +56,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     names the visible targets, and the chips are read off whichever document is current,
     so the window holds through the revision and the hints land on the new page — minus
     the hint for a link the revision took away, which is the honest reading. The user's
-    standing is the document's: the Ask's actions remain live over a focused pick mark,
+    standing is the document's: the item's actions remain live over a focused pick mark,
     and a revision that leaves that widget's markup alone leaves the mark itself alone,
     so the digit still picks and the bottom status acknowledges it. One revision arrives
     as a draft and the next as a stamped version, since both bring the page to the user
@@ -106,16 +106,16 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
 
 
 def test_a_revision_that_restates_an_item_leaves_the_user_standing_in_it(browser, serve):
-    """The Ask a user is working survives the revision that rewrites it.
+    """The item a user is working survives the revision that rewrites it.
 
     A patch keeps every node the revision did not rewrite, so an untouched control is
     still holding the focus the user put on it. The question they are answering is the
     one thing a revision is most likely to rewrite, and rewriting it replaced every node
     inside — which used to drop the user onto `body` in the same breath as "Updated
-    to …". An Ask is named by a declared id rather than by a control's shape, so the
-    standing is a lookup: the user is put back on the Ask, or on the control that
+    to …". An item is named by a declared id rather than by a control's shape, so the
+    standing is a lookup: the user is put back on the item, or on the control that
     answers it, according to which of the two they held. A revision that withdraws the
-    Ask has nowhere to put them back, which the tests below cover along with the user
+    item has nowhere to put them back, which the tests below cover along with the user
     who was holding one of its controls.
     """
     version_url = serve(LIVE_KEYS_V1)
@@ -131,7 +131,7 @@ def test_a_revision_that_restates_an_item_leaves_the_user_standing_in_it(browser
         "Updated to Draft after v1"
     )
     expect(decision).to_be_focused()
-    # Standing, not a bare tab stop: the Ask's own action routes are live over the user
+    # Standing, not a bare tab stop: the item's own action routes are live over the user
     # again, and the third option the revision brought is among them.
     assert active_digit_bindings(page) == "1–4"
     page.keyboard.press("3")
@@ -139,16 +139,16 @@ def test_a_revision_that_restates_an_item_leaves_the_user_standing_in_it(browser
 
 
 def test_a_restated_item_returns_a_user_to_the_question_not_to_a_control(browser, serve):
-    """A user inside the Ask comes back to its opening, never to a guessed control.
+    """A user inside the item comes back to its opening, never to a guessed control.
 
-    Which control they were holding is not a thing the Ask can answer: the controls are
-    the widget's, most carry no id, and the first one that answers the Ask is the walk's
-    landing rule rather than a restore. Handing that back is the failure version.js names
-    — a user holding the second option would be given the first, and their next press
-    would choose it. The Ask's opening holds a lent tab stop rather than a decision, so
-    the digits still reach the option they meant and Space decides nothing. Where the
-    revision withdraws the question there is nothing to come back to, and `body` is the
-    honest answer.
+    Which control they were holding is not a thing the item can answer: the controls are
+    the widget's, most carry no id, and the first one that answers the item is the
+    walk's landing rule rather than a restore. Handing that back is the failure
+    version.js names — a user holding the second option would be given the first, and
+    their next press would choose it. The item's opening holds a lent tab stop rather
+    than a decision, so the digits still reach the option they meant and Space decides
+    nothing. Where the revision withdraws the question there is nothing to come back to,
+    and `body` is the honest answer.
     """
     version_url = serve(LIVE_KEYS_V1)
     page = open_page(browser, live_url(version_url))
@@ -202,7 +202,7 @@ def test_a_revision_gives_back_the_apparatus_the_user_was_working_with(browser, 
     assert page.locator("#lk-note").evaluate("el => el.selectionStart") == 4
     assert page.locator("#lk-why").evaluate("el => el.open") is True
     assert page.locator("#lk-evidence").evaluate("el => el.scrollTop") == 40
-    # Standing in the Ask is where the user already is, so the Ask restore has nothing
+    # Standing in the item is where the user already is, so the item restore has nothing
     # to do and does not pull them out of the field onto the question.
     assert page.locator("#lk-note").evaluate("el => el === document.activeElement")
 
@@ -472,7 +472,7 @@ def test_a_user_working_an_item_keeps_it_across_a_replacing_document(browser, se
 
     A revision whose executable identity differs cannot be patched in, so the user
     arrives in a new document where nothing they held exists. They were told the same
-    "Updated to …" either way and cannot tell the two installs apart, so the Ask rides
+    "Updated to …" either way and cannot tell the two installs apart, so the item rides
     across in the one-use handoff beside their reading position.
     """
     module = """<script type="module">
@@ -505,18 +505,18 @@ def test_the_item_walk_keeps_its_place_when_a_version_lands(browser, serve):
     The passage they were reading did; where the walk had got to was a variable in a
     module the navigation threw away, so it did not, and the user was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
-    the third of four Asks when v2 landed, they pressed `m` and were handed the third
-    again — after looking slightly back above that Ask, the block at the top of the
+    the third of four items when v2 landed, they pressed `m` and were handed the third
+    again — after looking slightly back above that item, the block at the top of the
     window is somewhere they had already walked past.
 
     So the walk's place travels in the same record as the passage, and the press after
     the version lands is the press they would have made before it. The ring is not owed a
     record of its own: it is painted from the focus, and the activation hands the user
-    back the control they were standing on, so the Ask they were in wears it still."""
+    back the control they were standing on, so the item they were in wears it still."""
     url = serve(ITEMS_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
-    # Short enough that an Ask in the middle of the window has page text above it,
+    # Short enough that an item in the middle of the window has page text above it,
     # which is the whole of what makes the coarse reading the wrong one.
     resized(page, 900, 400)
 
@@ -525,10 +525,10 @@ def test_the_item_walk_keeps_its_place_when_a_version_lands(browser, serve):
         expect(page.locator(f"#{item}")).to_have_attribute("data-lf-item", "1")
     scroll_settled(page)
 
-    # Ask travel now starts at the Ask's opening, which normally makes the coarse
+    # Item travel now starts at the item's opening, which normally makes the coarse
     # reading agree with the saved landing. Look back just far enough to make the two
     # meanings diverge: the scroll position says the preceding change, while the walk's
-    # exact record still says the third Ask.
+    # exact record still says the third item.
     page.evaluate("""() => {
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
         document.scrollingElement.scrollBy({top: earlier.bottom - 220, behavior: 'instant'});
@@ -539,9 +539,9 @@ def test_the_item_walk_keeps_its_place_when_a_version_lands(browser, serve):
 
     expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-item", "1")
     expect(page.locator("[data-lf-item]")).to_have_count(1)
-    # The condition the restore is for, stated rather than assumed: an earlier Ask's own
-    # prose is on screen above the one the user was standing on, so a walk reading the
-    # page alone starts behind them and steps forward onto the Ask they just left.
+    # The condition the restore is for, stated rather than assumed: an earlier item's
+    # own prose is on screen above the one the user was standing on, so a walk reading
+    # the page alone starts behind them and steps forward onto the item they just left.
     position = page.evaluate("""() => {
             const decision = document.getElementById('t-baffles-decision').getBoundingClientRect();
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
@@ -679,8 +679,8 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
 
 
 def test_escape_lets_go_of_the_item_the_user_is_standing_on(browser, serve):
-    """Escape closes the command reference, then lets go of the Ask and focuses body.
-    The next Ask walk reads the visible page place, returning to the first Ask before
+    """Escape closes the command reference, then lets go of the item and focuses body.
+    The next item walk reads the visible page place, returning to the first item before
     advancing. Letting go also works on a page with no scroll range and after a Page
     Map action leaves focus in a margin cluster."""
     url = serve(ITEMS_PAGE)
@@ -714,7 +714,7 @@ def test_escape_lets_go_of_the_item_the_user_is_standing_on(browser, serve):
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("let go")
 
     # The directional walk reads the user's current visible place after Escape.
-    # Reenter the first Ask from there, then move to the next one.
+    # Reenter the first item from there, then move to the next one.
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
     # The suggestion's thread comes up beside it, hung from its own entry, which the
@@ -826,7 +826,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
 
 
 def test_the_item_walk_follows_registry_declarations(browser, serve):
-    """Removing an open-request declaration removes that widget from every Ask
+    """Removing an open-request declaration removes that widget from every item
     surface without changing the runtime, banner, or keyboard walk."""
     url = serve(ITEMS_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())

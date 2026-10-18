@@ -890,7 +890,7 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
 def test_a_table_keeps_its_columns_natural_width_wherever_it_stands(browser, serve):
     """A table's rows are as wide as its columns hold wherever it stands: bare in the
     column, in a panel, in a figure granted the page's room, granted the room itself,
-    which is a limit rather than a size, and in an Ask, even an Ask inside the granted
+    which is a limit rather than a size, and in an item, even an item inside the granted
     figure. Spreading the columns over a frame worked in Chrome alone, since Firefox
     never widens a table's grid to its caption. One granted room stands where the prose
     starts. A table too wide for the panel still scrolls inside it.

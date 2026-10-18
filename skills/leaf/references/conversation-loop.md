@@ -98,8 +98,8 @@ leaf status <page> waiting "<what you want back>"
 ```
 
 Name the answer or decision, not the fact that you are waiting. On an informational
-page with no ask, leave it empty; the banner then invites the user to comment. Tell
-the user what they can do on the page, and hand over as your harness contract says.
+page with nothing on On me, leave it empty; the banner then invites the user to comment.
+Tell the user what they can do on the page, and hand over as your harness contract says.
 From the first handoff on, every turn's final response includes the exact page URL;
 progress messages don't repeat it.
 An export hands over its file URL, and a harness that already shows the page uses
@@ -177,17 +177,17 @@ Information they may comment on but need not decide is not an item.
 
 On me also lists any update of the user's that failed to send. Your own list shows as
 **On <your name>**. The user presses `m` to step through On me in page order. Each
-press lands where the item is answered; on a widget ask, its numbered actions
+press lands where the item is answered; on a widget's item, its numbered actions
 (`1`–`9`) answer it there.
 
 | Request                                                                         | Register it                                                                                                     | What answers it                                                                       |
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence              | The widget's declared answer; a multiple-choice ask also needs the user's Done        |
+| A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence              | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
 | A conversational answer                                                         | An `lf-ask` holding the question, with no widget inside, in a reply's or new thread's markup (`threads.md`)     | The user's next message there or a settling reaction                                  |
 | Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-decisions.md`, "Sign-off")                                        | That version's banner approval                                                        |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
-Ask ids are `widget:<widget-id>` for a widget, `lf-ask` included, and
+Item ids are `widget:<widget-id>` for a widget, `lf-ask` included, and
 `approval:v<version>` for a version's sign-off. A to-do on the user keeps the id
 `task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
 The user's next message in a thread answers every question asked before it there.
@@ -198,14 +198,14 @@ Read the lists before a handoff, before waiting for the user, and after taking i
 answer:
 
 ```bash
-leaf page state <page> | jq '{source, asks, todos, queues}'
+leaf page state <page> | jq '{source, items, todos, queues}'
 ```
 
-`queues.on_user` is On me: open asks, to-dos on the user, and updates to resend.
+`queues.on_user` is On me: open items, to-dos on the user, and updates to resend.
 `queues.on_agent` is your list: answers you owe, updates you are working on, and your
-to-dos. Read them as given rather than rebuilding them from events. An ask holds its
-`prompt`, its `answer` once given, and its `status`; a widget ask's answer comes from
-the widget's state. Read a thread or a widget with `leaf page state <page> <id>`,
+to-dos. Read them as given rather than rebuilding them from events. An item holds its
+`prompt`, its `answer` once given, and its `status`; a widget's item takes its answer
+from the widget's state. Read a thread or a widget with `leaf page state <page> <id>`,
 using a message id or a widget id; the widget's markup is in the HTML file named by
 `active.file`. Unsent drafts and tabs on older versions are not in this reading.
 Check `source` for an invalid or missing draft before taking an empty list as a
@@ -216,7 +216,7 @@ without asking again. Ask about a paused project only when resuming or dropping 
 needs the user's decision. Put a blocked action on the user only when they can
 unblock it, and leave questions about another session's work to that session.
 
-When the user answers in chat or elsewhere, use the answer and retire the page's ask
+When the user answers in chat or elsewhere, use the answer and retire the page's item
 in a revision (`authoring-revisions.md`), or end their to-do with `leaf task end`. End
 a question in a thread answered elsewhere `done`, or `dropped` when it no longer
 applies:

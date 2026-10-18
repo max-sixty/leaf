@@ -482,7 +482,7 @@ export function createNavigation({
 
   // The queue walk's way onto one thread it names by id: the t/T walk's own arrival, at
   // the thread's list card. A narrowing that hides the card is cleared first, as it is
-  // for an ask seated in a thread (items/view.js, `materializeItem`), since the queue
+  // for an item seated in a thread (items/view.js, `materializeItem`), since the queue
   // walk goes to what is on the user whatever the list shows.
   async function arriveAtThreadById(id) {
     const intent = retainUserIntent();

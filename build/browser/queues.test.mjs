@@ -123,7 +123,7 @@ test("words sent to a question leave it on the user until the log answers", () =
   assert.ok(!published(app).on_agent.some((item) => item.id === "pending:a4"));
 });
 
-test("a pending widget gesture changes no ask membership", () => {
+test("a pending widget gesture changes no item membership", () => {
   const { app } = adopted("queues on both sides");
   const before = published(app);
   app.enqueue(
@@ -168,7 +168,7 @@ test("a Done this tab sends ends its to-do at once, and its undo puts it back", 
   assert.ok(!published(later).done.some((item) => item.id === todo.id));
 });
 
-test("Done lists completed asks and to-dos through their own records", () => {
+test("Done lists completed items and to-dos through their own records", () => {
   const { app } = adopted("done");
   const { done } = published(app);
   const answered = done.find((item) => item.kind === "widget");
@@ -184,7 +184,7 @@ test("an item lands in the Done of the list it left, newest first", () => {
   const { app } = adopted("done");
   const { done } = published(app);
   const owners = Object.fromEntries(done.map((item) => [item.id, item.owner]));
-  // The answered ask leaves On me; the ended to-do and the reply the agent sent leave
+  // The answered item leaves On me; the ended to-do and the reply the agent sent leave
   // On <agent>.
   assert.deepEqual(owners, { "widget:ship": "user", e4: "agent", e2: "agent" });
   // The reply keeps the key of the answer On <agent> listed for the comment it answers,

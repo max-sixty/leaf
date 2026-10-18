@@ -568,8 +568,8 @@ ITEM_MARKUP = (
 
 @pytest.mark.parametrize("destination", ["message", "item", "shown-ask"])
 def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination):
-    """A direct message visit and the Ask walk can reach a held reply's contents.
-    Walking from outside the thread to an Ask it already shows ("shown-ask") is an
+    """A direct message visit and the On me walk can reach a held reply's contents.
+    Walking from outside the thread to an item it already shows ("shown-ask") is an
     arrival at the thread too, so the reply held after it shows."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
@@ -624,7 +624,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         )
         expect(message).to_be_focused()
     else:
-        # The Ask walk, not the drawer: opening the drawer covers the card, and a held
+        # The On me walk, not the drawer: opening the drawer covers the card, and a held
         # reply nobody can see shows anyway. The walk starts with the user standing
         # nowhere, so it arrives at the thread; from its reply box it would be a move
         # within the thread.
@@ -860,7 +860,7 @@ def test_a_dialog_handing_the_user_back_to_a_thread_is_no_arrival(browser, serve
 
 
 def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serve):
-    """A filtered Ask arrival cannot open its old target over a later row selection."""
+    """A filtered item arrival cannot open its old target over a later row selection."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -876,7 +876,7 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     hold_visible_thread_presentation(page, target_id)
     page.locator(".lf-threads").focus()
     # The thread the list shows asks the user a question too, so focus on the list is
-    # standing on that item of their queue; the hidden Ask stands before it on the page.
+    # standing on that item of their queue; the hidden item stands before it on the page.
     page.keyboard.press("Shift+m")
     page.wait_for_function("window.visibleThreadPresentationHeld === true")
     later = page.locator(".lf-thread:not([hidden])").first

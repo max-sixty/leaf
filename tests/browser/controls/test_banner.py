@@ -1026,7 +1026,7 @@ def test_the_band_stays_over_the_covering_leaves_drawer(browser, serve, other_le
     the Pages drawer, which always covers the page, is no exception: the band states the
     keys the drawer answers and stays over it and its scrim, its More control live. The
     covering drawer used to stand over the band, hiding the hints it painted for the drawer
-    ("open it in a tab", "close pages") under the drawer and the scrim, where the Asks
+    ("open it in a tab", "close pages") under the drawer and the scrim, where the items
     drawer, standing beside the page, left them in view."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)

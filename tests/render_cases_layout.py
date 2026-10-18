@@ -635,7 +635,7 @@ def edge_world(request, edge):
         request.getfixturevalue(name)
 
 
-# One Ask, so a page offers the On panel.
+# One item, so a page offers the On panel.
 ONE_ITEM = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -648,7 +648,7 @@ ONE_ITEM = (
 def with_one_item(html):
     """The page with `ONE_ITEM` at the foot of its main, where it moves nothing above it."""
     assert html.count("</main>") == 1, (
-        "the fixture has no single main to add the Ask to"
+        "the fixture has no single main to add the item to"
     )
     return html.replace("</main>", ONE_ITEM + "</main>")
 

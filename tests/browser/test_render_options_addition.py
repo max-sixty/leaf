@@ -201,7 +201,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # Standing on the Ask shows its discussion beside it, so c enters the reply
+    # Standing on the item shows its discussion beside it, so c enters the reply
     # instead of adding an answer or opening another comment box.
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
@@ -435,7 +435,7 @@ def test_an_arrival_cannot_hide_an_item_draft(browser, serve):
 
 
 def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
-    """The add field keeps room at its end for the Add press and the Ask's key, so on a
+    """The add field keeps room at its end for the Add press and the item's key, so on a
     phone the words before that room are few: alert-review's card group at 360px cut
     "Another option — add to select" to "Another option — ad…", which lost the verb.
     The hint says the same in words that fit, and the room it keeps is measured here

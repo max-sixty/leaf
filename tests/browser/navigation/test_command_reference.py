@@ -660,7 +660,7 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
 
 
 def test_the_reference_runs_the_exact_numbered_item_action(browser, serve):
-    """Each Ask digit is a distinct command when invoked without a keydown."""
+    """Each item digit is a distinct command when invoked without a keydown."""
     page = open_page(browser, serve(ITEMS_PAGE))
 
     page.keyboard.press("m")
@@ -675,11 +675,6 @@ def test_the_reference_runs_the_exact_numbered_item_action(browser, serve):
     )
     expect(first).to_have_text("Keep the store")
     expect(second).to_have_text("Signed tokens")
-    expect(
-        page.locator(
-            '.lf-command-reference-command[data-lf-command="ask.activate-nth"]'
-        )
-    ).to_have_count(0)
 
     second.click()
     expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
@@ -710,7 +705,6 @@ def test_away_from_an_item_the_reference_names_widget_owned_options(browser, ser
     expect(second.locator("kbd")).to_have_text("2")
     expect(first).to_contain_text("Keep the store")
     expect(second).to_contain_text("Signed tokens")
-    expect(reference.locator('tr[data-lf-command="ask.activate-nth"]')).to_have_count(0)
 
 
 def test_the_reference_reads_the_same_way_twice(browser, serve):

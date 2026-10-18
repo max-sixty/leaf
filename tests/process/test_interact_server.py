@@ -4613,7 +4613,7 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
 ):
     """A Leaf that renamed an x- key reads only the new name, so a page an older Leaf
     vendored, at the same protocol, would lose what it declares under the old one: a
-    framed ask its prompt and landing region. The page is refused until a re-vendor,
+    framed item its prompt and landing region. The page is refused until a re-vendor,
     which the refusal names. Afterwards the revision saved since serves with the
     prompt, while the one saved before neither opens nor takes input, as a revision
     saved at another protocol does."""

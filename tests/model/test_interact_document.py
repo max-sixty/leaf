@@ -2092,7 +2092,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
     """A page widget names itself, and a message, a widget frozen into one, or any
     other event a thread holds names that thread, for `page state`, `status --on`
     and the thread commands alike. Narrowed to a widget, the reading holds what
-    stands inside it: the Ask carries the pick on its choice."""
+    stands inside it: the item carries the pick on its choice."""
     live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
@@ -2346,7 +2346,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     }
     assert state["data"] == {"file": "data.json", "dir": "data", "errors": []}
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
-    # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The ask
+    # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The item
     # names the region the user is sent to and the group that answers it.
     assert items_on_user(state) == [
         {
@@ -2878,7 +2878,7 @@ def test_a_value_an_earlier_leaf_wrote_reads_as_that_sources_error(page_dir):
 
 
 def test_page_state_names_the_item_region_but_keeps_state_on_its_request(page_dir):
-    """An ask retains its source identity under an authored context wrapper.
+    """An item retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
     opts = """<lf-options id="g1" choose>
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
@@ -3160,7 +3160,7 @@ def test_page_state_points_to_a_users_suggestion_record(page_dir):
 
 
 def test_page_state_holds_a_thread_item_open_until_its_verb(page_dir):
-    """A widget in thread markup presents an Ask like one on the page; `until` holds a
+    """A widget in thread markup presents an item like one on the page; `until` holds a
     `multiple` group open across picks, and only the named verb closes it."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
@@ -3822,11 +3822,11 @@ def test_a_cold_source_check_reads_no_revision_history(page_dir, monkeypatch):
 def test_a_cold_page_state_reads_only_the_element_index_of_history(
     page_dir, monkeypatch
 ):
-    """A new process scans every revision for the ids, asks and data bindings it
+    """A new process scans every revision for the ids, items and data bindings it
     declared, and building each one's authoring indexes, which those inventory
     scans never read, was most of what a command on a long page cost. A document
     builds its element index as it is read and the rest on first use, so here only
-    the candidate and the active revision are read whole. The withdrawn ask is the
+    the candidate and the active revision are read whole. The withdrawn item is the
     control: it is known only from the revision that asked."""
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     for edit in range(4):
@@ -4321,7 +4321,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     ]
     assert current["detail"] == {"value": ["o-shim"]}
     source.write_text(PAGE)
-    assert stamp(page_dir, "retire answered ask").exit_code == 0
+    assert stamp(page_dir, "retire answered item").exit_code == 0
     assert picked in events_model.read_events(page_dir)
     assert not any(
         event.get("restated") for event in events_model.read_events(page_dir)
@@ -4329,7 +4329,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 
 
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
-    """An action admitted by an earlier Leaf stays in force, and keeps its ask
+    """An action admitted by an earlier Leaf stays in force, and keeps its item
     answered, under a Leaf that records the same operation's definition with other
     fields. Before #2329 the definition carried `update`, the verb flag now
     named `text`; matching every recorded field dropped each decision on a page

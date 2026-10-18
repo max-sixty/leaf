@@ -4,7 +4,7 @@ chose it (`lf-chrome`, prepaint.js), in place of the banner and the bottom bar.
 Each test is one journey a user takes through the panel, which the suite's pages
 choose here, since they otherwise read with the bars (`watched`):
 writing a page comment and replying in the same field, settling the thread, finding
-threads and taking in news, answering asks, travelling between versions, and
+threads and taking in news, answering items, travelling between versions, and
 folding the panel to the leaf in the window's corner and back."""
 
 import base64
@@ -1838,7 +1838,7 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     """A walk's position is said where the panel says whatever passes, not against the
     window: in the empty field's place, as a notice is. The room the page shows (geometry.js, `shownWindow`) runs from the window's
     head to the panel's row whether or not a walk is under way. The position lasts
-    while the ask it reached is the block being read, which lasts while the user
+    while the item it reached is the block being read, which lasts while the user
     writes a comment, so it goes unsaid once the caret is in the field: on the line
     over the field, and in the leaf's peek, which would lie on the thread's last words
     all that time, once the comment's thread opens over the row."""
@@ -1863,7 +1863,7 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     expect(page.locator(".lf-bottom-status")).to_be_hidden()
     assert page.evaluate(room) == before
 
-    # Once the landing's scroll has stopped, the ask is the block being read.
+    # Once the landing's scroll has stopped, the item is the block being read.
     page.wait_for_function(
         """() => new Promise((done) => {
           const y = scrollY;
@@ -1983,9 +1983,9 @@ def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
 
 
 def test_items_are_answered_where_they_are_read_on_me(browser, serve):
-    """On me lists what waits on the user, and each ask takes its answer there, by the
+    """On me lists what waits on the user, and each item takes its answer there, by the
     widget's own choice: the event is the widget's action. The answered card keeps its
-    place and height, so the next ask does not move under the pointer, and
+    place and height, so the next item does not move under the pointer, and
     Undo takes the answer back."""
     page = floating(browser, serve(ITEM_PAGE))
     chip = page.locator(".lf-fp-on-user")
@@ -2228,7 +2228,7 @@ def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
 
 
 def test_the_approval_is_arrived_at_in_sight_below_many_items(browser, serve):
-    """With more asks than On me shows at once, arriving at the approval
+    """With more items than On me shows at once, arriving at the approval
     scrolls its card into the view, so the Approve the user stands on is in sight."""
     items = "".join(
         f'<lf-ask id="ask-{n}"><h3>Question {n}?</h3><lf-options id="o-{n}" choose>'

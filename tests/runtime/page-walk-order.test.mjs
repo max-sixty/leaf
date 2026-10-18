@@ -100,7 +100,7 @@ test("entering a region reaches its first or last stop before leaving it", () =>
   const origin = { place: widget, kind: "enter" };
   assert.equal(stepFrom(items, origin, 1, at).row, innerA);
   assert.equal(stepFrom(items, origin, -1, at).row, innerB);
-  // A visible ask is a point to arrive at, even when it contains another ask.
+  // A visible item is a point to arrive at, even when it contains another item.
   assert.equal(
     stepFrom(
       [first, widget, innerA, innerB, last],

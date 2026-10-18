@@ -782,7 +782,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
 
-    # Focus inside the first panel Ask paints that group's predictable digits, once a
+    # Focus inside the first panel item paints that group's predictable digits, once a
     # keyboard gesture has asked for a paint — opening Threads by key is that gesture here.
     # The sequence is a nearer keyboard layer and takes the digits back while it stands, so
     # each face is read from the one moment its own layer renders it rather than from a

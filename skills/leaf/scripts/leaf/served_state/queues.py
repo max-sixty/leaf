@@ -1,29 +1,29 @@
 """The two lists, On me (`on_user`) and On <agent> (`on_agent`): what is on the user,
 what is on the agent, and what each has finished (`done`).
 
-Asks, to-dos and response workflows are separate readings; this is the one selection
-that adds them up. An ask is never a to-do: its source owns its answer, and only a
+Items, to-dos and response workflows are separate readings; this is the one selection
+that adds them up. An item is never a to-do: its source owns its answer, and only a
 to-do on the user, which the agent opened, ends at their Done. A browser view serves
 these lists and `page state` prints them, so the banner's counts, the On panel
 and an agent picking the page up read one selection. The browser places its own
 unresolved sends against the served lists (`build/browser/application.ts`,
 `localQueues`); it never selects them again.
 
-On me holds asks, to-dos on the user and resends; On <agent> holds answers the agent
+On me holds items, to-dos on the user and resends; On <agent> holds answers the agent
 owes, work in hand on an update, and the agent's to-dos. An item names its kind, its
 subject, the list it stands on (`owner`), the thread it stands in, and whether the
 agent has it in hand now (`live`): a to-do a start holds, or an update the agent is at
-work on whose work has not gone quiet or stopped. An ask item keeps its canonical record, and a to-do item
-the fields a row draws.
+work on whose work has not gone quiet or stopped. A widget or approval item keeps its
+canonical record, and a to-do item the fields a row draws.
 
 An item that leaves a list lands in that list's Done, which its `owner` names: On me's
-holds the asks the user answered, here or elsewhere, or the agent withdrew, and the
+holds the items the user answered, here or elsewhere, or the agent withdrew, and the
 to-dos the user ended; On <agent>'s holds the replies the agent sent, each the answer
 it listed for the input the reply responds to, and the to-dos it ended. Each done item adds how it
-ended (`state`: `done`, or `dropped` for a withdrawn ask, or a to-do's outcome), when
-(`ended`), and the outcome's detail, which for an ask is its agent end's. Done is
+ended (`state`: `done`, or `dropped` for a withdrawn item, or a to-do's outcome), when
+(`ended`), and the outcome's detail, which for an item is its agent end's. Done is
 served newest first, and an item without a time goes last. An answer the agent owes
-in markup settles when a version writes the action in, which is the ask's Done, not a
+in markup settles when a version writes the action in, which is the item's Done, not a
 reply, so it lands in none.
 """
 
@@ -74,11 +74,11 @@ def queues(
     todos: list[dict],
     items: dict,
 ) -> dict:
-    """Select asks, to-dos, resends and response obligations once.
+    """Select items, to-dos, resends and response obligations once.
 
     `threads` carry their attention, `workflows` are served strongest first, `todos`
-    are every to-do on either side, open and ended, and `asks` is an
-    `asks.collection`. An ask's canonical next actor selects its list;
+    are every to-do on either side, open and ended, and `items` is an
+    `items.collection`. An item's canonical next actor selects its list;
     to-dos and resends keep their own completion routes. An update handed back in a
     thread is that thread's resend, and one handed back outside any thread is its
     own."""

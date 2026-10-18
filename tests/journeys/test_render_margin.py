@@ -92,7 +92,7 @@ SUGGESTION_PINS = """(ids) => ids.map((id) => {
 })"""
 
 
-# An Ask in the middle of a long page, so its margin host can be scrolled out from under
+# An item in the middle of a long page, so its margin host can be scrolled out from under
 # a parked pointer and back.
 ITEM_IN_LONG_PAGE = LONG_PAGE.replace(
     "<p id='p20'>",
@@ -499,7 +499,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     margins_laid_out(page)
     parked = host.bounding_box()
     assert not parked["y"] < pointer["y"] < parked["y"] + parked["height"], (
-        "the pointer starts inside the Ask margin host"
+        "the pointer starts inside the item margin host"
     )
     page.mouse.move(pointer["x"], pointer["y"])
 

@@ -40,13 +40,13 @@
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, then its asks' state on a reserved line: an open mark
- * while any ask the panel holds is unanswered, and once every one is answered a check, with
- * the answer's own words where the panel holds one ask. So a queue shows each item's state
- * and how far the user has worked through it, and an undo that reopens an ask puts the
+ * the panel's `summary` under the name, then its items' state on a reserved line: an open mark
+ * while any item the panel holds is unanswered, and once every one is answered a check, with
+ * the answer's own words where the panel holds one item. So a queue shows each item's state
+ * and how far the user has worked through it, and an undo that reopens an item puts the
  * open mark back. Which asks a panel holds is `itemsIn` (items/place.js), read from the
- * admitted ask inventory, so a tally of the queue counts the same asks. A row whose panel
- * authors an ask keeps the mark's room either way, so an answer moves no row. While the
+ * admitted item inventory, so a tally of the queue counts the same items. A row whose panel
+ * authors an item keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
@@ -208,7 +208,7 @@ customElements.define(
           relabel(summary, panel.getAttribute("summary"), { says: true });
           btn.append(summary);
         }
-        // The row's ask state (`#marks`) keeps a line where the panel authors an ask.
+        // The row's item state (`#marks`) keeps a line where the panel authors an item.
         if (side && elementsDeclaring(panel, "x-awaits").length) {
           const answer = document.createElement("span");
           answer.className = "lf-tab-answer";
@@ -368,7 +368,7 @@ customElements.define(
     }
 
     // What each panel holds, said with its summary as the tab's description: the
-    // version diff's marked passages, and in a side list its asks' state, with the answer
+    // version diff's marked passages, and in a side list its items' state, with the answer
     // once they are all answered.
     #marks() {
       for (const [panel, btn] of this.#buttons) {
@@ -414,7 +414,7 @@ customElements.define(
       }
     }
 
-    // A side list's answers follow the page's ask reading.
+    // A side list's answers follow the page's item reading.
     #listenForAsks() {
       if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
       this.#stopAsks = watchProjection(this, () => this.#marks());

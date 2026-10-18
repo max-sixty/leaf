@@ -749,7 +749,7 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
 
 def test_item_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser, serve):
-    """Ask repaint keeps the list's reading; explicit arrival reveals its row."""
+    """Item repaint keeps the list's reading; explicit arrival reveals its row."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'

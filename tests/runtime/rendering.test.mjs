@@ -337,10 +337,10 @@ test("work waiting on settling waits for an update after it and the preparations
   const preparing = holdRendering();
   await update();
   await update();
-  assert.equal(settled, 0, "a preparation begun since the ask holds it");
+  assert.equal(settled, 0, "a preparation begun since the item holds it");
   preparing();
   await update();
-  assert.equal(settled, 1, "a preparation waiting before the ask is not the asker's");
+  assert.equal(settled, 1, "a preparation waiting before the item is not the asker's");
   unrelated();
   await update();
 });

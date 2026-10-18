@@ -530,7 +530,7 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
 
 def test_frozen_item_attention_comes_from_its_widget_without_a_prose_task():
     """Frozen widgets have no independent thread seat: their user and unanswered
-    lists agree, and later prose or reactions cannot retire the widget Ask."""
+    lists agree, and later prose or reactions cannot retire the widget item."""
     events = [
         {
             "kind": "comment",

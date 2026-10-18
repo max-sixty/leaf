@@ -142,7 +142,7 @@ PAGE_MAP_EVENTS = [
 
 
 def test_the_standing_item_marks_its_selected_margin_reading(browser, serve):
-    """The page and margin projections identify the same selected Ask."""
+    """The page and margin projections identify the same selected item."""
     page = open_page(browser, serve(ITEM_PAGE))
     resized(page, 1440, 900)
 
@@ -668,9 +668,9 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
 
 
 def test_the_chrome_names_an_item_by_its_question(browser, serve):
-    """An Ask is named by its heading, not its heading run into its options and their
+    """An item is named by its heading, not its heading run into its options and their
     chips: the On panel row, and the Page Map group for it, whose one row says why the
-    Ask is there rather than naming it a second time."""
+    item is there rather than naming it a second time."""
     page = open_page(browser, serve(ITEM_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -1093,7 +1093,7 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     ).to_be_visible()
     expect(page.locator(".lf-page-map-toggle")).to_be_hidden()
     expect(dialog).to_be_visible()
-    # The Ask stands once, under the row saying where its answer has got to.
+    # The item stands once, under the row saying where its answer has got to.
     expect(dialog.locator(".lf-page-map-action")).to_have_count(4)
     expect(
         dialog.locator(".lf-page-map-action").filter(

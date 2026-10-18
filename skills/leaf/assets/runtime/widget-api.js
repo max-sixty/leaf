@@ -75,7 +75,7 @@ export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
 export { answeredInWords, readItems } from "./items/model.js";
-// The asks a region of the page holds, by the rule every count and walk of them reads.
+// The items a region of the page holds, by the rule every count and walk of them reads.
 export { itemsIn } from "./items/place.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { answerWords } from "./items/answer.js";

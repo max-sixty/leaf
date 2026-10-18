@@ -1,5 +1,5 @@
-"""The Ask walk with `m`: where it lands, how it reveals an Ask in tabs and scrollers,
-and an Ask's digits and thread."""
+"""The item walk with `m`: where it lands, how it reveals an item in tabs and scrollers,
+and an item's digits and thread."""
 
 import re
 
@@ -47,7 +47,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_an_item_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
     browser, serve, reduced, nested_source
 ):
-    """A disclosure extends one reading; a mutually exclusive tab opens at its Ask.
+    """A disclosure extends one reading; a mutually exclusive tab opens at its lf-ask.
 
     Capture frames rather than just scroll events: a new panel must already show the
     question in its first painted frame, not appear elsewhere and glide afterwards.
@@ -126,7 +126,7 @@ def test_an_item_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
           return {frames: itemFrames, cues: itemTabCues};
         }""")
 
-    # The Ask's source may switch an inner view even when its outer wrapper stays.
+    # The item's source may switch an inner view even when its outer wrapper stays.
     # A disclosure, by contrast, extends the current view and preserves its glide.
     if nested_source:
         expect(
@@ -259,7 +259,7 @@ def test_an_item_walk_reveals_the_owning_regions_horizontal_destination(browser,
 def test_an_item_walk_reveals_its_scrollport_before_aligning_outside_context(
     browser, serve, clipped
 ):
-    """Context above a bounded inspection never leaves its Ask clipped inside it."""
+    """Context above a bounded inspection never leaves its item clipped inside it."""
     source = leaf_page(
         "Ask with outside context",
         '<h1 id="context">Review the proposed edit</h1>'
@@ -291,11 +291,11 @@ def test_an_item_walk_reveals_its_scrollport_before_aligning_outside_context(
 
 
 def test_keys_answer_an_item_from_its_marks(browser, serve):
-    """The Ask's digits stay live while a mark adds only its control-local keys.
+    """The item's digits stay live while a mark adds only its control-local keys.
 
     One Tab enters the marks, where ↑/↓ walk the options and clamp at the ends, and
     Home and End reach them.
-    Moving focus does not replace the Ask's numeric action context with a widget copy.
+    Moving focus does not replace the item's numeric action context with a widget copy.
     """
     page = open_page(browser, serve(ITEMS_PAGE))
     nums = page.locator("#live-question > lf-option > .lf-key-badge")
@@ -309,7 +309,7 @@ def test_keys_answer_an_item_from_its_marks(browser, serve):
         re.compile("lf-bottom-status")
     )
     marks = page.locator("#live-question .lf-pick")
-    # The arrival stands on the Ask, which wears its options' digits; the marks
+    # The arrival stands on the item, which wears its options' digits; the marks
     # are the next Tab stops.
     expect(
         page.locator(
@@ -382,7 +382,7 @@ def test_keys_answer_an_item_from_its_marks(browser, serve):
 
 
 def test_a_failed_item_reveal_does_not_register_an_arrival(browser, serve):
-    """A rejected reveal neither advances nor marks the existing Ask walk."""
+    """A rejected reveal neither advances nor marks the existing item walk."""
     page = open_page(browser, serve(ITEMS_PAGE))
     position = page.locator(".lf-walk-position")
     page.keyboard.press("m")
@@ -450,7 +450,7 @@ def test_a_delayed_item_reveal_yields_to_programmatic_user_focus(browser, serve)
 
 
 def test_a_selected_tab_enters_the_item_it_controls(browser, serve):
-    """A controlled panel can itself be an ask; selecting its tab hasn't entered it."""
+    """A controlled panel can itself be an item; selecting its tab hasn't entered it."""
     page = open_page(
         browser,
         serve(
@@ -511,7 +511,7 @@ def test_an_items_digits_are_drawn_whole(browser, serve):
         (["r-now", "r-later"], "row"),
     ]:
         page.keyboard.press("m")
-        # The arrival stands on the Ask; the digits are drawn once a mark holds the
+        # The arrival stands on the item; the digits are drawn once a mark holds the
         # focus, one Tab in.
         page.keyboard.press("Tab")
         for id_ in options:
@@ -563,7 +563,7 @@ def test_an_items_digits_are_drawn_whole(browser, serve):
 def test_an_item_navigation_keeps_its_intent_while_materializing_threads(
     browser, serve, intervene, from_drawer
 ):
-    """A newer user move owns focus even before the requested Ask has a live node.
+    """A newer user move owns focus even before the requested item has a live node.
 
     The move is into the panel the walk is opening, the box that narrows its list."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
@@ -614,9 +614,9 @@ def test_frozen_widget_item_walk_orders_by_its_threads_page_passage(browser, ser
 
 
 def test_an_item_walk_leaves_the_panel_it_reached_through(browser, serve):
-    """`m` from the page reaches an Ask seated in a thread through the panel, so the
-    press opens the panel on the way. The walk is lateral — it moves the user from Ask
-    to Ask rather than down a level — and Escape closes the panel. No step depends
+    """`m` from the page reaches an item seated in a thread through the panel, so the
+    press opens the panel on the way. The walk is lateral — it moves the user from item
+    to item rather than down a level — and Escape closes the panel. No step depends
     on which press opened the panel."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -806,14 +806,14 @@ def test_the_item_walk_measures_from_chrome_only_where_the_chrome_holds_an_item(
 ):
     """The user's place has to be a place in the walk's own ordered space. The chrome is
     appended after the whole page, so a user standing on a thread in the panel would
-    measure as past every ask there is.
+    measure as past every item there is.
 
-    The route runs through the chrome all the same: a widget frozen into a reply is an ask
-    the walk visits, and a user working its controls is standing in the space the step
-    measures. So the question is which asks the layer holds and not whether the layer is
-    chrome.
+    The route runs through the chrome all the same: a widget frozen into a reply is an
+    item the walk visits, and a user working its controls is standing in the space the
+    step measures. So the question is which items the layer holds and not whether the
+    layer is chrome.
 
-    The backward press follows a walk down to the first page ask, but focus has since
+    The backward press follows a walk down to the first page item, but focus has since
     moved into the reply's ask. That current focus supplies the step's origin."""
     url = serve(
         leaf_page(
@@ -850,13 +850,13 @@ def test_the_item_walk_measures_from_chrome_only_where_the_chrome_holds_an_item(
     )
     page = open_page(browser, live_url(url))
 
-    # A thread is chrome holding no ask, so the walk starts from the page.
+    # A thread is chrome holding no item, so the walk starts from the page.
     page.keyboard.press("t")
     expect(page.locator(".lf-thread-summary").first).to_be_focused()
     page.keyboard.press("m")
     expect(page.locator("#first-decision")).to_be_focused()
 
-    # The reply's ask is in the route. Walking off it and back down to the first must
+    # The reply's item is in the route. Walking off it and back down to the first must
     # not leave a remembered origin that overrides a later focus on the reply's ask.
     page.keyboard.press("m")
     expect(page.locator("#second-decision")).to_be_focused()
@@ -867,7 +867,7 @@ def test_the_item_walk_measures_from_chrome_only_where_the_chrome_holds_an_item(
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
 
-    # Standing in that ask is standing in the space, so the step measures from it.
+    # Standing in that item is standing in the space, so the step measures from it.
     pick = page.locator("#reply-decision .lf-pick").first
     pick.focus()
     expect(pick).to_be_focused()
@@ -883,13 +883,13 @@ def test_an_item_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
     browser, serve, width, clears, side_track
 ):
     """The open thread panel stands over the right of the page, and what it stands over
-    is not on screen. At 1280px an Ask in the window reaches a little under it and is
-    seen where it stands: `m` leaves the panel and the page alone, and the Ask's badges
+    is not on screen. At 1280px an item in the window reaches a little under it and is
+    seen where it stands: `m` leaves the panel and the page alone, and the item's badges
     label only the controls that show, rather than floating over the panel's threads. At 820px
-    the panel stands over most of the same Ask, so `m` clears it. A wide context can
+    the panel stands over most of the same item, so `m` clears it. A wide context can
     remain mostly clear while its answer list stands under the panel: that list is
     also part of the promised destination. Either way the page,
-    which had the Ask in view, does not move and records no departure."""
+    which had the item in view, does not move and records no departure."""
     filler = "".join(
         f"<p>Filler paragraph {n}. " + "Words. " * 20 + "</p>" for n in range(30)
     )
@@ -938,7 +938,7 @@ def test_an_item_under_the_open_panel_is_shown_beside_it_or_by_clearing_it(
     panel_left = page.locator(".lf-thread-panel").bounding_box()["x"]
     item = page.locator("#decision").bounding_box()
     under = item["x"] + item["width"] - panel_left
-    assert 0 < under, "the Ask must reach under the panel"
+    assert 0 < under, "the lf-ask must reach under the panel"
     if side_track:
         assert under < item["width"] / 2, "the context itself must remain mostly clear"
         source = page.locator("#spot").bounding_box()
@@ -1013,8 +1013,8 @@ ITEM_THREAD_PAGE = leaf_page(
 def test_walking_to_an_item_shows_its_discussion_clear_of_its_choices(
     browser, serve, width
 ):
-    """`m` lands on a tall Ask and its thread comes up in the card, which stands clear
-    of the Ask's choices at either width, so a digit still answers and `c` continues
+    """`m` lands on a tall item and its thread comes up in the card, which stands clear
+    of the item's choices at either width, so a digit still answers and `c` continues
     the thread rather than starting another."""
     source = ITEM_THREAD_PAGE.replace(
         "<h2>Which cache should we keep?</h2>",
@@ -1050,8 +1050,8 @@ def test_walking_to_an_item_shows_its_discussion_clear_of_its_choices(
 
 @pytest.mark.parametrize("family", ["decision", "suggestion"])
 def test_walking_to_an_item_opens_its_discussion(browser, serve, family):
-    """`m` selects an Ask and its thread comes up beside it, as at any target the user
-    stands at, taking over from the passage's card. Working the Ask's controls keeps it
+    """`m` selects an item and its thread comes up beside it, as at any target the user
+    stands at, taking over from the passage's card. Working the item's controls keeps it
     there, and `c` continues it."""
     if family == "decision":
         item = '<lf-ask id="work"><h2>Keep the plan?</h2><lf-options id="decision" choose><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></lf-ask>'
@@ -1093,10 +1093,10 @@ def test_walking_to_an_item_opens_its_discussion(browser, serve, family):
 
 
 def test_an_item_and_its_thread_are_one_standing_target(browser, serve):
-    """An Ask and the thread its card shows are one place held from two sides
-    (glossary, Standing target). From the Ask, `c` continues that thread and `t` steps
-    on past it; from its thread, in the card or in the Threads list, the Ask keeps its
-    ring and its digits. A thread about an enclosing block is that block's, so an Ask
+    """An item and the thread its card shows are one place held from two sides
+    (glossary, Standing target). From the item, `c` continues that thread and `t` steps
+    on past it; from its thread, in the card or in the Threads list, the item keeps its
+    ring and its digits. A thread about an enclosing block is that block's, so an item
     inside the block still starts a thread of its own. From an element with no thread,
     `t` measures from its place in the document, as `m` does."""
     url = serve(ITEM_THREAD_PAGE)
@@ -1118,7 +1118,7 @@ def test_an_item_and_its_thread_are_one_standing_target(browser, serve):
     item = page.locator("#cache-ask")
     item_thread = card.locator(f'.lf-page-thread[data-thread="{about_item}"]')
 
-    # `m` lands on the Ask and its thread comes up in the card beside it, which `c`
+    # `m` lands on the item and its thread comes up in the card beside it, which `c`
     # continues rather than starting a second one.
     page.keyboard.press("m")
     expect(item).to_be_focused()
@@ -1130,9 +1130,9 @@ def test_an_item_and_its_thread_are_one_standing_target(browser, serve):
     page.keyboard.press("Escape")
     expect(item).to_be_focused()
 
-    # From an Ask with no thread, `t` goes to the next thread after it in the document,
-    # which is the task's. Back from there is the Ask's own thread, where, in the card,
-    # the Ask is still where the user stands.
+    # From an item with no thread, `t` goes to the next thread after it in the document,
+    # which is the task's. Back from there is the item's own thread, where, in the card,
+    # the item is still where the user stands.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("t")
@@ -1142,8 +1142,8 @@ def test_an_item_and_its_thread_are_one_standing_target(browser, serve):
     expect(item).to_have_attribute("data-lf-item", "1")
     expect(line).to_contain_text("Keep the disk cache")
 
-    # The nested Ask's card shows its task's thread, which is about the task, so `c`
-    # still starts the Ask a thread of its own.
+    # The nested item's card shows its task's thread, which is about the task, so `c`
+    # still starts the item a thread of its own.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("m")
@@ -1152,9 +1152,9 @@ def test_an_item_and_its_thread_are_one_standing_target(browser, serve):
     expect(line).to_contain_text("comment on the question")
     page.keyboard.press("Escape")
 
-    # With Threads open, the list's thread about the Ask plays the card's part, and a
-    # digit there answers the Ask. `g T` lands on the first thread, which the list shows
-    # open, and `t` steps on to the Ask's.
+    # With Threads open, the list's thread about the item plays the card's part, and a
+    # digit there answers the lf-ask. `g T` lands on the first thread, which the list shows
+    # open, and `t` steps on to the item's.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
@@ -1169,7 +1169,7 @@ def test_an_item_and_its_thread_are_one_standing_target(browser, serve):
 
 def test_a_resolved_thread_still_stands_at_its_item(browser, serve):
     """Resolving a thread settles the discussion, not what it was about: its row in
-    Threads still stands at the Ask it names, with the Ask's ring and digits."""
+    Threads still stands at the item it names, with the item's ring and digits."""
     url = serve(ITEM_THREAD_PAGE)
     d = serve.page_dir
     about_item = panel_comment(
@@ -1194,12 +1194,12 @@ def test_a_resolved_thread_still_stands_at_its_item(browser, serve):
 
 
 def test_an_item_in_a_reply_is_where_the_user_stands_once_answered(browser, serve):
-    """An Ask frozen into a reply sits in a thread about a page Ask. Standing in the
-    reply's Ask is standing there whether or not it is answered: the thread leads to its
-    page Ask only from a node inside no Ask, so a user back on the answered option does
-    not have the page Ask's ring and digits. A contributed control for a widget in
-    the reply stands nowhere, since its widget is chrome in no Ask, so `m` from it starts
-    where the reader is rather than behind every Ask on the page."""
+    """An item frozen into a reply sits in a thread about a page lf-ask. Standing in the
+    reply's item is standing there whether or not it is answered: the thread leads to
+    its page item only from a node inside no item, so a user back on the answered option
+    does not have the page item's ring and digits. A contributed control for a widget in
+    the reply stands nowhere, since its widget is chrome in no item, so `m` from it
+    starts where the reader is rather than behind every item on the page."""
     url = serve(
         ITEM_THREAD_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -1248,8 +1248,8 @@ def test_an_item_in_a_reply_is_where_the_user_stands_once_answered(browser, serv
     option = page.locator("#follow-yes")
     option.click()
     expect(option).to_have_attribute("chosen", "")
-    # Back on the answered option, the user stands in the reply's Ask. Answering moves
-    # focus to the message, which is inside no Ask and so does stand at the page Ask.
+    # Back on the answered option, the user stands in the reply's lf-ask. Answering moves
+    # focus to the message, which is inside no item and so does stand at the page lf-ask.
     round_trip(page)
     option.locator(".lf-pick").focus()
     expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-item", "1")
@@ -1290,10 +1290,11 @@ ITEM_IN_A_PANE_PAGE = leaf_page(
 
 
 def test_an_item_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, serve):
-    """An Ask walk lands the decision at the start of the pane that scrolls it, and the
-    Ask wears the ring outside its box. The landing keeps the ring's room at the pane's
-    edge, as the browser's own landing does for a box asking for it: the Ask stood flush
-    with the pane's top, the top of its ring cut off under the pane's header rule."""
+    """An item walk lands the decision at the start of the pane that scrolls it, and the
+    item wears the ring outside its box. The landing keeps the ring's room at the pane's
+    edge, as the browser's own landing does for a box asking for it: the item stood
+    flush with the pane's top, the top of its ring cut off under the pane's header
+    rule."""
     page = open_page(browser, serve(ITEM_IN_A_PANE_PAGE))
     resized(page, 1440, 900)
     pane_posture(page, page.locator("#ask-detail"), "bounded")

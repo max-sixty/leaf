@@ -39,7 +39,7 @@
  * chip explicitly releases that hold. The chip remains available while activation waits.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
- * contract, and the ask view restores the selected ask by id. Both installs restore these
+ * contract, and the item view restores the selected item by id. Both installs restore these
  * readings; the patch passes its retained nodes so restoration skips them. Unnamed
  * replaced controls receive no guessed focus. Authored controls and registered draft
  * editors carry native editing under their existing replacement identity; arbitrary
@@ -1456,7 +1456,7 @@ export function createVersionController({
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
       // Ask standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent ask does not also own focus.
+      // has a replacement identity, so its parent item does not also own focus.
       itemStanding: draftEditing ? null : captureItemStanding(),
     };
   }

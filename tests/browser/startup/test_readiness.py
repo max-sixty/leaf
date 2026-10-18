@@ -289,14 +289,14 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     browser, serve
 ):
-    """Restored chrome may neither publish stale asks nor replace a current choice.
+    """Restored chrome may neither publish stale items nor replace a current choice.
 
     The drawer was open on the prior visit and the log has since accepted its one
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
     Opening Threads during that interval replaces the remembered drawer. Replay leaves
     that Thread panel open while it paints the accepted state and exposes the completed
-    Ask as a closed route for review.
+    item as a closed route for review.
     """
     url = serve(SHORT_SUGGESTION)
     append_command(

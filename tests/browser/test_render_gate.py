@@ -876,7 +876,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     must not carry it into the next document or every later wait there runs its
     timeout out.
 
-    Accept-all is how a real sweep gets here: it answers its asks one awaited
+    Accept-all is how a real sweep gets here: it answers its items one awaited
     trip at a time, so a reload after the press lands mid-cascade and kills an
     /api/event POST that then produces no `response` and no `requestfailed`.
     The held answer puts the navigation on that exact edge. The ledger is the
@@ -926,7 +926,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
         release_answer.set()
     # The first trip of the new document's own cascade, which is the whole of what a
     # ledger carried across the navigation can get wrong. Waiting the answer-all out
-    # instead ties this reading to how many asks the page happens to carry.
+    # instead ties this reading to how many items the page happens to carry.
     #
     # The trip is over when that first attempt leaves `pending`, which is the outbox's
     # own list of attempts with no outcome — a failed post keeps its attempt there and
@@ -2750,7 +2750,7 @@ def unshown_key_findings(page, source):
     """Each command in a widget that declares context keys the page never shows
     (`shows-context-keys`, widget_quality.py), in the page and each Leaf document it
     frames. A worked example shows one state of its widget, and a command a widget
-    declares only in another, such as a multiple-choice ask's Done, goes unseen
+    declares only in another, such as a multiple-choice item's Done, goes unseen
     there; the corpus holds those states. Widgets and `KNOWN` are read as for
     `held_scroller_findings`."""
     local = source.with_suffix(".page")
@@ -4055,13 +4055,13 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
 
 
 def test_an_item_spanning_its_block_is_a_breakout(browser, serve):
-    """An Ask allocated the column spans the wide block it holds, so its ring goes round
-    the block, and the gate named it as set out in the margin on every page with one.
-    The theme says which boxes it lets stand past their holders, so the gate reads the
-    Ask as the breakout it is. A page width on an Ask moves its edges off the column's,
-    so its block keeps to it and neither stands past the column. A box padded or sized
-    past the column without that leave is named, whether or not it paints there or a
-    breakout fills it."""
+    """An item allocated the column spans the wide block it holds, so its ring goes
+    round the block, and the gate named it as set out in the margin on every page with
+    one. The theme says which boxes it lets stand past their holders, so the gate reads
+    the item as the breakout it is. A page width on an item moves its edges off the
+    column's, so its block keeps to it and neither stands past the column. A box padded
+    or sized past the column without that leave is named, whether or not it paints there
+    or a breakout fills it."""
     item = """<lf-ask id="{id}"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
@@ -4091,7 +4091,7 @@ def test_an_item_spanning_its_block_is_a_breakout(browser, serve):
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()
 
-    assert grown > 100, "the Ask never spanned its block, so nothing here was tested"
+    assert grown > 100, "the lf-ask never spanned its block, so nothing here was tested"
     found = sorted((m["code"], m["at"]) for m in misplaced)
     assert found == [
         ("past-column", "<div id=bare>"),

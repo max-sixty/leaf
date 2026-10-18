@@ -1807,10 +1807,12 @@ def test_a_thread_ask_waits_until_answered(browser, serve):
     # And a second tab reads it off the log, which is the only place it is written.
     # A user who made no gesture gets the same pressed press and the same closed
     # decision — replay is what puts it there, and the one representation is what replay
-    # writes, so there is nothing for a version or a markup copy to fall behind.
+    # writes, so there is nothing for a version or a markup copy to fall behind. A
+    # message's widgets draw where its thread is open, so the tab opens it to look.
     other = open_page(browser, url)
-    expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect_asks_answered(other, "2/2")
+    open_panel_thread(other, "c-any")
+    expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     assert (
         render_checks_model.evaluate_probe(
             other, "undeclaredAttrs", page_registry(other)
@@ -1841,7 +1843,8 @@ def test_a_thread_ask_waits_until_answered(browser, serve):
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
     # reaches Threads. A stray digit there neither travels nor picks; t then c makes the
-    # repeatable category walk and the thread-local reply route explicit.
+    # repeatable category walk and the thread-local reply route explicit. The Threads
+    # view stands in the thread's place, so the log says whether the digit picked.
     open_panel_thread(page, "c-which")
     page.locator("#tq-one .lf-pick").first.focus()
     page.keyboard.press("g")
@@ -1850,7 +1853,6 @@ def test_a_thread_ask_waits_until_answered(browser, serve):
     expect(threads).to_be_visible()
     page.keyboard.press("1")
     expect(threads).to_be_visible()
-    expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(1)
     page.keyboard.press("t")
     page.keyboard.press("c")
     expect(panel_field(page)).to_be_focused()

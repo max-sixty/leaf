@@ -1963,6 +1963,17 @@ def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
     # It rides the corner: its centre sits on the box's top-right edge.
     assert abs(button["x"] + button["width"] / 2 - (card["x"] + card["width"])) <= 2
     assert abs(button["y"] + button["height"] / 2 - card["y"]) <= 2
+    # A view opening carries the corner up, away from the still pointer, and the
+    # button with it goes; putting the view away brings the corner back to it.
+    page.locator("body").focus()
+    for keys in ("g", "Shift+t"):
+        page.keyboard.press(keys)
+    expect(page.locator(".lf-fp-view")).to_have_attribute("data-view", "threads")
+    expect(minimize).to_be_hidden()
+    for keys in ("g", "Shift+t"):
+        page.keyboard.press(keys)
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    expect(minimize).to_be_visible()
     # It presses the fold command, as the menu's row does, so the press is announced
     # and logged like any other.
     page.evaluate(

@@ -348,18 +348,29 @@ export function createFloatingPanel({
   // It shows only while the pointer is near the corner it rides, so the panel at rest,
   // and under a pointer passing over the field or the marks, carries no control the user
   // did not reach for (15 October). Near is the box's top-right corner, a mark's width in
-  // and half a row down, or the button itself.
+  // and half a row down, which holds the button itself. The corner moves when the box changes
+  // size under a still pointer, as a view opening above a press on Send carries it up,
+  // so nearness is read again then (`follow`): a button left showing where the
+  // pointer no longer is would ride the box's next change, such as a refused send
+  // taking that view back, across the window without input.
   const CORNER = { across: 64, down: 24 };
-  host.addEventListener("pointermove", (event) => {
+  let pointer = null;
+  const readCorner = () => {
     const box = card.getBoundingClientRect();
     const near =
-      event.target === minimize ||
-      minimize.contains(event.target) ||
-      (event.clientX >= box.right - CORNER.across &&
-        event.clientY <= box.top + CORNER.down);
+      pointer !== null &&
+      pointer.x >= box.right - CORNER.across &&
+      pointer.y <= box.top + CORNER.down;
     keeps(host, "data-corner", near ? "" : null);
+  };
+  host.addEventListener("pointermove", (event) => {
+    pointer = { x: event.clientX, y: event.clientY };
+    readCorner();
   });
-  host.addEventListener("pointerleave", () => keeps(host, "data-corner", null));
+  host.addEventListener("pointerleave", () => {
+    pointer = null;
+    readCorner();
+  });
   // The row stands over the window's foot, so what the page reveals stands clear of it.
   // A view opened above it is itself read, and stands over the page only while it is
   // used, so it leaves the page's room alone; but what it stands over is hidden while it
@@ -975,7 +986,10 @@ export function createFloatingPanel({
     fitAnswer();
     stood = openView()?.offsetHeight ?? null;
   });
-  const follow = sizeObserver(() => followBox());
+  const follow = sizeObserver(() => {
+    readCorner();
+    followBox();
+  });
   addEventListener("resize", () => {
     outline = null;
     followBox();

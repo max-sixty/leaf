@@ -150,6 +150,11 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
         # Refusal restores the earlier selection only while the provisional root
         # still owns it; a later user choice must remain the selected conversation.
         selected = open_panel_thread(page, "question")
+    # Chrome reports no shift within 500ms of input, so the refusal lands after it:
+    # taking back the view the send opened moves nothing the pointer was not near.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
     route = held.pop()
     route.fulfill(
         status=400,

@@ -1697,7 +1697,8 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
     "Visual grammar"): a stripe bent around a corner reads as decoration rather than a
     contour, and marks a state another face already shows. A state is one whole contour,
     or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
-    `<style>`, and a stripe is a side's border of 2px or more or an inset shadow offset
+    `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
+    stripe is a side's border of 2px or more or an inset shadow offset
     along one axis only. The reading is per rule, so a radius another rule gives the
     same box passes it."""
     sides = re.compile(
@@ -1711,7 +1712,8 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
 
     def edged(declarations):
         return any(
-            sides.fullmatch(name) and thick(value)
+            sides.fullmatch(name)
+            and thick(value)
             or name == "box-shadow"
             and any(
                 (abs(float(x)) >= 2) != (abs(float(y)) >= 2)
@@ -1734,10 +1736,18 @@ def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
         if "vendor" not in sheet.parts
         and not sheet.read_text().startswith("/* @noformat Generated from ")
     ]
-    for page in sorted([*(ROOT / "examples").rglob("*.html"), *(ROOT / "docs").glob("*.html")]):
+    for root in (ROOT / "examples", ROOT / "docs"):
+        sheets += [
+            (sheet.relative_to(ROOT), sheet)
+            for sheet in sorted(root.rglob("*.css"))
+            if not sheet.parent.name.startswith("corpus")
+        ]
+    for page in sorted(
+        [*(ROOT / "examples").rglob("*.html"), *(ROOT / "docs").glob("*.html")]
+    ):
         if page.name.startswith("corpus"):
             continue
-        styles = re.findall(r"<style[^>]*>(.*?)</style>", page.read_text(), re.S)
+        styles = re.findall(r"<style[^>]*>(.*?)</style>", page.read_text(), re.DOTALL)
         if styles:
             sheet = tmp_path / page.relative_to(ROOT).with_suffix(".css")
             sheet.parent.mkdir(parents=True, exist_ok=True)

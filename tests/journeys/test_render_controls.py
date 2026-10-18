@@ -4691,6 +4691,12 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 assert found == expected, (
                     f"{selector or scope} {where} did not exhibit "
                     + ", ".join(sorted(expected - found))
+                    + "; the rings drawn: "
+                    + "; ".join(
+                        f"{ring['who']} (rule {ring['rule']!r}, here {ring['here']}, "
+                        f"sample {ring['sample']})"
+                        for ring in drawn
+                    )
                 )
             if posture:
                 for _ in range(3):

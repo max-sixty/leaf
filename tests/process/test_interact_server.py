@@ -3318,9 +3318,8 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
 def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
     """A row producer waiting on a page writer cannot hold service retirement.
 
-    The process probe announces the producer's reading of the log, its first wait
-    on a writer, so the stop runs after the producer is blocked rather than winning
-    a scheduling race.
+    Drive its second reading through a pipe after holding the writer's lock. A
+    file notification could arrive before the producer starts waiting for one.
     """
     entered = tmp_path / "row-entered"
     child = spawn_probe(
@@ -3328,8 +3327,9 @@ def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
         page_dir,
         """
 from contextlib import contextmanager
-from leaf import hosting
+from leaf import hosting, server_rows
 from leaf.served_state import reading
+import sys
 
 leased = reading.flocked
 
@@ -3340,8 +3340,16 @@ def announced(path, **options):
         yield log
 
 reading.flocked = announced
+
+def drive_reading(self):
+    self.refresh()
+    sys.stdin.readline()
+    self.refresh()
+
+server_rows.RowPublisher.run = drive_reading
 hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
 """,
+        stdin=subprocess.PIPE,
         ENTERED=entered,
     )
     path = server_rows_model.row_path(page_dir)
@@ -3349,10 +3357,8 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
     entered.unlink()
     ended = threading.Event()
     with service_model.PageTransaction(page_dir):
-        cleanup_model.write_json(
-            page_dir / "status.json",
-            {"state": "waiting", "detail": "blocked", "ts": cleanup_model.now_iso()},
-        )
+        child.stdin.write("read\n")
+        child.stdin.flush()
         wait_for(
             entered.is_file,
             bool,

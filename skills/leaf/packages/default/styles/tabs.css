@@ -686,11 +686,7 @@
           flex-direction: column;
           --lf-full-height: inherit;
         }
-        &
-          > lf-tab[data-lf-opening]
-          > :nth-child(1 of :not(script, style, template)):nth-last-child(
-            1 of :not(script, style, template)
-          ) {
+        & > lf-tab[data-lf-opening] > [data-lf-sole-content] {
           flex: 1 1 0;
           margin-block: 0;
         }

@@ -4704,7 +4704,7 @@ function replyControlDestination(node) {
   };
 }
 var sendReply = (draftCtx, key, text, owns, actions) => sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
-function wireReply(key, row2, input, send, wireInput, { hint, accessibleName }) {
+function wireReply(key, row2, input, send, wireInput, { hint, accessibleName, busy }) {
   row2.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
@@ -4720,6 +4720,7 @@ function wireReply(key, row2, input, send, wireInput, { hint, accessibleName }) 
   const sync = wireInput(input, {
     hint,
     accessibleName,
+    busy,
     sends: "send",
     sendBtn: send,
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
@@ -4823,6 +4824,7 @@ function createReplyView(key, commands2, {
   redraw = null,
   hint = "Reply",
   accessibleName = "Reply",
+  busy = () => false,
   sent = null
 } = {}) {
   const fresh = () => {
@@ -4833,7 +4835,8 @@ function createReplyView(key, commands2, {
     row2.append(input, send);
     return wireReply(key, row2, input, send, commands2.wireInput, {
       hint,
-      accessibleName
+      accessibleName,
+      busy
     });
   };
   let composition = fresh();

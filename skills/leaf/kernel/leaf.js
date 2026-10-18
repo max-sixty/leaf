@@ -7950,6 +7950,7 @@ function createFloatingPanel({
         return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
       },
       accessibleName: "Comment on the page",
+      busy: () => !errorCover.hidden,
       sends: "send",
       sendBtn: send,
       save: (text) => {
@@ -7986,6 +7987,7 @@ function createFloatingPanel({
       replyOptions.set(key, {
         hint: () => fieldReading(key, replyInput()).words,
         accessibleName: () => `Reply to ${threadTitle(key)}`,
+        busy: () => !errorCover.hidden,
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
           waiting = null;
@@ -8010,19 +8012,6 @@ function createFloatingPanel({
     const end = draftOf(input).length;
     focusDestination(input, "move", { caret: [end, end] });
   });
-  field.addEventListener(
-    "keydown",
-    (event) => {
-      if (errorCover.hidden || ["Shift", "Control", "Alt", "Meta", "Escape", "Tab"].includes(event.key))
-        return;
-      passSayable();
-      if (event.key === "Enter") {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    },
-    { capture: true }
-  );
   const threads = () => {
     const reading = readThreads();
     return reading.phase === "ready" ? reading.threads : [];

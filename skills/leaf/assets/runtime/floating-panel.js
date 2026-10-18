@@ -541,6 +541,7 @@ export function createFloatingPanel({
           : null;
       },
       accessibleName: "Comment on the page",
+      busy: () => !errorCover.hidden,
       sends: "send",
       sendBtn: send,
       save: (text) => {
@@ -587,6 +588,7 @@ export function createFloatingPanel({
       replyOptions.set(key, {
         hint: () => fieldReading(key, replyInput()).words,
         accessibleName: () => `Reply to ${threadTitle(key)}`,
+        busy: () => !errorCover.hidden,
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
           // The user's turn grows the view to show it and takes New reply away.
@@ -606,10 +608,10 @@ export function createFloatingPanel({
   field.addEventListener("input", retype);
   // The user's first edit in the field passes every error it could say to the menu's
   // list, read before the edit changes what it could say. Over words its subject
-  // holds, an error covers them (`errorCover`), and the first key or press there
-  // brings them back: a press puts the caret at their end, and Enter only uncovers
-  // them, so words the user has not seen again are never sent by it. The user chose
-  // both on 17 October.
+  // holds, an error covers them (`errorCover`), and the first edit or press there
+  // brings them back, a press with the caret at their end; while they are covered the
+  // field sends nothing (`busy`), so words the user has not seen again are never sent.
+  // The user chose both on 17 October.
   const errorCover = el("p", "lf-fp-error-cover");
   errorCover.setAttribute("aria-hidden", "true");
   const passSayable = () => passErrors(sayable().map((error) => error.id));
@@ -621,22 +623,6 @@ export function createFloatingPanel({
     const end = draftOf(input).length;
     focusDestination(input, "move", { caret: [end, end] });
   });
-  field.addEventListener(
-    "keydown",
-    (event) => {
-      if (
-        errorCover.hidden ||
-        ["Shift", "Control", "Alt", "Meta", "Escape", "Tab"].includes(event.key)
-      )
-        return;
-      passSayable();
-      if (event.key === "Enter") {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    },
-    { capture: true },
-  );
 
   // ---------- readings ----------
   const threads = () => {

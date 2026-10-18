@@ -6515,7 +6515,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
             };
           } else {
             let joined2 = false;
-            const { hint, accessibleName, sent } = item.options;
+            const { hint, accessibleName, busy, sent } = item.options;
             const reply = createReplyView(item.key, commands.reply, {
               onChange: () => {
                 if (joined2) void update().catch(() => {
@@ -6524,6 +6524,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               editLast: rewritesOf(item.key).editLast,
               hint,
               accessibleName,
+              busy,
               sent
             });
             joined2 = true;

@@ -1801,8 +1801,8 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     say it: about its editor, or about nothing while the editor is empty. The user's
     first edit passes every error the field says to Errors in the leaf's menu, where a
     dot on the leaf marks them until the list is opened and each can be dismissed. Over
-    words its editor holds, an error covers them until the first key there, which lands
-    in those words, and Enter only uncovers them. An error the field cannot say, such
+    words its editor holds, an error covers them until the first edit there, which
+    lands in those words, and nothing sends them meanwhile. An error the field cannot say, such
     as one about nothing while the user has words there, goes straight to the list."""
     url = serve(LONG_PAGE)
     page = floating(browser, url)
@@ -1829,15 +1829,16 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     expect(panel).to_have_attribute("data-says", "destination")
     expect(dot).to_be_visible()
 
-    # Over words its editor holds, an error covers them; Enter only uncovers them, and
-    # the next key lands in them.
+    # Over words its editor holds, an error covers them; Enter sends nothing while
+    # they are covered, and the next edit uncovers them and lands in them.
     page.evaluate(raise_error, ["Could not add image — disk full", True])
     expect(cover).to_have_text("Could not add image — disk full")
     assert field(page).evaluate(value) == "Could"
     sent = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("Enter")
-    expect(cover).to_be_hidden()
+    expect(cover).to_be_visible()
     page.keyboard.type(" it")
+    expect(cover).to_be_hidden()
     assert field(page).evaluate(value) == "Could it"
     assert len(events_model.read_events(serve.page_dir)) == sent
     # One about nothing while the user has words goes straight to the list.

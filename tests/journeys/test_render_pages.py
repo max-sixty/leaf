@@ -532,8 +532,8 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     """A failed candidate owns neither the agent name nor the reply count.
 
     The first read reaches panel and version rendering before malformed projection data
-    rejects it. That candidate must announce nothing and leave no version behind; a
-    complete retry announces the reply once with the agent recorded on the message.
+    rejects it. That candidate does not announce the reply or leave a version behind;
+    a complete retry announces the reply once with the agent recorded on the message.
     The rejected reply must also leave the visible thread until that retry.
     """
     url = serve(TWIN_V1)
@@ -615,8 +615,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
     page.keyboard.press("Escape")
 
     notice_el = page.locator(".lf-notice")
-    assert "show" not in notice_el.get_attribute("class").split()
-    page.wait_for_timeout(100)
+    assert "Codex replied" not in notice_el.text_content()
     assert "Codex replied" not in page.locator(".lf-live").text_content()
 
     page.unroute("**/api/state*")

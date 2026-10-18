@@ -309,7 +309,7 @@ export interface WireTodo {
 /** One item on On me or On <agent>, as `served_state.queues` serves it: `owner` names
  * the list. An ask item keeps its record; a to-do item the fields a row draws. */
 interface QueueItem {
-  kind: "item" | "todo" | "resend" | "answer" | "work";
+  kind: "widget" | "approval" | "todo" | "resend" | "answer" | "work";
   id: string;
   owner: "user" | "agent";
   subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
@@ -709,7 +709,8 @@ function localQueues(
   // Whether an item the server listed as open still stands open in this tab.
   const standsOpen = (item: QueueItem) => {
     switch (item.kind) {
-      case "item":
+      case "widget":
+      case "approval":
         return itemOf(item).next_actor === "user";
       case "todo":
         return open.has(item.id);
@@ -723,17 +724,17 @@ function localQueues(
   };
   // Whether an item the server listed as done stands open again in this tab.
   const reopened = (item: DoneItem) =>
-    item.kind === "item"
+    carriesItem(item)
       ? itemOf(item).status === "open" && itemOf(item).next_actor === "user"
       : item.kind === "todo" && open.has(item.id);
   // Whether an item the server listed as open has ended in this tab.
   const endedHere = (item: QueueItem) =>
-    item.kind === "item"
+    carriesItem(item)
       ? itemOf(item).status !== "open"
       : item.kind === "todo" && ended.has(item.id);
   // An ask item carries this tab's record of its ask.
   const current = <T extends QueueItem>(item: T): T =>
-    item.kind === "item" ? { ...item, item: itemOf(item) } : item;
+    carriesItem(item) ? { ...item, item: itemOf(item) } : item;
   const asOpen = ({
     state: _state,
     ended: _ended,
@@ -744,7 +745,7 @@ function localQueues(
     ...current(item),
     live: false,
     state:
-      item.kind === "item" && itemOf(item).status === "withdrawn" ? "dropped" : "done",
+      carriesItem(item) && itemOf(item).status === "withdrawn" ? "dropped" : "done",
     ended: null,
     detail: null,
   });
@@ -783,7 +784,7 @@ function localQueues(
     ].toSorted(
       (a, b) =>
         onUserRank(a) - onUserRank(b) ||
-        (a.kind === "item" && b.kind === "item"
+        (carriesItem(a) && carriesItem(b)
           ? asked.get(a.id)! - asked.get(b.id)!
           : 0),
     ),
@@ -818,7 +819,10 @@ function localQueues(
 // The order the server lists On me in: asks, to-dos, then resends; asks among
 // themselves in the order the view's ask inventory holds them.
 const onUserRank = (item: QueueItem) =>
-  item.kind === "item" ? 0 : item.kind === "todo" ? 1 : 2;
+  carriesItem(item) ? 0 : item.kind === "todo" ? 1 : 2;
+
+// Whether a list item is a widget's or an approval's, which carries its record.
+const carriesItem = (item: QueueItem) => item.kind === "widget" || item.kind === "approval";
 
 type SemanticRoot = ReturnType<ReturnType<typeof createSemanticApplication>["read"]>;
 type RootProjection = SemanticRoot["effective"]["projection"];

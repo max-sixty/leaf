@@ -1830,9 +1830,11 @@ function commentPlacement() {
         boundary.right - Math.min(minimumWidth, boundary.width)
       );
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
+      const overhang = Object.entries(overhangOf(reserve));
       const padding = Object.fromEntries(
-        Object.entries(overhangOf(reserve)).map(([end, length]) => [end, -length])
+        overhang.map(([end, length]) => [end, -length])
       );
+      const reach2 = overhang.reduce((total, [, length]) => total + length, 0);
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
         mainAxis: !across,
@@ -1884,9 +1886,12 @@ function commentPlacement() {
         ...overflow,
         apply(state) {
           const { scale, line: line2 } = measure(state);
-          const stood2 = held2 ? Math.max(
-            held2.foot - held2.top,
-            tallest && Math.abs(tallest.line - line2) < 0.5 ? tallest.height : 0
+          const stood2 = held2 ? Math.min(
+            boundary.height + reach2,
+            Math.max(
+              held2.foot - held2.top,
+              tallest && Math.abs(tallest.line - line2) < 0.5 ? tallest.height : 0
+            )
           ) / scale.y : 0;
           const lane = carriedInline !== null ? boundary.right - (column ?? clear.left) - carriedInline : across ? boundary.right - (inlineStart + (inline ?? 0) * scale.x) : side === "right" ? boundary.right - box.right - COMMENT_GAP : clear.left - boundary.left - COMMENT_GAP;
           fit({

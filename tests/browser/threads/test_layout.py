@@ -924,7 +924,30 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
             bounds,
             parts,
         )
-    # Too short for the controls themselves, the bar waits for room.
+    # As the window shortens the bar shows only while its controls fit the room a
+    # surface stands in, and waits for room once they don't.
+    for wide, short in ((width, 200), (width, 170), (width, 140), (1440, 170)):
+        resized(page, wide, short)
+        rendered(page)
+        if not bar.is_visible():
+            continue
+        room = page.evaluate(
+            """async () => {
+              const {top, bottom} = (await window.__lfOverlayApi()).commentBoundary();
+              return {top, bottom};
+            }"""
+        )
+        shown = bar.locator(
+            ".lf-compose-field, .lf-composer-media, .lf-response-options"
+        ).evaluate_all(
+            "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
+        )
+        assert min(part["top"] for part in shown) >= room["top"] - 4.5, (short, shown)
+        assert max(part["bottom"] for part in shown) <= room["bottom"] + 0.5, (
+            short,
+            room,
+            shown,
+        )
     resized(page, width, 120)
     expect(bar).to_be_hidden()
     resized(page, width, height)

@@ -442,8 +442,8 @@ export function createFloatingResponsePlacement({
       coarse: coarsePointer.matches,
     });
     const reserve = frameReserve();
-    const [past = 0] = Object.values(fabPlacement.overhang(reserve));
-    const room = boundary.height + past;
+    const overhang = fabPlacement.overhang(reserve);
+    const room = boundary.height + (overhang.top ?? 0) + (overhang.bottom ?? 0);
 
     const epoch = fabPosition.begin();
     const stillCurrent = () =>
@@ -469,10 +469,16 @@ export function createFloatingResponsePlacement({
             setWidth(width, scale.x);
             setHeight(room, scale.y);
             const frame = fabBar.getBoundingClientRect();
+            // The controls must fit what the frame keeps inside the boundary: below a
+            // head that may stand past its top, or above a foot that may stand past
+            // its bottom.
+            const rows = (nativeRowEnd() * frame.height) / fabBar.offsetHeight;
             if (
               Math.ceil(frame.width) > Math.ceil(boundary.width) ||
               Math.ceil(frame.height) > Math.ceil(room) ||
-              (response.open && nativeRowEnd() > fabBar.clientHeight)
+              (response.open &&
+                (nativeRowEnd() > fabBar.clientHeight ||
+                  Math.ceil(rows - (overhang.top ?? 0)) > Math.ceil(boundary.height)))
             )
               withholdFab();
           },

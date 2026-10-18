@@ -1102,7 +1102,7 @@ def test_send_grows_thread_around_the_words(
 
     The one exception is a box grown into the window's edge: typing lets the card's
     unpainted head or reply row stand past it, so Send moves the words by exactly that
-    much to bring the card inside."""
+    much to bring the card inside, unless the card fills the window and scrolls them."""
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
@@ -1149,12 +1149,20 @@ def test_send_grows_thread_around_the_words(
         assert FIRST_LINE.line(page)["bottom"] > page.evaluate(BANNER_FOOT)
     # How far the box's frame stands past the room a surface stands in, which Send
     # takes back to bring the card's head and reply row inside.
-    past = page.evaluate("""async () => {
+    room = page.evaluate("""async () => {
       const {commentBoundary} = await window.__lfOverlayApi();
       const {top, bottom} = commentBoundary();
-      const frame = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-      return Math.max(0, top - frame.top) - Math.max(0, frame.bottom - bottom);
+      return {top, bottom};
     }""")
+    frame = page.locator(".lf-fab-bar").bounding_box()
+    # A frame taller than that room becomes a card that fills it and scrolls its
+    # words, which then stay put.
+    past = (
+        max(0, room["top"] - frame["y"])
+        - max(0, frame["y"] + frame["height"] - room["bottom"])
+        if frame["height"] <= room["bottom"] - room["top"] + 0.75
+        else 0
+    )
     page.evaluate("""() => {
       const input = document.querySelector('.lf-fab-input');
       const blockRects = node => {
@@ -1229,8 +1237,8 @@ def test_send_grows_thread_around_the_words(
     for frame in reading["frames"]:
         assert frame["frame"]["left"] >= -0.75
         assert frame["frame"]["right"] <= size[0] + 0.75
-        assert frame["frame"]["top"] >= -0.75
-        assert frame["frame"]["bottom"] <= size[1] + 0.75
+        assert frame["frame"]["top"] >= room["top"] - 0.75, (room, frame["frame"])
+        assert frame["frame"]["bottom"] <= room["bottom"] + 0.75, (room, frame["frame"])
         assert [v for r in frame["rects"] for v in r] == pytest.approx(
             [
                 v + past * (i % 4 == 1)

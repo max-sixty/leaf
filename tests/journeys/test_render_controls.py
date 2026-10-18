@@ -709,6 +709,11 @@ def _tab_walk(page, stem):
         if lost:
             unindicated.append(f"{stem}: {lost}")
         drawn = [ring for ring in rings_drawn(page) if ring["who"] not in faulted]
+        # The runtime's answer to the scroll Tab made, such as a pinned reply row taking
+        # its place, can trail the landing, so a fault counts once the page is at rest.
+        if ring_faults(drawn, stem):
+            page_at_rest(page)
+            drawn = [ring for ring in rings_drawn(page) if ring["who"] not in faulted]
         faulted.update(ring["who"] for ring in drawn if ring["cuts"] or ring["covers"])
         faults += ring_faults(drawn, f"tabbing through {stem}")
     else:

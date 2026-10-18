@@ -1784,6 +1784,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-threads > .lf-thread-compact:has(> .lf-thread-reply) > .lf-thread-content {
     --lf-bottom: calc(var(--lf-thread-reply-h, 0px) + var(--focus-ring-room));
   }
+  /* The row paints over whatever reaches it, so the transcript keeps the ring's room
+     above it: a picture closing an agent's message stood flush with the row, the foot
+     of its ring under the row's surface. */
+  .lf-thread-compact:has(> .lf-thread-reply) > .lf-thread-content {
+    padding-block-end: var(--focus-ring-room);
+  }
   :is(
     .lf-threads > .lf-thread-compact > .lf-thread-content,
     .lf-threads > .lf-thread-compact > .lf-thread-content *

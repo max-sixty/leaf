@@ -112,7 +112,7 @@ var KINDS = Object.freeze(
         indication: true
       },
       comment: { label: "Thread", icon: "comment", priority: 1 },
-      ask: { label: "On me", icon: "question", priority: 2 },
+      "on-me": { label: "On me", icon: "question", priority: 2 },
       sent: {
         label: "Sent",
         icon: "sent",
@@ -1224,7 +1224,7 @@ var userAttention = (items) => {
   for (const item of items) {
     const attention = item.userAttention;
     if (!attention) continue;
-    if (attention.reason === "ask") return attention;
+    if (attention.reason === "widget") return attention;
     first ??= attention;
   }
   return first;

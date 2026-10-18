@@ -70,7 +70,7 @@ import { itemWord } from "./items/answer.js";
 import { answeredInWords, readItems } from "./items/model.js";
 import { itemsIn, itemPlace } from "./items/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
-import { itemNoun } from "./queues.js";
+import { carriesItem, itemNoun } from "./queues.js";
 import { drawnThreadId } from "./thread/selectors.js";
 import { watchProjection } from "./projection-watch.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -89,7 +89,7 @@ const NOUNS = Object.freeze({
 // at, but a to-do on an element is a To-do rather than the Update a widget's stop
 // otherwise is.
 const nounOf = (item, stop) =>
-  item.kind === "item" && stop.kind !== "approval"
+  carriesItem(item) && stop.kind !== "approval"
     ? itemWord(item.item)
     : stop.kind === "widget" && itemNoun(item) === "todo"
       ? "To-do"
@@ -100,10 +100,9 @@ const nounOf = (item, stop) =>
 // thread it stands in, a to-do on the page as a whole at the page's head, or else the
 // element it stands on, as an action is arrived at on the widget it was made on.
 const stopOf = (item) =>
-  item.kind === "item" && item.item.source.kind === "approval"
+  item.kind === "approval"
     ? { kind: "approval", id: item.id, thread: null }
-    : item.kind === "item" &&
-        item.item.source.kind === "widget" &&
+    : item.kind === "widget" &&
         !(item.thread !== null && answeredInWords(item.item))
       ? { kind: "item", id: item.id, thread: item.thread, item: item.item }
       : item.thread !== null

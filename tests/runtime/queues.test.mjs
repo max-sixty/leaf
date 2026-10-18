@@ -3,7 +3,7 @@ import test from "node:test";
 import { itemNoun } from "../../skills/leaf/assets/runtime/queues.js";
 
 test("ask and response rows keep their domain names", () => {
-  assert.equal(itemNoun({ kind: "item" }), "item");
+  assert.equal(itemNoun({ kind: "widget" }), "widget");
   assert.equal(itemNoun({ kind: "answer", answer: { kind: "reply" } }), "reply");
   assert.equal(itemNoun({ kind: "todo" }), "todo");
 });

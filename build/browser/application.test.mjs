@@ -1330,7 +1330,7 @@ test("a pending gesture leaves asks and On me as served until the log answers", 
   assert.deepEqual(pending.queues.on_user, []);
   assert.deepEqual(
     pending.queues.done.map(({ kind, id }) => [kind, id]),
-    [["item", answered.id]],
+    [["widget", answered.id]],
   );
 
   const reopened = { ...answered, answer: null, status: "open", next_actor: "user" };
@@ -1352,7 +1352,7 @@ test("a pending gesture leaves asks and On me as served until the log answers", 
   assert.equal(thread.all[0].attention.kind, "needs_user");
   assert.deepEqual(
     queues.on_user.map(({ kind, id }) => [kind, id]),
-    [["item", answered.id]],
+    [["widget", answered.id]],
   );
 });
 
@@ -1499,7 +1499,7 @@ test("approval leaves On me in its sending turn and undo restores the exact vers
   const item = record();
   assert.equal(item.source.kind, "approval");
   assert.equal(onUser()[0].id, item.id);
-  assert.equal(onUser()[0].kind, "item");
+  assert.equal(onUser()[0].kind, "approval");
   assert.equal(onUser()[0].offers.done, false);
   app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
   assert.equal(onUser().length, 1);
@@ -1670,7 +1670,7 @@ test("An ask contains the local typed answer while completion waits for admissio
   assert.equal(pending.all[0].status, "open");
   assert.equal(pending.all[0], pending.user[0]);
   assert.equal(pending.all[0], pending.unanswered[0]);
-  assert.equal(app.read().effective.queues.on_user[0].kind, "item");
+  assert.equal(app.read().effective.queues.on_user[0].kind, "widget");
   app.refuse("typed");
   assert.equal(app.read().effective.items.all[0].answer, null);
 });
@@ -1717,7 +1717,7 @@ test("empty completed answer and wrapper changes preserve ask identity", () => {
   app.adopt(reading);
   assert.deepEqual(app.read().effective.items.all[0].answer.value, []);
   assert.equal(app.read().effective.queues.on_user.length, 0);
-  assert.equal(app.read().effective.queues.done[0].kind, "item");
+  assert.equal(app.read().effective.queues.done[0].kind, "widget");
   const wrapped = structuredClone(reading);
   wrapped.taken = 3;
   wrapped.browser.views[1].document.items.all[0].prompt.target = "new-context";

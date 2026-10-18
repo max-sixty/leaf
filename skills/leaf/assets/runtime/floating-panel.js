@@ -150,7 +150,7 @@ import { retainUserIntent } from "./user-intent.js";
 import { settleThread } from "./thread/folding.js";
 import { queueItemKey, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
-import { itemOutcome } from "./queues.js";
+import { carriesItem, itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
 import { itemEnding } from "./items/answer.js";
 import { answeredInWords } from "./items/model.js";
@@ -1723,7 +1723,7 @@ export function createFloatingPanel({
   const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : "On me");
 
   function onItemCard(item, list) {
-    const record = item.kind === "item" ? item.item : null;
+    const record = carriesItem(item) ? item.item : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     // A question asked in words is a message in its thread, and reads as that message,
     // drawn whole by Leaf's reader as the thread draws it (`nominate`), images and all:

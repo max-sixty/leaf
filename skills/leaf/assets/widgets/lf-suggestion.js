@@ -286,7 +286,7 @@ customElements.define(
                 // Before settlement this contribution is the ask, so suppress the shared
                 // ask at the same target. Afterwards Undo remains without inventing a
                 // second page-map reading.
-                kind: outcome ? "action" : "item",
+                kind: outcome ? "action" : "on-me",
                 ...(outcome ? {} : { represents: true }),
                 text: outcome
                   ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`

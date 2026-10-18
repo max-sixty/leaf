@@ -51,7 +51,7 @@ import {
 // runtime/page-paint.js
 var PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
-  ask: "data-lf-ask",
+  item: "data-lf-item",
   done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",

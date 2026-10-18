@@ -40,9 +40,7 @@ import {
   allThreads,
   alreadyShown,
   anchorLabel,
-  askHolding,
-  askPlace,
-  askedInWords,
+  answeredInWords,
   beginThreadSeats,
   beginWalk,
   blocksOnScreen,
@@ -78,6 +76,8 @@ import {
   importWidgets,
   isPageWidgetWorkflow,
   isWorkflowProgress,
+  itemHolding,
+  itemPlace,
   keepRefusedWords,
   landingRoom,
   landingTarget,
@@ -110,7 +110,7 @@ import {
   prepareDeclaredMarkdown,
   prepareEntry,
   rawOffsetFits,
-  readAsks,
+  readItems,
   readThreads,
   readingReturn,
   registerWritingDestination,
@@ -412,7 +412,6 @@ import {
   PENDING,
   actionForWidget,
   anchorKey,
-  askValue,
   bindQueuedWork,
   collectReads,
   discussed,
@@ -420,6 +419,7 @@ import {
   foldWidgetStates,
   isMessageEvent,
   isThreadEvent,
+  itemValue,
   lastMovedAt,
   moved,
   outsideReading,
@@ -693,7 +693,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/8`;
+var recordFormat = (kind) => `leaf-${kind}/9`;
 
 // runtime/composing/text-field.js
 import {
@@ -2678,8 +2678,8 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading2) {
         }
         continue;
       }
-      const { value } = askValue(now, verb, true);
-      if (JSON.stringify(value) === JSON.stringify(askValue(before, verb, true).value))
+      const { value } = itemValue(now, verb, true);
+      if (JSON.stringify(value) === JSON.stringify(itemValue(before, verb, true).value))
         continue;
       const ids = (
         /** @type {string[]} */
@@ -2906,8 +2906,8 @@ function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureAskStanding = () => null,
-  restoreAskStanding = () => {
+  captureItemStanding = () => null,
+  restoreItemStanding = () => {
   }
 }) {
   let {
@@ -3213,7 +3213,7 @@ function createVersionController({
       replyInView: focusedInView() !== null,
       // Ask standing is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent ask does not also own focus.
-      askStanding: draftEditing ? null : captureAskStanding()
+      itemStanding: draftEditing ? null : captureItemStanding()
     };
   }
   async function landContinuity(land2) {
@@ -3225,8 +3225,8 @@ function createVersionController({
   }
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, askStanding } = continuity;
-    restoreAskStanding(askStanding);
+    const { draftEditing, replyThread, replyInView, itemStanding } = continuity;
+    restoreItemStanding(itemStanding);
     const mayRestore = restrictUserIntent(
       currentIntent,
       () => draftEditingStands(draftEditing)
@@ -4023,16 +4023,16 @@ function inRecentOrder(threads) {
 // runtime/annotation-inventory.js
 var annotationSelection = (root) => ({
   projection: root.effective.projection,
-  asks: root.effective.asks,
+  items: root.effective.items,
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null
 });
 function createAnnotationInventory({
-  readAsks: readAsks2,
+  readItems: readItems2,
   placedAt,
   openThread,
-  goToAsk,
+  goToItem,
   scrollToElement
 }) {
   const humanized = (value) => String(value ?? "").replace(/[-_]+/g, " ").trim();
@@ -4214,13 +4214,13 @@ function createAnnotationInventory({
         pointed
       );
     }
-    for (const ask of readAsks2().user) {
-      const id = ask.id;
-      const target = askPlace(ask).node;
+    for (const item of readItems2().user) {
+      const id = item.id;
+      const target = itemPlace(item).node;
       if (!target) continue;
       add(groups, target, {
-        kind: "ask",
-        id: `ask:${id}`,
+        kind: "on-me",
+        id: `on-me:${id}`,
         // The group this row stands in already names the ask; the row says why it is
         // there, since these are the asks the user owes.
         text: "Waiting on me",
@@ -4228,9 +4228,9 @@ function createAnnotationInventory({
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const asks = readAsks2().user.filter((ask2) => ask2.source.kind === "widget");
-          const next = asks.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, asks);
+          const items = readItems2().user.filter((item2) => item2.source.kind === "widget");
+          const next = items.find((candidate) => candidate.id === id);
+          if (next) goToItem(next, items);
         }
       });
     }
@@ -5000,7 +5000,7 @@ function createStateFeed({
       reading = false;
       if (!readQueued) return;
       readQueued = false;
-      ask();
+      item();
     };
     const feedQuiet = () => !reading && !applyingReads && !stateApplying();
     const askOnce = async () => {
@@ -5035,7 +5035,7 @@ function createStateFeed({
         failed(error);
       }
     };
-    const ask = () => {
+    const item = () => {
       if (reading) {
         readQueued = true;
         return;
@@ -5076,7 +5076,7 @@ function createStateFeed({
           if (!response.ok) throw new Error(`news returned HTTP ${response.status}`);
           const observed = await response.text();
           if (listening === interval) {
-            if (observed !== freshness && observed !== runtime.reading) ask();
+            if (observed !== freshness && observed !== runtime.reading) item();
             else if (returned !== null && observed === runtime.reading && feedQuiet()) {
               await invalidateDom2();
               await present();
@@ -5086,7 +5086,7 @@ function createStateFeed({
           }
         } catch {
           if (listening !== interval) return;
-          ask();
+          item();
           delay = TICK_MS;
         }
         if (listening === interval) nextLook = setTimeout(look, delay);
@@ -5112,9 +5112,9 @@ function createStateFeed({
       setInterval(() => {
         if (!pageIsVisible()) return;
         if (readAnswered && sessionIsActive() && (activityTransitionDue(runtime.state) || freshness !== null && freshness !== runtime.reading))
-          void ask();
+          void item();
         else if (readAnswered) void heartbeat();
-        else void ask();
+        else void item();
         void present();
       }, TICK_MS);
       listen();
@@ -7011,15 +7011,15 @@ function unreadContent(threadView) {
 }
 function userObligations(page, threadView) {
   const held = /* @__PURE__ */ new Map();
-  for (const ask of page.asks.user)
-    held.set(JSON.stringify(["page", ask.id]), {
-      source: ask.id,
+  for (const item of page.items.user)
+    held.set(JSON.stringify(["page", item.id]), {
+      source: item.id,
       thread: null
     });
-  for (const ask of threadView.asks.user) {
-    held.set(JSON.stringify(["thread", ask.thread, ask.id]), {
-      source: ask.id,
-      thread: ask.thread
+  for (const item of threadView.items.user) {
+    held.set(JSON.stringify(["thread", item.thread, item.id]), {
+      source: item.id,
+      thread: item.thread
     });
   }
   return held;
@@ -7337,7 +7337,7 @@ function mountApplication(dependencies) {
         )
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "asks", "queue"],
+        ["projection:chrome", "thread", "items", "queue"],
         stillCurrent
       )
     ]);
@@ -7448,10 +7448,10 @@ function mountApplication(dependencies) {
     composition: dependencies.compositionSurface
   };
   const annotations = createAnnotationInventory({
-    readAsks,
+    readItems,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
-    goToAsk: dependencies.annotationCommands.goToAsk,
+    goToItem: dependencies.annotationCommands.goToItem,
     scrollToElement: dependencies.anchorTravel.scrollToElement
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -7761,21 +7761,21 @@ function mountApplication(dependencies) {
     threadActions: threadActions2,
     queueActions: queueActions2,
     settlement: settlementView,
-    openAsk(id) {
-      const ask = readAsks().all.find((item) => item.id === id);
-      if (!ask) return Promise.resolve(false);
-      if (ask.source.kind === "approval")
-        return queueActions2.open(JSON.stringify(["ask", ask.id]));
-      if (ask.thread !== null && askedInWords(ask)) {
-        showHeld(ask.thread);
-        return threadDestinations.openPageThread(ask.message, {
+    openItem(id) {
+      const item = readItems().all.find((item2) => item2.id === id);
+      if (!item) return Promise.resolve(false);
+      if (item.source.kind === "approval")
+        return queueActions2.open(JSON.stringify(["approval", item.id]));
+      if (item.thread !== null && answeredInWords(item)) {
+        showHeld(item.thread);
+        return threadDestinations.openPageThread(item.message, {
           part: "message"
         });
       }
-      return dependencies.annotationCommands.goToAsk(ask, readAsks().all);
+      return dependencies.annotationCommands.goToItem(item, readItems().all);
     },
     // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
-    nextAsk: (options) => dependencies.nextAskWithin(options),
+    nextItem: (options) => dependencies.nextItemWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput
   };
@@ -7799,9 +7799,9 @@ var threadActions = Object.freeze({
   reopen: (...args) => app().threadActions.reopen(...args),
   setReaction: (...args) => app().threadActions.setReaction(...args)
 });
-var askActions = Object.freeze({
-  open: (...args) => app().openAsk(...args),
-  next: (...args) => app().nextAsk(...args)
+var itemActions = Object.freeze({
+  open: (...args) => app().openItem(...args),
+  next: (...args) => app().nextItem(...args)
 });
 var queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),
@@ -8165,37 +8165,37 @@ function queueTitle(item) {
   const sent = item.answer?.message && thread?.msgs.find((message) => message.id === item.answer.message);
   if (sent) return sent.body.text.trim() || topic;
   if (item.subject.kind === "widget") {
-    const ask = own && askHolding(readAsks().all, own);
-    return ask && addressableLabel(askPlace(ask).context) || addressableLabel(own) || topic || item.id;
+    const record = own && itemHolding(readItems().all, own);
+    return record && addressableLabel(itemPlace(record).context) || addressableLabel(own) || topic || item.id;
   }
   return topic || item.id;
 }
 
-// runtime/asks/answer.js
-function ownedAskControl(source, commandSource) {
+// runtime/items/answer.js
+function ownedItemControl(source, commandSource) {
   const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
   return !selector || closestAcross(commandSource, selector) === source;
 }
-function askWord(ask) {
-  if (ask.source.kind === "approval") return "Approval";
-  const word = widgetWord(ask.source.tag, elementById(ask.source.id));
+function itemWord(item) {
+  if (item.source.kind === "approval") return "Approval";
+  const word = widgetWord(item.source.tag, elementById(item.source.id));
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
-function askWords(ask) {
-  if (ask.answer === null) return "";
-  if (ask.source.kind === "approval") return "Approved";
-  if (askedInWords(ask)) return ask.answer.value.text ?? ask.answer.value.token ?? "";
-  const source = elementById(ask.source.id);
+function answerWords(item) {
+  if (item.answer === null) return "";
+  if (item.source.kind === "approval") return "Approved";
+  if (answeredInWords(item)) return item.answer.value.text ?? item.answer.value.token ?? "";
+  const source = elementById(item.source.id);
   const formatter = (
     /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */
-    customElements.get(ask.source.tag)?.answerWords
+    customElements.get(item.source.tag)?.answerWords
   );
-  return String(source && formatter ? formatter(ask.answer.value, source) : "").replace(/\s+/g, " ").trim();
+  return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
 }
-function askEnding(ask) {
-  if (ask.status === "withdrawn") return "Withdrawn";
-  if (ask.status === "answered_elsewhere") return "Answered elsewhere";
-  const words2 = askWords(ask);
+function itemEnding(item) {
+  if (item.status === "withdrawn") return "Withdrawn";
+  if (item.status === "answered_elsewhere") return "Answered elsewhere";
+  const words2 = answerWords(item);
   return words2 ? `Answered: ${words2}` : "Answered";
 }
 
@@ -8375,7 +8375,7 @@ export {
   consumeAnnotations,
   registerThreadPresentation,
   threadActions,
-  askActions,
+  itemActions,
   queueActions,
   wireInput,
   threadInput,
@@ -8387,10 +8387,10 @@ export {
   createThreadLanding,
   declareThreadKeys,
   queueTitle,
-  ownedAskControl,
-  askWord,
-  askWords,
-  askEnding,
+  ownedItemControl,
+  itemWord,
+  answerWords,
+  itemEnding,
   acceptData,
   notifyDataSubscribers,
   dataReader,

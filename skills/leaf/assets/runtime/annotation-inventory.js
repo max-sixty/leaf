@@ -332,8 +332,8 @@ export function createAnnotationInventory({
       const target = itemPlace(item).node;
       if (!target) continue;
       add(groups, target, {
-        kind: "item",
-        id: `ask:${id}`,
+        kind: "on-me",
+        id: `on-me:${id}`,
         // The group this row stands in already names the ask; the row says why it is
         // there, since these are the asks the user owes.
         text: "Waiting on me",

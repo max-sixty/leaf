@@ -336,7 +336,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
 // as the Threads control is for "Threads: 999", and only grows, so a count changing
 // moves none of its words.
 const QUEUE_WORDS = Object.freeze({
-  item: ["item", "items"],
+  widget: ["item", "items"],
   approval: ["approval", "approvals"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],

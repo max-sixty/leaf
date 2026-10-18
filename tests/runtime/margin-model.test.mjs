@@ -177,7 +177,7 @@ test("threads aggregate into one control and retain captured thread order", () =
   const entry = inventory({
     items: [
       marker("z-newest", "comment"),
-      marker("item", "item"),
+      marker("item", "on-me"),
       marker("a-older", "comment"),
       marker("revision", "change"),
     ],
@@ -185,7 +185,7 @@ test("threads aggregate into one control and retain captured thread order", () =
   const choices = readingChoices(entry);
   assert.deepEqual(
     choices.map((choice) => choice.kind),
-    ["change", "comment", "item"],
+    ["change", "comment", "on-me"],
   );
   assert.deepEqual(
     choices[1].items.map((item) => item.id),
@@ -425,7 +425,7 @@ test("placement counts every secondary control beside the primary", () => {
       offer("direct", [control("primary"), control("peer")]),
       offer("after", [control("after-peer")], { side: "after" }),
     ],
-    items: [marker("item", "item")],
+    items: [marker("item", "on-me")],
   });
   assert.equal(secondaryCount(entry, choosePrimary(entry)), 3);
   assert.equal(entryHasMarginHost(entry), true);
@@ -467,7 +467,7 @@ test("focused owner exposes only its complete declared controls", () => {
 
 test("reading IDs belong to their contribution in both margin and Page Map", () => {
   const entry = inventory({
-    items: [null, "first", "second"].map((owner) => marker("same", "item", { owner })),
+    items: [null, "first", "second"].map((owner) => marker("same", "on-me", { owner })),
   });
   const choices = readingChoices(entry);
   assert.equal(new Set(choices.map((choice) => choice.key)).size, 3);

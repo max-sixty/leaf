@@ -8,6 +8,9 @@ export const queueOffers = (item, ready, onUser) => ({
   done: ready && onUser && item.kind === "todo",
 });
 
+// Whether a list item is a widget's or an approval's, which carries its record (`item`).
+export const carriesItem = (item) => item.kind === "widget" || item.kind === "approval";
+
 export const itemNoun = (item) =>
   item.kind === "answer" && item.answer?.kind === "reply" ? "reply" : item.kind;
 

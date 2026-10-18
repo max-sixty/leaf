@@ -62,7 +62,7 @@ import { shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
-import { itemNoun, itemOutcome } from "./queues.js";
+import { carriesItem, itemNoun, itemOutcome } from "./queues.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -164,7 +164,7 @@ export function createQueuePanel({
   // place; and before it, how a finished item ended, which is what a Done row is for.
   const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
-    if (itemNoun(item) === "item")
+    if (carriesItem(item))
       return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
     // Agent-authored detail has its own span and exact input identity. A generic
     // stage or a to-do title is never evidence of visible agent words.
@@ -190,13 +190,13 @@ export function createQueuePanel({
   }
   // An ask names how it ended, a to-do its outcome, and a reply that it was sent.
   function ended(item) {
-    if (item.kind === "item") return itemEnding(item.item);
+    if (carriesItem(item)) return itemEnding(item.item);
     return [itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ");
   }
   function row(item, list) {
     const thread = threadOf(item.thread);
     const noun = itemNoun(item);
-    const word = noun === "item" ? itemWord(item.item) : wordOf(item, noun);
+    const word = carriesItem(item) ? itemWord(item.item) : wordOf(item, noun);
     const where = (
       list === "done"
         ? [wherePart(ended(item)), wherePart(place(item, thread))]
@@ -207,9 +207,9 @@ export function createQueuePanel({
     // again. A reply the agent owes an update stands nowhere, so an ask's own row is the one
     // row standing at it.
     const at =
-      noun === "item" ||
+      carriesItem(item) ||
       (item.kind === "resend" && item.subject.kind === "widget" && item.thread === null)
-        ? item.kind === "item"
+        ? carriesItem(item)
           ? item.item.id
           : item.subject.id
         : null;

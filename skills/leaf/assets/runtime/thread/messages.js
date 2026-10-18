@@ -518,9 +518,27 @@ export class MessageView {
   }
 }
 
+// The element a coordinate names. One an agent sent in a message stands on the page only
+// while a reader draws that message, as the floating panel draws only the thread open
+// in it; its one instance is kept here either way (`prepareAuthoredMessage`), so a
+// thread about it is named by its words while the message it came in is put away.
+function addressableAt(id) {
+  const shown = elementById(id);
+  if (shown) return shown;
+  for (const { nodes } of authoredMessages.values())
+    for (const node of nodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const element = /** @type {Element} */ (node);
+      const kept =
+        element.id === id ? element : element.querySelector(`[id="${CSS.escape(id)}"]`);
+      if (kept) return kept;
+    }
+  return null;
+}
+
 function coordinateLabel(anchor, about) {
   if (about === "design") {
-    const addressable = anchor?.section ? elementById(anchor.section) : null;
+    const addressable = anchor?.section ? addressableAt(anchor.section) : null;
     const name = addressable ? designName(addressable) : anchor?.section || "the page";
     return anchor?.quote ? `${name} · “${anchor.quote}”` : name;
   }
@@ -528,7 +546,7 @@ function coordinateLabel(anchor, about) {
   if (datum) return anchor?.quote ? `${datum} · “${anchor.quote}”` : `§ ${datum}`;
   if (anchor?.quote) return `“${anchor.quote}”`;
   if (!anchor?.section) return "";
-  const addressable = elementById(anchor.section);
+  const addressable = addressableAt(anchor.section);
   if (anchor.visual) {
     const part = visualPartLabel(addressable, anchor.visual) ?? anchor.visual;
     return `§ ${addressable ? `${addressableWord(addressable)} · ${part}` : `${anchor.section} · ${part}`}`;

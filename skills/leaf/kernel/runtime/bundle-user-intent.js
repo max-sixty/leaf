@@ -3814,9 +3814,24 @@ var MessageView = class {
     this.#stopRead?.();
   }
 };
+function addressableAt(id) {
+  const shown = elementById(id);
+  if (shown) return shown;
+  for (const { nodes } of authoredMessages.values())
+    for (const node of nodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const element = (
+        /** @type {Element} */
+        node
+      );
+      const kept = element.id === id ? element : element.querySelector(`[id="${CSS.escape(id)}"]`);
+      if (kept) return kept;
+    }
+  return null;
+}
 function coordinateLabel(anchor, about) {
   if (about === "design") {
-    const addressable2 = anchor?.section ? elementById(anchor.section) : null;
+    const addressable2 = anchor?.section ? addressableAt(anchor.section) : null;
     const name = addressable2 ? designName(addressable2) : anchor?.section || "the page";
     return anchor?.quote ? `${name} \xB7 \u201C${anchor.quote}\u201D` : name;
   }
@@ -3824,7 +3839,7 @@ function coordinateLabel(anchor, about) {
   if (datum) return anchor?.quote ? `${datum} \xB7 \u201C${anchor.quote}\u201D` : `\xA7 ${datum}`;
   if (anchor?.quote) return `\u201C${anchor.quote}\u201D`;
   if (!anchor?.section) return "";
-  const addressable = elementById(anchor.section);
+  const addressable = addressableAt(anchor.section);
   if (anchor.visual) {
     const part = visualPartLabel(addressable, anchor.visual) ?? anchor.visual;
     return `\xA7 ${addressable ? `${addressableWord(addressable)} \xB7 ${part}` : `${anchor.section} \xB7 ${part}`}`;

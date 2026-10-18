@@ -279,6 +279,7 @@ export function createFloatingPanel({
   withdraw,
   settlement,
   placedAt,
+  openThreadSubject,
 }) {
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
@@ -2256,7 +2257,12 @@ export function createFloatingPanel({
       // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
       // Resolving leaves the reply's editing place, as a card's Resolve does, keeping
       // its draft (thread/replies.js), so the thread shows its way back instead.
-      onPageSeat ||= Boolean(thread.anchor) && !unplaced.has(thread.key);
+      // A thread about an element an agent sent in a message stands in that message
+      // (anchor-placement.js), so its way there is In its message, which opens the
+      // message's thread here on that element (thread/destination.js,
+      // `openThreadSubject`).
+      const inMessage = Boolean(placedAt(thread.id)?.message);
+      onPageSeat ||= Boolean(thread.anchor) && (inMessage || !unplaced.has(thread.key));
       aux = html`${
           onPageSeat
             ? html`<button
@@ -2265,6 +2271,10 @@ export function createFloatingPanel({
                 ?disabled=${!thread.anchor}
                 ?data-unoffered=${!thread.anchor}
                 @click=${() => {
+                  if (inMessage) {
+                    void openThreadSubject(thread.id, { intent: retainUserIntent() });
+                    return;
+                  }
                   // The words come into view in the press's own task, so a widget
                   // hiding them, as a diff's file filter does, gives them up to this
                   // press rather than after the route's awaits (widget-elements.js,
@@ -2281,7 +2291,7 @@ export function createFloatingPanel({
                   );
                 }}
               >
-                On the page
+                ${inMessage ? "In its message" : "On the page"}
               </button>`
             : nothing
         }<button

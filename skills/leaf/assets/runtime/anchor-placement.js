@@ -4,11 +4,28 @@
    initial admission and the final cohort move share this directory. Surface admission,
    inventory, standing and travel consume it;
    decoration consumes its resolved targets and never supplies their existence. These
-   nodes and records are mechanical readings, outside the application snapshot. */
+   nodes and records are mechanical readings, outside the application snapshot.
+
+   An anchor on an element an agent sent in a message, which the page itself doesn't
+   hold, stands in that message, and its placement names it (`message`). While no reader
+   draws the message, that is all it has (`resolvedInMessage`); while the floating panel
+   draws it in its view of the message's thread, it keeps the element's reading too, so
+   the element is marked there. */
 import { anchoringIsReady, resolveAnchor } from "./anchor-resolution.js";
-import { targetElement } from "./resolved-target.js";
+import { resolvedInMessage, targetElement } from "./resolved-target.js";
+import { inChrome } from "./passages.js";
 import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";
+import { messageHolding } from "./thread/messages.js";
+
+// The message of these threads that keeps the element an anchor names, if any.
+function heldIn(anchor, threads) {
+  const held = anchor.section ? messageHolding(anchor.section) : null;
+  return held &&
+    threads.some((thread) => thread.msgs.some(({ id }) => id === held.message))
+    ? held
+    : null;
+}
 
 export function createAnchorPlacement() {
   const placed = new Map();
@@ -25,7 +42,14 @@ export function createAnchorPlacement() {
     const pointable = [];
     for (const thread of threads) {
       if (!thread.anchor) continue;
-      const resolved = resolveAnchor(thread.anchor);
+      const found = resolveAnchor(thread.anchor);
+      const held =
+        found && !inChrome(found.place) ? null : heldIn(thread.anchor, threads);
+      const resolved = !held
+        ? found
+        : found
+          ? Object.assign(found, { message: held.message })
+          : resolvedInMessage(held);
       if (!resolved) continue;
       const target = targetElement(resolved) ?? resolved.place;
       const placement = Object.assign(resolved, {

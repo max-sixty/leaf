@@ -134,6 +134,7 @@ import {
   leftThePage,
   listWalkPosition,
   loadDraft,
+  messageHolding,
   messageReading,
   mirrorDraft,
   onReadingInterrupted,
@@ -223,6 +224,7 @@ import {
   isAddressable,
   lightSeat,
   resolveAnchor,
+  resolvedInMessage,
   sectionLabel,
   sectionOf,
   setAnchoringReady,
@@ -4782,6 +4784,10 @@ function createStandingTarget({ isAskControl, standingIn: standingIn2 }) {
 }
 
 // runtime/anchor-placement.js
+function heldIn(anchor, threads) {
+  const held = anchor.section ? messageHolding(anchor.section) : null;
+  return held && threads.some((thread) => thread.msgs.some(({ id }) => id === held.message)) ? held : null;
+}
 function createAnchorPlacement() {
   const placed = /* @__PURE__ */ new Map();
   let pendingPlaced = null;
@@ -4794,7 +4800,9 @@ function createAnchorPlacement() {
     const pointable = [];
     for (const thread of threads) {
       if (!thread.anchor) continue;
-      const resolved = resolveAnchor(thread.anchor);
+      const found = resolveAnchor(thread.anchor);
+      const held = found && !inChrome(found.place) ? null : heldIn(thread.anchor, threads);
+      const resolved = !held ? found : found ? Object.assign(found, { message: held.message }) : resolvedInMessage(held);
       if (!resolved) continue;
       const target = targetElement(resolved) ?? resolved.place;
       const placement = Object.assign(resolved, {
@@ -5941,7 +5949,8 @@ function createFloatingPanel({
   queueActions,
   withdraw,
   settlement,
-  placedAt
+  placedAt,
+  openThreadSubject
 }) {
   const host = el("section", "lf-ui lf-floating-panel");
   host.setAttribute("aria-label", "Leaf");
@@ -7313,13 +7322,18 @@ function createFloatingPanel({
         (tab) => lists[tab].length
       );
     } else if (thread) {
-      onPageSeat ||= Boolean(thread.anchor) && !unplaced.has(thread.key);
+      const inMessage = Boolean(placedAt(thread.id)?.message);
+      onPageSeat ||= Boolean(thread.anchor) && (inMessage || !unplaced.has(thread.key));
       aux = html`${onPageSeat ? html`<button
                 type="button"
                 class="lf-fp-quiet"
                 ?disabled=${!thread.anchor}
                 ?data-unoffered=${!thread.anchor}
                 @click=${() => {
+        if (inMessage) {
+          void openThreadSubject(thread.id, { intent: retainUserIntent() });
+          return;
+        }
         const intent = retainUserIntent();
         const place3 = placedAt(thread.id)?.place;
         if (place3) reveal(place3, intent);
@@ -7329,7 +7343,7 @@ function createFloatingPanel({
         );
       }}
               >
-                On the page
+                ${inMessage ? "In its message" : "On the page"}
               </button>` : nothing}<button
           type="button"
           class="lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
@@ -10814,7 +10828,8 @@ floatingPanel = createFloatingPanel({
   queueActions: app.queueActions,
   withdraw: app.withdraw,
   settlement: app.settlement,
-  placedAt: anchorPlacement.placedAt
+  placedAt: anchorPlacement.placedAt,
+  openThreadSubject: (id, options) => app.threadDestinations.openThreadSubject(id, options)
 });
 var generalComment = floatingPanel.pageComment;
 var passageSelection = createPassageSelection({

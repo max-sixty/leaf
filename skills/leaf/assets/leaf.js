@@ -471,6 +471,8 @@ floatingPanel = createFloatingPanel({
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,
+  openThreadSubject: (id, options) =>
+    app.threadDestinations.openThreadSubject(id, options),
 });
 // The page's general comment box is the floating panel's field.
 const generalComment = floatingPanel.pageComment;

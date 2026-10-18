@@ -272,6 +272,14 @@ var resolvedPassage = ({ place, segments }) => ({
   place,
   segments
 });
+var resolvedInMessage = ({ message }) => ({
+  exact: true,
+  status: "exact",
+  datumElement: null,
+  kind: "message",
+  message,
+  place: null
+});
 var targetElement = (resolved) => resolved?.kind === "element" ? resolved.element : null;
 var targetSegments = (resolved) => resolved?.kind === "passage" ? resolved.segments : [];
 var targetPlace = (resolved) => resolved?.place ?? null;
@@ -1455,6 +1463,7 @@ function anchorView(node, target, changed) {
 export {
   chromeRoot,
   chromeForeground,
+  resolvedInMessage,
   targetElement,
   targetSegments,
   targetPlace,

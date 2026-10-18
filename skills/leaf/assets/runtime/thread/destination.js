@@ -8,7 +8,9 @@
    outlet, then a page preview, then a deliberately revealed widget seat. Where none of
    those shows it, the primary is asked again with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
-   second refusal leaves the thread unopened.
+   second refusal leaves the thread unopened. A thread about an element an agent sent
+   in a message has no drawing beside its subject: `openThreadSubject` opens that
+   message and lands on the element there.
    A compact preview keeps held widget arrivals held until its own release gesture.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
@@ -50,6 +52,7 @@ import { closestAcross } from "../passages.js";
 import { renderedUnder } from "../shadow.js";
 import { discussed, threadKey } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
+import { messageHolding } from "./messages.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
 import { threadPlace as placementOf } from "./placement.js";
 
@@ -302,6 +305,34 @@ export function createThreadDestinations({
     return shown === DECLINED || shown === UNDRAWN ? null : shown;
   }
 
+  // Where a thread about an element an agent sent in a message goes to its subject: the
+  // message stands in for a place on the page (anchor-placement.js), so the message's
+  // thread opens there without moving focus, as a thread ask's does (asks/view.js), and
+  // the user lands on the element in it. A thread whose subject stands on the page goes
+  // there by opening itself, beside its words.
+  async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {
+    const message = placedAt(id)?.message;
+    if (!message) return null;
+    const { element } = messageHolding(threadNamed(id).anchor.section);
+    const shown = await openPageThread(message, {
+      part: "message",
+      focus: false,
+      travel: false,
+      intent,
+    });
+    if (!shown || !element.isConnected) return null;
+    const arrived = await arrive(
+      () =>
+        element.isConnected && {
+          where: element,
+          focus: element,
+          scroll: [{ at: element, block: "nearest" }],
+        },
+      { intent },
+    );
+    return arrived ? element : null;
+  }
+
   // Where a thread holds the user's draft `context`, with its box ready for the caret:
   // the thread's reply box, or the rewrite of one of its messages, which opens on that
   // message where a message part lands, in the primary reader (`message-edit.js`).
@@ -328,6 +359,7 @@ export function createThreadDestinations({
   return {
     register,
     openPageThread,
+    openThreadSubject,
     openThreadDraft,
     holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,

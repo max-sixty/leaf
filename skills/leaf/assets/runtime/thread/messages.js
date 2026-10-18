@@ -518,23 +518,25 @@ export class MessageView {
   }
 }
 
-// The element a coordinate names. One an agent sent in a message stands on the page only
-// while a reader draws that message, as the floating panel draws only the thread open
-// in it; its one instance is kept here either way (`prepareAuthoredMessage`), so a
-// thread about it is named by its words while the message it came in is put away.
-function addressableAt(id) {
-  const shown = elementById(id);
-  if (shown) return shown;
-  for (const { nodes } of authoredMessages.values())
+// Where an element an agent sent in a message stands, by its id: the one instance of it
+// the message keeps (`prepareAuthoredMessage`), with the message and its thread. It
+// stands on the page only while a reader draws that message, as the floating panel
+// draws only the thread open in it, so a thread about it is named by its words, and
+// placed in its message (anchor-placement.js), while the message is put away.
+export function messageHolding(id) {
+  for (const { nodes, body } of authoredMessages.values())
     for (const node of nodes) {
       if (node.nodeType !== Node.ELEMENT_NODE) continue;
       const element = /** @type {Element} */ (node);
       const kept =
         element.id === id ? element : element.querySelector(`[id="${CSS.escape(id)}"]`);
-      if (kept) return kept;
+      if (kept) return { element: kept, ...body.document };
     }
   return null;
 }
+
+// The element a coordinate names: the page's, else one a message keeps.
+const addressableAt = (id) => elementById(id) ?? messageHolding(id)?.element ?? null;
 
 function coordinateLabel(anchor, about) {
   if (about === "design") {

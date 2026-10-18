@@ -73,6 +73,7 @@ import {
   loadMarkdown,
   loadMessageMarkdown,
   markdownReady,
+  messageHolding,
   messageReading,
   messageText,
   mountFirstMessage,
@@ -6145,6 +6146,27 @@ function createThreadDestinations({
     const shown = await inPrimary(true);
     return shown === DECLINED || shown === UNDRAWN ? null : shown;
   }
+  async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {
+    const message = placedAt(id)?.message;
+    if (!message) return null;
+    const { element } = messageHolding(threadNamed(id).anchor.section);
+    const shown = await openPageThread(message, {
+      part: "message",
+      focus: false,
+      travel: false,
+      intent
+    });
+    if (!shown || !element.isConnected) return null;
+    const arrived = await arrive(
+      () => element.isConnected && {
+        where: element,
+        focus: element,
+        scroll: [{ at: element, block: "nearest" }]
+      },
+      { intent }
+    );
+    return arrived ? element : null;
+  }
   async function openThreadDraft(context, intent) {
     const thread = threadHolding(context);
     if (!thread) return null;
@@ -6161,6 +6183,7 @@ function createThreadDestinations({
   return {
     register,
     openPageThread,
+    openThreadSubject,
     openThreadDraft,
     holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,

@@ -3814,10 +3814,8 @@ var MessageView = class {
     this.#stopRead?.();
   }
 };
-function addressableAt(id) {
-  const shown = elementById(id);
-  if (shown) return shown;
-  for (const { nodes } of authoredMessages.values())
+function messageHolding(id) {
+  for (const { nodes, body } of authoredMessages.values())
     for (const node of nodes) {
       if (node.nodeType !== Node.ELEMENT_NODE) continue;
       const element = (
@@ -3825,10 +3823,11 @@ function addressableAt(id) {
         node
       );
       const kept = element.id === id ? element : element.querySelector(`[id="${CSS.escape(id)}"]`);
-      if (kept) return kept;
+      if (kept) return { element: kept, ...body.document };
     }
   return null;
 }
+var addressableAt = (id) => elementById(id) ?? messageHolding(id)?.element ?? null;
 function coordinateLabel(anchor, about) {
   if (about === "design") {
     const addressable2 = anchor?.section ? addressableAt(anchor.section) : null;
@@ -7282,6 +7281,7 @@ export {
   prepareAuthoredMessage,
   messageReading,
   MessageView,
+  messageHolding,
   anchorLabel,
   ELEMENTS,
   pageScope,

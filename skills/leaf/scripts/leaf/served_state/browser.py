@@ -2,12 +2,12 @@
 
 from typing import NamedTuple
 
-from ..items import approval_blocking, collection
 from ..document_reading import DocumentReading
 from ..events import UndoReading
 from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
+from ..items import approval_blocking, collection
 from ..passages import SourceReading
 from ..projection import (
     FrozenThreadReading,

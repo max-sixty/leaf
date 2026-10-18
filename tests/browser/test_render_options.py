@@ -18,11 +18,11 @@ from leaf import service as service_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    CHIP_PAGE,
+    INLINE_CASE_PAGE,
     ITEM_PAGE,
     ITEM_SHAPES_PAGE,
     ITEM_WITH_CONTEXT_PAGE,
-    CHIP_PAGE,
-    INLINE_CASE_PAGE,
     NESTED_ITEM_PAGE,
     SETTLED_ITEM_PAGE,
     STACKED_OPTIONS_PAGE,
@@ -45,8 +45,8 @@ from render_harness import (
     _until,
     compare_with,
     consume_browser_errors,
-    expect_items_answered,
     expect_banner_control_offered,
+    expect_items_answered,
     hold_selection,
     holding,
     leaf_page,
@@ -846,7 +846,9 @@ def test_a_first_item_starts_at_the_pages_content_edge_even_in_a_live_sample(
               - parseFloat(style.paddingTop);
         }"""
     )
-    assert abs(framed_gap) < 1, f"a framed lf-ask leaves {framed_gap}px above its question"
+    assert abs(framed_gap) < 1, (
+        f"a framed lf-ask leaves {framed_gap}px above its question"
+    )
     later_gap = page.locator("#later-ask > h2").evaluate(
         """heading => heading.getBoundingClientRect().top
           - document.querySelector('#between-asks').getBoundingClientRect().bottom"""

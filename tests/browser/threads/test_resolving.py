@@ -13,9 +13,9 @@ from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ITEM_PAGE,
     FRAME_BY_FRAME,
     HOLD_MOTION,
+    ITEM_PAGE,
     LIST_STATE,
     PANEL_PAGE,
     SEATED_ITEM_LAYER,

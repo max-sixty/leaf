@@ -999,7 +999,9 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
 
 
-def test_a_narrowing_hides_a_thread_without_taking_its_item_off_the_page(browser, serve):
+def test_a_narrowing_hides_a_thread_without_taking_its_item_off_the_page(
+    browser, serve
+):
     """Thread narrowing changes presentation, not the admitted item inventory.
 
     With one item answered, hiding a thread with the On me filter keeps

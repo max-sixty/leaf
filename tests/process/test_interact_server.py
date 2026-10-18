@@ -4656,9 +4656,7 @@ def _serve_after_a_key_rename(page_dir):
     try:
         status, body = fetch(f"{temporary.origin}/revisions/{old}")
         assert status == 409, body
-        assert "Revision 1 was saved by a Leaf that declares x-noun" in (
-            body.decode()
-        )
+        assert "Revision 1 was saved by a Leaf that declares x-noun" in (body.decode())
         assert fetch(f"{temporary.origin}/revisions/{new}")[0] == 200
 
         def commented(revision):

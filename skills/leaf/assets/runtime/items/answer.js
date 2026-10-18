@@ -22,7 +22,8 @@ export function itemWord(item) {
 export function answerWords(item) {
   if (item.answer === null) return "";
   if (item.source.kind === "approval") return "Approved";
-  if (answeredInWords(item)) return item.answer.value.text ?? item.answer.value.token ?? "";
+  if (answeredInWords(item))
+    return item.answer.value.text ?? item.answer.value.token ?? "";
   const source = elementById(item.source.id);
   const formatter =
     /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */ (

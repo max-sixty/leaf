@@ -105,7 +105,9 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     round_trip(page)
 
 
-def test_a_revision_that_restates_an_item_leaves_the_user_standing_in_it(browser, serve):
+def test_a_revision_that_restates_an_item_leaves_the_user_standing_in_it(
+    browser, serve
+):
     """The item a user is working survives the revision that rewrites it.
 
     A patch keeps every node the revision did not rewrite, so an untouched control is
@@ -138,7 +140,9 @@ def test_a_revision_that_restates_an_item_leaves_the_user_standing_in_it(browser
     expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
 
 
-def test_a_restated_item_returns_a_user_to_the_question_not_to_a_control(browser, serve):
+def test_a_restated_item_returns_a_user_to_the_question_not_to_a_control(
+    browser, serve
+):
     """A user inside the item comes back to its opening, never to a guessed control.
 
     Which control they were holding is not a thing the item can answer: the controls are

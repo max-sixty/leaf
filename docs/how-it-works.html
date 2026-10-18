@@ -545,14 +545,13 @@ leaf response reply &lt;answer.ref&gt; --done --text "The importer policy is upd
 leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment receives a thread reply. A page can also pose an
-                <em>item</em> on the user's On me list through a decision widget, such as a
-                choice between queue policies. Each item contains its prompt, typed
+                <em>item</em> on the user's On me list through a decision widget, such
+                as a choice between queue policies. Each item contains its prompt, typed
                 answer, and lifecycle. The widget owns its value; a standalone decision
                 widget also creates an item. An optional <code>lf-ask</code> around it
-                supplies its heading as the prompt. The agent
-                records that decision in a stamped revision. The browser fetches the
-                updated HTML and current state, so the user sees the result on the same
-                page.
+                supplies its heading as the prompt. The agent records that decision in a
+                stamped revision. The browser fetches the updated HTML and current
+                state, so the user sees the result on the same page.
               </p>
               <details id="decision-example">
                 <summary>Example: answer a page choice</summary>
@@ -1461,8 +1460,8 @@ flowchart LR
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task open … --on user</code></strong> Something the
-                agent needs the user to do that no widget or question answers, such as trying
-                a build, as a to-do on the user's On me list, where
+                agent needs the user to do that no widget or question answers, such as
+                trying a build, as a to-do on the user's On me list, where
                 <code>m</code> reaches it. Its <em>Done</em>, on its row or
                 <kbd>x</kbd> where <code>m</code> lands, ends it and tells the agent. A
                 question in a thread has no Done: the user's reply answers it.
@@ -3029,18 +3028,18 @@ flowchart TD
             <p id="chrome-what">
               Leaf adds controls around the authored HTML. This interface is called
               <em>chrome</em>: the top banner, bottom bar, comment and decision markers,
-              thread panels, and the On panel. An item contains a request for user input,
-              its answer, and its lifecycle; widgets own their typed answer values. The
-              On panel lists what each side has to act on, in the user's own voice.
-              <em>On me</em> holds widget items, questions, stamped-version sign-off, and
-              to-dos the agent put on the user. <em>On Claude</em>, named for the agent,
-              holds unanswered updates and the agent's open to-dos. The panel shows one
-              list at a time, under a tab named for it, and folds what left that list
-              under it as Done: answered items under On me, sent replies under On Claude.
-              The banner's On me door, beside Threads, counts the user's list, and the
-              On Claude count after the status counts the agent's; each opens the panel
-              on its own list. Opening these controls preserves the page's text wrapping
-              and reading position.
+              thread panels, and the On panel. An item contains a request for user
+              input, its answer, and its lifecycle; widgets own their typed answer
+              values. The On panel lists what each side has to act on, in the user's own
+              voice. <em>On me</em> holds widget items, questions, stamped-version
+              sign-off, and to-dos the agent put on the user. <em>On Claude</em>, named
+              for the agent, holds unanswered updates and the agent's open to-dos. The
+              panel shows one list at a time, under a tab named for it, and folds what
+              left that list under it as Done: answered items under On me, sent replies
+              under On Claude. The banner's On me door, beside Threads, counts the
+              user's list, and the On Claude count after the status counts the agent's;
+              each opens the panel on its own list. Opening these controls preserves the
+              page's text wrapping and reading position.
             </p>
             <p id="chrome-bars">
               The banner and bottom bar have fixed heights, and the page scrolls between
@@ -3816,8 +3815,8 @@ flowchart TD
               <p id="navigation-comment-return">
                 <kbd>m</kbd>, <kbd>c</kbd>, <kbd>Escape</kbd> returns focus to the item,
                 with its option keys available again. A second Escape lets go of the
-                item. Commenting from an option or by aiming at the same item follows the
-                same return route. A visual comment returns to its current response
+                item. Commenting from an option or by aiming at the same item follows
+                the same return route. A visual comment returns to its current response
                 proxy, by keyboard or pointer entry. A comment on the whole page returns
                 to its banner control; closing a comment on selected words clears the
                 selection.
@@ -3845,7 +3844,8 @@ flowchart TD
                 version sign-off, to-dos, and updates to send again. It can clear a
                 thread filter that hides its destination, or open a closed tab or
                 disclosure. A single-choice item ends when answered; a multiple-choice
-                item waits for Done. A later <kbd>m</kbd> press walks the remaining work.
+                item waits for Done. A later <kbd>m</kbd> press walks the remaining
+                work.
               </p>
               <p id="navigation-tab-rule">
                 A tab strip's arrows select neighbouring tabs and wrap at its ends; Tab
@@ -4458,12 +4458,12 @@ flowchart LR
             <p id="browser-updates-asks">
               Which widget items are open, answered or withdrawn depends on the whole
               log, so only the server computes it. Answering one changes its component,
-              and the answer the On panel shows, at once. The item leaves the user's list
-              when the tab adopts the state in the server's answer to that update, a
-              moment later. Approving a version and replying to a question in a thread take
-              effect at once. Whose turn a thread is also comes from the server, with
-              two local adjustments: a comment the tab is still sending passes the turn
-              to the agent, and a refused one passes it back to the user.
+              and the answer the On panel shows, at once. The item leaves the user's
+              list when the tab adopts the state in the server's answer to that update,
+              a moment later. Approving a version and replying to a question in a thread
+              take effect at once. Whose turn a thread is also comes from the server,
+              with two local adjustments: a comment the tab is still sending passes the
+              turn to the agent, and a refused one passes it back to the user.
             </p>
           </section>
 
@@ -4482,9 +4482,9 @@ flowchart LR
               Leaf's own parts draw in a fixed order: first the marks on authored
               elements, since they can add words to the text; then the threads, which
               find their passages in that text; then the item view, which finds each
-              item's element among the nodes the threads placed; then the On panel, which
-              shows each answer against that element. The order is declared once, so
-              code that changes state never names the parts that must redraw.
+              item's element among the nodes the threads placed; then the On panel,
+              which shows each answer against that element. The order is declared once,
+              so code that changes state never names the parts that must redraw.
             </p>
             <p id="browser-drawing-hold">
               A part can put off drawing a new state while drawing would disturb the
@@ -4617,8 +4617,8 @@ flowchart LR
               mode, Design mode and Hide annotations, along with the controls a desktop
               banner shows on its row: On me, Comment on the page, and Approve version
               on a page that asks for sign-off. More shows a dot while an approval or
-              another item behind it is still open. While a mode or a search is open, its
-              steps take the Threads icon's place on the row: Exit Draw mode, for
+              another item behind it is still open. While a mode or a search is open,
+              its steps take the Threads icon's place on the row: Exit Draw mode, for
               example, or Previous, Next and Close for a search.
             </p>
           </section>

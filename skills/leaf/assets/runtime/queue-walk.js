@@ -102,8 +102,7 @@ const nounOf = (item, stop) =>
 const stopOf = (item) =>
   item.kind === "approval"
     ? { kind: "approval", id: item.id, thread: null }
-    : item.kind === "widget" &&
-        !(item.thread !== null && answeredInWords(item.item))
+    : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.item))
       ? { kind: "item", id: item.id, thread: item.thread, item: item.item }
       : item.thread !== null
         ? { kind: "thread", id: item.thread, thread: item.thread }

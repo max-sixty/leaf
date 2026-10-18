@@ -71,9 +71,9 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
-from .items import replied
 from .events import note_settlements, taken_back
 from .findings import Finding, Rejected
+from .items import replied
 from .thread_context import thread_names
 
 # What `task open` takes for the page as a whole; any other id names a widget or an

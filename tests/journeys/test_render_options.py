@@ -13,9 +13,9 @@ from interact_support import (
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    EXHIBIT_EXTENT,
     ITEM_PAGE,
     ITEM_WITH_CONTEXT_PAGE,
-    EXHIBIT_EXTENT,
     SAMPLE_EXAMPLES,
     live_url,
 )

@@ -10,9 +10,9 @@ from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ITEMS_IN_ORDER,
+    CHANGE_SHAPES_PAGE,
     ITEM_WITH_CONTEXT_PAGE,
     ITEMS_PAGE,
-    CHANGE_SHAPES_PAGE,
     QUEUE_ROW_SAYS,
 )
 from render_cases_layout import banner_control

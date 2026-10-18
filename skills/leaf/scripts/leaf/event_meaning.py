@@ -7,8 +7,8 @@ referenced element still changes containment without changing an old event.
 
 from functools import cached_property
 
-from leaf.items import answer_verbs, answering_action, asking, replayed_attrs
 from leaf.events import event_document
+from leaf.items import answer_verbs, answering_action, asking, replayed_attrs
 from leaf.projection import (
     authored_positions,
     frozen_thread_reading,

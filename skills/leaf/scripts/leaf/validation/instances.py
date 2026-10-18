@@ -1,8 +1,8 @@
 """Registry-declared markup instance validation."""
 
-from leaf.items import asking, encloses, local_item_entry, quoted_in, replied
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import leading_title_node
+from leaf.items import asking, encloses, local_item_entry, quoted_in, replied
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     is_element_name,
@@ -231,9 +231,7 @@ def item_context_errors(document: SourceDocument, registry: dict) -> list[Findin
         )
 
     lf_elements = document.lf_elements
-    regions = [
-        rec for rec in lf_elements if encloses(registry.get(rec["tag"], {}))
-    ]
+    regions = [rec for rec in lf_elements if encloses(registry.get(rec["tag"], {}))]
     framed = {id(region): [] for region in regions}
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})

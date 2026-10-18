@@ -12,9 +12,9 @@ state. A `WorkReading` lasts for one transaction and is never written to disk.
 
 from functools import cached_property
 
-from .items import collection, replied, thread_item_readings
 from .document_reading import read_document
 from .events import approvals_in_force, build_threads
+from .items import collection, replied, thread_item_readings
 from .plans import plan_reading
 from .projection import frozen_thread_reading
 from .read_state import content_version

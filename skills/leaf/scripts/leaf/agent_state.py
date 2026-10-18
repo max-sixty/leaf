@@ -390,7 +390,9 @@ def _page_state(
                 item["message"] for item in served_threads[thread["id"]]["unread"]
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
-        state["items"] = view["document"]["items"]["all"] + view["thread"]["items"]["all"]
+        state["items"] = (
+            view["document"]["items"]["all"] + view["thread"]["items"]["all"]
+        )
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
         state["plan"] = browser["plan"]
         served_queues = view["queues"]

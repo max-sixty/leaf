@@ -119,7 +119,9 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     cannot become a pointer or keyboard target while the sheet still claims modal
     semantics. Closing restores the updated document.
     """
-    source = LONG_PAGE.replace('<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>{ONE_ITEM}')
+    source = LONG_PAGE.replace(
+        '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>{ONE_ITEM}'
+    )
     url = serve(source)
     page = open_page(browser, live_url(url))
     resized(page, 500, 640)

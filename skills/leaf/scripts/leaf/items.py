@@ -41,10 +41,10 @@ from leaf.page_memory import Slot
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
-    item_value,
     enclosing_widgets,
     folded_value,
     frozen_thread_reading,
+    item_value,
     markup_value,
     page_reading,
     projected_action_holders,

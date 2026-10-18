@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import NamedTuple
 
 from leaf.activity import answer_command, reply_command
-from leaf.items import asking, local_item_entry, quoted_in
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -23,6 +22,7 @@ from leaf.files import (
 )
 from leaf.findings import Finding, Rejected
 from leaf.harness import message_identity
+from leaf.items import asking, local_item_entry, quoted_in
 from leaf.leases import contract_writer
 from leaf.passages import SourceReading
 from leaf.projection import (

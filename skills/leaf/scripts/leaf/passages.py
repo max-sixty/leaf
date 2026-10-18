@@ -653,8 +653,8 @@ class SourceReading:
     @cached_property
     def inventory(self) -> SourceInventory:
         """Read historical consumers together, without retaining parser records."""
-        from .items import item_registrations
         from .data_contracts import data_document_readings
+        from .items import item_registrations
 
         return SourceInventory(
             tuple(self.document.ids),

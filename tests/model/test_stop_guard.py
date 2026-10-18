@@ -22,7 +22,6 @@ from interact_support import (
     _watched,
     append_carried_log_record,
     append_command,
-    items_on_user,
     codex_records,
     consume_pending_input,
     continued,
@@ -30,6 +29,7 @@ from interact_support import (
     delivered_ref,
     delivery_through,
     end_work,
+    items_on_user,
     last_deliverable_seq,
     let_a_pick_settle_a_thread,
     owed,
@@ -290,7 +290,9 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     assert reason.count(schema_model.ANSWER_ITEM_INSTRUCTION) == 1
     # The lines stand together, so the user reaches every page before the
     # first protocol rather than one page per protocol.
-    assert reason.index(str(second)) < reason.index(schema_model.ANSWER_ITEM_INSTRUCTION)
+    assert reason.index(str(second)) < reason.index(
+        schema_model.ANSWER_ITEM_INSTRUCTION
+    )
     for identity, label in deliveries.items():
         reason = reason.replace(identity, label)
     snapshot.check(

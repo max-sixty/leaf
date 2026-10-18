@@ -355,7 +355,11 @@ def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
     """An lf-ask holding no widget items in words: it waits on the user, titled by its
     words, until their next message in its thread, which is its answer."""
     [item] = served_thread(model.reading(page(""), answered_in_words()))["items"]["all"]
-    assert (item["id"], item["status"], item["next_actor"]) == ("widget:q", "open", "user")
+    assert (item["id"], item["status"], item["next_actor"]) == (
+        "widget:q",
+        "open",
+        "user",
+    )
     assert item["prompt"]["text"] == "Weekly or daily?"
     state = model.reading(
         page(""),
@@ -617,7 +621,9 @@ def test_conditional_request_retains_registration_between_value_actions():
         for phase in ("open", "closed")
     ]
     assert page_items(model.reading(document, registry=registry))["all"] == []
-    [opened] = page_items(model.reading(document, events[:1], registry=registry))["user"]
+    [opened] = page_items(model.reading(document, events[:1], registry=registry))[
+        "user"
+    ]
     assert opened["status"] == "open"
     closed = page_items(model.reading(document, events, registry=registry))
     [withdrawn] = closed["all"]

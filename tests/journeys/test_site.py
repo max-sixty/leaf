@@ -54,8 +54,8 @@ from render_cases_layout import banner_control
 from render_harness import (
     consume_browser_errors,
     displayed,
-    expect_items_answered,
     expect_banner_control_offered,
+    expect_items_answered,
     holding,
     http_error_console,
     is_problem,

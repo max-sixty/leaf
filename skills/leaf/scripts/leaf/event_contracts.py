@@ -10,11 +10,6 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from pathlib import Path
 
-from leaf.items import (
-    approval_blocking,
-    asking,
-    quoted_in,
-)
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
@@ -26,6 +21,11 @@ from leaf.events import (
 )
 from leaf.files import version_revisions
 from leaf.findings import Finding
+from leaf.items import (
+    approval_blocking,
+    asking,
+    quoted_in,
+)
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
@@ -802,7 +802,9 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
             None,
         )
         if item is not None:
-            return Finding("duplicate-item", values={"widget": widget, "item": item["id"]})
+            return Finding(
+                "duplicate-item", values={"widget": widget, "item": item["id"]}
+            )
         return None
 
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}

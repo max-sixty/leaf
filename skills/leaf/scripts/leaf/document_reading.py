@@ -9,8 +9,8 @@ the document reading's own (`SourceReading.decided_passages`).
 
 from typing import NamedTuple
 
-from .items import approval_item, collection, page_item_readings
 from .events import retractions
+from .items import approval_item, collection, page_item_readings
 from .passages import Passages
 from .projection import PageReading, StateProjection, retirement_outcomes
 from .structure import SourceDocument

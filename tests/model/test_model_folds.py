@@ -496,7 +496,9 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     assert [item["id"] for item in served_thread(state)["items"]["user"]] == [
         "widget:route"
     ]
-    assert served_thread(state)["items"]["all"][1]["answer"]["event"]["id"] == "reaction"
+    assert (
+        served_thread(state)["items"]["all"][1]["answer"]["event"]["id"] == "reaction"
+    )
     state = add(
         "todo_end",
         "end",

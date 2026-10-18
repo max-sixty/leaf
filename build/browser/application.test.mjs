@@ -1313,7 +1313,11 @@ test("a pending gesture leaves items and On me as served until the log answers",
     status: "answered",
     next_actor: null,
   };
-  accepted.browser.views[1].thread.items = { all: [answered], user: [], unanswered: [] };
+  accepted.browser.views[1].thread.items = {
+    all: [answered],
+    user: [],
+    unanswered: [],
+  };
   const done = {
     ...servedRecordItem(answered, { subject: { kind: "thread", id: item.id } }),
     state: "done",

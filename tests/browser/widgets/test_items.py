@@ -23,9 +23,9 @@ from render_cases_navigation import BINDING_BADGE_PAGE
 from render_harness import (
     ROOT,
     active_digit_bindings,
-    expect_items_answered,
     expect_banner_control_offered,
     expect_comment_notes,
+    expect_items_answered,
     holding,
     leaf_page,
     open_page,
@@ -193,7 +193,9 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     expect(approve).to_contain_text("Version approved")
 
 
-def test_clearing_an_answer_reopens_its_item_and_shuts_the_approval_gate(browser, serve):
+def test_clearing_an_answer_reopens_its_item_and_shuts_the_approval_gate(
+    browser, serve
+):
     """An answer verb with an empty recorded value leaves its item unanswered."""
     html = leaf_page(
         "approval after a cleared pick",
@@ -234,7 +236,9 @@ def test_clearing_an_answer_reopens_its_item_and_shuts_the_approval_gate(browser
     )
 
 
-def test_the_item_reading_counts_completed_items_against_the_active_total(browser, serve):
+def test_the_item_reading_counts_completed_items_against_the_active_total(
+    browser, serve
+):
     """Two semantic readings, collected from declarations rather than from any tag.
 
     The count used to be a query for `lf-suggestion:not([data-lf-state])`: perfect for
@@ -942,7 +946,9 @@ def test_item_binding_badges_do_not_cover_their_key_line(browser, serve):
           };
         }"""
     )
-    assert geometry["chips"], "the fixture did not leave an item binding badge on screen"
+    assert geometry["chips"], (
+        "the fixture did not leave an item binding badge on screen"
+    )
     assert all(
         chip["right"] <= geometry["line"]["left"]
         or geometry["line"]["right"] <= chip["left"]
@@ -1071,7 +1077,9 @@ def test_an_arrival_does_not_reach_back_into_the_item_before_it(browser, serve):
     )
     scroll_settled(page)
 
-    page.keyboard.press("Shift+m")  # back to the nearest item above, which is the change
+    page.keyboard.press(
+        "Shift+m"
+    )  # back to the nearest item above, which is the change
     expect(page.locator("#ar-sug")).to_be_focused()
     scroll_settled(page)
 

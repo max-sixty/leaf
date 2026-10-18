@@ -1255,7 +1255,9 @@ def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
     """The On panel or an authored sidebar does not turn the contextual card into
     the Threads panel. The On panel stands on the right edge, over the rail at a
     desk's width, so the window is wide enough to leave the marker clear of it."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     resized(page, 2100, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()

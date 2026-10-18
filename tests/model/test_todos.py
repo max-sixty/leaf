@@ -15,9 +15,9 @@ from interact_support import (
     _status,
     append_carried_log_record,
     append_command,
-    items_on_user,
     command_findings,
     delivered,
+    items_on_user,
     page_packages,
     page_state,
     publish,
@@ -177,7 +177,9 @@ def test_required_approval_is_an_item_for_its_exact_stamp_until_approved(page_di
             "detail": {"value": ["flag-first"]},
         },
     )
-    assert kinds(state_json(page_dir)["queues"]["on_user"]) == [("approval", "approval:v1")]
+    assert kinds(state_json(page_dir)["queues"]["on_user"]) == [
+        ("approval", "approval:v1")
+    ]
     accepted = append_command(
         page_dir, {"kind": "done", "author": "user", "version": 1}
     )
@@ -197,7 +199,9 @@ def test_required_approval_is_an_item_for_its_exact_stamp_until_approved(page_di
     append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
-    assert kinds(state_json(page_dir)["queues"]["on_user"]) == [("approval", "approval:v1")]
+    assert kinds(state_json(page_dir)["queues"]["on_user"]) == [
+        ("approval", "approval:v1")
+    ]
     append_command(page_dir, {"kind": "done", "author": "user", "version": 1})
     (page_dir / "index.html").write_text(
         source.replace("<title>t</title>", "<title>Revised</title>")
@@ -497,7 +501,11 @@ def test_user_queue_selects_decisions_and_questions(page_dir, sessionless):
         )
     )
     state = state_json(page_dir)
-    items = [("widget", item["id"]) for item in items_on_user(state) if item["tag"] != "lf-ask"]
+    items = [
+        ("widget", item["id"])
+        for item in items_on_user(state)
+        if item["tag"] != "lf-ask"
+    ]
     assert kinds(state["queues"]["on_user"]) == items + [("widget", "widget:colour")]
     assert state["queues"]["on_agent"] == []
     assert state["todos"] == []
@@ -537,7 +545,9 @@ def test_user_queue_selects_decisions_and_questions(page_dir, sessionless):
 
 
 @pytest.mark.parametrize("answer_kind", ["reply", "reaction"])
-def test_an_opening_item_retains_its_answer_in_the_item_inventory(page_dir, answer_kind):
+def test_an_opening_item_retains_its_answer_in_the_item_inventory(
+    page_dir, answer_kind
+):
     """A question opening a thread retains its answer across edits and updates."""
     publish(page_dir)
     question = append_carried_log_record(

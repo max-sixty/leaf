@@ -341,7 +341,9 @@ export function createAnnotationInventory({
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const items = readItems().user.filter((item) => item.source.kind === "widget");
+          const items = readItems().user.filter(
+            (item) => item.source.kind === "widget",
+          );
           const next = items.find((candidate) => candidate.id === id);
           if (next) goToItem(next, items);
         },

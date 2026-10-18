@@ -122,14 +122,21 @@ def queues(
             )
         elif workflow["at_work"]:
             on_agent.append(
-                {"kind": "work", **entry, "owner": "agent", "detail": workflow["detail"]}
+                {
+                    "kind": "work",
+                    **entry,
+                    "owner": "agent",
+                    "detail": workflow["detail"],
+                }
             )
     on_agent += [_todo_item(todo) for todo in open_todos if todo["owner"] == "agent"]
     done = [
         {
             **_record_item(item),
             "state": "dropped" if item["status"] == "withdrawn" else "done",
-            "ended": ((item["end"] or item["answer"] or {}).get("event") or {}).get("ts"),
+            "ended": ((item["end"] or item["answer"] or {}).get("event") or {}).get(
+                "ts"
+            ),
             "detail": item["end"]["detail"] if item["end"] else None,
         }
         for item in items["all"]

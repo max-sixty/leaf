@@ -1769,7 +1769,9 @@ export function createFloatingPanel({
       class="lf-fp-quiet"
       @click=${() => {
         close();
-        void (record ? itemView.open(record.id) : queueActions.open(queueItemKey(item)));
+        void (record
+          ? itemView.open(record.id)
+          : queueActions.open(queueItemKey(item)));
       }}
     >
       Show

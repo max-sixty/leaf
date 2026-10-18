@@ -164,8 +164,7 @@ export function createQueuePanel({
   // place; and before it, how a finished item ended, which is what a Done row is for.
   const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
-    if (carriesItem(item))
-      return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
+    if (carriesItem(item)) return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
     // Agent-authored detail has its own span and exact input identity. A generic
     // stage or a to-do title is never evidence of visible agent words.
     const feedback =

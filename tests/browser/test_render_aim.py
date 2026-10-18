@@ -27,9 +27,9 @@ from leaf.validation import composition as validation_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    HOLD_MOTION,
     ITEM_PAGE,
     ITEMS_PAGE,
-    HOLD_MOTION,
     live_url,
 )
 from render_cases_layout import (

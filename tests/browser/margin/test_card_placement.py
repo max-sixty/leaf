@@ -683,7 +683,9 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
 def test_crossing_to_the_small_screen_keeps_the_card_by_its_pin(browser, serve):
     """The rail falling changes where a marker stands, not whether it does: the marker
     becomes a pin and the card it opened stays up beside it."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
@@ -853,7 +855,9 @@ def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
     plane the scroll carries them with, and each owner on the scroll path writes only
     what changed. Chrome repaints the whole document for any write while a highlight
     holds a range, which a page with a quoted comment always has."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[COMMENT_ON_ITEM, QUOTED_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[COMMENT_ON_ITEM, QUOTED_ON_ITEM])
+    )
     resized(page, 1440, 600)
     marker = page.locator('[data-lf-margin-for="bracket"] .lf-margin-marker')
     marker.evaluate(

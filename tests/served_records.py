@@ -18,7 +18,7 @@ from pathlib import Path
 from interact_support import model_layer, served_thread
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
-from leaf.projection import StateProjection, item_value, authored_rank
+from leaf.projection import StateProjection, authored_rank, item_value
 from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
 from model_folds import NOW, UNCLAIMED, leaf_page, served_reading

@@ -8,8 +8,8 @@ from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
 from render_cases_layout import banner_control
 from render_harness import (
     EXAMPLE_PACKAGES,
-    expect_items_answered,
     expect_banner_control_offered,
+    expect_items_answered,
     leaf_page,
     open_page,
     round_trip,

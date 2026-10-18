@@ -392,9 +392,7 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
         path.unlink()
         path.write_text(json.dumps(registry))
 
-    vendored(
-        lambda keys: keys.update({"x-noun": keys.pop("x-word")})
-    )
+    vendored(lambda keys: keys.update({"x-noun": keys.pop("x-word")}))
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
     assert write_refusal(page_dir).values["retired"] == ["x-noun"]

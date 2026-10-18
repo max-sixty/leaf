@@ -31,7 +31,9 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, serve):
     """Runtime chrome and authored content share one document-space coordinate."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     target = page.locator("#bracket")

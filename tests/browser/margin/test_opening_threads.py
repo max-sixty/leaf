@@ -284,7 +284,9 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
 
 def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     resized(page, 1600, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="on-me"]').first
     expect(marker).not_to_have_attribute("aria-controls", re.compile(".+"))
@@ -300,7 +302,9 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     browser, serve
 ):
     """One location groups its thread and engaged handoff without moving the page."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     expect(marker).to_have_count(1)
@@ -462,7 +466,9 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     browser, serve
 ):
     """Ordinary design paint never promises to rise above the browser's top layer."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
@@ -1046,7 +1052,9 @@ def test_a_shared_passage_steps_between_single_thread_cards(browser, serve):
         "text": "Keep the second thread separate.",
         "anchor": {"section": "bracket"},
     }
-    page = open_page(browser, serve(ITEM_PAGE, events=[COMMENT_ON_ITEM, second_comment]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[COMMENT_ON_ITEM, second_comment])
+    )
     resized(page, 1440, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")
@@ -1139,7 +1147,9 @@ def test_an_open_thread_refresh_keeps_the_current_margin_entry_target_highlighte
 
 def test_focusing_a_thread_margin_entry_does_not_open_its_card(browser, serve):
     """Walking the Page Map never inserts an unrequested thread into the Tab order."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     preview = page.locator(".lf-margin-preview")

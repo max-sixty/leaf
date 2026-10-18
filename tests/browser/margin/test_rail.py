@@ -421,7 +421,9 @@ def test_the_banner_offers_the_map_wherever_the_markers_are_pins(browser, serve)
     920px window leaves a column page too little room beside it for the rail, so its
     markers are pins and the banner offers the map, as it does on a phone. The control is
     the same page at 1200px, where the rail stands and the toggle steps aside."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     rows = page.locator(".lf-margin-projection .lf-margin-cluster")
     for width, place, offered in ((1200, "rail", False), (920, "pin", True)):
         resized(page, width, 900)

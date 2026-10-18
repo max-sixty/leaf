@@ -1301,7 +1301,9 @@ def test_the_item_walk_lands_an_item_in_a_bounded_log_at_the_log_top(browser, se
             - document.getElementById('log').getBoundingClientRect().top
             - parseFloat(getComputedStyle(q).scrollMarginTop); }"""
     )
-    assert landed == pytest.approx(0, abs=2), f"the lf-ask landed {landed}px down the log"
+    assert landed == pytest.approx(0, abs=2), (
+        f"the lf-ask landed {landed}px down the log"
+    )
 
 
 def test_current_and_proposed_results_share_one_review_and_flow_in_order(

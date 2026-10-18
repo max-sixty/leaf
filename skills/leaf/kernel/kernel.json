@@ -120,7 +120,7 @@
     "runtime/keyboard/page.js": "2eaf132d83a43c1f0372dec8dd77038b4ba6ea8e98a9f77dce91c2f9f4492620",
     "runtime/keyboard/register.js": "fa3fa2b399495831a588fb07e6147afe0893f5f8eecaa97faba77e145c93d423",
     "runtime/keyboard/scopes.js": "9d686f80622a57bdb703358f9f3da5aa48eb6f255a0435714492eaaf75e512d1",
-    "runtime/keyboard/shortcut-bar.js": "d8ce2c74ca71abe0e59615dee8fb7367afb13cbc1c21cd29b502531c122d3b90",
+    "runtime/keyboard/shortcut-bar.js": "e17403fbd7219b7429ee159f3b87c004365f50f96ba02975277d9b24f411ad6f",
     "runtime/keyboard/text-entry.js": "3e063ce61d4085e4a847cb1e712265025c698379a9332211f238399de5481ce2",
     "runtime/keyboard/touch-controls.js": "9e9795844408b1f5b0a5b24847cce4947fa36b9b9bd374be2be95ea844a4ef53",
     "runtime/landing-scroll.js": "4642800111adcc97e8c3d1c6cd9cf1e2e51f6dc7675681ec4614d2e56d44031d",

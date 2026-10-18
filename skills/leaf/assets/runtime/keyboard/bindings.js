@@ -236,14 +236,10 @@ export const setQuickShortcuts = (on) =>
 export const bindingEnabledFor = (binding, quick) => {
   const { key, mods } = parsed(binding);
   return (
-    quick ||
-    key.length !== 1 ||
-    key === " " ||
-    mods.some((mod) => mod !== "Shift")
+    quick || key.length !== 1 || key === " " || mods.some((mod) => mod !== "Shift")
   );
 };
-export const bindingEnabled = (binding) =>
-  bindingEnabledFor(binding, quickShortcuts());
+export const bindingEnabled = (binding) => bindingEnabledFor(binding, quickShortcuts());
 export const bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 // The command identities under one row. Equivalent bindings keep the row's identity
 // and share its implementation; distinct results are routes and expose only those exact

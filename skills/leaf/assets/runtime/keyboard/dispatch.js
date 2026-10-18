@@ -80,7 +80,6 @@
 import {
   answers,
   bindings,
-  bindingEnabled,
   bindingEnabledFor,
   quickShortcuts,
   declaredBindings,

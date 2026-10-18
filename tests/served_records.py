@@ -337,7 +337,7 @@ def _served_record_item() -> dict:
     return next(
         item
         for item in state["browser"]["views"]["1"]["queues"]["on_user"]
-        if item["kind"] == "item"
+        if "item" in item
     )
 
 

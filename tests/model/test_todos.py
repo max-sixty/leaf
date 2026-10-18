@@ -82,8 +82,8 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
     )
     queue = state_json(page_dir)
     assert kinds(queue["queues"]["on_user"]) == [
-        ("item", item["id"]),
-        ("item", "widget:merge"),
+        ("widget", item["id"]),
+        ("widget", "widget:merge"),
         ("todo", theirs["id"]),
     ]
     assert kinds(queue["queues"]["on_agent"]) == [("todo", mine["id"])]
@@ -177,7 +177,7 @@ def test_required_approval_is_an_item_for_its_exact_stamp_until_approved(page_di
             "detail": {"value": ["flag-first"]},
         },
     )
-    assert kinds(state_json(page_dir)["queues"]["on_user"]) == [("item", "approval:v1")]
+    assert kinds(state_json(page_dir)["queues"]["on_user"]) == [("approval", "approval:v1")]
     accepted = append_command(
         page_dir, {"kind": "done", "author": "user", "version": 1}
     )
@@ -197,7 +197,7 @@ def test_required_approval_is_an_item_for_its_exact_stamp_until_approved(page_di
     append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": accepted["id"]}
     )
-    assert kinds(state_json(page_dir)["queues"]["on_user"]) == [("item", "approval:v1")]
+    assert kinds(state_json(page_dir)["queues"]["on_user"]) == [("approval", "approval:v1")]
     append_command(page_dir, {"kind": "done", "author": "user", "version": 1})
     (page_dir / "index.html").write_text(
         source.replace("<title>t</title>", "<title>Revised</title>")
@@ -497,8 +497,8 @@ def test_user_queue_selects_decisions_and_questions(page_dir, sessionless):
         )
     )
     state = state_json(page_dir)
-    items = [("item", item["id"]) for item in items_on_user(state) if item["tag"] != "lf-ask"]
-    assert kinds(state["queues"]["on_user"]) == items + [("item", "widget:colour")]
+    items = [("widget", item["id"]) for item in items_on_user(state) if item["tag"] != "lf-ask"]
+    assert kinds(state["queues"]["on_user"]) == items + [("widget", "widget:colour")]
     assert state["queues"]["on_agent"] == []
     assert state["todos"] == []
     [asked] = [entry for entry in state["items"] if entry["source"]["id"] == "colour"]
@@ -686,7 +686,7 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
         },
     )
     state = state_json(page_dir)
-    items = [("item", item["id"]) for item in items_on_user(state)]
+    items = [("widget", item["id"]) for item in items_on_user(state)]
     assert [item["next_actor"] for item in state["workflows"]] == ["user"]
     assert kinds(state["queues"]["on_user"]) == items + [("resend", comment["id"])]
 
@@ -703,7 +703,7 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     )
     state = state_json(page_dir)
     assert [item["next_actor"] for item in state["workflows"]] == ["user"]
-    assert kinds(state["queues"]["on_user"]) == items + [("item", "widget:title")]
+    assert kinds(state["queues"]["on_user"]) == items + [("widget", "widget:title")]
     assert state["queues"]["on_agent"] == []
 
 
@@ -1223,7 +1223,7 @@ def test_a_todo_on_the_user_stands_on_any_element_until_their_done(page_dir):
         {"kind": "element", "id": "plan"},
     )
     state = state_json(page_dir)
-    items = [("item", item["id"]) for item in items_on_user(state)]
+    items = [("widget", item["id"]) for item in items_on_user(state)]
     assert kinds(state["queues"]["on_user"]) == items + [("todo", todo["id"])]
     assert state["queues"]["on_agent"] == []
     assert [item["owner"] for item in state["todos"] if item["id"] == todo["id"]] == [
@@ -1284,7 +1284,7 @@ def test_a_thread_item_remains_distinct_from_explicit_user_work(page_dir):
     status, answer = done(page_dir, "widget:rollback")
     assert status == 400, answer
     assert refused_on(answer).code == "users-question"
-    assert ("item", "widget:rollback") in kinds(
+    assert ("widget", "widget:rollback") in kinds(
         state_json(page_dir)["queues"]["on_user"]
     )
 
@@ -1299,7 +1299,7 @@ def test_a_thread_item_remains_distinct_from_explicit_user_work(page_dir):
         },
     )
     assert question["id"] not in [item["id"] for item in state_json(page_dir)["todos"]]
-    assert ("item", "widget:rollback") not in kinds(
+    assert ("widget", "widget:rollback") not in kinds(
         state_json(page_dir)["queues"]["on_user"]
     )
 
@@ -1382,7 +1382,7 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
     done = {
         item["id"]: (item["state"], item["detail"], item["ended"] is not None)
         for item in view["queues"]["done"]
-        if item["kind"] == "item"
+        if "item" in item
     }
     assert done == {
         answered_elsewhere: ("done", "Warm, in chat", True),

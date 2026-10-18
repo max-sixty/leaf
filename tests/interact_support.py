@@ -503,20 +503,20 @@ def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
     return foreign
 
 
-def vendored_before_the_item_rename(page_dir: Path) -> None:
-    """Spell `x-ask-context` as `x-question-context`, its name before the rename, in
-    the page's layer and in every registry its revisions captured: in `$keys` and in
-    each entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
+def vendored_before_a_key_rename(page_dir: Path) -> None:
+    """Spell `x-word` as `x-noun`, as if that were its name before a rename, in the
+    page's layer and in every registry its revisions captured: in `$keys` and in each
+    entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
     a page in, at the same protocol; files are replaced rather than written through."""
     for path in [
         page_dir / "registry.json",
         *page_dir.glob("revisions/*/resources/registry.json"),
     ]:
         registry = json.loads(path.read_text(encoding="utf-8"))
-        assert "x-ask-context" in registry["$keys"]
+        assert "x-word" in registry["$keys"]
         for entry in [registry["$keys"], *registry.values()]:
-            if isinstance(entry, dict) and "x-ask-context" in entry:
-                entry["x-question-context"] = entry.pop("x-ask-context")
+            if isinstance(entry, dict) and "x-word" in entry:
+                entry["x-noun"] = entry.pop("x-word")
         path.unlink()
         cleanup_model.write_json(path, registry)
 
@@ -1024,7 +1024,7 @@ def items_on_user(state):
             "thread": item["thread"],
         }
         for item in state["queues"]["on_user"]
-        if item["kind"] == "item" and item["item"]["source"]["kind"] == "widget"
+        if item["kind"] == "widget"
     ]
 
 

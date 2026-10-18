@@ -448,7 +448,7 @@ export function createItemView({
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
     // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.["x-ask-context"];
+    const declared = context && registry[context.localName]?.["x-awaits"]?.encloses;
     if (declared && context === standing) return context;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a

@@ -225,8 +225,17 @@ def playground_choice(page: Page) -> None:
 
 
 def card_by_pointer(page: Page) -> None:
-    """The first margin card, opened by a click on its marker."""
-    page.locator(".lf-margin-marker").first.click()
+    """The first margin card, opened by a click on its marker. The margin is fixed to
+    the window and anchored to the page, so Playwright's scroll into view leaves a
+    marker below the window where it is: the page scrolls it up instead."""
+    marker = page.locator(".lf-margin-marker").first
+    marker.evaluate(
+        "m => { const box = m.getBoundingClientRect();"
+        " if (box.top < 0 || box.bottom > innerHeight)"
+        " scrollBy(0, box.top - innerHeight / 3); }"
+    )
+    settle(page)
+    marker.click()
     page.wait_for_function(OPEN_CARD)
 
 

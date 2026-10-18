@@ -605,7 +605,7 @@ function createThreadPreview({
         column: place.column,
         margin: place.margin,
         boundary,
-        fit({ width, height, scale }) {
+        fit({ width, height, stood, scale }) {
           if (!stillCurrent()) return;
           reading ??= session.transcript && {
             end: !fresh && atScrollEnd(session.transcript),
@@ -621,8 +621,7 @@ function createThreadPreview({
             "--lf-thread-min-width",
             layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room)
           );
-          const minimum = session.side.heldHeight() / scale.y;
-          const fitted = measureThreadCard(room, Math.max(minimum, height), reading);
+          const fitted = measureThreadCard(room, Math.max(stood, height), reading);
           if (fresh && (side === "top" || side === "bottom") && makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)) {
             session.side.scrolled();
             placeThreadPreview();

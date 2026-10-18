@@ -158,8 +158,10 @@ representative desktop viewport.
 
 - **Visual treatments carry hierarchy and state.** Contours are solid. A dotted or
   dashed line marks a distinct state, such as a draft or a drag placeholder. One
-  contour shows one control state, and a segmented group shares one-pixel seams. Avoid
-  rounded one-sided borders and reflexive cards, tints, gradients and soft shadows.
+  contour shows one control state, and a segmented group shares one-pixel seams. Never
+  round a box edged on one side: mark a state with a whole contour, or a stripe on a
+  square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
+  `test_no_rule_rounds_a_box_edged_on_one_side`, over Leaf's sheets and pages.
 - **A face used twice is a token or a shared rule**, and a rule names it rather than
   spelling it out. A lift names one of the theme's three heights, `--raise-1` to
   `--raise-3` (`styles/theme.css`, beside `--shade`); boxes that wear one face, such as
@@ -227,7 +229,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Banner and approvals                                                                                        | `banner*.js`                                                                                                                                                              |
 | Drawers and neighboring pages                                                                               | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js`                                                                                                        |
 | Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                                          |
-| Notices and announcements                                                                                   | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js`                                                                                                        |
+| Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/shortcut-bar.js`                                                                                           |
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                                         |
 | Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`, `retained-face.js`                                                                        |
 | Child pages                                                                                                 | `sample*.js`                                                                                                                                                              |

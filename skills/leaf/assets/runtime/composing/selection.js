@@ -63,6 +63,7 @@ import { recordFormat } from "../protocol.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
+import { raiseError } from "../errors.js";
 
 // The floating field immediately accepts a comment on the target the user named.
 // Tab from the field, or `e` while it stands unfocused, unfolds every other response
@@ -308,7 +309,7 @@ export function createSelectionComposer({
     if (suggestionMode && syncComposer.hasMedia()) {
       suggestionMode = false;
       syncSuggestMode();
-      notice("Remove attached images before suggesting replacement text");
+      raiseError("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }

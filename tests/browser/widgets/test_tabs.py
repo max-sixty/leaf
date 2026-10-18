@@ -490,6 +490,50 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(browser, serve
     expect(target).to_be_in_viewport()
 
 
+def test_a_workspace_view_fills_the_window_from_first_paint(browser, serve):
+    """A page of views whose opening view is a workspace gives that workspace the height
+    the title leaves before the runtime upgrades the set, so nothing grows or moves when
+    it does."""
+    source = leaf_page(
+        "Workspace view",
+        '<header><h1>Review</h1></header><lf-tabs id="views">'
+        '<lf-tab id="work" label="Work"><div id="surface" class="layout-workspace">'
+        "<p>Work here.</p></div></lf-tab>"
+        '<lf-tab id="notes" label="Notes"><article class="layout-column"><p>Notes.</p>'
+        "</article></lf-tab></lf-tabs>",
+        layout=None,
+    )
+    boot = []
+    page = browser.new_page(viewport={"width": 1280, "height": 720})
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+
+        def heights():
+            return page.evaluate("""() => {
+              const block = document.querySelector('#surface').getBoundingClientRect();
+              const main = document.querySelector('main').getBoundingClientRect();
+              const scroller = document.scrollingElement;
+              return {top: Math.round(block.top), height: Math.round(block.height),
+                      foot: Math.round(main.bottom - block.bottom),
+                      scrolls: scroller.scrollHeight - scroller.clientHeight};
+            }""")
+
+        first = heights()
+        assert first["height"] > 400 and first["foot"] == 0, first
+        assert first["scrolls"] <= 0, first
+        boot.pop().continue_()
+        wait_until_ready(page)
+        assert heights() == first
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
 @pytest.mark.parametrize("layout", ["column", "sidebar", "workspace"])
 def test_wide_evidence_in_a_view_takes_the_room_it_would_on_a_page_of_its_own(
     browser, serve, layout

@@ -52,9 +52,10 @@
    * Live, the set's list (its `tablist`) stands in a column down the left from the top
    * of the page, and the open view takes the rest of the width under what the page
    * writes before the set, its title, which stands at the reading measure over every
-   * view. The list is the window's height (tabs.css), so title and view together are
-   * at least that: a short view leaves nothing to scroll, and a full-height workspace
-   * takes exactly the height the title leaves rather than the window's. The set itself draws nothing. The view is the
+   * view. Title and view together are at least the window's height, from first paint
+   * and before the list is drawn, so a short view leaves nothing to scroll and a
+   * full-height workspace takes exactly the height the title leaves rather than the
+   * window's. The set itself draws nothing. The view is the
    * shell its Layout's box stands in. On a phone the title, the list and the view stack.
    * Before the set's module upgrades it, the column is empty. */
   @media screen {
@@ -68,6 +69,8 @@
       grid-template-columns: var(--lf-views-list) minmax(0, 1fr);
       grid-template-rows: auto minmax(0, 1fr);
       align-items: start;
+      box-sizing: border-box;
+      min-block-size: var(--lf-view-height);
     }
     /* What the page writes before the set, named from itself rather than by a `:has()`
      * on `main`, which would restyle the whole document on every write: what stands
@@ -140,6 +143,7 @@
         ) {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: none;
+        min-block-size: 0;
       }
       html[data-lf-interactive]
         body

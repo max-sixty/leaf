@@ -174,11 +174,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     clearance = tabs.first.evaluate("""tab => {
       const name = tab.querySelector('.lf-tab-name');
       const style = getComputedStyle(name);
-      return {ringRight: name.getBoundingClientRect().right
+      return {ringBottom: name.getBoundingClientRect().bottom
         + parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
-        answerLeft: tab.querySelector('.lf-tab-answer').getBoundingClientRect().left};
+        answerTop: tab.querySelector('.lf-tab-answer').getBoundingClientRect().top};
     }""")
-    assert clearance["ringRight"] <= clearance["answerLeft"], clearance
+    assert clearance["ringBottom"] <= clearance["answerTop"], clearance
 
     moved = page.locator("#queue").evaluate(
         """async queue => {

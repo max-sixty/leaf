@@ -21,7 +21,7 @@ function raiseError(message, { subject = null } = {}) {
   const id = ++raised;
   if (!unsaid.length)
     queueMicrotask(() => {
-      announce(unsaid.join(". "));
+      announce(unsaid.map((said) => said.replace(/\.$/, "")).join(". "));
       unsaid = [];
     });
   unsaid.push(message);

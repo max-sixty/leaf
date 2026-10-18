@@ -223,8 +223,9 @@ function statusWords({
 // agent, answer what it declared it waits for, approve in its own session, or reload,
 // which a seat can draw louder than a status that only reports, and the
 // `actionableWork` whose change is announced. Each reading the user acts on differently
-// has its own `kind`, since a change of kind is what the banner announces: a server that
-// went away and then starts refusing this tab's key asks something new of the user.
+// has its own `kind`, since a change of kind is what the status announces
+// (page-status.js): a server that went away and then starts refusing this tab's key
+// asks something new of the user.
 export function pageStatus(state, { reach = "reached" } = {}) {
   if (reach === "broken")
     return {

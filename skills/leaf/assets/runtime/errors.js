@@ -22,7 +22,7 @@
    seconds, was replaced by whatever came next, and went unseen while the user typed.
 
    A screen reader hears each error as it is raised, unless its producer already says
-   it aloud, as the banner does a change of status. News and acknowledgements stay
+   it aloud, as page-status.js does a change of status. News and acknowledgements stay
    notices (notifications.js); an error is never one. */
 import { announce } from "./notifications.js";
 

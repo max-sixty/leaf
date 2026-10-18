@@ -5918,20 +5918,22 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
       adds: "",
       asks: true
     };
+  if (reach2 === "refused")
+    return {
+      kind: "refused",
+      tone: "offline",
+      summary: "Key refused \u2014 open Leaf's link in a new tab",
+      explanation: KEY_REFUSED_LINE,
+      adds: "Keep this tab open so pending changes can send.",
+      asks: true
+    };
   if (reach2 !== "reached")
     return {
       kind: "unreachable",
       tone: "offline",
-      ...reach2 === "refused" ? {
-        summary: "Key refused \u2014 open Leaf's link in a new tab",
-        explanation: KEY_REFUSED_LINE,
-        adds: "Keep this tab open so pending changes can send.",
-        asks: true
-      } : {
-        summary: "Server offline \u2014 reconnecting; keep page open",
-        explanation: OFFLINE_LINE,
-        adds: ""
-      }
+      summary: "Server offline \u2014 reconnecting; keep page open",
+      explanation: OFFLINE_LINE,
+      adds: ""
     };
   const { publication } = state;
   if (publication)
@@ -6022,7 +6024,7 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
     widest: `On ${short}: 99`
   };
 }
-var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "unreachable", "publication"]);
+var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "refused", "unreachable", "publication"]);
 function statusModel(status, queues, agent) {
   const { kind, tone, summary, asks: asks2 = false, publication = null } = status;
   let { explanation, adds } = status;
@@ -7276,7 +7278,7 @@ function paintStatus() {
   if (current) presentStatus(current);
   const kind = current?.status.kind;
   holdUnreached(
-    kind === "unreachable" || kind === "broken" ? current.status.summary : null
+    ["unreachable", "refused", "broken"].includes(kind) ? current.status.summary : null
   );
 }
 var statusWatch = watchProjection(document.body, paintStatus);

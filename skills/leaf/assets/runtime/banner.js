@@ -640,7 +640,7 @@ function paintStatus() {
   if (current) presentStatus(current);
   const kind = current?.status.kind;
   holdUnreached(
-    kind === "unreachable" || kind === "broken" ? current.status.summary : null,
+    ["unreachable", "refused", "broken"].includes(kind) ? current.status.summary : null,
   );
 }
 const statusWatch = watchProjection(document.body, paintStatus);

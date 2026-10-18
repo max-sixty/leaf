@@ -2,7 +2,7 @@
   "inputs": {
     "leaf.js": "78e047a7107106fb36a1a9b46e166317a921898c33b80441e00bd6a43f5ec720",
     "runtime/abort.js": "a95360fd44e7614c6faa7d08a527b95a26646a52602d4908c786b97106d7f254",
-    "runtime/activity-words.js": "634fcd7510e305dbf5d0ff359a435a9c4c200170cc6da8f592c88e20e8534d56",
+    "runtime/activity-words.js": "2568fb94c7f6c385d8d07caf8f93757bc9ef97a63ef456a949d2ee234a13835e",
     "runtime/addressable-names.js": "345b5260b58bc8daba857b77ec8de1016b3187e5249e88fbc1e32fe737eda56c",
     "runtime/anchor-controls.js": "48103aea5917e782ddb12a421bdeef1cbbdc72d550b80604915a3e961855eccd",
     "runtime/anchor-coordinate.js": "6dce53e1d9f3b17259a6d2ef8194ab8c62c0bea84a814f6a664274e153dc6959",
@@ -38,7 +38,7 @@
     "runtime/auxiliary-surfaces.js": "d4de53b636404adf7b175228f2c41b6efa36d91d0f070934e6a4b8aae3a23201",
     "runtime/banner-status-view.js": "c1a9f3957c56c5b21cc55797e12ef1eb5ae317b063288b7456995f582aefebb3",
     "runtime/banner-toolbar.js": "28f378e518de0faa41436d487137563fec75a61a0b7e918f4ddef5d847705f51",
-    "runtime/banner.js": "e9f9cdbcbfb1289cc80b4e4c8c1990ee2fcf099b711ac64a0d4a4093b3da3f9d",
+    "runtime/banner.js": "c60245c06f49f91321edae12ca52859dd1c850dc0afd69f359f9b311890bf9db",
     "runtime/bootstrap.js": "2792545b8e62eb01d7e36efa057f0933357e9e764e3f834933e690e24b057320",
     "runtime/bounds.js": "fb180668a7c5d82764bf9d9a19fb9707a2af79c9692c64526585b9f6d466e1f0",
     "runtime/carry.js": "00249adb3a85868acfca824d0a97ec21315637ebcc97bee79f9f78b155d1ad20",

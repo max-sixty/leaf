@@ -29,6 +29,8 @@ from render_harness import (
     write,
 )
 
+from browser.threads import open_threads
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 # The status the panel's empty field says while the server does not answer.
@@ -140,7 +142,8 @@ def test_a_hidden_page_stops_its_freshness_reads_until_it_is_visible(browser, se
     told(page)
     assert _traffic(page).asked == asked + 1
     assert files_model.read_json(serve.page_dir / "viewed.json")["t"] > 1.0
-    expect(page.locator(".lf-thread", has_text="While away.")).to_have_count(1)
+    open_threads(page)
+    expect(page.locator(".lf-fp-thread", has_text="While away.")).to_have_count(1)
 
 
 def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(

@@ -50,9 +50,11 @@
    * set does (lf-tabs.js).
    * Each member is a view, and the box its Layout arranges is the view's child (above).
    * Live, the set's list (its `tablist`) stands in a column down the left from the top
-   * of the page, and the open view takes the rest of the width, its height at least the
-   * window's, under what the page writes before the set, its title, which stands at the
-   * reading measure over every view. The set itself draws nothing. The view is the
+   * of the page, and the open view takes the rest of the width under what the page
+   * writes before the set, its title, which stands at the reading measure over every
+   * view. The list is the window's height (tabs.css), so title and view together are
+   * at least that: a short view leaves nothing to scroll, and a full-height workspace
+   * takes exactly the height the title leaves rather than the window's. The set itself draws nothing. The view is the
    * shell its Layout's box stands in. On a phone the title, the list and the view stack.
    * Before the set's module upgrades it, the column is empty. */
   @media screen {
@@ -109,7 +111,26 @@
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
       > [data-lf-views]:nth-child(1 of [data-lf-views])
       > :not([role="tablist"], [hidden]) {
-      min-block-size: var(--lf-view-height);
+      align-self: stretch;
+    }
+    /* A full-height workspace's height is its view's, not its content's, so the view
+     * contributes none of its own to the row it fills. */
+    @media (min-width: 720px) and (min-height: 480px) {
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views]:nth-child(1 of [data-lf-views])
+        > :not([role="tablist"], [hidden]):has(> .layout-workspace) {
+        contain: size;
+      }
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views]:nth-child(1 of [data-lf-views])
+        > :not([role="tablist"], [hidden])
+        > .layout-workspace {
+        block-size: 100%;
+      }
     }
     @container lf-shell (width < 640px) {
       html[data-lf-interactive]
@@ -142,7 +163,26 @@
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views]:nth-child(1 of [data-lf-views])
         > :not([role="tablist"], [hidden]) {
-        min-block-size: 0;
+        align-self: start;
+      }
+      /* Stacked, the title and list stand over the view, so a full-height workspace takes
+       * the window's height again and the page scrolls past them to it. */
+      @media (min-width: 720px) and (min-height: 480px) {
+        html[data-lf-interactive]
+          body
+          > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+          > [data-lf-views]:nth-child(1 of [data-lf-views])
+          > :not([role="tablist"], [hidden]):has(> .layout-workspace) {
+          contain: none;
+        }
+        html[data-lf-interactive]
+          body
+          > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+          > [data-lf-views]:nth-child(1 of [data-lf-views])
+          > :not([role="tablist"], [hidden])
+          > .layout-workspace {
+          block-size: var(--lf-view-height);
+        }
       }
     }
   }

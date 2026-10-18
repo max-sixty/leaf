@@ -57,6 +57,12 @@ def test_views_switch_without_moving_the_list_and_follow_history(browser, serve)
         box = tab.bounding_box()
         page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         expect(tab).to_have_attribute("aria-selected", "true")
+        # The open view's row stands out from the list's ground, focused or not.
+        row, ground = tab.evaluate(
+            """tab => [tab, tab.closest('.lf-tabstrip')].map(node =>
+              getComputedStyle(node).backgroundColor)"""
+        )
+        assert row not in (ground, "rgba(0, 0, 0, 0)"), (row, ground)
         at = settled()
         after = strip.bounding_box()
         assert all(after[k] == pytest.approx(before[k], abs=1) for k in after), (
@@ -90,11 +96,14 @@ def test_views_switch_without_moving_the_list_and_follow_history(browser, serve)
     # Read Evidence past its start; Plan, never read, opens at its start, level with the
     # list, rather than at the top of the page.
     evidence_read = read_at(450)
-    assert 0 < switch(summary) < evidence_read
-    at_start("#summary-tab")
     plan_start = switch(plan)
     assert 0 < plan_start < evidence_read
     at_start("#plan-tab")
+    # Summary fits under the title, so it opens with the title and nothing to scroll.
+    assert switch(summary) == 0
+    assert page.evaluate(
+        "document.scrollingElement.scrollHeight - innerHeight"
+    ) <= 0
     # Evidence reopens where the user left it, and pressing the open tab moves nothing.
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)

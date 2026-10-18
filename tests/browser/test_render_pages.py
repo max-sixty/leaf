@@ -3222,8 +3222,9 @@ def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, 
     open view out beside it, under the page's title, as a page of its own with that
     view's Layout: a column view takes the column, margin residents, contents map and
     breakouts a column page takes in a window as wide as the room beside the list, and a
-    workspace view fills that room to the window's height. On a phone the list stacks
-    over the view, under the title."""
+    workspace view fills that room down to the window's foot, so neither it nor a short
+    view leaves the page anything to scroll. On a phone the list stacks over the view,
+    under the title."""
     column_body = """
 <h1>Migration plan</h1>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
@@ -3241,6 +3242,7 @@ def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, 
 <lf-tab id="queue" label="Queue"><div id="work" class="layout-workspace">
 <header><h1>Queue</h1></header><div id="regions"><p>Work one item at a time.</p></div>
 </div></lf-tab>
+<lf-tab id="note" label="Note"><article class="layout-column"><p>One line.</p></article></lf-tab>
 </lf-tabs>""",
         layout=None,
     )
@@ -3282,17 +3284,27 @@ def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, 
     assert {**alone.evaluate(reading), "width": in_view["width"]} == in_view
     alone.close()
 
+    fits = """() => {
+      const scroller = document.scrollingElement;
+      return scroller.scrollHeight - scroller.clientHeight;
+    }"""
     page.get_by_role("tab", name="Queue").click()
     work = page.evaluate(
         """() => {
           const work = document.getElementById('work').getBoundingClientRect();
-          return {width: Math.round(work.width), height: Math.round(work.height),
+          const main = document.querySelector('main').getBoundingClientRect();
+          return {width: Math.round(work.width), top: Math.round(work.top),
+                  bottom: Math.round(work.bottom), mainBottom: Math.round(main.bottom),
                   box: document.documentElement.lfInitial.layoutBox().id};
         }"""
     )
     assert work["box"] == "work", work
     assert work["width"] == in_view["width"], work
-    assert work["height"] > 700, work
+    assert work["top"] >= title_box["y"] + title_box["height"], work
+    assert work["bottom"] == work["mainBottom"] > 700, work
+    assert page.evaluate(fits) == 0
+    page.get_by_role("tab", name="Note").click()
+    assert page.evaluate(fits) == 0
 
     resized(page, 390, 800)
     stacked = page.evaluate(

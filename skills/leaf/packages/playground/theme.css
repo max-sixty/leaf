@@ -279,13 +279,13 @@
   display: none;
 }
 
-/* The stage: one well the preview's artifacts stand on. A stage the rail beside it holds
- * taller than the artifacts sets them in its middle rather than leaving its lower half
- * bare, and one they overflow starts them at its top. */
+/* The stage: one well the preview's artifacts stand on, starting them at its top. A
+ * control that changes an artifact's height moves only what stands below it, so the
+ * artifacts are never centred in a stage the rail beside it holds taller. */
 :scope:is(lf-playground-preview) {
   --lf-block-frame: 1;
   display: grid;
-  align-content: safe center;
+  align-content: start;
   min-width: 0;
   min-height: 18rem;
   padding: var(--sp-4);

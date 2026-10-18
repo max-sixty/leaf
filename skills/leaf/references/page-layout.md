@@ -67,8 +67,8 @@ that suits it. Write one `lf-tabs` in a `main` that carries no Layout, and give 
 
 The list of views stands down the window's left edge, beside the open view, with each
 view's `summary` under its label. The page's `header`, the one element to write before
-the set, stands over every view: keep it to a title, and a line on the subject where it
-needs one. On a phone the title, the list and the view stack. Each view opens where the
+the set, stands over every view, and a workspace view fills the window below it: keep it
+to a title, and a line on the subject where it needs one. On a phone the title, the list and the view stack. Each view opens where the
 user last read it. Give each view its own heading, and a column view its own contents
 outline. The views share the page's history, Threads panel and asks.
 

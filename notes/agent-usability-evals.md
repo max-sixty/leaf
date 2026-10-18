@@ -23,10 +23,11 @@ short workspace, with one added contrast for a required view that fails to draw.
 The historical author comparison below has not been rerun on this runtime and
 establishes no broader quality result.
 
-These runs establish behavior on particular revisions with few samples, rather than
-a universally preferable page layout. The owner comparison below found a primitive
-constraint and working-state defects; the earlier runs mostly exposed instruction
-or declaration gaps.
+The initial reading and resumption probes did not call for a new page-reading
+interface. Their misses were instruction misses or missing declaration information;
+those agents did not write to the wrong place or lose a user's state. The later
+authoring comparisons below also examine presentation and measurement faults. Each
+set establishes behavior on particular revisions with few samples.
 
 ### First baseline, 2026-09-27
 
@@ -300,6 +301,83 @@ independent inspection, with no calibrated aggregate score. Raw runs, exact
 instruction receipts, payload manifests, and browser evidence remain under
 `.tmp/authoring-quality/` and `.tmp/playground-browser-evidence/` in this worktree.
 
+## Recovered Codex comparison, 2026-10-14
+
+The interrupted rerun supplied two samples per condition for configuration, document
+and queue: twelve saved author sessions using `gpt-6.1-sol`, medium reasoning, on
+Codex 0.160.0. They authored against `a9358590`, after per-item playground controls
+landed in [#2711](https://github.com/max-sixty/leaf/pull/2711). One configuration's
+post-processing was recovered; an interrupted duplicate document was excluded.
+The missing runtime was rebuilt at that commit to serve the untouched saved pages.
+All Leaf pages share protocol 4 and the same recorded server fingerprint; matching
+browser files and package-specific layer fingerprints establish the comparison's
+runtime provenance. This is evidence about that revision, not current main.
+
+Across all four author phases, Leaf averaged 12.5 minutes and HTML 9.0 minutes.
+Configuration accounted for the largest difference: 14.4 versus 10.0 minutes.
+Dollar cost is unavailable. Raw first-turn result time averaged 5.7 versus 5.2 minutes,
+including one Leaf author that stopped with a model-capacity error and a saved page. Neither
+completion nor a server URL establishes a usable handoff. Independent rendering ran
+after all author phases, so first-usable-page time remains unmeasured (#24).
+
+All twelve final records contained the requested decisions. Leaf sent six sets through
+its event log; HTML sent four through copied text and two through typed fallback when
+the browser user could not read a downloaded export. The latter proves that the author
+could apply a supplied decision, not that the export completed the feedback loop.
+Model-capacity failures in authors, readers and judges, and a socket failure in one
+HTML render gate, must be kept separate from page-quality failures.
+
+The paired grader had a phase mismatch: it asked how well the page supported tuning
+and selection but opened only the final record, after the author had legitimately
+replaced those controls. It now opens version 3 for making the decision and version 4
+for reading the final record. The first corrected configuration pair split across
+presentation orders, where final-only judging had preferred Leaf in both. All twelve
+corrected judgments completed: Leaf won two pairs, HTML two, and two split by order.
+
+| Task          | First pair   | Second pair  | What distinguished these pages                                                                                                                                                                                                                                         |
+| ------------- | ------------ | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Configuration | Split        | HTML, slight | HTML exposed evidence directly and read better on phones; Leaf retained more baseline facts. In the split pair, Leaf separated Finance pages from the payments budget while HTML pooled them; the request leaves the budget's service-versus-rotation scope ambiguous. |
+| Document      | Split        | Leaf, slight | Leaf offered separate on-page decisions and retained more evidence; HTML exposed more evidence directly and better preserved the capacity-request context in the split pair.                                                                                           |
+| Queue         | Leaf, slight | HTML, slight | Leaf's compact phone view reduced scrolling; HTML's next-ticket controls and consolidated decision record made final review easier.                                                                                                                                    |
+
+These are differences between two authored samples per task, not a general ranking of
+Leaf and HTML. Phone readability, accessible evidence and review navigation mattered
+more than the presence of a particular widget.
+
+Both Leaf document authors retired the user's Wednesday capacity request to Mei
+Tanaka's team after recording Redis as the store choice. Whether that assessment
+still matters for the unselected alternative is ambiguous; retiring it is not itself
+proof of an error. The ask-authoring reference now requires explicit accounting:
+keep an unanswered request open or explain why changed circumstances make it
+unnecessary. An independent decision does not silently answer or retire it.
+
+Earlier short and replay probes passed on both arms and did not reproduce a failure.
+A later base/candidate check accepting either a still-open assessment or reasoned
+retirement likewise passed one sample per arm. Those checks validate the distinctions,
+not a reduced error rate. The temporary case was archived with experiment evidence
+rather than kept as a permanent rule that this particular assessment must stay open.
+
+Both Leaf configuration authors encountered playground initialization failures under
+the old per-publication widget runtime. That runtime was removed in
+[#2742](https://github.com/max-sixty/leaf/pull/2742); current playground registration
+uses the global custom-element registry. Those traces do not justify another startup
+instruction or widget change. Later phases also ran Leaf's task, reply, state, check
+and stamp commands; their extra calls alone do not identify work safe to remove.
+
+Reproduce the recovered grading from this session's local result copies, which retain
+references to the original saved pages:
+
+```sh
+uv run leaf-dev eval-pairs .tmp/comparison/phase-aware-runs/*
+uv run leaf-dev eval-report .tmp/comparison/report .tmp/comparison/phase-aware-runs/*
+```
+
+The audit is `.tmp/comparison/audit.json`; the original saved runs are under
+`/Users/maximilian/workspace/leaf.rerun-leaf-vs-html-comparison/.tmp/eval/`.
+This pass repairs grading across decision and final-record phases and clarifies who
+may retire an ask. Further compositions and authoring advice need current task-specific
+evidence, rather than the older configuration verdict alone.
+
 ## Remaining evaluation gaps
 
 - Recovering a long thread's middle after the agent has lost it. `elided` now
@@ -315,3 +393,197 @@ instruction receipts, payload manifests, and browser evidence remain under
 When a real failure supplies a case, state its expected answer
 and edit owner before running it, and classify a miss as missing information,
 inaccessible information, or information misread.
+
+## Current authoring UX loop
+
+Fresh Sol 6.1 medium comparisons now cover configuration, queue, document and dashboard.
+These are individual authored samples: configuration and document preferences vary by
+sample and presentation order, queue clearly favors Leaf, and dashboard slightly
+favors Leaf. Independent Astra audits support those queue/dashboard judgments while
+recognizing HTML's more compact dashboard decision. Baseline advantages do not establish
+that a branch change improved the product.
+
+A second independently authored HTML queue accepts the prescribed seven choices but
+also blocks finish at seven of eight when the comment-settled ticket stays untouched.
+Both judging orders prefer the retained Leaf queue. A fresh Leaf dashboard is slightly
+preferred to the fixed HTML control in both orders. Its Astra evidence audit supports
+that margin but qualifies stale wording as partly shared immediately after submission;
+selected-state and transmission feedback differ. Opening full checks or exact buckets
+is an interaction cost, not an established failure when the failing check and central
+trend remain exposed. That audit saw the verdict summary before browser inspection,
+so it is not a fully blind rescore.
+
+The second HTML document retains the conditional migration plan that the first
+control omitted. Against the same Leaf document it splits: one order slightly
+prefers HTML's directly exposed review and compact phone opening; the other slightly
+prefers Leaf's direct send and fitting phone comparison table. Both preserve the
+Redis decision and Mei's Wednesday request. The earlier clear Leaf result remains
+evidence about that first control, not a general document advantage.
+
+Two shared presentation repairs have controlled evidence on identical authored pages:
+
+- Queue outcomes get a reserved line beside the existing title and summary. Normal
+  Fix/Escalate labels become readable; phone navigation spends one additional 17px line.
+  Choosing, correcting and undoing preserve row positions. Long arbitrary answers still
+  ellipsize. A fresh queue retains the substantive Orbis/Quanta context that an earlier
+  author sample omitted.
+- Settled options collapse every hidden child’s box, including generated add/Done
+  controls, despite ordinary authored padding or minimum heights. The dashboard had
+  retained 64px of empty card space. Expanded cards and rationale are unchanged;
+  pointer, keyboard, anchored reveal and print remain available. The feature gallery’s
+  settled answer demonstrates spacious expanded cards returning to one disclosure.
+
+Revision guidance now distinguishes a current decision record and needed evidence from
+its superseded interaction. A result-first wording has not established an overall
+quality gain; unchanged repeats span losses and wins, so that extra wording was removed. An isolated A/B of playground
+guidance about consequences at the controls showed no intended benefit and slightly
+favored the original in both orders; the added wording was removed.
+
+The browser user’s model report is not the canonical observation of copying. Handover
+uses observed clipboard activity first, then admitted attention-bearing user events,
+then reported manual export text, and finally the typed fallback. Incomplete decisions
+retain the fallback. A successful settings Send was previously mislabeled as copying
+because the model quoted the displayed instruction. Its final record was correct, but
+verbatim chat feedback prevented it independently proving native-event recovery.
+Saved runs retain that original evidence and limitation.
+
+The existing first-served observation now retains the active revision and event boundary
+without another state read. This identifies a candidate for later usability review;
+it is not first HTTP response, first handoff or first usability. HTML controls have no
+equivalent early immutable history. Author completion remains a separate metric.
+
+Reproduce the focused product contracts:
+
+```sh
+uv run pytest tests/browser/test_render_options_settled.py -k 'collapse_without_going_out_of_reach or reconciles_added_options or printed_page' -q -n0
+uv run pytest tests/browser/test_render_widgets.py -k side_tab -q -n0
+pnpm run test:runtime
+```
+
+A later audit reproduced pooled budget behavior after Finance ownership changed, but
+could not establish that the request excludes Finance pages from the cap. A payments
+service-wide budget and a payments-rotation budget are both plausible. The judge prompt now asks for assumptions behind concerns based on ambiguous intent. Rejudging the same
+configuration pair and the explicit Brightline constraint checks that calibration;
+no product rule about budget ownership follows from the ambiguity.
+
+A prospective first-served descriptor now has one bounded usability proof: the fresh
+dashboard’s exact observed revision supported status, evidence navigation and a real
+rollback selection at 900×600 after 155.7 seconds, 65.6 seconds before initial author
+completion. The proof replays captured resources and the event boundary in a disposable
+writable page. It does not establish the earliest usable revision, actual handoff, or
+a comparable early HTML time.
+
+The original HTML dashboard also retains a usable candidate before author completion.
+Its first file write completed 173.6 seconds after the initial author phase began,
+65.6 seconds before its answer. The literal heredoc can be reconstructed without
+executing recorded commands; replaying four later literal replacements exactly
+reproduces the saved first-phase file. In a disposable 900×600 browser, that earlier
+source exposes rollout status and metrics and records rollback in fresh localStorage.
+After recording, the top request remains stale except for its Edit decision button;
+the explicit choice appears farther down. This is a retrospective usable-candidate
+bound, not historical browser readiness. Leaf's served-revision observation and HTML's
+completed-write observation, on different environment packets, do not establish a
+causal or earliest-time comparison.
+
+A separate registry-owner label-instruction pilot also did not establish its intended
+behavior: neither author put consequences in choice labels despite confirmed exposure.
+Both full workflows passed, and the pair split overall; both orders preferred the
+candidate’s phone table and the base’s direct final navigation. The candidate also read
+the reformatted raw registry, exposing a JSON-whitespace context difference. The added
+instruction is rejected; the maintained registry remains unchanged. The independent
+initial-control audit found better desktop evidence adjacency in the candidate, but
+that composition difference does not show a consequence-label gain.
+
+The fresh dashboard v1/v2 ablation slightly favors restored v2 in both completed
+judgments; both workflows and quality checks pass. Both orders favor v2 phone
+presentation and v1 decision experience, with width/comment/application tied. They
+flag v1’s omitted memory comparison against 4.11. The independent reader, before
+learning arm identities or verdicts, found the same phone advantage and v1’s advantage
+for showing all four metrics at 900×600; v2 exposes the full trend there instead.
+Both actual rollback routes and final decisions are correct.
+
+This is a real whole-workflow one-guide contrast with one fresh author per arm. The
+guide was read before initial composition, so an earlier influence is possible;
+author variation remains unresolved. Source order already differs before finalization,
+preventing attribution specifically to the phase4 rewrite, not invalidating the
+contrast. Pruning v2 is therefore not an established phone-framing fix. Maintained v1
+stays as the minimal rule given the prior mixed configuration results and no established
+general benefit. No additional compactness instruction follows.
+
+Later comparisons extend the same four-phase workflow to `patch-review`,
+`notification-design`, `dependency-review`, `latency-review` and `draft-review`.
+These add code review, visual design, directed data-flow correction, quantitative
+chart inspection and user-owned freeform wording. They retain the same task in
+Leaf and HTML; the user corrects a fact before making a final decision. The fixtures
+and `evals/README.md` own their requirements and the current model configuration;
+`MODELS` in `dev/leaf_dev/arms.py` owns pins. Historical runs used different frozen
+runtimes, so this is case coverage, not one homogeneous benchmark population.
+
+Main judgments and independent ordinary-reader audits sometimes disagree. Patch
+review exposes a real tradeoff between code density and wrapped readability; its
+split judgment is not a clear winner. Dependency review separates initial diagram
+and interaction quality from the final record's prominence. Latency review's main
+judgments and independent audit slightly prefer Leaf. These observations do not
+establish a general advantage for either implementation or a runtime speed gain.
+The original draft comparison remains unscored after an incomplete judge route;
+its independent audit prefers HTML. An incomplete order is not a tie or a win.
+
+The controlled rendering evidence now includes the earlier queue labels and settled
+options repairs, native contents disclosure, and live diff reply sizing. In-flow
+contents starts closed, reducing the opening footprint while preserving ordinary
+links, reader open state, margin navigation and print. Cross-engine checking found
+that CSS could not make closed-details links reachable in Firefox's margin posture;
+the retained implementation follows the actual disclosure lifecycle. The live diff
+repair seeds Pierre's existing column applier synchronously, then schedules resize
+observations through Leaf's frame scheduler. It preserves initial sizing and avoids
+the reproduced ResizeObserver feedback loop during a streamed line reply. Hidden
+content retains the dependency's zero-width behavior. Neither repair proves a faster
+whole authoring task. Optional code wrapping separately gives readers a choice
+without changing copied source; it is not evidence that every code view should wrap.
+
+Two retained authoring clarifications describe existing contracts. `serving-pages.md`
+distinguishes offline reading and local page behavior from new recorded choices,
+Undo and threads, which need the live server, not necessarily an active agent.
+Both before/after comprehension probes chose the live route correctly. The Sign-off
+paragraph in `authoring-asks.md` states that later widget edits neither withdraw a
+version approval nor approve new wording: editable content must distinguish the
+approved wording from the current draft. No new approval primitive or automatic
+invalidation was introduced.
+
+In the fresh draft guidance contrast, both authors already preserved a separate
+approved record; the clarified arm won slightly in both orders for phone navigation.
+Against the retained original HTML control, that preselected treatment artifact lost
+slightly in both orders; an independent audit also preferred HTML's focused complete-
+copy confirmation and nearby facts. The whole-document guardrail passed its workflow
+checks but slightly favored unchanged guidance for directly visible evidence. These
+results support retaining a factual clarification, not claiming it caused a UX or
+speed improvement. Both document authors retired Mei Tanaka's Wednesday assessment
+after Redis was chosen. The request does not explicitly cancel that assessment or
+condition it on selecting Postgres; retirement is a plausible scope inference, not
+an established ownership violation or unqualified compliance.
+
+Native failures also exposed canonical boundaries worth repairing. Before a first
+valid revision, `page state` must report the invalid source without reparsing its
+invalid registry and aborting an author who just received actionable check feedback.
+It now uses the existing accepted-page reading; invalid source still fails checking.
+Script placement exposed a separate lifetime bug: moving an unchanged script between
+head and patched main could leave duplicate nodes. Executable identity now includes
+the DOM patch region, so crossing regions reloads; prose-only changes do not.
+Validated scripts may consequently follow main, while inline classic execution and
+other content/security restrictions remain checked. The aborted author attempt and
+original failed diagnostics remain evidence, separate from subsequent successful runs.
+
+Reproduce current tasks and the narrow contracts below. Replace `RUN_DIRECTORY`
+with a run directory printed by `eval`; saved comparisons retain original payloads and
+both predecision and final pages. Reusing a control or judging both presentation
+orders adds no author sample. Native primary and helper durations are separate;
+cached input is included in input totals and is not a dollar estimate. These runs
+leave the broader measurement question in TODO #24 open.
+
+```sh
+uv run leaf-dev eval patch-review notification-design dependency-review latency-review draft-review --harness codex --condition both --repeat 1 -j 1
+uv run leaf-dev eval-pairs .tmp/eval/RUN_DIRECTORY
+uv run pytest tests/browser/test_render_toc_disclosure.py::test_contents_disclosure_keeps_its_links_focus_and_open_state tests/browser/test_render_code_reading.py::test_code_wrapping_keeps_source_copy_and_reader_choice tests/browser/test_render_code_reading.py::test_code_reference_keeps_command_context_and_cancel_destination -q -n0
+uv run pytest tests/browser/test_render_diff_controls.py::test_a_live_line_reply_wraps_without_resize_observer_feedback tests/browser/test_chrome_contracts.py::test_script_region_moves_reload_without_leaving_duplicate_nodes -q -n0
+uv run pytest tests/model/test_interact_document.py::test_page_state_keeps_accepted_registry_while_source_is_invalid tests/model/test_interact_document.py::test_tail_script_still_requires_deferred_execution -q -n0
+```

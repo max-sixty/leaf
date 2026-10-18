@@ -1,0 +1,15 @@
+# Added during the 2026-10-15 authoring UX loop to cover executable patch evidence,
+# distinct from prose, dashboard, queue and threshold-tuning tasks. First pilot
+# passed both workflows and split paired quality; it exposed live diff-reply sizing friction.
+description: Patch review
+metadata:
+  purpose: Review a retry patch, incorporate a corrected key-scope fact, and record
+    the approved patch without losing its code or operational constraints.
+  tags:
+    - workflow
+    - code
+  conditions:
+    - leaf
+    - html
+  executor: leaf_dev.arrangement_eval
+  scenario: patch-review

@@ -3,7 +3,8 @@
 This command pairs each task's samples across its two columns in the order they
 ran, and lets a judge explore disposable live copies before decisions and after
 the final revision. Each copy uses its original runtime payload. Both orders
-are judged; only a winner both completed judgments name counts. Incomplete exploration is recorded as
+are judged; only a winner
+both completed judgments name counts. Incomplete exploration is recorded as
 insufficient evidence, rather than a tie or a quality result. Model judgments
 and their native browser/agent traces are retained separately from execution checks.
 Verdicts go to `pairs.json` in the first run's directory.
@@ -53,38 +54,15 @@ def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:
 
 
 def saved_comparison(members: list[dict]) -> dict:
-    """Read the common captured task; absent or unlike evidence cannot be compared."""
-    comparisons = [sample["diagnostics"].get("comparison") for sample in members]
-    if any(
-        not saved
-        or not all(
-            saved.get(key) for key in ("brief", "phases", "author_phases", "widths")
-        )
-        or "decision_task" not in saved
-        or ("_before_decision" in saved["phases"] and not saved["decision_task"])
-        for saved in comparisons
-    ):
-        raise ValueError("Comparison lacks saved task inputs.")
-    if any(saved != comparisons[0] for saved in comparisons[1:]):
+    """The saved task is the contract; unlike tasks are not comparable."""
+    comparison = members[0]["diagnostics"]["comparison"]
+    if any(sample["diagnostics"]["comparison"] != comparison for sample in members[1:]):
         raise ValueError("Compared samples have different saved task inputs.")
-    return comparisons[0]
+    return comparison
 
 
 def comparison_pages(samples: dict[str, dict], comparison: dict) -> dict:
-    """Original-runtime page roles from the frozen contract, never today's catalog.
-
-    Missing phase evidence leaves a comparison unscored. Serving and filesystem
-    failures remain the live engine's errors rather than substituting another page.
-    """
-    if any(
-        not sample["diagnostics"]["phases"].get(version, {}).get("page")
-        or not sample["diagnostics"].get("payload")
-        for sample in samples.values()
-        for version in comparison["phases"].values()
-    ):
-        raise ValueError(
-            "Comparison lacks a required saved phase or its original runtime."
-        )
+    """Original-runtime page roles from the captured task, shared by live judges."""
     return {
         label + suffix: {
             "page": Path(sample["diagnostics"]["phases"][version]["page"]),
@@ -100,22 +78,9 @@ def judge(a: dict, b: dict, evidence: Path) -> dict | None:
     """One judgment of A against B, or None when the judge gives no verdict."""
     evidence.mkdir(parents=True, exist_ok=True)
     attempt = Path(tempfile.mkdtemp(prefix="judge-", dir=evidence))
-    try:
-        comparison = saved_comparison([a, b])
-        pages = comparison_pages({"A": a, "B": b}, comparison)
-    except ValueError as error:
-        (evidence / "response.json").write_text(
-            json.dumps(
-                {
-                    "error": str(error),
-                    "metadata": {"evidence": str(attempt)},
-                },
-                indent=2,
-            )
-        )
-        return None
+    comparison = saved_comparison([a, b])
     response = judge_pages(
-        pages,
+        comparison_pages({"A": a, "B": b}, comparison),
         comparison["widths"],
         JUDGE.format(
             brief=comparison["brief"] + "\n\n" + DEFINITION["brief_intro"],

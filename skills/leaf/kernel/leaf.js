@@ -1115,7 +1115,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       const raw = draftValue();
       const text = raw.trim();
       if (!hasContent(raw))
-        return notice(`Nothing to ${sendWord()} \u2014 the box is empty`);
+        return announce(`Nothing to ${sendWord()} \u2014 the box is empty`);
       sending = true;
       refresh();
       try {
@@ -1199,7 +1199,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       cancelDictation();
       const allowed = allowsMedia();
       if (allowed !== true) {
-        notice(allowed);
+        notice(allowed, { draft: true });
         return false;
       }
       rememberWriting(ta);
@@ -1216,7 +1216,9 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         const paths = await Promise.all(images.map((image) => uploadMedia2(image)));
         if (paths.some((path) => path === null)) return false;
         if (arrivals !== attachedAt) {
-          notice("Image not added \u2014 the comment moved before it finished uploading");
+          notice("Image not added \u2014 the comment moved before it finished uploading", {
+            draft: true
+          });
           return false;
         }
         attachedMedia.push(...paths);
@@ -1225,7 +1227,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
-        notice(`Could not add image \u2014 ${error?.message ?? error}`);
+        notice(`Could not add image \u2014 ${error?.message ?? error}`, { draft: true });
         return false;
       } finally {
         uploading = false;
@@ -1716,10 +1718,15 @@ function activateCommandEntry(entry) {
     return presentCommandReference();
   }
   const invokeCommand = commandReferenceInvoke;
-  closeCommandReference();
+  const origin = openerOf(commandReferenceDialog);
+  const returnTo = commandReferenceReturn;
+  closeLayer(
+    () => closeCommandReference(false),
+    () => handBack(origin)
+  );
   if (invokeCommand?.(entry.id)) return;
   queueMicrotask(() => {
-    openCommandReference(invokeCommand);
+    openCommandReference(invokeCommand, returnTo);
     commandReferenceState = {
       ...commandReferenceState,
       metaOverride: "That command is no longer available"
@@ -1923,15 +1930,17 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeCommandReference();
 });
-function showCommandReference(open, restoreFocus, invokeCommand) {
+var commandReferenceReturn = null;
+function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
   const fresh = open && !commandReferenceIsOpen;
   const preserveSelection = fresh && Boolean(pageSelection());
   const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
-  const restore = handingBack ? openerOf(commandReferenceDialog) : null;
+  const restore = handingBack ? commandReferenceReturn : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     dismissPopoversOutside(commandReferenceDialog);
     openLayer(commandReferenceDialog);
+    commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
     commandRoutesAtOpen = availableCommandRoutes({ commands: true });
   }
   commandReferenceIsOpen = open;
@@ -2026,8 +2035,8 @@ function activateSelectedCommand() {
   return true;
 }
 var commandReferenceOpen = () => commandReferenceIsOpen;
-var openCommandReference = (invokeCommand) => showCommandReference(true, true, invokeCommand);
-var closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null);
+var openCommandReference = (invokeCommand, returnTo = null) => showCommandReference(true, true, invokeCommand, returnTo);
+var closeCommandReference = (restoreFocus = true) => showCommandReference(false, restoreFocus, null, null);
 pageScope("command reference", {
   title: "In the command reference",
   escape: "inner",
@@ -7507,15 +7516,17 @@ var completeLine = (scopes, candidates) => {
     rows: rows2
   };
 };
-var openCompleteReference = () => openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+var openCompleteReference = (returnTo = null) => openCommandReference((id) => executeCommand(id, beforeShortcutCommand), returnTo);
 var keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
 keyboardSettings.type = "button";
 keyboardSettings.addEventListener("click", () => {
-  closeLayer(dismissBannerControls, () => {
-    const door = bannerControlDoor(keyboardSettings);
-    if (door) focusDestination(door, "return");
-  });
-  openCompleteReference();
+  if (isNativeLayer(overflowMenu)) {
+    const held = bannerStanding();
+    closeLayer(dismissBannerControls, () => restoreBannerStanding(held));
+    openCompleteReference(bannerControlDoor(keyboardSettings));
+  } else {
+    openCompleteReference();
+  }
 });
 registerBannerControl({
   key: "keyboard",
@@ -7736,10 +7747,10 @@ var coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
   const notice2 = noticeReading();
   if (notice2.visible)
-    return { message: notice2.message, visible: true, answers: !notice2.news };
+    return { message: notice2.message, visible: true, draft: notice2.draft };
   const { goTo, walk } = statusContextReading();
   const message = goTo ?? (walk?.shown ? walk.text : "");
-  return { message, visible: Boolean(message), answers: false };
+  return { message, visible: Boolean(message), draft: false };
 }
 var TONE_WORDS = Object.freeze({
   working: "Working",
@@ -9164,7 +9175,7 @@ function createFloatingPanel({
       listed2.includes(focused()) ? focused() : listed2.find((row2) => row2.getAttribute("tabindex") === "0") ?? listed2[0]
     );
     render(top ? headTemplate(top) : nothing, head);
-    if (!top) move(context, expand, null);
+    if (!top) move(row, expand, leaf);
     const heading = top ? shows(top) : null;
     for (const drawing2 of [head, replyOutlet]) {
       keeps(drawing2, "data-thread", heading);
@@ -9187,7 +9198,8 @@ function createFloatingPanel({
     typing = writing && Boolean(draftOf(input).trim());
     keeps(host, "data-typing", typing ? "" : null);
     if (!draftOf(input).trim()) expanded = false;
-    keeps(host, "data-long", (long || expanded) && !resting ? "" : null);
+    const marked = (long || expanded) && !resting;
+    keeps(host, "data-long", marked ? "" : null);
     keeps(host, "data-expanded", expanded ? "" : null);
     keeps(expand, "aria-pressed", String(expanded));
     keeps(expand, "aria-label", expanded ? "Less room to write" : "More room to write");
@@ -9202,15 +9214,10 @@ function createFloatingPanel({
       "title",
       reading.says === "status" ? status().explanation || status().summary : null
     );
-    const empty = draftOf(input) === "";
     const notice2 = passing();
-    const covered = notice2.visible && (!empty || reading.says === "destination");
-    overView = Boolean(top) && covered && notice2.answers;
-    keeps(context, "data-notice", covered ? "" : null);
-    keepsText(
-      contextWords,
-      top ? "" : covered ? notice2.message : empty ? "" : whereTo(null)
-    );
+    const said = notice2.visible && (reading.says === "destination" ? notice2.draft : draftOf(input) !== "");
+    overView = Boolean(top) && said && notice2.draft;
+    keepsText(contextWords, !top && said ? notice2.message : "");
     keepsHidden(context, !contextWords.textContent);
     paintPeek();
     const standing2 = rowNotice();

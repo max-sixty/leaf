@@ -817,9 +817,17 @@ function decorate(state, placed) {
       at = current.to + 1;
     }
   };
-  for (const { token, from, to, contentFrom, contentTo, escapes } of placed) {
+  for (const {
+    token,
+    from,
+    to,
+    contentFrom,
+    contentTo,
+    escapes,
+    markers,
+    contentLines
+  } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
-    const text = state.doc.sliceString(from, to);
     if (token.type === "code_inline" || contentFrom !== void 0) {
       const words2 = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
       if (words2[0] > words2[1]) continue;
@@ -832,38 +840,28 @@ function decorate(state, placed) {
       for (const at of escapes ?? [])
         add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
     } else if (token.type === "heading_open") {
-      const end = from + text.trimEnd().length;
-      const atx = text.match(/^ {0,3}#{1,6}(?:[ \t]+|$)/);
-      lines(from, end, (each) => {
-        const underline = !atx && each.to >= end;
-        if (underline) add(each.from, each.to, dim);
-        else out.push(line("lf-md-heading").range(each.from));
+      lines(...contentLines, (each) => {
+        out.push(line("lf-md-heading").range(each.from));
       });
-      if (atx) add(from, from + atx[0].length, syntax);
+      for (const [a, b] of markers)
+        add(a, b, token.markup.startsWith("#") ? syntax : dim);
     } else if (token.type === "fence" || token.type === "code_block") {
-      const end = from + text.trimEnd().length;
-      const fenced = /^ {0,3}(`{3,}|~{3,})/.test(text);
-      lines(from, end, (each) => {
+      lines(from, to, (each) => {
         const ends = [
           each.from <= from ? " lf-md-code-first" : "",
-          each.to >= end ? " lf-md-code-last" : ""
+          each.to + 1 >= to ? " lf-md-code-last" : ""
         ].join("");
         out.push(line(`lf-md-code-block${ends}`).range(each.from));
-        if (fenced && (each.from === from || /^ {0,3}(`{3,}|~{3,})\s*$/.test(each.text)))
-          add(each.from, each.to, dim);
       });
+      for (const [a, b] of markers ?? []) add(a, b, dim);
     } else if (token.type === "blockquote_open") {
-      lines(from, from + text.trimEnd().length, (each) => {
+      lines(from, to, (each) => {
         out.push(line("lf-md-quote").range(each.from));
-        const mark = each.text.match(/^ {0,3}> ?/);
-        if (mark) add(each.from, each.from + mark[0].length, dim);
       });
+      for (const [a, b] of markers) add(a, b, dim);
     } else if (token.type === "list_item_open") {
-      const item = text.match(/^([ \t]*)(?:([*+-])[ \t]?|\d{1,9}[.)])/);
-      if (!item) continue;
-      const at = from + item[1].length;
-      const end = from + item[0].length;
-      if (!item[2]) add(at, end, dim);
+      const [at, end] = markers[0];
+      if (token.info) add(at, end, dim);
       else {
         out.push(line("lf-md-item").range(state.doc.lineAt(from).from));
         add(at, end, touches(state, at, end) ? shownBullet : bullet);
@@ -2081,7 +2079,10 @@ function createAnchorTravel({
               at: current.where,
               behavior: "instant",
               when: () => !readableDestination(current.where) || !readableDestination(input)
-            }
+            },
+            // The subject and editor can occupy different parts of a tall
+            // page. Finish on the box the user asked to write in.
+            { at: input, block: "nearest", behavior: "instant" }
           ] : [{ at: current.where, behavior: "instant" }]
         };
       },
@@ -5364,7 +5365,7 @@ function createDelivery({
               void Promise.all(refused.map(({ answer }) => answer)).then(
                 () => afterScript(() => {
                   const kept = refusedWords(refused.map(({ attempt }) => attempt));
-                  notice(kept ? `${refusal}. ${kept}` : refusal);
+                  notice(kept ? `${refusal}. ${kept}` : refusal, { draft: true });
                 })
               );
             }
@@ -7373,7 +7374,7 @@ function mountApplication(dependencies) {
   commandDispatch.mount({
     afterEnqueue,
     withdraw: (candidate) => undo.withdraw(candidate),
-    onCollision: (attempt) => notice(`Couldn't send \u2014 attempt ${attempt} is already in use`)
+    onCollision: (attempt) => notice(`Couldn't send \u2014 attempt ${attempt} is already in use`, { draft: true })
   });
   const { post: post2 } = commandDispatch;
   const undo = createUndo({

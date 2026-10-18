@@ -1150,7 +1150,7 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     page.keyboard.press("m")
     expect(page.locator("#retry-ask")).to_be_focused()
     expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
-    expect(line).to_contain_text("comment on the ask")
+    expect(line).to_contain_text("comment on the question")
     page.keyboard.press("Escape")
 
     # With Threads open, the list's thread about the Ask plays the card's part, and a

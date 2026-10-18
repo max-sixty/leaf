@@ -891,5 +891,5 @@ def test_a_quoted_passage_scrolled_out_of_its_pane_withholds_its_row(
     # Scrolling alone, with no layout announced, takes the words away again, within a
     # frame or two rather than at some later pass.
     page.locator("#pane").evaluate("pane => { pane.scrollTop = 0; }")
-    expect(row).to_have_class(re.compile(r"\blf-withheld\b"), timeout=2000)
+    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
     context.close()

@@ -21,6 +21,7 @@ from render_harness import (
     root_overflow,
     scroll_settled,
     stamp_page,
+    undo,
     wait_for_revision,
 )
 
@@ -704,22 +705,25 @@ def test_side_tabs_distinguish_withdrawn_asks_from_answers(browser, serve):
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
     """An ask answered before the page loads is named once the page presents, however
     late the answering widget's module arrives: startup imports every module the
-    document names before the first reading brings the ask inventory."""
+    document names before the first reading brings the ask inventory. A longer ticket
+    name and its summary keep their own lines beside a complete short outcome."""
     url = serve(
         leaf_page(
             "a late queue",
             """<lf-tabs id="queue" list="side">
-<lf-tab id="t-a" label="Ticket a">
+<lf-tab id="t-a" label="ESC-4107 · Northwind Labs" summary="Company-wide SSO outage · Severity 1">
   <lf-ask id="ask-a"><h3 id="q-a">What happens to a?</h3>
     <lf-options id="o-a" choose>
       <lf-option id="o-a-fix"><strong>Fix</strong> Ship the patch.</lf-option>
-      <lf-option id="o-a-close"><strong>Close</strong> Explain and close.</lf-option>
+      <lf-option id="o-a-close"><strong>Escalate to engineering</strong> Send the logs.</lf-option>
+      <lf-option id="o-a-long"><strong>Escalate to the international engineering incident response team</strong> Send all logs.</lf-option>
     </lf-options>
   </lf-ask>
 </lf-tab>
 <lf-tab id="t-b" label="Ticket b"><p id="p-b">Nothing to decide.</p></lf-tab>
 </lf-tabs>""",
             layout="workspace",
+            head="<style>#queue {grid-template-columns:14rem minmax(0,1fr)}</style>",
         )
     )
     page = open_page(browser, live_url(url))
@@ -746,6 +750,29 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
     wait_until_ready(page)
     expect(answer).to_be_visible()
     expect(answer).to_have_text("Fix")
+    row = page.locator("#queue .lf-tab-btn").first
+    summary = row.locator(".lf-tab-summary")
+    expect(summary).to_have_text("Company-wide SSO outage · Severity 1")
+    assert answer.bounding_box()["y"] >= (
+        summary.bounding_box()["y"] + summary.bounding_box()["height"]
+    )
+    before = row.bounding_box()
+    page.locator("#o-a-close").get_by_role("checkbox").click()
+    expect(answer).to_have_text("Escalate to engineering")
+    assert row.bounding_box() == before
+    words = answer.locator(".lf-tab-answer-words")
+    expect(words).to_be_visible()
+    assert words.evaluate("el => el.scrollWidth <= el.clientWidth")
+
+    undo(page)
+    expect(answer).to_have_text("Fix")
+    assert row.bounding_box() == before
+    page.locator("#o-a-long").get_by_role("checkbox").click()
+    expect(words).to_have_text(
+        "Escalate to the international engineering incident response team"
+    )
+    assert words.evaluate("el => el.scrollWidth > el.clientWidth")
+    assert row.bounding_box() == before
 
 
 def test_a_queue_stands_its_items_under_their_groups(browser, serve):

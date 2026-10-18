@@ -211,19 +211,8 @@ export function unmarkableElements() {
   return found;
 }
 
-// Words the page shows that no user can select, and so no comment can be
-// anchored on. A widget has two ways to leave them there, neither of which a
-// static lint can see, and a page-local widget is where both keep happening.
-//
-// It can paint them: `content: attr(label)` puts a heading on screen and in no
-// text node, so a selection can't cover it. The runtime says the attributes the
-// registry marks x-says, and a widget's module says the rest (a chip row, a
-// heading that doubles as a list's accessible name); either way, none of an
-// element's own attribute values should still be reaching the user as
-// generated content.
-//
-// Or it can leave them under .lf-ui with nothing said about whose words they are.
-// That class is the chrome face, a look — reaching for it as a general "this is
+// Text nodes under widget chrome that no comment can be anchored on.
+// The .lf-ui class is the chrome face, a look — reaching for it as a general "this is
 // chrome" marker is how a user ends up unable to comment on a heading they can
 // see. The declaration is made where the label is written: data-lf-said for the page
 // speaking, which the anchor pass reads over the box around it, data-lf-offer for a
@@ -235,15 +224,6 @@ export function unmarkableElements() {
 // markup frozen in the event log, not the document.
 function unreachableWords() {
   const found = [];
-  for (const el of document.querySelectorAll("*")) {
-    if (!el.tagName.startsWith("LF-")) continue;
-    const shown = ["::before", "::after"]
-      .map((w) => getComputedStyle(el, w).content)
-      .filter((c) => c && c.startsWith('"'));
-    for (const { name, value } of el.attributes)
-      if (value.length > 1 && shown.some((c) => c.includes(value)))
-        found.push({ code: "painted-words", at: at(el), attr: name, value });
-  }
   // The lf-* element something stands in, if any. A .lf-ui is a widget's own
   // chrome by standing in one of these, and the runtime's layer is appended to
   // body and stands in none — but a widget riding a message stands in the

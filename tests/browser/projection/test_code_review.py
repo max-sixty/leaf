@@ -16,7 +16,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_cases_navigation import source_revision
+from render_cases_navigation import call_diff, call_node, source_revision
 from render_harness import (
     leaf_page,
     open_page,
@@ -378,6 +378,68 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
             held.pop(0).continue_()
 
 
+def test_native_call_diff_json_keeps_spaced_paths_and_exact_patch_destinations(
+    browser, serve
+):
+    """Unedited calldiff@0.5.0 --format json: each whitespace path reaches its own
+    old/new line. Capture: two exported TypeScript roots changing before() to after()."""
+    url = serve(
+        leaf_page(
+            "native CallDiff",
+            '<h1 id="title">Calls</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    capture = json.loads((ROOT / "tests/fixtures/calldiff-spaces.json").read_text())
+    patch = json.loads((ROOT / "tests/fixtures/calldiff-spaces.patch.json").read_text())
+    data_model.cmd_data_set(serve.page_dir, "calls-data", capture)
+    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page = open_page(browser, url)
+    widget = page.locator("#calls")
+    expect(widget.locator(".lf-call-summary")).to_have_text(
+        "2 changed roots · 2 added · 2 removed · 6 items"
+    )
+    paths = [entry["tree"]["file"] for entry in capture["trees"]]
+    assert page.locator("#patch .lf-diff-head .lf-diff-base").all_inner_texts() == [
+        path.rsplit("/", 1)[-1] for path in paths
+    ]
+    assert page.locator("#patch .lf-diff-metadata .lf-diff-base").all_inner_texts() == [
+        "label name.txt",
+        "label  name.txt",
+    ]
+    assert widget.locator(".lf-call-root-location a").all_inner_texts() == [
+        f"{path}:1" for path in paths
+    ]
+    widget.get_by_role("button", name="Expand all 2 call-tree roots").click()
+    for tree in capture["trees"]:
+        for node in [tree["tree"], *tree["tree"]["children"]]:
+            path, number = node["file"], node["line"]
+            side = "old" if node["status"] == "removed" else "new"
+            status = "unchanged" if node["status"] == "same" else node["status"]
+            selector = (
+                ".lf-call-root-location a"
+                if status == "unchanged"
+                else f'.lf-call-line[data-status="{status}"] a'
+            )
+            # Playwright's text filters collapse whitespace; the source coordinates
+            # intentionally distinguish these two names.
+            link = widget.locator(selector).filter(
+                has_text=re.compile(r"^" + re.escape(f"{path}:{number}") + r"$")
+            )
+            link.click()
+            expected = [path, "both", 1, 1] if number == 1 else [path, side, number]
+            target = page.locator(
+                f"#patch [data-lf-datum='{json.dumps(expected, separators=(',', ':'))}']"
+            )
+            expect(target).to_be_focused()
+            expect(target).to_be_in_viewport()
+            expect(page.locator(".lf-live")).to_have_text(
+                f"Opened {path}:{number} in the exact patch"
+            )
+
+
 def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser, serve):
     """An analyzer's old-source fallback must never retarget a durable new address."""
     url = serve(
@@ -398,9 +460,13 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
-        "calldiff diff main → feature\n  shifted()  app.py:8\n"
-        "  absent_new()  app.py:6\n- removed()  app.py:6\n"
-        "+ added()  app.py:9\n  last()  app.py:11",
+        call_diff(
+            call_node("shifted()", "app.py", 8),
+            call_node("absent_new()", "app.py", 6),
+            call_node("removed()", "app.py", 6, status="removed"),
+            call_node("added()", "app.py", 9, status="added"),
+            call_node("last()", "app.py", 11),
+        ),
     )
     page = open_page(browser, url)
     diff = page.locator("#patch")
@@ -486,7 +552,7 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
-        "calldiff diff main → feature\n- same()  app.py:5",
+        call_diff(call_node("same()", "app.py", 5, status="removed")),
     )
     told(page)
     expect(links).to_have_count(1)
@@ -534,8 +600,12 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
-        "calldiff diff main → feature\n- removed_b()  b.py:2\n"
-        "- removed_a()  a.py:2\n+ new_a()  a.py:1\n+ added_b()  b.py:2",
+        call_diff(
+            call_node("removed_b()", "b.py", 2, status="removed"),
+            call_node("removed_a()", "a.py", 2, status="removed"),
+            call_node("new_a()", "a.py", 1, status="added"),
+            call_node("added_b()", "b.py", 2, status="added"),
+        ),
     )
     page = open_page(browser, url)
     expect(page.locator("#patch .lf-diff-head").nth(0)).to_contain_text("a.py → b.py")
@@ -681,20 +751,22 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         ),
         packages=("diff",),
     )
-    header = "calldiff diff main → feature\n"
-    first = "  Limiter.first(self)  gateway/limits.py:10\n+ ├─ one()  gateway/limits.py:11\n"
+    first = call_node(
+        "Limiter.first(self)",
+        "gateway/limits.py",
+        10,
+        children=[call_node("one()", "gateway/limits.py", 11, status="added")],
+    )
     calls = [
-        "+ ├─ two()  gateway/limits.py:21\n",
-        "+ ├─ three()  gateway/limits.py:22\n",
+        call_node("two()", "gateway/limits.py", 21, status="added"),
+        call_node("three()", "gateway/limits.py", 22, status="added"),
     ]
-    second = "  Limiter.second(self)  gateway/limits.py:20\n"
+    second = call_node("Limiter.second(self)", "gateway/limits.py", 20)
 
     def capture(*roots):
-        data_model.cmd_data_set(
-            serve.page_dir, "request-call-diff", header + "".join(roots)
-        )
+        data_model.cmd_data_set(serve.page_dir, "request-call-diff", call_diff(*roots))
 
-    capture(first, second + "".join(calls))
+    capture(first, dict(second, children=calls))
     page = open_page(browser, url)
     widget = page.locator("#request-calls")
     groups = widget.locator(":scope > .lf-call-group")
@@ -702,7 +774,7 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     root = widget.locator(".lf-call-location", has_text="gateway/limits.py:20")
     root.focus()
 
-    capture(second + "".join(calls), first)
+    capture(dict(second, children=calls), first)
     told(page)
     expect(groups.first.locator(".lf-call-group-summary .lf-call-body")).to_have_text(
         "Limiter.second(self)"
@@ -712,7 +784,7 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     widget.locator(".lf-call-toggle").click()
     row = widget.locator(".lf-call-location", has_text="gateway/limits.py:22")
     row.focus()
-    capture(second + "".join(reversed(calls)), first)
+    capture(dict(second, children=list(reversed(calls))), first)
     told(page)
     expect(
         groups.first.locator(".lf-call-group-body .lf-call-body").first
@@ -722,25 +794,32 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     # Equal root names can share a stable call row while its group changes. The
     # closed destination may already exist or arrive in this capture; both expose
     # the user's focused row while a transfer without focus leaves its group closed.
-    first_work = "  work()  app.py:1\n"
-    second_work = "  work()  app.py:20\n"
-    third_work = "  work()  app.py:60\n"
-    unfocused = "  ├─ other_helper()  utils.py:3\n"
-    shared = "  └─ helper()  utils.py:2\n"
-    capture(first_work + unfocused + shared, second_work, third_work)
+    first_work = call_node("work()", "app.py", 1)
+    second_work = call_node("work()", "app.py", 20)
+    third_work = call_node("work()", "app.py", 60)
+    unfocused = call_node("other_helper()", "utils.py", 3)
+    shared = call_node("helper()", "utils.py", 2)
+    capture(dict(first_work, children=[unfocused, shared]), second_work, third_work)
     told(page)
     expect(groups).to_have_count(3)
     expect(groups.nth(1)).not_to_have_attribute("open", "")
     location = widget.locator(".lf-call-location", has_text="utils.py:2")
     location.focus()
     for destination, roots in (
-        ("app.py:20", (first_work, second_work + shared, third_work + unfocused)),
+        (
+            "app.py:20",
+            (
+                first_work,
+                dict(second_work, children=[shared]),
+                dict(third_work, children=[unfocused]),
+            ),
+        ),
         (
             "app.py:40",
             (
-                "  work()  app.py:30\n",
-                "  work()  app.py:40\n" + shared,
-                third_work + unfocused,
+                call_node("work()", "app.py", 30),
+                call_node("work()", "app.py", 40, children=[shared]),
+                dict(third_work, children=[unfocused]),
             ),
         ),
     ):
@@ -754,6 +833,57 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         expect(location).to_be_visible()
         expect(location).to_be_focused()
         expect(groups.last).not_to_have_attribute("open", "")
+
+    # Native callee keys do not identify persistent invocation instances. Source
+    # replacements honestly mark the original comment as earlier data.
+    page.keyboard.press("c")
+    draft = page.locator(".lf-fab-input")
+    write(draft, "Keep this helper")
+    with sending(page, "the call comment"):
+        draft.press("ControlOrMeta+Enter")
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_count(0)
+    capture(
+        call_node("work()", "app.py", 31),
+        call_node("work()", "app.py", 41, children=[dict(shared, line=9)]),
+        dict(third_work, line=61, children=[dict(unfocused, line=10)]),
+    )
+    told(page)
+    expect(page.locator(".lf-thread .lf-anchor-status")).to_have_text("Earlier data")
+
+    # Removing one duplicate must not transfer its comment to the surviving call,
+    # even when that survivor becomes occurrence zero in the next capture.
+    page.keyboard.press("Escape")
+    log = call_node("log()", "app.py", 10)
+    capture(
+        call_node(
+            "run()",
+            "app.py",
+            1,
+            children=[log, call_node("save()", "app.py", 15), dict(log, line=20)],
+        )
+    )
+    told(page)
+    first_log = widget.locator(".lf-call-location", has_text="app.py:10")
+    first_log.focus()
+    page.keyboard.press("c")
+    write(draft, "Remove this log")
+    with sending(page, "the duplicate call comment"):
+        draft.press("ControlOrMeta+Enter")
+    capture(
+        call_node(
+            "run()",
+            "app.py",
+            1,
+            children=[
+                dict(log, status="removed"),
+                call_node("save()", "app.py", 14),
+                dict(log, line=19),
+            ],
+        )
+    )
+    told(page)
+    comment = page.locator(".lf-thread").filter(has_text="Remove this log")
+    expect(comment.locator(".lf-anchor-status")).to_have_text("Earlier data")
 
 
 @pytest.mark.parametrize("quote_anchor", [True, False], ids=["passage", "whole-datum"])
@@ -1043,7 +1173,14 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
-        "calldiff diff main → feature\n  changed()  app.py:1\n+ └─ added()  app.py:2",
+        call_diff(
+            call_node(
+                "changed()",
+                "app.py",
+                1,
+                children=[call_node("added()", "app.py", 2, status="added")],
+            )
+        ),
     )
     data_model.cmd_data_set(
         serve.page_dir,

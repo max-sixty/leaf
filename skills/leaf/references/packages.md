@@ -54,7 +54,7 @@ The optional bundled packages are:
 | --------------- | -------------------------------------------------------------------------------------------------- |
 | `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.            |
 | `diagram`       | `lf-diagram` and its Mermaid renderer.                                                             |
-| `diff`          | `lf-diff`, its `unified-diff` data contract, and `lf-call-diff`, which links to exact patch lines. |
+| `diff`          | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines. |
 | `file-editor`   | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                 |
 | `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.         |
 | `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback ask.         |

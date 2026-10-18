@@ -116,9 +116,10 @@ Write an empty `lf-toc` with a stable id. On a column page, put it in an
 </aside>
 ```
 
-Leaf shows it in the desktop margin when there is room, and as an open outline in the
-page's flow in a narrow window. On a sidebar page, put the outline and a short verdict
-or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
+Leaf shows it in the desktop margin when there is room, and behind an **On this page**
+disclosure in the page's flow when there isn't. The same links remain available by
+keyboard and touch; printing shows the complete outline. On a sidebar page, put the
+contents and a short verdict or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
 to fit the window, and put detailed evidence and history in the body or behind a
 disclosure. A workspace has its own navigation, and so does a page of views, whose
 column views each take their own outline.

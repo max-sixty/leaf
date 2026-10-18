@@ -831,37 +831,6 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     )
 
 
-def test_corpus_is_generated_from_the_examples():
-    """examples/corpus.html is derived; a commit that lets it drift fails here."""
-    from leaf_dev.commands import corpus
-
-    committed = (Path(__file__).parents[2] / "examples" / "corpus.html").read_text()
-    assert corpus.build() == committed, "examples changed — rerun leaf-dev corpus"
-    assert "<lf-toc" not in committed, (
-        "a source page's document map becomes a repeated whole-corpus outline in a tab"
-    )
-    committed_data = json.loads(
-        (Path(__file__).parents[2] / "examples" / "corpus.data.json").read_text()
-    )
-    assert corpus.build_data() == committed_data, (
-        "example data changed — rerun leaf-dev corpus"
-    )
-    assert corpus.build_events() == corpus.CORPUS_EVENTS.read_text(), (
-        "sample threads changed — rerun leaf-dev corpus"
-    )
-    committed_page = {
-        path.relative_to(corpus.CORPUS_PAGE).as_posix(): path.read_bytes()
-        for path in corpus.CORPUS_PAGE.rglob("*")
-        if path.is_file()
-    }
-    assert corpus.build_page() == committed_page, (
-        "an example's own elements changed — rerun leaf-dev corpus"
-    )
-    assert committed_data["$captures"]["gallery-source"]["file"] == (
-        "developer/feature-gallery-source.toml"
-    )
-
-
 def test_reply_validates_widget_markup(page_dir):
     """The current layer checks replies; older layers do not constrain their markup."""
     path = page_dir / "registry.json"

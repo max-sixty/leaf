@@ -390,6 +390,9 @@ summary {
 .lf-msg-head > .lf-thread-disclosure {
   padding-block: 0;
 }
+.lf-msg-head > .lf-progress-expand {
+  margin-inline-start: auto;
+}
 .lf-thread-disclosure:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -941,7 +944,7 @@ leaf-text.lf-fab-input,
 .lf-msg > .lf-msg-head {
   anchor-name: --lf-msg-head;
 }
-.lf-msg:has(.lf-msg-control) > .lf-msg-head {
+.lf-msg:has(.lf-msg-control, > .lf-msg-head > .lf-progress-expand) > .lf-msg-head {
   --lf-msg-control: max(26px, var(--aim-floor));
   padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
 }
@@ -1546,7 +1549,12 @@ button.lf-media-open {
 .lf-margin-preview .lf-msg-text {
   padding-inline-end: var(--lf-comment-text-end);
 }
+.lf-margin-preview .lf-msg-editor .lf-compose-field > leaf-text {
+  min-height: 0;
+  padding-inline-end: calc(var(--lf-comment-text-end) - 1px);
+}
 .lf-fab-bar .lf-compose-field,
+.lf-margin-preview .lf-msg-editor .lf-compose-field,
 .lf-response-control {
   --lf-compose-pad-block: calc(var(--lf-thread-text-pad-block) - 1px);
 }

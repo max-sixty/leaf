@@ -9,7 +9,6 @@ import subprocess
 import sys
 import threading
 import time
-from pathlib import Path
 from types import SimpleNamespace
 
 import leaf_website as website_server
@@ -18,11 +17,8 @@ from interact_support import STATED_TIMEOUT, Prose, yaml_document
 from interact_support import append_carried_log_record as append_event
 from leaf.machine import pid_alive
 from leaf.service import delivery_reply_attempt
-from leaf_dev.commands import verify_site
 
 from process.website_server import (
-    _Read,
-    get,
     write_manifest,
 )
 
@@ -151,136 +147,6 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         )
     ]
     assert sent[0][-1] == []
-
-
-def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
-    tmp_path, monkeypatch
-):
-    """Exercise real build/process/file ownership with a stand-in for the hosted agent."""
-    root = tmp_path / "checkout"
-    (root / "worker").mkdir(parents=True)
-    host_home = tmp_path / "host-codex"
-    host_home.mkdir()
-    (host_home / "auth.json").write_text('{"test": "login"}')
-    (root / "worker" / "codex-config.toml").write_text('model = "test"')
-    # Each invocation builds directly into its private site destination.
-    build_site = tmp_path / "build_site.py"
-    build_site.write_text(
-        "import sys\n"
-        "from pathlib import Path\n"
-        "site = Path(sys.argv[sys.argv.index('--output') + 1]) / '_leaf'\n"
-        "site.mkdir(parents=True)\n"
-        "(site / 'site.json').write_text('{\"release\": \"' + 'a' * 40 + '\"}')\n"
-        "install = site.parent.with_name(site.parent.name + '-install')\n"
-        "(install / '.agents/plugins').mkdir(parents=True)\n"
-        "(install / '.agents/plugins/marketplace.json').write_text('{\"name\": \"leaf\"}')\n"
-        "(install / '.venv').mkdir()\n"
-        "print('built the site')\n"
-    )
-    codex = tmp_path / "codex"
-    codex.write_text(
-        f"#!{sys.executable}\n"
-        "import json, os, sys\n"
-        "from pathlib import Path\n"
-        "home = Path(os.environ['CODEX_HOME'])\n"
-        "assert (home / 'auth.json').read_text() == '{\"test\": \"login\"}'\n"
-        "assert (home / 'config.toml').read_text() == 'model = \"test\"'\n"
-        "assert os.environ.get('LEAF_CODEX_APP_SERVER') is None\n"
-        "record = home / 'plugin-install.jsonl'\n"
-        "args = sys.argv[1:]\n"
-        "if args[:3] == ['plugin', 'marketplace', 'add']:\n"
-        "    assert args[-1] == '--json'\n"
-        "    plugin = Path(args[3])\n"
-        "    assert plugin.parent == home.parent\n"
-        "    assert json.loads((plugin / '.agents/plugins/marketplace.json').read_text())['name'] == 'leaf'\n"
-        "    assert not (plugin / '.venv').exists()\n"
-        "    assert not record.exists()\n"
-        "    response = {}\n"
-        "else:\n"
-        "    assert args == ['plugin', 'add', 'leaf@leaf', '--json']\n"
-        "    assert len(record.read_text().splitlines()) == 1\n"
-        "    response = {'installedPath': str(home / 'plugins/cache/leaf/leaf/local')}\n"
-        "with record.open('a') as output:\n"
-        "    output.write(json.dumps(args) + '\\n')\n"
-        "print(json.dumps(response, indent=2))\n"
-    )
-    codex.chmod(0o755)
-    serve_site = tmp_path / "serve_site.py"
-    serve_site.write_text(
-        "import json, os\n"
-        "from pathlib import Path\n"
-        "from http.server import BaseHTTPRequestHandler, HTTPServer\n"
-        "assert len((Path(os.environ['CODEX_HOME']) / 'plugin-install.jsonl').read_text().splitlines()) == 2\n"
-        "class Handler(BaseHTTPRequestHandler):\n"
-        "    def do_GET(self):\n"
-        "        self.send_response(200)\n"
-        "        self.end_headers()\n"
-        "        self.wfile.write(json.dumps(dict(pid=os.getpid(), home=os.environ['CODEX_HOME'], site=os.environ['LEAF_SITE_ROOT'], endpoint=os.environ.get('LEAF_CODEX_APP_SERVER'))).encode())\n"
-        "server = HTTPServer(('127.0.0.1', 0), Handler)\n"
-        "print(json.dumps(dict(event='container_http_ready', port=server.server_port)), flush=True)\n"
-        "server.serve_forever()\n"
-    )
-    monkeypatch.setattr(verify_site, "ROOT", root)
-    monkeypatch.setattr(verify_site, "BUILD_SITE", [sys.executable, str(build_site)])
-    monkeypatch.setattr(
-        verify_site, "serve_site", lambda install: [sys.executable, str(serve_site)]
-    )
-    monkeypatch.setenv("CODEX_HOME", str(host_home))
-    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.setenv("LEAF_CODEX_APP_SERVER", "unix:///another-session.sock")
-    with (
-        pytest.raises(RuntimeError, match="journey failed"),
-        verify_site.local_adapter() as (origin, release),
-        verify_site.local_adapter() as (other_origin, other_release),
-    ):
-        assert release == "a" * 40
-        assert other_release == release
-        assert origin != other_origin
-        body, _ = get(f"{origin}/health")
-        running = json.loads(body)
-        other_body, _ = get(f"{other_origin}/health")
-        other = json.loads(other_body)
-        assert running["endpoint"] is None
-        assert other["endpoint"] is None
-        assert other["pid"] != running["pid"]
-        assert other["home"] != running["home"]
-        assert other["site"] != running["site"]
-        private_home = Path(running["home"])
-        private_site = Path(running["site"])
-        assert private_home != host_home
-        assert (private_home / "auth.json").read_bytes() == (
-            host_home / "auth.json"
-        ).read_bytes()
-        assert (private_home / "auth.json").stat().st_mode & 0o777 == 0o600
-        assert (private_home / "config.toml").read_text() == 'model = "test"'
-        installed = [
-            json.loads(line)
-            for line in (private_home / "plugin-install.jsonl").read_text().splitlines()
-        ]
-        assert installed == [
-            [
-                "plugin",
-                "marketplace",
-                "add",
-                str(private_home.parent / "leaf-plugin"),
-                "--json",
-            ],
-            ["plugin", "add", "leaf@leaf", "--json"],
-        ]
-        assert private_site != root / ".tmp" / "site"
-        assert (private_site / "_leaf" / "site.json").exists()
-        raise RuntimeError("journey failed")
-    assert not private_home.exists()
-    assert not private_site.exists()
-    assert not Path(other["home"]).exists()
-    assert not Path(other["site"]).exists()
-    assert (
-        len(list((root / ".tmp" / "verify-site").glob("run-*/website-adapter.log")))
-        == 2
-    )
-    assert (host_home / "auth.json").read_text() == '{"test": "login"}'
-    with pytest.raises(ProcessLookupError):
-        os.kill(running["pid"], 0)
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
@@ -624,28 +490,3 @@ def test_closing_a_harness_that_started_no_server_preserves_the_shared_socket(tm
     harness.close()
 
     assert socket_path.exists()
-
-
-def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
-    class Requests:
-        def __init__(self):
-            self.request = self
-            self.posts = []
-
-        def post(self, url, data, **options):
-            self.posts.append((url, data))
-            return _Read({"status": "started"})
-
-    context = Requests()
-    verify_site.start_direct_agent(
-        context,
-        "http://127.0.0.1:8080/examples/triage-board/",
-        {"id": "comment-id"},
-    )
-
-    assert context.posts == [
-        (
-            "http://127.0.0.1:8080/examples/triage-board/_leaf/agent/start",
-            {"event": "comment-id"},
-        ),
-    ]

@@ -82,7 +82,6 @@ from render_cases_widgets import (
     visual_widgets,
 )
 from render_harness import (
-    CORPUS_PAGE,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,

@@ -296,9 +296,9 @@ export function createPrimaryReader(
             };
           } else {
             let joined = false;
-            // What the box reads and how a send lands are the presentation's
-            // (replies.js, `createReplyView`), given with its nomination.
-            const { hint, accessibleName, sent } = item.options;
+            // What the box reads, when it holds its sends and how a send lands are the
+            // presentation's (replies.js, `createReplyView`), given with its nomination.
+            const { hint, accessibleName, busy, sent } = item.options;
             const reply = createReplyView(item.key, commands.reply, {
               onChange: () => {
                 if (joined) void update().catch(() => {});
@@ -306,6 +306,7 @@ export function createPrimaryReader(
               editLast: rewritesOf(item.key).editLast,
               hint,
               accessibleName,
+              busy,
               sent,
             });
             joined = true;

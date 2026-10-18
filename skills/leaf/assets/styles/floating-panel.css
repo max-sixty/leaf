@@ -172,6 +172,25 @@
   .lf-fp-leaf .lf-dot {
     --lf-mark-w: 19px;
   }
+  /* An error waiting unseen in the leaf's menu marks the leaf's corner. */
+  .lf-fp-leaf {
+    position: relative;
+  }
+  .lf-fp-error-dot {
+    position: absolute;
+    top: 3px;
+    inset-inline-end: 3px;
+    display: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--danger);
+    box-shadow: 0 0 0 2px var(--lf-fp-surface);
+    pointer-events: none;
+  }
+  .lf-fp-error-dot[data-shown] {
+    display: block;
+  }
   .lf-fp-field {
     position: relative;
     flex: 1;
@@ -301,6 +320,26 @@
   .lf-floating-panel[data-says="notice"] .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
+  }
+  /* An error the field says stands in its status's place, in the danger's ink, until
+     the user's first edit (errors.js). Over words its subject holds it covers them and
+     Send, and a press on it brings the words back (floating-panel.js, `errorCover`). */
+  .lf-floating-panel[data-says="error"] .lf-fp-field leaf-text::part(placeholder) {
+    color: var(--danger-ink);
+    font-weight: 500;
+  }
+  .lf-fp-error-cover {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    background: var(--lf-fp-surface);
+    color: var(--danger-ink);
+    font: 500 14px / 22px var(--sans);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: text;
   }
   /* The shared reduced-motion guard (surfaces.css) stops at the field's closed tree. */
   @media (prefers-reduced-motion: no-preference) {
@@ -446,8 +485,8 @@
   :where(.lf-floating-panel) .lf-fp-row-notice-press:hover {
     background: none;
   }
-  /* Its tone tints it: a failed save in danger, an older version in warning, the
-     website's notice in the accent, an approval in ok. */
+  /* Its tone tints it: an older version in warning, the website's notice in the
+     accent, an approval in ok. */
   .lf-fp-row-notice-face {
     display: inline-flex;
     align-items: center;
@@ -458,10 +497,6 @@
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font-size: 12px;
-    &[data-tone="danger"] {
-      --lf-fp-notice-tint: var(--danger-tint);
-      --lf-fp-notice-ink: var(--danger-ink);
-    }
     &[data-tone="warn"] {
       --lf-fp-notice-tint: var(--warn-tint);
       --lf-fp-notice-ink: var(--warn-ink);
@@ -1050,6 +1085,32 @@
     color: var(--ink);
     font: 12px / 1.45 var(--mono);
     white-space: pre-wrap;
+  }
+  /* The errors the user has met (floating-panel.js, `errorsList`): each says what
+     failed in the danger's ink, then what it concerns and when, with its presses. */
+  .lf-fp-error {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: 6px 4px 6px 8px;
+  }
+  .lf-fp-error-words {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+  }
+  .lf-fp-error-words b {
+    display: block;
+    color: var(--danger-ink);
+    font-weight: 500;
+  }
+  .lf-fp-error .lf-fp-note {
+    margin-inline-start: 0;
+    font-size: 12px;
+  }
+  .lf-fp-error .lf-fp-quiet {
+    flex: none;
+    font-size: 12px;
   }
   .lf-fp-note {
     margin-inline-start: 8px;

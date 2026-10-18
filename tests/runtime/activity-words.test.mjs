@@ -215,7 +215,7 @@ test("an unreachable server, a refused key and an unappliable state each say wha
     adds: "",
   });
   assert.deepEqual(pageStatus(null, { reach: "refused" }), {
-    kind: "unreachable",
+    kind: "refused",
     tone: "offline",
     summary: "Key refused — open Leaf's link in a new tab",
     explanation:

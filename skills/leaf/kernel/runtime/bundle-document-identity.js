@@ -169,6 +169,10 @@ import {
   workflowLabel
 } from "./bundle-user-intent.js";
 import {
+  holdingError,
+  raiseError
+} from "./bundle-errors.js";
+import {
   aborted,
   authoredStates,
   commitWidgetDescriptors,
@@ -1479,7 +1483,7 @@ function createSelectionComposer({
     if (suggestionMode && syncComposer.hasMedia()) {
       suggestionMode = false;
       syncSuggestMode();
-      notice("Remove attached images before suggesting replacement text");
+      raiseError("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
@@ -2512,8 +2516,12 @@ function pickerModel(state) {
     })
   });
 }
+var holdFailedSave = holdingError();
 function paintPicker() {
   const model = pickerModel(runtime.state);
+  holdFailedSave(
+    model.latest.failed ? "Latest edit not shown: it failed its check (see Versions)" : null
+  );
   versionPicker.present(model);
   showNews(latestChip, model.latest.news);
   repaint();
@@ -2823,7 +2831,7 @@ async function showComparison(base) {
   if (baseRevision == null) {
     diffPendingBase = null;
     presentPicker();
-    notice(`Couldn't load v${base}`);
+    raiseError(`Couldn't load v${base}`);
     return;
   }
   const documentRequest = authoredDocument(baseVersion.url);
@@ -2847,7 +2855,7 @@ async function showComparison(base) {
     if (mine === diffRequest) {
       diffPendingBase = null;
       presentPicker();
-      notice(`Couldn't load v${base}`);
+      raiseError(`Couldn't load v${base}`);
     }
     return;
   }
@@ -4660,7 +4668,7 @@ function createReactionController({
             reactRaised = false;
             reactSurface = null;
             openLayer(reactLayer, null);
-            notice("That reaction target is no longer available");
+            raiseError("That reaction target is no longer available");
             return;
           }
           reactSurface = marginSurface;
@@ -5271,12 +5279,18 @@ function createDelivery({
 }) {
   let draining = false;
   async function deliver(entry) {
-    let announced = false;
+    const retrying = holdingError();
     const retry = async (message) => {
-      if (!announced) notice(message);
-      announced = true;
+      retrying(message);
       await retryPause();
     };
+    try {
+      return await tries(entry, retry);
+    } finally {
+      retrying(null);
+    }
+  }
+  async function tries(entry, retry) {
     for (; ; ) {
       if (!ledger.nameEvents(entry)) return { accepted: null };
       const { event } = entry;
@@ -5364,8 +5378,12 @@ function createDelivery({
               ];
               void Promise.all(refused.map(({ answer }) => answer)).then(
                 () => afterScript(() => {
-                  const kept = refusedWords(refused.map(({ attempt }) => attempt));
-                  notice(kept ? `${refusal}. ${kept}` : refusal, { draft: true });
+                  const { said, field } = refusedWords(
+                    refused.map(({ attempt }) => attempt)
+                  );
+                  raiseError(said ? `${refusal}. ${said}` : refusal, {
+                    subject: field
+                  });
                 })
               );
             }
@@ -5435,7 +5453,7 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
   }
   function withdraw(event) {
     if (!withdrawable(event)) {
-      notice(WAIT);
+      raiseError(WAIT);
       return null;
     }
     const reverse = reversals.get(event.attempt);
@@ -5459,7 +5477,7 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
   }
   function undoLast() {
     if (stateApplying() || unaccountedGesture()) {
-      notice(WAIT);
+      raiseError(WAIT);
       return null;
     }
     const event = undoable();
@@ -6508,7 +6526,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
             };
           } else {
             let joined2 = false;
-            const { hint, accessibleName, sent } = item.options;
+            const { hint, accessibleName, busy, sent } = item.options;
             const reply = createReplyView(item.key, commands.reply, {
               onChange: () => {
                 if (joined2) void update().catch(() => {
@@ -6517,6 +6535,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               editLast: rewritesOf(item.key).editLast,
               hint,
               accessibleName,
+              busy,
               sent
             });
             joined2 = true;
@@ -7374,7 +7393,7 @@ function mountApplication(dependencies) {
   commandDispatch.mount({
     afterEnqueue,
     withdraw: (candidate) => undo.withdraw(candidate),
-    onCollision: (attempt) => notice(`Couldn't send \u2014 attempt ${attempt} is already in use`, { draft: true })
+    onCollision: (attempt) => raiseError(`Couldn't send \u2014 attempt ${attempt} is already in use`)
   });
   const { post: post2 } = commandDispatch;
   const undo = createUndo({

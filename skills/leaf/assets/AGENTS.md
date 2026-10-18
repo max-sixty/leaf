@@ -158,8 +158,10 @@ representative desktop viewport.
 
 - **Visual treatments carry hierarchy and state.** Contours are solid. A dotted or
   dashed line marks a distinct state, such as a draft or a drag placeholder. One
-  contour shows one control state, and a segmented group shares one-pixel seams. Avoid
-  rounded one-sided borders and reflexive cards, tints, gradients and soft shadows.
+  contour shows one control state, and a segmented group shares one-pixel seams. Never
+  round a box edged on one side: mark a state with a whole contour, or a stripe on a
+  square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
+  `test_no_rule_rounds_a_box_edged_on_one_side`, over Leaf's sheets and pages.
 - **A face used twice is a token or a shared rule**, and a rule names it rather than
   spelling it out. A lift names one of the theme's three heights, `--raise-1` to
   `--raise-3` (`styles/theme.css`, beside `--shade`); boxes that wear one face, such as

@@ -47,7 +47,7 @@ import {
   PRESS,
 } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
-import { announce, notice } from "../notifications.js";
+import { announce } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
 import { LitElement, html, render as renderHint } from "/vendor/browser-runtime.js";
@@ -57,6 +57,7 @@ import { focusDestination, focused } from "../focus.js";
 import { whileConnected } from "../arrivals.js";
 import { move } from "../dom-move.js";
 import { applicationState } from "../semantic-state.js";
+import { raiseError } from "../errors.js";
 
 const inputDrafts = new WeakMap();
 
@@ -258,7 +259,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       altBtn = null,
       altSend = null,
       // `true` to take an attached image; otherwise the sentence the user is told instead.
-      allowsMedia = () => true,
+      // True, or why the box takes no image.
+      allowsMedia = /** @type {() => true | string} */ (() => true),
       busy = () => false,
       hasContent = (raw) => Boolean(raw),
       // The caller's own rendering of what the box holds, run in the box's paint.
@@ -686,7 +688,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       cancelDictation();
       const allowed = allowsMedia();
       if (allowed !== true) {
-        notice(allowed, { draft: true });
+        raiseError(allowed);
         return false;
       }
       rememberWriting(ta);
@@ -705,9 +707,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         const paths = await Promise.all(images.map((image) => uploadMedia(image)));
         if (paths.some((path) => path === null)) return false;
         if (arrivals !== attachedAt) {
-          notice("Image not added — the comment moved before it finished uploading", {
-            draft: true,
-          });
+          raiseError(
+            "Image not added — the comment moved before it finished uploading",
+          );
           return false;
         }
         attachedMedia.push(...paths);
@@ -716,7 +718,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
-        notice(`Could not add image — ${error?.message ?? error}`, { draft: true });
+        raiseError(`Could not add image — ${error?.message ?? error}`);
         return false;
       } finally {
         uploading = false;

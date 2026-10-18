@@ -10,6 +10,7 @@ import { runtime } from "./context.js";
 import { completeData, postEvent, reportCarried } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { afterScript } from "./rendering.js";
+import { raiseError } from "./errors.js";
 
 const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
@@ -155,7 +156,7 @@ export function createDelivery({
               void Promise.all(refused.map(({ answer }) => answer)).then(() =>
                 afterScript(() => {
                   const kept = refusedWords(refused.map(({ attempt }) => attempt));
-                  notice(kept ? `${refusal}. ${kept}` : refusal, { draft: true });
+                  raiseError(kept ? `${refusal}. ${kept}` : refusal);
                 }),
               );
             }

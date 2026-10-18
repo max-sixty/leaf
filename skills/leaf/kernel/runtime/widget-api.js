@@ -91,6 +91,9 @@ import {
   watchDraft
 } from "./bundle-user-intent.js";
 import {
+  raiseError
+} from "./bundle-errors.js";
+import {
   aborted,
   bodyText,
   dataBody,
@@ -1771,6 +1774,7 @@ export {
   quietSince,
   quietWord,
   quoted,
+  raiseError,
   rankAt,
   reachedForWords,
   readAsks,

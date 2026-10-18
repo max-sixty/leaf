@@ -51,7 +51,7 @@ import { keeps } from "./keeps.js";
 import { elementById } from "./passages.js";
 import { addressableWord } from "./addressable-names.js";
 import { anchoringIsReady, visualPartLabel } from "./anchor-resolution.js";
-import { announce, notice } from "./notifications.js";
+import { announce } from "./notifications.js";
 import { claimsEsc, keys, saying } from "./keyboard/scopes.js";
 import {
   handBack,
@@ -78,6 +78,7 @@ import { allThreads, readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
 import { annotationSelection } from "./annotation-inventory.js";
 import { readPart } from "./semantic-state.js";
+import { raiseError } from "./errors.js";
 
 const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
 // The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
@@ -371,7 +372,7 @@ export function createReactionController({
             reactRaised = false;
             reactSurface = null;
             openLayer(reactLayer, null);
-            notice("That reaction target is no longer available");
+            raiseError("That reaction target is no longer available");
             return;
           }
           reactSurface = marginSurface;

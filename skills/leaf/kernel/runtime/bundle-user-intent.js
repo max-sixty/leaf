@@ -1,4 +1,7 @@
 import {
+  raiseError
+} from "./bundle-errors.js";
+import {
   aborted,
   commitWidgetDescriptors,
   dataBody,
@@ -2792,12 +2795,10 @@ function createWritingResume({
       return;
     }
     if (runtime.showsActive && !holdsBox(place2.context) && moveToPage(place2.context)) {
-      notice("Its box is gone, so its words moved to a comment on the page", {
-        draft: true
-      });
+      raiseError("Its box is gone, so its words moved to a comment on the page");
       return resume();
     }
-    notice(
+    raiseError(
       `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`
     );
   };
@@ -3305,7 +3306,9 @@ var MessageEditor = class {
     let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
-      notice(`This message changed since this edit began. It now says: \u201C${said()}\u201D`);
+      raiseError(
+        `This message changed since this edit began. It now says: \u201C${said()}\u201D`
+      );
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor lf-comment-box");
     this.input = offer(TEXT_FIELD);
@@ -4274,7 +4277,7 @@ function createPassageSelection({ restore }) {
           intent
         });
         if (!restored && intent())
-          notice("That selected passage is unavailable on this version");
+          raiseError("That selected passage is unavailable on this version");
       }
     }
   };

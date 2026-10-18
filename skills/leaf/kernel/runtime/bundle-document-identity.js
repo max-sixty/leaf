@@ -169,6 +169,9 @@ import {
   workflowLabel
 } from "./bundle-user-intent.js";
 import {
+  raiseError
+} from "./bundle-errors.js";
+import {
   aborted,
   authoredStates,
   commitWidgetDescriptors,
@@ -1479,7 +1482,7 @@ function createSelectionComposer({
     if (suggestionMode && syncComposer.hasMedia()) {
       suggestionMode = false;
       syncSuggestMode();
-      notice("Remove attached images before suggesting replacement text");
+      raiseError("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
@@ -2823,7 +2826,7 @@ async function showComparison(base) {
   if (baseRevision == null) {
     diffPendingBase = null;
     presentPicker();
-    notice(`Couldn't load v${base}`);
+    raiseError(`Couldn't load v${base}`);
     return;
   }
   const documentRequest = authoredDocument(baseVersion.url);
@@ -2847,7 +2850,7 @@ async function showComparison(base) {
     if (mine === diffRequest) {
       diffPendingBase = null;
       presentPicker();
-      notice(`Couldn't load v${base}`);
+      raiseError(`Couldn't load v${base}`);
     }
     return;
   }
@@ -4660,7 +4663,7 @@ function createReactionController({
             reactRaised = false;
             reactSurface = null;
             openLayer(reactLayer, null);
-            notice("That reaction target is no longer available");
+            raiseError("That reaction target is no longer available");
             return;
           }
           reactSurface = marginSurface;
@@ -5365,7 +5368,7 @@ function createDelivery({
               void Promise.all(refused.map(({ answer }) => answer)).then(
                 () => afterScript(() => {
                   const kept = refusedWords(refused.map(({ attempt }) => attempt));
-                  notice(kept ? `${refusal}. ${kept}` : refusal, { draft: true });
+                  raiseError(kept ? `${refusal}. ${kept}` : refusal);
                 })
               );
             }
@@ -5435,7 +5438,7 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
   }
   function withdraw(event) {
     if (!withdrawable(event)) {
-      notice(WAIT);
+      raiseError(WAIT);
       return null;
     }
     const reverse = reversals.get(event.attempt);
@@ -5459,7 +5462,7 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
   }
   function undoLast() {
     if (stateApplying() || unaccountedGesture()) {
-      notice(WAIT);
+      raiseError(WAIT);
       return null;
     }
     const event = undoable();
@@ -7374,7 +7377,7 @@ function mountApplication(dependencies) {
   commandDispatch.mount({
     afterEnqueue,
     withdraw: (candidate) => undo.withdraw(candidate),
-    onCollision: (attempt) => notice(`Couldn't send \u2014 attempt ${attempt} is already in use`, { draft: true })
+    onCollision: (attempt) => raiseError(`Couldn't send \u2014 attempt ${attempt} is already in use`)
   });
   const { post: post2 } = commandDispatch;
   const undo = createUndo({

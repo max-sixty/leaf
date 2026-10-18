@@ -83,9 +83,9 @@ import { PENDING } from "./thread/identity.js";
 import { draftStore } from "./storage.js";
 import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
-import { notice } from "./notifications.js";
 import { retainUserIntent } from "./user-intent.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
+import { raiseError } from "./errors.js";
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -740,14 +740,12 @@ export function createWritingResume({
     // A document behind the active one may lack a box the active one holds, so only
     // the active document moves the words to the page.
     if (runtime.showsActive && !holdsBox(place.context) && moveToPage(place.context)) {
-      notice("Its box is gone, so its words moved to a comment on the page", {
-        draft: true,
-      });
+      raiseError("Its box is gone, so its words moved to a comment on the page");
       return resume();
     }
     // A box that stands but takes no words now, as a resolved thread's in the floating
     // panel, is no fault of the version shown.
-    notice(
+    raiseError(
       `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`,
     );
   };

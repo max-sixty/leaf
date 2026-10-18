@@ -193,6 +193,12 @@ readers, such as confirming a gesture the widget recorded. News not caused by th
 passes `{background: true}` and waits behind what the user just did; `{announce: false}`
 only shows it. `announce(message)` only announces, for words already on screen.
 
+`raiseError(message, {about, action})` tells the user a gesture failed, such as a
+value the server refused, where they see it until they have dealt with it. `about`
+names what it concerns in a few words; `action` is `{label, run}` for the press that
+would fix it. It returns a handle whose `clear()` takes the error down once it no
+longer holds. Use it for failures only, never for news.
+
 `quietWord(element, word)` gives an element words screen readers say after its leading
 `<strong>` title but the screen doesn't show; pass the whole quiet word each time, or an
 empty one to remove it. Leaf writes quiet words for elements it marks as rewritten,

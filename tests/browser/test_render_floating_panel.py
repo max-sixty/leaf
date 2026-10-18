@@ -1675,7 +1675,6 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
     words = page.locator(".lf-fp-field .lf-compose-placeholder > span")
-    panel = page.locator(".lf-floating-panel")
 
     def alpha():
         color = words.evaluate("node => getComputedStyle(node).color")

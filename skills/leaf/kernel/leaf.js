@@ -184,6 +184,15 @@ import {
   walkPositionLabel,
   workflowLabel
 } from "./runtime/bundle-user-intent.js";
+import {
+  dismissError,
+  dismissErrors,
+  errorsReading,
+  passErrors,
+  raiseError,
+  registerErrorPresentation,
+  seeErrors
+} from "./runtime/bundle-errors.js";
 import "./runtime/bundle-widget-upgrade.js";
 import {
   mediaViewer,
@@ -803,7 +812,11 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     altBtn = null,
     altSend = null,
     // `true` to take an attached image; otherwise the sentence the user is told instead.
-    allowsMedia = () => true,
+    // True, or why the box takes no image.
+    allowsMedia = (
+      /** @type {() => true | string} */
+      (() => true)
+    ),
     busy = () => false,
     hasContent = (raw) => Boolean(raw),
     // The caller's own rendering of what the box holds, run in the box's paint.
@@ -1130,7 +1143,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       cancelDictation();
       const allowed = allowsMedia();
       if (allowed !== true) {
-        notice(allowed, { draft: true });
+        raiseError(allowed, { subject: ta });
         return false;
       }
       rememberWriting(ta);
@@ -1147,9 +1160,10 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         const paths = await Promise.all(images.map((image) => uploadMedia2(image)));
         if (paths.some((path) => path === null)) return false;
         if (arrivals !== attachedAt) {
-          notice("Image not added \u2014 the comment moved before it finished uploading", {
-            draft: true
-          });
+          raiseError(
+            "Image not added \u2014 the comment moved before it finished uploading",
+            { subject: ta }
+          );
           return false;
         }
         attachedMedia.push(...paths);
@@ -1158,7 +1172,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
-        notice(`Could not add image \u2014 ${error?.message ?? error}`, { draft: true });
+        raiseError(`Could not add image \u2014 ${error?.message ?? error}`, { subject: ta });
         return false;
       } finally {
         uploading = false;
@@ -3068,11 +3082,11 @@ function createDrawingController({
     const source = target && resolveDrawingFrame(target.element, reference);
     const frame = source && elementFrame(source);
     if (!frame) {
-      announce2("Draw on or beside something on the page.");
+      raiseError("Draw on or beside something on the page.");
       return;
     }
     if (heldDrawing(target.anchor)?.strokes.length >= MAX_DRAWING_STROKES) {
-      announce2(
+      raiseError(
         `A drawing holds ${MAX_DRAWING_STROKES} strokes. Undo a stroke, or send or remove this drawing to start another.`
       );
       return;
@@ -3445,7 +3459,7 @@ function createRegionCapture({
         await selector.done;
       } catch (error) {
         selector?.cancel();
-        notice(`Could not open area capture \u2014 ${error.message}`);
+        raiseError(`Could not open area capture \u2014 ${error.message}`);
       } finally {
         document.removeEventListener("touchstart", claimTouch, true);
         selector = null;
@@ -5928,12 +5942,12 @@ var capital = (word2) => word2[0].toUpperCase() + word2.slice(1);
 var coarse = () => matchMedia("(pointer: coarse)").matches;
 function passing() {
   const notice2 = noticeReading();
-  if (notice2.visible)
-    return { message: notice2.message, visible: true, draft: notice2.draft };
+  if (notice2.visible) return { message: notice2.message, visible: true };
   const { goTo, walk } = statusContextReading();
   const message = goTo ?? (walk?.shown ? walk.text : "");
-  return { message, visible: Boolean(message), draft: false };
+  return { message, visible: Boolean(message) };
 }
+var clock = (at) => new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 var TONE_WORDS = Object.freeze({
   working: "Working",
   listening: "Waiting on me",
@@ -5980,7 +5994,6 @@ function createFloatingPanel({
   peek.setAttribute("role", "tooltip");
   let peekAsked = false;
   let peekReading = null;
-  let overView = false;
   context2.append(contextWords);
   inner.append(opened, context2, row);
   card.append(inner);
@@ -6014,7 +6027,9 @@ function createFloatingPanel({
   leaf.setAttribute("aria-controls", menu.id);
   leaf.setAttribute("aria-describedby", peek.id);
   const mark = el("span", "lf-dot");
-  leaf.append(mark);
+  const errorDot = el("span", "lf-fp-error-dot");
+  errorDot.setAttribute("aria-hidden", "true");
+  leaf.append(mark, errorDot);
   const field = el("div", "lf-fp-field");
   const expand = el("button", "lf-fp-expand");
   expand.type = "button";
@@ -6079,7 +6094,17 @@ function createFloatingPanel({
   let typing = false;
   let postureMoved = true;
   let landAtEnd = null;
+  function sayable() {
+    const input = host.dataset.rest === "mark" ? null : fieldInput();
+    if (!input?.isConnected) return [];
+    const empty = draftOf(input) === "";
+    return errorsReading().filter(
+      (error) => !error.passed && (error.subject === input || error.subject === null && empty)
+    );
+  }
   function fieldReading(key, input) {
+    const [error] = sayable();
+    if (error) return { says: "error", words: error.message };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
@@ -6116,6 +6141,7 @@ function createFloatingPanel({
         return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
       },
       accessibleName: "Comment on the page",
+      busy: () => !errorCover.hidden,
       sends: "send",
       sendBtn: send,
       save: (text) => {
@@ -6161,6 +6187,7 @@ function createFloatingPanel({
       replyOptions.set(key, {
         hint: () => saying2(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
+        busy: () => !errorCover.hidden,
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
           waiting = null;
@@ -6169,12 +6196,23 @@ function createFloatingPanel({
       });
     return replyOptions.get(key);
   };
-  const fieldInput = () => field.firstElementChild === replyOutlet ? replyInput() : pageEditor().input;
+  const fieldInput = () => field.firstElementChild !== replyOutlet ? pageEditor().input : replyOutlet.hidden ? null : replyInput();
   function retype() {
     postureMoved = true;
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
   field.addEventListener("input", retype);
+  const errorCover = el("p", "lf-fp-error-cover");
+  errorCover.setAttribute("aria-hidden", "true");
+  const passSayable = () => passErrors(sayable().map((error) => error.id));
+  field.addEventListener("beforeinput", passSayable, { capture: true });
+  errorCover.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const input = fieldInput();
+    passSayable();
+    const end = draftOf(input).length;
+    focusDestination(input, "move", { caret: [end, end] });
+  });
   const threads = () => readThreads().threads;
   const inventoried = () => readThreads().phase === "ready";
   const threadByKey = (key) => threads().find((thread) => thread.key === key || thread.id === key) ?? null;
@@ -6210,6 +6248,7 @@ function createFloatingPanel({
     queue: tabLabel(queueTab),
     leaves: "All pages",
     versions: "Versions",
+    errors: "Errors",
     thread: route.thread ? threadTitle(route.thread) : "",
     group: GROUPS[route.group]
   })[route.view];
@@ -6717,7 +6756,7 @@ function createFloatingPanel({
           >${iconTemplate("next", "lf-fp-chevron")}<b>${titleOf2(menuAt)}</b></span
         >
       </button>
-      ${menuAt.view === "versions" ? versionsList() : groupList(menuAt.group)}
+      ${menuAt.view === "versions" ? versionsList() : menuAt.view === "errors" ? errorsList() : groupList(menuAt.group)}
     </div>`;
   }
   function rootTemplate() {
@@ -6745,7 +6784,27 @@ function createFloatingPanel({
       key: entry.key,
       draw: (gone) => rowFor(gone ? { ...entry, disabled: true } : entry)
     });
+    const errors = errorsReading();
     const offered = [
+      ...errors.length ? [
+        {
+          key: "errors",
+          draw: (gone) => menuItem(
+            "Errors",
+            html`<span class="lf-fp-value">${errors.length}</span>`,
+            () => {
+              showMenuAt({ view: "errors" });
+              seeErrors();
+            },
+            {
+              opens: true,
+              urgent: errors.some((error) => !error.seen),
+              disabled: gone,
+              row: "errors"
+            }
+          )
+        }
+      ] : [],
       ...page.map(seat),
       ...groups.map((group) => ({
         key: `group:${group}`,
@@ -6860,6 +6919,37 @@ function createFloatingPanel({
     )}
               </div>` : nothing}
     `;
+  }
+  function errorsList() {
+    const errors = errorsReading();
+    if (!errors.length) return html`<p class="lf-fp-empty" role="none">No errors</p>`;
+    const dismiss = (dismissed) => {
+      const presses2 = [...menu.querySelectorAll(".lf-fp-error button")];
+      const at = errors.findIndex((error) => error.id === dismissed);
+      const next = dismissed === null ? null : presses2[at + 1] ?? presses2[at - 1];
+      focusDestination(next ?? menu.querySelector(".lf-fp-menu-back"), "move");
+      if (dismissed === null) dismissErrors();
+      else dismissError(dismissed);
+    };
+    return html`${repeat(
+      errors,
+      (error) => error.id,
+      (error) => html`<div class="lf-fp-error" role="none">
+          <p class="lf-fp-error-words" aria-hidden="true">
+            <b>${error.message}</b><span class="lf-fp-note">${clock(error.at)}</span>
+          </p>
+          <button
+            type="button"
+            role="menuitem"
+            class="lf-fp-quiet"
+            aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
+            @click=${() => dismiss(error.id)}
+          >
+            Dismiss
+          </button>
+        </div>`
+    )}${errors.length > 1 ? html`<hr />
+            ${menuItem("Dismiss all", nothing, () => dismiss(null))}` : nothing}`;
   }
   function shownThreads() {
     const words = query.trim().toLowerCase();
@@ -7489,6 +7579,11 @@ function createFloatingPanel({
     keepsText(badge, onUser ? String(onUser) : "");
     keeps(badge, "data-shown", onUser ? "" : null);
     keeps(newsDot, "data-shown", news ? "" : null);
+    const sayingNow = new Set(sayable().map((error2) => error2.id));
+    const unseen = errorsReading().some(
+      (error2) => !error2.seen && !sayingNow.has(error2.id)
+    );
+    keeps(errorDot, "data-shown", unseen ? "" : null);
     render(menuOpen ? menuTemplate() : nothing, menu);
     for (const copy of [...copyItems.values(), ...copies.values()])
       if (!copy.isConnected) copy.remove();
@@ -7549,7 +7644,7 @@ function createFloatingPanel({
     const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
     if (field.firstElementChild !== shown[0]) {
       const had = standingIn(field);
-      field.replaceChildren(...shown);
+      field.replaceChildren(...shown, errorCover);
       if (had && !replying) focusDestination(leaf, "return");
     }
     if (caretToField && !replying) {
@@ -7583,10 +7678,13 @@ function createFloatingPanel({
       "title",
       reading.says === "status" ? status().explanation || status().summary : null
     );
+    const [error] = sayable();
+    const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
+    keepsText(errorCover, covering ? error.message : "");
+    keepsHidden(errorCover, !covering);
     const notice2 = passing();
-    const said = notice2.visible && (reading.says === "destination" ? notice2.draft : draftOf(input) !== "");
-    overView = Boolean(top) && said && notice2.draft;
-    keepsText(contextWords, !top && said ? notice2.message : "");
+    const said = notice2.visible && !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
+    keepsText(contextWords, said ? notice2.message : "");
     keepsHidden(context2, !contextWords.textContent);
     paintPeek();
     const standing2 = rowNotice();
@@ -7736,7 +7834,7 @@ function createFloatingPanel({
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice2 = passing();
-    const telling = notice2.visible && (folded || overView && !menuOpen);
+    const telling = notice2.visible && folded;
     const reading = status();
     const parts = reading.explanationParts ?? [
       { text: reading.explanation || reading.summary }
@@ -7981,10 +8079,7 @@ function createFloatingPanel({
     sync: () => pageEditor().sync()
   });
   function enter() {
-    const top = trail.at(-1);
-    const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
-    const takesWords = !thread || replyAvailable(thread);
-    const input = prefs().rest !== "mark" && takesWords ? fieldInput() : null;
+    const input = prefs().rest !== "mark" ? fieldInput() : null;
     focusDestination(input ?? leaf, "move");
   }
   function mount(parent) {
@@ -8036,6 +8131,10 @@ function createFloatingPanel({
       repaint: () => paint()
     });
     registerNoticePresentation(() => paint());
+    registerErrorPresentation(() => {
+      if (menuOpen && menuAt?.view === "errors") seeErrors();
+      paint();
+    });
     registerStatusContextPresentation(() => paint());
     watchPageControls(() => paint());
     versionPicker.watch(() => paint());

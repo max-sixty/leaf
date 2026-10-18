@@ -175,6 +175,7 @@ export {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 export { announce, notice } from "./notifications.js";
+export { raiseError } from "./errors.js";
 export { alignText } from "./text-alignment.js";
 export { inChrome, says, wrote } from "./passages.js";
 export { ago, clockValue, quietSince, readingPaint, shortAgo } from "./presence.js";

@@ -764,7 +764,8 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
 def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     browser, serve, scaled
 ):
-    """A whole-frame cap reserves the image, choices and Send before text scrolls."""
+    """A whole-frame cap reserves the image, choices and Send before text scrolls. What
+    the bar paints stays in the window; its unpainted reserve for the card may not."""
     source = LONG_PAGE
     if scaled:
         source = source.replace(
@@ -797,12 +798,12 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     expect(field).to_have_js_property("value", content)
     assert field.evaluate("el => el.scrollHeight > el.clientHeight")
     bounds = bar.evaluate("el => el.getBoundingClientRect().toJSON()")
-    assert bounds["top"] >= 6
-    assert bounds["bottom"] <= height - 8
     parts = bar.locator(
         ".lf-compose-field, .lf-fab-input, .lf-compose-submit, .lf-composer-media, "
         ".lf-response-options, .lf-response-action:visible"
     ).evaluate_all("nodes => nodes.map(node => node.getBoundingClientRect().toJSON())")
+    assert min(part["top"] for part in parts) >= 6, parts
+    assert max(part["bottom"] for part in parts) <= height - 8, parts
     for part in parts:
         assert bounds["left"] <= part["left"] < part["right"] <= bounds["right"], (
             bounds,
@@ -811,6 +812,33 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
         assert bounds["top"] <= part["top"] < part["bottom"] <= bounds["bottom"], (
             bounds,
             parts,
+        )
+    # As the window shortens the bar shows only while its controls fit the room a
+    # surface stands in, and waits for room once they don't. Its passage stands at the
+    # room's top, so no window below puts it beneath the panel, where the bar would
+    # stand attached to it past the room.
+    page.locator("#p1").evaluate("el => el.scrollIntoView({block: 'start'})")
+    for wide, short in ((width, 200), (width, 170), (width, 140), (1440, 170)):
+        resized(page, wide, short)
+        rendered(page)
+        if not bar.is_visible():
+            continue
+        room = page.evaluate(
+            """async () => {
+              const {top, bottom} = (await window.__lfOverlayApi()).commentBoundary();
+              return {top, bottom};
+            }"""
+        )
+        shown = bar.locator(
+            ".lf-compose-field, .lf-composer-media, .lf-response-options"
+        ).evaluate_all(
+            "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
+        )
+        assert min(part["top"] for part in shown) >= room["top"] - 4.5, (short, shown)
+        assert max(part["bottom"] for part in shown) <= room["bottom"] + 0.5, (
+            short,
+            room,
+            shown,
         )
     resized(page, width, 120)
     expect(bar).to_be_hidden()
@@ -1050,6 +1078,7 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
     expect(field).to_have_js_property("value", content)
     assert field.evaluate("(node, original) => node === original", native_field)
     resumed = bar.bounding_box()
+    painted = bar.locator(".lf-compose-field").bounding_box()
     assert 8 <= resumed["x"] and resumed["x"] + resumed["width"] <= 382.1, resumed
-    assert 6 <= resumed["y"] + 0.1, resumed
-    assert resumed["y"] + resumed["height"] <= 592.1, resumed
+    assert 6 <= painted["y"] + 0.1, painted
+    assert painted["y"] + painted["height"] <= 592.1, painted

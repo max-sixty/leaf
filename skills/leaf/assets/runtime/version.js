@@ -189,6 +189,7 @@ import {
   restorePlace,
   textBlocks,
 } from "./reading-place.js";
+import { raiseError } from "./errors.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 
@@ -916,7 +917,7 @@ async function showComparison(base) {
   if (baseRevision == null) {
     diffPendingBase = null;
     presentPicker();
-    notice(`Couldn't load v${base}`);
+    raiseError(`Couldn't load v${base}`);
     return;
   }
   const documentRequest = authoredDocument(baseVersion.url);
@@ -941,7 +942,7 @@ async function showComparison(base) {
     if (mine === diffRequest) {
       diffPendingBase = null;
       presentPicker();
-      notice(`Couldn't load v${base}`);
+      raiseError(`Couldn't load v${base}`);
     }
     return;
   }

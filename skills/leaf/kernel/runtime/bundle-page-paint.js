@@ -2943,7 +2943,7 @@ var showingBackground = null;
 var waitingBackground = [];
 var userContext = false;
 var userHoldTimer = 0;
-var noticePresentation = Object.freeze({ message: "", visible: false, draft: false });
+var noticePresentation = Object.freeze({ message: "", visible: false });
 var noticePresenters = /* @__PURE__ */ new Set();
 var noticeReading = () => noticePresentation;
 var noticeVisible = () => noticePresentation.visible;
@@ -2953,8 +2953,8 @@ function registerNoticePresentation(invalidate) {
 var presentAll = () => {
   for (const invalidate of noticePresenters) invalidate();
 };
-var presentNotice = (message, visible, draft = false) => {
-  noticePresentation = Object.freeze({ message, visible, draft });
+var presentNotice = (message, visible) => {
+  noticePresentation = Object.freeze({ message, visible });
   if (visible) presentAll();
   else afterScript(presentAll);
 };
@@ -2965,8 +2965,8 @@ function announce(msg) {
     liveEl.append(msg);
   }, 30);
 }
-function showNotice(msg, background = null, draft = false) {
-  presentNotice(msg, true, draft);
+function showNotice(msg, background = null) {
+  presentNotice(msg, true);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
@@ -3005,7 +3005,7 @@ function queueBackground(entry, front = false) {
   if (front) waitingBackground.unshift(entry);
   else waitingBackground.push(entry);
 }
-function notice(msg, { background = false, announce: speak = true, group = null, draft = false } = {}) {
+function notice(msg, { background = false, announce: speak = true, group = null } = {}) {
   if (speak) announce(msg);
   if (background) {
     const entry = group ?? textBackground(msg);
@@ -3013,7 +3013,7 @@ function notice(msg, { background = false, announce: speak = true, group = null,
     return showBackground(entry);
   }
   if (showingBackground) queueBackground(showingBackground, true);
-  showNotice(msg, null, draft);
+  showNotice(msg);
 }
 function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);

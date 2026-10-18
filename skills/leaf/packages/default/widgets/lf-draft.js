@@ -46,6 +46,7 @@ import {
   quoted,
   sendDraft,
   notice,
+  raiseError,
   commands,
   copyBlock,
   saveDraft,
@@ -309,7 +310,7 @@ customElements.define(
     #open(seed, at, arrive = true) {
       if (this.#editor) return;
       if (this.#sending) {
-        notice("Wait for the current edit to finish sending");
+        raiseError("Wait for the current edit to finish sending");
         return;
       }
       if (this.#available()) this.#resumeProjection ??= this.controller.defer();

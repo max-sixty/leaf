@@ -1692,6 +1692,10 @@ function commentPlacement() {
     pressHeld = null;
     pressAnswered = null;
   };
+  const overhangOf = (reserve) => {
+    const end = side === "top" ? "top" : "bottom";
+    return { [end]: reserve?.[end] ?? 0 };
+  };
   const line = (clear, row) => quoted ? row : side === "bottom" ? clear?.bottom ?? row : side === "top" ? clear?.top ?? row : row;
   return {
     get side() {
@@ -1706,6 +1710,7 @@ function commentPlacement() {
       pending2 = frame;
     },
     forget,
+    overhang: overhangOf,
     // Which edge this placement holds, `top` or `foot`, from what the caller reports:
     // the transcript's extent, whether the user is drafting, the latest turn
     // (`{ key, author }`), the draft's words, and, while it is the user's latest
@@ -1808,7 +1813,8 @@ function commentPlacement() {
       margin = null,
       boundary,
       fit,
-      hold = null
+      hold = null,
+      reserve = null
     }) {
       const minimumWidth = cardMinimum();
       const across = vertical(side);
@@ -1827,6 +1833,11 @@ function commentPlacement() {
         boundary.right - Math.min(minimumWidth, boundary.width)
       );
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
+      const overhang = Object.entries(overhangOf(reserve));
+      const padding = Object.fromEntries(
+        overhang.map(([end, length]) => [end, -length])
+      );
+      const reach2 = overhang.reduce((total, [, length]) => total + length, 0);
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
         mainAxis: !across,
@@ -1878,9 +1889,12 @@ function commentPlacement() {
         ...overflow,
         apply(state) {
           const { scale, line: line2 } = measure(state);
-          const stood2 = held2 ? Math.max(
-            held2.foot - held2.top,
-            tallest && Math.abs(tallest.line - line2) < 0.5 ? tallest.height : 0
+          const stood2 = held2 ? Math.min(
+            boundary.height + reach2,
+            Math.max(
+              held2.foot - held2.top,
+              tallest && Math.abs(tallest.line - line2) < 0.5 ? tallest.height : 0
+            )
           ) / scale.y : 0;
           const lane = carriedInline !== null ? boundary.right - (column ?? clear.left) - carriedInline : across ? boundary.right - (inlineStart + (inline ?? 0) * scale.x) : side === "right" ? boundary.right - box.right - COMMENT_GAP : clear.left - boundary.left - COMMENT_GAP;
           fit({
@@ -1922,6 +1936,7 @@ function commentPlacement() {
         heldEdge && sizing,
         ui.shift({
           ...overflow,
+          padding,
           mainAxis: true,
           crossAxis: true,
           limiter: {

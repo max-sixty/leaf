@@ -37,6 +37,7 @@ import {
   walkPosition,
   whereDraft
 } from "./bundle-user-intent.js";
+import "./bundle-errors.js";
 import {
   domValue
 } from "./bundle-widget-upgrade.js";

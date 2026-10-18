@@ -27,6 +27,7 @@ import { clamp } from "../rect.js";
 import { layoutWindow } from "../geometry.js";
 import { notice } from "../notifications.js";
 import { pageImage } from "./page-image.js";
+import { raiseError } from "../errors.js";
 
 const MIN_SIZE = 8;
 const STEP = 10;
@@ -168,7 +169,7 @@ export function createRegionSelector({
       keeps(overlay, "aria-busy", null);
       const message = `Could not capture — ${error.message}`;
       keepsText(status, message);
-      notice(message, { announce: false });
+      raiseError(message);
       paintKeys();
     }
   }

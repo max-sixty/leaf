@@ -3,6 +3,9 @@ import {
 } from "./bundle-composing~page-image-2.js";
 import "./bundle-sample-2.js";
 import "./bundle-dress.js";
+import {
+  raiseError
+} from "./bundle-errors.js";
 import "./bundle-widget-upgrade.js";
 import "./bundle-initial-render.js";
 import "./bundle-stylesheets.js";
@@ -153,7 +156,7 @@ function createRegionSelector({
       keeps(overlay, "aria-busy", null);
       const message = `Could not capture \u2014 ${error.message}`;
       keepsText(status, message);
-      notice(message, { announce: false });
+      raiseError(message);
       paintKeys();
     }
   }

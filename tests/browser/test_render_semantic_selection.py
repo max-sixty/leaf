@@ -1354,7 +1354,11 @@ def test_the_panel_only_hides_targets_in_the_lane_it_paints(browser, serve):
 
     page.keyboard.press("Escape")
     page.keyboard.press("/")
-    page.keyboard.type("crosses the edge")
+    # The search box stands centred above the panel, over the middle of the target's
+    # first line, and a match it covers takes no mark. Its opening words stand left of
+    # both the box and the row whatever the fonts' widths, as "crosses the edge" did
+    # not on Linux, where they went under the box.
+    page.keyboard.type("This target")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
     expect(page.locator(".lf-page-search-match")).to_have_count(1)
     line, mark = page.evaluate(

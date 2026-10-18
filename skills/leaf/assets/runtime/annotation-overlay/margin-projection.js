@@ -956,13 +956,7 @@ export function createMarginProjection({
     const forcedKey = selected?.forced ? selected.entry.key : null;
     const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
     transferThreadFocus = false;
-    // Before the card, which anchors to its rows (`mount`).
-    if (!nav.isConnected)
-      move(
-        chromeRoot,
-        nav,
-        preview.parentNode === chromeRoot ? preview : chromeForeground,
-      );
+    if (!nav.isConnected) move(chromeRoot, nav, chromeForeground);
     pageInventory = inventory;
     // A thread gone from the margin takes the reply being written in it out of the card,
     // open or closed, to where the thread now stands (thread/replies.js): the card can
@@ -1787,8 +1781,9 @@ export function createMarginProjection({
     watchRoom(() => scheduleRoving());
     window.addEventListener("resize", () => scheduleWidthRender());
     renderAnnotations();
-    // The card anchors to its row (floating.js), which an anchor may do only to a box
-    // laid out before it: the margin comes first.
+    // Before the foreground, whose chips anchor to the margin's rows (chrome.js). The
+    // card needs no place of its own: floating.js positions it, and its Tab route
+    // follows its entry wherever it stands (thread-preview.js).
     move(chromeRoot, nav, chromeForeground);
   }
   return {

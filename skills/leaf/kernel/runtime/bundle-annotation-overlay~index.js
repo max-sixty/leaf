@@ -1805,12 +1805,7 @@ function createMarginProjection({
     const forcedKey = selected?.forced ? selected.entry.key : null;
     const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
     transferThreadFocus = false;
-    if (!nav.isConnected)
-      move(
-        chromeRoot,
-        nav,
-        preview.parentNode === chromeRoot ? preview : chromeForeground
-      );
+    if (!nav.isConnected) move(chromeRoot, nav, chromeForeground);
     pageInventory = inventory2;
     card.releaseLeft(
       new Set(pageInventory.flatMap((entry) => entry.items.map((item) => item.id)))

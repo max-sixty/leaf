@@ -1371,7 +1371,7 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
     assert [thread["attention"] for thread in state["threads"]] == [None, None]
     refused = leaf("task", "end", page_dir, dropped, "done", "Asked again")
     assert refused.exit_code != 0
-    assert f"ask {dropped!r} is already withdrawn" in refused.output
+    assert f"item {dropped!r} is already withdrawn" in refused.output
 
     served = full_state(page_dir, events_model.read_events(page_dir))
     assert served["browser"]["todos"] == []

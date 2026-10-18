@@ -70,7 +70,6 @@ def validate_widget_state_relations(
             owner_keys = (
                 "x-state",
                 "x-awaits",
-                "x-ask-context",
                 "x-work",
                 "x-history",
                 "x-thread-seat",

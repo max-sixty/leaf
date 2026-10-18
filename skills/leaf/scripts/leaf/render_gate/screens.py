@@ -73,9 +73,9 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step
 # past it.
 STANDING_ITEM = """() => {
-  const ask = [...document.querySelectorAll('[data-lf-item]:not(.lf-queue-row)')]
+  const item = [...document.querySelectorAll('[data-lf-item]:not(.lf-queue-row)')]
     .find((el) => !el.parentElement?.closest('[data-lf-item]'))?.id;
-  if (ask) return {item: true, id: ask};
+  if (item) return {item: true, id: item};
   let held = document.activeElement;
   while (held?.shadowRoot?.activeElement) held = held.shadowRoot.activeElement;
   const thread = held?.closest?.('.lf-thread, .lf-page-thread');

@@ -133,7 +133,7 @@
     "contracts": {}
   },
   "$events": {
-    "protocol": 8,
+    "protocol": 9,
     "ownership": {
       "derived": ["meaning", "attention"],
       "browser_discard": ["id", "author", "agent", "session", "ts", "seq", "attention"]
@@ -751,7 +751,6 @@
             "agent": { "type": "string", "minLength": 1 },
             "session": { "type": "string", "minLength": 1 },
             "markup": { "type": "string", "minLength": 1 },
-            "ask": { "const": true },
             "todo": {
               "type": "string",
               "minLength": 1,
@@ -798,7 +797,6 @@
               "not": {
                 "anyOf": [
                   { "required": ["responds"] },
-                  { "required": ["ask"] },
                   { "required": ["todo"] },
                   { "required": ["markup"] },
                   { "required": ["failure"] },
@@ -807,11 +805,10 @@
               }
             },
             "token": { "not": { "required": ["markup"] } },
-            "ask": { "properties": { "author": { "const": "agent" } } },
             "todo": {
               "required": ["text"],
               "properties": { "author": { "const": "agent" } },
-              "not": { "anyOf": [{ "required": ["failure"] }, { "required": ["ask"] }] }
+              "not": { "required": ["failure"] }
             },
             "failure": {
               "required": ["text", "responds"],
@@ -828,7 +825,6 @@
           "not": {
             "anyOf": [
               { "required": ["markup"] },
-              { "required": ["ask"] },
               { "required": ["todo"] },
               { "required": ["anchor"] },
               { "required": ["responds"] },

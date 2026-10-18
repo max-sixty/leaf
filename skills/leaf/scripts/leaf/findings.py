@@ -267,7 +267,7 @@ def _reference_contract(at: str, v: dict) -> str:
     )
 
 
-def _item_context(at: str, v: dict) -> str:
+def _empty_question(at: str, v: dict) -> str:
     widgets = "; ".join(
         f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
         for w in v["widgets"]
@@ -868,7 +868,7 @@ _TEXT = {
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
-    "empty-question": _item_context,
+    "empty-question": _empty_question,
     "untitled-question": lambda at, v: (
         f"{_line(at, v)}: an ask context needs a heading to title its ask, leading"
         " its content alone or in an <hgroup> or <header>"
@@ -1128,9 +1128,9 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "enclosing-id": _declared(lambda v: "x-ask-context must require an id"),
+    "enclosing-id": _declared(lambda v: "x-awaits.encloses must require an id"),
     "enclosing-prose": _declared(
-        lambda v: "x-ask-context must admit prose around the ask it frames"
+        lambda v: "x-awaits.encloses must admit prose around the items it frames"
     ),
     "data-contract": _declared(
         lambda v: (

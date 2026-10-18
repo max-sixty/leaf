@@ -48,20 +48,16 @@ def _todo_item(todo: dict) -> dict:
 
 
 def _record_item(item: dict) -> dict:
-    """One ask on the user's list, On me; it retains its canonical record."""
+    """One widget or approval item on the user's list, On me, by its source's kind; it
+    retains its canonical record."""
     source = item["source"]
-    subject = (
-        {"kind": "widget", "id": source["id"]}
-        if source["kind"] == "widget"
-        else {"kind": "page"}
-        if source["kind"] == "approval"
-        else {"kind": "thread", "id": item["thread"]}
-    )
     return {
-        "kind": "item",
+        "kind": source["kind"],
         "id": item["id"],
         "owner": "user",
-        "subject": subject,
+        "subject": {"kind": "widget", "id": source["id"]}
+        if source["kind"] == "widget"
+        else {"kind": "page"},
         "thread": item["thread"],
         "title": item["prompt"]["text"],
         "running": None,
@@ -105,7 +101,7 @@ def queues(
     ]
     on_agent = []
     for workflow in workflows:
-        item = {
+        entry = {
             "id": workflow["id"],
             "subject": workflow["subject"],
             "thread": workflow["thread"],
@@ -113,12 +109,12 @@ def queues(
         }
         if workflow["next_actor"] == "user":
             if workflow["thread"] is None:
-                on_user.append({"kind": "resend", **item, "owner": "user"})
+                on_user.append({"kind": "resend", **entry, "owner": "user"})
         elif workflow["answer"] is not None:
             on_agent.append(
                 {
                     "kind": "answer",
-                    **item,
+                    **entry,
                     "owner": "agent",
                     "answer": workflow["answer"],
                     "stage": workflow["stage"],
@@ -126,7 +122,7 @@ def queues(
             )
         elif workflow["at_work"]:
             on_agent.append(
-                {"kind": "work", **item, "owner": "agent", "detail": workflow["detail"]}
+                {"kind": "work", **entry, "owner": "agent", "detail": workflow["detail"]}
             )
     on_agent += [_todo_item(todo) for todo in open_todos if todo["owner"] == "agent"]
     done = [

@@ -232,9 +232,10 @@ STATE_SCHEMA = {
         "else": {"properties": {"text": False}},
     },
 }
-# A widget's ask is answered either by its own state (`value` and `answered`) or, with
-# `reply`, by the user's words about it, which it has no state to hold. `yields` makes
-# a widget ask nothing while it holds another that can ask.
+# A widget's item is answered either by its own state (`value` and `answered`) or, with
+# `reply`, by the user's words about it, which it has no state to hold. `encloses`
+# makes a widget the frame of the items inside it, asking nothing itself while it holds
+# another that can ask.
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -244,7 +245,7 @@ AWAITS_SCHEMA = {
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "reply": {"const": True},
-        "yields": {"const": True},
+        "encloses": {"const": True},
     },
     "if": {"required": ["reply"]},
     "then": {
@@ -293,7 +294,6 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-ask-context": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-thread-seat": {
             "type": "object",

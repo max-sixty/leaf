@@ -66,11 +66,17 @@ def replied(entry: dict) -> bool:
     return bool((entry.get("x-awaits") or {}).get("reply"))
 
 
-def yields_to(record: dict, records: list[dict], registry: dict) -> bool:
-    """Whether a widget declaring `x-awaits.yields` holds another that can ask, and so
-    asks nothing itself: a frame around a decision widget stays one ask. It reads the
-    authored containment, so every revision and reading agrees on it."""
-    return bool((registry[record["tag"]].get("x-awaits") or {}).get("yields")) and any(
+def encloses(entry: dict) -> bool:
+    """Whether this widget frames the items inside it (`x-awaits.encloses`): its leading
+    heading gives their prompt, and going to one of them lands on it."""
+    return bool((entry.get("x-awaits") or {}).get("encloses"))
+
+
+def holds_items(record: dict, records: list[dict], registry: dict) -> bool:
+    """Whether an enclosing widget holds another that can ask, and so asks nothing
+    itself: a frame around a decision widget stays one item. It reads the authored
+    containment, so every revision and reading agrees on it."""
+    return encloses(registry[record["tag"]]) and any(
         other is not record
         and not quoted_in(other, registry)
         and any(holder is record for holder in enclosing_widgets(other))
@@ -379,7 +385,7 @@ def discussed(records: list[dict], sections: set[str], within: dict) -> None:
 
     A section is about the innermost ask whose widget encloses it, answered or not;
     failing one, about every ask whose prompt target (its framing
-    x-ask-context) is the innermost to enclose it. So a note on one ask's
+    enclosing widget) is the innermost to enclose it. So a note on one ask's
     option leaves its framed sibling with the user, and one on the frame's heading
     is about them all. `within` is the document's containment (`Passages.enclosing`).
     """
@@ -539,7 +545,7 @@ class _ItemReducer:
         self.yielded = {
             id(record)
             for record in self.records
-            if yields_to(record, self.records, registry)
+            if holds_items(record, self.records, registry)
         }
         self.positioned_holders = projected_action_holders(projection, byid, registry)
 
@@ -584,10 +590,11 @@ class _ItemReducer:
 
     def _surface(self, record):
         """The reading and arrival region the user is sent to for this source: the
-        nearest `x-ask-context` holder enclosing it, or the source itself."""
+        nearest enclosing widget (`x-awaits.encloses`) holding it, or the source
+        itself."""
         holder = self._holder(record)
         while holder:
-            if (self.registry.get(holder["tag"]) or {}).get("x-ask-context"):
+            if encloses(self.registry.get(holder["tag"]) or {}):
                 return holder
             holder = self._holder(holder)
         return record

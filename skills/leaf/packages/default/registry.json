@@ -26,10 +26,9 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-ask-context": true,
     "x-awaits": {
       "reply": true,
-      "yields": true
+      "encloses": true
     },
     "x-word": "question",
     "x-upgrade": false,

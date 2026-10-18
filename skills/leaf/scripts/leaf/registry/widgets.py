@@ -255,7 +255,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     # attribute's own schema — a flag is there or it isn't, an enum admits what it
     # lists — and a subschema that states neither contradicts nothing.
     awaits = entry.get("x-awaits", {})
-    if entry.get("x-ask-context"):
+    if awaits.get("encloses"):
         if "id" not in entry.get("required", []):
             raise registry_error("enclosing-id", path, tag)
         if entry.get("x-content") != "markup":

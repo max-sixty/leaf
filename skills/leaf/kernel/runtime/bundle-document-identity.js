@@ -3212,7 +3212,7 @@ function createVersionController({
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
       // Ask standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent ask does not also own focus.
+      // has a replacement identity, so its parent item does not also own focus.
       itemStanding: draftEditing ? null : captureItemStanding()
     };
   }
@@ -4221,8 +4221,8 @@ function createAnnotationInventory({
       add(groups, target, {
         kind: "on-me",
         id: `on-me:${id}`,
-        // The group this row stands in already names the ask; the row says why it is
-        // there, since these are the asks the user owes.
+        // The group this row stands in already names the item; the row says why it is
+        // there, since these are the items the user owes.
         text: "Waiting on me",
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows.

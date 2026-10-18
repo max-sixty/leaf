@@ -2428,7 +2428,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     expect(head.locator("b")).to_have_text("Working")
     expect(head.locator("span").first).to_have_text(line)
     expect(head.locator(".lf-fp-explain")).to_have_text(
-        re.compile(r"^Waiting on me: 2 asks\. Waiting on Claude: 1 to-do")
+        re.compile(r"^Waiting on me: 2 items\. Waiting on Claude: 1 to-do")
     )
 
 

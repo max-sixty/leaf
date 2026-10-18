@@ -117,7 +117,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
 
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_visible()
-    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "item"]
+    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "widget"]
 
     assert {r["at"]: r["word"] for r in rows} == {
         "widget:sug-rewrite": "Rewrite",
@@ -167,7 +167,7 @@ def test_the_on_me_control_opens_open_and_answered_items(browser, serve):
         ("widget:honored", "done"),
     ]
     for row in rows:
-        assert row["kind"] == "item", row
+        assert row["kind"] == "widget", row
         assert row["word"] == (
             "Rewrite" if row["at"] == "widget:sug-refill" else "Options"
         ), row

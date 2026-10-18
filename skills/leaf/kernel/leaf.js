@@ -10942,7 +10942,7 @@ function createItemView({
       } catch (retaining) {
         throw new PresentationRetentionError(
           [error, retaining],
-          "Ask presentation and retention failed"
+          "Item presentation and retention failed"
         );
       }
       throw error;
@@ -10968,7 +10968,7 @@ function createItemView({
     return held === item || inChrome(held) && sideOf(held) === item || hasReviewedFocus() ? answered : null;
   }
   const standingIn2 = () => itemNode(standingItem());
-  const actionsFor = (source) => decisionControls(commandsWithin(source), `Ask ${source.id}`).filter(
+  const actionsFor = (source) => decisionControls(commandsWithin(source), `Item ${source.id}`).filter(
     ({ source: commandSource, control }) => ownedItemControl(source, commandSource) && control.getAttribute("aria-busy") !== "true"
   );
   const actionsOf = (item) => {
@@ -11038,7 +11038,7 @@ function createItemView({
   }
   const HEADING = "h1,h2,h3,h4,h5,h6";
   function arrivalRegion(item, context, standing2) {
-    const declared = context && registry[context.localName]?.["x-ask-context"];
+    const declared = context && registry[context.localName]?.["x-awaits"]?.encloses;
     if (declared && context === standing2) return context;
     const fits = (region) => {
       if (!region) return false;
@@ -11102,8 +11102,8 @@ function createItemView({
           where: target2,
           reveal: next.source.id !== next.prompt.target ? [sourceNode(next)] : [],
           focus: arrivalFocus(next, !unansweredIds().has(next.id)),
-          // Reveal the ask through its own inner scrollports before aligning its
-          // context, which may stand outside them. A framed ask requests no motion.
+          // Reveal the item through its own inner scrollports before aligning its
+          // context, which may stand outside them. A framed item requests no motion.
           scroll: !box ? [{ at: target2, behavior: scrollBehavior(), block: "center" }] : moving ? [
             {
               at: target2,

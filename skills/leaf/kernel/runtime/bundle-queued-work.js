@@ -500,7 +500,7 @@ function foldWidgetStates(authoredSnapshots, projection) {
 function itemValue(widget, verb, answered) {
   const state = widget.state[verb];
   const spec = widget.specs.get(verb);
-  if (!state || !spec) throw new Error(`Missing ask value definition for ${verb}`);
+  if (!state || !spec) throw new Error(`Missing item value definition for ${verb}`);
   const recorded = (value2) => spec.record?.kind === "attribute" && Array.isArray(value2) ? value2.toSorted() : value2;
   const value = "units" in state ? spec.record?.kind === "position" ? state.value : Object.fromEntries(
     Object.entries(state.units).sort(([a], [b2]) => a < b2 ? -1 : a > b2 ? 1 : 0).map(([id, entry]) => [
@@ -1722,7 +1722,7 @@ function localQueues(served, threads, workflows, todos, items) {
   };
   const itemOf = (item) => {
     const local = record.get(item.id);
-    if (!local) throw new Error(`Queue item ${item.id} names no ask`);
+    if (!local) throw new Error(`Queue item ${item.id} names no item`);
     return local;
   };
   const standsOpen = (item) => {

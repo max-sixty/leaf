@@ -89,7 +89,7 @@ def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
 
     counts(2, 1)
     expect(page.locator(".lf-status-button")).to_have_attribute(
-        "title", re.compile(r" Waiting on me: 2 asks\. .*: 1 reply\.$")
+        "title", re.compile(r" Waiting on me: 2 items\. .*: 1 reply\.$")
     )
 
     position = page.locator(".lf-walk-position")

@@ -41,7 +41,7 @@ from leaf.page_memory import Slot
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
-    ask_value,
+    item_value,
     enclosing_widgets,
     folded_value,
     frozen_thread_reading,
@@ -55,7 +55,7 @@ from leaf.structure import review_mode
 from leaf.thread_context import widget_messages
 
 
-def local_ask_entry(entry: dict) -> bool:
+def local_item_entry(entry: dict) -> bool:
     """Whether a widget can originate an ask when its predicate holds."""
     return entry.get("x-awaits") is not None
 
@@ -100,7 +100,7 @@ def settle_by_words(record: dict, answer: dict | None, ending: dict | None) -> N
         record["next_actor"] = None
 
 
-class AskRegistration(NamedTuple):
+class ItemRegistration(NamedTuple):
     """Compact registration inputs and the last event-dependent registration.
 
     No parser records or holder chains survive here. The last dynamic answer uses
@@ -114,10 +114,10 @@ class AskRegistration(NamedTuple):
     requested: Slot
 
 
-def ask_registrations(document, registry: dict) -> dict[str, AskRegistration]:
+def item_registrations(document, registry: dict) -> dict[str, ItemRegistration]:
     """Compact immutable registration inputs, separate from a revision's parse."""
     return {
-        unit: AskRegistration(
+        unit: ItemRegistration(
             record["tag"],
             asking(record["attrs"], declaration.get("when")),
             "restated" in record["attrs"],
@@ -178,7 +178,7 @@ def collection(records: list[dict]) -> dict:
     }
 
 
-def approval_ask(document, revision: int, events: list) -> dict | None:
+def approval_item(document, revision: int, events: list) -> dict | None:
     """Sign-off for an exact public stamp as one canonical ask.
 
     Draft revisions owe none. Only a done event in force for this public version
@@ -334,7 +334,7 @@ def verb_answers(
     return held is not None
 
 
-def ask_answered(
+def item_answered(
     rec: dict,
     entry: dict,
     projection: StateProjection,
@@ -383,16 +383,16 @@ def discussed(records: list[dict], sections: set[str], within: dict) -> None:
     option leaves its framed sibling with the user, and one on the frame's heading
     is about them all. `within` is the document's containment (`Passages.enclosing`).
     """
-    asks = {record["source"]["id"]: record for record in records}
+    items = {record["source"]["id"]: record for record in records}
     framed: dict[str, list[dict]] = {}
     for record in records:
         framed.setdefault(record["prompt"]["target"], []).append(record)
     for section in sections:
         chain = within.get(section, ())
-        ask = next((asks[i] for i in reversed(chain) if i in asks), None)
+        item = next((items[i] for i in reversed(chain) if i in items), None)
         about = (
-            [ask]
-            if ask is not None
+            [item]
+            if item is not None
             else next((framed[i] for i in reversed(chain) if i in framed), [])
         )
         for record in about:
@@ -496,7 +496,7 @@ def answering_action(
     )
 
 
-class _AskReducer:
+class _ItemReducer:
     """One page or frozen-thread ask fold over a shared state projection."""
 
     def __init__(
@@ -556,7 +556,7 @@ class _AskReducer:
         return self.registry[record["tag"]]
 
     def _is_declared(self, record):
-        return local_ask_entry(self.registry.get(record["tag"]) or {})
+        return local_item_entry(self.registry.get(record["tag"]) or {})
 
     def _declaration(self, record):
         return self._entry(record).get("x-awaits", {})
@@ -572,7 +572,7 @@ class _AskReducer:
         return self.positioned_holders.get(unit, record.get("holder"))
 
     def _answered(self, record):
-        return ask_answered(
+        return item_answered(
             record,
             self._entry(record),
             self.projection,
@@ -678,7 +678,7 @@ class _AskReducer:
                 and prior is not None
             ):
                 for old_revision, old in history():
-                    registration = old.inventory.asks.get(unit)
+                    registration = old.inventory.items.get(unit)
                     if registration is None or registration.tag != record["tag"]:
                         break
                     if registration.asking:
@@ -722,7 +722,7 @@ class _AskReducer:
             # conversation (`settle_by_words`).
             value_verb = entry["x-awaits"].get("value")
             value, has_content = (
-                ask_value(
+                item_value(
                     unit,
                     value_verb,
                     entry["x-state"][value_verb],
@@ -780,7 +780,7 @@ class _AskReducer:
         return records
 
 
-def page_ask_readings(
+def page_item_readings(
     source,
     projection,
     byid,
@@ -802,7 +802,7 @@ def page_ask_readings(
     the first user message in a thread opened inside it, after the stamped version
     that last restated it (`$restated`), so a rewritten question is asked again.
     `ends` holds the agent's `todo_end` on each id."""
-    reducer = _AskReducer(
+    reducer = _ItemReducer(
         source, projection, byid, spk, registry, dropped, revision, events
     )
     records = reducer.inventory(settled_away or set(), prior)
@@ -840,7 +840,7 @@ def page_ask_readings(
     return collection(records)
 
 
-def thread_ask_readings(
+def thread_item_readings(
     events: list,
     registry: dict,
     threads: dict,
@@ -855,7 +855,7 @@ def thread_ask_readings(
     answers a reply-answered ask, as does a reaction on the message whose token
     settles it; `ends` holds the agent's `todo_end` on each id."""
     reading = reading or frozen_thread_reading(events, registry)
-    reducer = _AskReducer(
+    reducer = _ItemReducer(
         reading.structure,
         reading.projection,
         reading.by_id,

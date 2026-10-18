@@ -31,7 +31,7 @@
 
 import { landingRoom, scrollIntoView } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
-import { createAskBannerControls } from "./banner-controls.js";
+import { createItemBannerControls } from "./banner-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
 import { closestAcross, inChrome, showsWords } from "../passages.js";
 import { TEXT_BLOCK } from "../passage-facts.js";
@@ -39,7 +39,7 @@ import { scrollerFor } from "../reading-regions.js";
 import { keeps } from "../keeps.js";
 import { queueList } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
-import { askEntry, readAsks } from "./model.js";
+import { itemEntry, readItems } from "./model.js";
 import { walkPositionLabel } from "../walk-position.js";
 import { focused } from "../focus.js";
 import {
@@ -49,10 +49,10 @@ import {
 } from "../keyboard/scopes.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
-import { ASK_CONTROL } from "./view-elements.js";
-import { askWord, ownedAskControl } from "./answer.js";
+import { ITEM_CONTROL } from "./view-elements.js";
+import { itemWord, ownedItemControl } from "./answer.js";
 import { rowAt } from "../queue-list.js";
-import { askHolding, placeOf, sideOf } from "../standing-target.js";
+import { itemHolding, placeOf, sideOf } from "../standing-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -64,10 +64,10 @@ import {
 } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
-import { askPlace } from "./place.js";
+import { itemPlace } from "./place.js";
 
 // The ask view owns contextual action routes and navigation; the keyboard presenter owns their hints.
-export function createAskView({
+export function createItemView({
   prepareTrip,
   arrive,
   openPageThread,
@@ -76,12 +76,12 @@ export function createAskView({
   announce,
   repaint,
 }) {
-  const askNode = (ask) => askPlace(ask).node;
-  const askRow = (ask) => (ask ? rowAt(queueList, ask.id) : null);
-  const sourceNode = (ask) => askPlace(ask).source;
-  const hasAsk = (asks, candidate) =>
-    Boolean(candidate && asks.some((ask) => ask.id === candidate.id));
-  const unansweredIds = () => new Set(readAsks().unanswered.map(({ id }) => id));
+  const itemNode = (item) => itemPlace(item).node;
+  const itemRow = (item) => (item ? rowAt(queueList, item.id) : null);
+  const sourceNode = (item) => itemPlace(item).source;
+  const hasItem = (items, candidate) =>
+    Boolean(candidate && items.some((item) => item.id === candidate.id));
+  const unansweredIds = () => new Set(readItems().unanswered.map(({ id }) => id));
 
   // A thread ask is part of the application reading before its frozen markup has a
   // live reader node. Navigation and activation are the two boundaries that need that
@@ -94,57 +94,57 @@ export function createAskView({
   //
   // An ask a held turn carries has no node until its thread shows what it holds
   // (held-news.js), and that release draws before `showHeld` returns.
-  const askNodes = (ask) => ({
-    target: askNode(ask),
-    source: sourceNode(ask),
+  const itemNodes = (item) => ({
+    target: itemNode(item),
+    source: sourceNode(item),
   });
-  const reachAsk = (ask) => {
-    if (ask.thread && !askNode(ask)) showHeld(ask.thread);
-    return askNodes(ask);
+  const reachItem = (item) => {
+    if (item.thread && !itemNode(item)) showHeld(item.thread);
+    return itemNodes(item);
   };
-  const unbuilt = (ask, { target, source }) => (!target || !source) && ask.thread;
-  async function materializeAsk(ask, intent = null) {
-    reachAsk(ask);
-    await openPageThread(ask.message, {
+  const unbuilt = (item, { target, source }) => (!target || !source) && item.thread;
+  async function materializeItem(item, intent = null) {
+    reachItem(item);
+    await openPageThread(item.message, {
       part: "message",
       focus: false,
       travel: false,
       ...(intent && { intent }),
     });
-    return askNodes(ask);
+    return itemNodes(item);
   }
   const presentedActionControl = (control) => presentedControl?.(control) ?? control;
   const answeringAll = new Set();
   const bulkAnswers = new Map();
-  const bannerControls = createAskBannerControls(async (outcome) => {
+  const bannerControls = createItemBannerControls(async (outcome) => {
     if (answeringAll.has(outcome)) return;
     answeringAll.add(outcome);
-    void syncAsks();
+    void syncItems();
     try {
       // Resolve the current open inventory at activation. A control can survive several
       // publications and toolbar moves; it never captures an earlier ask or DOM node.
-      for (const ask of readAsks().user) {
-        if (askEntry(ask)?.all !== outcome) continue;
-        const nodes = reachAsk(ask);
-        const { source } = unbuilt(ask, nodes) ? await materializeAsk(ask) : nodes;
+      for (const item of readItems().user) {
+        if (itemEntry(item)?.all !== outcome) continue;
+        const nodes = reachItem(item);
+        const { source } = unbuilt(item, nodes) ? await materializeItem(item) : nodes;
         // An ask answered for all at once is a widget's, which names its tag.
-        const { tag } = /** @type {{tag?: string}} */ (ask.source);
+        const { tag } = /** @type {{tag?: string}} */ (item.source);
         await source?.[decisionFor(tag)?.verb]?.(outcome);
       }
     } finally {
       answeringAll.delete(outcome);
-      void syncAsks();
+      void syncItems();
     }
   });
-  const asksRenderer = Object.freeze({ banner: bannerControls });
+  const itemsRenderer = Object.freeze({ banner: bannerControls });
   let mounted = false;
   const presenter = applicationPresenter({
-    region: "asks",
-    renderer: asksRenderer,
-    order: PRESENTATION_ORDER.asks,
+    region: "items",
+    renderer: itemsRenderer,
+    order: PRESENTATION_ORDER.items,
     reading: () => (mounted ? true : null),
-    failSoft: failSoftAfterRetention(asksRenderer),
-    paint: (owed, current) => paintAsks(current),
+    failSoft: failSoftAfterRetention(itemsRenderer),
+    paint: (owed, current) => paintItems(current),
   });
 
   // One blanket answer per outcome a widget declares one for (x-awaits.all), each
@@ -173,9 +173,9 @@ export function createAskView({
   // Each blanket answer with the asks it would take, from the list above. The banner
   // writes its controls and counts from this one reading, without naming an outcome in
   // core; which outcomes exist is what the asks' own declarations answer.
-  function blanketAnswers(asks) {
+  function blanketAnswers(items) {
     return [...bulkAnswers].map(([outcome, label]) => {
-      const n = asks.filter((ask) => askEntry(ask)?.all === outcome).length;
+      const n = items.filter((item) => itemEntry(item)?.all === outcome).length;
       return Object.freeze({
         busy: answeringAll.has(outcome),
         offered: Boolean(n),
@@ -188,9 +188,9 @@ export function createAskView({
   // The banner's reading of that one list. A publication that changes it refreshes it,
   // and a publication is where the server's ask reading changes, so a send moves
   // these counts once the state its POST returns has been adopted.
-  async function paintAsks(current) {
+  async function paintItems(current) {
     const bannerModel = Object.freeze({
-      bulk: Object.freeze(blanketAnswers(readAsks().user)),
+      bulk: Object.freeze(blanketAnswers(readItems().user)),
     });
     repaint();
     try {
@@ -217,7 +217,7 @@ export function createAskView({
   // its deferred read, so the application barrier already knows the inherited ask paint
   // is stale. The pass runs this reading after the thread whose markup its rows stand
   // on. A local change, such as a blanket answer starting, claims here.
-  function syncAsks() {
+  function syncItems() {
     return presenter.present();
   }
 
@@ -236,7 +236,7 @@ export function createAskView({
   // inventory: the source or unambiguous context holding where `node` stands
   // (standing-target.js). DOM containment says where focus is; it never decides whether
   // the ask belongs to that inventory.
-  const askAt = (asks, node) => askHolding(asks, placeOf(node));
+  const itemAt = (items, node) => itemHolding(items, placeOf(node));
   // The ask the user is standing in: the one holding the focus, or the one a control
   // hoisted into the margin decides, or the one a thread about it holds the focus for.
   //
@@ -250,25 +250,25 @@ export function createAskView({
   // answered ask leaves both worklists but stays in the active inventory: the
   // On panel's Done rows can return the user to it, and standing there restores
   // the same numeric action route so they can revise the recorded answer.
-  function standingAsk(held = focused()) {
+  function standingItem(held = focused()) {
     if (!held || held === document.body) return null;
-    const record = askAt(readAsks().all, held);
+    const record = itemAt(readItems().all, held);
     if (!record) return null;
-    if (readAsks().unanswered.some((ask) => ask.id === record.id)) return record;
+    if (readItems().unanswered.some((item) => item.id === record.id)) return record;
     // An answered ask is standing only on an explicit review route: the ask element,
     // or chrome whose owner declares it stands at that element (`sideOf`), as an On
     // panel row does. A widget host can be the document's retargeted focus without being the
     // ask itself; treating that as an arrival would make an ordinary click on a chosen
     // option steal the option's own semantics.
     const answered = record;
-    const ask = askNode(answered);
-    return held === ask ||
-      (inChrome(held) && sideOf(held) === ask) ||
+    const item = itemNode(answered);
+    return held === item ||
+      (inChrome(held) && sideOf(held) === item) ||
       hasReviewedFocus()
       ? answered
       : null;
   }
-  const standingIn = () => askNode(standingAsk());
+  const standingIn = () => itemNode(standingItem());
 
   // Widgets own context aliases. The ask view selects declarations through the same standing
   // relation that maps a margin entry or thread back to its source; the generic
@@ -276,11 +276,11 @@ export function createAskView({
   const actionsFor = (source) =>
     decisionControls(commandsWithin(source), `Ask ${source.id}`).filter(
       ({ source: commandSource, control }) =>
-        ownedAskControl(source, commandSource) &&
+        ownedItemControl(source, commandSource) &&
         control.getAttribute("aria-busy") !== "true",
     );
-  const actionsOf = (ask) => {
-    const source = ask && sourceNode(ask);
+  const actionsOf = (item) => {
+    const source = item && sourceNode(item);
     return source ? actionsFor(source) : [];
   };
   // The answers an ask offers, for a surface that answers it away from where it stands,
@@ -288,8 +288,8 @@ export function createAskView({
   // its own press, so the answer is the widget's, recorded as a press there would be.
   // Null while the ask's source has no node, as in a thread turn not yet drawn; the
   // caller then offers the arrival instead.
-  function choicesOf(ask) {
-    const source = sourceNode(ask);
+  function choicesOf(item) {
+    const source = sourceNode(item);
     if (!source) return null;
     return actionsFor(source).map(({ id, label, control }) =>
       Object.freeze({
@@ -302,13 +302,13 @@ export function createAskView({
       }),
     );
   }
-  function askContext(origin) {
-    const record = askAt(readAsks().all, hostIn(origin, document));
+  function itemContext(origin) {
+    const record = itemAt(readItems().all, hostIn(origin, document));
     let root = null;
     // Keep the projection outside any nearer widget scope, but inside the
     // keyboard boundary of a thread. Native input claims precede context scopes.
     for (let node = origin; record && node; node = upFrom(node)) {
-      if (askAt(readAsks().all, node)?.id !== record.id) break;
+      if (itemAt(readItems().all, node)?.id !== record.id) break;
       root = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
@@ -319,7 +319,7 @@ export function createAskView({
         const source = sourceNode(record);
         return source
           ? commandDeclarationsWithin(source).filter(({ source: commandSource }) =>
-              ownedAskControl(source, commandSource),
+              ownedItemControl(source, commandSource),
             )
           : [];
       },
@@ -347,19 +347,19 @@ export function createAskView({
   //
   // The On panel's row for the ask is a second surface showing this one fact, so it
   // is painted from this one reading rather than from a mark the panel keeps for itself —
-  // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
+  // and the ring is the chrome's as much as the page's (the [data-lf-item] rule in the
   // stylesheet is written against the attribute, not against the page), so wearing the
   // attribute is the whole of what the row needs.
   function markHere() {
-    const record = standingAsk();
-    const here = askNode(record);
-    const row = askRow(record);
+    const record = standingItem();
+    const here = itemNode(record);
+    const row = itemRow(record);
     const wearing = new Set(
       here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
     );
-    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
-      if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
-    for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.ask, "1");
+    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.item}]`))
+      if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.item);
+    for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.item, "1");
   }
   // Where an arrival lands: on the ask, which is what the scroll has just brought to
   // the top of the window and what the ring is about to name. Its controls are then the
@@ -370,14 +370,14 @@ export function createAskView({
   // The shared arrival owns focus and its temporary tab stop. The ask view owns which node
   // means standing here, including the visible answering control of a boxless ask.
   function arrivalFocus(record, review = false) {
-    const ask = askNode(record);
+    const item = itemNode(record);
     const source = sourceNode(record);
-    if (!ask || !source) return null;
+    if (!item || !source) return null;
     // A boxless decided ask can retain a zero-height layout rect after its
     // content retires. It has no visible surface to receive the return focus.
-    const target = [...ask.getClientRects()].some((rect) => rect.width && rect.height)
-      ? ask
-      : (source.querySelector(ASK_CONTROL) ??
+    const target = [...item.getClientRects()].some((rect) => rect.width && rect.height)
+      ? item
+      : (source.querySelector(ITEM_CONTROL) ??
         actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ??
         source);
     reviewedThrough = review ? target : null;
@@ -406,16 +406,16 @@ export function createAskView({
   function captureStanding() {
     const held = focused(document);
     if (!held || held === document.body || inChrome(held)) return null;
-    return standingAsk()?.id ?? null;
+    return standingItem()?.id ?? null;
   }
 
   // Put the user back, once the arriving document has been upgraded and presented.
   // Standing is restored rather than asserted: a user the revision left where they were
   // is already standing there, and an ask the revision took away is nowhere to stand, so
   // each of those returns and `body` keeps the focus the replacement gave it.
-  function restoreStanding(ask) {
-    if (!ask || standingAsk()?.id === ask) return;
-    const record = readAsks().all.find((candidate) => candidate.id === ask);
+  function restoreStanding(item) {
+    if (!item || standingItem()?.id === item) return;
+    const record = readItems().all.find((candidate) => candidate.id === item);
     const target = record && arrivalFocus(record);
     if (target) focusForNavigation(target, "return");
   }
@@ -443,7 +443,7 @@ export function createAskView({
   // that fits keeps the landing this walk always gave it. That bound is what lets the
   // widest candidate go first: a heading a long way up fails to fit, rather than needing a
   // rule about how far up is too far.
-  function arrivalRegion(ask, context, standing) {
+  function arrivalRegion(item, context, standing) {
     // A unique declared context names the region even when taller than the screen:
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
@@ -466,11 +466,11 @@ export function createAskView({
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
-      const target = shownBox(ask);
+      const target = shownBox(item);
       return (
         start.height > 0 &&
         start.top <= target.top &&
-        target.bottom - start.top <= landingRoom(region, ask).height
+        target.bottom - start.top <= landingRoom(region, item).height
       );
     };
     // The blocks before this one that are about the same part of the document: the two
@@ -504,16 +504,16 @@ export function createAskView({
     // filter therefore kept the blocks after such an ask too, and the last heading in
     // the container won — the wrong-question arrival this bound exists to remove, in the
     // one shape the crossing above was written to serve.
-    const seenBy = (block) => hostIn(ask, block.getRootNode());
+    const seenBy = (block) => hostIn(item, block.getRootNode());
     const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
       const from = seenBy(block);
       return (
         from &&
         !inChrome(block) &&
         showsWords(block) &&
-        !under(ask, block) &&
+        !under(item, block) &&
         block.parentElement &&
-        under(ask, block.parentElement) &&
+        under(item, block.parentElement) &&
         from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING
       );
     });
@@ -522,8 +522,8 @@ export function createAskView({
       [
         declared ? context : null,
         heading,
-        closestAcross(ask, TEXT_BLOCK) ?? before.at(-1),
-      ].find(fits) ?? ask
+        closestAcross(item, TEXT_BLOCK) ?? before.at(-1),
+      ].find(fits) ?? item
     );
   }
 
@@ -537,9 +537,9 @@ export function createAskView({
   // user for having a box inside the window. This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
   // clear of the banner too.
-  function framed(record, region, ask, box, readable) {
+  function framed(record, region, item, box, readable) {
     return (
-      readable(ask) &&
+      readable(item) &&
       shownBox(region).top >= landingBand(box).top &&
       actionsOf(record).every(({ control }) =>
         readable(presentedActionControl(control)),
@@ -554,18 +554,18 @@ export function createAskView({
   // the user on an ask", and the two would drift the first time either the reveal or the
   // focus rule changed. It answers whether the user arrived; the caller announces where,
   // since it is the one that knows which list it walked.
-  async function arriveAtAskNow(next) {
+  async function arriveAtRecordNow(next) {
     const mayArrive = retainUserIntent({
-      available: () => hasAsk(readAsks().all, next),
+      available: () => hasItem(readItems().all, next),
     });
     // Materializing an ask can yield before its destination opens a narrowed thread.
     // The arrival is this walk's deferred invocation; its returned tail is separate.
-    const arriveAtAsk = bindQueuedWork(arrive);
+    const arriveAtRecord = bindQueuedWork(arrive);
     // A thread ask uses the same retained destination as every other thread
     // arrival. The selected reader may need to disclose a different conversation.
     const { target } = next.thread
-      ? await materializeAsk(next, mayArrive)
-      : reachAsk(next);
+      ? await materializeItem(next, mayArrive)
+      : reachItem(next);
     if (!mayArrive() || !target) return false;
     // A page ask starts below the banner so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
@@ -580,7 +580,7 @@ export function createAskView({
     // trip. Which box either travel moves is the travel's own question (scrollerFor)
     // rather than a second one asked here.
     const destination = () => {
-      const { node: target, source, context } = askPlace(next);
+      const { node: target, source, context } = itemPlace(next);
       if (!target || !source) return null;
       const box = !inChrome(target) && scrollerFor(target);
       return {
@@ -593,7 +593,7 @@ export function createAskView({
     const initial = destination();
     if (!initial) return false;
     const departure = prepareTrip({
-      landing: () => askNode(next),
+      landing: () => itemNode(next),
       intent: mayArrive,
     });
     const moving = Boolean(
@@ -604,7 +604,7 @@ export function createAskView({
           framed(next, initial.region, initial.target, initial.box, readable),
       }),
     );
-    const arrived = await arriveAtAsk(
+    const arrived = await arriveAtRecord(
       () => {
         const here = destination();
         if (!here) return null;
@@ -636,25 +636,25 @@ export function createAskView({
       },
     );
     if (!arrived) return false;
-    scrollIntoView(askRow(next), { block: "nearest" });
+    scrollIntoView(itemRow(next), { block: "nearest" });
     return true;
   }
 
-  function arriveAtAsk(next) {
+  function arriveAtRecord(next) {
     if (next.source.kind !== "widget") return Promise.resolve(false);
-    const ready = arriveAtAskNow(next);
+    const ready = arriveAtRecordNow(next);
     void ready.catch(() => {});
     return ready;
   }
 
   // A press naming an ask outright, as a Page Map entry does: the arrival, then its
   // place in the list the caller names.
-  function goToAsk(next, asks) {
-    const ready = arriveAtAsk(next).then((arrived) => {
+  function goToItem(next, items) {
+    const ready = arriveAtRecord(next).then((arrived) => {
       if (!arrived) return false;
       const state = unansweredIds().has(next.id) ? "waiting on me" : "answered";
-      const index = asks.findIndex((ask) => ask.id === next.id);
-      announce(walkPositionLabel(askWord(next), index + 1, asks.length, state));
+      const index = items.findIndex((item) => item.id === next.id);
+      announce(walkPositionLabel(itemWord(next), index + 1, items.length, state));
       return true;
     });
     void ready.catch(() => {});
@@ -662,13 +662,13 @@ export function createAskView({
   }
 
   let stopContextScopes = null;
-  const actionsChanged = () => mounted && void syncAsks();
+  const actionsChanged = () => mounted && void syncItems();
 
   function mount() {
     if (mounted) return;
     mounted = true;
-    stopContextScopes = contextScopes("While answering", askContext);
-    void syncAsks();
+    stopContextScopes = contextScopes("While answering", itemContext);
+    void syncItems();
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint);
   }
@@ -682,21 +682,21 @@ export function createAskView({
     stopContextScopes?.();
     stopContextScopes = null;
     presenter.disconnect();
-    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
-      marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
+    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.item}]`))
+      marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.item);
   }
 
   return {
     mount,
     destroy,
     buildBulkAnswers,
-    syncAsks,
+    syncItems,
     standingIn,
     captureStanding,
     restoreStanding,
     markHere,
-    arriveAtAsk,
-    goToAsk,
+    arriveAtRecord,
+    goToItem,
     choicesOf,
   };
 }

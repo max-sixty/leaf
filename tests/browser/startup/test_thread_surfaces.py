@@ -322,7 +322,7 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         consume_browser_errors(page, expected)
 
 
-def test_page_annotation_view_seats_asks_and_contributed_controls(browser, serve):
+def test_page_annotation_view_seats_items_and_contributed_controls(browser, serve):
     """A page that owns its annotations shows its asks and contributed actions in its
     own box: Leaf hands the consumer each entry's items and native controls, and the
     page only arranges them. Activating an item reaches its ask, and a seated

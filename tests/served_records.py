@@ -5,7 +5,7 @@ through `model_folds.served_reading` rather than written by hand, so a Node test
 every field the server sends and cannot omit one the runtime relies on. `thread`,
 `workflow` and `activity` are one record of each, which `served.mjs` hands out for a
 test to change only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
-and revision sequence shared across runtimes; `ask_values` holds typed values
+and revision sequence shared across runtimes; `item_values` holds typed values
 folded by Python for comparison with the browser; `state_definitions` holds the
 operation definitions Python records, for the browser's comparison of them; `readings`
 holds whole served readings whose premise is the case under test. `served.mjs` reads this output directly, so its
@@ -18,7 +18,7 @@ from pathlib import Path
 from interact_support import model_layer, served_thread
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
-from leaf.projection import StateProjection, ask_value, authored_rank
+from leaf.projection import StateProjection, item_value, authored_rank
 from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
 from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
@@ -154,13 +154,13 @@ def build() -> dict:
     threads = {thread["id"]: thread for thread in records["threads"]}
     workflows = {workflow["id"]: workflow for workflow in records["workflows"]}
     return {
-        "ask_values": ask_value_cases(),
+        "item_values": item_value_cases(),
         "thread": threads["e1"],
         "workflow": workflows["e4"],
         # The page-wide activity of a page a live session holds, owing nothing.
         "activity": served_reading(PAGE, presence=HELD)["activity"],
         "gestures": gesture_sequence(),
-        "ask_item": _served_ask_item(),
+        "record_item": _served_record_item(),
         "state_definitions": state_definition_cases(),
         "readings": {
             # A required approval of the exact stamped document, with no other
@@ -199,12 +199,12 @@ def build() -> dict:
                 )
             ),
             "queues on both sides": served_reading(
-                ASK_PAGE,
+                ITEM_PAGE,
                 BOTH_SIDES,
             ),
             # The same page once the user has marked their to-do done.
             "user done": served_reading(
-                ASK_PAGE,
+                ITEM_PAGE,
                 (
                     *BOTH_SIDES,
                     {"kind": "todo_end", "todo": "e11", "outcome": "done"},
@@ -213,7 +213,7 @@ def build() -> dict:
             # Two to-dos the agent holds on a page it is working on: a start running
             # on one went quiet past the working grace, and the other's is current.
             "quiet start": served_reading(
-                ASK_PAGE,
+                ITEM_PAGE,
                 (
                     *(
                         {
@@ -265,7 +265,7 @@ def build() -> dict:
             # One ask answered and one open, and a to-do the agent ended beside one it
             # still holds: only the answered ask and the ended to-do are done.
             "done": served_reading(
-                ASK_PAGE,
+                ITEM_PAGE,
                 (
                     {
                         "kind": "action",
@@ -320,7 +320,7 @@ HELD = {
 }
 QUIET = "2026-09-19T11:30:00+00:00"
 
-ASK_PAGE = leaf_page(
+ITEM_PAGE = leaf_page(
     "Served queues",
     '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose>'
     '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
@@ -331,17 +331,17 @@ ASK_PAGE = leaf_page(
 )
 
 
-def _served_ask_item() -> dict:
+def _served_record_item() -> dict:
     """One ask as On me lists it (`served_state.queues`)."""
-    state = served_reading(ASK_PAGE, BOTH_SIDES)
+    state = served_reading(ITEM_PAGE, BOTH_SIDES)
     return next(
         item
         for item in state["browser"]["views"]["1"]["queues"]["on_user"]
-        if item["kind"] == "ask"
+        if item["kind"] == "item"
     )
 
 
-def ask_value_cases():
+def item_value_cases():
     """Shared typed-value fixtures: Python's projection reader supplies expected output.
 
     These isolate the state boundary from event admission, pairing authored markup
@@ -388,7 +388,7 @@ def ask_value_cases():
                 }
             )
         projection = StateProjection(held, {}, held, {}, {}, frozenset(), frozenset())
-        value, present = ask_value(
+        value, present = item_value(
             "owner",
             "set",
             spec,

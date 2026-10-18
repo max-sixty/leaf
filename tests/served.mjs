@@ -49,12 +49,12 @@ export function servedReading(name) {
 
 // An ask as On me lists it, holding `ask`; `changes` set where it stands, for a
 // test whose served reading states its asks by hand.
-export const servedAskItem = (ask, changes) =>
-  served("ask_item", {
-    id: ask.id,
-    thread: ask.thread,
-    title: ask.prompt.text,
-    ask,
+export const servedRecordItem = (item, changes) =>
+  served("record_item", {
+    id: item.id,
+    thread: item.thread,
+    title: item.prompt.text,
+    item,
     ...changes,
   });
 
@@ -62,7 +62,7 @@ export const servedAskItem = (ask, changes) =>
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
 
 // Cross-runtime typed ask values use the same real server fold.
-export const servedAskValues = () => structuredClone(RECORDS.ask_values);
+export const servedItemValues = () => structuredClone(RECORDS.item_values);
 
 // `state_definition_cases.json`'s pairs as the definitions Python records.
 export const servedStateDefinitions = () => structuredClone(RECORDS.state_definitions);

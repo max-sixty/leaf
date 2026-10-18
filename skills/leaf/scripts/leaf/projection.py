@@ -595,7 +595,7 @@ def folded_value(e: dict, spec: dict):
     return value
 
 
-def ask_value(owner, verb, spec, byid, spk, registry, projection, *, answered=False):
+def item_value(owner, verb, spec, byid, spk, registry, projection, *, answered=False):
     """Read an ask's typed value and presence from the canonical state fold.
 
     Widget units use their declared record or custom action detail. Member units

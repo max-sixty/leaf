@@ -322,7 +322,7 @@ open. An agent `todo_end` naming an open question retires it, `done` as answered
 elsewhere and `dropped` as withdrawn; neither outcome is a user answer
 (`asks.settle_by_words`).
 
-`work_reading.WorkReading.all_asks` combines page widgets, frozen widgets and
+`work_reading.WorkReading.all_items` combines page widgets, frozen widgets and
 sign-off into one canonical inventory. Every record carries stable `id`, `source`,
 `thread`, `message`, `prompt`, `answer`, `status`, `end` and `next_actor`;
 `asks` owns the statuses, and `end` holds the agent `todo_end` that retired a

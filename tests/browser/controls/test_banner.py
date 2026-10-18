@@ -492,7 +492,7 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     expect(returning).to_be_focused()
 
 
-def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
+def test_item_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     browser, serve, other_leaf
 ):
     """The fixed menu retains each Lit-faced control and hands off removed focus."""
@@ -513,7 +513,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     resized(page, 390, 900)
     expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
-    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
+    assert answer_all.locator(":scope > lf-item-banner-face").count() == 1
     order = page.evaluate(
         """() => [...document.querySelector('.lf-banner-menu').children,
                     ...document.querySelector('.lf-banner-actions').children]

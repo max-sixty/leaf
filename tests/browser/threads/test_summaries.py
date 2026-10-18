@@ -10,7 +10,7 @@ from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered
 from PIL import Image
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, SEATED_ASK_PAGE, panel_comment
+from render_cases_interaction import PANEL_PAGE, SEATED_ITEM_PAGE, panel_comment
 from render_harness import (
     consume_browser_errors,
     judge_watches,
@@ -206,7 +206,7 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     """A direct reply link opens and cues the exact message, even in a long thread or
     in the Resolved state. The surrounding card can span more than a viewport,
     so using it as the arrival flash obscures the destination the link named."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -293,7 +293,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     The messages before and after the range are controls: hiding either would mean the
     presentation collapsed by position rather than by the summary's declared ids.
     """
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the opening question visible.", {"section": "jobs"}
     )
@@ -402,7 +402,7 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     """The same disclosure keeps progress available without an authored digest."""
     # The disclosure is the same at any width; the narrow one has the least room.
     width = 390
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = panel_comment(
         serve.page_dir, "Please check the schedule.", {"section": "jobs"}
     )
@@ -451,7 +451,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     for it shows it, and a reader standing on it holds the answer that would fold it
     behind its notice. In the page thread the answer would grow the thread's foot under
     the reader, so it waits behind the same notice."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
         serve.page_dir,
@@ -984,9 +984,9 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     expect(card.locator(f'.lf-msg[data-mid="{third["id"]}"]')).to_be_visible()
 
 
-def test_a_summary_cannot_hide_an_active_ask(browser, serve):
+def test_a_summary_cannot_hide_an_active_item(browser, serve):
     """A checkpoint with a user obligation is context, never a closed cover."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -1032,7 +1032,7 @@ def test_a_summary_cannot_hide_an_active_ask(browser, serve):
 
 def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     """The production reply link cannot retake focus after its list reveal settles."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )

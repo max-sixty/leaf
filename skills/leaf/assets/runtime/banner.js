@@ -39,7 +39,7 @@ import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
 import { WEBSITE_DELIVERY } from "./context.js";
 import { readQueues } from "./queue-api.js";
-import { approvalBlockingAsks } from "./asks/model.js";
+import { approvalBlockingItems } from "./items/model.js";
 import { focusDestination, tabStops } from "./focus.js";
 
 const INITIAL = Object.freeze({
@@ -728,8 +728,8 @@ export function stateSignoff(next, syncLayout) {
 let approving = false;
 // Whether the user has approved the shown version.
 const versionApproved = readPart((root) =>
-  root.effective.asks.all.some(
-    (ask) => ask.source.kind === "approval" && ask.status === "answered",
+  root.effective.items.all.some(
+    (item) => item.source.kind === "approval" && item.status === "answered",
   ),
 );
 
@@ -738,7 +738,7 @@ const versionApproved = readPart((root) =>
 // before the page has read the log and so cannot say which those are.
 function approvalWords() {
   const approved = versionApproved();
-  const blockingAsks = approvalBlockingAsks();
+  const blockingItems = approvalBlockingItems();
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
   // surface that could have told a user what pressing it would do next went on
@@ -750,9 +750,9 @@ function approvalWords() {
     ? "Approved. Press z to undo while approval is still the latest update"
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
-      : !signoff || !pagePresented() || blockingAsks === null
+      : !signoff || !pagePresented() || blockingItems === null
         ? AWAITING_STATE
-        : blockingAsks.length
+        : blockingItems.length
           ? "Answer every open widget before approving this work"
           : null;
   return {

@@ -38,7 +38,7 @@ from pathlib import Path
 from .findings import Finding
 
 # What an ask's status reads as on a step.
-_ASK_STATES = {
+_ITEM_STATES = {
     "open": "open",
     "answered": "done",
     "answered_elsewhere": "done",
@@ -58,7 +58,7 @@ def latest_plan(events: list, withdrawn: set) -> dict | None:
     )
 
 
-def plan_error(event: dict, todos: list[dict], asks: list[dict]) -> Finding | None:
+def plan_error(event: dict, todos: list[dict], items: list[dict]) -> Finding | None:
     """Why the append door refuses a `plan` event, or None. `todos` are every to-do
     on the page and `asks` every ask, open or not."""
     if event["kind"] != "plan":
@@ -70,7 +70,7 @@ def plan_error(event: dict, todos: list[dict], asks: list[dict]) -> Finding | No
                 "plan-depth", values={"step": _label(step), "depth": step["depth"]}
             )
         depth = step["depth"]
-    known = {todo["id"] for todo in todos} | {ask["id"] for ask in asks}
+    known = {todo["id"] for todo in todos} | {item["id"] for item in items}
     for step in event["steps"]:
         if "item" in step and step["item"] not in known:
             return Finding("unknown-plan-item", values={"item": step["item"]})
@@ -82,7 +82,7 @@ def _label(step: dict) -> str:
 
 
 def plan_reading(
-    events: list, withdrawn: set, todos: list[dict], asks: list[dict]
+    events: list, withdrawn: set, todos: list[dict], items: list[dict]
 ) -> dict | None:
     """The plan in force as a tree, its items read from `todos` and `asks`, or None
     when the agent has written none or cleared it."""
@@ -90,7 +90,7 @@ def plan_reading(
     if event is None or not event["steps"]:
         return None
     todos_by_id = {todo["id"]: todo for todo in todos}
-    asks_by_id = {ask["id"]: ask for ask in asks}
+    items_by_id = {item["id"]: item for item in items}
     plans = [e for e in events if e["kind"] == "plan" and e["id"] not in withdrawn]
 
     def node(step: dict) -> dict:
@@ -117,12 +117,12 @@ def plan_reading(
             }
         # An ask whose source a later version removed is gone from `asks`, so it
         # reads as withdrawn.
-        ask = asks_by_id.get(step["item"])
+        item = items_by_id.get(step["item"])
         return {
-            "title": ask["prompt"]["text"] if ask else None,
-            "state": _ASK_STATES[ask["status"]] if ask else "dropped",
+            "title": item["prompt"]["text"] if item else None,
+            "state": _ITEM_STATES[item["status"]] if item else "dropped",
             "owner": "user",
-            "item": {"kind": "ask", "id": step["item"]},
+            "item": {"kind": "item", "id": step["item"]},
             "running": None,
             "since": None,
         }

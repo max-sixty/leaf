@@ -171,7 +171,7 @@ def test_the_registry_door_holds_a_detail_schema_to_the_keys_it_names(page_dir):
     )
 
 
-def test_the_resolves_attribute_belongs_to_a_widget_with_a_local_ask(page_dir):
+def test_the_resolves_attribute_belongs_to_a_widget_with_a_local_item(page_dir):
     """Admission reads `resolves` off the widget whose Ask an action answers, so the
     name on a widget that asks nothing declares a thread nothing would ever close."""
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -630,7 +630,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
     assert found(findings, code, f"<{tag}>", **values), findings
 
 
-def test_a_local_ask_declares_its_answered_condition(page_dir):
+def test_a_local_item_declares_its_answered_condition(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-test-task"]["x-awaits"] = {"value": "answer"}
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -739,7 +739,7 @@ def test_a_typed_reference_names_a_reachable_package_role(
     assert found([finding], code, "<lf-option>", attr="for", **values)
 
 
-def test_an_ask_role_declares_an_addressable_instance(page_dir):
+def test_an_item_role_declares_an_addressable_instance(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-idless-decision"] = {
         "description": "A decision without an address.",

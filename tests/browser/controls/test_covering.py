@@ -7,7 +7,7 @@ import pytest
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
-from render_cases_layout import ONE_ASK, banner_control, toggle_queue
+from render_cases_layout import ONE_ITEM, banner_control, toggle_queue
 from render_cases_navigation import ADDRESSED_PAGE
 from render_harness import (
     LONG_PAGE,
@@ -119,7 +119,7 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     cannot become a pointer or keyboard target while the sheet still claims modal
     semantics. Closing restores the updated document.
     """
-    source = LONG_PAGE.replace('<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>{ONE_ASK}')
+    source = LONG_PAGE.replace('<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>{ONE_ITEM}')
     url = serve(source)
     page = open_page(browser, live_url(url))
     resized(page, 500, 640)

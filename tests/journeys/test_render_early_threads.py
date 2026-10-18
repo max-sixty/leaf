@@ -295,7 +295,7 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
     consume_browser_errors(page, http_error_console(400))
 
 
-COLD_ASK = leaf_page(
+COLD_ITEM = leaf_page(
     "Cold decisions",
     """<h1>Cold decisions</h1><lf-ask id="cold-ask"><h2>What now?</h2>
 <lf-options id="cold-choice" choose>
@@ -309,7 +309,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     browser, serve, key
 ):
     """Ask walking, Decisions, and Undo wait for their own saved history."""
-    url = serve(COLD_ASK)
+    url = serve(COLD_ITEM)
     if key != "m":
         append_command(
             serve.page_dir,

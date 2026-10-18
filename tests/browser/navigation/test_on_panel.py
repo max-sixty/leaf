@@ -379,7 +379,7 @@ def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
     expect(button).to_be_hidden()
 
 
-def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
+def test_a_tally_counts_its_regions_items_and_walks_them(browser, serve):
     """An `lf-tally` counts the asks its region holds, by the rule a queue row's mark
     reads, and leaves out one outside it. Its Next on me is `m` within the region: a
     press keeps the user standing where they are and steps on, coming round at the end,
@@ -769,7 +769,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_a_completed_ask_stays_reachable_through_the_on_panel(browser, serve, width):
+def test_a_completed_item_stays_reachable_through_the_on_panel(browser, serve, width):
     """An answered Ask stays in the On panel under Done, which closes and reopens through
     its routes."""
     page = open_page(
@@ -819,7 +819,7 @@ def test_a_completed_ask_stays_reachable_through_the_on_panel(browser, serve, wi
     expect(page.locator(".lf-queue-done > summary")).to_be_focused()
 
 
-def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
+def test_a_completed_item_keeps_its_answer_in_the_on_panel(browser, serve):
     """Finishing a page preserves the On panel's route back through the answer."""
     page = open_page(
         browser,
@@ -847,8 +847,8 @@ def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
     holding(page, held, 1, "the option answer")
     pending = page.evaluate(
         """async () => {
-          const {readAsks} = await window.__lfWidgetApi();
-          const reading = readAsks();
+          const {readItems} = await window.__lfWidgetApi();
+          const reading = readItems();
           const ask = reading.all.find(q => q.id === 'widget:only');
           return {
             value: ask.answer.value,
@@ -870,8 +870,8 @@ def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
 
     reading = page.evaluate(
         """async () => {
-          const {readAsks} = await window.__lfWidgetApi();
-          const ask = readAsks().all.find(q => q.id === 'widget:only');
+          const {readItems} = await window.__lfWidgetApi();
+          const ask = readItems().all.find(q => q.id === 'widget:only');
           return {
             id: ask.id,
             source: ask.source,
@@ -891,14 +891,14 @@ def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
     page.locator("h1").focus()
     assert page.evaluate(
         """async () => {
-          const {askActions} = await window.__lfWidgetApi();
-          return askActions.open('widget:only');
+          const {itemActions} = await window.__lfWidgetApi();
+          return itemActions.open('widget:only');
         }"""
     )
     expect(page.locator("#only-decision")).to_be_focused()
 
 
-def test_on_me_says_when_a_revision_removes_its_last_ask(browser, serve):
+def test_on_me_says_when_a_revision_removes_its_last_item(browser, serve):
     """An empty On me list says the panel rendered, rather than looking broken."""
     source = leaf_page(
         "One decision",

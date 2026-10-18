@@ -9,7 +9,7 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_ASK_LAYER, panel_comment
+from render_cases_interaction import SEATED_ITEM_LAYER, panel_comment
 from render_cases_navigation import go_to_address
 from render_harness import leaf_page, open_page, panel_settled
 
@@ -114,15 +114,15 @@ KEYBOARD_HINT_REGISTRY = {
         "type": "object",
         "properties": {
             "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "asks": {"type": "boolean"},
+            "items": {"type": "boolean"},
             "restated": {"type": "boolean"},
         },
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
         "x-upgrade": True,
-        "x-state": SEATED_ASK_LAYER["lf-verdict"]["x-state"],
-        "x-awaits": SEATED_ASK_LAYER["lf-verdict"]["x-awaits"],
+        "x-state": SEATED_ITEM_LAYER["lf-verdict"]["x-state"],
+        "x-awaits": SEATED_ITEM_LAYER["lf-verdict"]["x-awaits"],
     }
 }
 
@@ -369,7 +369,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
 
 
 @pytest.mark.parametrize("annotation_mode", ["overlay", "page"])
-def test_widget_context_keys_work_without_an_ask(browser, serve, annotation_mode):
+def test_widget_context_keys_work_without_an_item(browser, serve, annotation_mode):
     """Widget aliases and inline hints work with either annotation presentation owner."""
     source = leaf_page(
         "standalone widget commands",
@@ -630,7 +630,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Replacement applied")
 
 
-def test_restoring_ask_focus_can_execute_its_command_in_the_same_turn(browser, serve):
+def test_restoring_item_focus_can_execute_its_command_in_the_same_turn(browser, serve):
     """Focus determines forwarded scopes synchronously, without a paint registering them."""
     page = open_page(
         browser,
@@ -858,7 +858,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 @pytest.mark.parametrize(
     ("answered", "resolved"), [(False, False), (False, True), (True, False)]
 )
-def test_context_keys_follow_an_ask_into_its_associated_thread(
+def test_context_keys_follow_an_item_into_its_associated_thread(
     browser, serve, answered, resolved
 ):
     """A thread representative forwards explicit aliases without local widget keys.
@@ -948,7 +948,7 @@ customElements.define('lf-verdict', class extends HTMLElement {
 """
 
 
-def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, serve):
+def test_route_corner_hint_overrides_the_rows_face_in_item_and_widget(browser, serve):
     """Explicit null chooses a corner hint instead of inheriting the row's face.
 
     Ask forwarding and the intrinsic route must preserve that choice and merge into
@@ -957,7 +957,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     registry = {
         "lf-verdict": {
             key: value
-            for key, value in SEATED_ASK_LAYER["lf-verdict"].items()
+            for key, value in SEATED_ITEM_LAYER["lf-verdict"].items()
             if key != "x-thread-seat"
         }
     }

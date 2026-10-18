@@ -4,31 +4,31 @@
 import { widgetWord } from "../addressable-names.js";
 import { closestAcross, elementById } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
-import { askedInWords } from "./model.js";
+import { answeredInWords } from "./model.js";
 
-export function ownedAskControl(source, commandSource) {
+export function ownedItemControl(source, commandSource) {
   const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
   return !selector || closestAcross(commandSource, selector) === source;
 }
 
 /* What a row or a walk calls an item on the user's list: a widget's own word, so
    lf-options reads Options; Approval for a version's sign-off. */
-export function askWord(ask) {
-  if (ask.source.kind === "approval") return "Approval";
-  const word = widgetWord(ask.source.tag, elementById(ask.source.id));
+export function itemWord(item) {
+  if (item.source.kind === "approval") return "Approval";
+  const word = widgetWord(item.source.tag, elementById(item.source.id));
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-export function askWords(ask) {
-  if (ask.answer === null) return "";
-  if (ask.source.kind === "approval") return "Approved";
-  if (askedInWords(ask)) return ask.answer.value.text ?? ask.answer.value.token ?? "";
-  const source = elementById(ask.source.id);
+export function answerWords(item) {
+  if (item.answer === null) return "";
+  if (item.source.kind === "approval") return "Approved";
+  if (answeredInWords(item)) return item.answer.value.text ?? item.answer.value.token ?? "";
+  const source = elementById(item.source.id);
   const formatter =
     /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */ (
-      customElements.get(ask.source.tag)
+      customElements.get(item.source.tag)
     )?.answerWords;
-  return String(source && formatter ? formatter(ask.answer.value, source) : "")
+  return String(source && formatter ? formatter(item.answer.value, source) : "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -36,9 +36,9 @@ export function askWords(ask) {
 /* How a finished ask ended, in the words a Done row and the floating panel show:
    its answer, after a colon so the two never read as one phrase, an answer given
    elsewhere, or its withdrawal. */
-export function askEnding(ask) {
-  if (ask.status === "withdrawn") return "Withdrawn";
-  if (ask.status === "answered_elsewhere") return "Answered elsewhere";
-  const words = askWords(ask);
+export function itemEnding(item) {
+  if (item.status === "withdrawn") return "Withdrawn";
+  if (item.status === "answered_elsewhere") return "Answered elsewhere";
+  const words = answerWords(item);
   return words ? `Answered: ${words}` : "Answered";
 }

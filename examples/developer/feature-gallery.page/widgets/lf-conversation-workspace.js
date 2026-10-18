@@ -11,9 +11,9 @@ import {
   queueActions,
   queueItemKey,
   queueTitle,
-  readAsks,
-  askWords,
-  askedInWords,
+  readItems,
+  answerWords,
+  answeredInWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
@@ -270,23 +270,23 @@ customElements.define(
       return JSON.parse(shown);
     }
     paintObligations() {
-      const asks = readAsks();
-      const answered = asks.all.filter((ask) => ask.status === "answered");
+      const items = readItems();
+      const answered = items.all.filter((item) => item.status === "answered");
       // Counts cover every ask; this summary lists completed widget choices, not the
       // words that answered a question (an lf-ask).
-      const labels = asks.all
+      const labels = items.all
         .filter(
-          (ask) =>
-            ask.source.kind === "widget" &&
-            !askedInWords(ask) &&
-            ask.status === "answered",
+          (item) =>
+            item.source.kind === "widget" &&
+            !answeredInWords(item) &&
+            item.status === "answered",
         )
-        .map(askWords)
+        .map(answerWords)
         .filter(Boolean);
       keepsText(
         this.counts,
         [
-          `${asks.user.length} asks on me`,
+          `${items.user.length} asks on me`,
           ...(answered.length ? [`${answered.length} answered`] : []),
           ...labels,
         ].join(" · "),

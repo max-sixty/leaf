@@ -27,7 +27,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     BANNER_ORDER,
     DEFINE_BOXES,
-    MANY_ASKS_PAGE,
+    MANY_ITEMS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
     SHOT_SRC,
@@ -2866,7 +2866,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
     context = browser.new_context(
         viewport={"width": 390, "height": 800}, has_touch=True
     )
-    page = open_page(browser, serve(MANY_ASKS_PAGE, comments=30), context=context)
+    page = open_page(browser, serve(MANY_ITEMS_PAGE, comments=30), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
     cdp = context.new_cdp_session(page)
 
@@ -2985,7 +2985,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             48,
         ),
         (
-            "asks",
+            "items",
             900,
             ".lf-queue",
             ".lf-queue-panel",
@@ -3625,13 +3625,13 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     A surface beside the page can be replaced directly; a covering surface is modal and
     must close before its banner peers become available again.
     """
-    page = open_page(browser, serve(MANY_ASKS_PAGE))
+    page = open_page(browser, serve(MANY_ITEMS_PAGE))
     resized(page, width, 700)
-    asks = page.locator(".lf-queue-panel")
+    items = page.locator(".lf-queue-panel")
     comments = page.locator(".lf-thread-panel")
     controls = {
         "leaves": page.locator(".lf-others"),
-        "asks": page.locator(".lf-queue"),
+        "items": page.locator(".lf-queue"),
         "threads": page.locator(".lf-threads-toggle"),
     }
 
@@ -3665,14 +3665,14 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
             assert face(control) == (active if peer == name else resting[peer])
 
     banner_control(page, ".lf-queue").click()
-    expect(asks).to_have_class(re.compile(r"\bopen\b"))
-    expect_open("asks")
+    expect(items).to_have_class(re.compile(r"\bopen\b"))
+    expect_open("items")
     if bool(page.locator("dialog:modal").count()):
         page.keyboard.press("Escape")
-        expect(asks).not_to_have_class(re.compile(r"\bopen\b"))
+        expect(items).not_to_have_class(re.compile(r"\bopen\b"))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(asks).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(items).not_to_have_class(re.compile(r"\bopen\b"))
     expect_open("threads")
 
     if bool(page.locator("dialog:modal").count()):
@@ -3687,9 +3687,9 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     banner_control(page, ".lf-queue").click()
     panel_settled(page, open=False)
-    expect(asks).to_have_class(re.compile(r"\bopen\b"))
+    expect(items).to_have_class(re.compile(r"\bopen\b"))
     expect(comments).not_to_have_class(re.compile(r"\bopen\b"))
-    expect_open("asks")
+    expect_open("items")
 
 
 @pytest.mark.watch_shifts
@@ -3937,7 +3937,7 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
     focus trap. Its exact Ask and reading place survive both responsive crossings, its
     reading keys move its own list, and closing returns to its door without moving the
     document behind it."""
-    page = open_page(browser, serve(MANY_ASKS_PAGE))
+    page = open_page(browser, serve(MANY_ITEMS_PAGE))
     resized(page, 500, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 180")
     document_at = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -4005,7 +4005,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     ready to reopen the same drawer: the On me door on the banner's row, and More for
     Leaves, folded behind it.
     """
-    page = open_page(browser, serve(MANY_ASKS_PAGE))
+    page = open_page(browser, serve(MANY_ITEMS_PAGE))
     resized(page, 500, 640)
     expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     assert page.locator(".lf-others").evaluate(
@@ -4039,7 +4039,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
 def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     """Auxiliary placement does not retire a live return; closing its surface does. The
     On panel is the surface that crosses between covering and beside."""
-    page = open_page(browser, serve(MANY_ASKS_PAGE))
+    page = open_page(browser, serve(MANY_ITEMS_PAGE))
     resized(page, 500, 640)
     origin = page.locator("main .lf-pick").first
     origin.focus()
@@ -4121,7 +4121,7 @@ def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, ser
 
     Beside a live page the bar ends at the panel's edge, so only the covering
     posture exercises the clearance shared with the Pages drawer."""
-    page = open_page(browser, serve(MANY_ASKS_PAGE))
+    page = open_page(browser, serve(MANY_ITEMS_PAGE))
     resized(page, 480, 420)
     banner_control(page, ".lf-queue").click()
     rows = page.locator("button.lf-queue-row")

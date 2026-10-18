@@ -257,9 +257,9 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     awaits = entry.get("x-awaits", {})
     if entry.get("x-ask-context"):
         if "id" not in entry.get("required", []):
-            raise registry_error("ask-context-id", path, tag)
+            raise registry_error("enclosing-id", path, tag)
         if entry.get("x-content") != "markup":
-            raise registry_error("ask-context-prose", path, tag)
+            raise registry_error("enclosing-prose", path, tag)
     conditions = [
         ("x-awaits", awaits.get("when", {})),
         *(

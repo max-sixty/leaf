@@ -14,7 +14,7 @@ from leaf import event_log as events_model
 from leaf import service as service_model
 from leaf.served_state import context as served_context
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, PANEL_PAGE, live_url
+from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, live_url
 from render_cases_layout import token_colour
 from render_cases_navigation import go_to_address
 from render_cases_widgets import (
@@ -37,7 +37,7 @@ from render_harness import (
 )
 
 from browser.margin import (
-    COMMENT_ON_ASK,
+    COMMENT_ON_ITEM,
     leave_card_by_its_target,
 )
 
@@ -198,11 +198,11 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
         browser,
         live_url(
             serve(
-                ASK_PAGE,
+                ITEM_PAGE,
                 events=[
-                    {**COMMENT_ON_ASK, "id": "1" * 32},
+                    {**COMMENT_ON_ITEM, "id": "1" * 32},
                     {
-                        **COMMENT_ON_ASK,
+                        **COMMENT_ON_ITEM,
                         "id": "2" * 32,
                         "text": "Check the return visit too.",
                     },
@@ -335,12 +335,12 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/2")
-    expect(preview).to_contain_text(COMMENT_ON_ASK["text"])
+    expect(preview).to_contain_text(COMMENT_ON_ITEM["text"])
     preview.get_by_role("button", name="Next thread").click()
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("2/2")
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
-    expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
+    expect(preview).not_to_contain_text(COMMENT_ON_ITEM["text"])
     leave_card_by_its_target(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
@@ -440,7 +440,7 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
     primary seat: it goes back to its own receipt, and the new primary takes the work,
     in the margin or a page's own annotation view as in the Page Map.
     """
-    source = ASK_PAGE
+    source = ITEM_PAGE
     if annotations == "page":
         source = source.replace("<body>", '<body data-annotations="page">')
     page = open_page(
@@ -449,9 +449,9 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
             serve(
                 source,
                 events=[
-                    {**COMMENT_ON_ASK, "id": "1" * 32},
+                    {**COMMENT_ON_ITEM, "id": "1" * 32},
                     {
-                        **COMMENT_ON_ASK,
+                        **COMMENT_ON_ITEM,
                         "id": "2" * 32,
                         "text": "Check the return visit too.",
                     },
@@ -577,9 +577,9 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     Rails and pins keep that priority in both color schemes, including a target
     whose authored Ask has been handed to the agent by its comment.
     """
-    comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
+    comment = {**COMMENT_ON_ITEM, "anchor": {"section": target}}
     page = open_page(
-        browser, live_url(serve(ASK_PAGE, events=[comment])), color_scheme=scheme
+        browser, live_url(serve(ITEM_PAGE, events=[comment])), color_scheme=scheme
     )
     resized(page, 1440, 900)
     cluster = page.locator(f'[data-lf-margin-for="{target}"]')
@@ -751,11 +751,11 @@ def test_a_thread_an_open_to_do_holds_says_so_beside_the_page(browser, serve):
     opening renders, not that opening's Markdown, until a title names it on all of
     them."""
     comment = {
-        **COMMENT_ON_ASK,
+        **COMMENT_ON_ITEM,
         "text": "Can **these** share one visit?",
         "anchor": {"section": "bracket"},
     }
-    source = ASK_PAGE.replace(
+    source = ITEM_PAGE.replace(
         '<h1 id="h">Three jobs</h1>',
         '<h1 id="h">Three jobs</h1><lf-activity id="feed"></lf-activity>',
     )
@@ -954,7 +954,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     The group is single-choice so the pick itself answers the Ask: a tick in a
     group that waits for Done hands the agent nothing, so it has no receipt.
     """
-    single = ASK_PAGE.replace(
+    single = ITEM_PAGE.replace(
         '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
     )
     page = open_page(browser, live_url(serve(single)))

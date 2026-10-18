@@ -109,9 +109,9 @@ that asks or was retired.
 The module reads and records this state through `widgetController(owner)`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
 words answers with `static answerWords` ([module-state.md, "Declared widget
-state"](module-state.md#declared-widget-state)), and reads asks with `readAsks()`
+state"](module-state.md#declared-widget-state)), and reads asks with `readItems()`
 ([module-reading.md, "Reading asks and obligation
-queues"](module-reading.md#reading-asks-and-obligation-queues)).
+queues"](module-reading.md#reading-items-and-obligation-queues)).
 
 ## References between widgets
 

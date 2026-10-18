@@ -8,7 +8,7 @@ from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASKS_PAGE, panel_comment
+from render_cases_interaction import ITEMS_PAGE, panel_comment
 from render_cases_layout import banner_control, ring_faults, ring_rule, rings_drawn
 from render_cases_navigation import (
     ADDRESSED_PAGE,
@@ -407,12 +407,12 @@ def test_a_banner_disclosure_does_not_retake_focus_from_a_list(
 ):
     """A deferred disclosure opening cannot undo a newer focus destination."""
     live_leaf("second", "A second leaf")
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     resized(page, 1200, 850)
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    asks = page.locator("button.lf-queue-row")
-    expect(asks.first).to_be_focused()
+    items = page.locator("button.lf-queue-row")
+    expect(items.first).to_be_focused()
     more = page.locator(".lf-banner-more")
     expect(more).to_be_visible()
     assert not page.locator(".lf-queue-panel").evaluate(
@@ -435,7 +435,7 @@ def test_a_banner_disclosure_does_not_retake_focus_from_a_list(
     )
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(page.locator(".lf-banner-menu .lf-others")).to_be_visible()
-    expect(asks.first).to_be_focused()
+    expect(items.first).to_be_focused()
 
 
 def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, serve):
@@ -1380,7 +1380,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page installed; the tap below it, dispatched the same way and answered, is what says
     so rather than leaving the held press to pass for want of reaching anything."""
     live_leaf("second", "A second leaf")
-    page = open_page(browser, serve(ASKS_PAGE, comments=3))
+    page = open_page(browser, serve(ITEMS_PAGE, comments=3))
     press = """([key, repeat, shiftKey = false]) => document.dispatchEvent(
         new KeyboardEvent('keydown',
           {key, repeat, shiftKey, bubbles: true, cancelable: true}))"""
@@ -1391,9 +1391,9 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(page.locator(".lf-thread-summary").nth(1)).to_be_focused()
 
     page.keyboard.press("m")
-    expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-item]")).to_have_count(1)
     page.evaluate(press, ["m", True])  # the same grammar repeats for asks
-    expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#sug-refill[data-lf-item]")).to_have_count(1)
 
     drawer = page.locator(".lf-others-panel")
     page.keyboard.press("g")
@@ -1526,7 +1526,7 @@ def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve)
         assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_an_asks_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
+def test_an_items_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
     """A pick inside an Ask wears the chrome face, as a margin marker does, and is not
     a control of Leaf's for all that: it is inside a destination, so Escape lets go of
     it onto the page. The Ask is the asks view's own reading rather than the ring's
@@ -1670,7 +1670,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     first.focus()
     standing = shortcut_bar_text(page)
     assert "let go" in standing
-    expect(page.locator("#first-question-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#first-question-decision[data-lf-item]")).to_have_count(1)
 
     # A secondary contact does not drive native label activation, so it must not
     # start the logical transaction either.
@@ -1715,9 +1715,9 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         }"""
     )
     assert shortcut_bar_text(page) == standing
-    held_ask = page.locator("#first-question-decision[data-lf-ask]")
-    expect(held_ask).to_have_count(1)
-    assert "[data-lf-ask]" in ring_rule(held_ask)
+    held_item = page.locator("#first-question-decision[data-lf-item]")
+    expect(held_item).to_have_count(1)
+    assert "[data-lf-item]" in ring_rule(held_item)
     # Native label activation temporarily blurs the radio. Its logical input
     # destination, and therefore the fallback ring on this plain authored control,
     # remain in place until the label's click transfers focus.
@@ -1740,7 +1740,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.mouse.up()
     expect(control).to_be_checked()
     expect(control).to_be_focused()
-    expect(page.locator("#frame-question-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#frame-question-decision[data-lf-item]")).to_have_count(1)
 
     # The press has its own frame and the drag comes after it, so the line's only route
     # to the word is the selection the drag makes: the user is taking words out of a
@@ -1867,20 +1867,20 @@ def test_comment_escape_returns_to_its_authored_parent(browser, serve, entry):
     The same Ask is the parent when walking, standing on an option, or aiming at
     its heading; entry history cannot change its Escape route."""
     page = open_page(browser, serve(WHERE_I_STAND_PAGE))
-    ask = page.locator("#shape-decision")
+    item = page.locator("#shape-decision")
     if entry == "walk":
         page.keyboard.press("m")
-        expect(ask).to_be_focused()
+        expect(item).to_be_focused()
         page.keyboard.press("c")
     elif entry == "option":
-        ask.locator(".lf-pick").first.focus()
+        item.locator(".lf-pick").first.focus()
         page.keyboard.press("c")
     else:
-        ask.locator("h2").click(modifiers=["Alt"])
+        item.locator("h2").click(modifiers=["Alt"])
     expect(page.locator(".lf-composer")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(ask).to_be_focused()
+    expect(item).to_be_focused()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment on the question")
     page.keyboard.press("Escape")
     assert page.evaluate("document.activeElement === document.body")

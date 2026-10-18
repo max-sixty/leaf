@@ -8,7 +8,7 @@ from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASKS_PAGE
+from render_cases_interaction import ITEMS_PAGE
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     CHIPS,
@@ -741,8 +741,8 @@ def test_global_destinations_switch_from_a_covering_workspace(
 ):
     """A covering auxiliary surface keeps the global Go-to addresses that can replace it."""
     live_leaf("second", "A second leaf")
-    url = serve(ASKS_PAGE, comments=1)
-    _publish(serve.page_dir, 2, ASKS_PAGE, "two")
+    url = serve(ITEMS_PAGE, comments=1)
+    _publish(serve.page_dir, 2, ITEMS_PAGE, "two")
     page = open_page(browser, url)
     resized(page, 420, 800)
 
@@ -846,7 +846,7 @@ def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, se
 
 def test_banner_destinations_use_transient_target_overlays(browser, serve):
     """The g sequence labels visible primary controls without changing their layout."""
-    url = serve(ASKS_PAGE)
+    url = serve(ITEMS_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "A note."},

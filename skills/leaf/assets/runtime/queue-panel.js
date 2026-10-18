@@ -73,19 +73,19 @@ import {
   PresentationRetentionError,
 } from "./semantic-state.js";
 import { renderedOrder, under } from "./shadow.js";
-import { askEnding, askWord } from "./asks/answer.js";
-import { readAsks } from "./asks/model.js";
-import { askPlace } from "./asks/place.js";
+import { itemEnding, itemWord } from "./items/answer.js";
+import { readItems } from "./items/model.js";
+import { itemPlace } from "./items/place.js";
 import { readThreads } from "./thread/state.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
-import { askHolding, declareSide } from "./standing-target.js";
+import { itemHolding, declareSide } from "./standing-target.js";
 import { anchorLabel } from "./thread/messages.js";
 import { queueTitle } from "./queue-title.js";
 import { lastMovedAt } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
 
-// An item a source registered says its source's word (`askWord`); a to-do on either
+// An item a source registered says its source's word (`itemWord`); a to-do on either
 // side says To-do. Response obligations keep their own Reply or Answer wording.
 const WORDS = Object.freeze({
   resend: "Resend",
@@ -152,8 +152,8 @@ export function createQueuePanel({
     if (!thread) {
       // A widget answering an ask is where that ask is.
       const own = elementById(item.subject.id);
-      const ask = own && askHolding(readAsks().all, own);
-      return sectionWords(ask ? askPlace(ask).context : own);
+      const record = own && itemHolding(readItems().all, own);
+      return sectionWords(record ? itemPlace(record).context : own);
     }
     if (!thread.anchor?.section) return "Whole page";
     const about = elementById(thread.anchor.section);
@@ -164,7 +164,7 @@ export function createQueuePanel({
   // place; and before it, how a finished item ended, which is what a Done row is for.
   const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
-    if (itemNoun(item) === "ask")
+    if (itemNoun(item) === "item")
       return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
     // Agent-authored detail has its own span and exact input identity. A generic
     // stage or a to-do title is never evidence of visible agent words.
@@ -190,13 +190,13 @@ export function createQueuePanel({
   }
   // An ask names how it ended, a to-do its outcome, and a reply that it was sent.
   function ended(item) {
-    if (item.kind === "ask") return askEnding(item.ask);
+    if (item.kind === "item") return itemEnding(item.item);
     return [itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ");
   }
   function row(item, list) {
     const thread = threadOf(item.thread);
     const noun = itemNoun(item);
-    const word = noun === "ask" ? askWord(item.ask) : wordOf(item, noun);
+    const word = noun === "item" ? itemWord(item.item) : wordOf(item, noun);
     const where = (
       list === "done"
         ? [wherePart(ended(item)), wherePart(place(item, thread))]
@@ -207,10 +207,10 @@ export function createQueuePanel({
     // again. A reply the agent owes an update stands nowhere, so an ask's own row is the one
     // row standing at it.
     const at =
-      noun === "ask" ||
+      noun === "item" ||
       (item.kind === "resend" && item.subject.kind === "widget" && item.thread === null)
-        ? item.kind === "ask"
-          ? item.ask.id
+        ? item.kind === "item"
+          ? item.item.id
           : item.subject.id
         : null;
     return Object.freeze({
@@ -388,8 +388,8 @@ export function createQueuePanel({
   // A row stands at the element it names rather than in the panel.
   declareSide((node) => {
     const at = standsAt(node);
-    const ask = readAsks().all.find((ask) => ask.id === at);
-    return ask ? askPlace(ask).node : at ? elementById(at) : null;
+    const item = readItems().all.find((item) => item.id === at);
+    return item ? itemPlace(item).node : at ? elementById(at) : null;
   });
 
   function mount() {

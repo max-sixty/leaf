@@ -2,7 +2,7 @@
 
 from typing import NamedTuple
 
-from ..asks import approval_blocking, collection
+from ..items import approval_blocking, collection
 from ..document_reading import DocumentReading
 from ..events import UndoReading
 from ..files import stamped_version
@@ -52,7 +52,7 @@ def _thread_attention(
     if thread["resolved"]:
         return None
     if owed:
-        return {"kind": "needs_user", "reason": "ask", "workflow": None}
+        return {"kind": "needs_user", "reason": "widget", "workflow": None}
     if resend := next(
         (workflow for workflow in candidates if workflow["next_actor"] == "user"),
         None,
@@ -88,7 +88,7 @@ def _apply_thread_attention(
     it is. `durable` is the reading of the view these threads are served in, so a
     pinned revision's threads take the attention its own vocabulary reads;
     `workflows` are the page's, enriched with delivery liveness."""
-    owed = {ask["thread"] for ask in durable.asks["user"]}
+    owed = {item["thread"] for item in durable.items["user"]}
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
         if workflow["thread"] is not None:
@@ -205,7 +205,7 @@ def browser_state(
         document = browser_document(reading, revision)
         # The view's asks are its own document's beside its frozen thread's, so it
         # carries the lists they add up to and the asks approving it waits on.
-        asks = document["asks"]["all"] + thread["asks"]["all"]
+        items = document["items"]["all"] + thread["items"]["all"]
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
             "document": document,
@@ -220,8 +220,8 @@ def browser_state(
             ),
             "coverage": coverage,
             "published_at": published_at,
-            "queues": queues(thread["threads"], workflows, todos, collection(asks)),
-            "approval_blocking": [ask["id"] for ask in approval_blocking(asks)],
+            "queues": queues(thread["threads"], workflows, todos, collection(items)),
+            "approval_blocking": [item["id"] for item in approval_blocking(items)],
         }
     activity = {
         key: value

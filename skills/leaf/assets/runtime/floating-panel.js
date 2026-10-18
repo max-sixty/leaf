@@ -152,8 +152,8 @@ import { queueItemKey, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
-import { askEnding } from "./asks/answer.js";
-import { askedInWords } from "./asks/model.js";
+import { itemEnding } from "./items/answer.js";
+import { answeredInWords } from "./items/model.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -278,7 +278,7 @@ export function createFloatingPanel({
   threadActions,
   registerChromeThreadPresentation,
   observeFeedback,
-  asks: askView,
+  items: itemView,
   queueActions,
   withdraw,
   settlement,
@@ -421,7 +421,7 @@ export function createFloatingPanel({
     explanationParts: [{ text: "Connecting…", source: null }],
     adds: "",
     addsParts: [],
-    asks: false,
+    items: false,
     publication: null,
   };
   const status = () => statusReading() ?? CONNECTING;
@@ -1712,8 +1712,8 @@ export function createFloatingPanel({
 
   // The undo list's entry for the gesture that answered an ask, where it can still be
   // taken back (undo.js).
-  const answerGesture = (ask) => {
-    const id = ask?.answer?.event?.id ?? ask?.answer?.event;
+  const answerGesture = (item) => {
+    const id = item?.answer?.event?.id ?? item?.answer?.event;
     if (!id) return null;
     const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id,
@@ -1723,7 +1723,7 @@ export function createFloatingPanel({
   const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : "On me");
 
   function onItemCard(item, list) {
-    const ask = item.kind === "ask" ? item.ask : null;
+    const record = item.kind === "item" ? item.item : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     // A question asked in words is a message in its thread, and reads as that message,
     // drawn whole by Leaf's reader as the thread draws it (`nominate`), images and all:
@@ -1731,10 +1731,10 @@ export function createFloatingPanel({
     // above, where it has a name of its own rather than the message's opening words.
     // Where the page's package draws its conversations instead, Leaf's reader draws
     // none here, and the message's words stand for it under the thread's name.
-    const inWords = ask !== null && askedInWords(ask);
+    const inWords = record !== null && answeredInWords(record);
     const asking =
       inWords && thread
-        ? thread.msgs.find((candidate) => candidate.id === ask.message)
+        ? thread.msgs.find((candidate) => candidate.id === record.message)
         : null;
     const message = asking && presentation?.primary !== false ? asking : null;
     const title = message
@@ -1747,14 +1747,14 @@ export function createFloatingPanel({
       : asking
         ? messageReading(asking, { panel: false, reactions: [], workflows: [] }).body
             .plainText
-        : ask?.prompt?.text;
+        : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
-    const answered = ask && ask.status !== "open";
+    const answered = record && record.status !== "open";
     const choices =
-      ask && !answered && ask.source.kind === "widget" && !inWords
-        ? askView.choicesOf(ask)
+      record && !answered && record.source.kind === "widget" && !inWords
+        ? itemView.choicesOf(record)
         : null;
-    const gesture = answered ? answerGesture(ask) : null;
+    const gesture = answered ? answerGesture(record) : null;
     const discuss = thread
       ? html`<button
           type="button"
@@ -1769,13 +1769,13 @@ export function createFloatingPanel({
       class="lf-fp-quiet"
       @click=${() => {
         close();
-        void (ask ? askView.open(ask.id) : queueActions.open(queueItemKey(item)));
+        void (record ? itemView.open(record.id) : queueActions.open(queueItemKey(item)));
       }}
     >
       Show
     </button>`;
     let answers;
-    if (list === "done" && !ask)
+    if (list === "done" && !record)
       answers = html`<span class="lf-fp-said"
           >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
         >${thread ? discuss : nothing}`;
@@ -1784,7 +1784,7 @@ export function createFloatingPanel({
           >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said">${askEnding(ask)}</span>${
+      answers = html`<span class="lf-fp-said">${itemEnding(record)}</span>${
           gesture
             ? html`<button
                 type="button"
@@ -1795,7 +1795,7 @@ export function createFloatingPanel({
               </button>`
             : nothing
         }`;
-    else if (ask?.source.kind === "approval") {
+    else if (record?.source.kind === "approval") {
       const approval = approvalReading();
       answers = html`<button
         type="button"
@@ -1839,7 +1839,7 @@ export function createFloatingPanel({
       </button>`;
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
-    const approval = ask?.source.kind === "approval";
+    const approval = record?.source.kind === "approval";
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
@@ -2306,7 +2306,7 @@ export function createFloatingPanel({
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
-    keeps(host, "data-asks", status().asks ? "" : null);
+    keeps(host, "data-items", status().items ? "" : null);
     keeps(
       field,
       "title",

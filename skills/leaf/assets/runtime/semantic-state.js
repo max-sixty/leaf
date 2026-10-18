@@ -93,7 +93,7 @@ export const queueWidgetUpdate = (widget, update) =>
 export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  asks: 2,
+  items: 2,
   queue: 3,
 });
 

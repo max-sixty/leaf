@@ -13,14 +13,14 @@ from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASK_PAGE,
+    ITEM_PAGE,
     FRAME_BY_FRAME,
     HOLD_MOTION,
     LIST_STATE,
     PANEL_PAGE,
-    SEATED_ASK_LAYER,
-    SEATED_ASK_PAGE,
-    SEATED_ASK_WIDGETS,
+    SEATED_ITEM_LAYER,
+    SEATED_ITEM_PAGE,
+    SEATED_ITEM_WIDGETS,
     panel_comment,
 )
 from render_harness import (
@@ -65,8 +65,8 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
                 "Should these jobs share a visit?</lf-verdict>"
                 '<label>Another thought <input id="later"></label>',
             ),
-            layer_registry=SEATED_ASK_LAYER,
-            layer_widgets=SEATED_ASK_WIDGETS,
+            layer_registry=SEATED_ITEM_LAYER,
+            layer_widgets=SEATED_ITEM_WIDGETS,
         ),
     )
     first = page.locator("#proposal > .lf-thread-seat > .lf-say")
@@ -125,7 +125,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
     page = open_page(
         browser,
         serve(
-            ASK_PAGE,
+            ITEM_PAGE,
             events=[
                 {
                     "kind": "comment",
@@ -218,7 +218,7 @@ def test_z_puts_the_user_back_in_the_thread_they_resolved(browser, serve, view):
         "text": "Check whether these jobs can share one visit.",
         "anchor": {"section": "bracket"},
     }
-    page = open_page(browser, serve(ASK_PAGE, events=[comment]))
+    page = open_page(browser, serve(ITEM_PAGE, events=[comment]))
     root = events_model.read_events(serve.page_dir)[0]["id"]
     resized(page, 1440, 900)
     if view == "inline":
@@ -249,7 +249,7 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
     """A thread seated on the page folds where it stands when resolved, so the user
     never left it, and taking the resolve back moves them nowhere either: not to
     Threads, and not to a margin card for the same thread."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -372,7 +372,7 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
     page = open_page(
         browser,
         serve(
-            ASK_PAGE,
+            ITEM_PAGE,
             events=[
                 {**comment, "text": "Check whether these jobs can share one visit."},
                 {**comment, "text": "And whether the second visit needs a permit."},
@@ -421,7 +421,7 @@ def test_a_card_repaint_keeps_the_user_on_the_control_they_reached(browser, serv
     page = open_page(
         browser,
         serve(
-            ASK_PAGE,
+            ITEM_PAGE,
             events=[
                 {
                     "kind": "comment",
@@ -640,7 +640,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
 ):
     """Mirrored controls share optimistic resolution, delivery, and reopening."""
     browser, held = held_events
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -707,7 +707,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     tick or state read.
     """
     browser, held = held_events
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -1722,7 +1722,7 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
 
 def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     """A direct jump uses the resolved card, even before its outgoing fold ends."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     reply = thread_model.post_reply(
         serve.page_dir,

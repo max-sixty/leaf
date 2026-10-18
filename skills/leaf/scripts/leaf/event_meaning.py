@@ -7,7 +7,7 @@ referenced element still changes containment without changing an old event.
 
 from functools import cached_property
 
-from leaf.asks import answer_verbs, answering_action, asking, replayed_attrs
+from leaf.items import answer_verbs, answering_action, asking, replayed_attrs
 from leaf.events import event_document
 from leaf.projection import (
     authored_positions,
@@ -148,9 +148,9 @@ def answer_meaning(
             reading.spoken,
             registry,
             registered=any(
-                ask["source"]["kind"] == "widget"
-                and ask["source"]["id"] == event["widget"]
-                for ask in readings.work.all_asks["all"]
+                item["source"]["kind"] == "widget"
+                and item["source"]["id"] == event["widget"]
+                for item in readings.work.all_items["all"]
             ),
         ),
         record["attrs"].get("resolves")

@@ -9,9 +9,9 @@ from leaf import render_checks as render_checks_model
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ALL_ASKS_IN_ORDER,
-    ASK_WITH_CONTEXT_PAGE,
-    ASKS_PAGE,
+    ALL_ITEMS_IN_ORDER,
+    ITEM_WITH_CONTEXT_PAGE,
+    ITEMS_PAGE,
     CHANGE_SHAPES_PAGE,
     QUEUE_ROW_SAYS,
 )
@@ -20,7 +20,7 @@ from render_harness import (
     LONG_PAGE,
     REPLY_HOST_PAGE,
     active_digit_bindings,
-    expect_asks_answered,
+    expect_items_answered,
     holding,
     leaf_page,
     open_page,
@@ -42,7 +42,7 @@ from browser.widgets import (
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_the_on_panel_names_an_ask_a_message_carries(browser, serve):
+def test_the_on_panel_names_an_item_a_message_carries(browser, serve):
     """A decision carried by a reply is a decision, and the On panel has to name it in its words.
 
     The page holds none of its own, so the one row here is the question Claude put in
@@ -117,7 +117,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
 
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_visible()
-    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "ask"]
+    rows = [row for row in page.evaluate(QUEUE_ROW_SAYS) if row["kind"] == "item"]
 
     assert {r["at"]: r["word"] for r in rows} == {
         "widget:sug-rewrite": "Rewrite",
@@ -133,7 +133,7 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
     assert said["widget:sug-insert"].startswith("Parked jobs"), said
 
 
-def test_the_on_me_control_opens_open_and_answered_asks(browser, serve):
+def test_the_on_me_control_opens_open_and_answered_items(browser, serve):
     """The banner's On me control lists every open Ask under On me, in document
     order, and every answered one under Done with its current answer, so the user can
     review and revise. A twelfth widget joins by declaring x-awaits.
@@ -142,7 +142,7 @@ def test_the_on_me_control_opens_open_and_answered_asks(browser, serve):
     panel's rendering, the banner's counts are the closed panel's, and a hidden list of
     buttons is a set of controls no user can press — which the press sweep sees as
     the page's control set changing under it."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     # Wide enough that the panel on the right leaves the answers it lists beside it.
     resized(page, 1920, 900)
     panel = page.locator(".lf-queue-panel")
@@ -167,7 +167,7 @@ def test_the_on_me_control_opens_open_and_answered_asks(browser, serve):
         ("widget:honored", "done"),
     ]
     for row in rows:
-        assert row["kind"] == "ask", row
+        assert row["kind"] == "item", row
         assert row["word"] == (
             "Rewrite" if row["at"] == "widget:sug-refill" else "Options"
         ), row
@@ -187,7 +187,7 @@ def test_the_on_me_control_opens_open_and_answered_asks(browser, serve):
     # Answered, and the row moves to Done as the route back, saying its current answer.
     # The pick is a move the agent now owes a reply, which is its row and not the Ask's.
     page.locator("#lq-token").click()
-    expect_asks_answered(page, "2/5")
+    expect_items_answered(page, "2/5")
     expect(page.locator("button.lf-queue-row[data-lf-kind='ask']")).to_have_count(5)
     answered = {r["at"]: r for r in page.evaluate(QUEUE_ROW_SAYS)}
     assert answered["widget:live-question"]["list"] == "done", answered
@@ -211,7 +211,7 @@ def test_the_on_me_control_opens_open_and_answered_asks(browser, serve):
     assert page.evaluate(QUEUE_ROW_SAYS) == [], "a closed panel keeps its rows"
 
 
-def test_an_answered_asks_words_are_its_widgets_semantic_state(browser, serve):
+def test_an_answered_items_words_are_its_widgets_semantic_state(browser, serve):
     """Each family names its answer from the state it was answered with.
 
     A draft says its current words, a playground the instruction it sent rather than
@@ -274,7 +274,7 @@ Adds --dry-run to every mutating command.
             },
         )
         assert posted.ok, posted.text()
-    expect_asks_answered(page, "4/4")
+    expect_items_answered(page, "4/4")
     banner_control(page, ".lf-queue").click()
     output = page.locator("#tone lf-playground-output")
     expect(output).to_contain_text("strip")
@@ -292,28 +292,28 @@ Adds --dry-run to every mutating command.
         ).to_contain_text(f"Answered: {words}")
 
 
-def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
+def test_item_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
     browser, serve
 ):
     """A keyed row follows the published document, not later presentation DOM edits."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     banner_control(page, ".lf-queue").click()
     rows = page.locator("button.lf-queue-row")
-    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    expect(rows).to_have_count(len(ALL_ITEMS_IN_ORDER))
 
     page.evaluate(
         """async () => {
           const {readApplicationPresentation} = await window.__lfCheckApi();
-          window.__lfReadAskPresentation = readApplicationPresentation;
+          window.__lfReadItemPresentation = readApplicationPresentation;
           const rows = [...document.querySelectorAll('button.lf-queue-row')];
-          window.__lfAskRows = new Map(rows.map(row => [row.dataset.lfAt, row]));
+          window.__lfItemRows = new Map(rows.map(row => [row.dataset.lfAt, row]));
           const honored = document.querySelector('#honored-decision');
           document.querySelector('#live-question-decision').before(honored);
-          window.__lfAskRows.get('widget:sug-refill').focus();
+          window.__lfItemRows.get('widget:sug-refill').focus();
           document.dispatchEvent(new Event('lf-presentation'));
         }"""
     )
-    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    page.wait_for_function("__lfReadItemPresentation().pending.length === 0")
     assert rows.evaluate_all("items => items.map(item => item.dataset.lfAt)") == [
         "widget:live-question",
         "widget:sug-refill",
@@ -322,7 +322,7 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
         "widget:honored",
     ]
     assert rows.evaluate_all(
-        "items => items.every(item => window.__lfAskRows.get(item.dataset.lfAt) === item)"
+        "items => items.every(item => window.__lfItemRows.get(item.dataset.lfAt) === item)"
     )
     expect(
         page.locator('.lf-queue-row[data-lf-at="widget:sug-refill"]')
@@ -336,7 +336,7 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
           document.dispatchEvent(new Event('lf-presentation'));
         }"""
     )
-    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    page.wait_for_function("__lfReadItemPresentation().pending.length === 0")
     expect(
         page.locator('.lf-queue-row[data-lf-at="widget:sug-refill"]')
     ).to_be_focused()
@@ -348,7 +348,7 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
         "widget:honored",
     ]
     assert rows.evaluate_all(
-        "items => items.every(item => window.__lfAskRows.get(item.dataset.lfAt) === item)"
+        "items => items.every(item => window.__lfItemRows.get(item.dataset.lfAt) === item)"
     )
 
     # A row still resolves its current presentation node at activation, but its ordinal
@@ -365,28 +365,28 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
     assert "Options 1 of 1 done" in page.evaluate("window.__lfLiveRegionChanges")
 
 
-def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
+def test_pending_action_waits_for_the_item_list_paint_before_retiring(
     held_events, serve
 ):
     """Receipt settlement cannot retire optimism before the On panel row has painted it."""
     browser, held = held_events
-    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ITEM_WITH_CONTEXT_PAGE))
     banner_control(page, ".lf-queue").click()
     row = page.locator('button.lf-queue-row[data-lf-at="widget:storage-options"]')
     expect(row).to_have_count(1)
-    expect(row).to_have_attribute("data-lf-kind", "ask")
+    expect(row).to_have_attribute("data-lf-kind", "item")
     expect(page.locator("[data-lf-queue='you'] .lf-queue-row")).to_have_count(1)
     page.evaluate(
         """async () => {
           const {readApplication, readApplicationPresentation} =
             await window.__lfCheckApi();
-          window.__lfReadAskApplication = readApplication;
-          window.__lfReadAskPresentation = readApplicationPresentation;
+          window.__lfReadItemApplication = readApplication;
+          window.__lfReadItemPresentation = readApplicationPresentation;
           const list = document.querySelector('lf-queue-list');
           const schedule = list.scheduleUpdate.bind(list);
           let release;
           const held = new Promise(resolve => { release = resolve; });
-          window.__lfReleaseAskPaint = release;
+          window.__lfReleaseItemPaint = release;
           let next = true;
           list.scheduleUpdate = async () => {
             if (next) {
@@ -403,16 +403,16 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     held.pop(0).continue_()
     page.unroute("**/api/event")
     page.wait_for_function(
-        "() => __lfReadAskApplication().unresolved.some("
+        "() => __lfReadItemApplication().unresolved.some("
         "entry => entry.state === 'accepted:logged')"
     )
-    assert "queue" in page.evaluate("__lfReadAskPresentation().pending")
-    assert page.evaluate("__lfReadAskApplication().unresolved.length") == 1
+    assert "queue" in page.evaluate("__lfReadItemPresentation().pending")
+    assert page.evaluate("__lfReadItemApplication().unresolved.length") == 1
     expect(page.locator("[data-lf-queue='you'] .lf-queue-row")).to_have_count(1)
 
-    page.evaluate("__lfReleaseAskPaint()")
+    page.evaluate("__lfReleaseItemPaint()")
     round_trip(page)
-    page.wait_for_function("() => __lfReadAskApplication().unresolved.length === 0")
+    page.wait_for_function("() => __lfReadItemApplication().unresolved.length === 0")
     expect(row.locator(".lf-queue-where")).to_contain_text(
         "Answered: Pause offline editing"
     )
@@ -528,28 +528,28 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     assert after["pending"] == []
 
 
-def test_failed_ask_paints_report_once_and_retain_their_prior_faces(browser, serve):
+def test_failed_item_paints_report_once_and_retain_their_prior_faces(browser, serve):
     """A failed Queue list and a failed Lit face on the banner's bulk control, failing
     in the same publication, each report once and keep their earlier rows and controls
     usable."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     answer_all = page.locator(".lf-answer-all")
-    expect_asks_answered(page, "1/5")
+    expect_items_answered(page, "1/5")
     expect(answer_all).to_have_text("Accept all (1)")
     banner_control(page, ".lf-queue").click()
     rows = page.locator("button.lf-queue-row")
-    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    expect(rows).to_have_count(len(ALL_ITEMS_IN_ORDER))
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.evaluate(
         """async () => {
           const {readApplicationPresentation, whenApplicationPresented} =
             await window.__lfCheckApi();
-          window.__lfReadAskPresentation = readApplicationPresentation;
+          window.__lfReadItemPresentation = readApplicationPresentation;
           const list = document.querySelector('lf-queue-list');
-          window.__lfAskRows = [...list.querySelectorAll('button.lf-queue-row')];
-          window.__lfAskBulk = document.querySelector('.lf-answer-all');
-          const bulkFace = window.__lfAskBulk.querySelector('lf-ask-banner-face');
+          window.__lfItemRows = [...list.querySelectorAll('button.lf-queue-row')];
+          window.__lfItemBulk = document.querySelector('.lf-answer-all');
+          const bulkFace = window.__lfItemBulk.querySelector('lf-item-banner-face');
           for (const [face, name] of [[list, 'Queue list'], [bulkFace, 'Ask banner']]) {
             const render = face.render.bind(face);
             face.render = () => {
@@ -557,25 +557,25 @@ def test_failed_ask_paints_report_once_and_retain_their_prior_faces(browser, ser
               throw new Error(`deliberate ${name} failure`);
             };
           }
-          window.__lfAskListCurrentReady = false;
-          window.__lfWaitForAskListCurrent = () =>
+          window.__lfItemListCurrentReady = false;
+          window.__lfWaitForItemListCurrent = () =>
             void whenApplicationPresented().then(() => {
-              window.__lfAskListCurrentReady = true;
+              window.__lfItemListCurrentReady = true;
             });
         }"""
     )
     page.locator("#lq-token").click()
     holding(page, held, 1, "the semantic answer")
-    page.evaluate("__lfWaitForAskListCurrent()")
-    page.wait_for_function("__lfAskListCurrentReady")
-    assert page.evaluate("__lfReadAskPresentation().pending.length") == 0
-    expect_asks_answered(page, "1/5")
+    page.evaluate("__lfWaitForItemListCurrent()")
+    page.wait_for_function("__lfItemListCurrentReady")
+    assert page.evaluate("__lfReadItemPresentation().pending.length") == 0
+    expect_items_answered(page, "1/5")
     expect(answer_all).to_have_text("Accept all (1)")
-    expect(rows).to_have_count(len(ALL_ASKS_IN_ORDER))
+    expect(rows).to_have_count(len(ALL_ITEMS_IN_ORDER))
     assert rows.evaluate_all(
-        "items => items.every((item, at) => item === window.__lfAskRows[at])"
+        "items => items.every((item, at) => item === window.__lfItemRows[at])"
     )
-    assert answer_all.evaluate("control => control === window.__lfAskBulk")
+    assert answer_all.evaluate("control => control === window.__lfItemBulk")
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert sorted(said(error) for error in take_browser_errors(page)) == [
@@ -589,22 +589,22 @@ def test_failed_ask_paints_report_once_and_retain_their_prior_faces(browser, ser
     round_trip(page)
 
 
-def test_a_completed_ask_persists_and_its_done_row_can_revise_by_keyboard(
+def test_a_completed_item_persists_and_its_done_row_can_revise_by_keyboard(
     browser, serve
 ):
     """Completion keeps the same concise route back through the existing action model:
     the On panel's Done row, reached and opened from the keyboard, arrives at the Ask."""
-    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ITEM_WITH_CONTEXT_PAGE))
     resized(page, 1200, 900)
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
 
     page.locator("#storage-stop").click()
     round_trip(page)
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
 
     page.reload(wait_until="load")
     wait_until_ready(page)
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
 
     # With nothing on the user, the panel opens on its Done's door; Enter opens it and
     # the row below is the Ask's.
@@ -627,24 +627,24 @@ def test_a_completed_ask_persists_and_its_done_row_can_revise_by_keyboard(
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
     expect(row.locator(".lf-queue-where")).to_contain_text(
         "Answered: Drop the oldest documents"
     )
 
 
-def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
+def test_an_answered_boxless_item_reopens_on_its_visible_revision_control(
     browser, serve
 ):
     """An On panel row's arrival preserves Ask semantics when its source has no box to focus."""
     page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
     resized(page, 560, 620)
-    expect_asks_answered(page, "0/4")
+    expect_items_answered(page, "0/4")
 
     page.locator("[data-lf-margin-for='sug-delete'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-delete")).to_be_hidden()
-    expect_asks_answered(page, "1/4")
+    expect_items_answered(page, "1/4")
 
     banner_control(page, ".lf-queue").click()
     row = page.locator('.lf-queue-row[data-lf-at="widget:sug-delete"]')
@@ -659,7 +659,7 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#sug-delete")).to_be_visible()
-    expect_asks_answered(page, "0/4")
+    expect_items_answered(page, "0/4")
 
 
 def test_a_drawer_the_user_left_open_comes_back_open(browser, serve):
@@ -673,16 +673,16 @@ def test_a_drawer_the_user_left_open_comes_back_open(browser, serve):
     Nothing static could have caught it and neither could the render gate, which
     presses no keys and so never has a drawer to restore. It took a user with the
     drawer open pressing reload, which is what this now is."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     banner_control(page, ".lf-queue").click()
     drawer = page.locator(".lf-queue-panel")
     expect(drawer).to_be_visible()
-    expect(page.locator("button.lf-queue-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
+    expect(page.locator("button.lf-queue-row")).to_have_count(len(ALL_ITEMS_IN_ORDER))
 
     page.reload(wait_until="load")
     wait_until_ready(page)
     expect(drawer).to_be_visible()
-    expect(page.locator("button.lf-queue-row")).to_have_count(len(ALL_ASKS_IN_ORDER))
+    expect(page.locator("button.lf-queue-row")).to_have_count(len(ALL_ITEMS_IN_ORDER))
 
 
 def test_a_drawer_sliding_out_takes_no_focus(browser, serve):
@@ -690,7 +690,7 @@ def test_a_drawer_sliding_out_takes_no_focus(browser, serve):
     leaves none of its rows reachable while it slides away, and reopening it brings them
     back. Threads taking its place on the shared right edge is a swap with no slide, so
     the rows are gone at once."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     resized(page, 1200, 900)
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_visible()
@@ -734,13 +734,13 @@ def test_a_drawer_sliding_out_takes_no_focus(browser, serve):
     expect(row).to_be_focused()
 
 
-def test_a_drawer_standing_over_most_of_an_ask_clears_for_it(browser, serve):
+def test_a_drawer_standing_over_most_of_an_item_clears_for_it(browser, serve):
     """The drawer stands over the page, so an Ask its row sends the user to may be under it.
     Drawn wide but still leaving a usable page, the drawer stays live and stands over most of
     the column; pressing a row then clears the drawer, as travel clears any surface hiding
     its destination, rather than landing the user on a decision they cannot see. Beside
     a drawer at its default width the same press keeps the drawer up."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     resized(page, 1440, 900)
     drawer = page.locator(".lf-queue-panel")
     row = page.locator("button.lf-queue-row[data-lf-at='widget:t-bath-choice']")
@@ -765,7 +765,7 @@ def test_a_drawer_standing_over_most_of_an_ask_clears_for_it(browser, serve):
     expect(page.locator("#t-bath-decision")).to_be_focused()
 
 
-def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
+def test_a_row_stands_the_user_on_the_item_it_names(browser, serve):
     """Pressing a row uses the same arrival as the Ask walk. It scrolls there, rings the
     Ask, and stands the user on its opening context; its controls are the next Tab
     stops, while the numeric action map is already available for direct revision.
@@ -773,7 +773,7 @@ def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
     The ring lands in two places for one reason: the decision on the page and its row on the
     drawer are two surfaces showing where the user is standing, painted from the one
     reading of it (markHere), so neither can say something the other doesn't."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     # Narrow enough that the drawer covers the page. A destination selected from a covering
     # sheet must dismiss the sheet; otherwise all the focus and scrolling below happen
     # correctly behind an opaque surface.
@@ -794,13 +794,13 @@ def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     page.wait_for_function(on_screen)
     expect(page.locator("#t-bath-decision")).to_be_focused()
-    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-item", "1")
     page.keyboard.press("Tab")
     expect(page.locator("#t-bath-decision .lf-pick").first).to_be_focused()
     # The covering drawer has gone, so its projected rows go with it. The page carries the
     # one standing mark rather than leaving a second, hidden authority in the closed drawer.
     marked = page.evaluate(
-        """() => [...document.querySelectorAll('[data-lf-ask]')]
+        """() => [...document.querySelectorAll('[data-lf-item]')]
              .map((e) => e.id || e.getAttribute('data-lf-at'))"""
     )
     assert sorted(set(marked)) == ["t-bath-decision"], marked
@@ -816,7 +816,7 @@ def test_the_on_panel_covers_the_page_only_where_it_leaves_no_usable_page(
     drawer drawn wide on a wide one come to the same answer, and a user who has learned one
     edge has learned the other. Either way the drawer stands over the page and moves none
     of it."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     geometry = """() => ({
       column: Math.round(document.querySelector('main').getBoundingClientRect().left),
       drawer: Math.round(
@@ -873,7 +873,7 @@ def test_one_drawer_stands_at_a_time(browser, serve, other_leaf):
     a drawer of one — the page the user is already on — is not worth a control, so
     without a neighbour `g L` is unavailable and there is no second drawer to be exclusive
     with."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     decisions, leaves = (
         page.locator(".lf-queue-panel"),
         page.locator(".lf-others-panel"),

@@ -231,7 +231,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
       adds: "",
-      asks: true,
+      items: true,
     };
   if (reach !== "reached")
     return {
@@ -242,7 +242,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
             summary: "Key refused — open Leaf's link in a new tab",
             explanation: KEY_REFUSED_LINE,
             adds: "Keep this tab open so pending changes can send.",
-            asks: true,
+            items: true,
           }
         : {
             summary: "Server offline — reconnecting; keep page open",
@@ -317,7 +317,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     explanationParts,
     adds: textOf(addsParts),
     addsParts,
-    asks: asked || waitsThere,
+    items: asked || waitsThere,
     actionableWork,
   };
 }
@@ -336,7 +336,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
 // as the Threads control is for "Threads: 999", and only grows, so a count changing
 // moves none of its words.
 const QUEUE_WORDS = Object.freeze({
-  ask: ["ask", "asks"],
+  item: ["item", "items"],
   approval: ["approval", "approvals"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
@@ -380,7 +380,7 @@ const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
 // publication's introduction and links, which
 // remain an ordinary reading row rather than children of the status disclosure button.
 export function statusModel(status, queues, agent) {
-  const { kind, tone, summary, asks = false, publication = null } = status;
+  const { kind, tone, summary, items = false, publication = null } = status;
   let { explanation, adds } = status;
   let explanationParts = [...(status.explanationParts ?? textParts(explanation))];
   let addsParts = [...(status.addsParts ?? textParts(adds))];
@@ -415,7 +415,7 @@ export function statusModel(status, queues, agent) {
     summaryParts: status.summaryParts ?? textParts(summary),
     explanationParts,
     addsParts,
-    asks,
+    items,
     queues: counted.summary,
     queuesWidest: counted.widest,
     explanation,

@@ -265,14 +265,14 @@
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered
     > .lf-tabstrip
-    .lf-tab-answer[data-lf-asks="open"]::before {
+    .lf-tab-answer[data-lf-items="open"]::before {
     content: "○" / "";
     font-weight: 400;
     color: var(--muted);
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered
     > .lf-tabstrip
-    .lf-tab-answer:not([data-lf-asks]) {
+    .lf-tab-answer:not([data-lf-items]) {
     visibility: hidden;
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer-words {

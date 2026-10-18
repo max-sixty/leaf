@@ -30,7 +30,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     REPLY_HOST_PAGE,
     consume_browser_errors,
-    expect_asks_answered,
+    expect_items_answered,
     leaf_page,
     open_page,
     panel_settled,
@@ -48,7 +48,7 @@ from render_harness import (
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
+def test_a_projected_attribute_opens_an_item_captured_from_authored_markup(
     browser, serve
 ):
     """Predicate operands survive upgrade even when the Ask starts closed."""
@@ -118,7 +118,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         )
         told(page)
         if count:
-            expect_asks_answered(page, "0/1")
+            expect_items_answered(page, "0/1")
             banner_control(page, ".lf-queue").click()
         # The phase move is the agent's to answer. The ask leaves the user's
         # queue when its condition closes, retaining its withdrawn inventory row.

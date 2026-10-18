@@ -9,19 +9,19 @@
 import { readPart } from "../semantic-state.js";
 import { registry } from "../registry.js";
 
-export const readAsks = readPart((root) => root.effective.asks);
+export const readItems = readPart((root) => root.effective.items);
 
-export const askEntry = (ask) => registry[ask?.source.tag]?.["x-awaits"];
+export const itemEntry = (item) => registry[item?.source.tag]?.["x-awaits"];
 // Whether the user's words answer this ask (`x-awaits.reply`), as they do an `lf-ask`
 // holding no widget: in its thread, it reads and is answered as a message.
-export const askedInWords = (ask) => Boolean(askEntry(ask)?.reply);
+export const answeredInWords = (item) => Boolean(itemEntry(item)?.reply);
 // The asks approving the shown version waits on, which the server names
 // (`asks.approval_blocking`, the rule its append door refuses a sign-off by).
 // Approval needs an admitted inventory, so its gate never reads unknown as empty: with
 // no admitted reading nothing says which asks still stand, and this answers null.
-export const approvalBlockingAsks = readPart((root) => {
-  const { asks, view } = root.effective;
-  if (asks.phase !== "ready" || !view) return null;
+export const approvalBlockingItems = readPart((root) => {
+  const { items, view } = root.effective;
+  if (items.phase !== "ready" || !view) return null;
   const held = new Set(view.approval_blocking);
-  return asks.all.filter((ask) => held.has(ask.id));
+  return items.all.filter((item) => held.has(item.id));
 });

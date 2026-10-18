@@ -503,7 +503,7 @@ def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
     return foreign
 
 
-def vendored_before_the_ask_rename(page_dir: Path) -> None:
+def vendored_before_the_item_rename(page_dir: Path) -> None:
     """Spell `x-ask-context` as `x-question-context`, its name before the rename, in
     the page's layer and in every registry its revisions captured: in `$keys` and in
     each entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
@@ -1013,18 +1013,18 @@ def state_json(d):
     return json.loads(result.output)
 
 
-def asks_on_user(state):
+def items_on_user(state):
     """Widget asks on the user's list, On me, retaining source and prompt identity."""
     return [
         {
             "id": item["id"],
-            "tag": item["ask"]["source"]["tag"],
-            "widget": item["ask"]["source"]["id"],
-            "widget_tag": item["ask"]["source"]["tag"],
+            "tag": item["item"]["source"]["tag"],
+            "widget": item["item"]["source"]["id"],
+            "widget_tag": item["item"]["source"]["tag"],
             "thread": item["thread"],
         }
         for item in state["queues"]["on_user"]
-        if item["kind"] == "ask" and item["ask"]["source"]["kind"] == "widget"
+        if item["kind"] == "item" and item["item"]["source"]["kind"] == "widget"
     ]
 
 

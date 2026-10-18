@@ -22,7 +22,7 @@ from render_harness import (
     EXAMPLES,
     LONG_PAGE,
     consume_browser_errors,
-    expect_asks_answered,
+    expect_items_answered,
     expect_banner_control_offered,
     leaf_page,
     open_page,
@@ -351,7 +351,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-queue")
     expect(decisions).to_have_text("On me: 0")
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_visible()

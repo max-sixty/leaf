@@ -296,7 +296,7 @@ def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, 
         draft_control(page, "cancel", f"continuation-{i}").click()
 
 
-def test_a_draft_in_an_ask_takes_no_digits_and_answers_from_its_controls(
+def test_a_draft_in_an_item_takes_no_digits_and_answers_from_its_controls(
     browser, serve
 ):
     """A draft lends its Ask no digits, so a digit typed while standing on the Ask

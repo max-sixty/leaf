@@ -23,7 +23,7 @@ from render_cases_layout import banner_control
 from render_harness import (
     EXAMPLES,
     LONG_PAGE,
-    expect_asks_answered,
+    expect_items_answered,
     holding,
     open_page,
     panel_settled,
@@ -810,7 +810,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
     # instantiated once, in that card, and the Ask reading and the On panel find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
-    # log (test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page).
+    # log (test_a_narrowing_hides_a_thread_without_taking_its_item_off_the_page).
     expect(
         page.locator(f'.lf-threads > .lf-thread[hidden][data-id="{mine}"]')
     ).to_have_count(1)
@@ -999,7 +999,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
 
 
-def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser, serve):
+def test_a_narrowing_hides_a_thread_without_taking_its_item_off_the_page(browser, serve):
     """Thread narrowing changes presentation, not the admitted ask inventory.
 
     With one ask answered, hiding a thread with the On me filter keeps
@@ -1014,7 +1014,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser,
     question = page.locator(".lf-thread-panel lf-options[choose]").first
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
     round_trip(page)
-    expect_asks_answered(page, "1/2")
+    expect_items_answered(page, "1/2")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
@@ -1024,7 +1024,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser,
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
     ).to_have_count(1)
-    expect_asks_answered(page, "1/2")
+    expect_items_answered(page, "1/2")
     banner_control(page, ".lf-queue").click()
     page.locator(".lf-queue-done > summary").click()
     done = page.locator(".lf-queue-done .lf-queue-row[data-lf-kind='ask']")
@@ -1064,7 +1064,7 @@ def test_a_reply_that_takes_its_card_out_of_the_view_takes_the_user_with_it(
     expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
-def test_a_walk_to_an_ask_the_narrowing_hides_widens_the_list(browser, serve):
+def test_a_walk_to_an_item_the_narrowing_hides_widens_the_list(browser, serve):
     """A card the narrowing hid keeps its node, so the `m` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:
     focus on a card with no box is a no-op and the announcement would say "1 of 2"

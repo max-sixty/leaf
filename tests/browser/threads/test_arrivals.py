@@ -557,7 +557,7 @@ def test_a_stream_growing_keeps_the_panel_editor_still(
           && field.value === 'half newer a thought'""")
 
 
-ASK_MARKUP = (
+ITEM_MARKUP = (
     '<lf-ask id="held-question"><h3>Which answer should we use?</h3>'
     '<lf-options id="held-choice" choose>'
     '<lf-option id="held-first">The first answer</lf-option>'
@@ -566,7 +566,7 @@ ASK_MARKUP = (
 )
 
 
-@pytest.mark.parametrize("destination", ["message", "ask", "shown-ask"])
+@pytest.mark.parametrize("destination", ["message", "item", "shown-ask"])
 def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination):
     """A direct message visit and the Ask walk can reach a held reply's contents.
     Walking from outside the thread to an Ask it already shows ("shown-ask") is an
@@ -583,7 +583,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
                 "revision": 1,
                 "parent": root,
                 "text": "One question first.",
-                "markup": ASK_MARKUP,
+                "markup": ITEM_MARKUP,
             },
         )
     context = browser.new_context(reduced_motion="reduce")
@@ -604,7 +604,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
             "revision": 1,
             "parent": root,
             "text": "This answer arrived while the draft was open.",
-            **({"markup": ASK_MARKUP} if destination == "ask" else {}),
+            **({"markup": ITEM_MARKUP} if destination == "item" else {}),
         },
     )
     told(page)

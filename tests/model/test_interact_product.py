@@ -270,7 +270,7 @@ def test_sample_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_ask_context_frames_any_number_of_independent_sources(page_dir):
+def test_item_context_frames_any_number_of_independent_sources(page_dir):
     """Context supplies one title without imposing source count or identity."""
     registry = registry_storage.load_registry(page_dir)
     first = (
@@ -317,7 +317,7 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
         f'<lf-ask id="d"><p>Context.</p>{first}</lf-ask>',
         f'<lf-ask id="d"><strong>Choose</strong>{first}</lf-ask>',
     ):
-        assert found(fragment_errors(untitled, registry), "ask-context-title")
+        assert found(fragment_errors(untitled, registry), "untitled-question")
 
     # A context framing no widget is a question the user answers in words, and needs
     # no heading. One framing only widgets that ask nothing would show a question the
@@ -331,7 +331,7 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
     empty = fragment_errors(
         '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>', registry
     )
-    assert found(empty, "empty-ask-context", widgets=[])
+    assert found(empty, "empty-question", widgets=[])
 
     def lacking(lacks):
         return [{"at": "<lf-options id=g-one>", "line": 1, "lacks": lacks}]
@@ -342,19 +342,19 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
             f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
             registry,
         ),
-        "empty-ask-context",
+        "empty-question",
         widgets=lacking({"choose": [True]}),
     )
     settled = first.replace(" choose", " choose settled")
-    settled_ask = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
-    assert fragment_errors(settled_ask, registry) == []
+    settled_item = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
+    assert fragment_errors(settled_item, registry) == []
     # The registry's `retired` is what says the flag ended an ask; a flag
     # that merely stops a widget asking leaves the context framing nothing.
     unretired = copy.deepcopy(registry)
     del unretired["lf-options"]["x-awaits"]["retired"]
     assert found(
-        fragment_errors(settled_ask, unretired),
-        "empty-ask-context",
+        fragment_errors(settled_item, unretired),
+        "empty-question",
         widgets=lacking({"settled": [False]}),
     )
     # A quoted Ask is a mention, and its widgets ask nothing by design.

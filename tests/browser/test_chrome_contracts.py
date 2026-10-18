@@ -22,7 +22,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     toggle_queue,
     token_colour,
-    with_one_ask,
+    with_one_item,
 )
 from render_cases_navigation import _publish
 from render_harness import (
@@ -1360,7 +1360,7 @@ WIDE_PAGE = leaf_page(
 SURFACE_PAGES = {
     "threads-column": ("threads", lambda: LONG_PAGE),
     "threads-wide-page": ("threads", lambda: WIDE_PAGE),
-    "queue": ("queue", lambda: with_one_ask(LONG_PAGE)),
+    "queue": ("queue", lambda: with_one_item(LONG_PAGE)),
 }
 
 

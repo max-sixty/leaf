@@ -71,7 +71,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
-from .asks import replied
+from .items import replied
 from .events import note_settlements, taken_back
 from .findings import Finding, Rejected
 from .thread_context import thread_names
@@ -279,7 +279,7 @@ def todo_error(
     element_error,
     user_widget_error,
     owed: set[str],
-    asks,
+    items,
     registry: dict,
 ) -> Finding | None:
     """Why the append door refuses a to-do, start or completion, or None.
@@ -321,24 +321,24 @@ def todo_error(
     named = {"todo": identity}
     todo = next((todo for todo in log.todos if todo["id"] == identity), None)
     if todo is None:
-        ask = next(
-            (ask for ask in asks() if identity == ask["id"]),
+        item = next(
+            (item for item in items() if identity == item["id"]),
             None,
         )
-        if ask is not None:
-            if ask["source"]["kind"] == "approval":
+        if item is not None:
+            if item["source"]["kind"] == "approval":
                 return Finding(
-                    "approval-ask",
-                    values={**named, "version": ask["source"]["version"]},
+                    "approval-item",
+                    values={**named, "version": item["source"]["version"]},
                 )
-            if not replied(registry[ask["source"]["tag"]]):
-                return Finding("widget-ask", values=named)
+            if not replied(registry[item["source"]["tag"]]):
+                return Finding("widget-item", values=named)
             if event["author"] != "agent":
-                return Finding("users-prose-ask", values=named)
-            if ask["status"] != "open":
-                return Finding("ended-ask", values={**named, "status": ask["status"]})
+                return Finding("users-question", values=named)
+            if item["status"] != "open":
+                return Finding("ended-item", values={**named, "status": item["status"]})
             if event["outcome"] == "failed":
-                return Finding("failed-prose-ask", values=named)
+                return Finding("failed-question", values=named)
             return None
         if ended := log.ends.get(identity):
             return Finding("ended-todo", values={**named, "state": ended["state"]})

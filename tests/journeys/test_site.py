@@ -54,7 +54,7 @@ from render_cases_layout import banner_control
 from render_harness import (
     consume_browser_errors,
     displayed,
-    expect_asks_answered,
+    expect_items_answered,
     expect_banner_control_offered,
     holding,
     http_error_console,
@@ -1544,9 +1544,9 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
     # The question Claude asks in that thread is a widget, upgraded from the
     # same canonical state a user can answer where they are standing.
-    ask = page.locator("#off-slip")
-    expect(ask).to_be_visible()
-    assert ask.locator("[data-lf-offer]").count() > 0, (
+    item = page.locator("#off-slip")
+    expect(item).to_be_visible()
+    assert item.locator("[data-lf-offer]").count() > 0, (
         "the group renders on the site with nothing to press, so the decision "
         "is a picture of one"
     )
@@ -1574,7 +1574,7 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
         )
     ).to_have_text("running")
     # The inventory includes request Decisions beside state Asks.
-    expect_asks_answered(page, "0/5")
+    expect_items_answered(page, "0/5")
     expect_banner_control_offered(page.locator(".lf-queue"))
 
 
@@ -1629,17 +1629,17 @@ def test_a_published_decision_survives_reload(served_example, browser):
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
     decisions = page.locator(".lf-queue")
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
     expect_banner_control_offered(decisions)
     chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()
     expect(page.locator("#heat-first")).to_have_attribute("data-lf-user-override", "1")
     assert "heat-opt-floor" in page.evaluate(chosen)
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
     page.reload(wait_until="load")
     wait_until_ready(page)
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
     assert "heat-opt-floor" in page.evaluate(chosen)
 
 

@@ -9,7 +9,7 @@ the document reading's own (`SourceReading.decided_passages`).
 
 from typing import NamedTuple
 
-from .asks import approval_ask, collection, page_ask_readings
+from .items import approval_item, collection, page_item_readings
 from .events import retractions
 from .passages import Passages
 from .projection import PageReading, StateProjection, retirement_outcomes
@@ -21,7 +21,7 @@ class DocumentReading(NamedTuple):
     projection: StateProjection
     spoken: dict
     passages: Passages
-    asks: dict
+    items: dict
     within: dict
     floors: dict
 
@@ -42,7 +42,7 @@ def read_document(page: PageReading, threads: dict, ends: dict) -> DocumentReadi
     spk = page.spoken
     passages = page.reading.decided_passages(retirement_outcomes(projection.actions))
     dropped = set(passages.retired) | set(passages.gone)
-    asks = page_ask_readings(
+    items = page_item_readings(
         parser,
         projection,
         parser.by_id,
@@ -57,14 +57,14 @@ def read_document(page: PageReading, threads: dict, ends: dict) -> DocumentReadi
         revision=revision,
         events=events,
     )
-    if approval := approval_ask(document, revision, events):
-        asks = collection([*asks["all"], approval])
+    if approval := approval_item(document, revision, events):
+        items = collection([*items["all"], approval])
     return DocumentReading(
         document=document,
         projection=projection,
         spoken=spk,
         passages=passages,
-        asks=asks,
+        items=items,
         within=page.within,
         floors=retractions(events, revision),
     )

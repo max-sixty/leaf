@@ -50,7 +50,7 @@ line for each refusal or note, with the words in `error` or `text`.
    `references/packages.md`, "Package reach", lists the packages. Use
    `playground` when the user tunes several values or behaviors before choosing.
    Drawn candidates the user picks among need no package, since the user selects
-   the candidate itself (`references/authoring-asks.md`). Running `page init`
+   the candidate itself (`references/authoring-decisions.md`). Running `page init`
    again with a package adds it to a page already written.
 2. Read all of `references/page-authoring.md`, then each reference the page
    needs, listed under "Author a version" below. Choose elements and class idioms
@@ -120,7 +120,7 @@ side on a sidebar page, or a workspace the user moves through instead of
 scrolling. A Layout class on `main` sets the shape, and the page's own CSS
 adjusts it. `references/page-authoring.md`, "Composing a page", owns the choice
 of shape, `references/page-layout.md` each shape's geometry, and
-`references/authoring-asks.md` where each ask goes.
+`references/authoring-decisions.md` where each ask goes.
 
 Include only controls and gestures that advance the user's task. Widget actions,
 resolutions and sign-offs can be undone; sent words stay in the log.
@@ -158,7 +158,7 @@ never have to follow a chain of references to find one.
   a `page/registry.json`, or anything loaded from another server.
 - `references/live-samples.md`: before letting the user operate a Leaf page inside a
   page or a thread message.
-- `references/authoring-asks.md`: when the page or your reply leaves anything for
+- `references/authoring-decisions.md`: when the page or your reply leaves anything for
   the user to decide or sign off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising the page's current state.

@@ -47,28 +47,28 @@ def _todo_item(todo: dict) -> dict:
     }
 
 
-def _ask_item(ask: dict) -> dict:
+def _record_item(item: dict) -> dict:
     """One ask on the user's list, On me; it retains its canonical record."""
-    source = ask["source"]
+    source = item["source"]
     subject = (
         {"kind": "widget", "id": source["id"]}
         if source["kind"] == "widget"
         else {"kind": "page"}
         if source["kind"] == "approval"
-        else {"kind": "thread", "id": ask["thread"]}
+        else {"kind": "thread", "id": item["thread"]}
     )
     return {
-        "kind": "ask",
-        "id": ask["id"],
+        "kind": "item",
+        "id": item["id"],
         "owner": "user",
         "subject": subject,
-        "thread": ask["thread"],
-        "title": ask["prompt"]["text"],
+        "thread": item["thread"],
+        "title": item["prompt"]["text"],
         "running": None,
         "live": False,
         "agent": None,
         "session": None,
-        "ask": ask,
+        "item": item,
     }
 
 
@@ -76,7 +76,7 @@ def queues(
     threads: list[dict],
     workflows: list[dict],
     todos: list[dict],
-    asks: dict,
+    items: dict,
 ) -> dict:
     """Select asks, to-dos, resends and response obligations once.
 
@@ -87,7 +87,7 @@ def queues(
     thread is that thread's resend, and one handed back outside any thread is its
     own."""
     open_todos = [todo for todo in todos if todo["state"] == "open"]
-    on_user = [_ask_item(ask) for ask in asks["user"]]
+    on_user = [_record_item(item) for item in items["user"]]
     on_user += [_todo_item(todo) for todo in open_todos if todo["owner"] == "user"]
     on_user += [
         {
@@ -131,13 +131,13 @@ def queues(
     on_agent += [_todo_item(todo) for todo in open_todos if todo["owner"] == "agent"]
     done = [
         {
-            **_ask_item(ask),
-            "state": "dropped" if ask["status"] == "withdrawn" else "done",
-            "ended": ((ask["end"] or ask["answer"] or {}).get("event") or {}).get("ts"),
-            "detail": ask["end"]["detail"] if ask["end"] else None,
+            **_record_item(item),
+            "state": "dropped" if item["status"] == "withdrawn" else "done",
+            "ended": ((item["end"] or item["answer"] or {}).get("event") or {}).get("ts"),
+            "detail": item["end"]["detail"] if item["end"] else None,
         }
-        for ask in asks["all"]
-        if ask["status"] != "open"
+        for item in items["all"]
+        if item["status"] != "open"
     ]
     done += [
         {

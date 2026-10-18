@@ -8,7 +8,7 @@ import pytest
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, PANEL_PAGE, panel_comment
+from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, panel_comment
 from render_cases_layout import banner_control
 from render_harness import (
     EXAMPLES,
@@ -29,10 +29,10 @@ from render_harness import (
 )
 
 from browser.margin import (
-    ACTION_ON_ASK,
-    COMMENT_ON_ASK,
+    ACTION_ON_ITEM,
+    COMMENT_ON_ITEM,
     LONG_THREAD_ROOT,
-    PARAGRAPH_ON_ASK,
+    PARAGRAPH_ON_ITEM,
     WORDS_RIGHT,
     leave_card_by_its_target,
     resized_shell,
@@ -49,11 +49,11 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
     page = open_page(
         browser,
         serve(
-            ASK_PAGE,
+            ITEM_PAGE,
             events=[
-                COMMENT_ON_ASK,
+                COMMENT_ON_ITEM,
                 {
-                    **COMMENT_ON_ASK,
+                    **COMMENT_ON_ITEM,
                     "text": "Check the tools separately.",
                     "anchor": {"section": "tools"},
                 },
@@ -100,7 +100,7 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
 ):
     """Only a full-width message leaves the margin row clear; a narrower message
     uses the row's space and reaches the visible edge."""
-    page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
+    page = open_page(browser, serve(ITEM_PAGE, events=[PARAGRAPH_ON_ITEM]))
     resized(page, width, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")
@@ -683,7 +683,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
 def test_crossing_to_the_small_screen_keeps_the_card_by_its_pin(browser, serve):
     """The rail falling changes where a marker stands, not whether it does: the marker
     becomes a pin and the card it opened stays up beside it."""
-    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
+    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
@@ -709,7 +709,7 @@ def test_a_reflow_that_moves_a_marker_carries_its_open_card(browser, serve):
     of those cases is to the margin.
     """
     width = 1440
-    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(ITEM_PAGE, events=[COMMENT_ON_ITEM]))
     resized(page, width, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.evaluate(
@@ -759,7 +759,7 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     the fixed card, so a spot or a length written as a client one would be moved or
     scaled by the transform; carried across, the card stays where and as wide as the
     rule put it."""
-    page = open_page(browser, serve(ASK_PAGE, events=[PARAGRAPH_ON_ASK]))
+    page = open_page(browser, serve(ITEM_PAGE, events=[PARAGRAPH_ON_ITEM]))
     resized(page, 1920, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
     marker.evaluate(
@@ -802,8 +802,8 @@ def test_a_card_under_a_containing_block_stands_beside_its_cluster(
     assert after == pytest.approx(before, abs=0.5), (before, after)
 
 
-QUOTED_ON_ASK = {
-    **COMMENT_ON_ASK,
+QUOTED_ON_ITEM = {
+    **COMMENT_ON_ITEM,
     "anchor": {"section": "sec-mounts", "quote": "one came down in January"},
 }
 
@@ -853,7 +853,7 @@ def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
     the scroll carries them with, and each owner on the scroll path writes only what
     changed. Chrome repaints the whole document for any write while a highlight holds a
     range, which a page with a quoted comment always has."""
-    page = open_page(browser, serve(ASK_PAGE, events=[COMMENT_ON_ASK, QUOTED_ON_ASK]))
+    page = open_page(browser, serve(ITEM_PAGE, events=[COMMENT_ON_ITEM, QUOTED_ON_ITEM]))
     resized(page, 1440, 600)
     marker = page.locator('[data-lf-margin-for="bracket"] .lf-margin-marker')
     marker.evaluate(
@@ -884,10 +884,10 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     thread shook its card. Once the element's foot passes the window's top, the card
     leaves with it. On an Ask's options, the binding badge the banner holds in stands
     in the window's plane too, for the same reason."""
-    comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
+    comment = {**COMMENT_ON_ITEM, "anchor": {"section": target}}
     # Give the last Ask room to pass above the viewport before scroll reaches the
     # document's end; the fixture otherwise stops with #bracket still visible.
-    source = ASK_PAGE.replace(
+    source = ITEM_PAGE.replace(
         "</main>", '<div style="height: 800px" aria-hidden="true"></div></main>'
     )
     page = open_page(browser, serve(source, events=[comment]))
@@ -957,7 +957,7 @@ def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve)
     was anchored to the element, carried up with each scroll frame, and placed back. A
     scroll of the page carries the pane and the card together, and keeps the card's
     side, which the pane's size holds rather than where the page shows it."""
-    comment = {**COMMENT_ON_ASK, "anchor": {"section": "pane-sec"}}
+    comment = {**COMMENT_ON_ITEM, "anchor": {"section": "pane-sec"}}
     page = open_page(browser, serve(PANE_PAGE, events=[comment]))
     resized(page, 1440, 900)
     page.evaluate("() => document.getElementById('pane-sec').scrollIntoView()")
@@ -1018,7 +1018,7 @@ def test_a_card_an_outer_panes_edge_holds_stands_in_that_panes_plane(browser, se
     """Inside a bounded block that itself scrolls inside a pane, the edge holding the
     card in can be the outer pane's, which clips the inner block. The card is anchored
     to the box whose edge holds it, so the outer pane's scroll writes nothing to it."""
-    comment = {**COMMENT_ON_ASK, "anchor": {"section": "pane-sec"}}
+    comment = {**COMMENT_ON_ITEM, "anchor": {"section": "pane-sec"}}
     page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))
     resized(page, 1440, 900)
     page.evaluate(
@@ -1064,7 +1064,7 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
     them and leaves them over the element. Drawn in the document's plane from the
     element's box as the panes cut it, they were rewritten on every scroll step, a frame
     behind the words."""
-    comment = {**COMMENT_ON_ASK, "anchor": {"section": "pane-sec"}}
+    comment = {**COMMENT_ON_ITEM, "anchor": {"section": "pane-sec"}}
     page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))
     resized(page, 1440, 900)
     page.evaluate(
@@ -1121,7 +1121,7 @@ def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve
 def test_a_scroll_that_carries_the_response_bar_writes_nothing(browser, serve):
     """The response bar a selection raises rides a scroll with its passage in the same
     plane, writing nothing, as the card does."""
-    page = open_page(browser, serve(ASK_PAGE, events=[QUOTED_ON_ASK]))
+    page = open_page(browser, serve(ITEM_PAGE, events=[QUOTED_ON_ITEM]))
     resized(page, 1440, 600)
     words = page.locator("#heater-p")
     words.evaluate(

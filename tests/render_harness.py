@@ -1737,12 +1737,12 @@ def expect_banner_control_offered(control, *, offered=True):
 # How many of the page's active Asks are answered, as "answered/total": the publisher's
 # own Ask reading, which the On panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
-_ASKS_ANSWERED = """async () => {
+_ITEMS_ANSWERED = """async () => {
   const { readApplication } = await window.__lfCheckApi();
-  window.__lfAsksAnswered = () => {
+  window.__lfItemsAnswered = () => {
     const application = readApplication();
     if (application.phase !== 'ready') return null;
-    const asks = application.effective.asks;
+    const asks = application.effective.items;
     const all = asks.all.filter(ask => ask.source.kind === "widget");
     const unanswered = asks.unanswered.filter(ask => ask.source.kind === "widget");
     return `${all.length - unanswered.length}/${all.length}`;
@@ -1750,20 +1750,20 @@ _ASKS_ANSWERED = """async () => {
 }"""
 
 
-def expect_asks_answered(page, answered: str) -> None:
+def expect_items_answered(page, answered: str) -> None:
     """Wait until the page's Ask reading holds `answered` ("answered/total").
 
     The deadline bounds a hang; on expiry the failure names the reading the page held.
     """
-    page.evaluate(_ASKS_ANSWERED)
+    page.evaluate(_ITEMS_ANSWERED)
     try:
         page.wait_for_function(
-            "(want) => window.__lfAsksAnswered() === want",
+            "(want) => window.__lfItemsAnswered() === want",
             arg=answered,
             timeout=render_checks_model.SERVED_TIMEOUT_MS,
         )
     except PlaywrightTimeout as error:
-        held = page.evaluate("() => window.__lfAsksAnswered()")
+        held = page.evaluate("() => window.__lfItemsAnswered()")
         raise AssertionError(f"answered Asks read {held}, not {answered}") from error
 
 

@@ -117,12 +117,12 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     resized(page, 1600, 900)
     expect(page.locator(".lf-banner-status")).not_to_be_empty()
     banner_control(page, ".lf-queue").click()
-    map_ask = page.locator("button.lf-queue-row").filter(
+    map_item = page.locator("button.lf-queue-row").filter(
         has_text="Which map should the sample team carry?"
     )
-    expect(map_ask).to_have_count(1)
-    expect(map_ask).to_have_attribute("data-lf-kind", "ask")
-    map_ask.click()
+    expect(map_item).to_have_count(1)
+    expect(map_item).to_have_attribute("data-lf-kind", "item")
+    map_item.click()
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     banner_control(page, ".lf-queue").click()
     page.locator("#bg-question-api > summary").click()

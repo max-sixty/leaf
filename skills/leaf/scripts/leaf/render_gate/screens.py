@@ -73,21 +73,21 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step
 # past it.
 STANDING_ITEM = """() => {
-  const ask = [...document.querySelectorAll('[data-lf-ask]:not(.lf-queue-row)')]
-    .find((el) => !el.parentElement?.closest('[data-lf-ask]'))?.id;
-  if (ask) return {ask: true, id: ask};
+  const ask = [...document.querySelectorAll('[data-lf-item]:not(.lf-queue-row)')]
+    .find((el) => !el.parentElement?.closest('[data-lf-item]'))?.id;
+  if (ask) return {item: true, id: ask};
   let held = document.activeElement;
   while (held?.shadowRoot?.activeElement) held = held.shadowRoot.activeElement;
   const thread = held?.closest?.('.lf-thread, .lf-page-thread');
   const id = thread?.dataset.id ?? thread?.dataset.thread;
-  if (id) return {ask: false, id};
+  if (id) return {item: false, id};
   const page = document.activeElement;
   const widget = page?.closest?.('.lf-chrome') ? null : page?.closest?.('[id]');
-  return widget ? {ask: false, id: widget.id} : null;
+  return widget ? {item: false, id: widget.id} : null;
 }"""
 
 
-def _asks_in_turn(page, into: Path) -> tuple[list[Path], bool]:
+def _items_in_turn(page, into: Path) -> tuple[list[Path], bool]:
     """The window at each open ask `m` reaches from the top, as far as MOST_SCREENS,
     and whether the walk goes on past them. Which ask a press reached is the runtime's
     own mark, so the walk covers whatever `m` does, a suggestion as much as an
@@ -98,10 +98,10 @@ def _asks_in_turn(page, into: Path) -> tuple[list[Path], bool]:
         page.keyboard.press("m")
         rendered(page)
         here = page.evaluate(STANDING_ITEM)
-        if here is None or (here["ask"], here["id"]) in seen:
+        if here is None or (here["item"], here["id"]) in seen:
             return shots, False
-        seen.add((here["ask"], here["id"]))
-        if not here["ask"]:
+        seen.add((here["item"], here["id"]))
+        if not here["item"]:
             continue
         if len(shots) == MOST_SCREENS:
             return shots, True
@@ -160,7 +160,7 @@ def save_screens(
     whole(RENDER_VIEWPORT, False, "desktop")
     context, page = _open(browser, url, RENDER_VIEWPORT, False)
     try:
-        shots, more = _asks_in_turn(page, into)
+        shots, more = _items_in_turn(page, into)
         label = "desktop, each press of `m` from the top, at the next open ask"
         if more:
             label = f"{label}, the first {len(shots)} of the page's open asks"

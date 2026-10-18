@@ -242,7 +242,7 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     ]
 
 
-def test_the_move_that_empties_the_queue_answers_its_ask():
+def test_the_move_that_empties_the_queue_answers_its_item():
     """Only moving the final real card answers the whole queue's Ask.
 
     A crafted unknown unit must never count as completing the queue.

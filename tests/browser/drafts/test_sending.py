@@ -7,7 +7,7 @@ import pytest
 from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_ASK_PAGE
+from render_cases_interaction import SEATED_ITEM_PAGE
 from render_cases_layout import in_threads_scrollport
 from render_cases_navigation import (
     JOURNEY_V1,
@@ -510,7 +510,7 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     to be a message, which is what covers every box that sends one.
     """
     browser, held = held_events
-    page = open_page(browser, serve(SEATED_ASK_PAGE))
+    page = open_page(browser, serve(SEATED_ITEM_PAGE))
     live = page.locator(".lf-live")
     seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
     field = seat.locator("leaf-text")
@@ -539,7 +539,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     unanswered. That makes the window ordinary rather than rare.
     """
     browser, held = held_events
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -651,7 +651,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
 def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_inline):
     """Closing Threads during delivery is later than sending the reply."""
     browser, held = held_events
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -959,7 +959,7 @@ def test_a_held_comment_send_leaves_a_later_keyboard_comment_open(held_events, s
 
 def test_a_held_thread_send_cannot_clear_a_newer_raw_draft(browser, serve, one_user):
     """Settlement compares raw words, so an older POST cannot erase a later edit."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {

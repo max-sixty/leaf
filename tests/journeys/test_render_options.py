@@ -13,8 +13,8 @@ from interact_support import (
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASK_PAGE,
-    ASK_WITH_CONTEXT_PAGE,
+    ITEM_PAGE,
+    ITEM_WITH_CONTEXT_PAGE,
     EXHIBIT_EXTENT,
     SAMPLE_EXAMPLES,
     live_url,
@@ -70,7 +70,7 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
 
 
 def test_option_words_render_markdown_without_losing_the_user_draft(browser, serve):
-    source = ASK_PAGE.replace(
+    source = ITEM_PAGE.replace(
         "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
     )
     url = serve(source)
@@ -103,7 +103,7 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
     expect(added.locator("strong")).to_have_text("both")
 
 
-def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
+def test_a_selected_item_keeps_one_action_context_while_tab_reaches_its_field(
     browser, serve
 ):
     """The Ask owns its numbered actions wherever focus stands inside it.
@@ -111,7 +111,7 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     Tab traverses the real controls without replacing that action map. Another option is
     the next numbered route into its shared text box rather than an Enter alias on a mark.
     """
-    url = serve(ASK_WITH_CONTEXT_PAGE)
+    url = serve(ITEM_WITH_CONTEXT_PAGE)
     page = open_page(browser, url)
 
     page.keyboard.press("m")
@@ -139,7 +139,7 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     expect(write_hint).to_be_hidden()
     page.close()
 
-    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ITEM_WITH_CONTEXT_PAGE))
     page.keyboard.press("m")
     mark = page.locator("#storage-evict .lf-pick")
     box = page.locator("#storage-options > .lf-another leaf-text")
@@ -182,7 +182,7 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     expect(added.locator("br")).to_have_count(2)
     page.close()
 
-    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ITEM_WITH_CONTEXT_PAGE))
     page.keyboard.press("m")
     page.keyboard.press("Tab")
     mark = page.locator("#storage-evict .lf-pick")
@@ -209,7 +209,7 @@ def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     # so rather than leaving it to the window's height to be right. Chrome's focus
     # scroll moves a stop only when it stands wholly outside the padded band, so the
     # window is one where the arrival leaves the field wholly under the bottom bar.
-    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ITEM_WITH_CONTEXT_PAGE))
     resized(page, 390, 600)
     clearance = """() => document.querySelector('.lf-shortcut-bar').getBoundingClientRect().top
       - document.querySelector('#storage-options > .lf-another')
@@ -241,7 +241,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     once that option exists. Unrelated versions leave the board claim in force, while
     a claim made on v2 does not leak backward into a pinned v1 tab.
     """
-    work_page = ASK_PAGE.replace(
+    work_page = ITEM_PAGE.replace(
         '<h1 id="h">Three jobs</h1>',
         '<h1 id="h">Three jobs</h1>\n'
         '<lf-board id="work-board"><lf-column id="work-now" label="In flight">\n'

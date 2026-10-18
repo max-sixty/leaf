@@ -326,7 +326,7 @@ def test_a_row_waits_for_the_change_it_decides_to_be_on_screen(browser, serve):
     ), "and on the line of the change it decides"
 
 
-def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serve):
+def test_the_item_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serve):
     """Stepping the Asks opens the closed <details> a change waits inside, and does
     it in the same task as the arrival. The row un-waits on the runtime's reveal signal
     rather than at the observer's next frame: settled asynchronously, the arrival landed
@@ -335,10 +335,10 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     had already seen."""
     page = open_page(browser, serve(COLLAPSED_PAGE))
     page.keyboard.press("m")
-    expect(page.locator("#sug-now[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#sug-now[data-lf-item]")).to_have_count(1)
     page.keyboard.press("m")
     expect(page.locator("#later")).to_have_attribute("open", "")
-    expect(page.locator("#sug-boxes[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#sug-boxes[data-lf-item]")).to_have_count(1)
     # The arrival stands on the suggestion; what the reveal has to have done is leave the
     # control that answers it a thing the user can reach, which a display:none control
     # is not.

@@ -305,7 +305,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     )["attention"]
 
 
-def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(page_dir):
+def test_delivery_distinguishes_composing_an_item_from_changing_input_in_hand(page_dir):
     source = PAGE.replace(
         "<lf-options>", '<lf-options id="choice" choose multiple>'
     ).replace(

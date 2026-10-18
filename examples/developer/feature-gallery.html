@@ -237,10 +237,10 @@
       ]
     </script>
     <script type="module">
-      import { afterPresentation, commands, readAsks } from "/runtime/widget-api.js";
+      import { afterPresentation, commands, readItems } from "/runtime/widget-api.js";
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const ask = readAsks().all.find((q) => q.id === "widget:bg-choice");
+        const ask = readItems().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
         output.textContent = JSON.stringify(ask, null, 2);
         output.hidden = false;

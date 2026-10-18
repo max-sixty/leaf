@@ -8,9 +8,8 @@
    will observe again; it neither waits behind a gesture nor holds one up. */
 import { runtime } from "./context.js";
 import { completeData, postEvent, reportCarried } from "./layer-client.js";
-import { notice } from "./notifications.js";
 import { afterScript } from "./rendering.js";
-import { raiseError } from "./errors.js";
+import { holdingError, raiseError } from "./errors.js";
 
 const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
@@ -37,13 +36,21 @@ export function createDelivery({
   let draining = false;
 
   async function deliver(entry) {
-    let announced = false;
-    // Say once that the change is not through yet, then wait before the next try.
+    // That the change is not through yet stands as an error while the tries go on,
+    // and leaves when the change is through or refused.
+    const retrying = holdingError();
     const retry = async (message) => {
-      if (!announced) notice(message);
-      announced = true;
+      retrying(message);
       await retryPause();
     };
+    try {
+      return await tries(entry, retry);
+    } finally {
+      retrying(null);
+    }
+  }
+
+  async function tries(entry, retry) {
     for (;;) {
       if (!ledger.nameEvents(entry)) return { accepted: null };
       const { event } = entry;

@@ -1708,11 +1708,11 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     sheen(False)
 
 
-def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
-    """A status that only reports reads in the dim face, and one that asks the user to
-    act, here to open Leaf's link once the server refuses this tab's key, reads stronger,
-    in its tone's ink (`pageStatus`, `asks`). Pointing at the field says the status in full,
-    where its room would cut it short."""
+def test_a_refused_key_is_an_error_the_field_says(browser, serve):
+    """A status that only reports reads in the dim face, with the status in full on
+    pointing at the field. Once the server refuses this tab's key, which asks the user to
+    act, that stands as an error: the field says it in the danger's ink, in full on
+    pointing, and the caret going in leaves it there until the user writes."""
     url = serve(LONG_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
@@ -1725,24 +1725,20 @@ def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
         return float(found.group(1)) if found else 1.0
 
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Claude working"))
-    expect(panel).not_to_have_attribute("data-asks", "")
     expect(page.locator(".lf-fp-field")).to_have_attribute(
         "title", re.compile("^Claude is working — Drafting the rollout")
     )
 
     page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
     declare_idle(serve.page_dir)
+    expect(panel).to_have_attribute("data-says", "error")
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
-    expect(panel).to_have_attribute("data-asks", "")
-    assert alpha() > 0.6, "the status asking the user to act reads as dim as a report"
+    assert alpha() > 0.6, "the refused key reads as dim as a report"
     expect(page.locator(".lf-fp-field")).to_have_attribute(
-        "title", re.compile("^The server no longer accepts this tab's key")
+        "title", re.compile("^Key refused — open Leaf's link")
     )
-    # Once the caret is in, the field says where words go, and the status's tooltip
-    # goes with it.
     field(page).click()
-    expect(page.locator(".lf-fp-field")).not_to_have_attribute("title", re.compile("."))
-    assert alpha() < 0.5
+    expect(panel).to_have_attribute("data-says", "error")
     # The refused reads recur on the page's clock until it closes.
     page.close()
     consume_browser_errors(page, http_error_console(401))
@@ -2183,27 +2179,33 @@ def test_the_row_says_the_version_shown_is_approved(browser, serve):
     expect(notice).to_be_hidden()
 
 
-def test_the_row_says_when_the_latest_save_failed_and_why(browser, serve):
+def test_a_failed_save_is_an_error_until_the_next_valid_one(browser, serve):
     """When the agent's latest save fails its check, the page keeps the last one that
-    passed, and the row says so beside the marks; its Why opens Versions on what the
-    check found. The notice ends with the next valid save."""
+    passed, and that stands as an error: the field says it and Errors in the leaf's
+    menu lists it, and Versions says what the check found. It leaves both with the next
+    valid save."""
     page = open_page(browser, live_url(serve(LIVE_V1)), init_script=FLOATING)
-    notice = page.locator(".lf-fp-row-notice")
-    expect(notice).to_be_hidden()
     (serve.page_dir / "index.html").write_text(LIVE_V2.replace("</main>", ""))
     told(page)
-    expect(notice).to_have_text(re.compile(r"^\s*Latest edit not shown\s*·\s*Why\s*$"))
-    expect(notice.locator(".lf-fp-row-notice-face")).to_have_attribute(
-        "data-tone", "danger"
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-says", "error")
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile(r"^Latest edit not shown")
     )
-    notice.locator("button").click()
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator('.lf-fp-menu [data-row="errors"]')).to_contain_text("1")
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="Versions").click()
     failed = page.locator(".lf-fp-menu[data-level=versions] .lf-fp-failed")
     expect(failed).to_contain_text("Latest edit couldn't be shown")
     expect(failed.locator(".lf-fp-failed-error")).not_to_be_empty()
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
     (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
-    expect(notice).to_be_hidden()
-    expect(failed).to_have_count(0)
+    expect(page.locator(".lf-floating-panel")).not_to_have_attribute(
+        "data-says", "error"
+    )
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator('.lf-fp-menu [data-row="errors"]')).to_have_count(0)
 
 
 def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, serve):

@@ -1416,6 +1416,7 @@ def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, 
         """async () => {
           const box = document.createElement('input');
           box.id = 'elsewhere';
+          box.style.cssText = 'position: fixed; top: 8px; left: 8px';
           document.querySelector('main').prepend(box);
           box.focus();
           const api = await window.__lfWidgetApi();

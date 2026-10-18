@@ -31,6 +31,7 @@ from render_harness import (
     round_trip,
     told,
     undo,
+    wait_for_check_api,
     wait_for_revision,
     write,
 )
@@ -193,7 +194,7 @@ def test_foreign_state_draws_beside_a_live_drag(browser, serve):
     page.mouse.move(
         done["x"] + done["width"] / 2, done["y"] + done["height"] / 2, steps=8
     )
-    page.wait_for_function(DRAG_HELD)
+    wait_for_check_api(page, "(api) => api.dragHeld()")
     before = page.locator("#draft-ops").bounding_box()["height"]
 
     foreign = "\n\n".join(

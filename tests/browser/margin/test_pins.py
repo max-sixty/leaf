@@ -6,7 +6,6 @@ from math import hypot
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
 from leaf_dev.commands import pins as pin_cases
 from playwright.sync_api import expect
@@ -154,14 +153,8 @@ PIN_READING = """async (id) => {
 
 
 def pin_reading(page, target):
-    """Read target parts, allocated carrier and buttons within a bounded module load."""
-    handle = page.wait_for_function(
-        PIN_READING, arg=target, timeout=render_checks_model.SERVED_TIMEOUT_MS
-    )
-    try:
-        return handle.json_value()
-    finally:
-        handle.dispose()
+    """Read target parts, allocated carrier and buttons."""
+    return page.evaluate(PIN_READING, target)
 
 
 def pin_distance(carrier, parts):

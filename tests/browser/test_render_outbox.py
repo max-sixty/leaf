@@ -73,6 +73,7 @@ from render_harness import (
     take_browser_errors,
     told,
     undo,
+    wait_for_check_api,
     wait_for_revision,
     write,
 )
@@ -1603,7 +1604,7 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
 
     baffle.focus()
     page.keyboard.press("Enter")
-    page.wait_for_function(DRAG_HELD)
+    wait_for_check_api(page, "(api) => api.dragHeld()")
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(
@@ -2472,7 +2473,9 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     page.mouse.move(*start)
     page.mouse.down()
     page.mouse.move(start[0], start[1] + 24, steps=8)  # past fallbackTolerance
-    page.wait_for_function(DRAG_HELD)  # the gesture is live in the page
+    wait_for_check_api(
+        page, "(api) => api.dragHeld()"
+    )  # the gesture is live in the page
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
     # a heartbeat two seconds out repaints the line whatever this drag did, so an
     # assertion that re-decisions passes on the poll and says nothing about the edge.

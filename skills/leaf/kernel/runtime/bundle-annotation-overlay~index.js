@@ -77,6 +77,7 @@ import {
   threadNamed,
   writingIn
 } from "./bundle-user-intent.js";
+import "./bundle-errors.js";
 import "./bundle-widget-upgrade.js";
 import "./bundle-media.js";
 import {
@@ -2760,7 +2761,17 @@ function createFloatingResponsePlacement({
   let fabRegion = null;
   const carry = surfaceGrip({
     surface: fabBar,
-    bounds: () => floatBoundary(fabRegion),
+    // Held in as placement holds it, its unpainted reserve free to stand past the edge.
+    bounds: () => {
+      const { top, right, bottom, left } = floatBoundary(fabRegion);
+      const past = fabPlacement.overhang(frameReserve());
+      return {
+        top: top - (past.top ?? 0),
+        right,
+        bottom: bottom + (past.bottom ?? 0),
+        left
+      };
+    },
     dropped(box) {
       if (!response.anchor || !response.floating) return;
       if (box && response.open)
@@ -2805,6 +2816,14 @@ function createFloatingResponsePlacement({
     return Math.round(
       rows.reduce((height, row) => height + row, 0) + parseFloat(style.rowGap) * (rows.length - 1) + parseFloat(style.paddingTop)
     );
+  };
+  const frameReserve = () => {
+    const style = getComputedStyle(fabBar);
+    const scale = fabBar.getBoundingClientRect().height / parseFloat(style.height) || 1;
+    return {
+      top: parseFloat(style.paddingTop) * scale,
+      bottom: parseFloat(style.paddingBottom) * scale
+    };
   };
   const fabFits = () => {
     const boundary = floatBoundary();
@@ -2975,20 +2994,17 @@ function createFloatingResponsePlacement({
     if (boundary.width <= 0 || boundary.height <= 0) return false;
     fabRegion = place.region;
     const setWidth = (available, scale) => {
-      const room = available;
-      fabBar.style.setProperty("--lf-float-w", layoutPx(Math.max(0, room)));
-      if (Math.ceil(fabBar.offsetWidth) > Math.ceil(room))
+      const room2 = available;
+      fabBar.style.setProperty("--lf-float-w", layoutPx(Math.max(0, room2)));
+      if (Math.ceil(fabBar.offsetWidth) > Math.ceil(room2))
         fabBar.style.setProperty(
           "--lf-float-w",
           layoutPx(Math.max(0, boundary.width / scale))
         );
     };
-    const setHeight = (scale) => {
+    const setHeight = (room2, scale) => {
       if (!response.open) return;
-      fabBar.style.setProperty(
-        "--lf-float-h",
-        layoutPx(Math.max(0, boundary.height / scale))
-      );
+      fabBar.style.setProperty("--lf-float-h", layoutPx(Math.max(0, room2 / scale)));
     };
     fabPlacement.choose({
       clear: place.clear,
@@ -2999,6 +3015,9 @@ function createFloatingResponsePlacement({
       scroller: place.scroller,
       coarse: coarsePointer.matches
     });
+    const reserve = frameReserve();
+    const overhang = fabPlacement.overhang(reserve);
+    const room = boundary.height + (overhang.top ?? 0) + (overhang.bottom ?? 0);
     const epoch = fabPosition.begin();
     const stillCurrent = () => fabPosition.current(epoch) && response.anchor && response.floating;
     void floatingUi().then((ui) => {
@@ -3015,12 +3034,14 @@ function createFloatingResponsePlacement({
         column: place.column,
         margin: place.margin,
         boundary,
+        reserve,
         fit({ width, scale }) {
           if (!stillCurrent()) return;
           setWidth(width, scale.x);
-          setHeight(scale.y);
+          setHeight(room, scale.y);
           const frame = fabBar.getBoundingClientRect();
-          if (Math.ceil(frame.width) > Math.ceil(boundary.width) || Math.ceil(frame.height) > Math.ceil(boundary.height) || response.open && nativeRowEnd() > fabBar.clientHeight)
+          const rows = nativeRowEnd() * frame.height / fabBar.offsetHeight;
+          if (Math.ceil(frame.width) > Math.ceil(boundary.width) || Math.ceil(frame.height) > Math.ceil(room) || response.open && (nativeRowEnd() > fabBar.clientHeight || Math.ceil(rows - (overhang.top ?? 0)) > Math.ceil(boundary.height)))
             withholdFab();
         }
       });

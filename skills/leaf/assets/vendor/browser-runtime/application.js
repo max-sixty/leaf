@@ -785,9 +785,7 @@ function localQueues(
     ].toSorted(
       (a, b) =>
         onUserRank(a) - onUserRank(b) ||
-        (carriesItem(a) && carriesItem(b)
-          ? asked.get(a.id)  - asked.get(b.id)
-          : 0),
+        (carriesItem(a) && carriesItem(b) ? asked.get(a.id)  - asked.get(b.id)  : 0),
     ),
     on_agent: [
       ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),
@@ -823,7 +821,8 @@ const onUserRank = (item           ) =>
   carriesItem(item) ? 0 : item.kind === "todo" ? 1 : 2;
 
 // Whether a list item is a widget's or an approval's, which carries its record.
-const carriesItem = (item           ) => item.kind === "widget" || item.kind === "approval";
+const carriesItem = (item           ) =>
+  item.kind === "widget" || item.kind === "approval";
 
 
 

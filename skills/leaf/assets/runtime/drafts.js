@@ -83,9 +83,10 @@ import { PENDING } from "./thread/identity.js";
 import { draftStore } from "./storage.js";
 import { randomId } from "./ids.js";
 import { focusDestination, readCaret, focused } from "./focus.js";
-import { notice } from "./notifications.js";
 import { retainUserIntent } from "./user-intent.js";
 import { CARET_KEYS, selectsAll } from "./control-selectors.js";
+import { raiseError } from "./errors.js";
+import { notice } from "./notifications.js";
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches,
@@ -599,8 +600,9 @@ export function forgetWritingPlace(ctx) {
 //
 // Words back in a box on screen need no sentence. Words back only in a box out of view
 // are the ones a refusal otherwise appears to lose, so they become the Resume writing
-// destination, a content change to that draft like any other, and the refusal's notice
-// carries the sentence naming that address (delivery.js).
+// destination, a content change to that draft like any other, and the refusal's error
+// carries the sentence naming that address (delivery.js). The error is about the box on
+// screen the sending gesture's words came back to, where there is one (`field`).
 export function keepRefusedWords(attempts) {
   let held = 0;
   for (const attempt of attempts) {
@@ -621,13 +623,12 @@ export function keepRefusedWords(attempts) {
     );
     return ctx === undefined ? [] : [ctx];
   });
-  const hidden = returned.filter(
-    (ctx) =>
-      ![...draftEditors].some((view) => {
-        const input = view.ctx === ctx && editorInput(view);
-        return Boolean(input?.isConnected && input.checkVisibility());
-      }),
-  );
+  const shownIn = (ctx) =>
+    [...draftEditors]
+      .filter((view) => view.ctx === ctx)
+      .map((view) => editorInput(view))
+      .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
+  const hidden = returned.filter((ctx) => !shownIn(ctx));
   // The gesture delivery was sending comes first, so it is the place Resume writing
   // reaches first, and the others stand behind it.
   for (const ctx of hidden.toReversed())
@@ -637,7 +638,10 @@ export function keepRefusedWords(attempts) {
     hidden.length && "Draft kept — g i resumes writing",
     held && "Reply kept — it returns when its comment sends",
   ].filter(Boolean);
-  return sentences.length ? sentences.join(". ") : null;
+  return {
+    said: sentences.length ? sentences.join(". ") : null,
+    field: returned.map(shownIn).find(Boolean) ?? null,
+  };
 }
 const writingEditor = () =>
   [...draftEditors].find((editor) => editorInput(editor) === focused());
@@ -740,14 +744,12 @@ export function createWritingResume({
     // A document behind the active one may lack a box the active one holds, so only
     // the active document moves the words to the page.
     if (runtime.showsActive && !holdsBox(place.context) && moveToPage(place.context)) {
-      notice("Its box is gone, so its words moved to a comment on the page", {
-        draft: true,
-      });
+      notice("Its box is gone, so its words moved to a comment on the page");
       return resume();
     }
     // A box that stands but takes no words now, as a resolved thread's in the floating
     // panel, is no fault of the version shown.
-    notice(
+    raiseError(
       `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`,
     );
   };

@@ -58,7 +58,7 @@ phone-touch-passage:
     stands: clear or window-constrained
   moves:
     across: still
-    down: still
+    down: near down
 
 beside-tall-element-clipped:
   expected: below or above

@@ -1,4 +1,7 @@
 import {
+  raiseError
+} from "./bundle-errors.js";
+import {
   aborted,
   commitWidgetDescriptors,
   dataBody,
@@ -2703,12 +2706,8 @@ function keepRefusedWords(attempts) {
     );
     return ctx === void 0 ? [] : [ctx];
   });
-  const hidden = returned.filter(
-    (ctx) => ![...draftEditors].some((view) => {
-      const input = view.ctx === ctx && editorInput(view);
-      return Boolean(input?.isConnected && input.checkVisibility());
-    })
-  );
+  const shownIn = (ctx) => [...draftEditors].filter((view) => view.ctx === ctx).map((view) => editorInput(view)).find((input) => input?.isConnected && input.checkVisibility()) ?? null;
+  const hidden = returned.filter((ctx) => !shownIn(ctx));
   for (const ctx of hidden.toReversed())
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
@@ -2716,7 +2715,10 @@ function keepRefusedWords(attempts) {
     hidden.length && "Draft kept \u2014 g i resumes writing",
     held && "Reply kept \u2014 it returns when its comment sends"
   ].filter(Boolean);
-  return sentences.length ? sentences.join(". ") : null;
+  return {
+    said: sentences.length ? sentences.join(". ") : null,
+    field: returned.map(shownIn).find(Boolean) ?? null
+  };
 }
 var writingEditor = () => [...draftEditors].find((editor) => editorInput(editor) === focused());
 var keepWritingCaret = () => {
@@ -2792,12 +2794,10 @@ function createWritingResume({
       return;
     }
     if (runtime.showsActive && !holdsBox(place2.context) && moveToPage(place2.context)) {
-      notice("Its box is gone, so its words moved to a comment on the page", {
-        draft: true
-      });
+      notice("Its box is gone, so its words moved to a comment on the page");
       return resume();
     }
-    notice(
+    raiseError(
       `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`
     );
   };
@@ -3305,7 +3305,9 @@ var MessageEditor = class {
     let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
-      notice(`This message changed since this edit began. It now says: \u201C${said()}\u201D`);
+      raiseError(
+        `This message changed since this edit began. It now says: \u201C${said()}\u201D`
+      );
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor lf-comment-box");
     this.input = offer(TEXT_FIELD);
@@ -4274,7 +4276,7 @@ function createPassageSelection({ restore }) {
           intent
         });
         if (!restored && intent())
-          notice("That selected passage is unavailable on this version");
+          raiseError("That selected passage is unavailable on this version");
       }
     }
   };
@@ -4702,7 +4704,7 @@ function replyControlDestination(node) {
   };
 }
 var sendReply = (draftCtx, key, text, owns, actions) => sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
-function wireReply(key, row2, input, send, wireInput, { hint, accessibleName }) {
+function wireReply(key, row2, input, send, wireInput, { hint, accessibleName, busy }) {
   row2.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
@@ -4718,6 +4720,7 @@ function wireReply(key, row2, input, send, wireInput, { hint, accessibleName }) 
   const sync = wireInput(input, {
     hint,
     accessibleName,
+    busy,
     sends: "send",
     sendBtn: send,
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
@@ -4821,6 +4824,7 @@ function createReplyView(key, commands2, {
   redraw = null,
   hint = "Reply",
   accessibleName = "Reply",
+  busy = () => false,
   sent = null
 } = {}) {
   const fresh = () => {
@@ -4831,7 +4835,8 @@ function createReplyView(key, commands2, {
     row2.append(input, send);
     return wireReply(key, row2, input, send, commands2.wireInput, {
       hint,
-      accessibleName
+      accessibleName,
+      busy
     });
   };
   let composition = fresh();

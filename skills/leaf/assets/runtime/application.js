@@ -13,7 +13,7 @@ import {
   projectionRegionsPresented,
   readPart,
 } from "./semantic-state.js";
-import { announce, notice } from "./notifications.js";
+import { announce } from "./notifications.js";
 import { answeredInWords, readItems } from "./items/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -48,6 +48,7 @@ import {
 import { createStateApplication } from "./state-application.js";
 import { createStateFeed } from "./state-feed.js";
 import { reportCarried, reportPageError } from "./layer-client.js";
+import { raiseError } from "./errors.js";
 
 const commandDispatch = createCommandDispatch();
 let application = null;
@@ -165,7 +166,7 @@ export function mountApplication(dependencies) {
     afterEnqueue,
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
-      notice(`Couldn't send — attempt ${attempt} is already in use`, { draft: true }),
+      raiseError(`Couldn't send — attempt ${attempt} is already in use`),
   });
 
   const { post } = commandDispatch;

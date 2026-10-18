@@ -4,8 +4,8 @@
  * bar, Threads and the On panel already own, so it reads their readings and calls their
  * commands: the status (`statusReading`), the toolbar's rows (`bannerRows`), the threads
  * (`readThreads`), the queues (`readQueues`), the versions (`versionPicker`), the
- * drafts (drafts.js) and the passing notices (notifications.js). It decides only how
- * they are shown.
+ * drafts (drafts.js), the passing notices (notifications.js) and the errors
+ * (errors.js). It decides only how they are shown.
  *
  * The box has three sizes, and which it stands at follows what the user does, so no
  * setting chooses it:
@@ -30,20 +30,23 @@
  *   than anything written, and while the agent works it carries the one sheen that marks
  *   work under way; one that asks the user to act reads in its tone's ink, and pointing
  *   at the field says any status in full. Clicking in gives the placeholder to where
- *   the words go, and from then on, while the caret is in the field, the panel says
- *   one thing only: what became of the words being written, such as a send the
- *   server refused, whose words come back to the field with nothing else on screen to
- *   say why, or an image the field could not attach (notifications.js, `draft`). That
- *   stands on one quiet line above the field, or, over an open view, in the leaf's
- *   peek (`paintPeek`), as it does on a folded panel. Everything else that passes, news, an
- *   acknowledgement, a walk's position, Go-to's word, goes unsaid there but for the
- *   live region; the empty field says what still stands once the caret leaves. With no
- *   view open the line also says a passing notice the placeholder cannot, while words
- *   hide the placeholder and the caret is elsewhere; over a view the peek says only
- *   what became of the words. Nothing names where the words go once they hide the
+ *   the words go, and from then on nothing that passes is said while the caret is in
+ *   the field: news, an acknowledgement, a walk's position and Go-to's word go unsaid
+ *   there but for the live region, and the empty field says what still stands once the
+ *   caret leaves. An error (errors.js) is no passing word: the field says the newest
+ *   one about its editor, or about nothing while the editor is empty, in its status's
+ *   place and the danger's ink, until the user's first edit, and over words its
+ *   editor holds, such as a refused send's, it covers them until the first key or
+ *   press there (`errorCover`). An error the field has passed or cannot say waits in
+ *   the leaf's menu, under Errors, with a dot on the leaf until the user opens the
+ *   list (`errorsList`). The user chose this on 17
+ *   October over errors riding the passing notice, which faded after four seconds and
+ *   went unsaid while the user wrote. With no view open the line over the field says a
+ *   passing notice the placeholder cannot, while words hide the placeholder and the
+ *   caret is elsewhere. Nothing names where the words go once they hide the
  *   placeholder, nor who reads them: with no view open they go to the page, whose one
- *   agent reads them, and an open thread's head names its own. The user chose this on
- *   17 October, comparing captures of three others: the line saying every passing word
+ *   agent reads them, and an open thread's head names its own. The user chose that
+ *   quiet while writing on 17 October, comparing captures of three others: the line saying every passing word
  *   while the caret is in, which kept a walk's position over the words as long as they
  *   wrote; the line saying only answers to the user, with "Comment on the page" rising
  *   over typed words; and no line, with answers in the peek, which floats over the
@@ -158,6 +161,14 @@ import { versionMenu, versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
 import { noticeReading, registerNoticePresentation } from "./notifications.js";
+import {
+  dismissError,
+  dismissErrors,
+  errorsReading,
+  passErrors,
+  registerErrorPresentation,
+  seeErrors,
+} from "./errors.js";
 import { move } from "./dom-move.js";
 import {
   registerStatusContextPresentation,
@@ -255,16 +266,15 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 // else what the status line says between notices, the Go-to filter's word or a walk's
 // position ("1 of 3 waiting on me · Options"). The user asked on 16 October that whatever
 // is not anchored to the page stand at the panel rather than against the window.
-// `draft` marks a notice saying what became of the words being written, the one kind
-// said while the user writes.
 function passing() {
   const notice = noticeReading();
-  if (notice.visible)
-    return { message: notice.message, visible: true, draft: notice.draft };
+  if (notice.visible) return { message: notice.message, visible: true };
   const { goTo, walk } = statusContextReading();
   const message = goTo ?? (walk?.shown ? walk.text : "");
-  return { message, visible: Boolean(message), draft: false };
+  return { message, visible: Boolean(message) };
 }
+const clock = (at) =>
+  new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 // What the leaf's colour says, in a word, at the head of its menu.
 const TONE_WORDS = Object.freeze({
   working: "Working",
@@ -315,9 +325,6 @@ export function createFloatingPanel({
   peek.setAttribute("role", "tooltip");
   let peekAsked = false; // the pointer or focus asking the folded leaf's peek to show
   let peekReading = null;
-  // What became of the words, which the line over the field would say were a view not
-  // open (`paintPeek`).
-  let overView = false;
   context.append(contextWords);
   inner.append(opened, context, row);
   card.append(inner);
@@ -371,7 +378,10 @@ export function createFloatingPanel({
   leaf.setAttribute("aria-controls", menu.id);
   leaf.setAttribute("aria-describedby", peek.id);
   const mark = el("span", "lf-dot");
-  leaf.append(mark);
+  // An error the user has not seen yet, waiting in the leaf's menu (`errorsList`).
+  const errorDot = el("span", "lf-fp-error-dot");
+  errorDot.setAttribute("aria-hidden", "true");
+  leaf.append(mark, errorDot);
   const field = el("div", "lf-fp-field");
   // A long draft offers more room, by the user's press rather than on its own: past
   // three lines a quiet mark stands over the leaf, in the corner the draft leaves free
@@ -470,11 +480,25 @@ export function createFloatingPanel({
   let landAtEnd = null;
 
   // ---------- one native editor per destination ----------
-  // What the empty field says, and whose reading it is (`says`): once the caret is in
-  // a field that takes words, where they go; a passing notice while one stands; a
-  // resolved thread's way back; else on the page what the agent is doing or wants, in
-  // the banner's words, and in a thread whose turn it is.
+  // The errors the field can say now, newest first (errors.js): not yet edited past,
+  // and about the editor standing in the field, or about nothing while that editor is
+  // empty. A folded panel, or a view with no editor in the field, can say none.
+  function sayable() {
+    const input = host.dataset.rest === "mark" ? null : fieldInput();
+    if (!input?.isConnected) return [];
+    const empty = draftOf(input) === "";
+    return errorsReading().filter(
+      (error) =>
+        !error.passed && (error.subject === input || (error.subject === null && empty)),
+    );
+  }
+  // What the empty field says, and whose reading it is (`says`): the newest error it
+  // can say; once the caret is in a field that takes words, where they go; a passing
+  // notice while one stands; a resolved thread's way back; else on the page what the
+  // agent is doing or wants, in the banner's words, and in a thread whose turn it is.
   function fieldReading(key, input) {
+    const [error] = sayable();
+    if (error) return { says: "error", words: error.message };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
@@ -517,6 +541,7 @@ export function createFloatingPanel({
           : null;
       },
       accessibleName: "Comment on the page",
+      busy: () => !errorCover.hidden,
       sends: "send",
       sendBtn: send,
       save: (text) => {
@@ -563,6 +588,7 @@ export function createFloatingPanel({
       replyOptions.set(key, {
         hint: () => fieldReading(key, replyInput()).words,
         accessibleName: () => `Reply to ${threadTitle(key)}`,
+        busy: () => !errorCover.hidden,
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
           // The user's turn grows the view to show it and takes New reply away.
@@ -572,14 +598,36 @@ export function createFloatingPanel({
       });
     return replyOptions.get(key);
   };
-  // The editor standing in the field now, the page's or the open thread's reply.
+  // The editor standing in the field now, the page's or the open thread's reply; none
+  // while a resolved thread's field says how to reopen it instead.
   const fieldInput = () =>
-    field.firstElementChild === replyOutlet ? replyInput() : pageEditor().input;
+    field.firstElementChild !== replyOutlet
+      ? pageEditor().input
+      : replyOutlet.hidden
+        ? null
+        : replyInput();
   // Words arriving in an empty field, or the last of them going, re-seat the row.
   function retype() {
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
   field.addEventListener("input", retype);
+  // The user's first edit in the field passes every error it could say to the menu's
+  // list, read before the edit changes what it could say. Over words its subject
+  // holds, an error covers them (`errorCover`), and the first edit or press there
+  // brings them back, a press with the caret at their end; while they are covered the
+  // field sends nothing (`busy`), so words the user has not seen again are never sent.
+  // The user chose both on 17 October.
+  const errorCover = el("p", "lf-fp-error-cover");
+  errorCover.setAttribute("aria-hidden", "true");
+  const passSayable = () => passErrors(sayable().map((error) => error.id));
+  field.addEventListener("beforeinput", passSayable, { capture: true });
+  errorCover.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const input = fieldInput();
+    passSayable();
+    const end = draftOf(input).length;
+    focusDestination(input, "move", { caret: [end, end] });
+  });
 
   // ---------- readings ----------
   const threads = () => {
@@ -633,6 +681,7 @@ export function createFloatingPanel({
       threads: "Threads",
       queue: tabLabel(queueTab),
       versions: "Versions",
+      errors: "Errors",
       thread: route.thread ? threadTitle(route.thread) : "",
       group: GROUPS[route.group],
     })[route.view];
@@ -1277,7 +1326,13 @@ export function createFloatingPanel({
           >${iconTemplate("next", "lf-fp-chevron")}<b>${titleOf(menuAt)}</b></span
         >
       </button>
-      ${menuAt.view === "versions" ? versionsList() : groupList(menuAt.group)}
+      ${
+        menuAt.view === "versions"
+          ? versionsList()
+          : menuAt.view === "errors"
+            ? errorsList()
+            : groupList(menuAt.group)
+      }
     </div>`;
   }
   function rootTemplate() {
@@ -1327,7 +1382,30 @@ export function createFloatingPanel({
       key: entry.key,
       draw: (gone) => rowFor(gone ? { ...entry, disabled: true } : entry),
     });
+    const errors = errorsReading();
     const offered = [
+      ...(errors.length
+        ? [
+            {
+              key: "errors",
+              draw: (gone) =>
+                menuItem(
+                  "Errors",
+                  html`<span class="lf-fp-value">${errors.length}</span>`,
+                  () => {
+                    showMenuAt({ view: "errors" });
+                    seeErrors();
+                  },
+                  {
+                    opens: true,
+                    urgent: errors.some((error) => !error.seen),
+                    disabled: gone,
+                    row: "errors",
+                  },
+                ),
+            },
+          ]
+        : []),
       ...page.map(seat),
       ...groups.map((group) => ({
         key: `group:${group}`,
@@ -1494,6 +1572,48 @@ export function createFloatingPanel({
           : nothing
       }
     `;
+  }
+
+  // The errors the user has met, newest first, each saying what failed and when, with
+  // a press that dismisses it, whose name carries both, since a menu's keys reach only
+  // its presses; an error whose cause ends leaves by itself (errors.js). A dismissal
+  // leaves the user on the next error's press, or on the head once none is left.
+  function errorsList() {
+    const errors = errorsReading();
+    if (!errors.length) return html`<p class="lf-fp-empty" role="none">No errors</p>`;
+    // The user moves on before the list repaints, so its roving stop lands once.
+    const dismiss = (dismissed) => {
+      const presses = [...menu.querySelectorAll(".lf-fp-error button")];
+      const at = errors.findIndex((error) => error.id === dismissed);
+      const next = dismissed === null ? null : (presses[at + 1] ?? presses[at - 1]);
+      focusDestination(next ?? menu.querySelector(".lf-fp-menu-back"), "move");
+      if (dismissed === null) dismissErrors();
+      else dismissError(dismissed);
+    };
+    return html`${repeat(
+      errors,
+      (error) => error.id,
+      (error) =>
+        html`<div class="lf-fp-error" role="none">
+          <p class="lf-fp-error-words" aria-hidden="true">
+            <b>${error.message}</b><span class="lf-fp-note">${clock(error.at)}</span>
+          </p>
+          <button
+            type="button"
+            role="menuitem"
+            class="lf-fp-quiet"
+            aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
+            @click=${() => dismiss(error.id)}
+          >
+            Dismiss
+          </button>
+        </div>`,
+    )}${
+      errors.length > 1
+        ? html`<hr />
+            ${menuItem("Dismiss all", nothing, () => dismiss(null))}`
+        : nothing
+    }`;
   }
 
   function shownThreads() {
@@ -2197,6 +2317,13 @@ export function createFloatingPanel({
     keepsText(badge, onUser ? String(onUser) : "");
     keeps(badge, "data-shown", onUser ? "" : null);
     keeps(newsDot, "data-shown", news ? "" : null);
+    // An error the user has not seen marks the leaf while the field is not saying it:
+    // passed, raised where the field could not say it, or held while folded.
+    const sayingNow = new Set(sayable().map((error) => error.id));
+    const unseen = errorsReading().some(
+      (error) => !error.seen && !sayingNow.has(error.id),
+    );
+    keeps(errorDot, "data-shown", unseen ? "" : null);
 
     render(menuOpen ? menuTemplate() : nothing, menu);
     keeps(menu, "data-level", menuOpen && menuAt ? menuAt.view : null);
@@ -2277,7 +2404,7 @@ export function createFloatingPanel({
     const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
     if (field.firstElementChild !== shown[0]) {
       const had = standingIn(field);
-      field.replaceChildren(...shown);
+      field.replaceChildren(...shown, errorCover);
       if (had && !replying) focusDestination(leaf, "return");
     }
     // A resolved thread takes no reply: the field says how to reopen it instead.
@@ -2314,18 +2441,24 @@ export function createFloatingPanel({
       "title",
       reading.says === "status" ? status().explanation || status().summary : null,
     );
-    // The line over the field says what the field cannot: while the caret is in, where
-    // the placeholder says where the words go, what became of them, such as a send
-    // refused and its words returned; and while words hide the placeholder with the
-    // caret elsewhere, the passing notice the placeholder would say. With nothing to
-    // say the line is gone, and while a view is open it is gone too: the leaf's peek
-    // says what became of the words there (`paintPeek`).
+    // An error stands over the words its subject holds, such as a refused send's,
+    // which the user's first key or press there brings back (`errorCover`).
+    const [error] = sayable();
+    const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
+    keepsText(errorCover, covering ? error.message : "");
+    keepsHidden(errorCover, !covering);
+    // The line over the field says the passing notice the field cannot, while words
+    // hide its placeholder with the caret elsewhere and no view is open. While the
+    // caret is in the field nothing passing is said there: an error, the one thing
+    // the user must not miss while writing, stands in the field itself.
     const notice = passing();
     const said =
       notice.visible &&
-      (reading.says === "destination" ? notice.draft : draftOf(input) !== "");
-    overView = Boolean(top) && said && notice.draft;
-    keepsText(contextWords, !top && said ? notice.message : "");
+      !top &&
+      reading.says !== "destination" &&
+      reading.says !== "error" &&
+      draftOf(input) !== "";
+    keepsText(contextWords, said ? notice.message : "");
     keepsHidden(context, !contextWords.textContent);
     paintPeek();
 
@@ -2505,13 +2638,11 @@ export function createFloatingPanel({
   });
   // The folded leaf's peek says the status in full while the pointer or focus asks for
   // it, and a passing notice by itself, since a folded panel has no field to say it in.
-  // Over an open view it says what became of the words being written, which the line
-  // over the field would say with no view open (`overView`), unless the leaf's menu
-  // stands where it would show.
+  // An error the folded panel holds waits under the leaf's dot.
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice = passing();
-    const telling = notice.visible && (folded || (overView && !menuOpen));
+    const telling = notice.visible && folded;
     const reading = status();
     const parts = reading.explanationParts ?? [
       { text: reading.explanation || reading.summary },
@@ -2755,10 +2886,7 @@ export function createFloatingPanel({
   // them: the field, where words go, or the leaf, while the panel is folded to it.
   // A resolved thread's field takes no words, so there the leaf is where they begin.
   function enter() {
-    const top = trail.at(-1);
-    const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
-    const takesWords = !thread || replyAvailable(thread);
-    const input = prefs().rest !== "mark" && takesWords ? fieldInput() : null;
+    const input = prefs().rest !== "mark" ? fieldInput() : null;
     focusDestination(input ?? leaf, "move");
   }
 
@@ -2798,6 +2926,11 @@ export function createFloatingPanel({
     registerApprovalPresentation({ target: approvalControl, arrive: arriveAtApproval });
     // A passing notice is said in the empty field, the one seat this chrome gives it.
     registerNoticePresentation(() => paint());
+    // An error arriving while the user reads the list is seen there.
+    registerErrorPresentation(() => {
+      if (menuOpen && menuAt?.view === "errors") seeErrors();
+      paint();
+    });
     registerStatusContextPresentation(() => paint());
     watchBannerRows(() => paint());
     // A comparison started or stopped changes the versions without a publication.

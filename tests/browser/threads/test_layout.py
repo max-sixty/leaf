@@ -872,7 +872,8 @@ def test_a_short_thread_panel_keeps_its_list_and_grip_reachable(browser, serve, 
 def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     browser, serve, scaled
 ):
-    """A whole-frame cap reserves the image, choices and Send before text scrolls."""
+    """A whole-frame cap reserves the image, choices and Send before text scrolls. What
+    the bar paints stays in the window; its unpainted reserve for the card may not."""
     source = LONG_PAGE
     if scaled:
         source = source.replace(
@@ -908,12 +909,12 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     banner_bottom = page.locator(".lf-banner").evaluate(
         "el => el.getBoundingClientRect().bottom"
     )
-    assert bounds["top"] >= banner_bottom + 6
-    assert bounds["bottom"] <= height - 8
     parts = bar.locator(
         ".lf-compose-field, .lf-fab-input, .lf-compose-submit, .lf-composer-media, "
         ".lf-response-options, .lf-response-action:visible"
     ).evaluate_all("nodes => nodes.map(node => node.getBoundingClientRect().toJSON())")
+    assert min(part["top"] for part in parts) >= banner_bottom + 6, parts
+    assert max(part["bottom"] for part in parts) <= height - 8, parts
     for part in parts:
         assert bounds["left"] <= part["left"] < part["right"] <= bounds["right"], (
             bounds,
@@ -923,7 +924,8 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
             bounds,
             parts,
         )
-    resized(page, width, 200)
+    # Too short for the controls themselves, the bar waits for room.
+    resized(page, width, 120)
     expect(bar).to_be_hidden()
     resized(page, width, height)
     expect(field).to_be_visible()
@@ -1161,9 +1163,10 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
     expect(field).to_have_js_property("value", content)
     assert field.evaluate("(node, original) => node === original", native_field)
     resumed = bar.bounding_box()
+    painted = bar.locator(".lf-compose-field").bounding_box()
     banner_bottom = page.locator(".lf-banner").evaluate(
         "el => el.getBoundingClientRect().bottom"
     )
     assert 8 <= resumed["x"] and resumed["x"] + resumed["width"] <= 382.1, resumed
-    assert banner_bottom + 6 <= resumed["y"] + 0.1, resumed
-    assert resumed["y"] + resumed["height"] <= 592.1, resumed
+    assert banner_bottom + 6 <= painted["y"] + 0.1, painted
+    assert painted["y"] + painted["height"] <= 592.1, painted

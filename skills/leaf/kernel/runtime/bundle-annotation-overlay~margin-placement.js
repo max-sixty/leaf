@@ -1688,6 +1688,10 @@ function commentPlacement() {
     pressHeld = null;
     pressAnswered = null;
   };
+  const overhangOf = (reserve) => {
+    const end = side === "top" ? "top" : "bottom";
+    return { [end]: reserve?.[end] ?? 0 };
+  };
   const line = (clear, row) => quoted ? row : side === "bottom" ? clear?.bottom ?? row : side === "top" ? clear?.top ?? row : row;
   return {
     get side() {
@@ -1702,6 +1706,7 @@ function commentPlacement() {
       pending2 = frame;
     },
     forget,
+    overhang: overhangOf,
     // Which edge this placement holds, `top` or `foot`, from what the caller reports:
     // the transcript's extent, whether the user is drafting, the latest turn
     // (`{ key, author }`), the draft's words, and, while it is the user's latest
@@ -1825,16 +1830,9 @@ function commentPlacement() {
         boundary.right - Math.min(minimumWidth, boundary.width)
       );
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
-      const growing = side === "top" ? "top" : "bottom";
-      const overhang = (state) => ({
-        [growing]: -Math.min(
-          reserve?.[growing] ?? 0,
-          Math.max(
-            0,
-            boundary.height - state.rects.floating.height * measure(state).scale.y
-          )
-        )
-      });
+      const padding = Object.fromEntries(
+        Object.entries(overhangOf(reserve)).map(([end, length]) => [end, -length])
+      );
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
         mainAxis: !across,
@@ -1923,40 +1921,40 @@ function commentPlacement() {
         }),
         holding,
         heldEdge && sizing,
-        ui.shift((state) => ({
+        ui.shift({
           ...overflow,
-          padding: overhang(state),
+          padding,
           mainAxis: true,
           crossAxis: true,
           limiter: {
             ...attachment,
-            fn(state2) {
+            fn(state) {
               if (unanchored) {
                 heldIn = true;
-                return { x: state2.x, y: state2.y };
+                return { x: state.x, y: state.y };
               }
-              const limited = across ? attachment.fn(state2) : {
-                x: state2.x,
+              const limited = across ? attachment.fn(state) : {
+                x: state.x,
                 y: clamp(
-                  state2.y,
-                  measure(state2).line - state2.rects.floating.height,
-                  measure(state2).last
+                  state.y,
+                  measure(state).line - state.rects.floating.height,
+                  measure(state).last
                 )
               };
               if (moved)
                 for (const axis of ["x", "y"]) {
-                  const own = state2.middlewareData.hold.spot[axis];
+                  const own = state.middlewareData.hold.spot[axis];
                   limited[axis] = clamp(
-                    state2[axis],
+                    state[axis],
                     Math.min(limited[axis], own),
                     Math.max(limited[axis], own)
                   );
                 }
-              heldIn = Math.abs(limited.y - state2.y) < 0.5;
+              heldIn = Math.abs(limited.y - state.y) < 0.5;
               return limited;
             }
           }
-        })),
+        }),
         !heldEdge && sizing
       ].filter(Boolean);
       return {

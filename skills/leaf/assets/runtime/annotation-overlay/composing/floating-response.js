@@ -96,7 +96,17 @@ export function createFloatingResponsePlacement({
   // passage, and its card opens there on Send.
   const carry = surfaceGrip({
     surface: fabBar,
-    bounds: () => floatBoundary(fabRegion),
+    // Held in as placement holds it, its unpainted reserve free to stand past the edge.
+    bounds: () => {
+      const { top, right, bottom, left } = floatBoundary(fabRegion);
+      const past = fabPlacement.overhang(frameReserve());
+      return {
+        top: top - (past.top ?? 0),
+        right,
+        bottom: bottom + (past.bottom ?? 0),
+        left,
+      };
+    },
     dropped(box) {
       if (!response.anchor || !response.floating) return;
       if (box && response.open)
@@ -156,7 +166,7 @@ export function createFloatingResponsePlacement({
   };
   // The frame's transparent head and foot, which hold the card's head row and reply
   // row for Send (annotation-chrome.css), in client pixels. Placement lets the one the
-  // box grows toward stand past the boundary (comment-placement.js).
+  // box grows toward stand past the boundary (comment-placement.js, `overhang`).
   const frameReserve = () => {
     const style = getComputedStyle(fabBar);
     const scale = fabBar.getBoundingClientRect().height / parseFloat(style.height) || 1;
@@ -411,18 +421,16 @@ export function createFloatingResponsePlacement({
           layoutPx(Math.max(0, boundary.width / scale)),
         );
     };
-    // The frame may grow to the whole boundary on any side, past the room its held edge
-    // leaves, since shift slides it inside. Native tracks reserve the furniture and give
-    // the editor what remains. Typing never scrolls the page to make room. The box grows
-    // from the edge that holds it until its painted field meets the window's edge, then
-    // slides inside the window, over its passage if it must, and once it fills the
-    // window scrolls its own words.
-    const setHeight = (scale) => {
+    // The frame may grow to the whole boundary on any side, and past it by the reserve
+    // allowed to overhang (`room`), past the room its held edge leaves, since shift
+    // slides it inside. Native tracks reserve the furniture and give the editor what
+    // remains. Typing never scrolls the page to make room. The box grows from the edge
+    // that holds it until its painted field meets the window's edge, then slides inside
+    // the window, over its passage if it must, and once it fills the window scrolls its
+    // own words.
+    const setHeight = (room, scale) => {
       if (!response.open) return;
-      fabBar.style.setProperty(
-        "--lf-float-h",
-        layoutPx(Math.max(0, boundary.height / scale)),
-      );
+      fabBar.style.setProperty("--lf-float-h", layoutPx(Math.max(0, room / scale)));
     };
     fabPlacement.choose({
       clear: place.clear,
@@ -433,6 +441,9 @@ export function createFloatingResponsePlacement({
       scroller: place.scroller,
       coarse: coarsePointer.matches,
     });
+    const reserve = frameReserve();
+    const [past = 0] = Object.values(fabPlacement.overhang(reserve));
+    const room = boundary.height + past;
 
     const epoch = fabPosition.begin();
     const stillCurrent = () =>
@@ -452,15 +463,15 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
-          reserve: frameReserve(),
+          reserve,
           fit({ width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);
-            setHeight(scale.y);
+            setHeight(room, scale.y);
             const frame = fabBar.getBoundingClientRect();
             if (
               Math.ceil(frame.width) > Math.ceil(boundary.width) ||
-              Math.ceil(frame.height) > Math.ceil(boundary.height) ||
+              Math.ceil(frame.height) > Math.ceil(room) ||
               (response.open && nativeRowEnd() > fabBar.clientHeight)
             )
               withholdFab();

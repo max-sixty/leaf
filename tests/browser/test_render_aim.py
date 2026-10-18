@@ -591,7 +591,8 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     grown_scroll = page.evaluate("scrollY")
     assert bar.get_attribute("data-lf-placement") == placement
     assert abs(grown["x"] - compact["x"]) <= 1, (compact, grown)
-    assert grown["y"] >= 48 and grown["y"] + grown["height"] <= 378, grown
+    painted = bar.locator(".lf-compose-field").bounding_box()
+    assert painted["y"] >= 48 and painted["y"] + painted["height"] <= 378, painted
 
     peers = page.evaluate(
         """() => {
@@ -644,7 +645,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
         }"""
     )
     rendered(page)
-    bounded = bar.bounding_box()
+    bounded = bar.locator(".lf-compose-field").bounding_box()
     banner = page.locator(".lf-banner").bounding_box()
     ceiling = max(48, banner["y"] + banner["height"] + 6)
     assert bounded["y"] >= ceiling and bounded["y"] + bounded["height"] <= 378
@@ -733,15 +734,34 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     assert bar.bounding_box()["y"] + bar.bounding_box()["height"] > foot, grown
     assert grown["top"] == pytest.approx(resting["top"], abs=0.5), (resting, grown)
     assert grown["bottom"] < foot, (grown, foot)
+    # Pressing the grip without moving leaves it where it stands.
+    grip = bar.locator(".lf-surface-grip").bounding_box()
+    page.mouse.move(grip["x"] + grip["width"] / 2, grip["y"] + 2)
+    page.mouse.down()
+    rendered(page)
+    pressed = page.evaluate(SIDE_COMMENT)
+    page.mouse.up()
+    rendered(page)
+    assert pressed["top"] == pytest.approx(grown["top"], abs=0.5), (grown, pressed)
+    # Once the field meets the foot, each line raises it by that line and no more,
+    # its foot staying on the window's, until it fills the window and scrolls.
     write(field, "\n".join(f"Line {n}" for n in range(9)))
     rendered(page)
     risen = page.evaluate(SIDE_COMMENT)
     assert risen["bottom"] == pytest.approx(foot, abs=1), (risen, foot)
     assert risen["top"] < resting["top"] - 20, (resting, risen)
     assert risen["scrolled"] == 0, risen
+    line = (risen["height"] - grown["height"]) / 3
+    for count in range(10, 50):
+        write(field, "\n".join(f"Line {n}" for n in range(count)))
+        rendered(page)
+        reading = page.evaluate(SIDE_COMMENT)
+        assert reading["bottom"] == pytest.approx(foot, abs=1), (count, reading)
+        assert risen["top"] - reading["top"] <= line + 0.5, (count, risen, reading)
+        risen = reading
+    assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     write(field, "\n".join(f"Line {n}" for n in range(80)))
     rendered(page)
-    assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     assert page.evaluate(SIDE_COMMENT)["bottom"] <= foot + 0.5
 
 
@@ -844,7 +864,7 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
         }"""
     )
     banner = page.locator(".lf-banner").bounding_box()
-    box = bar.bounding_box()
+    box = bar.locator(".lf-compose-field").bounding_box()
     ceiling = max(48, banner["y"] + banner["height"] + 6)
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 328, box
 

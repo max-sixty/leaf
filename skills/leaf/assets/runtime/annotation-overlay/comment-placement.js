@@ -66,10 +66,10 @@
    inside the boundary, over its passage or element if it must, and once it fills the
    boundary scrolls its own content. What it paints is what the boundary holds: the
    comment box's frame reserves its card's head row and reply row unpainted (`reserve`),
-   and the one at the end it grows toward may stand past the boundary, by no more than
-   the room the frame leaves there. So the words the user typed hold still until the
-   field itself meets the window's edge, and Send, which needs that row inside, moves
-   the words by the overhang. The user asked (2026-10-17) for a box beside its passage
+   and the one at the end it grows toward may stand past the boundary (`overhang`),
+   which also lets the frame grow that much taller than the boundary. So the words the
+   user typed hold still until the field itself meets the window's edge, and Send,
+   which needs that row inside, moves the words by the overhang. The user asked (2026-10-17) for a box beside its passage
    to grow down from its top rather than slide. Rejected: holding the whole frame
    inside, which slid the field as soon as its unpainted reply row met the edge, while
    the field itself still had room. Only a card opening under or over its target
@@ -399,6 +399,12 @@ export function commentPlacement() {
     pressHeld = null;
     pressAnswered = null;
   };
+  // Of an unpainted `reserve` ({ top, bottom }, client pixels), what may stand past the
+  // boundary: the end the surface grows toward, away from the edge it holds.
+  const overhangOf = (reserve) => {
+    const end = side === "top" ? "top" : "bottom";
+    return { [end]: reserve?.[end] ?? 0 };
+  };
   const line = (clear, row) =>
     quoted
       ? row
@@ -420,6 +426,7 @@ export function commentPlacement() {
       pending = frame;
     },
     forget,
+    overhang: overhangOf,
     // Which edge this placement holds, `top` or `foot`, from what the caller reports:
     // the transcript's extent, whether the user is drafting, the latest turn
     // (`{ key, author }`), the draft's words, and, while it is the user's latest
@@ -596,19 +603,10 @@ export function commentPlacement() {
             boundary.right - Math.min(minimumWidth, boundary.width),
           );
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
-      // The unpainted reserve at the end the surface grows toward may stand past the
-      // boundary, by no more than the room the surface leaves in it, so a surface that
-      // fills the boundary stands wholly inside. Shift reads it as negative padding.
-      const growing = side === "top" ? "top" : "bottom";
-      const overhang = (state) => ({
-        [growing]: -Math.min(
-          reserve?.[growing] ?? 0,
-          Math.max(
-            0,
-            boundary.height - state.rects.floating.height * measure(state).scale.y,
-          ),
-        ),
-      });
+      // Shift reads the reserve allowed past the boundary as negative padding.
+      const padding = Object.fromEntries(
+        Object.entries(overhangOf(reserve)).map(([end, length]) => [end, -length]),
+      );
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
         mainAxis: !across,
@@ -750,9 +748,9 @@ export function commentPlacement() {
         }),
         holding,
         heldEdge && sizing,
-        ui.shift((state) => ({
+        ui.shift({
           ...overflow,
-          padding: overhang(state),
+          padding,
           mainAxis: true,
           crossAxis: true,
           limiter: {
@@ -792,7 +790,7 @@ export function commentPlacement() {
               return limited;
             },
           },
-        })),
+        }),
         !heldEdge && sizing,
       ].filter(Boolean);
       return {

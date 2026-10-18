@@ -1212,6 +1212,12 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
     widget.get_by_role("button", name="Actual size", exact=True).click()
     canvas = widget.locator(".lf-trace-canvas").filter(visible=True)
     canvas.focus()
+    # Leave window above the capture, where the marker goes once panned out of it;
+    # focusing the canvas scrolls it to the window's top.
+    user.evaluate(
+        "() => scrollBy(0, document.querySelector('lf-trace .lf-trace-image-viewport')"
+        ".getBoundingClientRect().top - 160)"
+    )
     for _ in range(20):
         canvas.press("ArrowUp")
         if point.evaluate("""node => {

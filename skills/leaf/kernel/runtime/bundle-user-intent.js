@@ -2706,12 +2706,8 @@ function keepRefusedWords(attempts) {
     );
     return ctx === void 0 ? [] : [ctx];
   });
-  const hidden = returned.filter(
-    (ctx) => ![...draftEditors].some((view) => {
-      const input = view.ctx === ctx && editorInput(view);
-      return Boolean(input?.isConnected && input.checkVisibility());
-    })
-  );
+  const shownIn = (ctx) => [...draftEditors].filter((view) => view.ctx === ctx).map((view) => editorInput(view)).find((input) => input?.isConnected && input.checkVisibility()) ?? null;
+  const hidden = returned.filter((ctx) => !shownIn(ctx));
   for (const ctx of hidden.toReversed())
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
@@ -2719,7 +2715,10 @@ function keepRefusedWords(attempts) {
     hidden.length && "Draft kept \u2014 g i resumes writing",
     held && "Reply kept \u2014 it returns when its comment sends"
   ].filter(Boolean);
-  return sentences.length ? sentences.join(". ") : null;
+  return {
+    said: sentences.length ? sentences.join(". ") : null,
+    field: returned.map(shownIn).find(Boolean) ?? null
+  };
 }
 var writingEditor = () => [...draftEditors].find((editor) => editorInput(editor) === focused());
 var keepWritingCaret = () => {
@@ -2795,7 +2794,7 @@ function createWritingResume({
       return;
     }
     if (runtime.showsActive && !holdsBox(place2.context) && moveToPage(place2.context)) {
-      raiseError("Its box is gone, so its words moved to a comment on the page");
+      notice("Its box is gone, so its words moved to a comment on the page");
       return resume();
     }
     raiseError(

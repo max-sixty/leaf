@@ -1797,22 +1797,31 @@ def test_nothing_passing_interrupts_the_user_writing(browser, serve):
 def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     browser, serve
 ):
-    """An error the page raises stands in the field's status place until the user's
-    first edit, over words the field holds until the first key there, which lands in
-    those words. Then it waits under Errors in the leaf's menu, a dot on the leaf until
-    the list is opened, where each can be dismissed. Folded, the dot marks it and the
-    leaf's peek says it only when asked."""
-    page = floating(browser, serve(LONG_PAGE))
-    raise_error = "async (text) => { (await window.__lfWidgetApi()).raiseError(text); }"
+    """An error the page raises stands in the field's status place while the field can
+    say it: about its editor, or about nothing while the editor is empty. The user's
+    first edit passes every error the field says to Errors in the leaf's menu, where a
+    dot on the leaf marks them until the list is opened and each can be dismissed. Over
+    words its editor holds, an error covers them until the first key there, which lands
+    in those words, and Enter only uncovers them. An error the field cannot say, such
+    as one about nothing while the user has words there, goes straight to the list."""
+    url = serve(LONG_PAGE)
+    page = floating(browser, url)
+    raise_error = """async ([text, onField]) => {
+      const subject = onField ? document.querySelector('.lf-fp-field leaf-text') : null;
+      (await window.__lfWidgetApi()).raiseError(text, { subject });
+    }"""
     panel = page.locator(".lf-floating-panel")
     cover = page.locator(".lf-fp-error-cover")
     dot = page.locator(".lf-fp-error-dot")
-    page.evaluate(raise_error, "Couldn't send — the server refused it")
+    value = "node => node.value"
+    page.evaluate(raise_error, ["Couldn't load v1", False])
+    page.evaluate(raise_error, ["That reaction target is no longer available", False])
     expect(panel).to_have_attribute("data-says", "error")
     expect(field(page)).to_have_attribute(
-        "placeholder", re.compile(r"^Couldn't send — the server refused it")
+        "placeholder", re.compile(r"^That reaction target is no longer available")
     )
-    # Clicking in is no edit: the error stays until the user writes.
+    # Clicking in is no edit: the errors stay until the user writes, and the first
+    # key passes both of them.
     field(page).click()
     expect(panel).to_have_attribute("data-says", "error")
     expect(dot).to_be_hidden()
@@ -1820,40 +1829,42 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     expect(panel).to_have_attribute("data-says", "destination")
     expect(dot).to_be_visible()
 
-    # Over words the field holds, the error covers them, and the first key brings them
-    # back with that key in them.
-    page.evaluate(raise_error, "Could not add image — disk full")
+    # Over words its editor holds, an error covers them; Enter only uncovers them, and
+    # the next key lands in them.
+    page.evaluate(raise_error, ["Could not add image — disk full", True])
     expect(cover).to_have_text("Could not add image — disk full")
-    value = "node => node.value"
     assert field(page).evaluate(value) == "Could"
-    page.keyboard.type(" it")
+    sent = len(events_model.read_events(serve.page_dir))
+    page.keyboard.press("Enter")
     expect(cover).to_be_hidden()
+    page.keyboard.type(" it")
     assert field(page).evaluate(value) == "Could it"
+    assert len(events_model.read_events(serve.page_dir)) == sent
+    # One about nothing while the user has words goes straight to the list.
+    page.evaluate(raise_error, ["Draw on or beside something on the page.", False])
+    expect(cover).to_be_hidden()
+    expect(panel).to_have_attribute("data-says", "destination")
 
     page.locator(".lf-fp-leaf").click()
     errors = page.locator('.lf-fp-menu [data-row="errors"]')
-    expect(errors).to_contain_text("2")
+    expect(errors).to_contain_text("4")
     errors.click()
     listed = page.locator(".lf-fp-menu .lf-fp-error")
-    expect(listed).to_have_count(2)
-    expect(listed.first).to_contain_text("Could not add image — disk full")
+    expect(listed).to_have_count(4)
+    expect(listed.first).to_contain_text("Draw on or beside something")
     expect(dot).to_be_hidden()
-    listed.first.get_by_role("menuitem", name=re.compile("^Dismiss")).click()
-    expect(listed).to_have_count(1)
+    listed.first.get_by_role("menuitem").click()
+    expect(listed).to_have_count(3)
+    expect(listed.first.get_by_role("menuitem")).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
 
-    # Folded, the leaf's dot marks an error the field would say, and its peek says it
-    # only while the pointer asks.
+    # Folded, the panel says no error; the leaf's dot marks one raised there.
     page.locator("body").focus()
     page.keyboard.press(".")
     expect(panel).to_have_attribute("data-rest", "mark")
-    page.evaluate(raise_error, "That reaction target is no longer available")
+    page.evaluate(raise_error, ["That selected passage is unavailable", False])
     expect(dot).to_be_visible()
-    peek = page.locator(".lf-fp-peek")
-    expect(peek).to_be_hidden()
-    page.locator(".lf-fp-leaf").hover()
-    expect(peek).to_have_text("That reaction target is no longer available")
 
 
 def test_question_mark_opens_the_command_reference_at_once(browser, serve):

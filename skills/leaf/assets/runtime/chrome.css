@@ -254,7 +254,7 @@
   }
   .lf-fp-error-cover {
     position: absolute;
-    inset: 0 36px 0 0;
+    inset: 0;
     margin: 0;
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     background: var(--lf-fp-surface);
@@ -263,7 +263,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    pointer-events: none;
+    cursor: text;
   }
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {

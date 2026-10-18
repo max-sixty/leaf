@@ -5367,8 +5367,12 @@ function createDelivery({
               ];
               void Promise.all(refused.map(({ answer }) => answer)).then(
                 () => afterScript(() => {
-                  const kept = refusedWords(refused.map(({ attempt }) => attempt));
-                  raiseError(kept ? `${refusal}. ${kept}` : refusal);
+                  const { said, field } = refusedWords(
+                    refused.map(({ attempt }) => attempt)
+                  );
+                  raiseError(said ? `${refusal}. ${said}` : refusal, {
+                    subject: field
+                  });
                 })
               );
             }

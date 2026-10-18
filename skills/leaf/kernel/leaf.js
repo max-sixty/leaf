@@ -221,7 +221,7 @@ import {
   dismissError,
   dismissErrors,
   errorsReading,
-  passError,
+  passErrors,
   raiseError,
   registerErrorPresentation,
   seeErrors
@@ -1212,7 +1212,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       cancelDictation();
       const allowed = allowsMedia();
       if (allowed !== true) {
-        raiseError(allowed);
+        raiseError(allowed, { subject: ta });
         return false;
       }
       rememberWriting(ta);
@@ -1230,7 +1230,8 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         if (paths.some((path) => path === null)) return false;
         if (arrivals !== attachedAt) {
           raiseError(
-            "Image not added \u2014 the comment moved before it finished uploading"
+            "Image not added \u2014 the comment moved before it finished uploading",
+            { subject: ta }
           );
           return false;
         }
@@ -1240,7 +1241,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
-        raiseError(`Could not add image \u2014 ${error?.message ?? error}`);
+        raiseError(`Could not add image \u2014 ${error?.message ?? error}`, { subject: ta });
         return false;
       } finally {
         uploading = false;
@@ -7764,7 +7765,6 @@ function passing() {
   const message = goTo ?? (walk?.shown ? walk.text : "");
   return { message, visible: Boolean(message) };
 }
-var fieldError = () => errorsReading().find((error) => error.inField) ?? null;
 var clock = (at) => new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 var TONE_WORDS = Object.freeze({
   working: "Working",
@@ -7908,8 +7908,16 @@ function createFloatingPanel({
   let writing = false;
   let typing = false;
   let landAtEnd = null;
+  function sayable() {
+    const input = host.dataset.rest === "mark" ? null : fieldInput();
+    if (!input?.isConnected) return [];
+    const empty = draftOf(input) === "";
+    return errorsReading().filter(
+      (error) => !error.passed && (error.subject === input || error.subject === null && empty)
+    );
+  }
   function fieldReading(key, input) {
-    const error = fieldError();
+    const [error] = sayable();
     if (error) return { says: "error", words: error.message };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
@@ -7993,24 +8001,25 @@ function createFloatingPanel({
   field.addEventListener("input", retype);
   const errorCover = el("p", "lf-fp-error-cover");
   errorCover.setAttribute("aria-hidden", "true");
-  const passFieldError = () => {
-    const error = fieldError();
-    if (error) passError(error.id);
-  };
-  field.addEventListener("input", passFieldError, { capture: true });
-  field.addEventListener(
-    "pointerdown",
-    () => {
-      if (!errorCover.hidden) passFieldError();
-    },
-    { capture: true }
-  );
+  const passSayable = () => passErrors(sayable().map((error) => error.id));
+  field.addEventListener("beforeinput", passSayable, { capture: true });
+  errorCover.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const input = fieldInput();
+    passSayable();
+    const end = draftOf(input).length;
+    focusDestination(input, "move", { caret: [end, end] });
+  });
   field.addEventListener(
     "keydown",
     (event) => {
       if (errorCover.hidden || ["Shift", "Control", "Alt", "Meta", "Escape", "Tab"].includes(event.key))
         return;
-      passFieldError();
+      passSayable();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     },
     { capture: true }
   );
@@ -8681,39 +8690,33 @@ function createFloatingPanel({
   function errorsList() {
     const errors = errorsReading();
     if (!errors.length) return html`<p class="lf-fp-empty" role="none">No errors</p>`;
+    const dismiss = (dismissed) => {
+      const presses = [...menu.querySelectorAll(".lf-fp-error button")];
+      const at = errors.findIndex((error) => error.id === dismissed);
+      const next = dismissed === null ? null : presses[at + 1] ?? presses[at - 1];
+      focusDestination(next ?? menu.querySelector(".lf-fp-menu-back"), "move");
+      if (dismissed === null) dismissErrors();
+      else dismissError(dismissed);
+    };
     return html`${repeat(
       errors,
       (error) => error.id,
       (error) => html`<div class="lf-fp-error" role="none">
-          <p class="lf-fp-error-words">
-            <b>${error.message}</b
-            ><span class="lf-fp-note"
-              >${error.about ? `${error.about} \xB7 ` : ""}${clock(error.at)}</span
-            >
+          <p class="lf-fp-error-words" aria-hidden="true">
+            <b>${error.message}</b><span class="lf-fp-note">${clock(error.at)}</span>
           </p>
-          ${error.action ? html`<button
-                  type="button"
-                  role="menuitem"
-                  class="lf-fp-quiet"
-                  @click=${() => putAwayThen(() => {
-        dismissError(error.id);
-        error.action.run();
-      })}
-                >
-                  ${error.action.label}
-                </button>` : nothing}
           <button
             type="button"
             role="menuitem"
             class="lf-fp-quiet"
-            aria-label=${`Dismiss ${error.message}`}
-            @click=${() => dismissError(error.id)}
+            aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
+            @click=${() => dismiss(error.id)}
           >
             Dismiss
           </button>
         </div>`
     )}${errors.length > 1 ? html`<hr />
-            ${menuItem("Dismiss all", nothing, () => dismissErrors())}` : nothing}`;
+            ${menuItem("Dismiss all", nothing, () => dismiss(null))}` : nothing}`;
   }
   function shownThreads() {
     const words = query.trim().toLowerCase();
@@ -9230,8 +9233,9 @@ function createFloatingPanel({
     keepsText(badge, onUser ? String(onUser) : "");
     keeps(badge, "data-shown", onUser ? "" : null);
     keeps(newsDot, "data-shown", news ? "" : null);
+    const sayingNow = new Set(sayable().map((error2) => error2.id));
     const unseen = errorsReading().some(
-      (error2) => !error2.seen && (!error2.inField || folded)
+      (error2) => !error2.seen && !sayingNow.has(error2.id)
     );
     keeps(errorDot, "data-shown", unseen ? "" : null);
     render(menuOpen ? menuTemplate() : nothing, menu);
@@ -9316,8 +9320,8 @@ function createFloatingPanel({
       "title",
       reading.says === "status" ? status().explanation || status().summary : null
     );
-    const error = fieldError();
-    const covering = Boolean(error) && draftOf(input) !== "";
+    const [error] = sayable();
+    const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
     keepsText(errorCover, covering ? error.message : "");
     keepsHidden(errorCover, !covering);
     const notice2 = passing();
@@ -9468,9 +9472,8 @@ function createFloatingPanel({
   });
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
-    const error = fieldError();
-    const notice2 = error ? { message: error.message, visible: true } : passing();
-    const telling = folded && (error ? peekAsked : notice2.visible);
+    const notice2 = passing();
+    const telling = notice2.visible && folded;
     const reading = status();
     const parts = reading.explanationParts ?? [
       { text: reading.explanation || reading.summary }

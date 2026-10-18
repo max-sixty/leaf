@@ -1077,7 +1077,7 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     "size,at,long,touch,again,options",
     [
         ((1440, 900), 0.4, False, False, False, False),
-        ((900, 600), 0.85, False, False, False, False),
+        ((900, 600), 0.75, False, False, False, False),
         ((390, 844), 0.12, False, False, False, False),
         ((900, 600), 0.4, True, False, False, False),
         ((900, 600), 0.4, "scrolled", False, False, False),
@@ -1085,7 +1085,7 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
         ((1440, 900), 0.4, False, False, True, False),
         ((390, 844), 0.4, "passage", True, False, False),
         pytest.param(
-            (900, 600), 0.85, False, False, False, True, id="above-with-options"
+            (900, 600), 0.75, False, False, False, True, id="above-with-options"
         ),
     ],
 )
@@ -1234,13 +1234,16 @@ def test_send_grows_thread_around_the_words(
         if painted_growth:
             rendered(page)
             # Layout Instability compares painted frames; a RAF measurement can
-            # catch an intermediate height the browser never actually displayed.
+            # catch an intermediate height the browser never actually displayed. The
+            # card grows up from its foot here, so its painted top rises. Its source
+            # rect is the card's visual rect, which takes in the ink below its box, so
+            # that rect's height need not change while the card's does.
             card.evaluate("""card => {
               const growth = [];
               const record = entries => {
                 for (const entry of entries) for (const source of entry.sources) {
                   if (source.node !== card || !source.previousRect.height) continue;
-                  const before = source.previousRect.height, after = source.currentRect.height;
+                  const before = source.previousRect.top, after = source.currentRect.top;
                   if (Math.abs(after - before) > 0.75) growth.push({before, after});
                 }
               };
@@ -1260,7 +1263,7 @@ def test_send_grows_thread_around_the_words(
         ).to_be_visible()
         if painted_growth:
             growth = page.evaluate("window.__replyGrowth()")
-            assert len(growth) == 1 and growth[0]["after"] > growth[0]["before"], growth
+            assert len(growth) == 1 and growth[0]["after"] < growth[0]["before"], growth
 
         # The first sent message, subsequent turns, metadata and the empty reply
         # share one reading edge, both during the handoff and after reopening.

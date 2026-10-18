@@ -27,7 +27,9 @@
    the reference to reopen with an explanation.
 
    `?` opens it from anywhere a key reaches, and the page's controls carry the same
-   door as their Keyboard shortcuts row (page-controls.js), for a pointer. */
+   door as their Keyboard shortcuts row (page-controls.js), for a pointer. That row
+   opens it from where the user stood before pressing it, and Escape returns to the row's
+   door. */
 import {
   showNativeLayer,
   closeNativeLayer,
@@ -88,6 +90,7 @@ import {
 import { repaint } from "../repaint.js";
 import { pageSelection } from "../composing/capture.js";
 import { availableCommandRoutes, executeCommand, userIn } from "./dispatch.js";
+import { returnPlace } from "../history.js";
 import { reachScrollers } from "../reach.js";
 import { registerReadingRegion } from "../reading-regions.js";
 
@@ -1049,9 +1052,9 @@ let closeInteractions = () => {};
 export function mountCommandReference({ beforeOpening }) {
   closeInteractions = beforeOpening;
 }
-const openReference = () => {
+const openReference = (returnTo = null) => {
   closeInteractions();
-  openCommandReference((id) => executeCommand(id));
+  openCommandReference((id) => executeCommand(id), returnTo);
 };
 
 // `?`, from wherever a key reaches.
@@ -1061,13 +1064,21 @@ pageCommand({
   runFromCommandReference: false,
   keys: ["?"],
   title: "Command reference",
-  run: openReference,
+  run: () => openReference(),
 });
+// The row's press stands where the user pressed it, such as the floating panel's leaf,
+// and is handed the place they stood before stepping in. The reference opens from that
+// place, so its commands act there, as `?` pressed there would; closing it unrun returns
+// to the control that opened it.
 registerPageControl({
   key: "keyboard",
   rank: PAGE_CONTROL_RANK.keyboard,
   label: "Keyboard shortcuts",
   shortcut: ["?"],
   group: "page",
-  press: openReference,
+  press: (held) => {
+    const door = focused();
+    if (held) returnPlace(held);
+    openReference(door);
+  },
 });

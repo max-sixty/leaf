@@ -2030,9 +2030,9 @@ var closeInteractions = () => {
 function mountCommandReference({ beforeOpening }) {
   closeInteractions = beforeOpening;
 }
-var openReference = () => {
+var openReference = (returnTo = null) => {
   closeInteractions();
-  openCommandReference((id) => executeCommand(id));
+  openCommandReference((id) => executeCommand(id), returnTo);
 };
 pageCommand({
   id: "command.reference.open",
@@ -2040,7 +2040,7 @@ pageCommand({
   runFromCommandReference: false,
   keys: ["?"],
   title: "Command reference",
-  run: openReference
+  run: () => openReference()
 });
 registerPageControl({
   key: "keyboard",
@@ -2048,7 +2048,11 @@ registerPageControl({
   label: "Keyboard shortcuts",
   shortcut: ["?"],
   group: "page",
-  press: openReference
+  press: (held) => {
+    const door = focused();
+    if (held) returnPlace(held);
+    openReference(door);
+  }
 });
 
 // runtime/composing/surface.js
@@ -7982,7 +7986,8 @@ function createFloatingPanel({
   onStanding((node, _cause, left) => {
     if (menuOpen && node && node !== leaf && !renderedUnder(node, menu)) setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
-    if (inside && left && !renderedUnder(left, host)) heldStanding = readPlace(left);
+    if (inside && left?.isConnected && !renderedUnder(left, host))
+      heldStanding = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;

@@ -3115,7 +3115,11 @@ export function createFloatingPanel({
     // past its row, or a press in the field, puts it away.
     if (menuOpen && node && node !== leaf && !renderedUnder(node, menu)) setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
-    if (inside && left && !renderedUnder(left, host)) heldStanding = readPlace(left);
+    // Stepping in from the page holds where the user stood. A row the panel just took
+    // away, as a pressed menu row hands the user to the leaf, is no longer under the
+    // panel but came from it, and holds nothing.
+    if (inside && left?.isConnected && !renderedUnder(left, host))
+      heldStanding = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;
     if (next === writing && !inside) return;
     writing = next;

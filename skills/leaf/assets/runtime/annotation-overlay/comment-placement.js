@@ -73,6 +73,18 @@
    clear of, so a reflow of what it is about carries it. The card keeps its reply row
    still that way while a turn joins the transcript above it.
 
+   A held surface grows no taller than the room from its held edge, or than the tallest
+   it has stood since its line last moved (`fit`'s `stood`), whichever is more. Against
+   the window's foot the boundary keeps a card's foot, so content that shrinks it, a
+   rewrite opening over long words, a fold, an edit, lowers its top, and growing back
+   raises it again to where it stood. A scroll moves the line and keeps only the
+   height the card stands at. Its top rising this way also lets a reply drafted after
+   shorter words were saved grow the card back up the page. Rejected: keeping only the
+   height it last stood at, which made every shrink at the foot permanent, so an
+   unchanged rewrite closed as a clipped scrolling box; holding its top where the
+   window had kept it as it shrank, which a press holding its foot undid; and a floor
+   in the rewrite for that one cause of shrinking.
+
    Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
    frame's side and inline start where the boundary still matches, and returns its
    block offsets for the card to hold. The attachment is then the card's current one:
@@ -350,8 +362,9 @@ export const cardMeasure = () => rootLength("--thread-card");
    so an editor needs no transcript reading to keep its attachment while typing; before
    that landing, an adopted frame's offsets are the ones held.
 
-   `fit({ side, width, height, scale })` sizes the surface for the room its side gives, in its
-   positioning space. Its declared minimum is limited only by the boundary, never by
+   `fit({ side, width, height, stood, scale })` sizes the surface for the room its side
+   gives, in its positioning space; `stood` is the height a held surface caps no lower
+   than, or 0. Its declared minimum is limited only by the boundary, never by
    its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
    shift it. On the left, the surface instead holds its right edge clear of the
@@ -371,6 +384,8 @@ export function commentPlacement() {
   // reading the placement in flight answers, which its landing records.
   let held = null;
   let reading = null;
+  // The tallest the surface has stood since its line last moved, and that line.
+  let tallest = null;
   // The edge the last `holding` answer held, the one the user's latest press in the
   // surface chose for the change it made, and that press's input and the transcript
   // extent its change left.
@@ -387,6 +402,7 @@ export function commentPlacement() {
     moved = false;
     held = null;
     reading = null;
+    tallest = null;
     edge = "top";
     pressHeld = null;
     pressAnswered = null;
@@ -478,10 +494,8 @@ export function commentPlacement() {
     // holds the foot only where the surface stands above what it is about; any other
     // change keeps the edge held now.
     edgeFor: (turn) => (turn ? (side === "top" ? "foot" : "top") : edge),
-    // The held edge's offset for `options`' `hold`, and the height between the held
-    // top and foot, which caps a held surface no shorter than it last stood.
+    // The held edge's offset for `options`' `hold`.
     heldAt: (edge) => held && { [edge]: held[edge] },
-    heldHeight: () => (held ? held.foot - held.top : 0),
     scrolled() {
       input = null;
     },
@@ -660,7 +674,15 @@ export function commentPlacement() {
       const size = ui.size({
         ...overflow,
         apply(state) {
-          const { scale } = measure(state);
+          const { scale, line } = measure(state);
+          // The height a held surface caps no lower than: the tallest it has stood
+          // while its line stood where it stands now, else the height it last stood.
+          const stood = held
+            ? Math.max(
+                held.foot - held.top,
+                tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0,
+              ) / scale.y
+            : 0;
           const lane =
             carriedInline !== null
               ? boundary.right - (column ?? clear.left) - carriedInline
@@ -676,6 +698,7 @@ export function commentPlacement() {
               Math.min(state.availableWidth, lane / scale.x),
             ),
             height: state.availableHeight,
+            stood,
             scale,
           });
         },
@@ -796,7 +819,15 @@ export function commentPlacement() {
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
-      const spot = { top, foot: top + middlewareData.held.height * scale.y };
+      const height = middlewareData.held.height * scale.y;
+      const spot = { top, foot: top + height };
+      tallest = {
+        height:
+          tallest && Math.abs(tallest.line - line) < 0.5
+            ? Math.max(tallest.height, height)
+            : height,
+        line,
+      };
       // The reading this placement answered, so a turn that joined while it was worked
       // out is one the next placement still sees join.
       held = { ...spot, ...reading };

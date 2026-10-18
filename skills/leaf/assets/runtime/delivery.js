@@ -10,6 +10,7 @@ import { runtime } from "./context.js";
 import { completeData, postEvent, reportCarried } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { afterScript } from "./rendering.js";
+import { raiseError } from "./errors.js";
 
 const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
@@ -143,7 +144,7 @@ export function createDelivery({
             // Answer listeners restore their draft and other rejected mechanical state.
             // Each sender registered them on its answer when it sent, so a reaction
             // registered now runs after every one of them (promise reactions run in
-            // registration order): the notice reads where the words of every refused
+            // registration order): the error reads where the words of every refused
             // gesture ended up, and says so where that is out of view. It is presented
             // at that script's checkpoint, so its geometry reads the foreground the
             // user will see.
@@ -154,8 +155,12 @@ export function createDelivery({
               ];
               void Promise.all(refused.map(({ answer }) => answer)).then(() =>
                 afterScript(() => {
-                  const kept = refusedWords(refused.map(({ attempt }) => attempt));
-                  notice(kept ? `${refusal}. ${kept}` : refusal);
+                  const { said, field } = refusedWords(
+                    refused.map(({ attempt }) => attempt),
+                  );
+                  raiseError(said ? `${refusal}. ${said}` : refusal, {
+                    subject: field,
+                  });
                 }),
               );
             }

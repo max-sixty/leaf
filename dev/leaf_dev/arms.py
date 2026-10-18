@@ -443,6 +443,9 @@ def retire_sessions(payload: Path, state: Path) -> None:
     the watch, and the latter joins the final writes its retirement makes after
     releasing that lease. No native session may still use this state home.
     """
+    # Startup can fail before anything uses this isolated state home.
+    if not state.exists() or not any(state.iterdir()):
+        return
     subprocess.run(
         [
             str(payload / ".venv/bin/python"),
@@ -472,9 +475,10 @@ for path in sessions.glob(f"*.{SESSION_SUFFIX}"):
 def scratch(payload: Path | None = None, *, state: Path | None = None):
     """Own a scenario's cwd and sibling credential home until scoring ends.
 
-    An owning sample supplies its arm and, when outside the cwd, its state home.
-    It retires native session resources before removing their files. A nested
-    reader sharing its parent's state omits the arm and owns only its workspace.
+    A Leaf-owning sample supplies its arm and, when outside the cwd, its state
+    home. It retires native session resources before removing their files. HTML
+    samples and nested readers sharing a parent's state omit the arm and own only
+    their workspace.
     """
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as directory:
         work = Path(directory) / "cwd"
@@ -771,9 +775,11 @@ class LiveSession:
     a quiet session from one still working (`settle`).
 
     `watch` names the arm, its state home and the page the session serves. Once
-    the page is served the session records `eval_served` with its keyed URL, which
-    `url` holds, and at each turn's end `eval_status` with the page's status, from
-    the time the page exists."""
+    the page is served the session records `eval_served` with its keyed URL, active
+    revision descriptor and event boundary from that same observation. This is
+    first-observed availability, not proof of a usable page or its first HTTP response.
+    `url` holds the address; at each turn's end `eval_status` records the page's
+    status, from the time the page exists."""
 
     def __init__(
         self, child, stream: Path, watch: tuple[Path, Path, Path] | None = None
@@ -840,7 +846,10 @@ class LiveSession:
                 self.heard = time.monotonic()
                 if item.get("type") == "result":
                     self.answered, self.running = self.answered + 1, False
-                elif item.get("type") in ("assistant", "user"):
+                elif item.get("type") == "turn_started" or (
+                    item.get("harness") != CodexHarness.name
+                    and item.get("type") in ("assistant", "user")
+                ):
                     self.running = True
                 yield item
             finally:
@@ -851,11 +860,18 @@ class LiveSession:
         if self.watch is None or not (self.watch[2] / "events.jsonl").exists():
             return
         if not self.url and record.get("type") in ("user", "result"):
-            server = read_page_state(*self.watch)["server"]
+            state = read_page_state(*self.watch)
+            server = state["server"]
             if server:
                 self.url = server["url"]
                 self.note(
-                    {"type": "eval_served", "url": self.url, "received_at": now()}
+                    {
+                        "type": "eval_served",
+                        "url": self.url,
+                        "active": state["active"],
+                        "event_seq": state["event_seq"],
+                        "received_at": now(),
+                    }
                 )
         if record.get("type") == "result":
             state = read_page_state(*self.watch)
@@ -876,10 +892,11 @@ class LiveSession:
     def settle(self, since: int, *, grace: float, wake: float, before=None) -> bool:
         """Read until the session has answered and gone quiet: more than `since`
         turns have ended (`answered`), none is running, and `grace` seconds have
-        passed without a record. A turn runs from its first message to its result,
-        however long a tool call inside it takes. Return False when, before that
-        answer, `wake` seconds pass with no turn running and no record, as when
-        nothing reached the session."""
+        passed without a record. Codex supplies native turn starts; Claude Code
+        starts at its first message. Both end at their result, however long a
+        tool call inside takes; late Codex content cannot start another turn.
+        Return False when no answer arrives and `wake` seconds pass with no turn
+        running and no record, as when nothing reached the session."""
         self.heard = time.monotonic()
         for record in self.records(idle=1, before=before):
             if record is not None:

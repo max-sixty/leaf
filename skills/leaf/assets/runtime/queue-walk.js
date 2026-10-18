@@ -55,7 +55,7 @@
    this case reads it: anywhere else the user's own place decides.
 
    Experimental: the lists and the walk over them are new, and their shape is
-   expected to change a lot (notes/what-needs-you/). Change them freely.
+   expected to change a lot. Change them freely.
 */
 import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
@@ -66,7 +66,8 @@ import { askHolding, placeOf, stepFrom, walkOrigin } from "./standing-target.js"
 import { seenRect } from "./geometry.js";
 import { elementById, inChrome, pageDocument } from "./passages.js";
 import { byRenderedOrder, inUi, under } from "./shadow.js";
-import { readAsks } from "./asks/model.js";
+import { askWord } from "./asks/answer.js";
+import { askedInWords, readAsks } from "./asks/model.js";
 import { asksIn, askPlace } from "./asks/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
 import { itemNoun } from "./queues.js";
@@ -79,25 +80,31 @@ import { approvalTarget, presentedApproval } from "./banner.js";
 const QUALIFIER = "waiting on me";
 const WITHIN = "waiting on me here";
 const NOUNS = Object.freeze({
-  ask: "Ask",
   thread: "Thread",
   widget: "Update",
   page: "To-do",
   approval: "Approval",
 });
-// What a stop is called: by where it is arrived at, but a to-do on an element is a To-do
-// rather than the Update a widget's stop otherwise is.
+// What a stop is called: an ask by its widget's own word, else by where it is arrived
+// at, but a to-do on an element is a To-do rather than the Update a widget's stop
+// otherwise is.
 const nounOf = (item, stop) =>
-  stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+  item.kind === "ask" && stop.kind !== "approval"
+    ? askWord(item.ask)
+    : stop.kind === "widget" && itemNoun(item) === "todo"
+      ? "To-do"
+      : NOUNS[stop.kind];
 
 // Where an item of either list, or one that is done, is arrived at: a widget ask by
-// the ask's own id, anything else by the thread it stands in, a to-do on the page as a
-// whole at the page's head, or else the element it stands on, as an action is arrived at
-// on the widget it was made on.
+// the ask's own id, a question asked in words in a thread, like anything else, by the
+// thread it stands in, a to-do on the page as a whole at the page's head, or else the
+// element it stands on, as an action is arrived at on the widget it was made on.
 const stopOf = (item) =>
   item.kind === "ask" && item.ask.source.kind === "approval"
     ? { kind: "approval", id: item.id, thread: null }
-    : item.kind === "ask" && item.ask.source.kind === "widget"
+    : item.kind === "ask" &&
+        item.ask.source.kind === "widget" &&
+        !(item.thread !== null && askedInWords(item.ask))
       ? { kind: "ask", id: item.id, thread: item.thread, ask: item.ask }
       : item.thread !== null
         ? { kind: "thread", id: item.thread, thread: item.thread }
@@ -355,13 +362,13 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "m",
         title: "Next on me",
-        description: "Next ask, thread, to-do or resend waiting on me",
+        description: "Next item waiting on me",
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
         title: "Previous on me",
-        description: "Previous ask, thread, to-do or resend waiting on me",
+        description: "Previous item waiting on me",
       },
     ],
     title: "On me",

@@ -1046,7 +1046,7 @@ def test_the_response_field_grows_as_a_rectangle_and_spans_the_bar(browser, serv
     write(field, "\n".join(f"line {n}" for n in range(1, 80)))
     rendered(page)  # placeFab answers the input a frame later
     room = page.evaluate(FLOAT_ROOM)
-    bounds = bar.bounding_box()
+    bounds = bar.locator(".lf-compose-field").bounding_box()
     assert field.evaluate(FIELD_BOX)["scrolls"], bounds
     assert bounds and room["top"] <= bounds["y"], (room, bounds)
     assert bounds["y"] + bounds["height"] <= room["bottom"], (room, bounds)
@@ -2587,8 +2587,9 @@ def _thread(page_dir):
             "author": "agent",
             "agent": "Claude",
             "parent": root,
+            "revision": 1,
             "text": "Forty is what the slowest device we ship on can hold.",
-            "ask": True,
+            "markup": '<lf-ask id="forty-enough">Is forty enough?</lf-ask>',
         },
     )
     return root, reply["id"]

@@ -85,7 +85,6 @@ def obligation_reading(readings) -> dict:
     thread = work.thread
     workflows = work.workflows
     thread_asks = work.widget_asks
-    prompts = work.prompts
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
@@ -116,9 +115,6 @@ def obligation_reading(readings) -> dict:
                 for ask in thread_asks["unanswered"]
                 if ask["next_actor"] is not None
             ],
-            "prompts": {
-                identity: prompt["message"] for identity, prompt in prompts.items()
-            },
             # The to-dos the agent put on the user, which their Done ends.
             "todos": [
                 todo["id"]

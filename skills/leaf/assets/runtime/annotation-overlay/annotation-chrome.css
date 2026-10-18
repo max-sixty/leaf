@@ -94,8 +94,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-carrier:has(.lf-margin-cluster:is(:hover, [data-lf-focus-within])) {
     z-index: var(--lf-z-margin-raised);
   }
-  /* Placement fits the finished thread before typing. Only the editor paints; the
-     transparent header/reply slots neither take document flow nor intercept presses.
+  /* The frame reserves the finished thread's rows before typing. Only the editor
+     paints; the transparent header/reply slots neither take document flow nor
+     intercept presses, and placement lets the one the box grows toward stand past the
+     window's edge (comment-placement.js).
      The frame is at least as wide as the card it becomes (`--thread-card-min`), so
      Send's growth opens from its field (thread-preview.js, `growOut`); its tracks
      shrink into that frame, including beside attached media. */
@@ -541,12 +543,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      trigger under a finger. */
   .lf-margin-thread .lf-thread-transcript .lf-msg-body {
     --lf-top: var(--lf-msg-head-height);
-  }
-  /* A short turn of the user's keeps room for its one-line rewrite field from its first
-     paint, so neither delivery, which brings its Edit, nor opening the field shifts the
-     turn, the card Send opened, or a reply the reader is writing in below it. */
-  .lf-margin-thread .lf-msg.user > .lf-msg-body {
-    min-height: calc(var(--lf-compose-h) + 2px);
   }
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
     scroll-margin-top: calc(var(--lf-top) + var(--focus-ring-room));

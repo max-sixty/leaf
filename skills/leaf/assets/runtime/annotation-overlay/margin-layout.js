@@ -78,7 +78,7 @@ import {
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
-import { pageDocument } from "../passages.js";
+import { layoutBox } from "../passages.js";
 import {
   arrivals,
   inSeatingOrder,
@@ -95,6 +95,7 @@ import { LAYOUT } from "../widget-elements.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import {
+  anchorBox,
   anchorFor,
   anchorElement,
   anchorReading,
@@ -257,7 +258,7 @@ function carrierAnchor(subject, sources, scroller) {
 }
 
 // The margin follows `main` or, on a page without one, the body.
-export const marginColumn = () => pageDocument() || document.body;
+export const marginColumn = () => layoutBox() || document.body;
 
 const railStands = (main) =>
   (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
@@ -373,7 +374,7 @@ export function syncMarginResidency(changed) {
 }
 function paintPins() {
   if (!residencyStarted()) return;
-  const main = pageDocument();
+  const main = layoutBox();
   layer?.root
     .closest(".lf-chrome")
     .toggleAttribute("data-lf-pins", !main || !railStands(main));
@@ -1349,7 +1350,7 @@ export function layoutMarginRows() {
       .join("|");
     if (read.cuts.length)
       read.carrier ??= carriedAnchor(pageScroller) ?? anchorElement(targetBox(subject));
-    read.carrierBox = read.carrier?.getBoundingClientRect();
+    read.carrierBox = read.carrier && anchorBox(read.carrier);
     read.lane = read.scroller === pageScroller ? layer.root : null;
     if (read.carrier && !carrierNames.has(read.carrier))
       carrierNames.set(read.carrier, anchorReading(read.carrier));
@@ -1384,7 +1385,7 @@ export function layoutMarginRows() {
           return {
             anchor,
             reading: anchorReading(anchor),
-            at: anchor.getBoundingClientRect(),
+            at: anchorBox(anchor),
             band: !band
               ? null
               : i

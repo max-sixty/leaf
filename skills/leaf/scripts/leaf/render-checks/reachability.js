@@ -1,5 +1,6 @@
 import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
 import { shownBox, userScrollport } from "/runtime/check-api.js";
+import { restsOverPage } from "./layout.js";
 import { at, unique } from "./locate.js";
 import { coveredWords } from "./words.js";
 
@@ -14,23 +15,6 @@ export function reachabilityReading() {
   };
 }
 
-// A widget that upgraded into no room to be read in. The floor is two numbers, and
-// which of them a widget is held to is the widget's to declare (x-inline), because
-// the two kinds are laid out by different rules: one reserves a region and the other
-// is set among the words around it, where the box is the words and there is no width
-// it was supposed to reach. Held to the region's floor, an inline widget fails for
-// being short — a chip reading a price is 31px wide and correct, and the gate reported
-// the author's own words as a collapse. The height floor is both kinds': a line of
-// words is a line tall wherever it is laid out, which leaves a flattened chip caught.
-//
-// Declared, not read off the computed display, because a custom element with no rule
-// left computes as inline: a theme that lost the chip block would silence the
-// check that exists to catch it.
-//
-// [hidden] needs its own exclusion: hidden="until-found" (what a closed tab wears)
-// resolves to content-visibility, which checkVisibility reports as visible while the
-// box measures zero. That collapse is the point of a closed tab; the collapse being
-// hunted here is the one nothing asked for.
 // A control drawn where no user can reach it. `TINY_BOXES` asks whether a widget got a
 // box at all; this asks the question one level down, of the chrome inside it, and the
 // difference is which failure each catches: a widget with no box is a widget that didn't
@@ -134,6 +118,29 @@ export function clippedControls() {
   return out;
 }
 
+// A widget that upgraded into no room to be read in. The floor is two numbers, and
+// which of them a widget is held to is the widget's to declare (x-inline), because
+// the two kinds are laid out by different rules: one reserves a region and the other
+// is set among the words around it, where the box is the words and there is no width
+// it was supposed to reach. Held to the region's floor, an inline widget fails for
+// being short — a chip reading a price is 31px wide and correct, and the gate reported
+// the author's own words as a collapse. The height floor is both kinds': a line of
+// words is a line tall wherever it is laid out, which leaves a flattened chip caught.
+//
+// Declared, not read off the computed display, because a custom element with no rule
+// left computes as inline: a theme that lost the chip block would silence the
+// check that exists to catch it.
+//
+// [hidden] needs its own exclusion: hidden="until-found" (what a closed tab wears)
+// resolves to content-visibility, which checkVisibility reports as visible while the
+// box measures zero. That collapse is the point of a closed tab; the collapse being
+// hunted here is the one nothing asked for.
+//
+// An overlay at rest (`restsOverPage`) is held to the height floor alone, as the
+// contents map is: in the margin its box is a 24px spine, and its labels reveal over
+// the page from it. Its posture says so in its computed style, which a widget that
+// lost its rules doesn't take on, so a map dropped into the flow at that width is
+// still caught.
 export function tinyBoxes(declarations) {
   const declared = new Set(Object.keys(declarations));
   const inline = new Set(
@@ -149,13 +156,13 @@ export function tinyBoxes(declarations) {
         el.checkVisibility() &&
         !el.closest("[hidden]"),
     )
-    .map((el) => ({
-      tag: el.tagName.toLowerCase(),
-      id: el.id,
-      w: Math.round(el.getBoundingClientRect().width),
-      h: Math.round(el.getBoundingClientRect().height),
-    }))
-    .filter((box) => box.h < 10 || (!inline.has(box.tag) && box.w < 40));
+    .flatMap((el) => {
+      const tag = el.tagName.toLowerCase();
+      const w = Math.round(el.getBoundingClientRect().width);
+      const h = Math.round(el.getBoundingClientRect().height);
+      const narrow = !inline.has(tag) && !restsOverPage(getComputedStyle(el)) && w < 40;
+      return h < 10 || narrow ? [{ tag, id: el.id, w, h }] : [];
+    });
 }
 
 // An element the user can see and no mark can be shown on. The gate presses no keys, so
@@ -204,19 +211,8 @@ export function unmarkableElements() {
   return found;
 }
 
-// Words the page shows that no user can select, and so no comment can be
-// anchored on. A widget has two ways to leave them there, neither of which a
-// static lint can see, and a page-local widget is where both keep happening.
-//
-// It can paint them: `content: attr(label)` puts a heading on screen and in no
-// text node, so a selection can't cover it. The runtime says the attributes the
-// registry marks x-says, and a widget's module says the rest (a chip row, a
-// heading that doubles as a list's accessible name); either way, none of an
-// element's own attribute values should still be reaching the user as
-// generated content.
-//
-// Or it can leave them under .lf-ui with nothing said about whose words they are.
-// That class is the chrome face, a look — reaching for it as a general "this is
+// Text nodes under widget chrome that no comment can be anchored on.
+// The .lf-ui class is the chrome face, a look — reaching for it as a general "this is
 // chrome" marker is how a user ends up unable to comment on a heading they can
 // see. The declaration is made where the label is written: data-lf-said for the page
 // speaking, which the anchor pass reads over the box around it, data-lf-offer for a
@@ -228,15 +224,6 @@ export function unmarkableElements() {
 // markup frozen in the event log, not the document.
 function unreachableWords() {
   const found = [];
-  for (const el of document.querySelectorAll("*")) {
-    if (!el.tagName.startsWith("LF-")) continue;
-    const shown = ["::before", "::after"]
-      .map((w) => getComputedStyle(el, w).content)
-      .filter((c) => c && c.startsWith('"'));
-    for (const { name, value } of el.attributes)
-      if (value.length > 1 && shown.some((c) => c.includes(value)))
-        found.push({ code: "painted-words", at: at(el), attr: name, value });
-  }
   // The lf-* element something stands in, if any. A .lf-ui is a widget's own
   // chrome by standing in one of these, and the runtime's layer is appended to
   // body and stands in none — but a widget riding a message stands in the

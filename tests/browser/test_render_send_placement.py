@@ -1098,7 +1098,11 @@ def test_send_grows_thread_around_the_words(
     column and foot, and the card stands its words as far above its end as the box did. The
     growth only clips the card, so the words its layout places are the ones painted.
     Read inside the editor solely to measure its actual glyphs, without changing its
-    closed-root behavior."""
+    closed-root behavior.
+
+    The one exception is a box grown into the window's edge: typing lets the card's
+    unpainted head or reply row stand past it, so Send moves the words by exactly that
+    much to bring the card inside, unless the card fills the window and scrolls them."""
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
@@ -1143,6 +1147,22 @@ def test_send_grows_thread_around_the_words(
         rendered(page)
     if long == "passage":
         assert FIRST_LINE.line(page)["bottom"] > page.evaluate(BANNER_FOOT)
+    # How far the box's frame stands past the room a surface stands in, which Send
+    # takes back to bring the card's head and reply row inside.
+    room = page.evaluate("""async () => {
+      const {commentBoundary} = await window.__lfOverlayApi();
+      const {top, bottom} = commentBoundary();
+      return {top, bottom};
+    }""")
+    frame = page.locator(".lf-fab-bar").bounding_box()
+    # A frame taller than that room becomes a card that fills it and scrolls its
+    # words, which then stay put.
+    past = (
+        max(0, room["top"] - frame["y"])
+        - max(0, frame["y"] + frame["height"] - room["bottom"])
+        if frame["height"] <= room["bottom"] - room["top"] + 0.75
+        else 0
+    )
     page.evaluate("""() => {
       const input = document.querySelector('.lf-fab-input');
       const blockRects = node => {
@@ -1217,11 +1237,16 @@ def test_send_grows_thread_around_the_words(
     for frame in reading["frames"]:
         assert frame["frame"]["left"] >= -0.75
         assert frame["frame"]["right"] <= size[0] + 0.75
-        assert frame["frame"]["top"] >= -0.75
-        assert frame["frame"]["bottom"] <= size[1] + 0.75
+        assert frame["frame"]["top"] >= room["top"] - 0.75, (room, frame["frame"])
+        assert frame["frame"]["bottom"] <= room["bottom"] + 0.75, (room, frame["frame"])
         assert [v for r in frame["rects"] for v in r] == pytest.approx(
-            [v for r in reading["before"] for v in r], abs=0.75
-        ), reading
+            [
+                v + past * (i % 4 == 1)
+                for r in reading["before"]
+                for i, v in enumerate(r)
+            ],
+            abs=0.75,
+        ), (past, reading)
         assert frame["pageScroll"] == reading["pageScroll"], reading
     expect(
         card.get_by_role("button", name="Resolve thread", exact=True)

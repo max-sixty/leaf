@@ -2,11 +2,11 @@
 
 ## Biggest current challenges
 
-- **Improve our outputs against a standard HTML output.** Agents given plain
-  HTML wrote pages judges preferred on every configuration and some queues, at a
-  third to a half of Leaf's cost ([comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)).
-  Make Leaf's pages at least as good, and find which widgets and instructions
-  help an author rather than constrain one.
+- **Improve our outputs against a standard HTML output.** The
+  [recovered comparison](notes/agent-usability-evals.md#recovered-codex-comparison-2026-10-14)
+  measures complete authoring and feedback cycles on saved Leaf and HTML pages.
+  Use task-specific evidence to decide which compositions help, and measure current
+  authoring time before adding more widgets or instructions.
 - **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
   agent wake-up reliable, including Codex's message back into the session and
   Claude Code's potentially overcomplicated state machine.
@@ -123,24 +123,35 @@ has tried; settle that before building it.
   adding one.
 
 - **#20 — Act on the plain HTML comparison.** The
-  [comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
-  found Leaf authors write much less CSS and script but spend 2–3 times the cost,
-  over more turns with the skill and references in context. Judges preferred
-  plain HTML's configurations, which put each alert's controls beside its evidence,
-  and Leaf's documents, which put decisions on the page.
-  [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
-  starting with progress through a queue; per-item controls for configuration
-  landed in #2711.
+  [recovered Codex rerun](notes/agent-usability-evals.md#recovered-codex-comparison-2026-10-14)
+  split six pairs into two Leaf wins, two HTML wins and two order-sensitive splits.
+  Judging now separates making decisions from reading the final record; the
+  ask-authoring reference also distinguishes user requests from agent-proposed asks.
+  [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
+  using current code and an unfamiliar author; two samples per task do not settle
+  which compositions work generally.
 - **Give a recommendation's reason beside the options, not in its card.** The
   default registry's `lf-options` example writes the reason into the recommended
   card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
   options on 2026-10-12. Score the change with `evals/` before and after.
+- **Draw the agent's plan, and tell agents to write one.** `leaf task plan` records
+  the agent's breakdown as one outline whose steps are plain or name a to-do or ask
+  (`plans.py`), served as `plan` in the browser state and `page state`. Nothing draws
+  it yet. Draw it on the floating panel's On view: the goal, its steps in order with
+  done ones ticked in place, the current one marked, "2 of 5" and its elapsed time,
+  and an item on On me with its plan as context. In the same change, add the
+  instruction to write a plan to `conversation-loop.md` and score it with `evals/`,
+  since a plan nobody draws shows the user nothing. affectUI's
+  [Agent Plan](https://www.affectui.com/components/agent-plan) is the reference.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 - **#24 — Measure time to an initial reviewable page and the value of review.**
+  Retrospective replay now proves one usable Leaf candidate and one usable HTML
+  candidate before their authors finished. Their observation triggers differ;
+  earliest usability and the value of review still need a separate study.
   Measure from the user's request to the first browser-reachable page handed over
   for review. Separate preparation and reference reads, authoring, markup and
   render checks, the author's navigation task, independent reading, revisions,
@@ -554,21 +565,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
-- **Model how work breaks into pieces.** A to-do links only to its thread, widget or
-  page. Most real work forms a fuzzy hierarchy: much of planning is breaking a goal into
-  pieces, and the breakdown changes as the work teaches what the goal needs, with
-  pieces split, merged, dropped or moved under another parent. Fixed trees, like Pi's
-  owned subtasks or a tracker's parent and child tickets, are too brittle for that.
-  Find a shape that holds a changing breakdown, and say what it means for the queues:
-  whether a parent ends when its children do, and whose queue shows a child. Two links
-  are already planned: none for a to-do answering the user's comment, and one back to
-  the dispatcher for work handed to another session (step 7 of
-  [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
-  whose work the user wants to see broken down.
 - **Tell the agent when to ask before ending its own to-do.** The agent ends its to-dos
-  itself, and asks first, with a widget ask or a prose ask in a thread, when the result
-  needs the user's sign-off
-  ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
+  itself, and asks first, with a widget ask or a question in a thread, when the result
+  needs the user's sign-off, as the user decided. The shipped
   instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.
 - **Let the user edit items in the On panel.** The user's only edit today is Done

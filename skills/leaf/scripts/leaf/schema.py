@@ -232,6 +232,9 @@ STATE_SCHEMA = {
         "else": {"properties": {"text": False}},
     },
 }
+# A widget's ask is answered either by its own state (`value` and `answered`) or, with
+# `reply`, by the user's words about it, which it has no state to hold. `yields` makes
+# a widget ask nothing while it holds another that can ask.
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -240,8 +243,14 @@ AWAITS_SCHEMA = {
         "answered": ANSWERED_SCHEMA,
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "reply": {"const": True},
+        "yields": {"const": True},
     },
-    "required": ["value", "answered"],
+    "if": {"required": ["reply"]},
+    "then": {
+        "properties": {"value": False, "answered": False, "all": False},
+    },
+    "else": {"required": ["value", "answered"]},
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -398,7 +407,7 @@ EXTENSION_SCHEMA = {
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
             "minItems": 1,
         },
-        "x-word": {"enum": ["module"]},
+        "x-word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": {"const": True},
     },
@@ -564,6 +573,7 @@ ATTRIBUTE_KEYS = (
 # measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space`
 # names a breakout and nothing else.
 #
+# `presence` paints only whether a declaration exists, without serializing its rules.
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
 # stamp_composition`), from which the runtime paints a message it renders and tells the
@@ -595,6 +605,7 @@ DECLARED_MARKS = {
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
     "x-resident": {"paint": "data-lf-resident", "message": False},
     "x-views": {"paint": "data-lf-views", "message": True},
+    "x-awaits": {"paint": "data-lf-awaits", "presence": True, "message": True},
 }
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent

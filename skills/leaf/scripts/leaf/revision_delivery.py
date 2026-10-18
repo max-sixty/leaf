@@ -383,7 +383,9 @@ def mark_declared(
             if authored in attrs and means[mark["authored_on"]]:
                 value = attrs[authored]
             elif declared:
-                value = "" if declared is True else str(declared)
+                value = (
+                    "" if declared is True or mark.get("presence") else str(declared)
+                )
             else:
                 continue
             marks[mark["paint"]] = value

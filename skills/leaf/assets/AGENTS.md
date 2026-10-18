@@ -48,8 +48,9 @@ representative desktop viewport.
 - **A control takes only its own room.** Leaf never reserves a strip, a row or
   full-width padding to seat one small control. The control joins a line that is
   already there, such as a head, the line over a field or a row's end, or a corner its
-  content leaves free. The floating panel's more-room mark stands on the line over its
-  field (`floating-panel.js`, `expand`) rather than in a strip of its own over the words.
+  content leaves free. The floating panel's more-room mark stands in the corner a long
+  draft leaves free over the leaf (`floating-panel.js`, `expand`) rather than in a strip
+  of its own over the words.
 - **Auxiliary surfaces open over the page and never change its geometry.** The On
   panel, the thread panel and the Pages drawer take no space from the page;
   `auxiliary-surfaces.js` decides whether one sits beside a live page or covers it
@@ -119,14 +120,17 @@ representative desktop viewport.
   (`../references/module-authoring.md`, "First paint"). Check: the widget quality check
   `keeps-first-box`, which fails on any finding `tests/known_widget_findings.py`
   doesn't list.
-- **Generated interface appears in its final position.** Reserve space before a
-  generated control appears. Feedback may repaint a control or change its label, but
-  never its size: `data-lf-room` (`controls.css`) sizes a label to the widest of the
-  words it can show. A parent laying out adjacent actions keeps their hit areas apart.
-- **An unlikely event fits into what is already there.** Reserve no space for a state
-  the user rarely meets, such as a failed save. Show it in a surface already on screen,
-  and let the user's gesture expand it: `lf-file-editor.js` reports a file conflict in
-  its status line and opens the two versions only on Compare.
+- **Generated interface appears in its final position.** Hold room before first paint
+  only for what will be drawn, such as a widget's upgraded controls. Feedback may
+  repaint a control or change its label, but never its size: `data-lf-room`
+  (`controls.css`) sizes a label to the widest of the words it can show. A parent
+  laying out adjacent actions keeps their hit areas apart.
+- **What may appear fits into what is already there.** Hold no empty room for a state
+  that may never come, however likely: a failed save, a rewrite the user hasn't opened.
+  Show it in a slot already on screen, as a message's head carries its delivery and its
+  Edit beside the author, and let the user's gesture make the room it needs:
+  `lf-file-editor.js` reports a file conflict in its status line and opens the two
+  versions only on Compare, and a rewrite grows its message only once opened.
 - **A gesture shows the result the page can draw as it is made** (root `AGENTS.md`,
   "The document starts state; the log changes it"). `standGesture` in `drafts.js`
   handles a send and the refusal that returns the words to their box. The new content
@@ -154,8 +158,10 @@ representative desktop viewport.
 
 - **Visual treatments carry hierarchy and state.** Contours are solid. A dotted or
   dashed line marks a distinct state, such as a draft or a drag placeholder. One
-  contour shows one control state, and a segmented group shares one-pixel seams. Avoid
-  rounded one-sided borders and reflexive cards, tints, gradients and soft shadows.
+  contour shows one control state, and a segmented group shares one-pixel seams. Never
+  round a box edged on one side: mark a state with a whole contour, or a stripe on a
+  square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
+  `test_no_rule_rounds_a_box_edged_on_one_side`, over Leaf's sheets and pages.
 - **A face used twice is a token or a shared rule**, and a rule names it rather than
   spelling it out. A lift names one of the theme's three heights, `--raise-1` to
   `--raise-3` (`styles/theme.css`, beside `--shade`); boxes that wear one face, such as
@@ -223,7 +229,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Banner and approvals                                                                                        | `banner*.js`                                                                                                                                                              |
 | Drawers and neighboring pages                                                                               | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js`                                                                                                        |
 | Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                                          |
-| Notices and announcements                                                                                   | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js`                                                                                                        |
+| Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/shortcut-bar.js`                                                                                           |
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                                         |
 | Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`, `retained-face.js`                                                                        |
 | Child pages                                                                                                 | `sample*.js`                                                                                                                                                              |
@@ -267,12 +273,13 @@ every `.lf-ui` control. A page stylesheet explicitly marked `data-controls` or
 a theme package's `controls.css` grants access (`runtime/page-sheets.js`).
 `runtime/stylesheets.js` says which sheets the document and shadow roots adopt.
 
-A `:has()` rule restyles far more than it means to in two shapes. When its rightmost
-compound has no class, id, attribute or type, every runtime write restyles every
-element (`test_no_has_rule_restyles_the_whole_document`); key it by a class its owner
-writes. When it sits on the chrome root, `body` or `html`, every write below re-evaluates
-it (`test_no_has_rule_stands_on_a_root`); have the condition's owner set an attribute
-on the styled element instead.
+A `:has()` rule can make a local write invalidate a whole page or the chrome.
+An unkeyed rightmost compound can widen the invalidation targets; a condition on the
+chrome root, `body` or `html` can be re-evaluated on writes below it. Prefer a class
+that names the targets or a condition its owner sets on the styled element.
+Confirm the cost in the browser: `leaf-dev profile SOURCE TRANSITION` reports
+forced style recalculations, their element counts, and style invalidations with
+the writes that caused them.
 
 ### The browser answers first
 
@@ -388,6 +395,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Whether a box is at its scroll end                                                                    | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
 | Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
 | The page's `main`                                                                                     | `passages.js` `pageDocument`                                                       |
+| The box the page's Layout arranges, and the shell it stands in (its parent)                           | `passages.js` `layoutBox`                                                          |
 | Whether a place is already shown, and the space a landing needs                                       | `landing-scroll.js` `alreadyShown`, `landingRoom`                                  |
 | Bring something into view without scrolling the page around it, or only inside one box (its `within`) | `landing-scroll.js` `scrollIntoView` (_lint_)                                      |
 | Move a box to its end, or by an amount                                                                | `scrolling.js` `scrollToEnd`, `moveScrollerBy` (_lint_)                            |

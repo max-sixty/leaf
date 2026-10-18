@@ -68,10 +68,35 @@
    scrolls the reading region, as far as it can, to make the room it needs (`makeRoom`),
    so it opens clear of that target.
 
+   What a surface paints is what the boundary holds. The comment box's frame reserves
+   its card's head row and reply row unpainted (`reserve`), and the one at the end it
+   grows toward may stand past the boundary (`overhang`), which also lets the frame
+   grow that much taller than the boundary. So the words the user typed hold still
+   until the field itself meets the window's edge, and Send, which needs that row
+   inside, moves the words by the overhang, unless the card it becomes fills the
+   boundary (`stood` caps it there) and scrolls them instead. The user asked
+   (2026-10-17) for a box beside its passage to grow down from its top rather than
+   slide. Rejected: holding the whole frame inside, which slid the field as soon as its
+   unpainted reply row met the edge, while the field itself still had room; and letting
+   the reserve overhang only by the room the frame left, which slid the field two lines
+   per line as it neared the window's height.
+
    A surface may hold one edge at an offset of its own choosing (`hold`), in client
    pixels from its line: `row` beside, and under or over the edge of `clear` it stands
    clear of, so a reflow of what it is about carries it. The card keeps its reply row
    still that way while a turn joins the transcript above it.
+
+   A held surface grows no taller than the room from its held edge, or than the tallest
+   it has stood since its line last moved (`fit`'s `stood`), whichever is more. Against
+   the window's foot the boundary keeps a card's foot, so content that shrinks it, a
+   rewrite opening over long words, a fold, an edit, lowers its top, and growing back
+   raises it again to where it stood. A scroll moves the line and keeps only the
+   height the card stands at. Its top rising this way also lets a reply drafted after
+   shorter words were saved grow the card back up the page. Rejected: keeping only the
+   height it last stood at, which made every shrink at the foot permanent, so an
+   unchanged rewrite closed as a clipped scrolling box; holding its top where the
+   window had kept it as it shrank, which a press holding its foot undid; and a floor
+   in the rewrite for that one cause of shrinking.
 
    Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
    frame's side and inline start where the boundary still matches, and returns its
@@ -350,8 +375,9 @@ export const cardMeasure = () => rootLength("--thread-card");
    so an editor needs no transcript reading to keep its attachment while typing; before
    that landing, an adopted frame's offsets are the ones held.
 
-   `fit({ side, width, height, scale })` sizes the surface for the room its side gives, in its
-   positioning space. Its declared minimum is limited only by the boundary, never by
+   `fit({ side, width, height, stood, scale })` sizes the surface for the room its side
+   gives, in its positioning space; `stood` is the height a held surface caps no lower
+   than, or 0. Its declared minimum is limited only by the boundary, never by
    its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
    shift it. On the left, the surface instead holds its right edge clear of the
@@ -371,6 +397,8 @@ export function commentPlacement() {
   // reading the placement in flight answers, which its landing records.
   let held = null;
   let reading = null;
+  // The tallest the surface has stood since its line last moved, and that line.
+  let tallest = null;
   // The edge the last `holding` answer held, the one the user's latest press in the
   // surface chose for the change it made, and that press's input and the transcript
   // extent its change left.
@@ -387,9 +415,16 @@ export function commentPlacement() {
     moved = false;
     held = null;
     reading = null;
+    tallest = null;
     edge = "top";
     pressHeld = null;
     pressAnswered = null;
+  };
+  // Of an unpainted `reserve` ({ top, bottom }, client pixels), what may stand past the
+  // boundary: the end the surface grows toward, away from the edge it holds.
+  const overhangOf = (reserve) => {
+    const end = side === "top" ? "top" : "bottom";
+    return { [end]: reserve?.[end] ?? 0 };
   };
   const line = (clear, row) =>
     quoted
@@ -412,6 +447,7 @@ export function commentPlacement() {
       pending = frame;
     },
     forget,
+    overhang: overhangOf,
     // Which edge this placement holds, `top` or `foot`, from what the caller reports:
     // the transcript's extent, whether the user is drafting, the latest turn
     // (`{ key, author }`), the draft's words, and, while it is the user's latest
@@ -478,10 +514,8 @@ export function commentPlacement() {
     // holds the foot only where the surface stands above what it is about; any other
     // change keeps the edge held now.
     edgeFor: (turn) => (turn ? (side === "top" ? "foot" : "top") : edge),
-    // The held edge's offset for `options`' `hold`, and the height between the held
-    // top and foot, which caps a held surface no shorter than it last stood.
+    // The held edge's offset for `options`' `hold`.
     heldAt: (edge) => held && { [edge]: held[edge] },
-    heldHeight: () => (held ? held.foot - held.top : 0),
     scrolled() {
       input = null;
     },
@@ -553,6 +587,7 @@ export function commentPlacement() {
         boundary,
         fit,
         hold = null,
+        reserve = null,
       },
     ) {
       const minimumWidth = cardMinimum();
@@ -587,6 +622,12 @@ export function commentPlacement() {
             boundary.right - Math.min(minimumWidth, boundary.width),
           );
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
+      // Shift reads the reserve allowed past the boundary as negative padding.
+      const overhang = Object.entries(overhangOf(reserve));
+      const padding = Object.fromEntries(
+        overhang.map(([end, length]) => [end, -length]),
+      );
+      const reach = overhang.reduce((total, [, length]) => total + length, 0);
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
         mainAxis: !across,
@@ -660,7 +701,21 @@ export function commentPlacement() {
       const size = ui.size({
         ...overflow,
         apply(state) {
-          const { scale } = measure(state);
+          const { scale, line } = measure(state);
+          // The height a held surface caps no lower than: the tallest it has stood
+          // while its line stood where it stands now, else the height it last stood,
+          // never more than the boundary and its overhang hold. A card adopting a
+          // comment box's frame paints all of it, so a reserve that stood past the
+          // boundary is not room the card keeps.
+          const stood = held
+            ? Math.min(
+                boundary.height + reach,
+                Math.max(
+                  held.foot - held.top,
+                  tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0,
+                ),
+              ) / scale.y
+            : 0;
           const lane =
             carriedInline !== null
               ? boundary.right - (column ?? clear.left) - carriedInline
@@ -676,6 +731,7 @@ export function commentPlacement() {
               Math.min(state.availableWidth, lane / scale.x),
             ),
             height: state.availableHeight,
+            stood,
             scale,
           });
         },
@@ -730,6 +786,7 @@ export function commentPlacement() {
         heldEdge && sizing,
         ui.shift({
           ...overflow,
+          padding,
           mainAxis: true,
           crossAxis: true,
           limiter: {
@@ -796,7 +853,15 @@ export function commentPlacement() {
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
-      const spot = { top, foot: top + middlewareData.held.height * scale.y };
+      const height = middlewareData.held.height * scale.y;
+      const spot = { top, foot: top + height };
+      tallest = {
+        height:
+          tallest && Math.abs(tallest.line - line) < 0.5
+            ? Math.max(tallest.height, height)
+            : height,
+        line,
+      };
       // The reading this placement answered, so a turn that joined while it was worked
       // out is one the next placement still sees join.
       held = { ...spot, ...reading };

@@ -1,4 +1,7 @@
 import {
+  raiseError
+} from "./bundle-errors.js";
+import {
   aborted,
   commitWidgetDescriptors,
   dataBody,
@@ -22,6 +25,7 @@ import {
   ADDRESSABLE,
   addressableWord,
   aimTargetAt,
+  anchorBox,
   anchorForPassage,
   anchorForRange,
   anchorReading,
@@ -997,6 +1001,7 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 // runtime/asks/model.js
 var readAsks = readPart((root) => root.effective.asks);
 var askEntry = (ask) => registry[ask?.source.tag]?.["x-awaits"];
+var askedInWords = (ask) => Boolean(askEntry(ask)?.reply);
 var approvalBlockingAsks = readPart((root) => {
   const { asks, view } = root.effective;
   if (asks.phase !== "ready" || !view) return null;
@@ -1481,7 +1486,7 @@ function markDeclared(root) {
     for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el2 of elementsIn(root, tag))
-        keeps(el2, paint2, declared === true ? "" : declared);
+        keeps(el2, paint2, declared === true || mark.presence ? "" : declared);
     }
     if (authored) {
       for (const el2 of elementsIn(root, `[${authored}]`))
@@ -1596,6 +1601,16 @@ function standUnderHeaders(copy, pre, levels) {
 }
 var revealed = (pre, copy) => {
   if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
+  const box = pre.getBoundingClientRect();
+  const at = anchorBox(pre);
+  for (const [property, length] of [
+    ["--lf-code-copy-dx", box.left - at.left],
+    ["--lf-code-copy-dy", box.top - at.top]
+  ]) {
+    const value = length ? layoutPx(length) : "";
+    if (copy.style.getPropertyValue(property) !== value)
+      copy.style.setProperty(property, value);
+  }
   refreshAnchorView(copy);
 };
 var COPY_SCOPE = /* @__PURE__ */ Symbol("code copy");
@@ -1841,17 +1856,30 @@ function placedMarkdownTokens(source) {
   const tokens3 = markdownTokens(source);
   if (!tokens3) return [];
   const starts = [0];
-  for (let at = 0; at < source.length; at++)
-    if (source[at] === "\n") starts.push(at + 1);
+  for (let at = 0; at < source.length; at++) {
+    if (source[at] === "\r" && source[at + 1] === "\n") at++;
+    if (source[at] === "\r" || source[at] === "\n") starts.push(at + 1);
+  }
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
-  for (const token of tokens3) {
+  for (const [index, token] of tokens3.entries()) {
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
       if (token.map && (token.nesting === 1 || token.type === "fence" || token.type === "code_block"))
-        found.push({ token, from, to, words: token.nesting ? null : token.content });
+        found.push({
+          token,
+          from,
+          to,
+          markers: token.meta?.markers?.map(([line, a, b]) => [
+            starts[line] + a,
+            starts[line] + b
+          ]),
+          // A heading's inline token owns its content lines, excluding Setext syntax.
+          contentLines: token.type === "heading_open" ? tokens3[index + 1].map.map((at) => starts[at]) : void 0,
+          words: token.nesting ? null : token.content
+        });
       continue;
     }
     const positions = inlineSourcePositions(
@@ -2678,12 +2706,8 @@ function keepRefusedWords(attempts) {
     );
     return ctx === void 0 ? [] : [ctx];
   });
-  const hidden = returned.filter(
-    (ctx) => ![...draftEditors].some((view) => {
-      const input = view.ctx === ctx && editorInput(view);
-      return Boolean(input?.isConnected && input.checkVisibility());
-    })
-  );
+  const shownIn = (ctx) => [...draftEditors].filter((view) => view.ctx === ctx).map((view) => editorInput(view)).find((input) => input?.isConnected && input.checkVisibility()) ?? null;
+  const hidden = returned.filter((ctx) => !shownIn(ctx));
   for (const ctx of hidden.toReversed())
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
@@ -2691,7 +2715,10 @@ function keepRefusedWords(attempts) {
     hidden.length && "Draft kept \u2014 g i resumes writing",
     held && "Reply kept \u2014 it returns when its comment sends"
   ].filter(Boolean);
-  return sentences.length ? sentences.join(". ") : null;
+  return {
+    said: sentences.length ? sentences.join(". ") : null,
+    field: returned.map(shownIn).find(Boolean) ?? null
+  };
 }
 var writingEditor = () => [...draftEditors].find((editor) => editorInput(editor) === focused());
 var keepWritingCaret = () => {
@@ -2770,7 +2797,7 @@ function createWritingResume({
       notice("Its box is gone, so its words moved to a comment on the page");
       return resume();
     }
-    notice(
+    raiseError(
       `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`
     );
   };
@@ -3278,7 +3305,9 @@ var MessageEditor = class {
     let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
-      notice(`This message changed since this edit began. It now says: \u201C${said()}\u201D`);
+      raiseError(
+        `This message changed since this edit began. It now says: \u201C${said()}\u201D`
+      );
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor lf-comment-box");
     this.input = offer(TEXT_FIELD);
@@ -3696,8 +3725,9 @@ function messageReading(message, { panel, nativeAuthored = false, reactions, wor
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
     // thread shows as its working message until an answer folds it (thread-card.js).
     progress: Boolean(message.ephemeral),
-    // What an answer leaves standing, while it stands: "Waiting on me" for the prose ask the
-    // user owes, "To-do open" for work it promised and has not ended (thread-card.js).
+    // What an answer leaves standing, while it stands: "Waiting on me" for the question the
+    // user owes words to, "To-do open" for work it promised and has not ended
+    // (thread-card.js).
     leaves,
     version: message.content_version,
     seq: moved(message).seq,
@@ -4246,7 +4276,7 @@ function createPassageSelection({ restore }) {
           intent
         });
         if (!restored && intent())
-          notice("That selected passage is unavailable on this version");
+          raiseError("That selected passage is unavailable on this version");
       }
     }
   };
@@ -4674,7 +4704,7 @@ function replyControlDestination(node) {
   };
 }
 var sendReply = (draftCtx, key, text, owns, actions) => sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
-function wireReply(key, row2, input, send, wireInput, { hint, accessibleName }) {
+function wireReply(key, row2, input, send, wireInput, { hint, accessibleName, busy }) {
   row2.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
@@ -4690,6 +4720,7 @@ function wireReply(key, row2, input, send, wireInput, { hint, accessibleName }) 
   const sync = wireInput(input, {
     hint,
     accessibleName,
+    busy,
     sends: "send",
     sendBtn: send,
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
@@ -4793,6 +4824,7 @@ function createReplyView(key, commands2, {
   redraw = null,
   hint = "Reply",
   accessibleName = "Reply",
+  busy = () => false,
   sent = null
 } = {}) {
   const fresh = () => {
@@ -4803,7 +4835,8 @@ function createReplyView(key, commands2, {
     row2.append(input, send);
     return wireReply(key, row2, input, send, commands2.wireInput, {
       hint,
-      accessibleName
+      accessibleName,
+      busy
     });
   };
   let composition = fresh();
@@ -5989,7 +6022,7 @@ function threadReading(thread, surface, commands2, options) {
   const attention = threadAttention(thread);
   const asking = thread.user_prompt?.message;
   const openTodos = new Set(thread.todos.map(({ id }) => id));
-  const leaves = (message) => message.ask && message.id === asking ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
+  const leaves = (message) => message.id === asking ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
   const messages = turns(thread).map(
     (message) => messageReading(message, {
       panel,
@@ -6879,16 +6912,18 @@ var ThreadView = class {
     const ids = ranges.map((range) => range.summary.id);
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-summary-expand"
+      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
+      data-lf-room=${progress ? `Show ${subject}` : nothing}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ids.map((id) => `lf-summary-originals-${this.#viewId}-${id}`).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${label}
+      ${progress ? html`<span>${label}</span>` : label}
     </button>`;
   }
   #setSummaryExpanded(ids, expanded) {
@@ -8171,6 +8206,7 @@ export {
   restorePlace,
   readAsks,
   askEntry,
+  askedInWords,
   approvalBlockingAsks,
   askPlace,
   asksIn,

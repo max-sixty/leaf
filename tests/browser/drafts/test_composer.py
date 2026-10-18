@@ -657,3 +657,53 @@ def test_covering_surface_retains_the_open_passage_editor(browser, serve, surfac
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(field).to_be_focused()
+
+
+def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, serve):
+    """Nested headings keep their face and fence-shaped code stays code while editing."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page_comment(page)
+    field = page.locator(".lf-general leaf-text")
+    source = "> - # Heading\n\n````\n```\nbody\n````\n\n**end**"
+    write(field, source)
+    expect(field).to_have_js_property("value", source)
+    cdp = page.context.new_cdp_session(page)
+
+    def reading():
+        focused = cdp.send(
+            "Runtime.evaluate", {"expression": "document.activeElement"}
+        )["result"]["objectId"]
+        node = cdp.send("DOM.describeNode", {"objectId": focused, "depth": 1})["node"]
+        root = cdp.send(
+            "DOM.resolveNode",
+            {"backendNodeId": node["shadowRoots"][0]["backendNodeId"]},
+        )["object"]["objectId"]
+        return cdp.send(
+            "Runtime.callFunctionOn",
+            {
+                "objectId": root,
+                "returnByValue": True,
+                "functionDeclaration": """function() {
+              return [...this.querySelectorAll('.cm-line')].map(line => ({
+                text: line.textContent, heading: line.classList.contains('lf-md-heading'),
+                muted: [...line.querySelectorAll('.lf-md-mark')].map(mark => mark.textContent),
+                strong: line.querySelector('strong')?.textContent,
+              }));
+            }""",
+            },
+        )["result"]["value"]
+
+    lines = reading()
+    assert lines[0]["heading"] and "Heading" in lines[0]["text"], lines
+    assert lines[3]["text"] == "```" and not lines[3]["muted"], lines
+    assert lines[2]["muted"] == ["````"] and lines[5]["muted"] == ["````"], lines
+    assert lines[-1]["strong"] == "**end**", lines
+    # Native caret movement and undo preserve the exact source, including the
+    # delimiter the renderer reads as literal code.
+    page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.insert_text("x")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field).to_have_js_property("value", source)
+    assert reading()[0]["heading"]
+    cdp.detach()

@@ -336,7 +336,8 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     """The agent acknowledges a move with progress before it answers, and the answer
     folds that progress into Previous updates. In an open card the user is reading but
     not writing in, that fold changes only the thread's end, so the answer shows as it
-    lands, streamed or not, and nothing above the progress moves.
+    lands, streamed or not. The progress disclosure stays put when the answer gains
+    its feedback control, and nothing above the progress moves.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
@@ -613,8 +614,8 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     question = thread_model.post_reply(
         serve.page_dir,
         {"to": asked, "for": asked},
-        "The session store or the page store?",
-        ask=True,
+        "One question:",
+        markup='<lf-ask id="store-choice">The session store or the page store?</lf-ask>',
         identity=codex,
     )
     promise = thread_model.post_reply(

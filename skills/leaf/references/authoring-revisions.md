@@ -93,12 +93,14 @@ members. Remove material the current state replaces, such as a concluded run or 
 superseded section; keep older material, collapsed, only where current work needs its
 context. Keep deferred work in the list with enough context to resume it.
 
-An ask the user answered and you have acted on is finished work too. Move it whole to
-the finished work, give its `lf-options` group the `settled` attribute, which collapses
-it to the pick, and say beside it what came of the choice. Pose anything still worth
-asking as a new ask with new ids. Use `$restated` to withdraw the decision and ask
-again. Don't mark an ask `settled` until you have finished applying it, and keep a
-section open while the user is still commenting there.
+An ask the user answered and you have acted on becomes a decision record. Give its
+`lf-options` group the `settled` attribute, which collapses it to the pick, and say
+beside it what came of the choice. Keep the result and its evidence in the current
+reading flow while the reader still needs them (`page-authoring.md`, "Reading cost");
+retire the superseded interaction as finished work. Pose anything still worth asking
+as a new ask with new ids. Use `$restated` to withdraw the decision and ask again.
+Don't mark an ask `settled` until you have finished applying it, and keep a section
+open while the user is still commenting there.
 
 Before handing the page back, check that its status, open to-dos and outstanding work
 agree with what you tell the user.

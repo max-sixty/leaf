@@ -572,12 +572,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert nav_box["y"] + nav_box["height"] <= line_box["y"] + 1, (
         f"the bottom bar stands over the map's foot: map {nav_box}, band {line_box}"
     )
-    assert nav_box["width"] == pytest.approx(320, abs=1)
+    assert nav_box["width"] == pytest.approx(24, abs=1)
 
     resized(page, 1800, 900)
-    expect(nav).to_have_css("width", "320px")
+    expect(nav).to_have_css("width", "24px")
     resized(page, 1188, 900)
-    expect(nav).to_have_css("width", "320px")
+    expect(nav).to_have_css("width", "24px")
     underlying = page.locator("#underlying")
     underlying.evaluate(
         "node => node.addEventListener('pointerdown', "
@@ -720,11 +720,11 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert nav.bounding_box() == nav_box
     hidden_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-        "return [r.x, r.y, r.width, r.height]; })"
+        "return [r.x, r.y, r.height]; })"
     )
     resting_rows = nav.locator(".lf-toc-start, li").evaluate_all(
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-        "return [r.x, r.y, r.width, r.height]; })"
+        "return [r.x, r.y, r.height]; })"
     )
     resting_marker_centers = nav.locator(".lf-toc-start, li").evaluate_all(
         "items => items.map(item => { const s = getComputedStyle(item, '::before'); "
@@ -733,8 +733,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         "+ parseFloat(s.height) / 2; })"
     )
 
-    # The go-to menu can address the complete route without moving its geometry or focus
-    # into the rail.
+    # The go-to menu reveals the labels without moving their position or focus into the rail.
     page.keyboard.press("g")
     for link in nav.locator("a").all():
         expect(link).to_have_css("opacity", "1")
@@ -746,7 +745,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert (
         nav.locator(".lf-toc-start, li").evaluate_all(
             "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-            "return [r.x, r.y, r.width, r.height]; })"
+            "return [r.x, r.y, r.height]; })"
         )
         == resting_rows
     )
@@ -809,7 +808,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(capacity).to_have_css("color", current_hover_color)
     revealed_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-        "return [r.x, r.y, r.width, r.height]; })"
+        "return [r.x, r.y, r.height]; })"
     )
     assert revealed_boxes == hidden_boxes
 
@@ -848,7 +847,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
             "top => document.scrollingElement.scrollTo({top, behavior: 'instant'})",
             position,
         )
-        assert nav.bounding_box() == nav_box
+        assert [nav.bounding_box()[key] for key in ("x", "y", "height")] == [
+            nav_box[key] for key in ("x", "y", "height")
+        ]
 
     # A wheel over the rail stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
@@ -911,7 +912,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     scroll_settled(page)
     after_navigation = nav.bounding_box()
     assert after_navigation is not None
-    assert after_navigation == nav_box, "following a link moved the contents rail"
+    assert [after_navigation[key] for key in ("x", "y", "height")] == [
+        nav_box[key] for key in ("x", "y", "height")
+    ], "following a link moved the contents rail"
     assert prepare.evaluate("node => node.matches(':hover')")
     current_alignment = prepare.evaluate(
         "node => ({label: node.getBoundingClientRect().top "

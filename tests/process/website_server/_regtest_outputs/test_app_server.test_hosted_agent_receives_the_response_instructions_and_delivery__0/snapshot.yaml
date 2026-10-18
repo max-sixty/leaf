@@ -37,12 +37,12 @@ turn/start:
       as the reply, unless an explicit reply already answered this input. Before
       your first tool call, tell the user briefly the answer or what you are about
       to do; later working messages stay in Codex. End with the answer, or what
-      changed and where it shows. For widgets, an ask awaiting the user (`--ask`),
-      work promised beyond this turn (`--todo`), a title or moving the thread, reply
-      explicitly with `leaf response reply <answer.ref>` (`references/threads.md`);
-      it posts at once, and your final message is then not posted.","h2":"Your reply
-      renders as Markdown in a narrow column: give each point its own short paragraph
-      or list item, link a page section as `[its name](#section-id)`, and fence
-      code or markup."},"events":[{"attention":true,"kind":"comment","author":"user","text":"Use
+      changed and where it shows. For widgets, a question awaiting the user (an
+      `lf-ask` in `--markup`), work promised beyond this turn (`--todo`), a title
+      or moving the thread, reply explicitly with `leaf response reply <answer.ref>`
+      (`references/threads.md`); it posts at once, and your final message is then
+      not posted.","h2":"Your reply renders as Markdown in a narrow column: give
+      each point its own short paragraph or list item, link a page section as `[its
+      name](#section-id)`, and fence code or markup."},"events":[{"attention":true,"kind":"comment","author":"user","text":"Use
       backfill first.","id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"thread","id":"user-event"},"threads":["user-event"],"handling":["h1","h2"],"answer":{"kind":"reply","to":"user-event","for":"user-event","ref":"00000001:0:user-event","writer":"turn"}}]}]}'
   turnTrigger: leaf

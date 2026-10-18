@@ -43,7 +43,7 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     expect(page.locator(".lf-banner-menu > .lf-queue")).to_have_count(1)
 
     page.keyboard.press("m")
-    expect(position).to_have_text("1 of 4 waiting on me · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Options")
     expect(position).to_be_visible()
     resized(page, 1200, 780)
     expect(position).to_be_visible()
@@ -102,12 +102,15 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
 
     for index in range(2, 5):
         page.keyboard.press("m")
-        expect(position).to_have_text(f"{index} of 4 waiting on me · Ask")
+        # Each stop says its widget's own word, such as Options or Rewrite.
+        expect(position).to_have_text(
+            re.compile(rf"^{index} of 4 waiting on me · \w+$")
+        )
     expect(position).not_to_have_attribute("data-lf-boundary", "")
     status = page.locator(".lf-bottom-status")
     ordinary = status.evaluate("node => getComputedStyle(node).color")
     page.keyboard.press("m")
-    expect(position).to_have_text("1 of 4 waiting on me · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Options")
     expect(position).to_have_attribute("data-lf-boundary", "")
     assert (
         status.evaluate("node => node.getBoundingClientRect().left")
@@ -305,13 +308,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Next ask, thread, to-do or resend waiting on me",
+            has_text="Next item waiting on me",
         ).locator("kbd")
     ).to_have_text("m")
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Previous ask, thread, to-do or resend waiting on me",
+            has_text="Previous item waiting on me",
         ).locator("kbd")
     ).to_have_text("M")
     page.keyboard.press("Escape")
@@ -375,10 +378,10 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.keyboard.press("c")
     expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
     expect(line).to_contain_text("send")
-    # A send key on an empty box is answered, not swallowed — silence reads as a
-    # send that happened.
+    # A send key on an empty box is answered to a listener, not swallowed — silence
+    # reads as a send that happened. The empty box shows it to anyone who sees it.
     page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-notice")).to_contain_text("Nothing to send")
+    expect(page.locator(".lf-live")).to_contain_text("Nothing to send")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-page-comment-card")).to_be_hidden()
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -962,7 +965,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     line = page.locator(".lf-shortcut-bar")
     expect(line).to_be_hidden()
     position = page.locator(".lf-walk-position")
-    expect(position).to_have_text("1 of 4 waiting on me · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Options")
     expect(position).to_be_visible()
     active_room = page.evaluate(
         """() => {

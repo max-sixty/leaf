@@ -64,8 +64,8 @@ def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
             "parent": asked["id"],
             "responds": asked["id"],
             "revision": 1,
-            "text": "Weekly or daily?",
-            "ask": True,
+            "text": "One question:",
+            "markup": '<lf-ask id="cadence-question">Weekly or daily?</lf-ask>',
         },
     )
     owed = append_carried_log_record(
@@ -95,20 +95,20 @@ def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     position = page.locator(".lf-walk-position")
     thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
     page.keyboard.press("m")
-    expect(position).to_have_text("1 of 2 waiting on me · Thread")
+    expect(position).to_have_text("1 of 2 waiting on me · Question")
     expect(thread).to_be_focused()
     page.keyboard.press("m")
-    expect(position).to_have_text("2 of 2 waiting on me · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("m")
-    expect(position).to_have_text("1 of 2 waiting on me · Thread")
+    expect(position).to_have_text("1 of 2 waiting on me · Question")
     expect(position).to_have_attribute("data-lf-boundary", "")
     expect(thread).to_be_focused()
     page.keyboard.press("Shift+m")
-    expect(position).to_have_text("2 of 2 waiting on me · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+m")
-    expect(position).to_have_text("1 of 2 waiting on me · Thread")
+    expect(position).to_have_text("1 of 2 waiting on me · Question")
     expect(thread).to_be_focused()
 
     page.keyboard.press("Enter")
@@ -128,7 +128,7 @@ def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     counts(1, 2)
     page.locator("#h").click()
     page.keyboard.press("m")
-    expect(position).to_have_text("1 of 1 waiting on me · Ask")
+    expect(position).to_have_text("1 of 1 waiting on me · Options")
     page.locator("#h").click()
     page.keyboard.press("t")
     expect(position).to_have_text("Thread 1 of 2")
@@ -158,8 +158,8 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
     """The On panel is two tabs, the lists the `m` walk and the banner's counts read,
     and the open tab is its title. Each list shows its open items, then folds its own
     Done: what left that list. Here the agent's Done holds a to-do it ended and the
-    replies it sent, and the user's fills as they answer. The prose question is an
-    agent opening comment, which asks implicitly. The agent's count opens the agent's
+    replies it sent, and the user's fills as they answer. The agent's opening comment
+    carries a question widget. The agent's count opens the agent's
     list, and every other way in opens the user's. A row arrives where `m` would. A
     reply the user sends joins the agent's list as it is sent, and its thread leaves the
     user's for the user's Done once the server has read the reply. A door pressed while
@@ -175,7 +175,13 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
             d, {"author": author, "revision": 1, **agent, **event}
         )
 
-    asked = said("agent", kind="comment", text="Weekly?", anchor={"section": "cadence"})
+    asked = said(
+        "agent",
+        kind="comment",
+        text="Weekly?",
+        anchor={"section": "cadence"},
+        markup='<lf-ask id="cadence-question">Weekly?</lf-ask>',
+    )
     said("user", kind="comment", text="Tighten this.", anchor={"section": "notes"})
     rebuild = said(
         "user", kind="comment", text="Rebuild them.", anchor={"section": "notes"}
@@ -262,10 +268,10 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
     expect(panel).to_have_accessible_name("On me")
     expect(tabs).to_have_text(["On me · 2", "On Agent · 2"])
     rows = page.evaluate(QUEUE_ROW_SAYS)
-    # A question asked in a thread is answered there, so its row says Thread.
+    # The widget names its row, even when a reply in its thread answers it.
     assert [(row["list"], row["word"], row["title"]) for row in rows] == [
         ("you", "Options", "Which channel first?"),
-        ("you", "Thread", "Weekly?"),
+        ("you", "Question", "Weekly?"),
     ], rows
     assert rows[1]["where"].startswith("§ Release"), rows
     # Nothing has left the user's list yet, so it has no Done.
@@ -352,7 +358,7 @@ def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
 
     button.click()
     expect(page.locator("#first-decision")).to_be_focused()
-    expect(position).to_have_text("1 of 2 waiting on me · Ask")
+    expect(position).to_have_text("1 of 2 waiting on me · Options")
     # The control: `m` from the first question steps to the second, and back.
     page.keyboard.press("m")
     expect(page.locator("#second-decision")).to_be_focused()
@@ -361,7 +367,7 @@ def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
     # The button steps on from where the user stands, as `m` did.
     button.click()
     expect(page.locator("#second-decision")).to_be_focused()
-    expect(position).to_have_text("2 of 2 waiting on me · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me · Options")
 
     # Answer both; the button leaves with the last question, and the panel stands on.
     for decision in ("#second-decision", "#first-decision"):
@@ -452,10 +458,10 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
 
     button.click()
     expect(first).to_be_focused()
-    expect(position).to_have_text("1 of 2 waiting on me here · Ask")
+    expect(position).to_have_text("1 of 2 waiting on me here · Options")
     button.click()
     expect(second).to_be_focused()
-    expect(position).to_have_text("2 of 2 waiting on me here · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me here · Options")
     back_to_the_tally()
     page.keyboard.press("Enter")
     expect(first).to_be_focused()
@@ -513,7 +519,7 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, 
     expect(position).to_have_text("1 of 3 waiting on me · To-do")
     expect(page.locator("#h")).to_be_focused()
     page.keyboard.press("m")
-    expect(position).to_have_text("2 of 3 waiting on me · Ask")
+    expect(position).to_have_text("2 of 3 waiting on me · Options")
     assert "x\ndone" not in shortcut_bar_text(page)
     page.keyboard.press("m")
     expect(position).to_have_text("3 of 3 waiting on me · To-do")
@@ -726,8 +732,8 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
             "parent": asked["id"],
             "responds": asked["id"],
             "revision": 1,
-            "text": "Weekly or daily?",
-            "ask": True,
+            "text": "One question:",
+            "markup": '<lf-ask id="cadence-question">Weekly or daily?</lf-ask>',
         },
     )
     page = open_page(browser, url)
@@ -756,7 +762,7 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
     # The control: the same press left alone arrives and says where.
     page.locator("#h").click()
     page.keyboard.press("m")
-    expect(position).to_have_text("1 of 2 waiting on me · Thread")
+    expect(position).to_have_text("1 of 2 waiting on me · Question")
     expect(
         page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
     ).to_be_focused()

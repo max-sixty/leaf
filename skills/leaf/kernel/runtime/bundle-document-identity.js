@@ -42,6 +42,7 @@ import {
   anchorLabel,
   askHolding,
   askPlace,
+  askedInWords,
   beginThreadSeats,
   beginWalk,
   blocksOnScreen,
@@ -168,6 +169,9 @@ import {
   workflowLabel
 } from "./bundle-user-intent.js";
 import {
+  raiseError
+} from "./bundle-errors.js";
+import {
   aborted,
   authoredStates,
   commitWidgetDescriptors,
@@ -200,7 +204,8 @@ import {
   targetElement,
   targetPlace,
   targetSegments,
-  visualPartLabel
+  visualPartLabel,
+  widgetWord
 } from "./bundle-chrome.js";
 import {
   initialOrigin,
@@ -815,9 +820,17 @@ function decorate(state, placed) {
       at = current.to + 1;
     }
   };
-  for (const { token, from, to, contentFrom, contentTo, escapes } of placed) {
+  for (const {
+    token,
+    from,
+    to,
+    contentFrom,
+    contentTo,
+    escapes,
+    markers,
+    contentLines
+  } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
-    const text = state.doc.sliceString(from, to);
     if (token.type === "code_inline" || contentFrom !== void 0) {
       const words2 = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
       if (words2[0] > words2[1]) continue;
@@ -830,38 +843,28 @@ function decorate(state, placed) {
       for (const at of escapes ?? [])
         add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
     } else if (token.type === "heading_open") {
-      const end = from + text.trimEnd().length;
-      const atx = text.match(/^ {0,3}#{1,6}(?:[ \t]+|$)/);
-      lines(from, end, (each) => {
-        const underline = !atx && each.to >= end;
-        if (underline) add(each.from, each.to, dim);
-        else out.push(line("lf-md-heading").range(each.from));
+      lines(...contentLines, (each) => {
+        out.push(line("lf-md-heading").range(each.from));
       });
-      if (atx) add(from, from + atx[0].length, syntax);
+      for (const [a, b] of markers)
+        add(a, b, token.markup.startsWith("#") ? syntax : dim);
     } else if (token.type === "fence" || token.type === "code_block") {
-      const end = from + text.trimEnd().length;
-      const fenced = /^ {0,3}(`{3,}|~{3,})/.test(text);
-      lines(from, end, (each) => {
+      lines(from, to, (each) => {
         const ends = [
           each.from <= from ? " lf-md-code-first" : "",
-          each.to >= end ? " lf-md-code-last" : ""
+          each.to + 1 >= to ? " lf-md-code-last" : ""
         ].join("");
         out.push(line(`lf-md-code-block${ends}`).range(each.from));
-        if (fenced && (each.from === from || /^ {0,3}(`{3,}|~{3,})\s*$/.test(each.text)))
-          add(each.from, each.to, dim);
       });
+      for (const [a, b] of markers ?? []) add(a, b, dim);
     } else if (token.type === "blockquote_open") {
-      lines(from, from + text.trimEnd().length, (each) => {
+      lines(from, to, (each) => {
         out.push(line("lf-md-quote").range(each.from));
-        const mark = each.text.match(/^ {0,3}> ?/);
-        if (mark) add(each.from, each.from + mark[0].length, dim);
       });
+      for (const [a, b] of markers) add(a, b, dim);
     } else if (token.type === "list_item_open") {
-      const item = text.match(/^([ \t]*)(?:([*+-])[ \t]?|\d{1,9}[.)])/);
-      if (!item) continue;
-      const at = from + item[1].length;
-      const end = from + item[0].length;
-      if (!item[2]) add(at, end, dim);
+      const [at, end] = markers[0];
+      if (token.info) add(at, end, dim);
       else {
         out.push(line("lf-md-item").range(state.doc.lineAt(from).from));
         add(at, end, touches(state, at, end) ? shownBullet : bullet);
@@ -1479,7 +1482,7 @@ function createSelectionComposer({
     if (suggestionMode && syncComposer.hasMedia()) {
       suggestionMode = false;
       syncSuggestMode();
-      notice("Remove attached images before suggesting replacement text");
+      raiseError("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
@@ -2079,7 +2082,10 @@ function createAnchorTravel({
               at: current.where,
               behavior: "instant",
               when: () => !readableDestination(current.where) || !readableDestination(input)
-            }
+            },
+            // The subject and editor can occupy different parts of a tall
+            // page. Finish on the box the user asked to write in.
+            { at: input, block: "nearest", behavior: "instant" }
           ] : [{ at: current.where, behavior: "instant" }]
         };
       },
@@ -2820,7 +2826,7 @@ async function showComparison(base) {
   if (baseRevision == null) {
     diffPendingBase = null;
     presentPicker();
-    notice(`Couldn't load v${base}`);
+    raiseError(`Couldn't load v${base}`);
     return;
   }
   const documentRequest = authoredDocument(baseVersion.url);
@@ -2844,7 +2850,7 @@ async function showComparison(base) {
     if (mine === diffRequest) {
       diffPendingBase = null;
       presentPicker();
-      notice(`Couldn't load v${base}`);
+      raiseError(`Couldn't load v${base}`);
     }
     return;
   }
@@ -4657,7 +4663,7 @@ function createReactionController({
             reactRaised = false;
             reactSurface = null;
             openLayer(reactLayer, null);
-            notice("That reaction target is no longer available");
+            raiseError("That reaction target is no longer available");
             return;
           }
           reactSurface = marginSurface;
@@ -5361,8 +5367,12 @@ function createDelivery({
               ];
               void Promise.all(refused.map(({ answer }) => answer)).then(
                 () => afterScript(() => {
-                  const kept = refusedWords(refused.map(({ attempt }) => attempt));
-                  notice(kept ? `${refusal}. ${kept}` : refusal);
+                  const { said, field } = refusedWords(
+                    refused.map(({ attempt }) => attempt)
+                  );
+                  raiseError(said ? `${refusal}. ${said}` : refusal, {
+                    subject: field
+                  });
                 })
               );
             }
@@ -5432,7 +5442,7 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
   }
   function withdraw(event) {
     if (!withdrawable(event)) {
-      notice(WAIT);
+      raiseError(WAIT);
       return null;
     }
     const reverse = reversals.get(event.attempt);
@@ -5456,7 +5466,7 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
   }
   function undoLast() {
     if (stateApplying() || unaccountedGesture()) {
-      notice(WAIT);
+      raiseError(WAIT);
       return null;
     }
     const event = undoable();
@@ -6505,7 +6515,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
             };
           } else {
             let joined2 = false;
-            const { hint, accessibleName, sent } = item.options;
+            const { hint, accessibleName, busy, sent } = item.options;
             const reply = createReplyView(item.key, commands.reply, {
               onChange: () => {
                 if (joined2) void update().catch(() => {
@@ -6514,6 +6524,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               editLast: rewritesOf(item.key).editLast,
               hint,
               accessibleName,
+              busy,
               sent
             });
             joined2 = true;
@@ -7014,8 +7025,7 @@ function userObligations(page, threadView) {
       thread: null
     });
   for (const ask of threadView.asks.user) {
-    const version = ask.source.kind === "reply" ? ask.source.version : null;
-    held.set(JSON.stringify(["thread", ask.thread, ask.id, version]), {
+    held.set(JSON.stringify(["thread", ask.thread, ask.id]), {
       source: ask.id,
       thread: ask.thread
     });
@@ -7372,7 +7382,7 @@ function mountApplication(dependencies) {
   commandDispatch.mount({
     afterEnqueue,
     withdraw: (candidate) => undo.withdraw(candidate),
-    onCollision: (attempt) => notice(`Couldn't send \u2014 attempt ${attempt} is already in use`)
+    onCollision: (attempt) => raiseError(`Couldn't send \u2014 attempt ${attempt} is already in use`)
   });
   const { post: post2 } = commandDispatch;
   const undo = createUndo({
@@ -7764,7 +7774,7 @@ function mountApplication(dependencies) {
       if (!ask) return Promise.resolve(false);
       if (ask.source.kind === "approval")
         return queueActions2.open(JSON.stringify(["ask", ask.id]));
-      if (ask.source.kind === "reply") {
+      if (ask.thread !== null && askedInWords(ask)) {
         showHeld(ask.thread);
         return threadDestinations.openPageThread(ask.message, {
           part: "message"
@@ -8174,11 +8184,15 @@ function ownedAskControl(source, commandSource) {
   const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
   return !selector || closestAcross(commandSource, selector) === source;
 }
+function askWord(ask) {
+  if (ask.source.kind === "approval") return "Approval";
+  const word = widgetWord(ask.source.tag, elementById(ask.source.id));
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
 function askWords(ask) {
   if (ask.answer === null) return "";
   if (ask.source.kind === "approval") return "Approved";
-  if (ask.source.kind === "reply")
-    return ask.answer.value.text ?? ask.answer.value.token ?? "";
+  if (askedInWords(ask)) return ask.answer.value.text ?? ask.answer.value.token ?? "";
   const source = elementById(ask.source.id);
   const formatter = (
     /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */
@@ -8382,6 +8396,7 @@ export {
   declareThreadKeys,
   queueTitle,
   ownedAskControl,
+  askWord,
   askWords,
   askEnding,
   acceptData,

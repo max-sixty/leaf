@@ -13,8 +13,8 @@ import {
   projectionRegionsPresented,
   readPart,
 } from "./semantic-state.js";
-import { announce, notice } from "./notifications.js";
-import { readAsks } from "./asks/model.js";
+import { announce } from "./notifications.js";
+import { askedInWords, readAsks } from "./asks/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
@@ -48,6 +48,7 @@ import {
 import { createStateApplication } from "./state-application.js";
 import { createStateFeed } from "./state-feed.js";
 import { reportCarried, reportPageError } from "./layer-client.js";
+import { raiseError } from "./errors.js";
 
 const commandDispatch = createCommandDispatch();
 let application = null;
@@ -165,7 +166,7 @@ export function mountApplication(dependencies) {
     afterEnqueue,
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
-      notice(`Couldn't send — attempt ${attempt} is already in use`),
+      raiseError(`Couldn't send — attempt ${attempt} is already in use`),
   });
 
   const { post } = commandDispatch;
@@ -617,7 +618,7 @@ export function mountApplication(dependencies) {
       if (!ask) return Promise.resolve(false);
       if (ask.source.kind === "approval")
         return queueActions.open(JSON.stringify(["ask", ask.id]));
-      if (ask.source.kind === "reply") {
+      if (ask.thread !== null && askedInWords(ask)) {
         showHeld(ask.thread);
         return threadDestinations.openPageThread(ask.message, {
           part: "message",

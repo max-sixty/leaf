@@ -273,7 +273,9 @@ def _ask_context(at: str, v: dict) -> str:
         for w in v["widgets"]
     )
     return f"{_line(at, v)}: an ask context registers no ask: " + (
-        widgets or "it holds no widget that declares x-awaits"
+        widgets
+        or "it holds no widget that declares x-awaits; a question with no widget is"
+        " its words alone, with no heading"
     )
 
 
@@ -624,9 +626,6 @@ _TEXT = {
         + (f" (#{v['id']})" if v["id"] else "")
         + f" is drawn {v['lost']}px outside the {v['by']} that clips it, where nothing"
         " can scroll to reach it — the page offers a press it does not show"
-    ),
-    "painted-words": lambda at, v: (
-        f'{at} paints {v["attr"]}="{v["value"]}" rather than saying it'
     ),
     "chrome-words": lambda at, v: (
         f"{at} puts {_json(v['words'])} under .lf-ui, where no comment can reach it"
@@ -1775,6 +1774,16 @@ _TEXT = {
         f"{v['widget']!r} already has ask {v['ask']!r}; use that ask instead of"
         " opening duplicate work"
     ),
+    "plan-depth": lambda at, v: (
+        f"plan step {v['step']!r} is at depth {v['depth']}, more than one below the"
+        " step before it; the first step is at depth 0 and each step is at most one"
+        " deeper than the one above"
+    ),
+    "unknown-plan-item": lambda at, v: (
+        f"{v['item']!r} names no to-do or ask on this page; name an id `leaf task"
+        " open` printed or an ask id from `leaf page state`, or write a plain step"
+        " with a title and state"
+    ),
     "unowed-start": lambda at, v: (
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task open` gave you"
@@ -1784,16 +1793,15 @@ _TEXT = {
         " at the page's Approval control"
     ),
     "widget-ask": lambda at, v: (
-        f"{v['todo']!r} is a widget ask; its source owns the answer, so retire it in"
-        " the document"
+        f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
     ),
     "users-prose-ask": lambda at, v: (
-        "the user's reply or settling reaction answers a prose ask"
+        "the user's message or settling reaction answers a question asked in words"
     ),
     "ended-ask": lambda at, v: f"ask {v['todo']!r} is already {v['status']}",
     "failed-prose-ask": lambda at, v: (
-        "a prose ask ends `done` when the user answered it elsewhere, or `dropped`"
-        " when it no longer applies"
+        "a question asked in words ends `done` when the user answered it elsewhere,"
+        " or `dropped` when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
     "todo-execution": lambda at, v: (
@@ -1947,9 +1955,10 @@ _TEXT = {
     "no-anchor": lambda at, v: (
         f"thread {v['thread']!r} has no current anchor to detach"
     ),
-    "widget-ask-markup": lambda at, v: (
-        "--ask is for a prose ask; reply markup already declares a widget ask"
-        f" ({', '.join(f'<{tag}>' for tag in v['tags'])})"
+    "undeclared-answer": lambda at, v: (
+        "say what the answer leaves: --done when it delivers what was asked, --todo"
+        " TITLE when it promises work it doesn't deliver, or a question for the user"
+        " as an <lf-ask> in --markup"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
 }

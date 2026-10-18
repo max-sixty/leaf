@@ -501,7 +501,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
     )
     url = serve(html)
-    panel_comment(serve.page_dir, "Is this ready?", author="agent")
+    panel_comment(serve.page_dir, "Is this ready?", author="agent", question="Ship it?")
     page = open_page(browser, url)
     resized(page, 1440, 900)
     answer_all = page.locator(".lf-answer-all")

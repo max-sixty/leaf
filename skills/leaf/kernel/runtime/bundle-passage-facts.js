@@ -359,6 +359,7 @@ var elementById = (id, root = document) => {
   return null;
 };
 var pageDocument = (doc = document) => doc.querySelector("body > main");
+var layoutBox = () => document.documentElement.lfInitial.layoutBox();
 var authoredScope = (node) => closestAcross(node, ".lf-msg-body") ?? pageDocument();
 var elementFromPointAcross = (x, y) => {
   let el = document.elementFromPoint(x, y);
@@ -840,6 +841,7 @@ export {
   closestAcross,
   elementById,
   pageDocument,
+  layoutBox,
   authoredScope,
   elementFromPointAcross,
   pageQueryAll,

@@ -45,6 +45,7 @@ import {
   HeldReading,
   allButCommandReference,
   anchorLabel,
+  askedInWords,
   asksIn,
   beginWalk,
   capturePlace,
@@ -89,6 +90,9 @@ import {
   tokenLines,
   watchDraft
 } from "./bundle-user-intent.js";
+import {
+  raiseError
+} from "./bundle-errors.js";
 import {
   aborted,
   bodyText,
@@ -1642,6 +1646,7 @@ export {
   announce,
   askActions,
   askWords,
+  askedInWords,
   asksIn,
   atLayoutPrecision,
   atScrollEnd,
@@ -1769,6 +1774,7 @@ export {
   quietSince,
   quietWord,
   quoted,
+  raiseError,
   rankAt,
   reachedForWords,
   readAsks,

@@ -337,11 +337,14 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):
     authored = page_dir / "page"
     (authored / "value.js").write_text("export const value = 1;")
+    (authored / "options.js").write_text("export const options = true;")
     module = """// import "https://outside.example/comment.js";
 const text = 'import "./missing.js"';
 const pattern = /import\\("missing"\\)/;
 const template = `import "./missing.js" ${await import('./value.js')}`;
 export { value } from "./value.js";
+const options = await import(/* module */ './options.js', { /* preserved */ });
+const computed = import(text, { with: { type: './missing.js' } });
 """
     (authored / "app.js").write_text(module)
     (page_dir / "index.html").write_text(
@@ -354,13 +357,18 @@ export { value } from "./value.js";
     assert activated.error is None, activated.error
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/app.js"]
-    assert resource.dependencies == ("/page/value.js",)
+    assert resource.dependencies == ("/page/options.js", "/page/value.js")
     rewritten = revision_delivery_model.rebase_module(
         resource.data, "/page/app.js", lambda path: "/revisions/captured" + path
     )
     assert rewritten.decode() == module.replace(
         "import('./value.js')", 'import("/revisions/captured/page/value.js")'
-    ).replace('from "./value.js"', 'from "/revisions/captured/page/value.js"')
+    ).replace('from "./value.js"', 'from "/revisions/captured/page/value.js"').replace(
+        "'./options.js'", '"/revisions/captured/page/options.js"'
+    )
+    assert (
+        artifact.resources["/page/options.js"].data == b"export const options = true;"
+    )
 
 
 def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_path):
@@ -528,6 +536,15 @@ def test_check_runs_each_script_after_leaf_reads_the_page(page_dir, authored, ex
 
     assert status == 1
     assert [f.code for f in findings] == [expected]
+
+
+def test_tail_script_still_requires_deferred_execution(page_dir):
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</body>", "<script>window.x = 1;</script></body>")
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [finding.code for finding in findings] == ["parser-blocking-script"]
 
 
 def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
@@ -1060,6 +1077,51 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
     rejected = state_json(page_dir)
     assert not rejected["source"]["live"] and rejected["source"]["error"]
     assert rejected["active"] == revised["active"]
+
+
+def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
+    """An unfinished declaration remains author feedback, not a broken state read."""
+    from leaf.revision_artifact import read_revision
+
+    registry = page_dir / "page" / "registry.json"
+    registry.parent.mkdir(exist_ok=True)
+    invalid = {"run-plan": {"x-space": "own"}}
+    registry.write_text(json.dumps(invalid))
+    initial = state_json(page_dir)
+    assert initial["active"] is None
+    assert initial["source"]["error"]
+    assert not initial["source"]["live"]
+    assert initial["data_bindings"] == {}
+    assert check(page_dir).exit_code != 0
+
+    declaration = {
+        "description": "Initial plan",
+        "x-example": '<div class="run-plan">Plan</div>',
+    }
+    registry.write_text(json.dumps({"run-plan": declaration}))
+    accepted = state_json(page_dir)
+    assert accepted["source"]["error"] is None
+    assert accepted["active"] is not None
+    revision = accepted["active"]["revision"]
+    assert read_revision(page_dir, revision).registry["run-plan"] == declaration
+
+    registry.write_text(json.dumps(invalid))
+    rejected = state_json(page_dir)
+    assert rejected["active"] == accepted["active"]
+    assert rejected["source"]["error"]
+    assert not rejected["source"]["live"]
+    assert rejected["asks"] == accepted["asks"]
+    assert check(page_dir).exit_code != 0
+
+    repaired = {**declaration, "description": "Revised plan"}
+    registry.write_text(json.dumps({"run-plan": repaired}))
+    recovered = state_json(page_dir)
+    assert recovered["source"]["error"] is None
+    assert recovered["active"]["revision"] > revision
+    assert (
+        read_revision(page_dir, recovered["active"]["revision"]).registry["run-plan"]
+        == repaired
+    )
 
 
 def test_page_state_names_each_bound_source_and_its_failures(page_dir):

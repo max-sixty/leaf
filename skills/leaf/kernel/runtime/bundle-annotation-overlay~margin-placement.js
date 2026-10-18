@@ -6,6 +6,7 @@ import {
   residencyStarted
 } from "./bundle-content-layout.js";
 import {
+  anchorBox,
   anchorElement,
   anchorFor,
   anchorName,
@@ -33,7 +34,7 @@ import {
 } from "./bundle-presence.js";
 import {
   inChrome,
-  pageDocument
+  layoutBox
 } from "./bundle-passage-facts.js";
 import {
   LAYOUT,
@@ -295,7 +296,7 @@ function carrierAnchor(subject, sources, scroller) {
   if (!scrollsWith(subject, inner)) return own();
   return carriedAnchor(inner) ?? own();
 }
-var marginColumn = () => pageDocument() || document.body;
+var marginColumn = () => layoutBox() || document.body;
 var railStands = (main) => (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
 var railBeside = (scroller) => {
   if (scroller === pageScroller) return true;
@@ -364,7 +365,7 @@ function syncMarginResidency(changed) {
 }
 function paintPins() {
   if (!residencyStarted()) return;
-  const main = pageDocument();
+  const main = layoutBox();
   layer?.root.closest(".lf-chrome").toggleAttribute("data-lf-pins", !main || !railStands(main));
 }
 var labelRect = (name, left, top, label) => ({
@@ -1021,7 +1022,7 @@ function layoutMarginRows() {
     ).join("|");
     if (read.cuts.length)
       read.carrier ??= carriedAnchor(pageScroller) ?? anchorElement(targetBox(subject));
-    read.carrierBox = read.carrier?.getBoundingClientRect();
+    read.carrierBox = read.carrier && anchorBox(read.carrier);
     read.lane = read.scroller === pageScroller ? layer.root : null;
     if (read.carrier && !carrierNames.has(read.carrier))
       carrierNames.set(read.carrier, anchorReading(read.carrier));
@@ -1044,7 +1045,7 @@ function layoutMarginRows() {
         return {
           anchor,
           reading: anchorReading(anchor),
-          at: anchor.getBoundingClientRect(),
+          at: anchorBox(anchor),
           band: !band ? null : i ? band : {
             ...band,
             left: band.left - ring,
@@ -1307,7 +1308,7 @@ function floatingGeometry(contexts) {
   const anchors2 = /* @__PURE__ */ new Map();
   for (const context of contexts) {
     const anchor = anchorFor(context);
-    if (anchor) anchors2.set(anchor, anchor.getBoundingClientRect());
+    if (anchor) anchors2.set(anchor, anchorBox(anchor));
   }
   return { anchors: anchors2 };
 }
@@ -1417,7 +1418,7 @@ function floatingPlacement({ floating, update }) {
       const anchor = anchorFor(context);
       const client = reference.getBoundingClientRect();
       const geometry = reference.geometry ?? floatingGeometry([context]);
-      const anchorBox = geometry.anchors.get(anchor);
+      const anchorStood = geometry.anchors.get(anchor);
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
       const measured = {
@@ -1433,9 +1434,9 @@ function floatingPlacement({ floating, update }) {
       const { offset, scale } = answer.middlewareData.anchorAt;
       const wanted = planeOf(answer);
       const holder = offset && physical && typeof wanted === "object" ? holderOf(wanted, physical, getOverflowAncestors(physical)) : null;
-      const plane = wanted === "page" && anchorBox && offset ? "page" : holder ? "region" : "window";
+      const plane = wanted === "page" && anchorStood && offset ? "page" : holder ? "region" : "window";
       const frameAnchor = plane === "page" ? anchor : plane === "region" ? anchorElement(holder) : null;
-      const frameBox = plane === "page" ? anchorBox : frameAnchor?.getBoundingClientRect();
+      const frameBox = plane === "page" ? anchorStood : frameAnchor && anchorBox(frameAnchor);
       const at = offset && {
         x: offset.x + (frameBox?.left ?? 0) / scale.x,
         y: offset.y + (frameBox?.top ?? 0) / scale.y
@@ -1670,6 +1671,7 @@ function commentPlacement() {
   let moved = false;
   let held2 = null;
   let reading = null;
+  let tallest = null;
   let edge = "top";
   let pressHeld = null;
   let pressAnswered = null;
@@ -1683,9 +1685,14 @@ function commentPlacement() {
     moved = false;
     held2 = null;
     reading = null;
+    tallest = null;
     edge = "top";
     pressHeld = null;
     pressAnswered = null;
+  };
+  const overhangOf = (reserve) => {
+    const end = side === "top" ? "top" : "bottom";
+    return { [end]: reserve?.[end] ?? 0 };
   };
   const line = (clear, row) => quoted ? row : side === "bottom" ? clear?.bottom ?? row : side === "top" ? clear?.top ?? row : row;
   return {
@@ -1701,6 +1708,7 @@ function commentPlacement() {
       pending2 = frame;
     },
     forget,
+    overhang: overhangOf,
     // Which edge this placement holds, `top` or `foot`, from what the caller reports:
     // the transcript's extent, whether the user is drafting, the latest turn
     // (`{ key, author }`), the draft's words, and, while it is the user's latest
@@ -1745,10 +1753,8 @@ function commentPlacement() {
     // holds the foot only where the surface stands above what it is about; any other
     // change keeps the edge held now.
     edgeFor: (turn) => turn ? side === "top" ? "foot" : "top" : edge,
-    // The held edge's offset for `options`' `hold`, and the height between the held
-    // top and foot, which caps a held surface no shorter than it last stood.
+    // The held edge's offset for `options`' `hold`.
     heldAt: (edge2) => held2 && { [edge2]: held2[edge2] },
-    heldHeight: () => held2 ? held2.foot - held2.top : 0,
     scrolled() {
       input = null;
     },
@@ -1804,7 +1810,8 @@ function commentPlacement() {
       margin = null,
       boundary,
       fit,
-      hold = null
+      hold = null,
+      reserve = null
     }) {
       const minimumWidth = cardMinimum();
       const across = vertical(side);
@@ -1823,6 +1830,11 @@ function commentPlacement() {
         boundary.right - Math.min(minimumWidth, boundary.width)
       );
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
+      const overhang = Object.entries(overhangOf(reserve));
+      const padding = Object.fromEntries(
+        overhang.map(([end, length]) => [end, -length])
+      );
+      const reach2 = overhang.reduce((total, [, length]) => total + length, 0);
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
         mainAxis: !across,
@@ -1873,7 +1885,14 @@ function commentPlacement() {
       const size = ui.size({
         ...overflow,
         apply(state) {
-          const { scale } = measure(state);
+          const { scale, line: line2 } = measure(state);
+          const stood2 = held2 ? Math.min(
+            boundary.height + reach2,
+            Math.max(
+              held2.foot - held2.top,
+              tallest && Math.abs(tallest.line - line2) < 0.5 ? tallest.height : 0
+            )
+          ) / scale.y : 0;
           const lane = carriedInline !== null ? boundary.right - (column ?? clear.left) - carriedInline : across ? boundary.right - (inlineStart + (inline ?? 0) * scale.x) : side === "right" ? boundary.right - box.right - COMMENT_GAP : clear.left - boundary.left - COMMENT_GAP;
           fit({
             side,
@@ -1882,6 +1901,7 @@ function commentPlacement() {
               Math.min(state.availableWidth, lane / scale.x)
             ),
             height: state.availableHeight,
+            stood: stood2,
             scale
           });
         }
@@ -1913,6 +1933,7 @@ function commentPlacement() {
         heldEdge && sizing,
         ui.shift({
           ...overflow,
+          padding,
           mainAxis: true,
           crossAxis: true,
           limiter: {
@@ -1964,7 +1985,12 @@ function commentPlacement() {
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line2) * scale.y;
-      const spot = { top, foot: top + middlewareData.held.height * scale.y };
+      const height = middlewareData.held.height * scale.y;
+      const spot = { top, foot: top + height };
+      tallest = {
+        height: tallest && Math.abs(tallest.line - line2) < 0.5 ? Math.max(tallest.height, height) : height,
+        line: line2
+      };
       held2 = { ...spot, ...reading };
       return { scale };
     }

@@ -47,6 +47,7 @@ export {
   unconcealedReadingRegions,
 } from "./reading-regions.js";
 export {
+  layoutBox,
   pageDocument,
   quoteFrom,
   verbatimBoundaryIdentity,

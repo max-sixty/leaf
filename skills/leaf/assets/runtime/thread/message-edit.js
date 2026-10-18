@@ -31,9 +31,13 @@
    field its reply box is, at the reply box's width and padding (shadow.css,
    `.lf-msg-editor`). Its Cancel and Save stand at the message's head, where the
    message's own control stood (`.lf-msg-edit-actions`), so opening it grows the
-   message by the box's padding alone. Rejected: a box painted around the words where
-   they stood, with no padding of its own, so opening it moved nothing; beside the reply
-   box it read as a thinner, narrower field (the user's decision, 2026-10-13).
+   message by the box's padding alone. In a margin card the editor is the comment box
+   the card grew from instead, whose frame and padding fit the room each of the card's
+   lines already keeps, so opening it on plain words moves nothing there
+   (response.css). Rejected: a
+   box painted around the words where they stood, with no padding of its own, so
+   opening it moved nothing; beside the reply box it read as a thinner, narrower field
+   (the user's decision, 2026-10-13).
 
    A double click on the message or a press on its Edit control opens it. The keyboard
    opens it with ↑: from the thread's empty reply box, the user's latest message, and
@@ -79,10 +83,11 @@ import { seenRect } from "../geometry.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
-import { announce, notice } from "../notifications.js";
+import { announce } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
+import { raiseError } from "../errors.js";
 
 // What a message's view answers by opening its rewrite, as a press on its Edit control.
 export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
@@ -271,7 +276,9 @@ export class MessageEditor {
     // Words kept over the user's own edit still sending name it by its pending id, which
     // is no change of anyone else's.
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
-      notice(`This message changed since this edit began. It now says: “${said()}”`);
+      raiseError(
+        `This message changed since this edit began. It now says: “${said()}”`,
+      );
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor lf-comment-box");
     this.input = offer(TEXT_FIELD);

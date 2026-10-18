@@ -28,6 +28,7 @@
 import { copyControl } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import {
+  anchorBox,
   anchorReading,
   cutFrames,
   headerLevels,
@@ -39,6 +40,7 @@ import { focusDestination, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
 import { move } from "./dom-move.js";
+import { layoutPx } from "./keeps.js";
 import { nextRender } from "./rendering.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
@@ -77,8 +79,22 @@ function standUnderHeaders(copy, pre, levels) {
   const home = frames.at(-1) ?? documentCopies;
   if (copy.parentNode !== home) move(home, copy, null);
 }
+// The control's anchor insets carry how far `anchor()` reads the block from where it
+// shows, which only an engine that leaves transforms out makes other than nothing
+// (css-anchors.js, `anchorBox`), such as Firefox on a block in a table granted room.
+// Read on each reveal, since only a shown control needs it.
 const revealed = (pre, copy) => {
   if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
+  const box = pre.getBoundingClientRect();
+  const at = anchorBox(pre);
+  for (const [property, length] of [
+    ["--lf-code-copy-dx", box.left - at.left],
+    ["--lf-code-copy-dy", box.top - at.top],
+  ]) {
+    const value = length ? layoutPx(length) : "";
+    if (copy.style.getPropertyValue(property) !== value)
+      copy.style.setProperty(property, value);
+  }
   refreshAnchorView(copy);
 };
 // The key this module projects its Copy scope under, beside the block's other owners.

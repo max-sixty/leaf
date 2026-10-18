@@ -75,11 +75,14 @@
 }
 /* Source paths may change with new evidence; their region gives way while the
    statistics and adjacent actions keep their trailing columns. */
+.lf-diff-path {
+  white-space: pre-wrap;
+}
 .lf-diff-head > .lf-diff-path {
   display: flex;
   flex: 1;
   min-width: 0;
-  white-space: nowrap;
+  white-space: pre;
 }
 /* Both names share one allocation: folders receive only the room left by the
    basenames and arrow. Side wrappers retain their meaning without dividing width. */
@@ -188,7 +191,7 @@
   background: var(--tip-bg);
   color: var(--tip-ink);
   box-shadow: var(--raise-1);
-  white-space: normal;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
   pointer-events: none;
 }
@@ -619,7 +622,7 @@
   }
   .lf-diff-head > .lf-diff-path {
     display: block;
-    white-space: normal;
+    white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
   .lf-diff-head .lf-diff-dir[data-folder-hidden] {

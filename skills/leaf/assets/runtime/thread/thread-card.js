@@ -206,12 +206,13 @@ export function threadReading(thread, surface, commands, options) {
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
   const attention = threadAttention(thread);
-  // An answer says what it leaves (`--ask`, `--todo`); its head says so while that
-  // stands: the prose ask the user still owes, the to-do still open on the thread.
+  // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
+  // stands: the question the user still owes words to, the to-do still open on the
+  // thread.
   const asking = thread.user_prompt?.message;
   const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) =>
-    message.ask && message.id === asking
+    message.id === asking
       ? "Waiting on me"
       : message.todo && openTodos.has(message.id)
         ? "To-do open"
@@ -1440,12 +1441,14 @@ export class ThreadView {
     const ids = ranges.map((range) => range.summary.id);
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const label = `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${count} ${
-      progress ? "progress" : "earlier"
-    } message${count === 1 ? "" : "s"}`;
+    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const label = `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-summary-expand"
+      class="lf-thread-disclosure lf-summary-expand ${
+        progress ? "lf-progress-expand" : ""
+      }"
+      data-lf-room=${progress ? `Show ${subject}` : nothing}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ids
@@ -1453,7 +1456,7 @@ export class ThreadView {
         .join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${label}
+      ${progress ? html`<span>${label}</span>` : label}
     </button>`;
   }
 

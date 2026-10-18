@@ -2177,7 +2177,7 @@
       :scope:is(lf-toc) .lf-toc-rows {
         position: relative;
         display: flex;
-        height: 100%;
+        height: calc(var(--lf-view-height) - 2 * var(--sp-4));
         --lf-toc-spine-width: 1px;
         flex-direction: column;
       }

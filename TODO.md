@@ -2,11 +2,11 @@
 
 ## Biggest current challenges
 
-- **Improve our outputs against a standard HTML output.** Agents given plain
-  HTML wrote pages judges preferred on every configuration and some queues, at a
-  third to a half of Leaf's cost ([comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)).
-  Make Leaf's pages at least as good, and find which widgets and instructions
-  help an author rather than constrain one.
+- **Improve our outputs against a standard HTML output.** The
+  [recovered comparison](notes/agent-usability-evals.md#recovered-codex-comparison-2026-10-14)
+  measures complete authoring and feedback cycles on saved Leaf and HTML pages.
+  Use task-specific evidence to decide which compositions help, and measure current
+  authoring time before adding more widgets or instructions.
 - **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
   agent wake-up reliable, including Codex's message back into the session and
   Claude Code's potentially overcomplicated state machine.
@@ -122,14 +122,13 @@ has tried; settle that before building it.
   adding one.
 
 - **#20 — Act on the plain HTML comparison.** The
-  [comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
-  found Leaf authors write much less CSS and script but spend 2–3 times the cost,
-  over more turns with the skill and references in context. Judges preferred
-  plain HTML's configurations, which put each alert's controls beside its evidence,
-  and Leaf's documents, which put decisions on the page.
-  [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
-  starting with progress through a queue; per-item controls for configuration
-  landed in #2711.
+  [recovered Codex rerun](notes/agent-usability-evals.md#recovered-codex-comparison-2026-10-14)
+  split six pairs into two Leaf wins, two HTML wins and two order-sensitive splits.
+  Judging now separates making decisions from reading the final record; the
+  ask-authoring reference also distinguishes user requests from agent-proposed asks.
+  [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
+  using current code and an unfamiliar author; two samples per task do not settle
+  which compositions work generally.
 - **Give a recommendation's reason beside the options, not in its card.** The
   default registry's `lf-options` example writes the reason into the recommended
   card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
@@ -149,6 +148,9 @@ has tried; settle that before building it.
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 - **#24 — Measure time to an initial reviewable page and the value of review.**
+  Retrospective replay now proves one usable Leaf candidate and one usable HTML
+  candidate before their authors finished. Their observation triggers differ;
+  earliest usability and the value of review still need a separate study.
   Measure from the user's request to the first browser-reachable page handed over
   for review. Separate preparation and reference reads, authoring, markup and
   render checks, the author's navigation task, independent reading, revisions,

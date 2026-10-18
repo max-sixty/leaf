@@ -2554,7 +2554,8 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "markup": '<lf-sample id="rp-quoted" label="the old copy">'
             '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>'
             '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>'
-            '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>',
+            '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>'
+            '<lf-options id="rp-choice"><lf-option id="rp-keep">Keep</lf-option></lf-options>',
         },
     )
     page = open_page(browser, url)
@@ -2563,10 +2564,10 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
 
     marks = page.evaluate("""() => Object.fromEntries(
         [['sample', '#rp-quoted'], ['gloss', '#rp-quoted lf-gloss'], ['log', '#rp-log'],
-         ['room', '#rp-room']].map(([name, selector]) => {
+         ['room', '#rp-room'], ['choice', '#rp-choice']].map(([name, selector]) => {
             const el = document.querySelector('.lf-floating-panel ' + selector);
             return [name, Object.fromEntries(
-                ['data-lf-exhibit', 'data-lf-inline', 'data-lf-bound', 'data-lf-space']
+                ['data-lf-exhibit', 'data-lf-inline', 'data-lf-bound', 'data-lf-space', 'data-lf-awaits']
                     .filter(attr => el.hasAttribute(attr))
                     .map(attr => [attr, el.getAttribute(attr)]))];
         }))""")
@@ -2575,6 +2576,7 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
         "gloss": {"data-lf-inline": ""},
         "log": {"data-lf-bound": "end"},
         "room": {},
+        "choice": {"data-lf-awaits": ""},
     }, marks
 
 

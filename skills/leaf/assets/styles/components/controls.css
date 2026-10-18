@@ -213,7 +213,9 @@
 .lf-msg > .lf-msg-head {
   anchor-name: --lf-msg-head;
 }
-.lf-msg:has(.lf-msg-control) > .lf-msg-head {
+/* A progress disclosure precedes the completed answer's feedback control. Hold that
+   control's room from the first disclosure paint so its arrival moves no label. */
+.lf-msg:has(.lf-msg-control, > .lf-msg-head > .lf-progress-expand) > .lf-msg-head {
   --lf-msg-control: max(26px, var(--aim-floor));
   padding-inline-end: calc(
     var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px)

@@ -1048,12 +1048,14 @@ export class ThreadView {
     const ids = ranges.map((range) => range.summary.id);
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const label = `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${count} ${
-      progress ? "progress" : "earlier"
-    } message${count === 1 ? "" : "s"}`;
+    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const label = `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-summary-expand"
+      class="lf-thread-disclosure lf-summary-expand ${
+        progress ? "lf-progress-expand" : ""
+      }"
+      data-lf-room=${progress ? `Show ${subject}` : nothing}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ids
@@ -1061,7 +1063,7 @@ export class ThreadView {
         .join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${label}
+      ${progress ? html`<span>${label}</span>` : label}
     </button>`;
   }
 

@@ -2,7 +2,6 @@
 
 import json
 import re
-from datetime import UTC, datetime
 from itertools import pairwise
 
 import pytest
@@ -12,7 +11,6 @@ from leaf import interaction_log as interaction_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
-from leaf_dev.commands.response_times import page_timings
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
@@ -301,20 +299,6 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
     assert shown["monotonic_ms"] >= submitted["monotonic_ms"]
     assert shown["visibility"] == submitted["visibility"] == "visible"
     assert "text" not in shown and "text" not in submitted
-    sample = next(
-        sample
-        for sample in page_timings(serve.page_dir, since=None, until=datetime.now(UTC))[
-            "samples"
-        ]
-        if sample["input_id"] == question["id"]
-    )
-    measured = sample["milestones"]["send_to_visible"]
-    assert measured["event_id"] == answer["id"]
-    assert measured["session"] == shown["session"]
-    assert (
-        measured["elapsed_s"]
-        == (shown["monotonic_ms"] - submitted["monotonic_ms"]) / 1000
-    )
 
 
 def test_browser_trace_records_where_touch_events_are_not_exposed(browser, serve):

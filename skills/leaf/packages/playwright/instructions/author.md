@@ -21,10 +21,31 @@ don't place an element from the tree at a particular spot in an image. A comment
 image names that capture. A comment on a saved element names its action phase and its
 path in the accessibility tree, which tells apart two controls with the same name.
 
-Equal elapsed times in two recordings don't mean the application was in the same state.
-To compare recordings, import each under its own source, put their viewers inside one
-`lf-trace-compare` with a `label` on each, and give the bookmarks for the same result
-the same `key`.
+To compare recordings, import each under its own source and put their viewers inside
+one `lf-trace-compare`, with a `label` on each. The original timelines and timestamps
+stay visible. Give bookmarks for corresponding steps the same `key`; selecting one
+finds the matching bookmark in the other recording. Switching keeps the image scale.
+An input can produce different results across versions, so name its identity separately
+from the outcome the reader should inspect.
+
+### Record comparable journeys
+
+Run one journey function against both versions, with the same fixture, viewport and
+input targets. Separate setup from the recorded interaction: load and establish the
+same ready state before starting the capture. If startup itself is under review,
+include it in both instead. Wrap each logical input and its outcome check in a native
+Playwright tracing group with the same stable name, such as `enter-ask`, in both runs.
+Use that same identity for the paired bookmarks. Do not match steps by elapsed time,
+rendered labels, archive-local call ids or which outcome happened to succeed.
+
+For a paced demonstration, use one requested input schedule and stop time measured
+from each capture's start. Waiting after every completed action accumulates differing
+latencies; absolute deadlines do not. Report a missed deadline instead of silently
+shifting the remaining schedule. Read the actual native input calls and capture bounds
+back from both traces: the same requested schedule does not guarantee identical browser
+dispatch times. Preserve that difference; do not stretch playback to conceal it. A
+performance comparison must also distinguish intentional demonstration waits from the
+application's response time.
 
 Keep the original archive and serve it in Playwright's own viewer at the imported
 `viewerUrl`, which offers DOM snapshots, element picking, console, network and source.

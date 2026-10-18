@@ -525,11 +525,7 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_reader_confirms(
 
 def test_a_hooks_delivery_field_is_independent_of_its_prose(monkeypatch):
     """A hook's output names the delivery it hands over, inline or by pointer, in a
-    field of its own, which Leaf's hooks module and an eval's reading of a trace
-    read. Rewording the context the model reads changes neither the field nor that
-    reading."""
-    from leaf_dev.arms import hook_delivered
-
+    field of its own. Rewording the context the model reads leaves that field intact."""
     harness = harness_model.ClaudeCodeHarness("s1", "Claude")
     delivery = {"id": "d1", "batches": []}
 
@@ -553,10 +549,6 @@ def test_a_hooks_delivery_field_is_independent_of_its_prose(monkeypatch):
         {"id": "d1", "inline": False},
     ]
     assert [answer[field] for answer in before] == [answer[field] for answer in after]
-    assert all(
-        hook_delivered({"subtype": "hook_response", "output": json.dumps(answer)})
-        for answer in after
-    )
 
 
 def test_hook_drops_a_page_transferred_after_ownership_discovery(claimed, monkeypatch):

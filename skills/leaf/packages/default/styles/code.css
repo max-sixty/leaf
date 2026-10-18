@@ -155,3 +155,11 @@
     }
   }
 }
+
+/* Paper includes line endings even when the reader panned the source on screen. */
+@media print {
+  :scope:is(lf-code)[data-lf-reader-wrap] .lf-code-line {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+  }
+}

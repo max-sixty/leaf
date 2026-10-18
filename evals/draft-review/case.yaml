@@ -1,0 +1,13 @@
+# Added before pilot results: freeform user wording carried through a final revision.
+description: Customer reply draft review
+metadata:
+  purpose: Correct incident facts, let the user replace a reply with their own
+    wording, and preserve that approved text in an internal review record.
+  tags:
+    - workflow
+    - draft
+  conditions:
+    - leaf
+    - html
+  executor: leaf_dev.arrangement_eval
+  scenario: draft-review

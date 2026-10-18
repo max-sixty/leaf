@@ -997,8 +997,11 @@
 
 /* The workspace spaces its parts itself: a view, whether the recording or a wrapper
  * holding it, and a recording inside a wrapper take no block margin, so a hidden view
- * leaves no blank band under the shown one for the sticky chooser to hang over. */
+ * leaves no blank band under the shown one for the sticky chooser to hang over.
+ * A recording is replaced in place, so its outgoing descendants cannot anchor
+ * document scrolling. The stable surrounding page remains the reader's anchor. */
 :scope:is(lf-trace-compare) {
+  overflow-anchor: none;
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
@@ -1006,11 +1009,23 @@
   font: var(--t-5) / 1.45 var(--sans);
 }
 .lf-trace-compare-controls {
-  margin-block-end: var(--sp-2);
-  padding-block: var(--sp-1);
+  position: sticky;
+  top: var(--lf-top);
+  --lf-head-inset: var(--sp-2);
+  z-index: 4;
+  background: var(--paper);
+  padding-block: var(--sp-2);
+  border-block-end: 1px solid var(--border-2);
 }
-:scope:is(lf-trace-compare) .lf-trace-stage[data-ready] {
-  grid-template-rows: auto auto auto minmax(180px, 1fr) auto;
+:scope:is(lf-trace-compare) .lf-trace-heading {
+  position: static;
+}
+@media (max-width: 600px) {
+  .lf-trace-compare-controls {
+    position: static;
+    --lf-head-inset: initial;
+    padding-block: var(--sp-1);
+  }
 }
 :scope:is(lf-trace-compare) > *,
 :scope:is(lf-trace-compare) lf-trace {
@@ -1021,7 +1036,7 @@
  * interactive runtime, every labeled recording remains available in page flow. */
 @scope (html[data-lf-interactive] :scope) {
   :scope:is(lf-trace-compare):not(:defined) {
-    & lf-trace::before {
+    &::before {
       content: "";
       display: block;
       block-size: calc(var(--lf-trace-control-size) + 2 * var(--sp-1));

@@ -535,6 +535,10 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
 
     page.keyboard.press("Shift+m")
     expect(page.locator("#second-decision")).to_be_focused()
+    # Focus precedes the outer scroll, so observe movement before waiting for rest.
+    page.wait_for_function(
+        "top => document.scrollingElement.scrollTop < top - 1000", arg=reading
+    )
     scroll_settled(page)
     landed = page.evaluate("document.scrollingElement.scrollTop")
     assert landed < reading - 1000
@@ -542,6 +546,9 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
 
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
+    page.wait_for_function(
+        "top => document.scrollingElement.scrollTop < top - 1000", arg=landed
+    )
     scroll_settled(page)
     walked = page.evaluate("document.scrollingElement.scrollTop")
     assert walked < landed - 1000

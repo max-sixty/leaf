@@ -198,11 +198,19 @@
      * row down rather than below the whole list. The set is the container its own
      * parts ask, which is why the stacking is written on them and not on the set.
      *
-     * A row's summary is a line of a stated height (`--lf-tab-summary-h`), so a strip
-     * held to one row is one number the page keeps before upgrade (below): the strip's
-     * own row, and that line where any row has a summary. */
+     * Summary and outcome each add one stated line to a horizontal strip. The same
+     * authored declarations reserve those lines before upgrade, so the panel starts
+     * in its final position. In a column, summaries can wrap to keep their context. */
   :scope:is(lf-tabs)[list="side"] {
     --lf-tab-summary-h: 17px;
+    --lf-tab-context-h: 0px;
+    --lf-tab-outcome-h: 0px;
+  }
+  :scope:is(lf-tabs)[list="side"]:has(> lf-tab[summary]) {
+    --lf-tab-context-h: var(--lf-tab-summary-h);
+  }
+  :scope:is(lf-tabs)[list="side"]:has(> lf-tab [data-lf-awaits]) {
+    --lf-tab-outcome-h: var(--lf-tab-summary-h);
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered {
     container-type: inline-size;
@@ -232,19 +240,17 @@
     justify-items: start;
     text-align: start;
   }
-  /* A row whose item holds an ask has its state between the name and the count: a quiet
-     * open mark while an ask is unanswered, then the check with the answer. That column
-     * keeps its room in either state, so an answer moves no row. The words take what the
-     * name leaves; the answer is its own container so that, with too little room for any
-     * of them, it shows the check alone, and contains its size so the words never widen
-     * the row. The tab's description carries them whole. */
-  :scope:is(lf-tabs)[list="side"].lf-rendered
-    > .lf-tabstrip
-    .lf-tab-btn:has(> .lf-tab-answer) {
-    grid-template-columns: minmax(0, max-content) minmax(1.25em, 1fr) auto;
-  }
+  /* The outcome has its own reserved line below the authored summary. Neither
+     * choosing nor undoing borrows room from the name or its context. The answer
+     * contains its inline size; exceptional long values ellipsize and remain whole
+     * in the tab's accessible description. */
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer {
     container-type: inline-size;
+    grid-column: 1 / -1;
+    grid-row: 3;
+    block-size: var(--lf-tab-summary-h);
+    line-height: var(--lf-tab-summary-h);
+    padding-inline: 5px;
     justify-self: stretch;
     display: flex;
     gap: 0.3em;
@@ -274,11 +280,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  @container (width < 5em) {
-    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
-      display: none;
-    }
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-summary {
     grid-column: 1 / -1;
@@ -325,8 +326,10 @@
       border-bottom: 1px solid var(--border-2);
       border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
     }
-    :scope:is(lf-tabs)[list="side"].lf-rendered:has(> lf-tab[summary]) > .lf-tabstrip {
-      min-block-size: calc(var(--lf-tabstrip-h) + var(--lf-tab-summary-h));
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip {
+      min-block-size: calc(
+        var(--lf-tabstrip-h) + var(--lf-tab-context-h) + var(--lf-tab-outcome-h)
+      );
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
       max-inline-size: 16rem;
@@ -640,8 +643,10 @@
           border-bottom: 1px solid var(--border-2);
           border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
         }
-        &:has(> lf-tab[summary])::before {
-          block-size: calc(var(--lf-tabstrip-h) + var(--lf-tab-summary-h));
+        &::before {
+          block-size: calc(
+            var(--lf-tabstrip-h) + var(--lf-tab-context-h) + var(--lf-tab-outcome-h)
+          );
         }
         & > lf-tab {
           grid-column: 1 / -1;

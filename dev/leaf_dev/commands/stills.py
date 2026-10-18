@@ -285,6 +285,14 @@ def threads_panel(page: Page) -> None:
     expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
 
 
+def call_tree(page: Page) -> None:
+    """The CallDiff root and its unchanged landmarks beside added and removed calls."""
+    page.get_by_role("tab", name="CallDiff", exact=True).click()
+    widget = page.locator("#pr-call-diagram")
+    widget.scroll_into_view_if_needed()
+    widget.locator(".lf-call-root-location a").first.focus()
+
+
 def page_search(page: Page) -> None:
     """A focused page query and its match count inside the search frame."""
     page.keyboard.press("Tab")
@@ -1508,6 +1516,14 @@ STATES = (
         touch=True,
     ),
     State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
+    State("walkthrough-calls", "pr-walkthrough", call_tree, region="#pr-call-diagram"),
+    State(
+        "walkthrough-calls-dark",
+        "pr-walkthrough",
+        call_tree,
+        scheme="dark",
+        region="#pr-call-diagram",
+    ),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
     State("walkthrough-diff-comment", "pr-walkthrough", diff_line_composer),

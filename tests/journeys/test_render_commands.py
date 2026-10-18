@@ -414,7 +414,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     Pointer drag and the component's complete keyboard pattern move one divider. The
     rail jumps to the named endpoints, while print keeps the two complete frames
     and their order. The gate's pass over the pair is
-    `test_render_reads_painted_facts_and_widget_chrome_where_they_stand`'s."""
+    `test_render_reads_widget_chrome_where_it_stands`'s."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},

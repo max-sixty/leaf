@@ -1181,10 +1181,11 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # opens the same thread preview as its marker. Each quoted passage in p1 stands its
     # own entry, so the walk takes the first.
     page.keyboard.press("g")
-    entry = page.locator(
+    entries = page.locator(
         f'{CHIPS}[data-lf-go-to-kind="Margin entry"][data-lf-go-to-target="p1"]'
-    ).first
-    page.keyboard.type(entry.get_attribute("data-lf-hint-code"))
+    )
+    expect(entries).to_have_count(2)
+    page.keyboard.type(entries.first.get_attribute("data-lf-hint-code"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")  # onto the element the thread is about

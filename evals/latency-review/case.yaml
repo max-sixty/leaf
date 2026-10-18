@@ -1,0 +1,13 @@
+# Added before pilot results: quantitative chart/data correction and next-run plan.
+description: Latency review
+metadata:
+  purpose: Compare exact synthetic performance runs, correct a latency measurement
+    across chart and data, and record a next-validation choice.
+  tags:
+    - workflow
+    - chart
+  conditions:
+    - leaf
+    - html
+  executor: leaf_dev.arrangement_eval
+  scenario: latency-review

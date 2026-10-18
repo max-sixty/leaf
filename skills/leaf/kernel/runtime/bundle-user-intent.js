@@ -1322,7 +1322,7 @@ function markDeclared(root) {
     for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el2 of elementsIn(root, tag))
-        keeps(el2, paint, declared === true ? "" : declared);
+        keeps(el2, paint, declared === true || mark.presence ? "" : declared);
     }
     if (authored) {
       for (const el2 of elementsIn(root, `[${authored}]`))
@@ -1692,17 +1692,30 @@ function placedMarkdownTokens(source) {
   const tokens3 = markdownTokens(source);
   if (!tokens3) return [];
   const starts = [0];
-  for (let at = 0; at < source.length; at++)
-    if (source[at] === "\n") starts.push(at + 1);
+  for (let at = 0; at < source.length; at++) {
+    if (source[at] === "\r" && source[at + 1] === "\n") at++;
+    if (source[at] === "\r" || source[at] === "\n") starts.push(at + 1);
+  }
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
-  for (const token of tokens3) {
+  for (const [index, token] of tokens3.entries()) {
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
       if (token.map && (token.nesting === 1 || token.type === "fence" || token.type === "code_block"))
-        found.push({ token, from, to, words: token.nesting ? null : token.content });
+        found.push({
+          token,
+          from,
+          to,
+          markers: token.meta?.markers?.map(([line, a, b]) => [
+            starts[line] + a,
+            starts[line] + b
+          ]),
+          // A heading's inline token owns its content lines, excluding Setext syntax.
+          contentLines: token.type === "heading_open" ? tokens3[index + 1].map.map((at) => starts[at]) : void 0,
+          words: token.nesting ? null : token.content
+        });
       continue;
     }
     const positions = inlineSourcePositions(
@@ -2618,7 +2631,9 @@ function createWritingResume({
       return;
     }
     if (runtime.showsActive && !holdsBox(place2.context) && moveToPage(place2.context)) {
-      notice("Its box is gone, so its words moved to a comment on the page");
+      notice("Its box is gone, so its words moved to a comment on the page", {
+        draft: true
+      });
       return resume();
     }
     notice(
@@ -6353,16 +6368,18 @@ var ThreadView = class {
     const ids = ranges.map((range) => range.summary.id);
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-summary-expand"
+      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
+      data-lf-room=${progress ? `Show ${subject}` : nothing}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ids.map((id) => `lf-summary-originals-${this.#viewId}-${id}`).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${label}
+      ${progress ? html`<span>${label}</span>` : label}
     </button>`;
   }
   #setSummaryExpanded(ids, expanded) {

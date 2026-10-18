@@ -1,7 +1,8 @@
 """Capture a Playwright journey with its native trace and screencast.
 
 `recording(page, directory)` works with any Playwright page, independently of Leaf.
-It must start before navigation; it owns tracing and screencasting on that context.
+It owns tracing and screencasting on that context. Start it before the part under
+review: before navigation for startup, or after readiness for an interaction.
 The trace is native evidence for Playwright's viewer and for a Leaf page's `lf-trace`
 widget, from the `playwright` package. Video
 and optional GIF retain actual frame timing, without inserting demonstration waits.

@@ -1993,11 +1993,12 @@ def test_native_shift_evidence_survives_a_controlled_timer_clock(browser):
     consume_browser_errors(page, moved_within("textarea#field", by=[0, 40]))
 
 
-def test_a_native_resize_seals_typing_before_its_layout_even_with_controlled_time(
-    browser,
+@pytest.mark.parametrize("presentation", ["resize", "print", "color-scheme"])
+def test_a_native_presentation_change_seals_typing_before_its_layout(
+    browser, presentation
 ):
-    """Resize owns its new viewport layout; subsequent passive carry still fails."""
-    context = browser.new_context()
+    """Browser presentation owns its layout; subsequent passive carry still fails."""
+    context = browser.new_context(color_scheme="light")
     context.clock.set_fixed_time(datetime(2026, 10, 3, tzinfo=UTC).timestamp())
     page = context.new_page()
     page.set_viewport_size({"width": 900, "height": 600})
@@ -2008,14 +2009,20 @@ def test_a_native_resize_seals_typing_before_its_layout_even_with_controlled_tim
                 '<div id="above">',
                 '<div style="width:60%;margin:auto"><div id="above">',
             )
-            + "</div>"
+            + "</div><style>@media print, (prefers-color-scheme:dark) "
+            "{body > div {margin-left:0!important}}</style>"
         )
     )
     paint(page)
     page.clock.run_for(5000)
-    page.locator("#field").fill("Typed before resizing")
+    page.locator("#field").fill("Typed before presentation changes")
     before = page.locator("#field").bounding_box()
-    page.set_viewport_size({"width": 500, "height": 600})
+    if presentation == "resize":
+        page.set_viewport_size({"width": 500, "height": 600})
+    elif presentation == "print":
+        page.emulate_media(media="print")
+    else:
+        page.emulate_media(color_scheme="dark")
     paint(page)
     assert page.locator("#field").bounding_box()["x"] < before["x"] - 40
     judge_watches()

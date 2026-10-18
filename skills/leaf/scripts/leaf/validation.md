@@ -116,8 +116,10 @@ shadow tree, one in an embedded frame placed at that frame (a widget failing sof
 is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
-declarations honored; no sideways scroll, clipped control, or misplaced box; space below words and controls for a horizontal overlay scrollbar;
+declarations honored; no undeclared text nodes under widget chrome, sideways scroll,
+clipped control, or misplaced box; space below words and controls for a horizontal overlay scrollbar;
 and current state that replays without conflict and idempotently.
+Words a stylesheet paints with `content` have no text node and are outside these readings.
 `render_gate/readings.py` is the list. A message's widgets render only where its thread
 is drawn, so each thread whose messages carry markup is then opened in turn, where a
 reader would find it, and the widget readings run again (`thread_findings`). Those readings run

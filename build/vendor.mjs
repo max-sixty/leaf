@@ -247,6 +247,58 @@ const bundles = {
     entry:
       'export { default as MarkdownIt } from "markdown-it";\n' +
       'export { default as taskLists } from "markdown-it-task-lists";\n',
+    // Record block syntax where native rules consume it. Public maps expose only
+    // lines; guessing delimiters again disagrees with containers and code content.
+    adapt: [
+      {
+        file: /markdown-it\/dist\/markdown-it\.mjs$/,
+        edit: (source) =>
+          [
+            [
+              "var StateBlock = class {",
+              `function sourceSpan(state, line, from, to) {
+                const start = state.src.lastIndexOf("\\n", from - 1) + 1;
+                return [line, from - start, to - start];
+              }
+              var StateBlock = class {`,
+            ],
+            [
+              'const token = state.push("fence", "code", 0);',
+              `const token = state.push("fence", "code", 0);
+          token.meta = { markers: [sourceSpan(state, startLine, state.bMarks[startLine] + state.tShift[startLine], state.eMarks[startLine])] };
+          if (haveEndMarker) token.meta.markers.push(sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], state.eMarks[nextLine]));`,
+            ],
+            [
+              'token_o.markup = "########".slice(0, level);',
+              `token_o.meta = { markers: [sourceSpan(state, startLine, state.bMarks[startLine] + state.tShift[startLine], state.skipSpaces(pos)), sourceSpan(state, startLine, max, state.eMarks[startLine])] };
+          token_o.markup = "########".slice(0, level);`,
+            ],
+            [
+              "token_o.markup = String.fromCharCode(marker);",
+              `token_o.meta = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], state.eMarks[nextLine])] };
+          token_o.markup = String.fromCharCode(marker);`,
+            ],
+            ["const oldBMarks = [];", "const markers = []; const oldBMarks = [];"],
+            [
+              "oldBMarks.push(state.bMarks[nextLine]);\n\t\t\tstate.bMarks[nextLine] = pos;",
+              "markers.push(sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], pos));\n\t\t\toldBMarks.push(state.bMarks[nextLine]);\n\t\t\tstate.bMarks[nextLine] = pos;",
+            ],
+            [
+              'token_o.markup = ">";',
+              'token_o.meta = { markers }; token_o.markup = ">";',
+            ],
+            [
+              'token = state.push("list_item_open", "li", 1);',
+              `token = state.push("list_item_open", "li", 1);
+          token.meta = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], Math.min(posAfterMarker + 1, contentStart))] };`,
+            ],
+          ].reduce(
+            (text, [original, replacement]) =>
+              seam(text, original, replacement, "Markdown block source"),
+            source,
+          ),
+      },
+    ],
   }),
 
   // Load the viewer with its own styles in one optional, exportable module.
@@ -505,6 +557,46 @@ const bundles = {
     chunkNames: "pierre/[name]-[hash]",
     adapt: [
       {
+        file: /@pierre\/diffs\/dist\/managers\/ResizeManager\.js$/,
+        // Leaf seats wrapping conversations in Pierre's code grid. Its column
+        // widths can change those conversations' height, including the observed
+        // code/gutter boxes. Apply them in Leaf's next frame, outside ResizeObserver
+        // delivery, so readiness includes the resulting layout. The manager lookup
+        // at delivery drops retired nodes, so a file
+        // removed before that frame receives no writes. This is Leaf's integration
+        // adaptation, not an upstream backport.
+        edit: (source) => {
+          source = seam(
+            source,
+            "\t\tif (columnCount > 1 && !disableAnnotations) {",
+            `		// Pierre's code and gutter have no inline padding or border: their CSS
+		// widths are the content widths the observer will report. Initialize
+		// through the same update path before a wrapping conversation paints.
+		// No layout box has zero content width, as in ResizeObserver's reading;
+		// computed width can be "auto" while a file's ancestor is hidden.
+		const columnInlineSize = element => element == null || !element.getClientRects().length
+			? 0 : parseFloat(getComputedStyle(element).width);
+		this.applyColumnUpdates(new Map([...new Set(this.observedNodes.values())]
+			.filter(item => item.type === "code")
+			.map(item => [item, {
+				codeInlineSize: columnInlineSize(item.codeElement),
+				numberInlineSize: columnInlineSize(item.numberElement)
+			}])));
+		if (columnCount > 1 && !disableAnnotations) {`,
+            "Pierre initial column sizing",
+          );
+          return (
+            'import {nextFrame as leafNextFrame} from "/runtime/widget-api.js";\n' +
+            seam(
+              source,
+              "new ResizeObserver(ResizeManager.handleSharedResizeEntries)",
+              "new ResizeObserver((entries) => leafNextFrame(() => ResizeManager.handleSharedResizeEntries(entries)))",
+              "Pierre resize delivery phase",
+            )
+          );
+        },
+      },
+      {
         file: /@pierre\/diffs\/dist\/index\.js$/,
         edit: (source) =>
           selectedExports(
@@ -530,6 +622,7 @@ const bundles = {
       },
     ],
     platform: "browser",
+    external: ["/runtime/widget-api.js"],
     target: "chrome105",
     banner: {
       js: `/*! @pierre/diffs ${version("@pierre/diffs")} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,

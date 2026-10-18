@@ -23,7 +23,85 @@ gesture are functional failures and need a fix or an explicit support decision.
 An unsupported API alone does not justify blocking the whole browser: record
 what fails and what still works.
 
+## Tooling limitations
+
+### Print-media emulation can leave screen container styles stale
+
+- **Owners:** `styles/chrome.css`'s banner container query and
+  `styles/theme.css`'s screen-only phone posture; the observed boundary is CSS
+  invalidation, reproduced without Leaf runtime or banner measurement code.
+- **Observed 2026-10-15:** pinned, installed Playwright Chromium
+  153.0.8010.12. At 390px, print→screen media emulation leaves a hidden chrome
+  subtree's two-row styles applied after its queried property returns to one.
+  Leaf's More control is then clipped. A code page and a plain prose page
+  reproduce it; this is not established as a current-stable
+  browser or user print failure.
+- **Print distinction:** emulation emits `matchMedia` changes but no
+  `beforeprint`/`afterprint`. Headless `page.pdf()` (printToPDF) emits those
+  events and restores the measured layout. The native print dialog was not
+  tested. Restricting the banner query to screen prevents stale wrapping but
+  does not repair all full-page geometry left by emulation.
+- **Disposition:** no product fallback or new automated test. No currently
+  failing maintained gate was identified. Some tests intentionally interact
+  after emulation; retain their media-change claims, but do not interpret them
+  as print-event coverage. For a confirmed false positive, isolate print-style
+  inspection from unrelated subsequent screen interaction and check printing
+  separately.
+
+Standalone reproduction from the checkout (no Leaf page or server needed):
+
+```sh
+uv run python - <<'PYCODE'
+from leaf_dev.browser import headless_shell
+
+with headless_shell() as browser:
+    page = browser.new_page(viewport={"width": 390, "height": 844})
+    page.set_content('''
+      <style>
+      @property --rows { syntax: "<integer>"; inherits: true; initial-value: 1; }
+      :root { --rows: 2; }
+      body { container-type: inline-size; }
+      header { display: flex; flex-wrap: nowrap; }
+      @media screen and (width <= 480px) { :root { --rows: 1; } }
+      @media print { .chrome { display: none; } }
+      @container style(--rows: 2) { header { flex-wrap: wrap; } }
+      </style><div class="chrome"><header>Status <button>More</button></header></div>
+    ''')
+    page.evaluate("""() => {
+      window.changes = [];
+      matchMedia('print').addEventListener('change', e => changes.push(e.matches));
+    }""")
+    for media, printing in [("print", True), ("screen", False)]:
+        page.emulate_media(media=media)
+        page.wait_for_function("value => changes.at(-1) === value", arg=printing)
+        print(media, page.evaluate("""() => [
+          getComputedStyle(document.documentElement).getPropertyValue('--rows'),
+          getComputedStyle(document.querySelector('header')).flexWrap
+        ]"""))
+    # Observed screen result: ['1', 'wrap']; expected wrap is 'nowrap'.
+PYCODE
+```
+
 ## Supported APIs checked
+
+### Adaptive contents disclosure
+
+- **Owners:** default package `lf-toc.js` and `styles/toc.css`. In-flow contents
+  use native `details`/`summary`; margin and print expose the same links by
+  opening the native disclosure, then restore the reader's in-flow choice.
+- **Observed 2026-10-15:** installed Playwright Chromium 153.0.8010.12,
+  Firefox 155 and WebKit 26.6 pass closed/open flow at 390px, Enter and touch
+  activation, exposed links in the 1440px margin, focused-link preservation
+  when moving into flow, and all links in print. Returning from margin or
+  print restores the previous flow choice; a focused link remains exposed.
+  The touch summary measures 44px (Firefox 44.03px).
+- **Keyboard and evidence:** Chromium and Firefox traverse links with Tab.
+  WebKit uses Alt+Tab; its ordinary Tab skips links in the baseline too.
+  Rendered captures, DOM role queries and real keyboard routes are recorded in
+  `.tmp/ux-research/experiments/68/`; this is an installed-engine check, not a
+  current stable-browser survey or native accessibility-tree audit.
+- **Disposition:** native open state governs exposed contents; no
+  browser-specific fallback is needed for these checked routes.
 
 ### Help search result relationships
 

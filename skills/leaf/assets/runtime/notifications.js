@@ -24,10 +24,12 @@ let showingBackground = null;
 const waitingBackground = [];
 let userContext = false;
 let userHoldTimer = 0;
-// What the seat says, whether it shows, and whether it is news arriving (`background`)
-// rather than the answer to something the user did.
-/** @type {Readonly<{message: string, visible: boolean, news: boolean}>} */
-let noticePresentation = Object.freeze({ message: "", visible: false, news: false });
+// What the seat says, whether it shows, and whether it tells the user what became of the
+// words they are writing (`draft`): a send the server refused, whose words came back to
+// their box, an image the box could not attach, words moved to another box. That is the
+// one notice the floating panel says while the user writes (floating-panel.js, `passing`).
+/** @type {Readonly<{message: string, visible: boolean, draft: boolean}>} */
+let noticePresentation = Object.freeze({ message: "", visible: false, draft: false });
 const noticePresenters = new Set();
 
 export const noticeReading = () => noticePresentation;
@@ -47,8 +49,8 @@ export function registerNoticePresentation(invalidate) {
 const presentAll = () => {
   for (const invalidate of noticePresenters) invalidate();
 };
-const presentNotice = (message, visible, news = false) => {
-  noticePresentation = Object.freeze({ message, visible, news });
+const presentNotice = (message, visible, draft = false) => {
+  noticePresentation = Object.freeze({ message, visible, draft });
   if (visible) presentAll();
   else afterScript(presentAll);
 };
@@ -64,11 +66,11 @@ export function announce(msg) {
 }
 
 // The acknowledgement of a gesture ("Moved to Done — sent"), an arrival ("Updated
-// to v3"), a refusal ("Nothing to send — the box is empty"): the quiet words in the
+// to v3"), a refusal ("Couldn't send — the page is offline"): the quiet words in the
 // panel's seat. A sentence that is also a button for four seconds is a target
 // the user cannot learn.
-function showNotice(msg, background = null) {
-  presentNotice(msg, true, Boolean(background));
+function showNotice(msg, background = null, draft = false) {
+  presentNotice(msg, true, draft);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
@@ -123,7 +125,7 @@ function queueBackground(entry, front = false) {
 // A held status line coalesces each producer's news; the live region announces it now.
 export function notice(
   msg,
-  { background = false, announce: speak = true, group = null } = {},
+  { background = false, announce: speak = true, group = null, draft = false } = {},
 ) {
   // The live region is not the contended surface. Announce at arrival even when the
   // visual line has to wait, and never announce again when a waiting notice is shown.
@@ -134,7 +136,7 @@ export function notice(
     return showBackground(entry);
   }
   if (showingBackground) queueBackground(showingBackground, true);
-  showNotice(msg);
+  showNotice(msg, null, draft);
 }
 
 // Take the notice down for something the user asked for, putting a background notice

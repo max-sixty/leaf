@@ -64,6 +64,8 @@ from render_cases_layout import (
 )
 from render_cases_navigation import (
     CODE_PAGE,
+    call_diff,
+    call_node,
 )
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
@@ -3521,7 +3523,14 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
-        f"calldiff diff main → feature\n  changed()  app.py:1\n+ └─ {wide}()  app.py:2",
+        call_diff(
+            call_node(
+                "changed()",
+                "app.py",
+                1,
+                children=[call_node(f"{wide}()", "app.py", 2, status="added")],
+            )
+        ),
     )
     data_model.cmd_data_set(
         serve.page_dir,

@@ -130,7 +130,8 @@ Use a recording for a fixed demo and a live widget where the user should operate
 subject. Show a browser journey recorded with Playwright as a trace in `lf-trace`
 rather than a video, so the user can step through and comment on each action. `lf-trace`
 ships in the `playwright` package; after `leaf page init --package playwright <page>`,
-its producer instructions give the import command:
+its author instructions own the convention for comparable journeys; its producer
+instructions give the import command:
 
 ```bash
 leaf page instructions <page> --contract playwright-trace | jq -er '.producer'

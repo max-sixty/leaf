@@ -627,9 +627,6 @@ _TEXT = {
         + f" is drawn {v['lost']}px outside the {v['by']} that clips it, where nothing"
         " can scroll to reach it — the page offers a press it does not show"
     ),
-    "painted-words": lambda at, v: (
-        f'{at} paints {v["attr"]}="{v["value"]}" rather than saying it'
-    ),
     "chrome-words": lambda at, v: (
         f"{at} puts {_json(v['words'])} under .lf-ui, where no comment can reach it"
     ),

@@ -1,8 +1,8 @@
 """Ordinary HTML tooling for the product control, without Leaf in its workspace.
 
 The control authors HTML/CSS/JS from the same user task. Its files are served by
-Python's static HTTP server and checked in Chrome; no Leaf payload is patched,
-vended, served, or loaded. Browser completion is the ordinary document's load,
+Python's static HTTP server and inspected by the live judge; no Leaf payload is
+patched, vended, served, or loaded. Browser completion is the ordinary document's load,
 fonts and images, rather than a Leaf presentation publication.
 """
 
@@ -11,10 +11,6 @@ import threading
 from contextlib import contextmanager
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-
-from leaf.render_gate.scheme import collect_page_errors
-
-from leaf_dev.browser import headless_shell, tab
 
 
 class StaticHandler(SimpleHTTPRequestHandler):
@@ -58,25 +54,3 @@ def settle(view) -> None:
 def load(view, url: str) -> None:
     view.goto(url, wait_until="load")
     settle(view)
-
-
-def gate(page: Path, widths: dict) -> dict:
-    """Check actual browser errors and root overflow at each comparison width."""
-    findings = []
-    with serving(page) as url, headless_shell() as browser:
-        for name, (viewport, _) in widths.items():
-            with tab(browser, viewport=viewport, touch=name == "phone") as view:
-                errors = []
-                collect_page_errors(view, errors)
-                load(view, url)
-                overflow = view.evaluate(
-                    "document.documentElement.scrollWidth > innerWidth + 1"
-                )
-                findings.extend(
-                    {"width": name, "error": str(error)} for error in errors
-                )
-                if overflow:
-                    findings.append(
-                        {"width": name, "error": "page overflows the viewport"}
-                    )
-    return {"passed": not findings, "findings": findings}

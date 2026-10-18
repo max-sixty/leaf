@@ -48,6 +48,8 @@ from render_cases_interaction import (
     live_url,
 )
 from render_cases_navigation import (
+    call_diff,
+    call_node,
     painted,
     source_revision,
 )
@@ -101,11 +103,22 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 """,
     )
     url = serve(authored, packages=("diff",))
-    call_diff = """calldiff diff main → feature
-
-  Limiter.bucket_key(self, request)  gateway/limits.py:38
-+ └─ if request.token  gateway/limits.py:40
-"""
+    capture = call_diff(
+        call_node(
+            "Limiter.bucket_key(self, request)",
+            "gateway/limits.py",
+            38,
+            children=[
+                call_node(
+                    "if request.token",
+                    "gateway/limits.py",
+                    40,
+                    status="added",
+                    kind="branch",
+                )
+            ],
+        )
+    )
     patch = """diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
@@ -118,7 +131,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 +            return f"tok:{request.token.id}"
 +        return f"ip:{request.remote_addr}"
 """
-    data_model.cmd_data_set(serve.page_dir, "request-call-diff", call_diff)
+    data_model.cmd_data_set(serve.page_dir, "request-call-diff", capture)
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
@@ -227,14 +240,17 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert selected == "└─ if request.token"
     expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
 
-    updated = (
-        call_diff.replace(
-            "calldiff diff main → feature", "calldiff diff main → feature-2"
-        )
-        + """
-  Limiter.secondary(self)  gateway/limits.py:50
-+ └─ return True  gateway/limits.py:51
-"""
+    updated = call_diff(
+        capture["trees"][0]["tree"],
+        call_node(
+            "Limiter.secondary(self)",
+            "gateway/limits.py",
+            50,
+            children=[
+                call_node("return True", "gateway/limits.py", 51, status="added")
+            ],
+        ),
+        to="feature-2",
     )
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
     told(page)
@@ -339,7 +355,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
-        "calldiff diff main → shifted\n  shifted_call()  gateway/limits.py:102",
+        call_diff(call_node("shifted_call()", "gateway/limits.py", 102)),
     )
     told(page)
     shifted = page.locator(
@@ -351,30 +367,22 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "Opened gateway/limits.py:102 in the exact patch"
     )
 
-    data_model.cmd_data_set(serve.page_dir, "request-call-diff", "not CallDiff output")
-    told(page)
-    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
-        "the first line must be a CallDiff diff header"
+    # Native trees can contain synthetic nodes without source coordinates.
+    data_model.cmd_data_set(
+        serve.page_dir, "request-call-diff", call_diff(call_node("synthetic()"))
     )
+    told(page)
+    expect(widget.locator(".lf-call-group-summary")).to_contain_text("synthetic()")
+    expect(widget.locator(".lf-call-location:visible")).to_have_count(0)
 
     data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
-        "calldiff diff main → feature\n+ └─ orphan()  gateway/limits.py:40",
+        call_diff(message="No callstack changes for requested entrypoints."),
     )
     told(page)
-    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
-        "line 2 appears before a changed root"
-    )
-
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "request-call-diff",
-        "calldiff diff main → feature\n  missing_location()",
-    )
-    told(page)
-    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
-        "line 2 has no source location; capture --locs output"
+    expect(widget.locator(".lf-call-line")).to_have_text(
+        "No callstack changes for requested entrypoints."
     )
     expect(widget.locator(".lf-call-root-location, .lf-call-group")).to_have_count(0)
 
@@ -1554,7 +1562,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     )
     assert render_gate_model.render_version(browser, url).failures == []
 
-    hide = "[data-lf-retired] { display: none; }"
+    hide = "  [data-lf-retired] {\n    display: none;\n  }"
     vendored = serve.page_dir / "theme.css"
     css = vendored.read_text()
     assert css.count(hide) == 1

@@ -18,7 +18,7 @@ prompts:
 
       Write the page at {page}/index.html and hand it over to me in my browser. Produce a finished record with readable evidence and the choices or
       navigation the request needs. You may use the browser tooling available on this
-      machine.
+      machine. Installed headless Chrome executable: {browser}
 
       The user's request follows.
 
@@ -28,7 +28,7 @@ prompts:
 
       Write the page at {page}/index.html; I'll open it in my browser. Reply with one line naming the path, and I'll answer here. Produce a finished record with readable evidence and the choices or
       navigation the request needs. You may use the browser tooling available on this
-      machine.
+      machine. Installed headless Chrome executable: {browser}
 
       The user's request follows.
 
@@ -49,20 +49,14 @@ prompts:
       {typed}
 
       Apply them: update the page so it records them as final.
-  reading: |-
-    {situation} For each item below, give one of its listed values, or
-    "undecided" where nothing says.
-
-    {items}
-  reading_applied: |-
-    A user had an assistant build a page, made decisions on it and asked the assistant to update the page so it records them as final. Read the page's files:
-    {listed}
-
-    and the assistant's answers at {answer}. Say what the page's files now record as the final decision. The answers may tell you where to look, but what they claim counts only where the files show it.
-  reading_decision:
-    "Read the Leaf skill at {payload}/skills/leaf/SKILL.md. The page at {page}
-    has been reviewed by a user who made decisions on it. Read its current state: what did the
-    user decide? Don't edit the page or serve it."
+  quality:
+    At every declared width, substantive evidence and navigation are readable and reachable.
+    The final page incorporates the user's comment and lasting width preference, and clearly
+    preserves the final decision the user supplied. On the before_decision page, exercise the
+    original browser decision task through the offered controls, including keyboard routes; judge the actual outcome, not a settings summary or a claim of success. On the final
+    page, inspect the resulting record without replacing it with your own choices. The author's
+    quoted comment answer should accurately describe the change. A recorded plan or approval
+    does not imply execution, deployment or sending a message.
 cases:
   document:
     inputs:
@@ -80,74 +74,14 @@ cases:
           "As the platform team, decide the review's question: choose option 1, staying
           on managed Redis and shortening the TTL to 7 days."
         typed: "We've decided: stay on managed Redis and shorten the TTL to 7 days."
-        chosen:
-          option: stay on managed Redis, 7-day TTL
-        values:
-          option:
-            - stay on managed Redis, 7-day TTL
-            - Postgres
-            - stateless tokens with a revocation list
       reveal: ""
     assert:
-      - &phase_1_quality
+      - &id001
         type: javascript
-        metric: phase-1-quality
+        metric: quality
         value: file://../dev/leaf_dev/authoring_assertion.mjs
         config:
-          phase: 1
-          rubric: >-
-            At every declared width, the page preserves the substantive information needed for the
-            user's task, makes its evidence readable and reachable, and provides the decisions or
-            navigation the request requires.
-      - &phase_2_quality
-        type: javascript
-        metric: phase-2-quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
-        config:
-          phase: 2
-          rubric: >-
-            At every declared width, the page preserves the substantive information needed for the
-            user's task, makes its evidence readable and reachable, and provides the decisions or
-            navigation the request requires.
-      - &phase_3_quality
-        type: javascript
-        metric: phase-3-quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
-        config:
-          phase: 3
-          rubric: >-
-            At every declared width, the page preserves the substantive information needed for the
-            user's task, makes its evidence readable and reachable, and provides the decisions or
-            navigation the request requires. The requested comment change appears in the relevant
-            item or passage.
-      - &phase_4_quality
-        type: javascript
-        metric: phase-4-quality
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
-        config:
-          phase: 4
-          rubric: >-
-            At every declared width, the page preserves the substantive information needed for the
-            user's task, makes its evidence readable and reachable, and provides the decisions or
-            navigation the request requires. The page preserves the final decisions the user
-            supplied.
-      - &phase_2_preference
-        type: javascript
-        metric: phase-2-preference
-        value: file://../dev/leaf_dev/authoring_assertion.mjs
-        config:
-          phase: 2
-          required_widths: [desktop]
-          rubric: >-
-            At the declared fullscreen desktop size, the page follows the lasting preference
-            quoted in the output: evidence, decisions and navigation are comfortable to work
-            through, and the available space supports the task.
-      - &comment_answered
-        type: llm-rubric
-        metric: comment-answered
-        value:
-          Pass only if the author's answer to the user's comment, which the output quotes,
-          tells the user that the change the comment asked for is made.
+          rubric: ""
   dashboard:
     inputs:
       comment:
@@ -162,25 +96,56 @@ cases:
       decision:
         task: "Decide eu-west: roll it back to 4.11 and ship 4.12.1 with the old timeout."
         typed: Roll eu-west back to 4.11 and ship 4.12.1 with the old timeout.
-        chosen:
-          eu-west: roll back to 4.11
-          next release: 4.12.1 with the old timeout
-        values:
-          eu-west:
-            - resume to 100%
-            - hold at 50%
-            - roll back to 4.11
-          next release:
-            - 4.12.1 with the old timeout
-            - none
       reveal: ""
     assert:
-      - *phase_1_quality
-      - *phase_2_quality
-      - *phase_3_quality
-      - *phase_4_quality
-      - *phase_2_preference
-      - *comment_answered
+      - *id001
+  draft-review:
+    inputs:
+      comment:
+        target: the working note that 43 customer workspaces had delayed CSV exports
+        quotes:
+          - 43 customer workspaces had delayed CSV exports
+        text:
+          "Correction: 34 customer workspaces were affected, not 43. Update the incident
+          facts, working note and proposed reply to use 34 workspaces. Keep the incident window,
+          completion and data-loss facts, retry advice, investigation status and next-update
+          deadline unchanged."
+      decision:
+        task: |-
+          Edit the customer reply through the page's own text-editing controls.
+          Replace its complete contents with the exact two paragraphs below,
+          including their wording and punctuation, then finish recording that
+          complete reply for internal review using the page's offered route.
+          You must enter the text; merely selecting a supplied reply alternative
+          does not complete this task. Do not send a customer message.
+
+          Hi Morgan — between 09:10 and 09:42 UTC, CSV exports were delayed for 34 customer workspaces. All queued exports have now completed, and no files were lost. I’m sorry for the disruption this caused your team.
+
+          We’re reviewing the queue-capacity issue and will share another update by 11:00 UTC, even if that review is still underway. You don’t need to retry any exports. Thank you for your patience while we work through the follow-up.
+        typed: |-
+          My approved reply for internal review is exactly these two paragraphs.
+          Keep this wording and punctuation; it has not been sent:
+
+          Hi Morgan — between 09:10 and 09:42 UTC, CSV exports were delayed for 34 customer workspaces. All queued exports have now completed, and no files were lost. I’m sorry for the disruption this caused your team.
+
+          We’re reviewing the queue-capacity issue and will share another update by 11:00 UTC, even if that review is still underway. You don’t need to retry any exports. Thank you for your patience while we work through the follow-up.
+      reveal: ""
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric:
+            "At every declared width, the final record visibly preserves the complete two-paragraph
+            reply the browser user entered, with the exact supplied wording and punctuation and
+            the paragraph break between “team.” and “We’re”. Assess the visible approved text
+            itself, not only a claim that it was saved, a hidden value or an uninspected claim.
+            Ordinary line wrapping is allowed. The page identifies it as approved for internal
+            review and not sent to the customer. Corrected current facts remain readable and reachable:
+            34 affected workspaces, 09:10–09:42 UTC incident, completed queued exports, no files
+            lost, no retry needed, root cause not yet confirmed and next update by 11:00 UTC.
+            Older proposed wording is not presented as the current approved reply. Judge usable
+            editing and recording outcomes, not a particular widget, editor engine or layout geometry."
   queue:
     inputs:
       comment:
@@ -202,58 +167,9 @@ cases:
           "My decisions: ESC-4107: fix; ESC-4108: close; ESC-4109: fix; ESC-4111: escalate
           to engineering; ESC-4112: escalate to engineering; ESC-4113: refund; ESC-4114: escalate
           to engineering. ESC-4110 as I said in my comment."
-        chosen:
-          ESC-4107: fix
-          ESC-4108: close
-          ESC-4109: fix
-          ESC-4111: escalate to engineering
-          ESC-4112: escalate to engineering
-          ESC-4113: refund
-          ESC-4114: escalate to engineering
-        values:
-          ESC-4107:
-            - refund
-            - fix
-            - escalate to engineering
-            - close
-          ESC-4108:
-            - refund
-            - fix
-            - escalate to engineering
-            - close
-          ESC-4109:
-            - refund
-            - fix
-            - escalate to engineering
-            - close
-          ESC-4111:
-            - refund
-            - fix
-            - escalate to engineering
-            - close
-          ESC-4112:
-            - refund
-            - fix
-            - escalate to engineering
-            - close
-          ESC-4113:
-            - refund
-            - fix
-            - escalate to engineering
-            - close
-          ESC-4114:
-            - refund
-            - fix
-            - escalate to engineering
-            - close
       reveal: ESC-4110
     assert:
-      - *phase_1_quality
-      - *phase_2_quality
-      - *phase_3_quality
-      - *phase_4_quality
-      - *phase_2_preference
-      - *comment_answered
+      - *id001
   configuration:
     inputs:
       comment:
@@ -276,78 +192,9 @@ cases:
           1,200 ms, opens a ticket; card-auth-decline-spike: over 3×, opens a ticket; webhook-backlog:
           over 20,000, pages; ledger-reconciliation-lag: over 180 min, pages; gateway-cert-expiry:
           under 30 days, opens a ticket."
-        chosen:
-          payments-5xx-rate threshold: over 2%
-          payments-5xx-rate routing: pages
-          payments-p99-latency threshold: over 1,200 ms
-          payments-p99-latency routing: opens a ticket
-          card-auth-decline-spike threshold: over 3×
-          card-auth-decline-spike routing: opens a ticket
-          webhook-backlog threshold: over 20,000
-          webhook-backlog routing: pages
-          ledger-reconciliation-lag threshold: over 180 min
-          ledger-reconciliation-lag routing: pages
-          gateway-cert-expiry threshold: under 30 days
-          gateway-cert-expiry routing: opens a ticket
-        values:
-          payments-5xx-rate threshold:
-            - over 0.5%
-            - over 1%
-            - over 2%
-            - over 5%
-          payments-5xx-rate routing:
-            - pages
-            - opens a ticket
-            - "off"
-          payments-p99-latency threshold:
-            - over 600 ms
-            - over 800 ms
-            - over 1,200 ms
-            - over 2,000 ms
-          payments-p99-latency routing:
-            - pages
-            - opens a ticket
-            - "off"
-          card-auth-decline-spike threshold:
-            - over 1.5×
-            - over 2×
-            - over 3×
-          card-auth-decline-spike routing:
-            - pages
-            - opens a ticket
-            - "off"
-          webhook-backlog threshold:
-            - over 1,000
-            - over 5,000
-            - over 20,000
-          webhook-backlog routing:
-            - pages
-            - opens a ticket
-            - "off"
-          ledger-reconciliation-lag threshold:
-            - over 60 min
-            - over 90 min
-            - over 180 min
-          ledger-reconciliation-lag routing:
-            - pages
-            - opens a ticket
-            - "off"
-          gateway-cert-expiry threshold:
-            - under 30 days
-            - under 14 days
-            - under 7 days
-          gateway-cert-expiry routing:
-            - pages
-            - opens a ticket
-            - "off"
       reveal: ledger-reconciliation-lag
     assert:
-      - *phase_1_quality
-      - *phase_2_quality
-      - *phase_3_quality
-      - *phase_4_quality
-      - *phase_2_preference
-      - *comment_answered
+      - *id001
   sidebar-page-at-900px:
     preference:
       "A lasting preference for all my pages from now on: I read them in a window about
@@ -366,40 +213,144 @@ cases:
       reveal: ""
     assert:
       - type: javascript
-        metric: phase-1-quality
+        metric: quality
         value: file://../dev/leaf_dev/authoring_assertion.mjs
         config:
-          phase: 1
-          rubric: >-
-            At every declared width, the page preserves the substantive information needed for the
-            user's task, makes its evidence readable and reachable, and provides the decisions or
-            navigation the request requires. The completed rollout's forty entries must remain
+          rubric:
+            At every declared width, the page preserves the substantive information needed
+            for the user's task, makes its evidence readable and reachable, and provides the decisions
+            or navigation the request requires. The completed rollout's forty entries must remain
             readable in the document's scroll, rather than showing only one screen of a separate
             listing. At the short 900px window, all six checks and their failing result stay
             accessible beside the log as it scrolls. Page navigation and any supporting sidebar
-            content remain reachable; a sticky box must not hold them below the window. On a
-            phone, the regions stack without covering the log or hiding its entries.
+            content remain reachable; a sticky box must not hold them below the window. On a phone,
+            the regions stack without covering the log or hiding its entries.
+  patch-review:
+    inputs:
+      comment:
+        target: the claim that job IDs are globally unique and the proposed idempotency key
+        quotes:
+          - job.id is globally unique
+          - globally unique
+        text:
+          "Correction: job IDs are tenant-local. The key must include tenant_id and job.id,
+          computed once before the loop. Update the proposed code and add a check that the same
+          job ID in two tenants produces different keys."
+      decision:
+        task:
+          "Approve shipping with both changes: a stable tenant-and-job idempotency key and
+          a default cap of two attempts. Complete the page's offered review route."
+        typed: Approve with the stable tenant-and-job key and a default cap of two attempts.
+      reveal: ""
+    assert:
       - type: javascript
-        metric: phase-2-quality
+        metric: quality
         value: file://../dev/leaf_dev/authoring_assertion.mjs
         config:
-          phase: 2
-          rubric: >-
-            At every declared width, the page preserves the substantive information needed for the
-            user's task, makes its evidence readable and reachable, and provides the decisions or
-            navigation the request requires. The completed rollout's forty entries must remain
-            readable in the document's scroll, rather than showing only one screen of a separate
-            listing. At the short 900px window, all six checks and their failing result stay
-            accessible beside the log as it scrolls. Page navigation and any supporting sidebar
-            content remain reachable; a sticky box must not hold them below the window. On a
-            phone, the regions stack without covering the log or hiding its entries.
+          rubric:
+            "At every declared width, the substantive review evidence and navigation remain
+            readable and reachable, and the final decision is clear. The displayed selected patch
+            agrees with that decision: its default cap is two attempts, and its stable idempotency
+            key includes tenant_id and job.id and is computed once before the retry loop. The
+            cross-tenant same-job-ID check is included. Proposed tests and approval remain distinct
+            from tests having run or code having deployed."
+  notification-design:
+    inputs:
+      comment:
+        target: the notification body saying payments settle within five minutes
+        quotes:
+          - five minutes
+        text:
+          'Replace the body with: "Payments may take up to twenty minutes; do not retry
+          a payment already submitted." Keep the headline and detail facts unchanged.'
+      decision:
+        task:
+          Choose Status strip, Compact density, 12px corners, and details visible. Complete
+          the page's offered route for finishing the design choice.
+        typed:
+          My final design is Status strip, Compact density, 12px corners, with details
+          visible.
+      reveal: ""
+    assert:
       - type: javascript
-        metric: phase-2-preference
+        metric: quality
         value: file://../dev/leaf_dev/authoring_assertion.mjs
         config:
-          phase: 2
-          required_widths: [short]
-          rubric: >-
-            At the short 900px window, the page follows the lasting preference quoted in the
-            output: the checklist stays beside the log while every check and navigation
-            remains reachable.
+          rubric:
+            "At every declared width, the substantive information and navigation remain
+            readable and reachable, and the final design choice is clear. The actual visible notification
+            agrees with the selected appearance: Status strip format, Compact density, 12px corner
+            radius and visible details. It retains the headline and detail facts and displays
+            the corrected body about twenty minutes and not retrying a submitted payment. A settings
+            summary alone does not establish that the preview matches. Recording the design remains
+            distinct from implementation or deployment."
+  dependency-review:
+    inputs:
+      comment:
+        target: the working claim that Delivery worker writes the receipt index
+        quotes:
+          - Delivery worker writes the receipt index
+          - writes the receipt index
+        text:
+          "Correction: the Receipt index consumes a changefeed directly from the Primary
+          database, independently of the Delivery worker. Update both the diagram and the nearby
+          explanation: replace worker-to-index with database-to-index, labeled changefeed. Keep
+          the other relationships."
+      decision:
+        task:
+          Choose to pause partner delivery for ten minutes and complete the page's offered
+          decision route. This records a plan; do not execute it.
+        typed:
+          My decision is to pause partner delivery for ten minutes, as a plan that has
+          not been executed.
+      reveal: ""
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric:
+            At every declared width, the substantive evidence, corrected diagram and final
+            choice remain readable and reachable. The diagram shows the Receipt index consuming
+            the Primary database's changefeed, not updates from the Delivery worker, with the
+            other relationships preserved. The final plan pauses partner delivery for ten minutes,
+            keeps order capture continuing, and retains the 8,000-row and 27-minute estimates,
+            10,000-row limit, existing delivery-objective breach and unknown partner recovery
+            ETA. Recording the plan does not imply the pause was executed or the partner recovered.
+            Assess relationships rather than literal arrow count.
+  latency-review:
+    inputs:
+      comment:
+        target: the working note that A with 4 workers has p99 180 ms
+        quotes:
+          - A with 4 workers has p99 180 ms
+          - p99 180 ms
+        text:
+          "Correction: A with 4 workers has p99 latency 1800 ms, not 180 ms. Its throughput
+          remains 1240 requests/s and its error rate remains 0.04%. Update the working note,
+          chart, exact run data and current assessment to use the corrected measurement. Keep
+          the other measurements unchanged."
+      decision:
+        task:
+          Choose configuration B with 2 workers for the next production-like validation
+          run and complete the page's offered recording route. Record a plan only; do not execute
+          a run or deploy anything.
+        typed:
+          My decision is configuration B with 2 workers for the next production-like validation
+          run. This is a plan, not an executed run or deployment.
+      reveal: ""
+    assert:
+      - type: javascript
+        metric: quality
+        value: file://../dev/leaf_dev/authoring_assertion.mjs
+        config:
+          rubric:
+            At every declared width, the final record identifies B with 2 workers for another
+            production-like validation, with readable access to all nine measurements, chart,
+            corrected p99 of 1800 ms for A with 4 workers, and current screening assessment. The
+            working note no longer asserts 180 ms as current; any retained original value is clearly
+            superseded. B with 2 workers remains the highest-throughput feasible measured run
+            under p99 at most 700 ms and errors at most 0.1%. The record distinguishes the selected
+            future validation from an executed run or deployment and retains the single synthetic
+            five-minute run per cell limitation, without claiming production performance, uncertainty
+            estimates or SLO proof.

@@ -235,7 +235,6 @@ test("a growing card holds its top while read and its foot for the turn that joi
     "top",
   );
   assert.deepEqual(card.heldAt("top"), { top: -8 });
-  assert.equal(card.heldHeight(), 200);
 });
 
 test("beside, clearing a margin row never costs the card width", async () => {
@@ -466,6 +465,8 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   // floating.js's own middleware, reduced to the height the landing reads.
   const held = { name: "held", fn: ({ rects }) => ({ data: rects.floating }) };
   const card = commentPlacement();
+  // The height the last fit was told the card caps no lower than.
+  let stood = null;
   // An element 700px down, `scrolled` further by a scroll of the page.
   const place = async (scrolled = 0) => {
     const clear = block(300, 300, 700 - scrolled, 730 - scrolled);
@@ -481,7 +482,9 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
       row: clear.top,
       lastRow: clear.bottom,
       boundary,
-      fit() {},
+      fit(room) {
+        ({ stood } = room);
+      },
       hold: () => card.heldAt(edge),
     });
     const answer = await ui.computePosition(
@@ -498,12 +501,14 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   // its line, and may still grow back to the height it stood at.
   height = 150;
   assert.equal(await place(), 700 - 8);
-  assert.equal(card.heldHeight(), 300);
+  assert.equal(stood, 300);
   height = 300;
   assert.equal(await place(), boundary.bottom - 300);
-  // Once a scroll moves its line, it keeps only the height it stands at.
+  // Once a scroll moves its line, from the first fit after it, it keeps only the
+  // height it stands at.
   height = 150;
   await place();
+  assert.equal(stood, 300);
   await place(10);
-  assert.equal(card.heldHeight(), 150);
+  assert.equal(stood, 150);
 });

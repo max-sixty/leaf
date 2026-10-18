@@ -74,7 +74,7 @@
    still that way while a turn joins the transcript above it.
 
    A held surface grows no taller than the room from its held edge, or than the tallest
-   it has stood since its line last moved (`heldHeight`), whichever is more. Against
+   it has stood since its line last moved (`fit`'s `stood`), whichever is more. Against
    the window's foot the boundary keeps a card's foot, so content that shrinks it, a
    rewrite opening over long words, a fold, an edit, lowers its top, and growing back
    raises it again to where it stood. A scroll moves the line and keeps only the
@@ -362,8 +362,9 @@ export const cardMeasure = () => rootLength("--thread-card");
    so an editor needs no transcript reading to keep its attachment while typing; before
    that landing, an adopted frame's offsets are the ones held.
 
-   `fit({ side, width, height, scale })` sizes the surface for the room its side gives, in its
-   positioning space. Its declared minimum is limited only by the boundary, never by
+   `fit({ side, width, height, stood, scale })` sizes the surface for the room its side
+   gives, in its positioning space; `stood` is the height a held surface caps no lower
+   than, or 0. Its declared minimum is limited only by the boundary, never by
    its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
    shift it. On the left, the surface instead holds its right edge clear of the
@@ -493,10 +494,8 @@ export function commentPlacement() {
     // holds the foot only where the surface stands above what it is about; any other
     // change keeps the edge held now.
     edgeFor: (turn) => (turn ? (side === "top" ? "foot" : "top") : edge),
-    // The held edge's offset for `options`' `hold`, and the height that caps a held
-    // surface no shorter than the tallest it has stood since its line last moved.
+    // The held edge's offset for `options`' `hold`.
     heldAt: (edge) => held && { [edge]: held[edge] },
-    heldHeight: () => (held ? Math.max(held.foot - held.top, tallest?.height ?? 0) : 0),
     scrolled() {
       input = null;
     },
@@ -675,7 +674,15 @@ export function commentPlacement() {
       const size = ui.size({
         ...overflow,
         apply(state) {
-          const { scale } = measure(state);
+          const { scale, line } = measure(state);
+          // The height a held surface caps no lower than: the tallest it has stood
+          // while its line stood where it stands now, else the height it last stood.
+          const stood = held
+            ? Math.max(
+                held.foot - held.top,
+                tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0,
+              ) / scale.y
+            : 0;
           const lane =
             carriedInline !== null
               ? boundary.right - (column ?? clear.left) - carriedInline
@@ -691,6 +698,7 @@ export function commentPlacement() {
               Math.min(state.availableWidth, lane / scale.x),
             ),
             height: state.availableHeight,
+            stood,
             scale,
           });
         },

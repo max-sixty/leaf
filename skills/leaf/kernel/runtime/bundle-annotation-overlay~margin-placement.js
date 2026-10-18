@@ -1748,10 +1748,8 @@ function commentPlacement() {
     // holds the foot only where the surface stands above what it is about; any other
     // change keeps the edge held now.
     edgeFor: (turn) => turn ? side === "top" ? "foot" : "top" : edge,
-    // The held edge's offset for `options`' `hold`, and the height that caps a held
-    // surface no shorter than the tallest it has stood since its line last moved.
+    // The held edge's offset for `options`' `hold`.
     heldAt: (edge2) => held2 && { [edge2]: held2[edge2] },
-    heldHeight: () => held2 ? Math.max(held2.foot - held2.top, tallest?.height ?? 0) : 0,
     scrolled() {
       input = null;
     },
@@ -1876,7 +1874,11 @@ function commentPlacement() {
       const size = ui.size({
         ...overflow,
         apply(state) {
-          const { scale } = measure(state);
+          const { scale, line: line2 } = measure(state);
+          const stood2 = held2 ? Math.max(
+            held2.foot - held2.top,
+            tallest && Math.abs(tallest.line - line2) < 0.5 ? tallest.height : 0
+          ) / scale.y : 0;
           const lane = carriedInline !== null ? boundary.right - (column ?? clear.left) - carriedInline : across ? boundary.right - (inlineStart + (inline ?? 0) * scale.x) : side === "right" ? boundary.right - box.right - COMMENT_GAP : clear.left - boundary.left - COMMENT_GAP;
           fit({
             side,
@@ -1885,6 +1887,7 @@ function commentPlacement() {
               Math.min(state.availableWidth, lane / scale.x)
             ),
             height: state.availableHeight,
+            stood: stood2,
             scale
           });
         }

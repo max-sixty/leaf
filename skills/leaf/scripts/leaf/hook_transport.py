@@ -1,9 +1,10 @@
-"""The prompt and Stop hooks' output for a session that owns pages.
+"""The prompt, tool-boundary and Stop hooks' output for a session that owns pages.
 
-`carry_turn` builds what the prompt hook (`UserPromptSubmit`) and the Stop hook add
-to a turn. On Claude Code and Pi these hooks carry the user's updates to the agent
-(`Harness.hook_delivers`): `carry_turn` freezes the input pending on the session's
-pages into a delivery and hands it over inline or as a pointer. Codex offers its
+`carry_turn` builds what the prompt hook (`UserPromptSubmit`), Claude Code's
+`PostToolBatch`, and Stop add to a turn. On Claude Code and Pi these hooks carry
+the user's updates to the agent (`Harness.hook_delivers`): `carry_turn` freezes
+the input pending on the session's pages into a delivery and hands it over inline
+or as a pointer. Codex offers its
 pointers through `codex.offer_hook_delivery` instead, but uses this module's Stop
 rule and reminders. `hooks` calls in here for pages the session owns and for a
 reconnect notice about a page it served before.
@@ -46,7 +47,7 @@ page whose lock is still held goes unconfirmed. If an interrupt ends a turn just
 after it starts, its updates still read Picked up; App Server turns behave the same.
 
 Confirmed input can still miss the context, as when Leaf's Claude Code hooks module
-runs this hook for a wake and finds the session ended before it appends the output
+runs Stop and finds the session ended before it appends the output
 (`hooks/claude-code.ts`). The input is not offered again as new. An update that owes
 an answer stays owed, and the owner's next prompt or first Stop hook names its
 original pointer or captures it again; an update that owes none is lost. Confirming
@@ -441,16 +442,21 @@ def carry_turn(
         return
     batches = (
         [plan.batch for plan in plans if plan.batch and plan.harness.hooks_carry()]
-        if event in {"UserPromptSubmit", "Stop"}
+        if event in {"UserPromptSubmit", "PostToolBatch", "Stop"}
         else []
     )
+    if event == "PostToolBatch" and not batches:
+        return
     if event == "UserPromptSubmit":
         pick_up_acknowledged(sid, plans)
     elif event == "Stop" and not stop_continues(
         plans, batches, repeated=bool(payload.get("stop_hook_active"))
     ):
         return True
-    reasons = remedies(plans, batches)
+    # A tool boundary carries only new input; response-debt and housekeeping
+    # reminders belong to prompt and Stop. It neither reopens nor ends a turn.
+    reminding = [] if event == "PostToolBatch" else plans
+    reasons = remedies(reminding, batches)
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
@@ -469,12 +475,12 @@ def carry_turn(
     reminders = list(
         dict.fromkeys(
             item["answer"]["ref"].partition(":")[0]
-            for plan in plans
+            for plan in reminding
             for item in plan.owed
             if "ref" in item["answer"]
         )
     )
-    recovery = [plan.recovery for plan in plans if plan.recovery]
+    recovery = [plan.recovery for plan in reminding if plan.recovery]
     if recovery:
         # The cursor already passed these inputs, but their receipts gave this
         # owner no usable refs. Recovery advances no cursor or transport offer.

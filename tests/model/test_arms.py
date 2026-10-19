@@ -519,7 +519,14 @@ def test_a_live_session_settles_only_once_its_turn_has_ended(tmp_path):
 
     from leaf_dev.arms import LiveSession
 
+    native = tmp_path / "native"
+    (native / "parent/subagents").mkdir(parents=True)
+    (native / "parent.jsonl").write_text('{"session": "parent"}\n')
+    (native / "parent/subagents/worker.jsonl").write_text('{"session": "worker"}\n')
+
     class Child:
+        native_sessions = native
+
         def __enter__(self):
             return self
 
@@ -546,3 +553,11 @@ def test_a_live_session_settles_only_once_its_turn_has_ended(tmp_path):
         assert live.child.sent == "next"
     kinds = [json.loads(line)["type"] for line in stream.read_text().splitlines()]
     assert kinds == ["eval_phase", "assistant", "result", "eval_send"]
+
+    retained = stream.with_suffix(".sessions")
+    assert (retained / "parent.jsonl").read_text() == (
+        native / "parent.jsonl"
+    ).read_text()
+    assert (retained / "parent/subagents/worker.jsonl").read_text() == (
+        native / "parent/subagents/worker.jsonl"
+    ).read_text()

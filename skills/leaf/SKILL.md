@@ -130,9 +130,16 @@ contract you picked. `references/codex-setup.md` owns terminal App Server setup.
 ## Stay responsive
 
 `references/conversation-loop.md`, "When to write", owns the immediate reply and
-work status for each user update. For work that would delay the next update,
-follow its "Long-running work": background workers do the work while you keep
-the page and answer the user.
+work status for each user update. The parent session owns the Leaf conversation:
+answer the user, keep the page current, and direct background subagents doing the
+substantive research, editing and testing. Keep direct answers, small page changes,
+and the review and integration of worker results with you. Having more work to do
+is a reason to delegate it, while you remain available for the user's next move.
+
+`references/conversation-loop.md`, "Long-running work", owns worker briefs,
+results and work that continues beyond your turn. If subagents are unavailable,
+run long operations in the background and follow your harness's delivery loop
+between bounded steps.
 
 ## Page contract
 

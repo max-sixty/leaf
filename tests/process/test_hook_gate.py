@@ -25,13 +25,14 @@ def hook(event: str, session: str, **env: str) -> None:
 
 
 def test_claude_code_runs_the_whole_hook_once_its_session_claims(page_dir):
-    """Claude Code runs Leaf's prompt and Stop hooks in every session the plugin is
+    """Claude Code runs Leaf's turn and tool hooks in every session the plugin is
     installed in, and most never use Leaf, so the launcher skips them until the
     session claims. The hook before a `leaf` command opens the turn the skipped
     prompt hook would have, a claim joins it, and the session's Stop hook then
     runs in full and closes it."""
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     hook("UserPromptSubmit", session)
+    hook("PostToolBatch", session)
     hook("Stop", session)
     assert state_model.session_record(session) is None
 

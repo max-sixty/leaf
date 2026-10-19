@@ -640,6 +640,7 @@ class ClaudeSession:
         env: dict | None = None,
     ) -> None:
         self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
+        self.native_sessions = cwd.with_name(f"{cwd.name}-home") / ".claude/projects"
         self.popen = claude_child(
             cwd,
             "--input-format",
@@ -773,7 +774,8 @@ class LiveSession:
     `watch` names the arm, its state home and the page the session serves. Once
     the page is served the session records `eval_served` with its keyed URL, which
     `url` holds, and at each turn's end `eval_status` with the page's status, from
-    the time the page exists."""
+    the time the page exists. Teardown retains native parent and worker session
+    records beside the stream, before the isolated home is removed."""
 
     def __init__(
         self, child, stream: Path, watch: tuple[Path, Path, Path] | None = None
@@ -935,6 +937,10 @@ class LiveSession:
             self.reader.join()
         finally:
             self.stream.close()
+            if self.child.native_sessions.exists():
+                shutil.copytree(
+                    self.child.native_sessions, self.path.with_suffix(".sessions")
+                )
 
 
 # A served page's keyed URL, as `leaf server start` prints it.

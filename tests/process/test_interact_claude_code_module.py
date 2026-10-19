@@ -158,7 +158,7 @@ def test_the_module_is_off_until_its_option_is_on(spawn, sessionless):
     assert ClaudeCode(spawn, "cc-off", {"hooks_module": False}).events == []
 
 
-@pytest.mark.parametrize("failure", ["watch", "prompt", "startup", "spawn"])
+@pytest.mark.parametrize("failure", ["watch", "startup", "spawn"])
 def test_failed_module_processes_report_their_diagnostics(
     spawn, sessionless, tmp_path, failure
 ):
@@ -167,17 +167,7 @@ def test_failed_module_processes_report_their_diagnostics(
     launcher = tmp_path / "bin" / "leaf"
     if failure not in {"startup", "spawn"}:
         launcher.parent.mkdir()
-        launcher.write_text(
-            "#!/bin/sh\n"
-            + (
-                'echo "watch launcher failed" >&2\nexit 23\n'
-                if failure == "watch"
-                else 'case "$*" in\n'
-                '*--watch) echo "page has new input" ;;\n'
-                '*) echo "prompt launcher failed" >&2; exit 23 ;;\n'
-                "esac\n"
-            )
-        )
+        launcher.write_text('#!/bin/sh\necho "watch launcher failed" >&2\nexit 23\n')
         launcher.chmod(0o755)
     driven = ClaudeCode(
         spawn,
@@ -198,11 +188,7 @@ def test_failed_module_processes_report_their_diagnostics(
     elif failure == "startup":
         assert "watch failed" in diagnostic and "ENOENT" in diagnostic, diagnostic
     else:
-        assert diagnostic == (
-            "Leaf: watch failed (exit code 23): watch launcher failed"
-            if failure == "watch"
-            else "Leaf: UserPromptSubmit hook exited with code 23: prompt launcher failed"
-        )
+        assert diagnostic == "Leaf: watch failed (exit code 23): watch launcher failed"
     driven.quit()
 
 
@@ -261,10 +247,9 @@ def test_the_module_stands_the_background_registration_down(page_dir, claude_cod
 
 
 def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
-    page_dir, claude_code
+    page_dir, claude_code, capsys
 ):
-    """Input arriving during a turn is handed to that turn: the module calls the
-    prompt hook and appends its delivery, which the turn reads at its next step.
+    """The module leaves mid-turn input to the native tool-batch boundary.
     An Escape then ends the turn with no Stop hook; the module starts the watch
     with the Interrupt payload, which closes the turn the delivery opened and
     wakes for input the stopped turn never received
@@ -274,9 +259,26 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     handed = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "during"}
     )
-    appended = claude_code.message()["appended"]
-    [batch] = json.loads(appended.split("\n")[1])["batches"]
-    assert [event["id"] for event in batch["events"]] == [handed["id"]]
+    claude_code.exits.get(timeout=STATED_TIMEOUT)
+    claude_code.send({"flush": True})
+    assert claude_code.read() == {"submissions": 0, "appends": 0}
+    for number in range(2):
+        comment = (
+            handed
+            if number == 0
+            else append_carried_log_record(
+                page_dir, {"kind": "comment", "author": "user", "text": "another"}
+            )
+        )
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": "PostToolBatch", "session_id": claude_code.session},
+        )
+        context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+            "additionalContext"
+        ]
+        [batch] = json.loads(context.split("\n")[1])["batches"]
+        assert comment["id"] in [event["id"] for event in batch["events"]]
 
     claude_code.end_turn(interrupted=True)
     interrupt = claude_code.watches.get(timeout=STATED_TIMEOUT)
@@ -344,32 +346,6 @@ def test_clear_keeps_the_module_able_to_watch_the_next_session(claude_code):
     )
 
 
-@pytest.mark.parametrize("claude_code", [{"holdPromptHook": True}], indirect=True)
-@pytest.mark.parametrize("cleared", [False, True])
-def test_confirmed_input_wakes_only_its_own_session(page_dir, claude_code, cleared):
-    """A confirmed handover survives a watch replacement, but not /clear."""
-    claude_code.start_turn()
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "during turn"}
-    )
-    assert claude_code.read() == {"holding_hook": "UserPromptSubmit"}
-    if cleared:
-        claude_code.emit(
-            "session.end", {"reason": "clear", "sessionId": claude_code.session}
-        )
-    else:
-        claude_code.end_turn()
-    claude_code.send({"release_hook": True})
-    claude_code.send({"flush": True})
-    assert claude_code.read() == {
-        "submissions": int(not cleared),
-        "appends": int(not cleared),
-    }
-    if not cleared:
-        assert "appended" in claude_code.message()
-        assert "submitted" in claude_code.message()
-
-
 @pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)
 def test_interrupt_watch_replacement_waits_for_aborted_process_exit(
     page_dir, claude_code
@@ -411,7 +387,12 @@ def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "wakes the watch"}
     )
-    claude_code.message()
+    claude_code.exits.get(timeout=STATED_TIMEOUT)
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "PostToolBatch", "session_id": claude_code.session},
+    )
+    capsys.readouterr()
     pending = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "as it ends"}
     )

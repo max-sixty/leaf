@@ -5,8 +5,6 @@ import os
 
 import click
 import pytest
-from leaf.hook_transport import DELIVERY_FIELD
-from leaf_dev.delivery_eval import expected_checks, grade, score
 
 
 def test_partial_native_traces_do_not_report_zero_elapsed_minutes(tmp_path):
@@ -20,135 +18,6 @@ def test_partial_native_traces_do_not_report_zero_elapsed_minutes(tmp_path):
     ):
         stream.write_text("".join(json.dumps(record) + "\n" for record in trace))
         assert trace_summary(trace)["minutes"] == minutes
-
-
-def test_delivery_requires_every_comment_and_a_completed_session():
-    complete = {
-        "comment": 1,
-        "injection": "running",
-        "active_turn": "setup-turn",
-        "after_completion": False,
-        "timed_out": False,
-        "turn_completed": True,
-        "session_completed": True,
-        "pickup_s": 0,
-        "claim_s": 0,
-        "reply_s": 0,
-        "turn_s": 0,
-    }
-    assert all(grade("mid-turn", [complete]).values())
-    for partial in [
-        [],
-        [{**complete, "timed_out": True}],
-        [{**complete, "turn_completed": False}],
-        [{**complete, "session_completed": False}],
-        [{**complete, "comment": None}],
-        [complete, complete],
-    ]:
-        checks = grade("mid-turn", partial)
-        assert set(checks) == set(expected_checks("mid-turn"))
-        assert not checks["completed"]
-    assert not grade("idle", [complete])["completed"]
-    idle = {
-        **complete,
-        "injection": "idle",
-        "active_turn": None,
-        "after_completion": True,
-    }
-    assert all(grade("idle", [idle, {**idle, "comment": 2}]).values())
-    assert not grade("mid-turn", [idle])["injected-as-requested-1"]
-    assert not grade("mid-turn", [{**complete, "after_completion": True}])[
-        "injected-as-requested-1"
-    ]
-    assert not grade("mid-turn", [{**complete, "reply_s": None}])["replied-1"]
-    assert not grade("mid-turn", [{**complete, "claim_s": None}])["claimed-1"]
-
-
-def test_delivery_reads_admitted_progress_and_exact_answers(tmp_path):
-    """Slow stream observation and shell failures leave admitted work intact."""
-    events = [
-        {
-            "kind": "comment",
-            "id": "comment",
-            "author": "user",
-            "attempt": "delivery-eval-0001-attempt",
-            "ts": "2026-10-02T00:00:00Z",
-        },
-        {
-            "kind": "pickup",
-            "phase": "opened",
-            "events": ["comment"],
-            "ts": "2026-10-02T00:00:01Z",
-        },
-        {
-            "kind": "start",
-            "item": "comment",
-            "turn": "handling",
-            "text": "Editing",
-            "ts": "2026-10-02T00:00:02Z",
-        },
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": "root",
-            "responds": "comment",
-            "text": "Done",
-            "ts": "2026-10-02T00:00:03Z",
-        },
-    ]
-    records = [
-        {
-            "type": "eval_post",
-            "round": 1,
-            "injection": "running",
-            "active_turn": "setup",
-            "received_at": "2026-10-02T00:00:00Z",
-        },
-        {
-            "type": "system",
-            "subtype": "hook_response",
-            "hook_event": "UserPromptSubmit",
-            "output": json.dumps({DELIVERY_FIELD: {"id": "d1", "inline": True}}),
-            "received_at": "2026-10-02T00:00:04Z",
-        },
-        {
-            "type": "result",
-            "turn_id": "handling",
-            "is_error": False,
-            "received_at": "2026-10-02T00:00:05Z",
-        },
-    ]
-
-    def checks(log=events):
-        (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in log))
-        (tmp_path / "stream-1.jsonl").write_text(
-            "\n".join(json.dumps(r) for r in records)
-        )
-        return grade("mid-turn", score(tmp_path))
-
-    assert all(checks().values())
-    for phase in ("queued", "failed"):
-        assert not checks([events[0], events[1] | {"phase": phase}, *events[2:]])[
-            "picked-up-1"
-        ]
-    for changes in (
-        {"ephemeral": True},
-        {"failure": "turn_failed"},
-        {"responds": "later-input"},
-        {"author": "user"},
-    ):
-        assert not checks([*events[:-1], events[-1] | changes])["replied-1"]
-    assert not checks([events[0], events[1], events[-1], events[2]])["claimed-1"]
-    assert not checks([e for e in events if e["kind"] != "start"])["claimed-1"]
-    assert not checks(
-        [events[0], events[1], events[2] | {"item": "other"}, events[-1]]
-    )["claimed-1"]
-    records[-1]["is_error"] = True
-    assert not checks()["completed"]
-    assert not checks()["turn-ended-1"]
-    records[-1]["is_error"] = False
-    records[-1]["turn_id"] = "later"
-    assert not checks()["turn-ended-1"]
 
 
 def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
@@ -318,3 +187,57 @@ def test_journey_timing_reports_context_entry_after_queue_acceptance():
     user = User(None, "version", lambda: events)
     user.ids["idle"] = "input"
     assert user.timing("idle") == "`idle` picked up after 4.0 s, answered after 5 s"
+
+
+def test_delivery_workload_keeps_unanswered_inputs_at_cutoff(tmp_path):
+    """Failed/late replies stay missing, and unrelated setup asks stay outside the cohort."""
+    from datetime import UTC, datetime
+
+    def at(second):
+        return datetime(2026, 10, 8, 9, 0, second, tzinfo=UTC).isoformat()
+
+    from leaf.event_log import append_event
+    from leaf_dev.delivery_eval import capture_measurements
+
+    for identity, second in [("setup", 0), ("known", 1), ("steer", 2)]:
+        append_event(
+            tmp_path,
+            {
+                "kind": "comment",
+                "id": identity,
+                "ts": at(second),
+                "author": "user",
+                "attention": True,
+                "text": identity,
+            },
+        )
+    for identity, parent, second in [("answer", "known", 4), ("late", "steer", 25)]:
+        append_event(
+            tmp_path,
+            {
+                "kind": "reply",
+                "id": identity,
+                "parent": parent,
+                "responds": parent,
+                "ts": at(second),
+                "author": "agent",
+                "attention": False,
+            },
+        )
+    result = capture_measurements(
+        tmp_path,
+        [{"input_id": "known"}, {"input_id": "steer"}, {"input_id": "unrecorded"}],
+        datetime(2026, 10, 8, 9, 0, 20, tzinfo=UTC),
+    )
+    assert [row["input_id"] for row in result["samples"]] == [
+        "known",
+        "steer",
+        "unrecorded",
+    ]
+    assert result["unrecorded_inputs"] == ["unrecorded"]
+    assert result["first_reply"]["observed"] == 1
+    assert result["first_reply"]["inputs"] == 3
+    assert result["first_reply"]["missing"] == 2
+    assert result["samples"][2]["observed_for_s"] is None
+    assert result["samples"][1]["observed_for_s"] == 18
+    assert result["samples"][0]["milestones"]["first_reply"]["elapsed_s"] == 3

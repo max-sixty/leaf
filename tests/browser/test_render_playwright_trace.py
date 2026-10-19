@@ -1233,9 +1233,11 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
       return r.bottom < host.top && y >= 0 && y < innerHeight
         && document.elementFromPoint(x, y) !== node;
     }""")
+    # The canvas draws its inset ring on its ::after, above the marks (theme.css).
     assert canvas.evaluate("""node => {
-      const style = getComputedStyle(node);
-      return node.matches(':focus-visible') && parseFloat(style.outlineOffset) < 0;
+      const ring = getComputedStyle(node, '::after');
+      return node.matches(':focus-visible') && ring.outlineStyle !== 'none'
+        && parseFloat(ring.outlineOffset) < 0;
     }""")
 
 

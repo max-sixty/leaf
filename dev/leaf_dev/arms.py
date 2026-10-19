@@ -45,10 +45,7 @@ import click
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
-from leaf.hook_transport import DELIVERY_FIELD
 from leaf.render_gate import browser as browser_model
-from leaf.thread import successful_replies
-from leaf.todos import start_reading
 
 from leaf_dev import ROOT
 from leaf_dev.browser import shell_executable
@@ -644,6 +641,7 @@ class ClaudeSession:
         env: dict | None = None,
     ) -> None:
         self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
+        self.native_sessions = cwd.with_name(f"{cwd.name}-home") / ".claude/projects"
         self.popen = claude_child(
             cwd,
             "--input-format",
@@ -779,7 +777,8 @@ class LiveSession:
     revision descriptor and event boundary from that same observation. This is
     first-observed availability, not proof of a usable page or its first HTTP response.
     `url` holds the address; at each turn's end `eval_status` records the page's
-    status, from the time the page exists."""
+    status, from the time the page exists. Teardown retains native parent and worker
+    session records beside the stream, before the isolated home is removed."""
 
     def __init__(
         self, child, stream: Path, watch: tuple[Path, Path, Path] | None = None
@@ -952,6 +951,10 @@ class LiveSession:
             self.reader.join()
         finally:
             self.stream.close()
+            if self.child.native_sessions.exists():
+                shutil.copytree(
+                    self.child.native_sessions, self.path.with_suffix(".sessions")
+                )
 
 
 # A served page's keyed URL, as `leaf server start` prints it.
@@ -1026,19 +1029,6 @@ def commands(record: dict) -> list[str]:
         for block in (content if isinstance(content, list) else ())
         if block.get("type") == "tool_use"
     ]
-
-
-def hook_delivered(record: dict) -> bool:
-    """Whether one stream record is a Leaf hook handing a delivery to the turn: its
-    output, the hook's whole stdout, names one in `DELIVERY_FIELD`. Other hooks in
-    the same trace, such as the background watch, print text that is not JSON."""
-    if record.get("subtype") != "hook_response":
-        return False
-    try:
-        output = json.loads(record.get("output") or "")
-    except json.JSONDecodeError:
-        return False
-    return isinstance(output, dict) and DELIVERY_FIELD in output
 
 
 def inputs_received(events: list[dict], attempts: set[str]) -> bool:
@@ -1145,22 +1135,3 @@ def resumed(summaries: list[dict]) -> list[dict]:
         )
         before = cost if cost is not None else before
     return phases
-
-
-def progress_start(events: list[dict], for_event: str) -> dict | None:
-    """The admitted start on this exact input before its first successful answer.
-
-    Score the page log, independent of command spelling, stdout and when the
-    native stream was read. A later log reading cannot invent or reorder work.
-    """
-    final = next(iter(successful_replies(events, for_event)), None)
-    return next(
-        (
-            start
-            for event in events
-            if (start := start_reading(event)) is not None
-            and start["item"] == for_event
-            and (final is None or start["seq"] < final["seq"])
-        ),
-        None,
-    )

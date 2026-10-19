@@ -200,8 +200,22 @@
     outline-offset: 0;
     border-radius: var(--r);
   }
-  .lf-fp-box {
-    flex-wrap: wrap;
+  .lf-fp-card {
+    anchor-name: --lf-fp-card;
+  }
+  .lf-fp-field {
+    anchor-name: --lf-fp-field;
+  }
+  .lf-fp-field .lf-composer-media:not([hidden]) {
+    position: fixed;
+    bottom: calc(anchor(--lf-fp-card top) + 6px);
+    left: anchor(--lf-fp-field left);
+    width: max-content;
+    max-width: anchor-size(--lf-fp-field width);
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--lf-fp-surface);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-2);
   }
   .lf-fp-response {
     display: none;

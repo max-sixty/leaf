@@ -819,7 +819,7 @@ const standingPainters = {
   paintStanding: anchorPaint?.paintStanding,
   paintSelectedMarginEntries: () =>
     app.overlay?.paintSelectedMarginEntries([
-      { kind: "item", target: items.standingIn() },
+      { kind: "on-me", target: items.standingIn() },
       {
         kind: "comment",
         target: anchorPlacement.placedAt(standingThreadId())?.place,

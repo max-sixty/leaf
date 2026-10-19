@@ -70,7 +70,7 @@ def panel_comment(d, text, anchor=None, author="user", *, question=None):
 
 def answered_comment(d, text, anchor):
     """A user's thread the agent has replied to, so an item it is about waits on the
-    user again rather than on that reply (`asks.sections_with_agent`)."""
+    user again rather than on that reply (`items.sections_with_agent`)."""
     root = panel_comment(d, text, anchor)
     append_carried_log_record(
         d,
@@ -1355,7 +1355,7 @@ THREAD_ITEMS = [
 # A widget the shipped packages no longer have: one the user owes an answer on that
 # also seats a thread of its own. A thread anchored on any item splits the user's list
 # from the unanswered decisions while the agent has the next word, taking the item off
-# the list without answering it (`asks.sections_with_agent`); a seat is where a
+# the list without answering it (`items.sections_with_agent`); a seat is where a
 # user most often starts one. `lf-options` supplied the pair until 292de9c made the
 # user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
 # rather than borrowed from whichever shipped entry happens to carry it: the reading
@@ -1370,7 +1370,7 @@ SEATED_ITEM_ENTRY = {
     "type": "object",
     "properties": {
         "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-        "items": {"type": "boolean"},
+        "asks": {"type": "boolean"},
         "restated": {"type": "boolean"},
     },
     "required": ["id"],
@@ -1390,10 +1390,10 @@ SEATED_ITEM_ENTRY = {
     },
     "x-awaits": {
         "value": "settle",
-        "when": {"items": [True]},
+        "when": {"asks": [True]},
         "answered": {"settle": {}},
     },
-    "x-thread-seat": {"when": {"items": [True]}},
+    "x-thread-seat": {"when": {"asks": [True]}},
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
 

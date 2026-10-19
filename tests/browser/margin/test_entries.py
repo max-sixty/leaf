@@ -464,6 +464,24 @@ def test_an_item_marker_s_label_and_name_identify_its_question(browser, serve):
     assert "roll every tenant" in seen["long-ask"]["name"], seen
 
 
+def test_the_item_the_user_stands_in_selects_its_marker(browser, serve):
+    """Arriving at an item with `m` paints its On me marker selected, and only its
+    marker."""
+    page = open_page(browser, serve(ITEM_MARKERS_PAGE))
+    resized(page, 1440, 900)
+
+    def marker(item):
+        return page.locator(
+            f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
+        )
+
+    page.keyboard.press("m")
+    expect(marker("short-ask")).to_have_attribute("data-lf-target-selected", "")
+    expect(marker("long-ask")).not_to_have_attribute(
+        "data-lf-target-selected", re.compile(".*")
+    )
+
+
 @pytest.mark.parametrize("width", [1440, 390])
 def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
     browser, serve, width

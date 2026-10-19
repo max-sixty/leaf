@@ -5010,7 +5010,7 @@ function createStateFeed({
       reading = false;
       if (!readQueued) return;
       readQueued = false;
-      item();
+      ask();
     };
     const feedQuiet = () => !reading && !applyingReads && !stateApplying();
     const askOnce = async () => {
@@ -5045,7 +5045,7 @@ function createStateFeed({
         failed(error);
       }
     };
-    const item = () => {
+    const ask = () => {
       if (reading) {
         readQueued = true;
         return;
@@ -5086,7 +5086,7 @@ function createStateFeed({
           if (!response.ok) throw new Error(`news returned HTTP ${response.status}`);
           const observed = await response.text();
           if (listening === interval) {
-            if (observed !== freshness && observed !== runtime.reading) item();
+            if (observed !== freshness && observed !== runtime.reading) ask();
             else if (returned !== null && observed === runtime.reading && feedQuiet()) {
               await invalidateDom2();
               await present();
@@ -5096,7 +5096,7 @@ function createStateFeed({
           }
         } catch {
           if (listening !== interval) return;
-          item();
+          ask();
           delay = TICK_MS;
         }
         if (listening === interval) nextLook = setTimeout(look, delay);
@@ -5122,9 +5122,9 @@ function createStateFeed({
       setInterval(() => {
         if (!pageIsVisible()) return;
         if (readAnswered && sessionIsActive() && (activityTransitionDue(runtime.state) || freshness !== null && freshness !== runtime.reading))
-          void item();
+          void ask();
         else if (readAnswered) void heartbeat();
-        else void item();
+        else void ask();
         void present();
       }, TICK_MS);
       listen();

@@ -114,7 +114,7 @@ KEYBOARD_HINT_REGISTRY = {
         "type": "object",
         "properties": {
             "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "items": {"type": "boolean"},
+            "asks": {"type": "boolean"},
             "restated": {"type": "boolean"},
         },
         "required": ["id"],

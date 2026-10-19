@@ -700,6 +700,12 @@ button.lf-thread-notice[data-lf-focus] {
   text-align: center;
   color: var(--ink);
 }
+:where(:root, .lf-thread-transcript) tr > td:first-child:has(> img:only-child, > a:only-child > img:only-child) {
+  padding-inline-start: 8px;
+}
+:where(:root, .lf-thread-transcript) tr > td:last-child:has(> img:only-child, > a:only-child > img:only-child) {
+  padding-inline-end: 8px;
+}
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
   padding-inline-start: 24px;

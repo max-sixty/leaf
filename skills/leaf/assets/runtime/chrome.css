@@ -200,6 +200,54 @@
   .lf-fp-box {
     flex-wrap: wrap;
   }
+  html[data-attachment-placement=hang] :scope {
+    .lf-floating-panel {
+      anchor-name: --lf-fp-attach-top;
+    }
+    .lf-fp-field {
+      anchor-name: --lf-fp-attach-start;
+    }
+    .lf-fp-field .lf-composer-media:not([hidden]) {
+      position: fixed;
+      bottom: anchor(--lf-fp-attach-top top);
+      left: anchor(--lf-fp-attach-start left);
+      margin: 0 0 6px;
+      flex: none;
+      width: max-content;
+      max-width: anchor-size(--lf-fp-attach-start width);
+      padding: 0;
+      overflow: visible;
+    }
+    .lf-fp-field .lf-composer-media-item {
+      border: 0;
+      border-radius: 8px;
+      background: var(--lf-fp-surface);
+      box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-2);
+    }
+  }
+  html[data-attachment-placement=row] :scope {
+    .lf-fp-box,
+    .lf-fp-reply .lf-thread-reply {
+      flex-wrap: nowrap;
+    }
+    .lf-fp-field .lf-composer-media:not([hidden]) {
+      flex: none;
+      max-width: 148px;
+      padding: 0;
+      gap: 4px;
+    }
+    .lf-fp-field .lf-composer-media-item {
+      height: var(--lf-fp-line);
+    }
+    .lf-fp-field .lf-composer-media-open {
+      width: 40px;
+      height: 100%;
+    }
+    .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
+      inline-size: max(24px, var(--aim-floor));
+      min-block-size: 0;
+    }
+  }
   .lf-fp-resolved {
     flex: 1;
     margin: 0;

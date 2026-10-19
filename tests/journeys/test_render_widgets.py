@@ -574,6 +574,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(prepare).to_have_css("pointer-events", "auto")
     page.mouse.move(nav_box["x"] + 100, rows_box["y"] - 8, steps=8)
     assert toc.evaluate("node => node.matches(':hover')")
+    # Leaving the map returns it to its spine.
+    page.mouse.move(1200, 700)
+    expect(prepare).to_have_css("opacity", "0")
     assert nav_box["width"] == pytest.approx(24, abs=1)
 
     resized(page, 1800, 900)

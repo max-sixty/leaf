@@ -38,6 +38,7 @@ import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
+import { holdingError } from "./errors.js";
 import { layerGeneration } from "./layer-generation.js";
 
 const { layer: documentLayer, release, probe } = DELIVERY;
@@ -89,12 +90,11 @@ function reloadNow(message) {
 // Each foreign answer gets its own reading of the source, because the source may move
 // while the page waits — this very page can be re-vendored during the hold — and an
 // answer carried over from an earlier reading would leave the tab with no way back. One
-// probe is in the air at a time, so a burst of refusals costs one. The words are said
-// once for the page rather than once an answer: a lasting condition explained once is
-// enough, and repeating a transient status line would hold the page's foot for as long
-// as the disagreement lasts.
+// probe is in the air at a time, so a burst of refusals costs one. Waiting lasts as long
+// as the disagreement does, so it is a held error (errors.js) rather than a passing
+// notice: raised once, it stands until an answer from this delivery is admitted.
 let asking = false;
-let saidWaiting = false;
+const holdWaiting = holdingError();
 function reloadDelivery(message) {
   if (layerReloading || asking) return;
   asking = true;
@@ -106,9 +106,7 @@ function reloadDelivery(message) {
         // The answers stay refused, which is the offline reading this page already knows
         // how to hold: authored content stays readable and the feed keeps asking, so the
         // page rejoins the log by itself once the server is back on this delivery.
-        if (saidWaiting) return;
-        saidWaiting = true;
-        notice("Waiting for the server to finish updating.");
+        holdWaiting("Waiting for the server to finish updating.");
         return;
       }
       reloadNow(message);
@@ -201,6 +199,7 @@ export function admitResponse(response) {
     reloadDelivery("Leaf has been updated — reloading this page.");
     return false;
   }
+  holdWaiting(null);
   return true;
 }
 

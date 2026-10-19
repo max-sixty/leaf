@@ -147,10 +147,6 @@ import {
   workflowLabel
 } from "./bundle-user-intent.js";
 import {
-  holdingError,
-  raiseError
-} from "./bundle-errors.js";
-import {
   aborted,
   authoredStates,
   commitWidgetDescriptors,
@@ -274,6 +270,7 @@ import {
   frameFor,
   growthIsSeen,
   hasArea,
+  holdingError,
   intersect,
   keys,
   labelOf,
@@ -293,6 +290,7 @@ import {
   postEvent,
   presented,
   pruneScopedElements,
+  raiseError,
   randomId,
   recordInteraction,
   registry,
@@ -465,7 +463,11 @@ function returnPlace(checkpoint) {
   const focus = checkpoint.focus?.deref();
   const place = checkpoint.place?.deref();
   const { caret } = checkpoint;
-  const ends = checkpoint.ends?.map(([ref, offset]) => [ref.deref(), offset]);
+  const ends = checkpoint.ends?.map(([ref, offset]) => {
+    const node = ref.deref();
+    const length = node?.nodeType === 3 ? node.length : node?.childNodes.length;
+    return [node, Math.min(offset, length ?? offset)];
+  });
   if (focus !== document.body && drawn(focus)) {
     focusDestination(focus, "return", { caret });
     if (caret) return;
@@ -473,9 +475,7 @@ function returnPlace(checkpoint) {
   else deepFocus()?.blur();
   const selection = getSelection();
   selection.removeAllRanges();
-  if (ends?.every(
-    ([node, offset]) => node && drawn(node.nodeType === 1 ? node : upFrom(node)) && offset <= (node.nodeType === 3 ? node.length : node.childNodes.length)
-  )) {
+  if (ends?.every(([node]) => node && drawn(node.nodeType === 1 ? node : upFrom(node)))) {
     selectEnds(...ends);
   }
 }

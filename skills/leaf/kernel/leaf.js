@@ -184,16 +184,6 @@ import {
   walkPositionLabel,
   workflowLabel
 } from "./runtime/bundle-user-intent.js";
-import {
-  dismissError,
-  dismissErrors,
-  errorsReading,
-  holdingError,
-  passErrors,
-  raiseError,
-  registerErrorPresentation,
-  seeErrors
-} from "./runtime/bundle-errors.js";
 import "./runtime/bundle-widget-upgrade.js";
 import {
   mediaViewer,
@@ -354,9 +344,13 @@ import {
   declareWindowChrome,
   declaredBindings,
   descriptionOf,
+  dismissError,
+  dismissErrors,
   dismissPopoversOutside,
   dragHeld,
   el,
+  errorsReading,
+  holdingError,
   hostIn,
   iconElement,
   iconTemplate,
@@ -381,13 +375,16 @@ import {
   pageUpgraded,
   paintKeys,
   paintKeysWithin,
+  passErrors,
   pointerAt,
   pressIsKeyboardActivation,
   projectCommandScope,
   pruneScopedElements,
   quickShortcuts,
+  raiseError,
   reflectFirstScopes,
   reflectKeys,
+  registerErrorPresentation,
   registerNoticePresentation,
   registry,
   repaint,
@@ -404,6 +401,7 @@ import {
   scrollGlides,
   scrolling,
   searchField,
+  seeErrors,
   seenRect,
   setNoticeContext,
   setQuickShortcuts,

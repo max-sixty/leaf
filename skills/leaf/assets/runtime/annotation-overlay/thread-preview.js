@@ -2,8 +2,9 @@
 
    One Floating UI driver follows this card across conversation changes and stops
    when the card closes. Each selected conversation owns its originating control,
-   reading region, held edge and pending placement/focus. Replacing it retires that
-   work before margin preparation can synchronously render again.
+   reading region, held edge, pending placement/focus, and growth out of the comment
+   box Send replaced (`growOut`). Replacing it retires that work before margin
+   preparation can synchronously render again.
    A retained refresh preserves the selection's reading and draft continuity.
    Margin disclosure remains the margin's; selection records only whether a walk
    opened a cluster so its end can return that disclosure.
@@ -59,6 +60,7 @@ import { move } from "../dom-move.js";
 import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
+import { reducedMotion } from "../motion.js";
 import { closestAcross } from "../passages.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
@@ -302,6 +304,7 @@ export function createThreadPreview({
     carry.placed();
     const session = previewSession;
     if (!session) return;
+    keeps(preview, "data-lf-grows", null);
     session.positionResult?.resolve(false);
     cancelRender(session.positionFrame);
     placementDriver.supersede();
@@ -884,8 +887,22 @@ export function createThreadPreview({
     }
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
-    return placedThreadPreview();
+    const positioned = placedThreadPreview();
+    return session.sent ? growOut(session, positioned) : positioned;
   }
+
+  // A card Send opened grows out of the comment box it replaces, once it stands
+  // (`data-lf-grows`, annotation-chrome.css).
+  function growOut(session, positioned) {
+    return positioned.then((placed) => {
+      if (placed && previewSession === session && !reducedMotion())
+        keeps(preview, "data-lf-grows", "");
+      return placed;
+    });
+  }
+  preview.addEventListener("animationend", (event) => {
+    if (event.target === preview) keeps(preview, "data-lf-grows", null);
+  });
 
   function refresh(entry, control, carry = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;

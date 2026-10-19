@@ -731,8 +731,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             page.mouse.move(880, 650)
             page.mouse.wheel(0, 350)
             scroll_settled(page)
-        # The pointer wheels what scrolls, off the box, which takes the wheel as its
-        # card does.
+        # The pointer wheels what scrolls, off the box, which stands outside the pane.
         mouse = (
             (before_target["x"] + 50, content_box["y"] + 35)
             if region in ("code", "content")
@@ -1112,12 +1111,13 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
 def test_send_grows_thread_around_the_words(
     request, serve, size, at, long, touch, again, options, engine
 ):
-    """The box being written is drawn as the card it becomes, and Send swaps one for
-    the other in that rectangle, so the draft's words stand where they were typed through
-    Send and its acknowledgement: the box and the card share one text column and foot,
-    and the card stands its words as far above its end as the box did. Read inside the
-    editor solely to measure its actual glyphs, without changing its closed-root
-    behavior."""
+    """The box being written paints only its field, and Send grows the card out of it in
+    the rectangle the box's frame reserved, so the draft's words stand where they were
+    typed through Send and its acknowledgement: the box and the card share one text
+    column and foot, and the card stands its words as far above its end as the box did.
+    The growth only clips the card, so the words its layout places are the ones painted.
+    Read inside the editor solely to measure its actual glyphs, without changing its
+    closed-root behavior."""
     browser = request.getfixturevalue(engine)
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
@@ -1199,11 +1199,15 @@ def test_send_grows_thread_around_the_words(
       window.beforeWords = rects(editor);
       window.beforePageScroll = scrollY;
       const bar = document.querySelector('.lf-fab-bar');
+      const style = getComputedStyle(bar);
       window.box = {frame: bar.getBoundingClientRect().toJSON(),
-        painted: getComputedStyle(bar, '::before').backgroundColor !== 'rgba(0, 0, 0, 0)'};
+        painted: style.backgroundColor !== 'rgba(0, 0, 0, 0)' || style.boxShadow !== 'none'};
       window.sendFrames = [];
+      window.grew = false;
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
+        window.grew ||= Boolean(card?.getAnimations().some(animation =>
+          animation.effect.getKeyframes().some(frame => 'clipPath' in frame)));
         const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
           window.sendFrames.push({rects:rects(body), pageScroll:scrollY,
@@ -1223,11 +1227,19 @@ def test_send_grows_thread_around_the_words(
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
     rendered(page)
+    wait_for(
+        lambda: page.evaluate(
+            "document.querySelector('.lf-margin-preview').getAnimations().length"
+        ),
+        lambda n: n == 0,
+        failure="Thread growth never finished",
+    )
     reading = page.evaluate("""() => {
       cancelAnimationFrame(window.sampling);
-      return {before:beforeWords,pageScroll:beforePageScroll,frames:sendFrames,box};
+      return {before:beforeWords,pageScroll:beforePageScroll,frames:sendFrames,box,grew};
     }""")
-    assert reading["box"]["painted"], "The box being written showed only its field"
+    assert not reading["box"]["painted"], "The box being written painted its frame"
+    assert reading["grew"], "Send showed the card without growing it out of the box"
     assert reading["frames"]
     # The card takes the box's rectangle, less the response choices the box alone
     # carries under its field.

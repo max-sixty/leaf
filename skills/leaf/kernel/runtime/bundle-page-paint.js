@@ -51,7 +51,7 @@ import {
 // runtime/page-paint.js
 var PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
-  ask: "data-lf-ask",
+  item: "data-lf-item",
   done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",
@@ -639,10 +639,11 @@ var contextualRoute = (route, command) => ({
 var routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
 var quickShortcuts = () => document.documentElement.lfKeyboard.quick;
 var setQuickShortcuts = (on) => document.documentElement.lfKeyboard.setQuick(on);
-var bindingEnabled = (binding) => {
+var bindingEnabledFor = (binding, quick) => {
   const { key, mods } = parsed(binding);
-  return quickShortcuts() || key.length !== 1 || key === " " || mods.some((mod) => mod !== "Shift");
+  return quick || key.length !== 1 || key === " " || mods.some((mod) => mod !== "Shift");
 };
+var bindingEnabled = (binding) => bindingEnabledFor(binding, quickShortcuts());
 var bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 var commandEntries = (row, active = bindings(row), { includeUnavailable = false } = {}) => {
   const routes = commandRoutes(row);
@@ -776,7 +777,7 @@ function activeRows(rows, where = "a scope") {
   const active = rows.filter((row) => live(row) && bindings(row).length > 0);
   return validateActive(active, where, (row) => availableBindings(row, bindings(row)));
 }
-function decisionControls(commands, where = "an ask") {
+function decisionControls(commands, where = "an item") {
   const controls = /* @__PURE__ */ new Map();
   for (const { source, scope, row } of commands) {
     const routes = commandRoutes(row);
@@ -2705,7 +2706,7 @@ var ICONS = {
   fold: '<path d="M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
   // What waits on the user, an inbox's tray: the On me mark. The question mark stays
-  // with an ask and with help (`?`).
+  // with an item and with help (`?`).
   inbox: '<path d="M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z"/>',
   microphone: '<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4"/><path class="lf-mic-slash" d="M2.5 2.5l11 11"/>',
   next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
@@ -2973,7 +2974,7 @@ var showingBackground = null;
 var waitingBackground = [];
 var userContext = false;
 var userHoldTimer = 0;
-var noticePresentation = Object.freeze({ message: "", visible: false, draft: false });
+var noticePresentation = Object.freeze({ message: "", visible: false });
 var noticePresenters = /* @__PURE__ */ new Set();
 var noticeReading = () => noticePresentation;
 var noticeVisible = () => noticePresentation.visible;
@@ -2983,8 +2984,8 @@ function registerNoticePresentation(invalidate) {
 var presentAll = () => {
   for (const invalidate of noticePresenters) invalidate();
 };
-var presentNotice = (message, visible, draft = false) => {
-  noticePresentation = Object.freeze({ message, visible, draft });
+var presentNotice = (message, visible) => {
+  noticePresentation = Object.freeze({ message, visible });
   if (visible) presentAll();
   else afterScript(presentAll);
 };
@@ -2995,8 +2996,8 @@ function announce(msg) {
     liveEl.append(msg);
   }, 30);
 }
-function showNotice(msg, background = null, draft = false) {
-  presentNotice(msg, true, draft);
+function showNotice(msg, background = null) {
+  presentNotice(msg, true);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
@@ -3035,7 +3036,7 @@ function queueBackground(entry, front = false) {
   if (front) waitingBackground.unshift(entry);
   else waitingBackground.push(entry);
 }
-function notice(msg, { background = false, announce: speak = true, group = null, draft = false } = {}) {
+function notice(msg, { background = false, announce: speak = true, group = null } = {}) {
   if (speak) announce(msg);
   if (background) {
     const entry = group ?? textBackground(msg);
@@ -3043,7 +3044,7 @@ function notice(msg, { background = false, announce: speak = true, group = null,
     return showBackground(entry);
   }
   if (showingBackground) queueBackground(showingBackground, true);
-  showNotice(msg, null, draft);
+  showNotice(msg);
 }
 function yieldNotice() {
   if (showingBackground) queueBackground(showingBackground, true);
@@ -3354,6 +3355,7 @@ export {
   routedCommand,
   quickShortcuts,
   setQuickShortcuts,
+  bindingEnabledFor,
   bindingEnabled,
   bindings,
   commandEntries,

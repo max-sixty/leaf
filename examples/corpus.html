@@ -834,7 +834,6 @@
         box-sizing: border-box;
         width: 100%;
         max-width: 100%;
-        overflow-x: auto;
       }
 
       .code-candidate[data-density="compact"] lf-code pre {
@@ -1857,9 +1856,9 @@
       }
       lf-merge-steps li {
         margin: 0;
-        padding: 6px 10px 6px 12px;
-        border-left: 3px solid transparent;
-        border-radius: 0 var(--r) var(--r) 0;
+        padding: 5px 9px 5px 11px;
+        border: 1px solid transparent;
+        border-radius: var(--r);
         cursor: pointer;
       }
       lf-merge-steps h3 {
@@ -1919,7 +1918,7 @@
       }
       lf-merge-steps li[data-now] {
         background: var(--accent-tint);
-        border-left-color: var(--accent);
+        border-color: var(--accent);
       }
       lf-merge-steps li[data-now] p {
         display: block;
@@ -2395,12 +2394,12 @@
     </script>
 <!-- feature-gallery.html authored script -->
 <script type="module">
-      import { afterPresentation, commands, readAsks } from "/runtime/widget-api.js";
+      import { afterPresentation, commands, readItems } from "/runtime/widget-api.js";
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const ask = readAsks().all.find((q) => q.id === "widget:bg-choice");
+        const item = readItems().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
-        output.textContent = JSON.stringify(ask, null, 2);
+        output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;
       });
 
@@ -3295,11 +3294,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 </lf-tab>
 
 <lf-tab id="corpus-data-explorer" label="Data explorer">
-<h1>Shape a release query</h1>
-      <p class="lede">
-        Choose which releases to include in the report. Add filters, check the matching
-        rows, then ask the agent to build the query.
-      </p>
+<header><h1>Shape a release query</h1></header>
       <lf-ask id="release-query-ask">
         <h2>Which release query should the agent build?</h2>
         <lf-playground
@@ -3336,57 +3331,55 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 </lf-tab>
 
 <lf-tab id="corpus-code-comparison" label="Code comparison">
-<h1>Choose a code reader treatment</h1>
-      <p class="lede">
-        Compare a scrolling code reader with a wrapping one. Adjust their spacing and
-        shared width, then choose the treatment to keep.
-      </p>
-      <lf-ask id="code-comparison-ask">
-        <h2>Which code-reader treatment should the agent keep?</h2>
-        <lf-playground
-          id="code-comparison-playground"
-          submit-label="Apply treatment"
-          data-width="available"
-        >
-          <lf-playground-control
-            name="width"
-            label="Comparison viewport"
-            kind="range"
-            value="420"
-            min="280"
-            max="520"
-            step="20"
-            unit="px"
-          ></lf-playground-control>
-          <lf-playground-control
-            name="chosen"
-            label="Treatment"
-            kind="choice"
-            value="A"
-          >
-            <lf-playground-choice value="A" label="A"></lf-playground-choice>
-            <lf-playground-choice value="B" label="B"></lf-playground-choice>
-          </lf-playground-control>
-          <lf-playground-preset label="A at 420px">
-            <lf-playground-setting for="width" value="420"></lf-playground-setting>
-            <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
-          </lf-playground-preset>
-          <lf-playground-preset label="B at 320px">
-            <lf-playground-setting for="width" value="320"></lf-playground-setting>
-            <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
-          </lf-playground-preset>
-          <lf-playground-preview id="code-comparison-preview">
-            <code-reader-comparison id="code-reader-comparison">
-              <div class="code-comparison-grid">
-                <section
-                  class="code-candidate"
-                  data-candidate="A"
-                  id="compact-code-candidate"
-                >
-                  <h3 class="code-candidate-title">A · compact · scroll</h3>
-                  <p class="code-measurement" aria-live="polite">Measuring…</p>
-                  <lf-code id="compact-built-code" language="javascript" hi="2-4">
-                    <pre>
+<header><h1>Choose a code reader treatment</h1></header>
+      <lf-tabs id="code-comparison-views">
+        <lf-tab id="code-comparison-choose" label="Compare">
+          <lf-ask id="code-comparison-ask">
+            <h2>Which code-reader treatment should the agent keep?</h2>
+            <lf-playground
+              id="code-comparison-playground"
+              submit-label="Apply treatment"
+              data-width="available"
+            >
+              <lf-playground-control
+                name="width"
+                label="Comparison viewport"
+                kind="range"
+                value="420"
+                min="280"
+                max="520"
+                step="20"
+                unit="px"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="chosen"
+                label="Treatment"
+                kind="choice"
+                value="A"
+              >
+                <lf-playground-choice value="A" label="A"></lf-playground-choice>
+                <lf-playground-choice value="B" label="B"></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-preset label="A at 420px">
+                <lf-playground-setting for="width" value="420"></lf-playground-setting>
+                <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="B at 320px">
+                <lf-playground-setting for="width" value="320"></lf-playground-setting>
+                <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preview id="code-comparison-preview">
+                <code-reader-comparison id="code-reader-comparison">
+                  <div class="code-comparison-grid">
+                    <section
+                      class="code-candidate"
+                      data-candidate="A"
+                      id="compact-code-candidate"
+                    >
+                      <h3 class="code-candidate-title">A · compact · scroll</h3>
+                      <p class="code-measurement" aria-live="polite">Measuring…</p>
+                      <lf-code id="compact-built-code" language="javascript" hi="2-4">
+                        <pre>
 export function releaseLabel(service, checks) {
   const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
   const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
@@ -3398,17 +3391,17 @@ export function releaseLabels(releases) {
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
 }</pre>
-                  </lf-code>
-                </section>
-                <section
-                  class="code-candidate"
-                  data-candidate="B"
-                  id="wrapped-code-candidate"
-                >
-                  <h3 class="code-candidate-title">B · comfortable · wrap</h3>
-                  <p class="code-measurement" aria-live="polite">Measuring…</p>
-                  <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
-                    <pre>
+                      </lf-code>
+                    </section>
+                    <section
+                      class="code-candidate"
+                      data-candidate="B"
+                      id="wrapped-code-candidate"
+                    >
+                      <h3 class="code-candidate-title">B · comfortable · wrap</h3>
+                      <p class="code-measurement" aria-live="polite">Measuring…</p>
+                      <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
+                        <pre>
 export function releaseLabel(service, checks) {
   const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
   const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
@@ -3420,41 +3413,45 @@ export function releaseLabels(releases) {
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
 }</pre>
-                  </lf-code>
-                </section>
-              </div>
-            </code-reader-comparison>
-          </lf-playground-preview>
-          <lf-playground-output id="code-comparison-instruction">
-            Update the built Leaf code reader and show the focused browser measurement
-            test.
-          </lf-playground-output>
-        </lf-playground>
-      </lf-ask>
-      <section id="code-reader-feedback">
-        <h2>Point at the reader element you want changed</h2>
-        <p id="code-reader-feedback-guide">
-          Turn on Design mode with <kbd>l</kbd> or the More menu, then press the heading
-          or code reader below. For a keyboard choice, press <kbd>s</kbd>, browse
-          targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your comment
-          stays beside that element as its treatment changes. Describe a shared change
-          in the comment when both readers should inherit it.
-        </p>
-        <section
-          id="target-reader-artifact"
-          class="code-candidate"
-          data-width="available"
-        >
-          <h3 id="target-reader-heading" class="reader-treatment-title">
-            Reader sample
-          </h3>
-          <lf-code id="target-built-code" language="javascript" hi="2">
-            <pre>
+                      </lf-code>
+                    </section>
+                  </div>
+                </code-reader-comparison>
+              </lf-playground-preview>
+              <lf-playground-output id="code-comparison-instruction">
+                Update the built Leaf code reader and show the focused browser
+                measurement test.
+              </lf-playground-output>
+            </lf-playground>
+          </lf-ask>
+        </lf-tab>
+        <lf-tab id="code-comparison-comment" label="Comment on the reader">
+          <section id="code-reader-feedback">
+            <h2>Point at the reader element you want changed</h2>
+            <p id="code-reader-feedback-guide">
+              Turn on Design mode with <kbd>l</kbd> or the More menu, then press the
+              heading or code reader below. For a keyboard choice, press <kbd>s</kbd>,
+              browse targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your
+              comment stays beside that element as its treatment changes. Describe a
+              shared change in the comment when both readers should inherit it.
+            </p>
+            <section
+              id="target-reader-artifact"
+              class="code-candidate"
+              data-width="available"
+            >
+              <h3 id="target-reader-heading" class="reader-treatment-title">
+                Reader sample
+              </h3>
+              <lf-code id="target-built-code" language="javascript" hi="2">
+                <pre>
 export const summarize = checks =>
   `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
-          </lf-code>
-        </section>
-      </section>
+              </lf-code>
+            </section>
+          </section>
+        </lf-tab>
+      </lf-tabs>
 </lf-tab>
 
 <lf-tab id="corpus-alert-thresholds" label="Thresholds">
@@ -8015,10 +8012,10 @@ observe --cohort staff</code></pre>
             </h2>
             <p id="bg-core-surfaces-guide">
               An <code>lf-ask</code> puts a heading and context around the choice below.
-              <strong>On me</strong> lists everything waiting on you: open asks, threads
-              whose question is yours to answer (such as the gallery thread about a
-              pasted image), to-dos the agent put on you, and updates whose reply failed
-              and need sending again.
+              <strong>On me</strong> lists everything waiting on you: open items,
+              threads whose question is yours to answer (such as the gallery thread
+              about a pasted image), to-dos the agent put on you, and updates whose
+              reply failed and need sending again.
             </p>
             <ul id="bg-core-surfaces-steps">
               <li>
@@ -8036,13 +8033,13 @@ observe --cohort staff</code></pre>
                 Press either, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the experimental
                 On panel opens where Threads opens, on the list you pressed, with a tab
                 for the other. What left each list is folded under it as Done: answered
-                asks under On me, sent replies and ended to-dos under the agent's. Press
-                Enter on a row: it goes where <kbd>m</kbd> would.
+                items under On me, sent replies and ended to-dos under the agent's.
+                Press Enter on a row: it goes where <kbd>m</kbd> would.
               </li>
               <li>
                 On a stamped page that asks for sign-off, find the version approval
-                among the asks: its row leads to the banner's Approve control, approving
-                answers it, and Undo reopens it.
+                among the items: its row leads to the banner's Approve control,
+                approving answers it, and Undo reopens it.
               </li>
               <li>
                 Comment on the map question, then press <kbd>m</kbd> until it lands
@@ -8060,15 +8057,15 @@ observe --cohort staff</code></pre>
               </lf-options>
             </lf-ask>
             <details id="bg-question-api">
-              <summary>Inspect the ask record</summary>
+              <summary>Inspect the item record</summary>
               <p>
-                The map's ask is <code>widget:bg-choice</code> whether or not it has an
+                The map's item is <code>widget:bg-choice</code> whether or not it has an
                 <code>lf-ask</code> wrapper. Choose a map, then read its current record:
                 <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
               <button id="bg-read-question" class="button" type="button">
-                Read current ask
+                Read current item
               </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
@@ -8086,7 +8083,7 @@ observe --cohort staff</code></pre>
                   button.
                 </li>
                 <li>
-                  Press <kbd>m</kbd> until it lands on the to-do, after the ask above,
+                  Press <kbd>m</kbd> until it lands on the to-do, after the item above,
                   then press <kbd>x</kbd>, or under a finger the banner's
                   <strong>Done</strong>: the to-do moves to On me's Done fold, and the
                   agent is told.
@@ -8094,7 +8091,7 @@ observe --cohort staff</code></pre>
               </ul>
             </section>
             <section id="bg-widget-shortcut-hints">
-              <h3>Inline hints outside an ask</h3>
+              <h3>Inline hints outside a question</h3>
               <p>
                 Tab into this sample: <kbd>1</kbd> appears beside its button. Press
                 <kbd>1</kbd>: the note gets focus, the hint disappears, and digits type
@@ -8342,7 +8339,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: approve a version</span>
               </h3>
               <p id="bg-signoff-guide">
-                This gallery deliberately leaves sample asks unanswered, so
+                This gallery deliberately leaves sample items unanswered, so
                 <strong>Approve version</strong> remains unavailable. On a settled page
                 it records approval for the current version; <kbd>z</kbd>, or “Undo” in
                 “More page controls” on a touch screen, takes that approval back.
@@ -8524,7 +8521,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   focus and selection stay.
                 </li>
                 <li>
-                  Try it on a focused ask: its question aligns. Try it on a focused
+                  Try it on a focused question: its heading aligns. Try it on a focused
                   thread in Threads: its card aligns inside the panel. In a bounded
                   reading area, the block aligns within that area's own scroller.
                 </li>
@@ -8802,8 +8799,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <ul id="bg-thread-api-steps">
                 <li>
-                  Answer the channel ask inside its message, write a reply, and switch
-                  layouts before sending: the same draft follows the conversation.
+                  Answer the channel question inside its message, write a reply, and
+                  switch layouts before sending: the same draft follows the
+                  conversation.
                 </li>
                 <li>
                   Double-click your own message: you can rewrite it in any layout, Feed
@@ -9302,13 +9300,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-ask-across">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
             <h2>
-              <strong>An ask around its figure</strong
+              <strong>A question around its figure</strong
               ><span class="bg-feature-detail">: options laid across</span>
             </h2>
             <p id="bg-ask-across-guide">
-              This ask holds a chart and ends in one list of titled options. Under the
-              chart the three cards stand side by side, so the question, the chart and
-              every option fit one window; narrow the window and the cards stack.
+              This question holds a chart and ends in one list of titled options. Under
+              the chart the three cards stand side by side, so the question, the chart
+              and every option fit one window; narrow the window and the cards stack.
             </p>
             <lf-ask id="bg-across-ask">
               <h3>Which trail should the sample team hike on Saturday?</h3>
@@ -9363,14 +9361,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               The tab list stands left of the open item: each row shows its name and
               summary, with the chosen outcome on its own line. Rows sharing a
               <code>group</code> sit under that group's heading. The
-              <code>lf-tally</code> above it counts the queue's asks still to answer.
+              <code>lf-tally</code> above it counts the queue's items still to answer.
             </p>
             <ul id="bg-side-list-steps">
               <li>
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Press Next on me in the tally: it opens the first item's ask, whose row
+                Press Next on me in the tally: it opens the first item, whose row
                 carries an open mark.
               </li>
               <li>
@@ -9543,7 +9541,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: annotations beside their targets</span>
             </h3>
             <p id="bg-margin-layer-guide">
-              Leaf places threads, unanswered asks, actions, changes, and delivery or
+              Leaf places threads, unanswered items, actions, changes, and delivery or
               work status beside the content they concern. With enough room beside the
               reading column, their controls stand in the rail. Where the rail is
               absent, the same controls appear as pins near their targets on the page.
@@ -9577,7 +9575,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <strong>Action pins without a rail.</strong> This practice page has no
               rail. The suggestion's “Accept” and “Reject” controls appear as pins
               beside the proposed wording. Choose either, then use “Undo” to restore the
-              suggestion. These annotations work without a thread or an ask.
+              suggestion. These annotations work without a thread or an item.
             </p>
             <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
               <template id="bg-margin-layer-actions-page" data-sample data-rail="none">

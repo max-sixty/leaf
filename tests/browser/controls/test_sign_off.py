@@ -1,4 +1,4 @@
-"""Sign-off approval and the asks it joins: where the control stands, how a press
+"""Sign-off approval and the items it joins: where the control stands, how a press
 records, is taken back or refused, and when it waits."""
 
 import re
@@ -8,12 +8,12 @@ from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_ASK_LAYER, SEATED_ASK_WIDGETS, live_url
+from render_cases_interaction import SEATED_ITEM_LAYER, SEATED_ITEM_WIDGETS, live_url
 from render_cases_navigation import actions
 from render_harness import (
     LONG_PAGE,
     _traffic,
-    expect_asks_answered,
+    expect_items_answered,
     holding,
     leaf_page,
     open_page,
@@ -62,7 +62,7 @@ def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
 
 
 def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
-    """The declared ask puts the button there, and the press posts `done`.
+    """The declared item puts the button there, and the press posts `done`.
 
     Drive the shipped browser through the real POST door, since a button that merely
     looks right says nothing about the event the agent's loop receives.
@@ -97,7 +97,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_required_approval_is_an_ask_until_approved(browser, serve, width):
+def test_required_approval_is_an_item_until_approved(browser, serve, width):
     """Sign-off belongs to On me and leads to the real approval control,
     including its phone overflow seat. A task's Done cannot substitute for it."""
     html = LONG_PAGE.replace(
@@ -109,10 +109,10 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     on_me = page.get_by_role("button", name="On me: 1", exact=True, include_hidden=True)
     expect(on_me).to_be_attached()
     target = page.evaluate("""async () => {
-      const {readAsks, askActions} = await window.__lfWidgetApi();
-      const ask = readAsks().all.find(q => q.source.kind === 'approval');
+      const {readItems, itemActions} = await window.__lfWidgetApi();
+      const ask = readItems().all.find(q => q.source.kind === 'approval');
       const target = document.getElementById(ask.prompt.target);
-      await askActions.open(ask.id);
+      await itemActions.open(ask.id);
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
     assert target, "the public ask route did not reach its declared approval target"
@@ -148,7 +148,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
 
 
 def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
-    """Approval, its ask and its history agree during send, undo and refusal.
+    """Approval, its item and its history agree during send, undo and refusal.
 
     Holding each POST proves the result is visible before admission; a definitive
     refusal restores the same admitted approval through every consumer.
@@ -313,7 +313,7 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
 
 
 def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
-    """On a phone Approval stands behind More as a waiting ask, and More wears
+    """On a phone Approval stands behind More as a waiting item, and More wears
     its dot and names both reasons. Approving takes the dot down and taking the
     approval back puts it up again; on a desk Approval stands on the row and More
     wears no dot for it."""
@@ -373,8 +373,8 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
     back with nothing anywhere saying why.
 
-    The subject is the project widget SEATED_ASK_ENTRY declares, whose seat is where a
-    user most often starts such a thread; any thread anchored on an ask splits it the
+    The subject is the project widget SEATED_ITEM_ENTRY declares, whose seat is where a
+    user most often starts such a thread; any thread anchored on an item splits it the
     same way, and the reading under test never asks which widget it is."""
     url = serve(
         leaf_page(
@@ -384,8 +384,8 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
             '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
             "</lf-ask>",
         ),
-        layer_registry=SEATED_ASK_LAYER,
-        layer_widgets=SEATED_ASK_WIDGETS,
+        layer_registry=SEATED_ITEM_LAYER,
+        layer_widgets=SEATED_ITEM_WIDGETS,
     )
     append_carried_log_record(
         serve.page_dir,
@@ -399,7 +399,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     )
     page = open_page(browser, url)
     # Off the user's list, which is the whole reason the two readings differ here.
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
 
     page.get_by_role("button", name="Accept").click()
     round_trip(page)

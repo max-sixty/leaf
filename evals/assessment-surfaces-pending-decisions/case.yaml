@@ -389,6 +389,7 @@ variants:
   # `done`. Paired on Claude Code against ac09416a5: base 2/3, the miss ending
   # both `dropped` as its instructions said; candidate 3/3, all `done` with the
   # chat answer as the detail. The two base passes ignored that instruction.
+  # Protocol 9 renamed these rows' kind to `"widget"`; that change is unscored.
   settled-review:
     metadata:
       purpose: "On me: settled chat decisions stay settled while an authorized external wait remains agent work."
@@ -406,8 +407,8 @@ variants:
         The latest page state is:
         {"source":{"live":true,"error":null},
          "queues":{"on_user":[
-           {"id":"widget:event-log-q","kind":"ask","thread":"event-log-thread"},
-           {"id":"widget:registry-q","kind":"ask","thread":"registry-thread"}],
+           {"id":"widget:event-log-q","kind":"widget","thread":"event-log-thread"},
+           {"id":"widget:registry-q","kind":"widget","thread":"registry-thread"}],
            "on_agent":[{"id":"ci-work","kind":"todo"}]}}
         No work depends on further feedback; comments remain welcome.
 

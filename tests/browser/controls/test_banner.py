@@ -34,6 +34,8 @@ from render_harness import (
     LONG_PAGE,
     RELEASE_FOCUS,
     accessible_expanded,
+    consume_browser_errors,
+    http_error_console,
     leaf_page,
     nudge,
     open_page,
@@ -492,7 +494,7 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     expect(returning).to_be_focused()
 
 
-def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
+def test_item_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     browser, serve, other_leaf
 ):
     """The fixed menu retains each Lit-faced control and hands off removed focus."""
@@ -513,7 +515,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     resized(page, 390, 900)
     expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
-    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
+    assert answer_all.locator(":scope > lf-item-banner-face").count() == 1
     order = page.evaluate(
         """() => [...document.querySelector('.lf-banner-menu').children,
                     ...document.querySelector('.lf-banner-actions').children]
@@ -584,7 +586,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     The banner flipped to the offline colour and rewrote its line while the live region
     went on holding whatever it last said, so a user who is not watching the top of the
     window learned nothing. A kind changing — work starting, a turn ending, the server
-    going — is what is worth interrupting for, and what it says is the banner's own
+    going, then refusing this tab's key — is what is worth interrupting for, and what it says is the banner's own
     sentence rather than a second account of it. The age moving and a count turning over
     are not kinds and stay out of the region."""
     url = serve(SUGGESTION_PAGE)
@@ -637,8 +639,16 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
             f"the banner's offline line has moved: {offline!r}"
         )
         expect(live).to_have_text(offline)
+        # The server coming back to refuse this tab's key asks something new of the
+        # user, so it is heard though the dot stays offline.
+        page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
+        expect(live).to_contain_text("no longer accepts this tab's key")
+        # The refused reads recur on the page's clock until it closes.
+        page.close()
+        consume_browser_errors(page, http_error_console(401))
     finally:
-        page.unroute("**/api/**")
+        if not page.is_closed():
+            page.unroute("**/api/**")
 
 
 def test_the_neighbour_reading_detects_a_whole_row_moving_on_press(browser):
@@ -1026,7 +1036,7 @@ def test_the_band_stays_over_the_covering_leaves_drawer(browser, serve, other_le
     the Pages drawer, which always covers the page, is no exception: the band states the
     keys the drawer answers and stays over it and its scrim, its More control live. The
     covering drawer used to stand over the band, hiding the hints it painted for the drawer
-    ("open it in a tab", "close pages") under the drawer and the scrim, where the Asks
+    ("open it in a tab", "close pages") under the drawer and the scrim, where the items
     drawer, standing beside the page, left them in view."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)

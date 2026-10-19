@@ -24,7 +24,7 @@ import {
   draftEditingStands,
   draftStore,
   fitsWhole,
-  heldAsk,
+  heldItem,
   heldThreadId,
   markBannerControl,
   pageScopes,
@@ -47,6 +47,7 @@ import {
   walkPosition,
   whereDraft
 } from "./bundle-user-intent.js";
+import "./bundle-errors.js";
 import {
   domValue
 } from "./bundle-widget-upgrade.js";
@@ -216,7 +217,7 @@ export {
   fitsWhole,
   flashDuration,
   growthAfterIsSeen,
-  heldAsk,
+  heldItem,
   heldThreadId,
   landingBand,
   layoutBox,

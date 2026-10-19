@@ -27,7 +27,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     BANNER_ORDER,
     DEFINE_BOXES,
-    MANY_ASKS_PAGE,
+    MANY_ITEMS_PAGE,
     NEIGHBOUR,
     NEIGHBOURHOOD,
     SHOT_SRC,
@@ -562,6 +562,7 @@ RING_EXAMPLES = tuple(
 )
 
 
+# Every page the Tab walk visits, of which the ring cases sample a selection.
 RING_EXAMPLE_FILES = {
     example.stem: example
     for example in (
@@ -682,14 +683,17 @@ def seen_stop(page, seen=...):
     return seen["lost"]
 
 
-def _tab_stops_without_indication(page, stem):
+def _tab_walk(page, stem):
     """Walk the page's whole ordinary Tab order, Threads open, and name every stop
-    that shows nothing of where the keyboard is. The panel is closed again after."""
+    that shows nothing of where the keyboard is, and every ring a stop leaves cut or
+    covered (`ring_faults`). A ring that stays lit across stops, such as a decision's
+    for the control the user reached inside it, is named once. A stop the panel stands
+    over closes it, and the walk goes on without it; a panel still open is closed after."""
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
     page.evaluate(RELEASE_FOCUS)
-    failures = []
+    unindicated, faults, faulted = [], [], set()
     empty = 0
     for _ in range(400):
         page.keyboard.press("Tab")
@@ -703,13 +707,22 @@ def _tab_stops_without_indication(page, stem):
             continue
         empty = 0
         if lost:
-            failures.append(f"{stem}: {lost}")
+            unindicated.append(f"{stem}: {lost}")
+        drawn = [ring for ring in rings_drawn(page) if ring["who"] not in faulted]
+        # The runtime's answer to the scroll Tab made, such as a pinned reply row taking
+        # its place, can trail the landing, so a fault counts once the page is at rest.
+        if ring_faults(drawn, stem):
+            page_at_rest(page)
+            drawn = [ring for ring in rings_drawn(page) if ring["who"] not in faulted]
+        faulted.update(ring["who"] for ring in drawn if ring["cuts"] or ring["covers"])
+        faults += ring_faults(drawn, f"tabbing through {stem}")
     else:
         raise AssertionError(f"Tab order never came round in {stem}")
-    page.get_by_role("button", name="Close threads", exact=True).click()
+    if page.locator(".lf-thread-panel.open").count():
+        page.get_by_role("button", name="Close threads", exact=True).click()
     panel_settled(page, open=False)
     page.evaluate(RELEASE_FOCUS)
-    return failures
+    return unindicated, faults
 
 
 # Every box the layer promises a press on, wherever it stands. Not a list of class names:
@@ -2170,7 +2183,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
 
     # Every secondary contribution stays behind the door in registration order. The
     # identities do not matter to the layout contract; register them through the toolbar's
-    # internal contribution boundary, just as asynchronous Ask and Page Map owners do.
+    # internal contribution boundary, just as asynchronous item and Page Map owners do.
     page.evaluate(
         """async () => {
           const toolbar = await window.__lfCheckApi();
@@ -2866,7 +2879,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
     context = browser.new_context(
         viewport={"width": 390, "height": 800}, has_touch=True
     )
-    page = open_page(browser, serve(MANY_ASKS_PAGE, comments=30), context=context)
+    page = open_page(browser, serve(MANY_ITEMS_PAGE, comments=30), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
     cdp = context.new_cdp_session(page)
 
@@ -2985,7 +2998,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             48,
         ),
         (
-            "asks",
+            "items",
             900,
             ".lf-queue",
             ".lf-queue-panel",
@@ -3625,13 +3638,13 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     A surface beside the page can be replaced directly; a covering surface is modal and
     must close before its banner peers become available again.
     """
-    page = open_page(browser, serve(MANY_ASKS_PAGE))
+    page = open_page(browser, serve(MANY_ITEMS_PAGE))
     resized(page, width, 700)
-    asks = page.locator(".lf-queue-panel")
+    items = page.locator(".lf-queue-panel")
     comments = page.locator(".lf-thread-panel")
     controls = {
         "leaves": page.locator(".lf-others"),
-        "asks": page.locator(".lf-queue"),
+        "items": page.locator(".lf-queue"),
         "threads": page.locator(".lf-threads-toggle"),
     }
 
@@ -3665,14 +3678,14 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
             assert face(control) == (active if peer == name else resting[peer])
 
     banner_control(page, ".lf-queue").click()
-    expect(asks).to_have_class(re.compile(r"\bopen\b"))
-    expect_open("asks")
+    expect(items).to_have_class(re.compile(r"\bopen\b"))
+    expect_open("items")
     if bool(page.locator("dialog:modal").count()):
         page.keyboard.press("Escape")
-        expect(asks).not_to_have_class(re.compile(r"\bopen\b"))
+        expect(items).not_to_have_class(re.compile(r"\bopen\b"))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(asks).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(items).not_to_have_class(re.compile(r"\bopen\b"))
     expect_open("threads")
 
     if bool(page.locator("dialog:modal").count()):
@@ -3687,9 +3700,9 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     banner_control(page, ".lf-queue").click()
     panel_settled(page, open=False)
-    expect(asks).to_have_class(re.compile(r"\bopen\b"))
+    expect(items).to_have_class(re.compile(r"\bopen\b"))
     expect(comments).not_to_have_class(re.compile(r"\bopen\b"))
-    expect_open("asks")
+    expect_open("items")
 
 
 @pytest.mark.watch_shifts
@@ -3934,10 +3947,10 @@ def test_covering_threads_keeps_the_user_inside(browser, serve):
 
 def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, serve):
     """The On panel gets the covering auxiliary surface contract rather than a drawer-specific
-    focus trap. Its exact Ask and reading place survive both responsive crossings, its
+    focus trap. Its exact item and reading place survive both responsive crossings, its
     reading keys move its own list, and closing returns to its door without moving the
     document behind it."""
-    page = open_page(browser, serve(MANY_ASKS_PAGE))
+    page = open_page(browser, serve(MANY_ITEMS_PAGE))
     resized(page, 500, 640)
     page.evaluate("() => document.scrollingElement.scrollTop = 180")
     document_at = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -3954,7 +3967,7 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
     identity = row.get_attribute("data-lf-at")
     list_box = drawer.locator(".lf-drawer-list")
     list_at = list_box.evaluate("el => el.scrollTop")
-    assert identity and list_at > 0, "the fixture established no Ask reading place"
+    assert identity and list_at > 0, "the fixture established no item reading place"
 
     for _ in range(rows.count() + 3):
         page.keyboard.press("Tab")
@@ -4005,7 +4018,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     ready to reopen the same drawer: the On me door on the banner's row, and More for
     Leaves, folded behind it.
     """
-    page = open_page(browser, serve(MANY_ASKS_PAGE))
+    page = open_page(browser, serve(MANY_ITEMS_PAGE))
     resized(page, 500, 640)
     expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     assert page.locator(".lf-others").evaluate(
@@ -4039,7 +4052,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
 def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     """Auxiliary placement does not retire a live return; closing its surface does. The
     On panel is the surface that crosses between covering and beside."""
-    page = open_page(browser, serve(MANY_ASKS_PAGE))
+    page = open_page(browser, serve(MANY_ITEMS_PAGE))
     resized(page, 500, 640)
     origin = page.locator("main .lf-pick").first
     origin.focus()
@@ -4069,6 +4082,47 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body"), (
         "closing the auxiliary surface left its keyboard return frame live"
     )
+
+
+def test_a_tab_onto_a_stop_under_threads_beside_the_page_closes_it(browser, serve):
+    """Threads stands over the page's right side and leaves the rest live. Tab is a trip
+    the keyboard makes, so a stop the panel stands over closes it, as travel does, and
+    the user sees the ring they followed. A Tab onto a stop beside the panel, or among
+    the panel's own controls, keeps it open."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "beside threads",
+                '<p><a href="#near" id="near">Beside the panel</a></p>'
+                '<p style="text-align: right"><a href="#far" id="far">Under it</a></p>',
+            )
+        ),
+    )
+    resized(page, 1200, 900)
+    panel = page.locator(".lf-thread-panel")
+    opened = re.compile(r"\bopen\b")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    assert page.evaluate(
+        """() => {
+          const [far, near] = ['#far', '#near'].map(
+            sel => document.querySelector(sel).getBoundingClientRect());
+          const over = document.querySelector('.lf-thread-panel').getBoundingClientRect();
+          return far.left >= over.left && near.right < over.left;
+        }"""
+    ), "the fixture no longer stands one link beside the panel and one under it"
+
+    panel.get_by_role("searchbox", name="Find in threads").focus()
+    page.keyboard.press("Tab")
+    expect(panel).to_have_class(opened)
+
+    page.locator("#near").focus()
+    expect(panel).to_have_class(opened)
+    page.keyboard.press("Tab")
+    expect(page.locator("#far")).to_be_focused()
+    expect(panel).not_to_have_class(opened)
+    expect(page.locator("#far")).to_be_in_viewport()
 
 
 def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
@@ -4121,7 +4175,7 @@ def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, ser
 
     Beside a live page the bar ends at the panel's edge, so only the covering
     posture exercises the clearance shared with the Pages drawer."""
-    page = open_page(browser, serve(MANY_ASKS_PAGE))
+    page = open_page(browser, serve(MANY_ITEMS_PAGE))
     resized(page, 480, 420)
     banner_control(page, ".lf-queue").click()
     rows = page.locator("button.lf-queue-row")
@@ -4423,8 +4477,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
 ):
     """Where the keyboard stands in each surface a key opens, the user sees its ring
     whole: not cut by a box that clips it, and not under a neighbour. And every stop
-    in each selected page's ordinary Tab order shows keyboard focus at all, read by
-    walking it once on arrival.
+    in every example's ordinary Tab order, the feature gallery's included, shows
+    keyboard focus with its rings whole, read by walking it once on arrival.
 
     `RING_CASES` walks the layer's surfaces by their real keys and stands on a sample in
     each; every ring drawn there is measured, not only the sample's. Which rings get a
@@ -4461,8 +4515,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         "the ring cases name examples that no longer exist: "
         + ", ".join(sorted(missing))
     )
-    for name in RING_EXAMPLES:
-        example = RING_EXAMPLE_FILES[name]
+    for name, example in RING_EXAMPLE_FILES.items():
         # Serving the path lays in the example's shipped log and message widgets.
         # The chrome's page also carries a passage's thread, which the Page Map lists.
         anchored = [("triage-lede", "Migration 0041")] if name == RING_CHROME else ()
@@ -4478,7 +4531,12 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
-        unindicated += _tab_stops_without_indication(page, example.stem)
+        walked_unindicated, walked_faults = _tab_walk(page, example.stem)
+        unindicated += walked_unindicated
+        faults += walked_faults
+        if name not in RING_EXAMPLES:
+            page.close()
+            continue
         if name == "wt-merge":
             # The shipped steps now contain buttons, so the scrollable body needs no
             # stop of its own. Make this ring specimen prose-only; it still overflows
@@ -4671,6 +4729,12 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 assert found == expected, (
                     f"{selector or scope} {where} did not exhibit "
                     + ", ".join(sorted(expected - found))
+                    + "; the rings drawn: "
+                    + "; ".join(
+                        f"{ring['who']} (rule {ring['rule']!r}, here {ring['here']}, "
+                        f"sample {ring['sample']})"
+                        for ring in drawn
+                    )
                 )
             if posture:
                 for _ in range(3):

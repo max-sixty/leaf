@@ -414,7 +414,7 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     )
 
 
-ASK_MARKERS_PAGE = leaf_page(
+ITEM_MARKERS_PAGE = leaf_page(
     "Question markers",
     """
 <h1 id="h">Two open questions</h1>
@@ -434,11 +434,11 @@ or roll every tenant into a single partitioned archive?</h2>
 )
 
 
-def test_an_ask_marker_s_label_and_name_identify_its_question(browser, serve):
-    """Hovering an Ask's marker shows the Ask's question, where it used to show only
+def test_an_item_marker_s_label_and_name_identify_its_question(browser, serve):
+    """Hovering an item's marker shows the item's question, where it used to show only
     "Ask…", which the marker's glyph already says. Its accessible name identifies
     the question too, independently of how the visible label fits."""
-    page = open_page(browser, serve(ASK_MARKERS_PAGE))
+    page = open_page(browser, serve(ITEM_MARKERS_PAGE))
     resized(page, 1440, 900)
     read = """(marker) => {
         const word = marker.querySelector('.lf-margin-entry-label-word');
@@ -446,14 +446,14 @@ def test_an_ask_marker_s_label_and_name_identify_its_question(browser, serve):
                 cut: word.scrollWidth > word.clientWidth};
     }"""
     seen = {}
-    for ask in ("short-ask", "long-ask"):
+    for item in ("short-ask", "long-ask"):
         marker = page.locator(
-            f'[data-lf-margin-for="{ask}"] .lf-margin-marker[data-lf-kinds~="ask"]'
+            f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
         )
         marker.scroll_into_view_if_needed()
         marker.hover()
         expect(marker.locator(".lf-margin-entry-label")).to_be_visible()
-        seen[ask] = marker.evaluate(read)
+        seen[item] = marker.evaluate(read)
     question = page.locator("#long-ask h2").evaluate(
         "h => h.textContent.replace(/\\s+/g, ' ').trim()"
     )
@@ -462,6 +462,24 @@ def test_an_ask_marker_s_label_and_name_identify_its_question(browser, serve):
     assert seen["long-ask"]["text"] == question, seen
     # The accessible route includes the question's distinguishing alternative.
     assert "roll every tenant" in seen["long-ask"]["name"], seen
+
+
+def test_the_item_the_user_stands_in_selects_its_marker(browser, serve):
+    """Arriving at an item with `m` paints its On me marker selected, and only its
+    marker."""
+    page = open_page(browser, serve(ITEM_MARKERS_PAGE))
+    resized(page, 1440, 900)
+
+    def marker(item):
+        return page.locator(
+            f'[data-lf-margin-for="{item}"] .lf-margin-marker[data-lf-kinds~="on-me"]'
+        )
+
+    page.keyboard.press("m")
+    expect(marker("short-ask")).to_have_attribute("data-lf-target-selected", "")
+    expect(marker("long-ask")).not_to_have_attribute(
+        "data-lf-target-selected", re.compile(".*")
+    )
 
 
 @pytest.mark.parametrize("width", [1440, 390])

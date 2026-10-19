@@ -2,13 +2,14 @@
 
    News arriving without the user's send gesture may show a notice but does
    not move focus or scroll the panel. `notice` is the one visible surface for a
-   moment's news — a recorded gesture, an arrived version, a refused send — and it
+   moment's news, such as a recorded gesture or an arrived version, and it
    stands in one seat at a time: the bottom status line, in place of the current walk
    position, which returns when the notice fades, or on a phone the banner's status
    words, which return the same way (chrome.css, `--lf-notice-seat`). The live region
    hears the same words. It is text rather than a control: what a notice names, the
    banner's own buttons reach. There is no second surface for news, so nothing floats in
-   a corner to become a stale pointer target. */
+   a corner to become a stale pointer target. A failure is no news: it goes through
+   errors.js, which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";
 import { afterScript } from "./rendering.js";
 
@@ -25,12 +26,10 @@ let showingBackground = null;
 const waitingBackground = [];
 let userContext = false;
 let userHoldTimer = 0;
-// What the seat says, whether it shows, and whether it tells the user what became of the
-// words they are writing (`draft`): a send the server refused, whose words came back to
-// their box, an image the box could not attach, words moved to another box. That is the
-// one notice the floating panel says while the user writes (floating-panel.js, `passing`).
-/** @type {Readonly<{message: string, visible: boolean, draft: boolean}>} */
-let noticePresentation = Object.freeze({ message: "", visible: false, draft: false });
+// What the seat says and whether it shows. Errors are no notices: they go through
+// errors.js, which keeps them until they are dealt with.
+/** @type {Readonly<{message: string, visible: boolean}>} */
+let noticePresentation = Object.freeze({ message: "", visible: false });
 const noticePresenters = new Set();
 
 export const noticeReading = () => noticePresentation;
@@ -51,8 +50,8 @@ export function registerNoticePresentation(invalidate) {
 const presentAll = () => {
   for (const invalidate of noticePresenters) invalidate();
 };
-const presentNotice = (message, visible, draft = false) => {
-  noticePresentation = Object.freeze({ message, visible, draft });
+const presentNotice = (message, visible) => {
+  noticePresentation = Object.freeze({ message, visible });
   if (visible) presentAll();
   else afterScript(presentAll);
 };
@@ -68,11 +67,11 @@ export function announce(msg) {
 }
 
 // The acknowledgement of a gesture ("Moved to Done — sent"), an arrival ("Updated
-// to v3"), a refusal ("Couldn't send — the page is offline"): the quiet status at the page
+// to v3"): the quiet status at the page
 // foot. A sentence that is also a button for four seconds is a target
 // the user cannot learn.
-function showNotice(msg, background = null, draft = false) {
-  presentNotice(msg, true, draft);
+function showNotice(msg, background = null) {
+  presentNotice(msg, true);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {
@@ -127,7 +126,7 @@ function queueBackground(entry, front = false) {
 // A held status line coalesces each producer's news; the live region announces it now.
 export function notice(
   msg,
-  { background = false, announce: speak = true, group = null, draft = false } = {},
+  { background = false, announce: speak = true, group = null } = {},
 ) {
   // The live region is not the contended surface. Announce at arrival even when the
   // visual line has to wait, and never announce again when a waiting notice is shown.
@@ -138,7 +137,7 @@ export function notice(
     return showBackground(entry);
   }
   if (showingBackground) queueBackground(showingBackground, true);
-  showNotice(msg, null, draft);
+  showNotice(msg);
 }
 
 // Take the notice down for something the user asked for, putting a background notice

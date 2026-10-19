@@ -403,6 +403,7 @@
         : target.importNode(sourceShells.get(source) ?? source, false);
     origins.set(copy, origins.get(source) ?? node);
     copy.removeAttribute?.("data-lf-opening");
+    copy.removeAttribute?.("data-lf-sole-content");
     const held = source.localName === "template" ? source.content : source;
     const into = copy.localName === "template" ? copy.content : copy;
     if (source.localName === "template") origins.set(into, origins.get(held) ?? held);
@@ -673,7 +674,7 @@
   // so a page whose Layout's box requests no column shell (`seat`) holds none, and a breakout
   // inside another takes its holder's width and is not read. In a column, a breakout
   // grows only from a holder whose content box is the column's own: the column, a section,
-  // an Ask standing in it. Every other one wears `data-lf-kept` and keeps to the box it
+  // an item standing in it. Every other one wears `data-lf-kept` and keeps to the box it
   // is laid out in, since the room beside that box is not the page's to give, and the
   // holder's axis is not the prose's:
   //
@@ -987,13 +988,34 @@
   // parser's tasks and never inside one, and a member parsed later may be the one that
   // opens. Parsing is over before any module runs, so nothing here races an upgrade.
   const OPENING = "data-lf-opening";
+  // The opening view's only content block gets a marker so its first-paint height
+  // rule need not put a structural selector over every element in the document.
+  const SOLE_CONTENT = "data-lf-sole-content";
+  const soleContents = new WeakMap();
+  const soleContent = (member) => {
+    let sole = null;
+    for (const child of member.children) {
+      if (child.matches("script, style, template")) continue;
+      if (sole) return null;
+      sole = child;
+    }
+    return sole;
+  };
   const mark = () => {
     for (const holder of document.querySelectorAll("[data-lf-views]")) {
       const members = [...holder.children];
       const open = choose(holder, members);
-      for (const member of members)
+      for (const member of members) {
         if (member.hasAttribute(OPENING) !== (member === open))
           member.toggleAttribute(OPENING, member === open);
+        const sole = member === open ? soleContent(member) : null;
+        const previous = soleContents.get(member);
+        if (previous !== sole) {
+          previous?.removeAttribute(SOLE_CONTENT);
+          sole?.setAttribute(SOLE_CONTENT, "");
+          soleContents.set(member, sole);
+        }
+      }
     }
   };
   const initialLayout = () => {
@@ -1018,6 +1040,8 @@
     opening(holder, members) {
       for (const member of holder.querySelectorAll(`:scope > [${OPENING}]`))
         member.removeAttribute(OPENING);
+      for (const member of members)
+        soleContents.get(member)?.removeAttribute(SOLE_CONTENT);
       return choose(holder, members);
     },
     keep(holder, member) {

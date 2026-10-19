@@ -1695,7 +1695,7 @@ function commentPlacement() {
     get side() {
       return side;
     },
-    // Mechanical handoff between the editor's transparent frame and its sent card.
+    // Mechanical handoff between the editor's frame and its sent card.
     capture() {
       return { side, boundary: input?.slice(1, 5) ?? null, moved };
     },

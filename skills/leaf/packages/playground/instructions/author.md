@@ -2,8 +2,8 @@ Give each design decision one place where the user selects. When the candidates 
 fixed and visible, put them in `lf-options` inside an `lf-ask`, and draw each candidate
 in its `lf-option`, so the user selects the example they want. When the decision changes
 an existing interface, put a figure of today's interface between the question and the
-options (`references/authoring-asks.md`). A page-local control that steps every
-candidate through the same states or cases goes in that ask too.
+options (`references/authoring-decisions.md`). A page-local control that steps every
+candidate through the same states or cases goes in that lf-ask too.
 
 Use `lf-playground` when the user needs to tune a configuration before choosing it. A
 playground holds exactly one `lf-playground-preview` and one `lf-playground-output`.
@@ -21,12 +21,16 @@ settings every item shares in the rail. A control in the preview still belongs t
 playground. Its value is submitted, and presets and Reset set it. With every control
 in the preview, presets precede the full-width preview and the instruction follows it.
 
-When the preview needs width, such as for two candidates side by side, give the
-`lf-playground` `data-width="available"`. The playground then widens past the column
-while the question and premise in its `lf-ask` keep the prose width. On a workspace page
-(`<main class="layout-workspace density-working">`) whose body is that `lf-ask`, the
-playground fills the window. Draw the candidates directly in the preview, without a card
-around each.
+Give the `lf-playground` `data-width="available"` wherever it stands, so it takes the
+room it is given while the question and premise in its `lf-ask` keep the prose width.
+Where the playground is the page's subject, make the page a workspace (`<main
+class="layout-workspace density-working">`) whose body is that `lf-ask`. When the page
+also carries reading that supports the playground, the `lf-ask` is instead the only
+block of the first page tab, and the reading goes in later tabs
+(`references/page-authoring.md`, "Composing a page"). Either way the playground fills
+the window. Where the playground is one exhibit in a document, it breaks out of the
+document's column. Draw the candidates directly in the preview, without a card around
+each.
 
 An A/B comparison mounts both candidates in the preview with the same configuration and
 starting content. When candidates stand side by side, align their names, notes and

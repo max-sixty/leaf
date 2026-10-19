@@ -39,7 +39,7 @@ from interact_support import (
     registry_refusal,
     shipped_payload,
     vendored_at_another_protocol,
-    vendored_before_the_ask_rename,
+    vendored_before_a_key_rename,
     wait_for,
     words,
 )
@@ -373,8 +373,8 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshape):
 
 
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):
-    """A layer vendored before an x- key was renamed (`x-question-context`, now
-    `x-ask-context`) declares nothing under the new name, so this Leaf would quietly
+    """A layer vendored before an x- key was renamed (`x-noun`, say, now `x-word`)
+    declares nothing under the new name, so this Leaf would quietly
     drop what the key said. The layer still reads, but the one reading every server
     and writer refuses on (`layer.incompatible_layer`) names the re-vendor, and so
     does `page check` from a session that may not make it, as one that does not
@@ -392,12 +392,10 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
         path.unlink()
         path.write_text(json.dumps(registry))
 
-    vendored(
-        lambda keys: keys.update({"x-question-context": keys.pop("x-ask-context")})
-    )
+    vendored(lambda keys: keys.update({"x-noun": keys.pop("x-word")}))
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
-    assert write_refusal(page_dir).values["retired"] == ["x-question-context"]
+    assert write_refusal(page_dir).values["retired"] == ["x-noun"]
     checked = CliRunner().invoke(
         cli_model.cli, ["page", "check", str(page_dir)], env=other
     )
@@ -406,9 +404,9 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
     assert finding["code"] == "retired-layer"
-    assert "x-question-context" in finding["text"] and revendor in finding["text"]
+    assert "x-noun" in finding["text"] and revendor in finding["text"]
 
-    vendored(lambda keys: keys.pop("x-question-context"))
+    vendored(lambda keys: keys.pop("x-noun"))
     assert write_refusal(page_dir) is None
 
 
@@ -416,7 +414,7 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
     ("vendored", "named"),
     [
         (vendored_at_another_protocol, "page protocol"),
-        (vendored_before_the_ask_rename, "x-question-context"),
+        (vendored_before_a_key_rename, "x-noun"),
     ],
 )
 def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, named):
@@ -459,9 +457,9 @@ def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed
     revision is published as well as before: here the layer and the revision it
     captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
     Leaf left them."""
-    replied = _replying_after(claimed, server, vendored_before_the_ask_rename)
+    replied = _replying_after(claimed, server, vendored_before_a_key_rename)
     assert replied.returncode != 0, replied.stdout
-    assert "x-question-context" in replied.stderr
+    assert "x-noun" in replied.stderr
     assert f"leaf page init {claimed}" in replied.stderr
     # The re-vendor it names repairs the page: init runs on it, and the reply goes.
     for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
@@ -1052,7 +1050,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-asks.md",
+        "skills/leaf/references/authoring-decisions.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1692,6 +1690,77 @@ def test_layout_style_and_widgets_never_read_each_other():
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 
+def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
+    """A box marked by a thick edge on one side is not also rounded (assets/AGENTS.md,
+    "Visual grammar"): a stripe bent around a corner reads as decoration rather than a
+    contour, and marks a state another face already shows. A state is one whole contour,
+    or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
+    `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
+    stripe is a side's border of 2px or more or an inset shadow offset
+    along one axis only. The reading is per rule, so a radius another rule gives the
+    same box passes it."""
+    sides = re.compile(
+        r"border-(?:left|right|top|bottom|inline-start|inline-end|block-start|"
+        r"block-end)(?:-width)?"
+    )
+    inset = re.compile(r"(?:^|,)\s*inset\s+(-?[\d.]+)(?:px)?\s+(-?[\d.]+)(?:px)?\s+0")
+
+    def thick(value):
+        return any(float(px) >= 2 for px in re.findall(r"([\d.]+)px", value))
+
+    def edged(declarations):
+        return any(
+            sides.fullmatch(name)
+            and thick(value)
+            or name == "box-shadow"
+            and any(
+                (abs(float(x)) >= 2) != (abs(float(y)) >= 2)
+                for x, y in inset.findall(value)
+            )
+            for name, value in declarations
+        )
+
+    def rounded(declarations):
+        return any(
+            re.fullmatch(r"border(?:-[a-z-]+)?-radius", name)
+            and not re.fullmatch(r"(0(px)?\s*)+", value)
+            for name, value in declarations
+        )
+
+    sheets = [
+        (sheet.relative_to(ROOT), sheet)
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for sheet in sorted(root.rglob("*.css"))
+        if "vendor" not in sheet.parts
+        and not sheet.read_text().startswith("/* @noformat Generated from ")
+    ]
+    for root in (ROOT / "examples", ROOT / "docs"):
+        sheets += [
+            (sheet.relative_to(ROOT), sheet)
+            for sheet in sorted(root.rglob("*.css"))
+            if not sheet.parent.name.startswith("corpus")
+        ]
+    for page in sorted(
+        [*(ROOT / "examples").rglob("*.html"), *(ROOT / "docs").glob("*.html")]
+    ):
+        if page.name.startswith("corpus"):
+            continue
+        styles = re.findall(r"<style[^>]*>(.*?)</style>", page.read_text(), re.DOTALL)
+        if styles:
+            sheet = tmp_path / page.relative_to(ROOT).with_suffix(".css")
+            sheet.parent.mkdir(parents=True, exist_ok=True)
+            sheet.write_text("\n".join(styles))
+            sheets.append((page.relative_to(ROOT), sheet))
+    assert len(sheets) > 20, sheets
+    found = [
+        f"{where}: {selector}"
+        for where, sheet in sheets
+        for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
+        if edged(declarations) and rounded(declarations)
+    ]
+    assert not found, "a rounded box edged on one side:\n" + "\n".join(found)
+
+
 def test_every_token_a_sheet_reads_is_set_somewhere():
     """A `var(--name)` with no fallback reads a property something sets: a sheet's
     declaration or `@property`, or a module or delivery writing it by name. One nothing
@@ -1837,7 +1906,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
         read_property + ":",
         "var(" + read[str(edges)]["constants"]["THREAD_PANEL_PROP"] + ")",
         "var(" + read[str(edges)]["constants"]["DRAWER_SLOT_PROP"] + ")",
-        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.ask"] + "]",
+        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.item"] + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (

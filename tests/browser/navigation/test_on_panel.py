@@ -38,7 +38,7 @@ QUEUE_PAGE = leaf_page(
 
 def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, serve):
     """`m` stops, in page order, at a thread whose question waits on the user as well
-    as at an open Ask, and passes a thread waiting on the agent; `t` still walks both
+    as at an open item, and passes a thread waiting on the agent; `t` still walks both
     threads. The banner counts what waits on each side, the user's On me on their
     door beside Threads and the agent's On count beside the status. A reply the user sends
     joins the agent's count as it is sent, and its thread leaves the user's count and
@@ -89,7 +89,7 @@ def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
 
     counts(2, 1)
     expect(page.locator(".lf-status-button")).to_have_attribute(
-        "title", re.compile(r" Waiting on me: 2 asks\. .*: 1 reply\.$")
+        "title", re.compile(r" Waiting on me: 2 items\. .*: 1 reply\.$")
     )
 
     position = page.locator(".lf-walk-position")
@@ -379,12 +379,12 @@ def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
     expect(button).to_be_hidden()
 
 
-def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
-    """An `lf-tally` counts the asks its region holds, by the rule a queue row's mark
+def test_a_tally_counts_its_regions_items_and_walks_them(browser, serve):
+    """An `lf-tally` counts the items its region holds, by the rule a queue row's mark
     reads, and leaves out one outside it. Its Next on me is `m` within the region: a
     press keeps the user standing where they are and steps on, coming round at the end,
     and the walk announces its place among the region's asks. Reached by Shift+Tab from
-    an ask, through the queue's own rows, Enter counts from that ask, so the keyboard
+    an item, through the queue's own rows, Enter counts from that item, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
     tally says so and Next on me is disabled."""
 
@@ -420,7 +420,7 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
     expect(words).to_have_text("2 of 2 to answer")
     box = page.locator("#left").bounding_box()
 
-    # The row opens the item the user reads. Enter its ask before deciding: the
+    # The row opens the item the user reads. Enter its item before deciding: the
     # strip itself precedes every panel in DOM order, but is not the walk's origin.
     page.get_by_role("tab", name="Second", exact=True).click()
     page.keyboard.press("Shift+m")
@@ -486,7 +486,7 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
 def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, serve):
     """A task the agent put on the user ends at their Done. Where `m` lands on it, `x`
     is Done; its On panel row carries a Done button. Either leaves the user's queue
-    in the turn it is pressed, and writes the user's `todo_end`; the Ask beside them
+    in the turn it is pressed, and writes the user's `todo_end`; the item beside them
     has no Done, since its widget answers it."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
@@ -769,9 +769,9 @@ def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, se
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_a_completed_ask_stays_reachable_through_the_on_panel(browser, serve, width):
-    """An answered Ask stays in the On panel under Done, which closes and reopens through
-    its routes."""
+def test_a_completed_item_stays_reachable_through_the_on_panel(browser, serve, width):
+    """An answered item stays in the On panel under Done, which closes and reopens
+    through its routes."""
     page = open_page(
         browser,
         serve(
@@ -802,7 +802,7 @@ def test_a_completed_ask_stays_reachable_through_the_on_panel(browser, serve, wi
         )
         page.keyboard.press("g")
         page.keyboard.press("Shift+m")
-    expect(page.locator("button.lf-queue-row[data-lf-kind='ask']")).to_have_count(1)
+    expect(page.locator("button.lf-queue-row[data-lf-kind='widget']")).to_have_count(1)
     expect(page.locator(".lf-queue-done .lf-queue-where")).to_contain_text(
         "Answered: First"
     )
@@ -819,7 +819,7 @@ def test_a_completed_ask_stays_reachable_through_the_on_panel(browser, serve, wi
     expect(page.locator(".lf-queue-done > summary")).to_be_focused()
 
 
-def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
+def test_a_completed_item_keeps_its_answer_in_the_on_panel(browser, serve):
     """Finishing a page preserves the On panel's route back through the answer."""
     page = open_page(
         browser,
@@ -836,7 +836,7 @@ def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(page.locator("button.lf-queue-row")).to_have_count(1)
-    # Enter travels to the ask and Tab steps onto a mark, whose digit answers it. Tab
+    # Enter travels to the item and Tab steps onto a mark, whose digit answers it. Tab
     # rather than the digit straight off the arrival, because where an arrival lands is
     # not this test's subject and it should not go red when that moves.
     page.keyboard.press("Enter")
@@ -847,8 +847,8 @@ def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
     holding(page, held, 1, "the option answer")
     pending = page.evaluate(
         """async () => {
-          const {readAsks} = await window.__lfWidgetApi();
-          const reading = readAsks();
+          const {readItems} = await window.__lfWidgetApi();
+          const reading = readItems();
           const ask = reading.all.find(q => q.id === 'widget:only');
           return {
             value: ask.answer.value,
@@ -862,7 +862,7 @@ def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
     for route in held:
         route.continue_()
     round_trip(page)
-    expect(page.locator("button.lf-queue-row[data-lf-kind='ask']")).to_have_count(1)
+    expect(page.locator("button.lf-queue-row[data-lf-kind='widget']")).to_have_count(1)
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-queue-done .lf-queue-where")).to_contain_text(
         "Answered: First"
@@ -870,8 +870,8 @@ def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
 
     reading = page.evaluate(
         """async () => {
-          const {readAsks} = await window.__lfWidgetApi();
-          const ask = readAsks().all.find(q => q.id === 'widget:only');
+          const {readItems} = await window.__lfWidgetApi();
+          const ask = readItems().all.find(q => q.id === 'widget:only');
           return {
             id: ask.id,
             source: ask.source,
@@ -891,14 +891,14 @@ def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
     page.locator("h1").focus()
     assert page.evaluate(
         """async () => {
-          const {askActions} = await window.__lfWidgetApi();
-          return askActions.open('widget:only');
+          const {itemActions} = await window.__lfWidgetApi();
+          return itemActions.open('widget:only');
         }"""
     )
     expect(page.locator("#only-decision")).to_be_focused()
 
 
-def test_on_me_says_when_a_revision_removes_its_last_ask(browser, serve):
+def test_on_me_says_when_a_revision_removes_its_last_item(browser, serve):
     """An empty On me list says the panel rendered, rather than looking broken."""
     source = leaf_page(
         "One decision",

@@ -1067,8 +1067,8 @@
       max-inline-size: none;
     }
   }
-  :is(:scope, :scope *)[data-lf-ask]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
-    --lf-ask-ring: none;
+  :is(:scope, :scope *)[data-lf-item]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
+    --lf-item-ring: none;
   }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus]) {
     outline: var(--focus-ring);
@@ -1613,6 +1613,22 @@
   :scope:is(lf-tabs).lf-rendered > lf-tab[data-lf-focus] {
     outline-offset: calc(-1 * var(--focus-ring-w));
   }
+  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]) {
+    position: relative;
+    z-index: 0;
+  }
+  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab[data-lf-focus] {
+    outline: none;
+  }
+  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab[data-lf-focus]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    outline: var(--focus-ring);
+    outline-offset: calc(-1 * var(--focus-ring-w));
+  }
   :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] {
     margin: 0;
   }
@@ -1675,12 +1691,12 @@
     flex: none;
     color: var(--ok-ink);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-asks=open]::before {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-items=open]::before {
     content: "○" / "";
     font-weight: 400;
     color: var(--muted);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-asks]) {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-items]) {
     visibility: hidden;
   }
   :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
@@ -1914,6 +1930,34 @@
     overflow: clip;
     pointer-events: none;
   }
+  @container style(--lf-full-height: 1) {
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 0;
+      margin-block: 0;
+      margin-inline: calc(-1 * var(--focus-ring-room));
+      padding: 0 var(--focus-ring-room) var(--focus-ring-room);
+      --lf-full-height: inherit;
+    }
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > .lf-tabstrip {
+      flex: none;
+    }
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]) {
+      flex: 1 0 auto;
+    }
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]):has(> :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+      flex: 1 1 0;
+      min-block-size: 0;
+      display: flex;
+      flex-direction: column;
+      --lf-full-height: inherit;
+    }
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]) > :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)) {
+      flex: 1 1 0;
+      margin-block: 0;
+    }
+  }
   @scope (html[data-lf-interactive] :scope) {
     :where(:scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab)) {
       margin: var(--sp-4) 0 32px;
@@ -1961,6 +2005,32 @@
       & > lf-tab {
         padding: var(--sp-4) 0 0;
         --lf-block-frame: trim;
+      }
+    }
+    @container style(--lf-full-height: 1) {
+      :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab) {
+        display: flex;
+        flex-direction: column;
+        min-block-size: 0;
+        margin-block: 0;
+        --lf-full-height: inherit;
+        &::before {
+          flex: none;
+        }
+        & > lf-tab[data-lf-opening] {
+          flex: 1 0 auto;
+        }
+        & > lf-tab[data-lf-opening]:has(> :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+          flex: 1 1 0;
+          min-block-size: 0;
+          display: flex;
+          flex-direction: column;
+          --lf-full-height: inherit;
+        }
+        & > lf-tab[data-lf-opening] > [data-lf-sole-content] {
+          flex: 1 1 0;
+          margin-block: 0;
+        }
       }
     }
   }
@@ -2053,6 +2123,7 @@
   font-size: var(--t-6);
   padding-block: 0;
   min-height: var(--aim-floor);
+  margin-inline-end: var(--focus-ring-room);
 }
 
 /* skills/leaf/packages/default/styles/toc.css */
@@ -2431,6 +2502,20 @@
   padding: 0;
   font: var(--t-5)/var(--lf-ui-lh) var(--sans);
 }
+@media screen {
+  :scope:is(lf-activity)[data-lf-bound] {
+    max-block-size: none;
+    overflow: visible;
+    --lf-top: inherit;
+  }
+  :scope:is(lf-activity)[data-lf-bound] > .lf-activity-list {
+    max-block-size: var(--lf-bound, 28rem);
+    overflow: auto;
+    --lf-bound-box: 1;
+    --lf-holds-height: 1;
+    --lf-top: 0px;
+  }
+}
 :scope:is(lf-activity) .lf-activity-row {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
@@ -2564,13 +2649,12 @@
     display: flex;
     flex-direction: column;
   }
-  :scope:is(lf-ask):has(> :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+  :scope:is(lf-ask):has(> :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template)))) {
     --lf-full-height: inherit;
   }
-  :scope:is(lf-ask) > :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)) {
+  :scope:is(lf-ask) > :nth-last-child(1 of :not(script, style, template)):not(:nth-child(1 of :not(script, style, template))) {
     flex: 1 1 0;
-    min-block-size: 0;
-    margin-block-end: 0;
+    margin-block: 0;
   }
 }
 
@@ -2958,7 +3042,23 @@
     --lf-top: 0px;
   }
 }
-:scope:is(lf-text-document) pre[data-lf-focus] {
+:scope:is(lf-text-document) .lf-text-document-listing {
+  position: relative;
+}
+:scope:is(lf-text-document) .lf-text-document-listing > pre {
+  position: relative;
+  z-index: 0;
+}
+:scope:is(lf-text-document) .lf-text-document-listing > pre[data-lf-focus] {
+  outline: none;
+}
+:scope:is(lf-text-document) .lf-text-document-listing:has(> pre[data-lf-focus])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 :scope:is(lf-text-document)[preview] > .lf-text-document-view {

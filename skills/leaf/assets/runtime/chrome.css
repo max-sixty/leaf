@@ -127,6 +127,24 @@
   .lf-fp-leaf .lf-dot {
     --lf-mark-w: 19px;
   }
+  .lf-fp-leaf {
+    position: relative;
+  }
+  .lf-fp-error-dot {
+    position: absolute;
+    top: 3px;
+    inset-inline-end: 3px;
+    display: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--danger);
+    box-shadow: 0 0 0 2px var(--lf-fp-surface);
+    pointer-events: none;
+  }
+  .lf-fp-error-dot[data-shown] {
+    display: block;
+  }
   .lf-fp-field {
     position: relative;
     flex: 1;
@@ -229,6 +247,23 @@
   .lf-floating-panel[data-says=notice] .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
+  }
+  .lf-floating-panel[data-says=error] .lf-fp-field leaf-text::part(placeholder) {
+    color: var(--danger-ink);
+    font-weight: 500;
+  }
+  .lf-fp-error-cover {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    background: var(--lf-fp-surface);
+    color: var(--danger-ink);
+    font: 500 14px / 22px var(--sans);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: text;
   }
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
@@ -354,10 +389,6 @@
     background: var(--lf-fp-notice-tint);
     color: var(--ink);
     font-size: 12px;
-    &[data-tone=danger] {
-      --lf-fp-notice-tint: var(--danger-tint);
-      --lf-fp-notice-ink: var(--danger-ink);
-    }
     &[data-tone=warn] {
       --lf-fp-notice-tint: var(--warn-tint);
       --lf-fp-notice-ink: var(--warn-ink);
@@ -560,8 +591,7 @@
     background: none;
     color: var(--ink);
   }
-  .lf-fp-sep,
-  .lf-fp-where {
+  .lf-fp-sep {
     flex: none;
     color: var(--lf-fp-muted);
   }
@@ -582,10 +612,6 @@
     padding-block: var(--lf-fp-news-reach);
     margin-block: calc(-1 * var(--lf-fp-news-reach));
     font-size: 12px;
-  }
-  .lf-fp-where {
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
   }
   .lf-fp-aux {
     flex: none;
@@ -879,6 +905,30 @@
     color: var(--ink);
     font: 12px / 1.45 var(--mono);
     white-space: pre-wrap;
+  }
+  .lf-fp-error {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: 6px 4px 6px 8px;
+  }
+  .lf-fp-error-words {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+  }
+  .lf-fp-error-words b {
+    display: block;
+    color: var(--danger-ink);
+    font-weight: 500;
+  }
+  .lf-fp-error .lf-fp-note {
+    margin-inline-start: 0;
+    font-size: 12px;
+  }
+  .lf-fp-error .lf-fp-quiet {
+    flex: none;
+    font-size: 12px;
   }
   .lf-fp-note {
     margin-inline-start: 8px;
@@ -1268,10 +1318,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-[data-lf-ask] {
-  outline: var(--lf-ask-ring, var(--focus-ring));
+[data-lf-item] {
+  outline: var(--lf-item-ring, var(--focus-ring));
   outline-offset: var(--focus-ring-gap);
-  scroll-margin-block: var(--focus-ring-room);
+  scroll-margin-block: var(--focus-ring-landing);
 }
 @keyframes lf-runtime-4f3c2a8d-working {
   to {
@@ -1290,7 +1340,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 }
 @scope (.lf-chrome) {
-  lf-ask-banner-face,
+  lf-item-banner-face,
   lf-leaves-banner-face {
     display: contents;
   }
@@ -2034,7 +2084,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     flex: none;
     margin: 4px 6px 0 0;
   }
-  .lf-queue-row:is([data-lf-focus], [data-lf-ask]),
+  .lf-queue-row:is([data-lf-focus], [data-lf-item]),
   .lf-queue-done > summary[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));
@@ -2553,8 +2603,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-threads > .lf-thread-compact:has(> .lf-thread-reply) > .lf-thread-content {
     --lf-bottom: calc(var(--lf-thread-reply-h, 0px) + var(--focus-ring-room));
   }
+  .lf-thread-compact:has(> .lf-thread-reply) > .lf-thread-content {
+    padding-block-end: var(--focus-ring-room);
+  }
   :is(.lf-threads > .lf-thread-compact > .lf-thread-content, .lf-threads > .lf-thread-compact > .lf-thread-content *) {
-    scroll-margin-bottom: calc(var(--lf-bottom) + var(--focus-ring-room));
+    scroll-margin-bottom: calc(var(--lf-bottom) + var(--focus-ring-landing));
   }
   .lf-thread-compact > .lf-thread-reply::after {
     content: "";

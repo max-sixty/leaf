@@ -297,11 +297,11 @@ class ThreadListView extends RetainedFace {
     const row = this.#rows.find(
       (row) => row.kind === "thread" && this.#views.get(row.key).ownsMessage(id),
     );
-    // Narrowing owns hidden rows. Its completed reveal calls back here; opening
-    // one before that would paint no disclosure and invalidate the same transition.
-    if (!row || row.node.hidden) return;
+    if (!row) return;
     this.#select(row.key);
-    this.#showExpanded();
+    // Narrowing owns hidden rows: the reveal that lets this one back in paints it open.
+    // Opening it before then would paint no disclosure and invalidate that transition.
+    if (!row.node.hidden) this.#showExpanded();
   }
 
   incomingTail(reading, card) {

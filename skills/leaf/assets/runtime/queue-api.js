@@ -4,7 +4,7 @@
    immutable lists and correlates workflow context, without folding events or
    keeping another state. Activation resolves a stable kind/id key against the
    current reading; a stale row cannot end a different to-do or revive an old route.
-   An ask is answered through its source; only a to-do on the user offers
+   An item is answered through its source; only a to-do on the user offers
    Done. Navigation is supplied once by the existing queue walk. */
 import { readPart } from "./semantic-state.js";
 import { announce } from "./notifications.js";

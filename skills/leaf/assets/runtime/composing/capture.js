@@ -22,8 +22,8 @@ import {
 import { textUnits } from "../text-alignment.js";
 import { anchorForRange, anchoringIsReady } from "../anchor-resolution.js";
 import { takesLetters, focused } from "../focus.js";
-import { notice } from "../notifications.js";
 import { retainUserIntent } from "../user-intent.js";
+import { raiseError } from "../errors.js";
 
 // Selection and control-context capture use the same durable passage producer.
 export const selectionAnchor = (sel) => anchorForRange(pageRange(sel));
@@ -69,7 +69,7 @@ export function createPassageSelection({ restore }) {
           intent,
         });
         if (!restored && intent())
-          notice("That selected passage is unavailable on this version");
+          raiseError("That selected passage is unavailable on this version");
       },
     },
   };

@@ -1254,8 +1254,8 @@ def test_reading_keys_page_the_bounded_log_the_user_stands_in(browser, serve):
     assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
 
 
-def test_the_ask_walk_lands_an_ask_in_a_bounded_log_at_the_log_top(browser, serve):
-    """An Ask inside a block that bounds its height arrives at the top of that block,
+def test_the_item_walk_lands_an_item_in_a_bounded_log_at_the_log_top(browser, serve):
+    """An item inside a block that bounds its height arrives at the top of that block,
     which is the box scrolling it. The walk measured its run-up against the window and
     moved the page to put it under the banner, sliding a log the user could already
     see."""
@@ -1294,14 +1294,16 @@ def test_the_ask_walk_lands_an_ask_in_a_bounded_log_at_the_log_top(browser, serv
     scroll_settled(page)
     after = page.evaluate("() => document.scrollingElement.scrollTop")
     assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
-    # Leave the Ask's focus ring inside the bounded log's visible edge.
+    # Leave the item's focus ring inside the bounded log's visible edge.
     landed = page.evaluate(
         """() => { const q = document.getElementById('q');
           return q.getBoundingClientRect().top
             - document.getElementById('log').getBoundingClientRect().top
             - parseFloat(getComputedStyle(q).scrollMarginTop); }"""
     )
-    assert landed == pytest.approx(0, abs=2), f"the Ask landed {landed}px down the log"
+    assert landed == pytest.approx(0, abs=2), (
+        f"the lf-ask landed {landed}px down the log"
+    )
 
 
 def test_current_and_proposed_results_share_one_review_and_flow_in_order(

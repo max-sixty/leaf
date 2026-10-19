@@ -85,6 +85,13 @@
    window had kept it as it shrank, which a press holding its foot undid; and a floor
    in the rewrite for that one cause of shrinking.
 
+   The comment box's frame reserves its card's head and reply rows around the editor,
+   and the boundary holds all of it, as it holds the card, so Send moves nothing. The
+   box paints that frame while it is written (annotation-chrome.css), so the edge it
+   rises against is one the user sees. Rejected: letting the reserved row the box grows
+   toward stand past the window's edge (#3139), which kept the words still while typing
+   but moved them at Send by that row.
+
    Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
    frame's side and inline start where the boundary still matches, and returns its
    block offsets for the card to hold. The attachment is then the card's current one:
@@ -419,7 +426,7 @@ export function commentPlacement() {
     get side() {
       return side;
     },
-    // Mechanical handoff between the editor's transparent frame and its sent card.
+    // Mechanical handoff between the editor's frame and its sent card.
     capture() {
       return { side, boundary: input?.slice(1, 5) ?? null, moved };
     },

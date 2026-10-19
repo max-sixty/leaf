@@ -12,7 +12,7 @@ from render_cases_interaction import live_url
 from render_harness import (
     ROOT,
     displayed,
-    expect_asks_answered,
+    expect_items_answered,
     fills_the_window,
     leaf_page,
     open_page,
@@ -329,8 +329,8 @@ SECTIONED_PANE_PAGE = leaf_page(
 )
 
 
-THREE_PART_ASK_PAGE = leaf_page(
-    "a three-part Ask as the workspace",
+THREE_PART_ITEM_PAGE = leaf_page(
+    "a three-part item as the workspace",
     """
   <lf-ask id="workspace-ask">
     <h2>Which release should go out?</h2>
@@ -498,12 +498,13 @@ def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
         page.unroute_all(behavior="wait")
 
 
-def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, serve):
-    """An Ask passes the height on only when it is a heading and one answer, which then
-    takes what is left. With context between the heading and the options there is no one
-    box to give it to, so nothing is drawn over the options and none is squeezed. The
-    control is a heading and a playground, whose answer the workspace holds."""
-    page = open_page(browser, serve(THREE_PART_ASK_PAGE))
+def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
+    """An lf-ask as the workspace's body gives its last part, the answer, what its heading
+    and context leave, and never less than the answer's own height: below a context
+    taller than the window the options keep theirs, nothing is drawn over them, and the
+    body scrolls. A playground below a premise fits itself to what is left, its controls
+    scrolling within the window."""
+    page = open_page(browser, serve(THREE_PART_ITEM_PAGE))
     resized(page, 1280, 720)
     geometry = page.evaluate(
         """() => ({
@@ -517,10 +518,15 @@ def test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height(browser, 
     assert end["clear"], end
     page.close()
 
-    two_part = PLAYGROUND_PAGE.replace("<h1>Card playground</h1>\n", "").replace(
-        '<main class="layout-column">', '<main class="layout-workspace">'
+    with_premise = (
+        PLAYGROUND_PAGE.replace("<h1>Card playground</h1>\n", "")
+        .replace(
+            "<h2>How should the card look?</h2>",
+            "<h2>How should the card look?</h2>\n  <p>The card leads the release page.</p>",
+        )
+        .replace('<main class="layout-column">', '<main class="layout-workspace">')
     )
-    page = open_page(browser, serve(two_part))
+    page = open_page(browser, serve(with_premise))
     resized(page, 1280, 720)
     expect(page.locator("#card-playground-ask")).to_have_css("display", "flex")
     pane_posture(page, page.locator(".lf-playground-controls-region"), "bounded")
@@ -915,10 +921,10 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     """Replaceable log evidence does not become the authority for release state.
 
     The release escape path is a question the operator answers: the page lists it
-    among its Asks, and the pick reaches the agent as an action naming the option."""
+    among its items, and the pick reaches the agent as an action naming the option."""
     example = ROOT / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
     with sending(page, "the rollback pick"):
         page.locator("#lp-rollback-now").click()
     pick = events_model.read_events(serve.page_dir)[-1]
@@ -928,7 +934,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         "choose",
     )
     assert pick["detail"] == {"value": ["lp-rollback-now"]}
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
 
     log = page.locator("#lp-live-log")
     listing = log.locator("pre")

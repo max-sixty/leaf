@@ -278,7 +278,7 @@ const sendReply = (draftCtx, key, text, owns, actions) =>
 // after the draft began. The typed action resolves that target from the current reading.
 // What the row does for a view, its actions, `onChange` and `editLast`, is the binding
 // of whichever view holds it now (`attach`).
-function wireReply(key, row, input, send, wireInput, { hint, accessibleName }) {
+function wireReply(key, row, input, send, wireInput, { hint, accessibleName, busy }) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
@@ -294,6 +294,7 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName }) {
   const sync = wireInput(input, {
     hint,
     accessibleName,
+    busy,
     sends: "send",
     sendBtn: send,
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
@@ -429,8 +430,9 @@ export async function restoreReplyEditing(editing, land) {
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
 // A presentation may say what its empty box reads (`hint`) and is named
-// (`accessibleName`), and where its box stays for the next turn, as the floating
-// panel's field does, land a send itself (`sent`) rather than stand on the thread.
+// (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
+// where its box stays for the next turn, as the floating panel's field does, land a
+// send itself (`sent`) rather than stand on the thread.
 export function createReplyView(
   key,
   commands,
@@ -442,6 +444,7 @@ export function createReplyView(
     redraw = null,
     hint = "Reply",
     accessibleName = "Reply",
+    busy = () => false,
     sent = null,
   } = {},
 ) {
@@ -454,6 +457,7 @@ export function createReplyView(
     return wireReply(key, row, input, send, commands.wireInput, {
       hint,
       accessibleName,
+      busy,
     });
   };
   let composition = fresh();

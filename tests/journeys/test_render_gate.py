@@ -45,6 +45,7 @@ from render_cases_widgets import (
     TYPED_PARTS_PAGE,
 )
 from render_harness import (
+    CORPUS_PAGE,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
@@ -73,15 +74,56 @@ from browser.test_render_gate import (
     FRAMED_TABLES_PAGE,
     RESIZE_PATH,
     _added,
+    adopted_sheet_findings,
     held_scroller_findings,
+    pressable_paper_findings,
     resize_findings,
     rest_findings,
     scroll_findings,
+    short_aim_findings,
     surface_findings,
     typed_box_findings,
     unread_syntax,
     unshown_key_findings,
 )
+
+
+def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve):
+    """The corpus is the page that holds every widget and idiom at once, so the layer's
+    whole-page rules are read on it, on one page, in turn: the adopted sheet decides
+    nothing by standing last (`adopted_sheet_findings`), every aim takes a finger
+    (`short_aim_findings`), and paper takes the press off everything it cannot press
+    (`pressable_paper_findings`). The touch emulation and print media are each put back
+    before the next reading.
+
+    First, composition preserves markup, not another page's durable versions: the
+    gallery's durable-embedding scenario stays hidden and unloaded in the corpus,
+    which has no version 2 to embed. The corpus then goes back to its first tab, where
+    the aims are measured."""
+    # The corpus's sort film otherwise repaints SVG values while the sheets move.
+    page = open_page(
+        browser,
+        serve(CORPUS_PAGE),
+        context=browser.new_context(
+            viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
+        ),
+    )
+    page.locator('[role="tab"][aria-controls="corpus-feature-gallery"]').click()
+    page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
+    expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
+    assert page.locator("#bg-durable-frame").get_attribute("src") == "about:blank"
+    page.locator('[role="tab"][aria-controls="corpus-review-a-plan"]').click()
+    expect(page.locator("#corpus-review-a-plan")).to_be_visible()
+
+    findings = {
+        "sheet order": adopted_sheet_findings(page),
+        "aims": short_aim_findings(page),
+        "paper": pressable_paper_findings(page),
+    }
+    failed = {reading: found for reading, found in findings.items() if found}
+    assert failed == {}, "\n\n".join(
+        f"{reading}:\n" + "\n".join(found) for reading, found in failed.items()
+    )
 
 
 def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_passes(
@@ -910,7 +952,7 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
 def test_a_table_keeps_its_columns_natural_width_wherever_it_stands(browser, serve):
     """A table's rows are as wide as its columns hold wherever it stands: bare in the
     column, in a panel, in a figure granted the page's room, granted the room itself,
-    which is a limit rather than a size, and in an Ask, even an Ask inside the granted
+    which is a limit rather than a size, and in an item, even an item inside the granted
     figure. Spreading the columns over a frame worked in Chrome alone, since Firefox
     never widens a table's grid to its caption. One granted room stands where the prose
     starts. A table too wide for the panel still scrolls inside it.

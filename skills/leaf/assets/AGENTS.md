@@ -158,8 +158,10 @@ representative desktop viewport.
 
 - **Visual treatments carry hierarchy and state.** Contours are solid. A dotted or
   dashed line marks a distinct state, such as a draft or a drag placeholder. One
-  contour shows one control state, and a segmented group shares one-pixel seams. Avoid
-  rounded one-sided borders and reflexive cards, tints, gradients and soft shadows.
+  contour shows one control state, and a segmented group shares one-pixel seams. Never
+  round a box edged on one side: mark a state with a whole contour, or a stripe on a
+  square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
+  `test_no_rule_rounds_a_box_edged_on_one_side`, over Leaf's sheets and pages.
 - **A face used twice is a token or a shared rule**, and a rule names it rather than
   spelling it out. A lift names one of the theme's three heights, `--raise-1` to
   `--raise-3` (`styles/theme.css`, beside `--shade`); boxes that wear one face, such as
@@ -206,7 +208,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Composition and the application's state                                                                     | `application.js`, `semantic-state.js`, `context.js`                                                                                                                       |
 | Delivery, accepted state, and wakeups                                                                       | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js`                                                                                   |
 | Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                                 |
-| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js`, `queues.js`                                                       |
+| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `items/model.js`, `queues.js`                                                      |
 | Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                                          |
 | Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `widget-elements.js`                                                                                                                      |
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                                 |
@@ -216,7 +218,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                                        |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                                      |
 | Focus and navigation                                                                                        | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                                    |
-| Asks                                                                                                        | `asks/`                                                                                                                                                                   |
+| Items                                                                                                       | `items/`                                                                                                                                                                  |
 | Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                                     |
 | Threads                                                                                                     | `thread/`, `thread-panel.js`                                                                                                                                              |
 | Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                                |
@@ -227,7 +229,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Banner and approvals                                                                                        | `banner*.js`                                                                                                                                                              |
 | Drawers and neighboring pages                                                                               | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js`                                                                                                        |
 | Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                                          |
-| Notices and announcements                                                                                   | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js`                                                                                                        |
+| Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/shortcut-bar.js`                                                                                           |
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                                         |
 | Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`, `retained-face.js`                                                                        |
 | Child pages                                                                                                 | `sample*.js`                                                                                                                                                              |
@@ -331,7 +333,7 @@ the ordered list of this tab's unresolved work into the one state every componen
 | version shown                                                                                                 | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document |
 | accepted history                                                                                              | the server's event log and its `/api/state` answer, which the publisher adopts whole                                                                     |
 | unresolved browser work                                                                                       | the publisher's one ordered list                                                                                                                         |
-| threads, workflow, attention, asks, to-dos, activity, unread                                                  | the server's state; the browser adds only its own unresolved sends and the versions it is marking read                                                   |
+| threads, workflow, attention, items, to-dos, activity, unread                                                 | the server's state; the browser adds only its own unresolved sends and the versions it is marking read                                                   |
 | what waits on the user and on the agent                                                                       | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                       |
 | what the DOM shows                                                                                            | the presentation coordinator's renderer tickets and preparation regions                                                                                  |
 | when a document-wide renderer paints                                                                          | the order `PRESENTATION_ORDER` in `runtime/semantic-state.js` declares                                                                                   |
@@ -404,7 +406,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The language a file path means                                                                        | `syntax.js` `langForPath`, from the registry's `$languages`                        |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |
-| Threads, workflow, attention, asks, and whether they are answered                                     | the server's state, under "One writer for each fact"                               |
+| Threads, workflow, attention, items, and whether they are answered                                    | the server's state, under "One writer for each fact"                               |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowLabel`, `progressFace`, `todoLabel`                  |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
@@ -412,7 +414,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The thread a name names: its id, a message's, or this tab's attempt                                   | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
 | The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
-| Which asks a region of the page holds                                                                 | `asks/place.js` `asksIn`                                                           |
+| Which items a region of the page holds                                                                | `items/place.js` `itemsIn`                                                         |
 
 ### Facts both runtimes know
 
@@ -464,12 +466,12 @@ first alone. Code outside the page waits on `pageReadiness`, through
 
 ## Authoritative projection
 
-Python decides which asks exist, when a widget is complete, and when a thread is
-answered. The server sends complete ask lists for the page (`document.asks`) and for
-each thread's frozen markup (`thread.asks`). The browser reads a widget's answer from
+Python decides which items exist, when a widget is complete, and when a thread is
+answered. The server sends complete item lists for the page (`document.items`) and for
+each thread's frozen markup (`thread.items`). The browser reads a widget's answer from
 the same state its controls draw and doesn't reapply the `x-awaits.answered` rule. A
-required-version approval is an ask the browser updates at once, restoring the server's
-state on refusal. A thread gesture changes no attention and no ask until the server's
+required-version approval is an item the browser updates at once, restoring the server's
+state on refusal. A thread gesture changes no attention and no item until the server's
 reading of it arrives (root `AGENTS.md`, "Responsiveness").
 
 Every state read carries one `through_seq`, and version comparison asks `/api/view` at

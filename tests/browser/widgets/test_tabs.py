@@ -503,6 +503,46 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
+def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
+    browser, serve
+):
+    source = leaf_page(
+        "Workspace page tab",
+        '<header><h1>Review</h1></header><lf-tabs id="views">'
+        '<lf-tab id="work" label="Work"><template></template>'
+        '<section id="surface"><p>Work here.</p>'
+        '</section></lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p>'
+        "</lf-tab></lf-tabs>",
+        layout="workspace",
+    )
+    boot = []
+    page = browser.new_page(viewport={"width": 1280, "height": 720})
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+
+        def heights():
+            return page.evaluate("""() => {
+              const tab = document.querySelector('#work').getBoundingClientRect();
+              const block = document.querySelector('#surface').getBoundingClientRect();
+              return {tab: tab.height, block: block.height, bottom: tab.bottom - block.bottom};
+            }""")
+
+        first = heights()
+        assert first["tab"] > 300 and abs(first["bottom"]) <= 1, first
+        boot.pop().continue_()
+        wait_until_ready(page)
+        upgraded = heights()
+        assert abs(upgraded["bottom"]) <= 1, upgraded
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
 @pytest.mark.parametrize("layout", ["column", "sidebar", "workspace"])
 def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     browser, serve, layout
@@ -678,10 +718,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     assert stacked["page"] <= 0 and stacked["item"][1] > 0, stacked
 
 
-def test_side_tabs_distinguish_withdrawn_asks_from_answers(browser, serve):
-    """A row's mark says its item's asks are open until every one is answered, and
+def test_side_tabs_distinguish_withdrawn_items_from_answers(browser, serve):
+    """A row's mark says its item's items are open until every one is answered, and
     withdrawal retires a request without claiming the user answered it: a row whose
-    only ask was withdrawn shows no mark, and one whose other ask is answered shows
+    only item was withdrawn shows no mark, and one whose other item is answered shows
     the answer."""
     source = leaf_page(
         "Question outcomes",
@@ -695,8 +735,8 @@ def test_side_tabs_distinguish_withdrawn_asks_from_answers(browser, serve):
     )
     page = open_page(browser, live_url(serve(source)))
     marks = page.locator("#queue .lf-tab-answer")
-    expect(marks.nth(0)).to_have_attribute("data-lf-asks", "open")
-    expect(marks.nth(1)).to_have_attribute("data-lf-asks", "open")
+    expect(marks.nth(0)).to_have_attribute("data-lf-items", "open")
+    expect(marks.nth(1)).to_have_attribute("data-lf-items", "open")
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -705,15 +745,15 @@ def test_side_tabs_distinguish_withdrawn_asks_from_answers(browser, serve):
         "Retire unanswered requests",
     )
     wait_for_revision(page, 2)
-    expect(marks.nth(0)).not_to_have_attribute("data-lf-asks", re.compile(".*"))
-    expect(marks.nth(1)).to_have_attribute("data-lf-asks", "answered")
+    expect(marks.nth(0)).not_to_have_attribute("data-lf-items", re.compile(".*"))
+    expect(marks.nth(1)).to_have_attribute("data-lf-items", "answered")
     expect(marks.nth(1)).to_have_text("Keep")
 
 
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
-    """An ask answered before the page loads is named once the page presents, however
+    """An item answered before the page loads is named once the page presents, however
     late the answering widget's module arrives: startup imports every module the
-    document names before the first reading brings the ask inventory. A longer ticket
+    document names before the first reading brings the item inventory. A longer ticket
     name and its summary keep their own lines beside a complete short outcome."""
     url = serve(
         leaf_page(
@@ -1023,7 +1063,7 @@ def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
 
 
 def test_root_tab_targets_remain_global(browser, serve):
-    """Ask travel crosses hidden tabs."""
+    """Item travel crosses hidden tabs."""
     url = serve(ROOT_TABS_PAGE)
     page = open_page(
         browser,

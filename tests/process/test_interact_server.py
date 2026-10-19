@@ -57,7 +57,7 @@ from interact_support import (
     said,
     spawn_probe,
     vendored_at_another_protocol,
-    vendored_before_the_ask_rename,
+    vendored_before_a_key_rename,
     wait_for,
 )
 from leaf import activity as activity_model
@@ -1758,8 +1758,8 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     unanswered = refused_on(body)
-    assert (unanswered.code, unanswered.values["asks"]) == (
-        "unanswered-asks",
+    assert (unanswered.code, unanswered.values["items"]) == (
+        "unanswered-items",
         ["widget:choice"],
     )
 
@@ -1811,7 +1811,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
-    assert refused_on(body).values["asks"] == ["widget:thread-approval"]
+    assert refused_on(body).values["items"] == ["widget:thread-approval"]
 
     status, body = fetch(
         f"{server}/api/event",
@@ -3318,9 +3318,8 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
 def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
     """A row producer waiting on a page writer cannot hold service retirement.
 
-    The process probe announces the producer's reading of the log, its first wait
-    on a writer, so the stop runs after the producer is blocked rather than winning
-    a scheduling race.
+    Drive its second reading through a pipe after holding the writer's lock. A
+    file notification could arrive before the producer starts waiting for one.
     """
     entered = tmp_path / "row-entered"
     child = spawn_probe(
@@ -3328,8 +3327,9 @@ def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
         page_dir,
         """
 from contextlib import contextmanager
-from leaf import hosting
+from leaf import hosting, server_rows
 from leaf.served_state import reading
+import sys
 
 leased = reading.flocked
 
@@ -3340,8 +3340,16 @@ def announced(path, **options):
         yield log
 
 reading.flocked = announced
+
+def drive_reading(self):
+    self.refresh()
+    sys.stdin.readline()
+    self.refresh()
+
+server_rows.RowPublisher.run = drive_reading
 hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
 """,
+        stdin=subprocess.PIPE,
         ENTERED=entered,
     )
     path = server_rows_model.row_path(page_dir)
@@ -3349,10 +3357,8 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
     entered.unlink()
     ended = threading.Event()
     with service_model.PageTransaction(page_dir):
-        cleanup_model.write_json(
-            page_dir / "status.json",
-            {"state": "waiting", "detail": "blocked", "ts": cleanup_model.now_iso()},
-        )
+        child.stdin.write("read\n")
+        child.stdin.flush()
         wait_for(
             entered.is_file,
             bool,
@@ -4613,7 +4619,7 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
 ):
     """A Leaf that renamed an x- key reads only the new name, so a page an older Leaf
     vendored, at the same protocol, would lose what it declares under the old one: a
-    framed ask its prompt and landing region. The page is refused until a re-vendor,
+    framed item its prompt and landing region. The page is refused until a re-vendor,
     which the refusal names. Afterwards the revision saved since serves with the
     prompt, while the one saved before neither opens nor takes input, as a revision
     saved at another protocol does."""
@@ -4625,29 +4631,29 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
     page = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n" + framed)
     (page_dir / "index.html").write_text(page)
     revisioning_model.activate_source(page_dir)
-    vendored_before_the_ask_rename(page_dir)
+    vendored_before_a_key_rename(page_dir)
     # Read as the next process does, which holds nothing of the revision saved above.
     with fresh_process():
-        _serve_after_the_ask_rename(page_dir)
+        _serve_after_a_key_rename(page_dir)
 
 
-def _serve_after_the_ask_rename(page_dir):
+def _serve_after_a_key_rename(page_dir):
     comment = {"kind": "comment", "author": "user", "text": "Which plan?"}
-    with pytest.raises(event_model.EventRefused, match="x-question-context") as refused:
+    with pytest.raises(event_model.EventRefused, match="x-noun") as refused:
         append_command(page_dir, {**comment, "revision": 1})
     assert f"leaf page init {page_dir}" in str(refused.value)
 
     reinitialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert reinitialized.exit_code == 0, reinitialized.output
     # Re-vendoring activates valid source with the renamed vocabulary itself.
-    [ask] = [
-        ask
-        for ask in page_state(page_dir)["browser"]["views"]["2"]["document"]["asks"][
+    [item] = [
+        item
+        for item in page_state(page_dir)["browser"]["views"]["2"]["document"]["items"][
             "all"
         ]
-        if ask["source"]["id"] == "route"
+        if item["source"]["id"] == "route"
     ]
-    assert ask["prompt"] == {"text": "Which route?", "target": "route-ask"}
+    assert item["prompt"] == {"text": "Which route?", "target": "route-ask"}
     old, new = (
         next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
     )
@@ -4656,9 +4662,7 @@ def _serve_after_the_ask_rename(page_dir):
     try:
         status, body = fetch(f"{temporary.origin}/revisions/{old}")
         assert status == 409, body
-        assert "Revision 1 was saved by a Leaf that declares x-question-context" in (
-            body.decode()
-        )
+        assert "Revision 1 was saved by a Leaf that declares x-noun" in (body.decode())
         assert fetch(f"{temporary.origin}/revisions/{new}")[0] == 200
 
         def commented(revision):
@@ -4670,7 +4674,7 @@ def _serve_after_the_ask_rename(page_dir):
         before = event_model.read_events(page_dir)
         status, body = commented(1)
         assert status == 400, body
-        assert "x-question-context" in body.decode()
+        assert "x-noun" in body.decode()
         assert event_model.read_events(page_dir) == before
         assert commented(2)[0] == 200
     finally:

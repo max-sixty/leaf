@@ -20,8 +20,9 @@ widget keys its rules for that case on `@container style(--lf-full-height: 1)`, 
 reads its parent, and fits what it shows to the height. It declares
 `--lf-holds-height: 1` on each part that scrolls within it, and sets
 `--lf-full-height: inherit` on each box that passes the height down, as a playground
-does to its panes. The property doesn't inherit, so a widget nested in a section or tab
-is not told and grows with its content.
+does to its panes. An Ask passes it to its answer, and page tabs to a tab that is one
+block. The property doesn't inherit, so a widget nested in a section, or in a tab of
+several blocks, is not told and grows with its content.
 
 A module that builds its own panes, such as a playground's controls beside its preview,
 marks each generated box `data-lf-reading-role="pane"` and `data-lf-generated`, with a
@@ -192,6 +193,11 @@ own background.
 readers, such as confirming a gesture the widget recorded. News not caused by the user
 passes `{background: true}` and waits behind what the user just did; `{announce: false}`
 only shows it. `announce(message)` only announces, for words already on screen.
+
+`raiseError(message)` tells the user a gesture failed, such as a value the server
+refused. Under the Leaf panel they see it until they have dealt with it; under the
+banner it shows as a notice. It returns a handle whose `clear()` takes the error down
+once it no longer holds. Use it for failures only, never for news.
 
 `quietWord(element, word)` gives an element words screen readers say after its leading
 `<strong>` title but the screen doesn't show; pass the whole quiet word each time, or an

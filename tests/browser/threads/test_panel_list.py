@@ -23,7 +23,7 @@ from render_cases_layout import banner_control
 from render_harness import (
     EXAMPLES,
     LONG_PAGE,
-    expect_asks_answered,
+    expect_items_answered,
     holding,
     open_page,
     panel_settled,
@@ -352,7 +352,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
 def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, serve):
     """An accepted approval is a semantic fact, so it moves the epoch on its own.
 
-    Nothing else about this state read changes: no thread, no Ask, no widget state, no
+    Nothing else about this state read changes: no thread, no item, no widget state, no
     pending gesture of this user's. The approval is another tab's, so there is no
     receipt to account and no ledger entry to remove — the two paints that show it have
     only the published fold to hear it from.
@@ -808,9 +808,9 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("n")
     expect(theirs_title).to_be_focused()
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
-    # instantiated once, in that card, and the Ask reading and the On panel find it by
+    # instantiated once, in that card, and the item reading and the On panel find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
-    # log (test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page).
+    # log (test_a_narrowing_hides_a_thread_without_taking_its_item_off_the_page).
     expect(
         page.locator(f'.lf-threads > .lf-thread[hidden][data-id="{mine}"]')
     ).to_have_count(1)
@@ -869,7 +869,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
 def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     """An open thread and a request to its user are different facts. A complete
     answer stays available for follow-up without entering the waiting list; a reply
-    carrying an explicit prose ask enters it until the user answers. A widget ask
+    carrying an explicit question answered in words enters it until the user answers. A widget item
     needs no duplicate flag: its own current projection enters and leaves the list."""
     url = serve(PANEL_PAGE)
     answered = panel_comment(serve.page_dir, "Why forty?", {"section": "how-cap"})
@@ -943,7 +943,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     )
     expect(find).to_have_value("")
 
-    # The completed thread is absent under the narrowing. A later structured ask must
+    # The completed thread is absent under the narrowing. A later structured item must
     # still be projected before the filter decides whether to admit that thread, or the
     # question can never render itself into the list that would discover it.
     widget_reply = thread_model.post_reply(
@@ -980,8 +980,8 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
-    holding(page, held, 1, "the answer to the prose Ask")
-    # The answer shows as sent at once; whether it answers the Ask is the server's
+    holding(page, held, 1, "the answer to the question answered in words")
+    # The answer shows as sent at once; whether it answers the item is the server's
     # reading, so the thread stays on the user until that arrives.
     status = page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
     expect(status).to_have_attribute("title", "My turn to answer · Sending")
@@ -999,10 +999,12 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
 
 
-def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser, serve):
-    """Thread narrowing changes presentation, not the admitted ask inventory.
+def test_a_narrowing_hides_a_thread_without_taking_its_item_off_the_page(
+    browser, serve
+):
+    """Thread narrowing changes presentation, not the admitted item inventory.
 
-    With one ask answered, hiding a thread with the On me filter keeps
+    With one item answered, hiding a thread with the On me filter keeps
     the other canonical record on the page and preserves the completion count.
     """
     page = open_page(
@@ -1014,7 +1016,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser,
     question = page.locator(".lf-thread-panel lf-options[choose]").first
     question.locator("lf-option:not([chosen]) > .lf-pick").first.click()
     round_trip(page)
-    expect_asks_answered(page, "1/2")
+    expect_items_answered(page, "1/2")
     page.locator(".lf-thread-filter-toggle").click()
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
@@ -1024,10 +1026,10 @@ def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser,
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
     ).to_have_count(1)
-    expect_asks_answered(page, "1/2")
+    expect_items_answered(page, "1/2")
     banner_control(page, ".lf-queue").click()
     page.locator(".lf-queue-done > summary").click()
-    done = page.locator(".lf-queue-done .lf-queue-row[data-lf-kind='ask']")
+    done = page.locator(".lf-queue-done .lf-queue-row[data-lf-kind='widget']")
     expect(done).to_have_count(1)
     assert set(done.evaluate_all("rows => rows.map(row => row.dataset.lfAt)")) == {
         "widget:off-workaround-review",
@@ -1064,12 +1066,12 @@ def test_a_reply_that_takes_its_card_out_of_the_view_takes_the_user_with_it(
     expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
-def test_a_walk_to_an_ask_the_narrowing_hides_widens_the_list(browser, serve):
+def test_a_walk_to_an_item_the_narrowing_hides_widens_the_list(browser, serve):
     """A card the narrowing hid keeps its node, so the `m` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:
     focus on a card with no box is a no-op and the announcement would say "1 of 2"
     over a list that shows something else. The thread the list shows asks the user a
-    question too, so focus on the list stands on that item, and the hidden Ask stands
+    question too, so focus on the list stands on that item, and the hidden item stands
     before it on the page."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))

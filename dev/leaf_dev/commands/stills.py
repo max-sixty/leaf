@@ -176,8 +176,8 @@ def banner_more(page: Page) -> None:
 
 def floating_thread(page: Page) -> None:
     """The floating panel (`lf-chrome`) with a thread opened from Threads: its head
-    names the way back, the thread's title and where it stands among the open ones,
-    beside On the page, Resolve and Close."""
+    names the way back and the thread's title, beside On the page, Resolve and
+    Close."""
     page.evaluate("localStorage.setItem('lf-chrome', 'floating')")
     load(page, page.url)
     page.locator(".lf-fp-threads").click()
@@ -883,6 +883,10 @@ def visual_review_menu(page: Page) -> None:
 
 def code_reader_feedback(page: Page) -> None:
     """The built reader and the place where its author receives design feedback."""
+    tab = page.get_by_role("tab", name="Comment on the reader")
+    if tab.count():
+        tab.click()
+        settle(page)
     page.locator(
         "#code-reader-feedback, #code-targeting-ask"
     ).scroll_into_view_if_needed()

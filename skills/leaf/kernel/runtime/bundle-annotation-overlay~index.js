@@ -77,11 +77,10 @@ import {
   threadNamed,
   writingIn
 } from "./bundle-user-intent.js";
+import "./bundle-errors.js";
 import "./bundle-widget-upgrade.js";
 import "./bundle-media.js";
-import {
-  reducedMotion
-} from "./bundle-motion.js";
+import "./bundle-motion.js";
 import {
   THREAD_CARD,
   cardMeasure,
@@ -400,7 +399,6 @@ function createThreadPreview({
     carry.placed();
     const session = previewSession;
     if (!session) return;
-    keeps(preview, "data-lf-grows", null);
     session.positionResult?.resolve(false);
     cancelRender(session.positionFrame);
     placementDriver.supersede();
@@ -838,19 +836,8 @@ function createThreadPreview({
     }
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
-    const positioned = placedThreadPreview();
-    return session.sent ? growOut(session, positioned) : positioned;
+    return placedThreadPreview();
   }
-  function growOut(session, positioned) {
-    return positioned.then((placed) => {
-      if (placed && previewSession === session && !reducedMotion())
-        keeps(preview, "data-lf-grows", "");
-      return placed;
-    });
-  }
-  preview.addEventListener("animationend", (event) => {
-    if (event.target === preview) keeps(preview, "data-lf-grows", null);
-  });
   function refresh(entry, control, carry2 = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;
     transferThreadCard(control, carry2);

@@ -3054,6 +3054,9 @@ function registerErrorPresentation(present) {
   presenters.add(present);
 }
 function raiseError(message, { subject = null, announce: speak = true } = {}) {
+  return raise(message, subject, speak, null);
+}
+function raise(message, subject, speak, replaced) {
   const id = ++raised;
   if (speak && !unsaid.length)
     queueMicrotask(() => {
@@ -3063,9 +3066,9 @@ function raiseError(message, { subject = null, announce: speak = true } = {}) {
   if (speak) unsaid.push(message);
   publish([
     Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
-    ...errors
+    ...errors.filter((entry) => entry.id !== replaced)
   ]);
-  return Object.freeze({ clear: () => dismissError(id) });
+  return Object.freeze({ id, clear: () => dismissError(id) });
 }
 function passErrors(ids) {
   if (errors.some((entry) => ids.includes(entry.id) && !entry.passed))
@@ -3092,8 +3095,11 @@ function holdingError({ announce: speak = true } = {}) {
   let said = null;
   return (message) => {
     if (message === said) return;
-    held?.clear();
-    held = message ? raiseError(message, { announce: speak }) : null;
+    if (message) held = raise(message, null, speak, held?.id ?? null);
+    else {
+      held?.clear();
+      held = null;
+    }
     said = message;
   };
 }

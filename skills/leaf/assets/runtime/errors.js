@@ -68,6 +68,12 @@ export function registerErrorPresentation(present) {
  * @param {{ subject?: Element | null, announce?: boolean }} [options]
  */
 export function raiseError(message, { subject = null, announce: speak = true } = {}) {
+  return raise(message, subject, speak, null);
+}
+
+// Raise an error, taking the one `replaced` names down in the same reading, so the
+// chrome never draws the moment between them.
+function raise(message, subject, speak, replaced) {
   const id = ++raised;
   if (speak && !unsaid.length)
     queueMicrotask(() => {
@@ -77,9 +83,9 @@ export function raiseError(message, { subject = null, announce: speak = true } =
   if (speak) unsaid.push(message);
   publish([
     Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
-    ...errors,
+    ...errors.filter((entry) => entry.id !== replaced),
   ]);
-  return Object.freeze({ clear: () => dismissError(id) });
+  return Object.freeze({ id, clear: () => dismissError(id) });
 }
 
 /** The user edited past these errors where the field said them. */
@@ -119,8 +125,11 @@ export function holdingError({ announce: speak = true } = {}) {
   let said = null;
   return (/** @type {string | null} */ message) => {
     if (message === said) return;
-    held?.clear();
-    held = message ? raiseError(message, { announce: speak }) : null;
+    if (message) held = raise(message, null, speak, held?.id ?? null);
+    else {
+      held?.clear();
+      held = null;
+    }
     said = message;
   };
 }

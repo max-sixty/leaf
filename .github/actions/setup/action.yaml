@@ -1,0 +1,29 @@
+name: Set up Leaf development
+description: Install the host tools and exercise the same setup as local checkouts.
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v7
+      with:
+        python-version: "3.12"
+    - uses: pnpm/action-setup@v6
+    - uses: actions/setup-node@v7
+      with:
+        node-version: "22"
+        cache: pnpm
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: worktrunk@0.80.0
+    - name: Prepare development dependencies
+      shell: bash
+      run: wt -y setup
+    - name: Launch all browsers
+      shell: bash
+      run: |
+        uv run --frozen python - <<'PY'
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as playwright:
+            for browser in (playwright.chromium, playwright.webkit, playwright.firefox):
+                browser.launch().close()
+        PY

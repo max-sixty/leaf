@@ -9,6 +9,10 @@ from pathlib import Path
 import pytest
 from interact_support import STATED_TIMEOUT, wait_for
 
+INSTALLERS = {"assets", "browsers", "chrome", "pnpm-root"}
+if sys.platform == "linux":
+    INSTALLERS.add("fonts")
+
 
 @pytest.fixture
 def setup_process(tmp_path, spawn):
@@ -33,6 +37,8 @@ tool = Path(sys.argv[0]).name
 args = sys.argv[1:]
 if tool == "pnpm":
     key = "pnpm-root"
+elif "fonts-dejavu" in args:
+    key = "fonts"
 elif "fetch-assets" in args:
     key = "assets"
 else:
@@ -46,7 +52,7 @@ if hold == key or hold == "pnpm" and tool == "pnpm":
 sys.exit(17 if os.environ["SETUP_FAIL"] == key else 0)
 """
     )
-    for tool in ("uv", "pnpm"):
+    for tool in ("uv", "pnpm", "sudo", "apt-get"):
         path = tools / tool
         path.write_text(installer)
         path.chmod(0o755)
@@ -134,12 +140,7 @@ def test_foreground_setup_waits_for_background_install_in_another_checkout(
     background.stdin.flush()
     completed(background)
     completed(foreground)
-    assert {path.stem for path in second.glob("*.finished")} == {
-        "assets",
-        "browsers",
-        "chrome",
-        "pnpm-root",
-    }
+    assert {path.stem for path in second.glob("*.finished")} == INSTALLERS
 
 
 def test_setup_waits_for_dependency_installation(setup_process):
@@ -159,7 +160,9 @@ def test_setup_waits_for_dependency_installation(setup_process):
     }
 
 
-@pytest.mark.parametrize("installer", ["assets", "pnpm-root"])
+@pytest.mark.parametrize(
+    "installer", ["assets", "pnpm-root", *({"fonts"} & INSTALLERS)]
+)
 def test_setup_reports_installer_failure_and_releases_lock_for_retry(
     setup_process, installer
 ):
@@ -167,4 +170,4 @@ def test_setup_reports_installer_failure_and_releases_lock_for_retry(
     assert "exited with status 17" in completed(failed, success=False)
     retry, events = setup_process("retry")
     completed(retry)
-    assert len(list(events.glob("*.finished"))) == 4
+    assert {path.stem for path in events.glob("*.finished")} == INSTALLERS

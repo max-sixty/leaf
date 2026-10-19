@@ -1196,6 +1196,9 @@ export function createFloatingPanel({
     );
     const press = view.querySelector(".lf-fp-new-reply");
     if (!node || !press) return;
+    // Focusing New reply can scroll this view to reveal the button. That scroll
+    // must not remove the focused button before its Enter press can activate it.
+    if (press === focused()) return;
     if (node.getBoundingClientRect().top >= press.getBoundingClientRect().top) return;
     waiting = null;
     paint();

@@ -7185,10 +7185,9 @@ function createFloatingPanel({
   let queueTab = "you";
   let seated = null;
   const seatHeights = /* @__PURE__ */ new Map();
-  const planSketch = new URLSearchParams(location.search).get("plan-sketch");
-  const QUEUE_TABS = Object.freeze(
-    planSketch === "b" ? { you: "user", agent: "agent", plan: "agent" } : { you: "user", agent: "agent" }
-  );
+  const planSketch = new URLSearchParams(location.search).has("plan-sketch");
+  const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
+  const queueTabs = () => readPlan()?.steps.length || queueTab === "plan" ? [...Object.keys(QUEUE_TABS), "plan"] : Object.keys(QUEUE_TABS);
   const chooseQueueTab = (tab) => {
     if (tab === queueTab) return false;
     queueTab = tab;
@@ -7207,7 +7206,6 @@ function createFloatingPanel({
     return {
       you: reading.on_user,
       agent: reading.on_agent,
-      plan: [],
       done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
     };
   };
@@ -7388,13 +7386,11 @@ function createFloatingPanel({
     return Promise.resolve(true);
   }
   function onView() {
-    if (queueTab === "plan") return planCards();
-    const lists = queueLists();
-    const planned = planSketch === "a" && queueTab === "agent" ? planItemIds(readPlan()?.steps ?? []) : [];
-    if (planned.length) {
-      lists.agent = lists.agent.filter((item) => !planned.includes(item.id));
-      lists.done = lists.done.filter((item) => !planned.includes(item.id));
+    if (queueTab === "plan") {
+      const cards = planCards();
+      return cards.length ? cards : html`<p class="lf-fp-empty">No plan.</p>`;
     }
+    const lists = queueLists();
     const all = [...lists.you, ...lists.agent, ...lists.done];
     const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
     const current = lists[queueTab].map(queueItemKey);
@@ -7405,7 +7401,7 @@ function createFloatingPanel({
     const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
     const items2 = seated.map((key) => byKey.get(key));
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
-    return html`${planned.length ? planCards() : nothing}${items2.length ? repeat(items2, queueItemKey, (item) => onItemCard(item, listOf(item))) : planned.length ? nothing : html`<p class="lf-fp-empty">
+    return html`${items2.length ? repeat(items2, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
             Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
           </p>`}${finished.length ? html`<h3 class="lf-fp-on-done">Done</h3>
             ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}` : nothing}`;
@@ -7499,7 +7495,7 @@ function createFloatingPanel({
     } else if (top.view === "queue") {
       const lists = queueLists();
       aux = tabs(
-        Object.keys(QUEUE_TABS),
+        queueTabs(),
         queueTab,
         tabLabel,
         (tab) => {

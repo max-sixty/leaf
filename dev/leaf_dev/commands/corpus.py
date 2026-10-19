@@ -59,6 +59,7 @@ PUBLIC_TABS = [
 DEVELOPER_TABS = [
     (EXAMPLES_DIR / "developer" / "file-editor.html", "File editor package"),
     (EXAMPLES_DIR / "developer" / "file-tree.html", "File tree package"),
+    (EXAMPLES_DIR / "developer" / "file-tree-input.html", "Independent file list"),
     (EXAMPLES_DIR / "developer" / "diff-thread-gallery.html", "Diff conversations"),
     (EXAMPLES_DIR / "developer" / "feature-gallery.html", "Core features"),
     (

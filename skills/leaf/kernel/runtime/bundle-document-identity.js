@@ -2186,7 +2186,7 @@ function createAnchorTravel({
       { intent: mayArrive }
     );
   }
-  async function navigateToDatum2(owner, attribute, key, { success = "", missing = "" } = {}) {
+  async function navigateToDatum2(owner, attribute, key, { success = "", missing = "", focus = true } = {}) {
     const mayArrive = retainTravel();
     requireReference("navigateToDatum", owner, attribute);
     if (typeof key !== "string" || !key)
@@ -2224,7 +2224,11 @@ function createAnchorTravel({
       () => {
         const source2 = referencedProjection(owner, attribute);
         const where = source2 && addressedElements(source2, key)[0];
-        return where && { where, focus: where, scroll: moving ? [{ at: where }] : [] };
+        return where && {
+          where,
+          focus: focus ? where : null,
+          scroll: moving ? [{ at: where, block: "start" }] : []
+        };
       },
       { intent: mayArrive, departure }
     );

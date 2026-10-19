@@ -659,8 +659,9 @@ const bundles = {
       },
       {
         file: /@pierre\/trees\/dist\/render\/FileTreeView\.js$/,
-        // Retain is the persistent-filter policy: blur, pointer activation, and
-        // Enter keep the query; Escape remains its explicit dismissal route.
+        // Retain is a persistent filter, not a transient search mode: rows keep
+        // ordinary pointer focus and tree navigation while the field owns match
+        // navigation. Blur and activation keep the query; Escape dismisses it.
         edit: (source) => {
           source = seam(
             source,
@@ -674,13 +675,25 @@ const bundles = {
             'if (plan.closeSearch && searchBlurBehavior !== "retain") controller.closeSearch();',
             "Trees retained search on pointer activation",
           );
+          source = seam(
+            source,
+            "if (controller.isSearchOpen()) event.preventDefault();",
+            'if (controller.isSearchOpen() && frame.searchBlurBehavior !== "retain") event.preventDefault();',
+            "Trees retained-filter row focus",
+          );
+          source = seam(
+            source,
+            "const flowRowFrame = {\n\t\tcontextHoverPath:",
+            "const flowRowFrame = {\n\t\tsearchBlurBehavior,\n\t\tcontextHoverPath:",
+            "Trees retained-filter row policy",
+          );
           // A retained filter is hosted navigation: yield Enter to the exact
           // control's declared command instead of swallowing it in the model.
           // Search arrows and Escape keep their ordinary upstream behavior.
           return seam(
             source,
             'if (isSearchOpen) {\n\t\t\tif (event.key === "Escape")',
-            'if (isSearchOpen) {\n\t\t\tif (event.key === "Enter" && searchBlurBehavior === "retain") return;\n\t\t\tif (event.key === "Escape")',
+            'if (isSearchOpen && (event.key === "Escape" || searchBlurBehavior !== "retain" || getActiveTreeElement(rootRef.current) === searchInputRef.current)) {\n\t\t\tif (event.key === "Enter" && searchBlurBehavior === "retain") return;\n\t\t\tif (event.key === "Escape")',
             "Trees retained-search Enter delegation",
           );
         },

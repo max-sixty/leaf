@@ -20,6 +20,7 @@ import {
   commands,
   commandScope,
   focused,
+  focusDestination,
   keeps,
   keepsHidden,
   keepsText,
@@ -121,6 +122,7 @@ customElements.define(
         const file = files.find((entry) => entry.path === item.getPath());
         if (this.hasAttribute("for") && file?.key)
           void navigateToDatum(this, "for", file.key, {
+            focus: false,
             success: `Opened ${file.path}.`,
             missing: `${file.path} is no longer available.`,
           });
@@ -150,6 +152,11 @@ customElements.define(
         // row can still lie outside Leaf's outer reading viewport, so hand that
         // remaining reveal to the same scrolling owner every widget uses.
         const stopStanding = onStanding((row) => {
+          // A route to this navigator lands on its usable entry control.
+          if (row === this) {
+            const input = root.querySelector("input");
+            if (input) focusDestination(input, "return");
+          }
           if (row?.getAttribute("role") === "treeitem" && root.contains(row)) {
             // Each upstream row is a native button. Its exact scope precedes
             // native activation; an ancestor scope cannot own that press.

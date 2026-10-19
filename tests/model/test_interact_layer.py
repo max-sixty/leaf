@@ -1246,8 +1246,8 @@ def test_init_vendors_the_layer(page_dir):
     # which is what lets a widget import `/vendor/…` without knowing where it came
     # from page_packages().
     assert (page_dir / "widgets" / "lf-diagram.js").is_file()
-    assert (page_dir / "vendor" / "mermaid.esm.js").is_file()
-    assert (page_dir / "vendor" / "mermaid.LICENSES.txt").is_file()
+    assert (page_dir / "vendor" / "pele.esm.js").is_file()
+    assert (page_dir / "vendor" / "pele.LICENSES.txt").is_file()
     assert (page_dir / "widgets" / "lf-diff.js").is_file()
     assert (page_dir / "vendor" / "pierre-diffs.esm.js").is_file()
 

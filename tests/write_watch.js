@@ -206,16 +206,6 @@
     // Lit's keyed repeat moves equivalent marker nodes when a visual action in
     // the group changes identity, while the rendered controls update in place.
     (what, node) => what === "children" && is(node, "div.lf-visual-actions"),
-    // Mermaid's diagram renderers and their shared viewport helper both assign the SVG's
-    // width while measuring the same drawing. Its upstream-owned paint is separate
-    // from Leaf's adapter, which uses keeps when setting the final natural width.
-    (what, node) => what === "width" && is(node, "svg[id^='lf-diagram-']"),
-    // Mermaid's layout pass reapplies the same transform to a label group while
-    // measuring it. The diagram module does not own that SVG write.
-    (what, node) => what === "transform" && is(node, "g.label"),
-    // Mermaid's timeline wraps and measures labels by restating tspan text. Its
-    // measurement groups have already detached by the observer's reading.
-    (what, node) => what === "children" && is(node, "g > text > tspan"),
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
     (what, node) => what === "style" && is(node, "div.cm-content"),

@@ -282,6 +282,10 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
+<lf-diagram id="path" parts="all"><pre>
+graph LR
+  A["Bold and plain"] --&gt; B[after]
+</pre></lf-diagram>
 <lf-diagram id="exchange" parts="all"><pre>
 sequenceDiagram
   participant User
@@ -334,6 +338,7 @@ graph LR
   S -->|miss/outage| F[verify signed fallback]
   F --> H
   C -->|no| L[login]
+  H --> O[write response]
 </pre></lf-diagram>
 <lf-board id="plan">
   <lf-column id="d1" label="Todo"><lf-card id="dk1"><strong>One</strong></lf-card></lf-column>

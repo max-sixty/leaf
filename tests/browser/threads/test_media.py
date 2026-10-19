@@ -156,7 +156,7 @@ def test_a_capture_in_a_table_is_named_by_its_heads(browser, serve):
         expect(viewer).to_be_hidden()
 
 
-# A diagram that states no size of its own, only a shape, as Mermaid writes one.
+# A diagram that states no size of its own, only a shape, as a diagram renderer writes one.
 DIAGRAM_SVG = (
     b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
     b'<rect width="400" height="200" fill="#cde"/></svg>'

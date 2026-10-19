@@ -47,7 +47,7 @@ other page files and the external state listed below.
 - `widgets/` — one ES module per upgraded widget (lf-tabs.js, lf-board.js)
 
 - `vendor/` — vendored third-party assets (sortable.esm.js, plot.esm.js), and whatever a
-  selected package brings (mermaid.esm.js)
+  selected package brings (pele.esm.js)
 
 - `page/` — mutable page-specific browser-ready modules, styles, assets,
   page/registry.json declarations, and page/widgets/ modules. These are candidate inputs

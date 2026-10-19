@@ -521,8 +521,9 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
 
 
 def test_the_gate_passes_what_the_renderer_draws(browser, serve):
-    """Leaf draws what Mermaid draws, beyond the families its guide documents, and one
-    page covers the six diagram types the guide documents with addressable parts.
+    """Leaf draws every family its renderer accepts, beyond those its guide names.
+
+    One page covers the structural diagram types with addressable parts and an XY chart.
 
     State, sequence, class, ER, and XY diagrams draw markup a flowchart never does.
     The whole-page contracts (both palettes, axe, print, export, reachability) are what
@@ -548,6 +549,13 @@ classDiagram
   Runner --&gt; Job
 </pre></lf-diagram>
 """
+        + "\n".join(
+            f'<lf-diagram id="namespace-{mode}" parts="all"><pre>\n'
+            f"---\nconfig:\n  class:\n    hierarchicalNamespaces: {mode}\n---\n"
+            "classDiagram\n  namespace Org.Unit {\n    class Job\n  }\n"
+            "</pre></lf-diagram>"
+            for mode in ("true", "false")
+        )
         + "\n".join(
             f'<lf-diagram id="{name}"><pre>\n{source}\n</pre></lf-diagram>'
             for name, source in DIAGRAM_FAMILIES.items()
@@ -578,6 +586,18 @@ classDiagram
         )
         == "Line Item"
     )
+    for mode, expected in (
+        ("true", {"node:Job", "node:Org", "node:Org.Unit"}),
+        ("false", {"node:Job", "node:Org.Unit"}),
+    ):
+        assert (
+            set(
+                drawn.locator(f"#namespace-{mode}").evaluate(
+                    "e => [...e.visualParts.keys()]"
+                )
+            )
+            == expected
+        )
 
 
 def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):

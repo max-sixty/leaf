@@ -612,7 +612,6 @@ function foldThreads(threads, gestures) {
         msgs: [gesture],
         revisions: [],
         resolved: null,
-        user_prompt: null,
         bare_reaction: reaction,
         seat: pendingSeat(gesture),
         summaries: [],
@@ -674,7 +673,7 @@ function lastMovedAt(thread) {
   return latest;
 }
 var versionKey = ({ message, version }) => `${message}\0${version}`;
-function readThreadRecords(threads, document, widgets, workflows, todos = [], markingRead = [], ready = true) {
+function readThreadRecords(threads, document, widgets, workflows, todos = [], items = [], markingRead = [], ready = true) {
   const locallyRead = new Set(markingRead.map(versionKey));
   const unitsByMessage = /* @__PURE__ */ new Map();
   for (const descriptor of document.descriptors.values()) {
@@ -747,8 +746,10 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ma
       rewritten_from: thread.rewritten_from,
       resolved: thread.resolved,
       settling: thread.settling ?? null,
-      user_prompt: thread.user_prompt,
       attention: thread.attention,
+      // The items widgets in its messages make, such as an `lf-ask` the user owes
+      // words to there.
+      items: items.filter((item) => item.thread === thread.id),
       // The agent's open to-dos on the thread: a reply that promised one says it is
       // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first
       // is the one a thread waiting on a to-do waits on, and a running one is work the
@@ -1582,9 +1583,7 @@ var NO_ITEMS = {
   unanswered: []
 };
 function normalizedItems(view, widgets, document, projection, local) {
-  const page = view?.document.items;
-  const thread = view?.thread.items;
-  const all = [...page?.all ?? [], ...thread?.all ?? []].map((item) => {
+  const all = (view?.items ?? []).map((item) => {
     if (item.source.kind === "approval") {
       const version = item.source.version;
       const undone = new Set(
@@ -1620,15 +1619,11 @@ function normalizedItems(view, widgets, document, projection, local) {
     const answer = present ? { value, event: pendingValue ? null : item.answer?.event ?? null } : null;
     return { ...item, answer };
   });
-  const selection = (kind) => {
-    const admitted = new Set(
-      [...page?.[kind] ?? [], ...thread?.[kind] ?? []].map((item) => item.id)
-    );
-    return all.filter(
-      (item) => item.source.kind === "approval" ? kind === "user" ? item.next_actor === "user" : item.status === "open" : admitted.has(item.id)
-    );
+  return {
+    all,
+    user: all.filter((item) => item.next_actor === "user"),
+    unanswered: all.filter((item) => item.status === "open")
   };
-  return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
 function localTodos(state, local) {
   const ending = new Set(
@@ -2070,6 +2065,7 @@ function createSemanticApplication({
       widgets2,
       workflows,
       todos.open,
+      items.all,
       markingRead,
       ready
     );

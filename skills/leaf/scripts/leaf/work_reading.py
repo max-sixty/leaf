@@ -14,10 +14,9 @@ from functools import cached_property
 
 from .document_reading import read_document
 from .events import approvals_in_force, build_threads
-from .items import collection, replied, thread_item_readings
+from .items import collection, thread_item_readings
 from .plans import plan_reading
 from .projection import frozen_thread_reading
-from .read_state import content_version
 from .todos import TodoReading
 
 
@@ -83,28 +82,6 @@ class WorkReading:
     @property
     def items(self) -> dict:
         return self.widget_items
-
-    @cached_property
-    def prompts(self) -> dict:
-        """Each thread's question the user owes words to: the latest open
-        reply-answered item on them there, by its message and that message's content
-        version, which the thread's head marks Waiting on me."""
-        prompts = {}
-        for item in self.widget_items["user"]:
-            if not replied(self.registry[item["source"]["tag"]]):
-                continue
-            message = next(
-                message
-                for message in self.threads[item["thread"]]["msgs"]
-                if message["id"] == item["message"]
-            )
-            held = prompts.get(item["thread"])
-            if held is None or held[0]["seq"] < message["seq"]:
-                prompts[item["thread"]] = (message, item)
-        return {
-            thread: {"message": message["id"], "version": content_version(message)}
-            for thread, (message, _item) in prompts.items()
-        }
 
     @cached_property
     def all_items(self) -> dict:

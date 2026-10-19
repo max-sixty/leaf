@@ -24,7 +24,7 @@ from interact_support import (
     record_claim,
     refused_on,
     response_reference,
-    served_thread,
+    served_items,
     serving,
     stamp,
     state_json,
@@ -150,12 +150,15 @@ def test_required_approval_is_an_item_for_its_exact_stamp_until_approved(page_di
         for item in queue["queues"]["on_user"]
         if item["subject"] == {"kind": "page"}
     ]
-    assert (approval["id"], approval["subject"], approval["item"]["source"]) == (
+    records = {item["id"]: item for item in queue["items"]}
+    assert (approval["id"], approval["subject"], records[approval["id"]]["source"]) == (
         "approval:v1",
         {"kind": "page"},
         {"kind": "approval", "version": 1},
     )
-    assert {item["item"]["source"]["kind"] for item in queue["queues"]["on_user"]} == {
+    assert {
+        records[item["id"]]["source"]["kind"] for item in queue["queues"]["on_user"]
+    } == {
         "widget",
         "approval",
     }
@@ -187,7 +190,7 @@ def test_required_approval_is_an_item_for_its_exact_stamp_until_approved(page_di
     served = full_state(page_dir, events_model.read_events(page_dir))
     [ended] = [
         item
-        for item in served["browser"]["views"]["1"]["document"]["items"]["all"]
+        for item in served_items(served["browser"], page=True)["all"]
         if item["source"]["kind"] == "approval"
     ]
     assert (
@@ -208,8 +211,10 @@ def test_required_approval_is_an_item_for_its_exact_stamp_until_approved(page_di
     )
     assert state_json(page_dir)["queues"]["on_user"] == []
     publish(page_dir)
-    [next_approval] = state_json(page_dir)["queues"]["on_user"]
-    assert (next_approval["id"], next_approval["item"]["source"]) == (
+    revised = state_json(page_dir)
+    [next_approval] = revised["queues"]["on_user"]
+    [record] = [item for item in revised["items"] if item["id"] == next_approval["id"]]
+    assert (next_approval["id"], record["source"]) == (
         "approval:v2",
         {"kind": "approval", "version": 2},
     )
@@ -339,7 +344,7 @@ def test_a_plan_arranges_todos_items_and_plain_steps_without_owning_them(page_di
         )
 
     asking(page_dir)
-    [item] = state_json(page_dir)["queues"]["on_user"]
+    [item] = state_json(page_dir)["items"]
     todo = written(leaf("task", "open", page_dir, "page", "Cut to two lines"))
     written(leaf("task", "start", page_dir, todo["id"], "Cutting the example"))
     written(
@@ -382,7 +387,7 @@ def test_a_plan_arranges_todos_items_and_plain_steps_without_owning_them(page_di
                 1,
                 [("Cut to two lines", "working", "agent", 0, 0, [])],
             ),
-            (item["title"], "open", "user", 0, 0, []),
+            (item["prompt"]["text"], "open", "user", 0, 0, []),
             ("Post it", "dropped", "agent", 0, 0, []),
         ],
     )
@@ -535,7 +540,7 @@ def test_user_queue_selects_decisions_and_questions(page_dir, sessionless):
     served = full_state(page_dir, events_model.read_events(page_dir))
     [answered] = [
         entry
-        for entry in served_thread(served["browser"])["items"]["all"]
+        for entry in served_items(served["browser"])["all"]
         if entry["source"]["id"] == "colour"
     ]
     assert (answered["status"], answered["answer"]["event"]["id"]) == (
@@ -560,7 +565,7 @@ def test_an_opening_item_retains_its_answer_in_the_item_inventory(
             "markup": '<lf-ask id="colour">Warm or cool?</lf-ask>',
         },
     )
-    edit = append_carried_log_record(
+    append_carried_log_record(
         page_dir,
         {
             "kind": "edit",
@@ -580,11 +585,8 @@ def test_an_opening_item_retains_its_answer_in_the_item_inventory(
         },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
-    [thread] = served_thread(served["browser"])["threads"]
-    assert thread["user_prompt"] == {"message": question["id"], "version": edit["id"]}
     assert [
-        entry["source"]["id"]
-        for entry in served_thread(served["browser"])["items"]["user"]
+        entry["source"]["id"] for entry in served_items(served["browser"])["user"]
     ] == ["colour"]
     answer = append_carried_log_record(
         page_dir,
@@ -597,9 +599,8 @@ def test_an_opening_item_retains_its_answer_in_the_item_inventory(
         },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
-    assert served_thread(served["browser"])["threads"][0]["user_prompt"] is None
     assert served["browser"]["todos"] == []
-    [ended] = served_thread(served["browser"])["items"]["all"]
+    [ended] = served_items(served["browser"])["all"]
     assert (ended["source"]["id"], ended["status"], ended["answer"]["event"]["id"]) == (
         "colour",
         "answered",
@@ -611,8 +612,7 @@ def test_an_opening_item_retains_its_answer_in_the_item_inventory(
         )
         served = full_state(page_dir, events_model.read_events(page_dir))
         assert [
-            entry["source"]["id"]
-            for entry in served_thread(served["browser"])["items"]["user"]
+            entry["source"]["id"] for entry in served_items(served["browser"])["user"]
         ] == ["colour"]
         assert served["browser"]["todos"] == []
 
@@ -668,7 +668,7 @@ def test_an_item_ends_at_the_reaction_that_settles_it(page_dir):
         == "answered"
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
-    [answered] = served_thread(served["browser"])["items"]["all"]
+    [answered] = served_items(served["browser"])["all"]
     assert (answered["status"], answered["answer"]["event"]["id"]) == (
         "answered",
         keep["id"],
@@ -1382,7 +1382,7 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
             record["end"]["detail"],
             record["end"]["event"]["author"],
         )
-        for record in served_thread(served["browser"])["items"]["all"]
+        for record in served_items(served["browser"])["all"]
     }
     assert ended == {
         answered_elsewhere: ("answered_elsewhere", None, "Warm, in chat", "agent"),
@@ -1392,7 +1392,7 @@ def test_a_decision_ends_through_its_state_and_the_agent_ends_a_question(page_di
     done = {
         item["id"]: (item["state"], item["detail"], item["ended"] is not None)
         for item in view["queues"]["done"]
-        if "item" in item
+        if item["kind"] == "widget"
     }
     assert done == {
         answered_elsewhere: ("done", "Warm, in chat", True),

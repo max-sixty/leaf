@@ -20,17 +20,24 @@ const adopted = (name) => {
     ),
   );
   assert.equal(app.adopt(served, { ...app.read().document, messageBodies }), true);
-  return { app, served: served.browser.views[String(served.active.revision)].queues };
+  return { app, served: view.queues, items: view.items };
 };
 const published = (app) => app.read().effective.queues;
 const kinds = (items) => items.map(({ kind, id }) => [kind, id]);
-// An item as the server listed it, without the workflow and offers this tab adds.
-const listed = ({ workflow: _workflow, offers: _offers, ...item }) => item;
+// A row as the server listed it, without the workflow, offers and item record this tab
+// joins to it.
+const listed = ({ workflow: _workflow, offers: _offers, item: _item, ...row }) => row;
 
 test("the browser publishes the queues the server selected", () => {
-  const { app, served } = adopted("queues on both sides");
+  const { app, served, items } = adopted("queues on both sides");
   const { on_user: onUser, on_agent: onAgent, done } = published(app);
   assert.deepEqual(onUser.map(listed), served.on_user);
+  // The server names an item's record by id, and this tab joins the row to it.
+  for (const row of [...onUser, ...done].filter(({ kind }) => kind === "widget"))
+    assert.deepEqual(
+      row.item,
+      items.find(({ id }) => id === row.id),
+    );
   assert.deepEqual(onAgent.map(listed), served.on_agent);
   assert.deepEqual(done.map(listed), served.done);
   // Something of every kind on each list, so each placement below has an item to move.

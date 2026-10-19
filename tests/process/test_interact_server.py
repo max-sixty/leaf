@@ -4648,9 +4648,7 @@ def _serve_after_a_key_rename(page_dir):
     # Re-vendoring activates valid source with the renamed vocabulary itself.
     [item] = [
         item
-        for item in page_state(page_dir)["browser"]["views"]["2"]["document"]["items"][
-            "all"
-        ]
+        for item in page_state(page_dir)["browser"]["views"]["2"]["items"]
         if item["source"]["id"] == "route"
     ]
     assert item["prompt"] == {"text": "Which route?", "target": "route-ask"}

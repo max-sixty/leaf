@@ -64,6 +64,7 @@ from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
+from leaf.items import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
@@ -762,6 +763,16 @@ def served_thread(browser: dict) -> dict:
     return view["thread"]
 
 
+def served_items(browser: dict, *, page: bool = False) -> dict:
+    """The item records the one view `browser` serves, by the selections
+    `items.collection` makes: the frozen threads' items, or with `page` the
+    document's."""
+    [view] = browser["views"].values()
+    return collection(
+        [item for item in view["items"] if (item["thread"] is None) == page]
+    )
+
+
 @pytest.fixture
 def native_codex_chat(tmp_path):
     """Publish a native chat's validated source through its ordinary prompt hook."""
@@ -1015,17 +1026,19 @@ def state_json(d):
 
 
 def items_on_user(state):
-    """Widget items on the user's list, On me, retaining source and prompt identity."""
+    """Widget items on the user's list, On me, retaining source and prompt identity:
+    each row joined to the record in `items` it names."""
+    records = {item["id"]: item for item in state["items"]}
     return [
         {
-            "id": item["id"],
-            "tag": item["item"]["source"]["tag"],
-            "widget": item["item"]["source"]["id"],
-            "widget_tag": item["item"]["source"]["tag"],
-            "thread": item["thread"],
+            "id": row["id"],
+            "tag": records[row["id"]]["source"]["tag"],
+            "widget": records[row["id"]]["source"]["id"],
+            "widget_tag": records[row["id"]]["source"]["tag"],
+            "thread": row["thread"],
         }
-        for item in state["queues"]["on_user"]
-        if item["kind"] == "widget"
+        for row in state["queues"]["on_user"]
+        if row["kind"] == "widget"
     ]
 
 

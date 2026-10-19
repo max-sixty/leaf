@@ -19,6 +19,7 @@ from interact_support import (
     page_state,
     publish,
     receive_through,
+    served_items,
     served_thread,
     serving,
     state_json,
@@ -282,8 +283,10 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
         },
     )
 
-    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert thread["user_prompt"]["message"] == question["id"]
+    browser = page_state(page_dir)["browser"]
+    [thread] = served_thread(browser)["threads"]
+    [owed] = served_items(browser)["user"]
+    assert owed["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
         "reason": "widget",
@@ -296,8 +299,10 @@ def test_settling_reaction_closes_an_agent_root_item(page_dir):
     question = thread_model.cmd_comment(
         page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
     )
-    [before] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert before["user_prompt"]["message"] == question["id"]
+    browser = page_state(page_dir)["browser"]
+    [before] = served_thread(browser)["threads"]
+    [owed] = served_items(browser)["user"]
+    assert owed["message"] == question["id"]
     assert before["attention"]["kind"] == "needs_user"
 
     append_carried_log_record(
@@ -310,8 +315,9 @@ def test_settling_reaction_closes_an_agent_root_item(page_dir):
         },
     )
 
-    [after] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert after["user_prompt"] is None
+    browser = page_state(page_dir)["browser"]
+    [after] = served_thread(browser)["threads"]
+    assert served_items(browser)["user"] == []
     assert after["attention"] is None
 
 

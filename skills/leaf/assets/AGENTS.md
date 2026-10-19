@@ -458,8 +458,9 @@ first alone. Code outside the page waits on `pageReadiness`, through
 ## Authoritative projection
 
 Python decides which items exist, when a widget is complete, and when a thread is
-answered. The server sends complete item lists for the page (`document.items`) and for
-each thread's frozen markup (`thread.items`). The browser reads a widget's answer from
+answered. Each view carries every item record once, the page's and its frozen threads'
+(`items`); a row of On me names its item by id, and the publisher joins the two. The
+browser reads a widget's answer from
 the same state its controls draw and doesn't reapply the `x-awaits.answered` rule. A
 required-version approval is an item the browser updates at once, restoring the server's
 state on refusal. A thread gesture changes no attention and no item until the server's

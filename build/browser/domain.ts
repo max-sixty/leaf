@@ -89,7 +89,6 @@ export interface Thread {
   revisions: readonly Revision[];
   resolved:
     EventMap["resolve"] | EventMap["action"] | { author: string; pending: true } | null;
-  user_prompt: { message: string; [key: string]: unknown } | null;
   bare_reaction: boolean;
   seat: string | null;
   summaries: readonly (Pick<

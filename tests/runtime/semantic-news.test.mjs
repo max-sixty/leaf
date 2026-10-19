@@ -23,13 +23,12 @@ const message = (id, extra = {}) => ({
   content_version: extra.edited?.id ?? id,
   ...extra,
 });
-const thread = (id, msgs, attention = null, userPrompt = null) =>
+const thread = (id, msgs, attention = null) =>
   servedThread(
     msgs.map(({ unread: _unread, ...served }) => served),
     {
       id,
       attention,
-      user_prompt: userPrompt,
       unread: msgs
         .filter((item) => item.unread !== false)
         .map((item) => ({ message: item.id, version: item.content_version })),
@@ -40,6 +39,7 @@ const item = (id, thread = null) => ({
   thread,
   message: thread,
   source: { kind: "widget", id },
+  next_actor: "user",
 });
 // A question asked in words, an lf-ask in the agent's message `id`.
 const replyItem = (id) => ({
@@ -47,6 +47,7 @@ const replyItem = (id) => ({
   thread: "t",
   message: id,
   source: { kind: "widget", id, tag: "lf-ask" },
+  next_actor: "user",
 });
 const activity = (kind = "away", extra = {}) => ({
   kind,
@@ -61,11 +62,8 @@ const reading = ({
   workflows = [],
   pageActivity = activity(),
 } = {}) => ({
-  page: { items: { user: pageItems } },
-  thread: {
-    threads,
-    items: { user: threadItems },
-  },
+  items: [...pageItems, ...threadItems],
+  thread: { threads },
   workflows,
   activity: pageActivity,
 });
@@ -96,12 +94,10 @@ test("accepted messages and user obligations arrive together after a quiet basel
 
   const next = reading({
     threads: [
-      thread(
-        "t",
-        [message("old", { unread: false }), message("new", { seq: 2 })],
-        { kind: "needs_user", reason: "widget" },
-        { message: "new", version: "new" },
-      ),
+      thread("t", [message("old", { unread: false }), message("new", { seq: 2 })], {
+        kind: "needs_user",
+        reason: "widget",
+      }),
     ],
     pageItems: [item("existing"), item("new")],
     threadItems: [replyItem("new")],
@@ -125,12 +121,7 @@ test("structural questions own their thread obligation and reopening starts a ne
   const baseline = observeSemanticNews(null, reading());
   const owed = reading({
     threads: [
-      thread(
-        "t",
-        [message("question")],
-        { kind: "needs_user", reason: "widget" },
-        { message: "question", version: "question" },
-      ),
+      thread("t", [message("question")], { kind: "needs_user", reason: "widget" }),
     ],
     pageItems: [item("other")],
     threadItems: [item("choice", "t")],
@@ -179,12 +170,7 @@ test("a second question in the same waiting thread has its own source version", 
   const firstQuestion = reading({
     threadItems: [replyItem("first")],
     threads: [
-      thread(
-        "t",
-        [message("first")],
-        { kind: "needs_user", reason: "widget" },
-        { message: "first", version: "first" },
-      ),
+      thread("t", [message("first")], { kind: "needs_user", reason: "widget" }),
     ],
   });
   const baseline = observeSemanticNews(null, firstQuestion);
@@ -193,12 +179,10 @@ test("a second question in the same waiting thread has its own source version", 
     reading({
       threadItems: [replyItem("second")],
       threads: [
-        thread(
-          "t",
-          [message("first"), message("second", { seq: 2 })],
-          { kind: "needs_user", reason: "widget" },
-          { message: "second", version: "second" },
-        ),
+        thread("t", [message("first"), message("second", { seq: 2 })], {
+          kind: "needs_user",
+          reason: "widget",
+        }),
       ],
     }),
   );
@@ -386,20 +370,20 @@ test("page obligations come from the shown revision, not a waiting activation", 
   const shown = reading({ pageItems: [item("shown")] });
   const waiting = reading({ pageItems: [item("waiting")] });
   const selected = semanticNewsReading({
-    effective: { view: { document: shown.page, thread: shown.thread } },
+    effective: { view: { items: shown.items, thread: shown.thread } },
     authoritative: {
       active: { revision: 2 },
       browser: {
         views: {
-          1: { document: shown.page, thread: shown.thread },
-          2: { document: waiting.page, thread: waiting.thread },
+          1: { items: shown.items, thread: shown.thread },
+          2: { items: waiting.items, thread: waiting.thread },
         },
       },
       workflows: [],
       activity: shown.activity,
     },
   });
-  assert.deepEqual([...selected.page.items.user], [item("shown")]);
+  assert.deepEqual(selected.items, [item("shown")]);
 });
 
 test("one producer notice states a reply and new obligation as separate facts", () => {
@@ -407,12 +391,10 @@ test("one producer notice states a reply and new obligation as separate facts", 
   const current = reading({
     threadItems: [replyItem("answer")],
     threads: [
-      thread(
-        "t",
-        [message("answer", { agent: "Sam" })],
-        { kind: "needs_user", reason: "widget" },
-        { message: "answer", version: "answer" },
-      ),
+      thread("t", [message("answer", { agent: "Sam" })], {
+        kind: "needs_user",
+        reason: "widget",
+      }),
     ],
   });
   const result = observeSemanticNews(baseline.observed, current);

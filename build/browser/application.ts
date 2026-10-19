@@ -183,8 +183,9 @@ type AuthoritativeState = ServedState & {
 };
 /** A server view with its basis, the transport identity, left off. */
 type PageView = Omit<ServedView, "basis">;
-type ItemRecord = ServedItem;
-interface WireItems {
+export type ItemRecord = ServedItem;
+/** The selections `readItems` publishes from a view's one list of item records. */
+interface ItemLists {
   all: readonly ItemRecord[];
   user: readonly ItemRecord[];
   unanswered: readonly ItemRecord[];
@@ -203,9 +204,9 @@ export type WireTodo = Omit<ServedTodo, "outcome"> & {
   outcome: ServedTodo["outcome"] | { ts: null; detail: null };
 };
 
-/** One item on On me or On <agent>, as `served_state.queues` serves it or this tab
- * places it: `owner` names the list. A widget or approval item keeps its record; a
- * to-do item the fields a row draws. */
+/** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
+ * places it: `owner` names the list. A widget or approval row names its item by `id`,
+ * and a to-do row carries the fields a row draws. */
 interface QueueItem {
   kind: ServedQueueRow["kind"];
   id: string;
@@ -214,6 +215,7 @@ interface QueueItem {
   thread: string | null;
   /** Whether the agent has it in hand now. */
   live: boolean;
+  /** A widget or approval row's current record, which `localQueues` joins on. */
   item?: ItemRecord;
   [field: string]: unknown;
 }
@@ -319,10 +321,8 @@ function normalizedItems(
   document: SemanticDocument,
   projection: ReturnType<typeof foldProjection>,
   local: readonly LedgerEntry[],
-): WireItems {
-  const page = view?.document.items;
-  const thread = view?.thread.items;
-  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map((item): ItemRecord => {
+): ItemLists {
+  const all = (view?.items ?? []).map((item): ItemRecord => {
     if (item.source.kind === "approval") {
       const version = item.source.version;
       const undone = new Set(
@@ -368,19 +368,13 @@ function normalizedItems(
       : null;
     return { ...item, answer };
   });
-  const selection = (kind: "user" | "unanswered") => {
-    const admitted = new Set(
-      [...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])].map((item) => item.id),
-    );
-    return all.filter((item) =>
-      item.source.kind === "approval"
-        ? kind === "user"
-          ? item.next_actor === "user"
-          : item.status === "open"
-        : admitted.has(item.id),
-    );
+  // A widget's record keeps the server's status and next actor, which only the log
+  // decides; an approval's carries this tab's gesture, so both select alike.
+  return {
+    all,
+    user: all.filter((item) => item.next_actor === "user"),
+    unanswered: all.filter((item) => item.status === "open"),
   };
-  return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
 
 /* To-dos, open and ended, including Done this tab is sending or undoing. A to-do the
@@ -487,7 +481,7 @@ function localQueues(
   threads: readonly Pick<Thread, "id" | "resolved" | "attention">[],
   workflows: readonly Workflow[],
   todos: ReturnType<typeof localTodos>,
-  items: WireItems,
+  items: ItemLists,
 ) {
   const record = new Map(items.all.map((item) => [item.id, item]));
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
@@ -1040,6 +1034,7 @@ export function createSemanticApplication({
       widgets,
       workflows,
       todos.open,
+      items.all,
       markingRead,
       ready,
     );

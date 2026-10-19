@@ -201,14 +201,14 @@ def browser_state(
             ),
             active.get("activated_at") if active_revision == revision else None,
         )
-        document = browser_document(reading, revision)
-        # The view's items are its own document's beside its frozen thread's, so it
-        # carries the lists they add up to and the items approving it waits on.
-        items = document["items"]["all"] + thread["items"]["all"]
+        # The view's items are its own document's beside its frozen thread's, served
+        # once: a list row and the approval gate name an item by its id.
+        items = reading.items["all"] + viewed.items["all"]
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
-            "document": document,
+            "document": browser_document(reading, revision),
             "thread": thread,
+            "items": items,
             "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(
                 events,

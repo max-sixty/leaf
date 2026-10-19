@@ -184,6 +184,7 @@ function advance(
 /** A server view with its basis, the transport identity, left off. */
 
 
+/** The selections `readItems` publishes from a view's one list of item records. */
 
 
 
@@ -203,9 +204,10 @@ function advance(
 
 
 
-/** One item on On me or On <agent>, as `served_state.queues` serves it or this tab
- * places it: `owner` names the list. A widget or approval item keeps its record; a
- * to-do item the fields a row draws. */
+/** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
+ * places it: `owner` names the list. A widget or approval row names its item by `id`,
+ * and a to-do row carries the fields a row draws. */
+
 
 
 
@@ -320,9 +322,7 @@ function normalizedItems(
   projection                                   ,
   local                        ,
 )            {
-  const page = view?.document.items;
-  const thread = view?.thread.items;
-  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map((item)             => {
+  const all = (view?.items ?? []).map((item)             => {
     if (item.source.kind === "approval") {
       const version = item.source.version;
       const undone = new Set(
@@ -368,19 +368,13 @@ function normalizedItems(
       : null;
     return { ...item, answer };
   });
-  const selection = (kind                       ) => {
-    const admitted = new Set(
-      [...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])].map((item) => item.id),
-    );
-    return all.filter((item) =>
-      item.source.kind === "approval"
-        ? kind === "user"
-          ? item.next_actor === "user"
-          : item.status === "open"
-        : admitted.has(item.id),
-    );
+  // A widget's record keeps the server's status and next actor, which only the log
+  // decides; an approval's carries this tab's gesture, so both select alike.
+  return {
+    all,
+    user: all.filter((item) => item.next_actor === "user"),
+    unanswered: all.filter((item) => item.status === "open"),
   };
-  return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
 
 /* To-dos, open and ended, including Done this tab is sending or undoing. A to-do the
@@ -1040,6 +1034,7 @@ export function createSemanticApplication({
       widgets,
       workflows,
       todos.open,
+      items.all,
       markingRead,
       ready,
     );

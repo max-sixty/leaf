@@ -803,13 +803,9 @@
           "type": "object",
           "properties": {
             "revision": { "type": "integer" },
-            "projection": { "$ref": "#/$defs/Projection" },
-            "items": {
-              "description": "The complete item reading of this revision, which the browser draws items from rather than folding the declarations again.",
-              "$ref": "#/$defs/Items"
-            }
+            "projection": { "$ref": "#/$defs/Projection" }
           },
-          "required": ["revision", "projection", "items"],
+          "required": ["revision", "projection"],
           "additionalProperties": false
         },
         "thread": {
@@ -817,11 +813,15 @@
           "type": "object",
           "properties": {
             "projection": { "$ref": "#/$defs/Projection" },
-            "items": { "$ref": "#/$defs/Items" },
             "threads": { "type": "array", "items": { "$ref": "#/$defs/Thread" } }
           },
-          "required": ["projection", "items", "threads"],
+          "required": ["projection", "threads"],
           "additionalProperties": false
+        },
+        "items": {
+          "description": "Every item record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row and `approval_blocking` name an item by `id`.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/Item" }
         },
         "reports": {
           "description": "The view's report feed, in log order (`projection.canonical_reports`).",
@@ -921,6 +921,7 @@
         "basis",
         "document",
         "thread",
+        "items",
         "reports",
         "undo",
         "coverage",
@@ -989,17 +990,6 @@
         "desired": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["entries", "actions", "reports", "desired"],
-      "additionalProperties": false
-    },
-    "Items": {
-      "description": "An item collection (`items.collection`): every item, those on the user, and those still open.",
-      "type": "object",
-      "properties": {
-        "all": { "type": "array", "items": { "$ref": "#/$defs/Item" } },
-        "user": { "type": "array", "items": { "$ref": "#/$defs/Item" } },
-        "unanswered": { "type": "array", "items": { "$ref": "#/$defs/Item" } }
-      },
-      "required": ["all", "user", "unanswered"],
       "additionalProperties": false
     },
     "Item": {
@@ -1100,7 +1090,7 @@
       "additionalProperties": false
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A widget or approval row carries its item's record, a to-do row the fields a row draws.",
+      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A widget or approval row names its item by `id`, whose record is the view's `items` entry; a to-do row carries the fields a row draws.",
       "anyOf": [
         { "$ref": "#/$defs/ItemRow", "unevaluatedProperties": false },
         { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false },
@@ -1165,26 +1155,9 @@
         "owner": { "const": "user" },
         "subject": { "$ref": "#/$defs/Subject" },
         "thread": { "type": ["string", "null"] },
-        "title": { "type": ["string", "null"] },
-        "running": { "type": "null" },
-        "live": { "const": false },
-        "agent": { "type": "null" },
-        "session": { "type": "null" },
-        "item": { "$ref": "#/$defs/Item" }
+        "live": { "const": false }
       },
-      "required": [
-        "kind",
-        "id",
-        "owner",
-        "subject",
-        "thread",
-        "title",
-        "running",
-        "live",
-        "agent",
-        "session",
-        "item"
-      ]
+      "required": ["kind", "id", "owner", "subject", "thread", "live"]
     },
     "TodoRow": {
       "type": "object",
@@ -1412,10 +1385,6 @@
             { "type": "null" }
           ]
         },
-        "user_prompt": {
-          "description": "The message holding an open item on the user in this thread, by its content version.",
-          "anyOf": [{ "$ref": "#/$defs/ContentVersion" }, { "type": "null" }]
-        },
         "bare_reaction": { "type": "boolean" },
         "seat": {
           "description": "The widget whose thread seat the root stands in (`events.seat_root`), or null.",
@@ -1467,7 +1436,6 @@
         "msgs",
         "revisions",
         "resolved",
-        "user_prompt",
         "bare_reaction",
         "seat",
         "summaries",

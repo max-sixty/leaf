@@ -205,8 +205,9 @@ leaf page state <page> | jq '{source, items, todos, queues}'
 
 `queues.on_user` is On me: open items, to-dos on the user, and updates to resend.
 `queues.on_agent` is your list: answers you owe, updates you are working on, and your
-to-dos. Read them as given rather than rebuilding them from events. An item holds its
-`prompt`, its `answer` once given, and its `status`; a widget's item takes its answer
+to-dos. Read them as given rather than rebuilding them from events. An item's row
+names it by `id`; its record in `items` holds its `prompt`, its `answer` once given,
+and its `status`, and a widget's item takes its answer
 from the widget's state. Read a thread or a widget with `leaf page state <page> <id>`,
 using a message id or a widget id; the widget's markup is in the HTML file named by
 `active.file`. Unsent drafts and tabs on older versions are not in this reading.

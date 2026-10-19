@@ -16,7 +16,6 @@ def browser_document(document: DocumentReading, revision: int) -> dict:
             within=document.within,
             floors=document.floors,
         ),
-        "items": document.items,
     }
 
 

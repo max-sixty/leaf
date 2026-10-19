@@ -120,7 +120,9 @@ declarations honored; no undeclared text nodes under widget chrome, sideways scr
 clipped control, or misplaced box; space below words and controls for a horizontal overlay scrollbar;
 and current state that replays without conflict and idempotently.
 Words a stylesheet paints with `content` have no text node and are outside these readings.
-`render_gate/readings.py` is the list. Those readings run
+`render_gate/readings.py` is the list. A message's widgets render only where its thread
+is drawn, so each thread whose messages carry markup is then opened in turn, where a
+reader would find it, and the widget readings run again (`thread_findings`). Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1920px and sideways overflow, misplaced boxes,
 and scrollbar clearance are read again at each: a version holds at every width from
@@ -220,7 +222,7 @@ readings live on its one `RevisionReading` (`revision_artifact.read_revision`); 
 candidate's live on the one `SourceReading` its check takes, which the revision
 activation writes from it adopts. A `SourceDocument` builds its element index (ids,
 lf-* records, live samples) as it is read, and everything else on first use of
-`SourceDocument.authoring`. The revision inventory scans (ids, ask registrations,
+`SourceDocument.authoring`. The revision inventory scans (ids, item registrations,
 data consumers) read only the index of each revision, so they never build the rest;
 a reader that names a historical revision's elements, such as gesture naming,
 builds it for that revision. Each logged markup fragment is parsed once

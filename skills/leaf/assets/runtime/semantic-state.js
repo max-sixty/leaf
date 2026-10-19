@@ -86,15 +86,13 @@ export const queueWidgetUpdate = (widget, update) =>
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, the ask view resolves
-// the widget nodes those passages placed, and the On panel formats the canonical
-// answers against those source nodes. Declaring the order here is what lets
-// every publisher simply publish.
+// thread resolves its passages over the nodes that leaves, and the item view resolves
+// the widget nodes those passages placed. Declaring the order here is what lets every
+// publisher simply publish.
 export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  asks: 2,
-  queue: 3,
+  items: 2,
 });
 
 // The document-wide presenters, in registration order. `presentDocument` is what a
@@ -246,14 +244,28 @@ export const applicationPresenter = ({
 };
 
 // How many times a caller has said the document changed under every region. A reading
-// derived from the page's own nodes, rather than from the root, keys on it.
+// derived from the page's own nodes, rather than from the root, keys on it. It is an
+// outside reading, so a paint that reads one follows it: a watched paint
+// (`watchProjection`), which `presentDocument` does not call, repaints when the nodes it
+// drew from change, as the floating panel's quote does when a datum's label does. The
+// regions it calls hear it after they have claimed, which owes them nothing more.
 let documentChanges = 0;
-export const documentChanged = () => documentChanges;
+const documentListeners = new Set();
+const documentReading = outsideReading(
+  () => documentChanges,
+  (moved) => {
+    documentListeners.add(moved);
+    return () => documentListeners.delete(moved);
+  },
+);
+export const documentChanged = () => documentReading.read();
 
 /** Claim every document-wide region for the root as it stands now. */
 export const presentDocument = () => {
   documentChanges += 1;
   for (const present of documentPresenters) void present();
+  const round = {};
+  for (const moved of [...documentListeners]) moved(round);
   return schedule.passed();
 };
 
@@ -263,12 +275,6 @@ export const presentDocument = () => {
 // failure of the pass so an accepted reading that could not be shown stays unrecorded.
 export const whenDocumentPresented = () => schedule.passed();
 
-export class PresentationRetentionError extends AggregateError {}
-
-export const failSoftAfterRetention = (proof) => (reason) => {
-  if (reason instanceof PresentationRetentionError) throw reason;
-  return proof;
-};
 // The epoch presentation proof compares against. A paint that waits on proof reads it
 // outside its collection, so waiting subscribes the paint to nothing.
 const currentEpoch = () => untracked(() => readApplication().semanticEpoch);

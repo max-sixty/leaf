@@ -34,12 +34,12 @@ from render_harness import (
     expect_comment_notes,
     leaf_page,
     open_page,
-    panel_settled,
     resized,
     round_trip,
     sending,
     stamp_page,
     told,
+    wait_for_revision,
     write,
 )
 
@@ -53,6 +53,7 @@ from browser.test_render_aim import (
     _open_attachment_draft,
     open_compact_comment,
 )
+from browser.threads import open_panel_thread
 
 
 @pytest.mark.parametrize("shift, placement", [(0, "right-start"), (250, "left-start")])
@@ -125,9 +126,7 @@ def test_typing_moves_the_comment_box_and_leaves_the_page_still(
     """A box under or over its passage that outgrows the room on its side moves inside
     the window, across the passage if it must, and the page stays where the user put it.
     The user reported the page scrolling under their keys as the box grew (the box then
-    asked the page to make room for each new line). The painted field is what stays in
-    the window: the bar's frame reserves the sent card's rows unpainted, and they may
-    stand past its edge."""
+    asked the page to make room for each new line)."""
     words = "The reviewer weighs each claim against the evidence offered so far. " * 3
     paragraphs = "".join(f'<p id="p{n}">{words}</p>' for n in range(30))
     page = open_page(browser, serve(leaf_page("Typing room", paragraphs)))
@@ -144,7 +143,6 @@ def test_typing_moves_the_comment_box_and_leaves_the_page_still(
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") == placement
-    painted = bar.locator(".lf-compose-field")
     window = page.evaluate(
         """async () => {
           const {top, bottom} = (await window.__lfWidgetApi())
@@ -152,19 +150,19 @@ def test_typing_moves_the_comment_box_and_leaves_the_page_still(
           return {top, bottom, scroll: scrollY};
         }"""
     )
-    start = painted.bounding_box()
+    start = bar.bounding_box()
     lines = [f"Line {n} of a comment that keeps growing" for n in range(22)]
     for line in lines:
         page.keyboard.type(line)
         page.keyboard.press("Shift+Enter")
         rendered(page)
-        box = painted.bounding_box()
+        box = bar.bounding_box()
         assert page.evaluate("scrollY") == window["scroll"], (line, box)
         assert box["y"] >= window["top"] - 0.5, (line, box, window)
         assert box["y"] + box["height"] <= window["bottom"] + 0.5, (line, box, window)
     expect(field).to_have_js_property("value", "\n".join(lines) + "\n")
     assert bar.get_attribute("data-lf-placement") == placement
-    grown = painted.bounding_box()
+    grown = bar.bounding_box()
     # Grown past the room its side showed, so it moved rather than the page.
     room = (
         window["bottom"] - start["y"]
@@ -232,7 +230,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     reached_paths = set()
     for i in range(total):
         # A control inside a fold or behind an unopened tab is nowhere a user can aim,
-        # which is the press sweep's reading of the same question, and a point the banner
+        # which is the press sweep's reading of the same question, and a point the panel
         # or a neighbour covers is not this target's press at all.
         target = page.locator(targets).nth(i)
         if not target.is_visible():
@@ -430,9 +428,9 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator('.lf-thread[data-id="c-inline-margin"] .lf-thread-summary').click()
+    open_panel_thread(page, "c-inline-margin")
+    # The thread opens with the caret in its reply; Escape stands on the thread.
+    page.keyboard.press("Escape")
     page.keyboard.press("l")
     accept = page.locator('[data-lf-margin-for="reply-suggestion"] .lf-sug-accept')
     expect(accept).to_be_visible()
@@ -482,6 +480,21 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     """
     page = open_page(browser, live_url(serve(TYPED_PARTS_PAGE)))
 
+    expected_parts = {
+        "life": {"Queued", "Working", "Fetch", "Build", "Done"},
+        "shape": {"RUNNER", "JOB"},
+        "path": {"A", "B"},
+        "exchange": {"User", "Server"},
+        "model": {"Job", "Runner"},
+    }
+    assert page.locator("lf-diagram[parts]").evaluate_all("""diagrams =>
+      Object.fromEntries(diagrams.map(diagram => [diagram.id,
+        [...diagram.visualParts.keys()].sort()]))
+    """) == {
+        diagram: sorted(f"node:{name}" for name in parts)
+        for diagram, parts in expected_parts.items()
+    }
+
     def aim(target, **press):
         target.click(modifiers=["Alt"], **press)
         open_compact_comment(page)
@@ -490,13 +503,8 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     aim(state)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Queued")
     write(page.locator(".lf-composer leaf-text"), "how long does it sit here")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
-    # The trip ends when the page has heard back what it sent, which is before it has
-    # drawn what came back. Applying the comment repaints this diagram's marks and hangs
-    # its note on the element, and that repaint takes an open response surface down with
-    # it — so an aim placed in the gap opens a composer the arriving comment then closes.
-    # The note is the projection landing, and every later aim is on a settled page.
+    with sending(page, "the state comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect_comment_notes(page, "#life", 1)
 
     # A box inside the composite state, declared in its own right.
@@ -511,33 +519,34 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     entity = page.locator('#shape g[data-id="RUNNER"]')
     aim(entity)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · RUNNER")
-    page.keyboard.press("Escape")
+    write(page.locator(".lf-composer leaf-text"), "one runner or many")
+    with sending(page, "the entity comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_comment_notes(page, "#shape", 1)
 
     # A node's label is the words the box shows.
     aim(page.locator('#path g[data-id="A"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "§ diagram · Bold and plain"
     )
-    page.keyboard.press("Escape")
+    write(page.locator(".lf-composer leaf-text"), "explain this step")
+    with sending(page, "the flowchart comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_comment_notes(page, "#path", 1)
 
-    aim(page.locator('#exchange g[data-id="User"]'))
+    aim(page.locator('#exchange g[data-id="User"]:not(.pele-actor-footer)'))
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · User")
-    page.keyboard.press("Escape")
+    write(page.locator(".lf-composer leaf-text"), "who starts the exchange")
+    with sending(page, "the participant comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_comment_notes(page, "#exchange", 1)
 
     aim(page.locator('#model g[data-id="Job"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Job")
-    page.keyboard.press("Escape")
-
-    aim(entity)
-    write(page.locator(".lf-composer leaf-text"), "one runner or many")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
-    # The same gap as above, read from the other side. The trip ends on what the page has
-    # sent, and a post the browser has not reported yet is not pending, so a trip taken on
-    # the heels of the press can end before this comment is in the wire at all — and the
-    # log read below then answers with the log as it stood before the gesture. This note is
-    # the second comment applied, which it cannot be before the log holds it.
-    expect_comment_notes(page, "#shape", 1)
+    write(page.locator(".lf-composer leaf-text"), "which job owns this")
+    with sending(page, "the class comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_comment_notes(page, "#model", 1)
 
     posted = [
         event
@@ -547,6 +556,9 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     assert [event["anchor"] for event in posted] == [
         {"section": "life", "visual": "node:Queued"},
         {"section": "shape", "visual": "node:RUNNER"},
+        {"section": "path", "visual": "node:A"},
+        {"section": "exchange", "visual": "node:User"},
+        {"section": "model", "visual": "node:Job"},
     ]
     expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(entity).to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -557,9 +569,23 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     state.evaluate("el => { window.lfOldQueued = el; }")
     stamp_page(serve.page_dir, TYPED_PARTS_V2, "one state earlier")
     told(page)
-    expect(page.locator(".lf-version")).to_contain_text("v2")
+    wait_for_revision(page, 2)
     assert page.evaluate("() => !window.lfOldQueued.isConnected")
     expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
+
+    page.reload()
+    wait_until_ready(page)
+    for diagram, name in (
+        ("life", "Queued"),
+        ("shape", "RUNNER"),
+        ("path", "A"),
+        ("exchange", "User"),
+        ("model", "Job"),
+    ):
+        expect(
+            page.locator(f'#{diagram} g[data-id="{name}"]:not(.pele-actor-footer)')
+        ).to_have_class(re.compile(r"\blf-mark-el\b"))
+        expect_comment_notes(page, f"#{diagram}", 1)
 
 
 @pytest.mark.parametrize("reply", [False, True])

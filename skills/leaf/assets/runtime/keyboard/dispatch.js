@@ -34,10 +34,7 @@
    the ordinary text-entry row to return to the panel, keeping the query. Exact input
    rows stand before the general text-entry claim, which stands before ancestor widgets.
 
-   A page command that a covering surface should not drop says so with `covering`, and
-   gates its own liveness on what it can reach there, rather than living as a copy in
-   the surface's scope. `c` answers that way from a covering Threads panel, reading the
-   one comment destination the page reads. `activeCommandLabel` projects the
+   `activeCommandLabel` projects the
    dispatcher's live result into the destination composition box's placeholder. Each
    box's `aria-label` remains its shortcut-free accessible name.
 
@@ -84,7 +81,6 @@ import {
   quickShortcuts,
   declaredBindings,
   allBindings,
-  lineOf,
   titleOf,
   descriptionOf,
   commandEntries,
@@ -116,7 +112,7 @@ import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js
 const pageHas = scopeAvailable;
 export const userIn = (scope) => {
   // Native modality excludes everything below its layer floor. An explicitly inert
-  // subtree can also stand inside that floor (the suspended bottom bar in Threads),
+  // subtree can also stand inside that floor,
   // and none of its latent scopes may answer a key or advertise a live command.
   if (excludedByInert(scopeRoot(scope))) return false;
   return !scope.at || scope.at();
@@ -328,7 +324,7 @@ export const shadow = (quick = quickShortcuts()) => {
 // callback. Resolve that reference at invocation time so replacement, disconnection,
 // scope liveness, row liveness, and dynamic routes have the same meaning as they do for
 // an intrinsic key press. The source scope need not be where focus stands: that is the
-// point of an ancestor projection such as an ask.
+// point of an ancestor projection such as an item.
 function referencedInvocation(reference) {
   if (!reference) return null;
   const current = referencedCommandEntry(reference);
@@ -393,42 +389,12 @@ function announceInvocation(invocation) {
   );
 }
 
-function invokeCommand(command, beforeCommand) {
+function invokeCommand(command) {
   const invocation = invocationFor(command.row, command.binding, command.entry);
   if (!invocation) return false;
-  beforeCommand?.(invocation.row);
   announceInvocation(invocation);
   invocation.run();
   return true;
-}
-
-// The visible owner of one binding after its own ordering and claims. The shortcut line
-// asks this once for Escape; its other bindings retain the cheaper single declaration-order
-// walk. Keeping this resolution here makes the shown unwind step the one dispatch will run.
-export function lineOwner(binding) {
-  const nearer = shadow();
-  for (const scope of stack(binding)) {
-    const owners = scope.rows.filter(
-      (row) =>
-        bindings(row).includes(binding) &&
-        !nearer.takes(binding, row, scope) &&
-        commandEntries(row, [binding]).length > 0 &&
-        lineOf(row) !== false,
-    );
-    if (owners.length > 1)
-      throw new Error(
-        `leaf: ${scope.title ?? "a scope"} has two live meanings for ${binding}: ` +
-          owners.map(titleOf).join("; "),
-      );
-    if (owners.length)
-      return {
-        scope,
-        row: owners[0],
-        visible: !scope.sequence && word(owners[0].lineWhen) === false ? false : true,
-      };
-    nearer.past(scope);
-  }
-  return null;
 }
 
 // Reference invocation names a command directly, so another row on the same key does not
@@ -482,14 +448,13 @@ export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
 
 // Scoping is the DOM's, but the resolver's stack, rather than listener order, says
 // which command wins. The controller leaves composing input to the IME.
-export function dispatchKey(ev, { beforeCommand }) {
+export function dispatchKey(ev) {
   const matched = resolveKey(ev);
   if (!matched || matched === INPUT_PENDING) return false;
   // Repeats are consumed even for a command that runs once. A native row performs
   // its own half before leaving the browser's half of the same press intact.
   if (!matched.native) ev.preventDefault();
   if (ev.repeat && !matched.row.repeat) return true;
-  beforeCommand?.(matched.row);
   announceInvocation(matched);
   matched.run();
   return true;
@@ -551,7 +516,7 @@ export function activeCommandLabel(ids) {
   return command?.binding != null ? spell(command.binding) : "";
 }
 // Snapshot executable bindings by row while focus is still on the page. A widget's
-// intrinsic key and an ask alias can share a command id while only one is shadowed.
+// intrinsic key and an item alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
 export function availableCommandRoutes({
@@ -594,8 +559,8 @@ export function invokePress({ id, row, binding }) {
   invocation.run();
   return true;
 }
-export function executeCommand(id, beforeCommand) {
+export function executeCommand(id) {
   const command = commandFor(id);
   if (!command) return false;
-  return invokeCommand(command, beforeCommand);
+  return invokeCommand(command);
 }

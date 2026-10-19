@@ -1,6 +1,6 @@
-"""How the Threads chrome is laid out and styled: message and card heads, the panel's
-column, floating surfaces under zoom and short windows, and its rules staying apart from
-page and package styles."""
+"""How threads are laid out and styled: message and card heads, floating surfaces
+under zoom and short windows, and the chrome's rules staying apart from page and package
+styles."""
 
 import json
 import re
@@ -11,13 +11,11 @@ from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
-from render_cases_layout import token_colour
 from render_harness import (
     LONG_PAGE,
     example_media,
     leaf_page,
     open_page,
-    panel_settled,
     resized,
     round_trip,
     scroll_settled,
@@ -32,7 +30,7 @@ from browser.threads import (
     LANDING_WORDS,
     _shadow_tree_widget,
     append_agent_reply,
-    focus_panel_thread,
+    open_panel_thread,
     paste_image,
 )
 
@@ -50,7 +48,9 @@ def test_thread_actions_share_consistently_sized_message_headers(
     and each body keeps the conversation's full reading width.
     """
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "testing", {"section": "lede"})
+    root = panel_comment(
+        serve.page_dir, "testing", None if surface == "panel" else {"section": "lede"}
+    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -65,10 +65,7 @@ def test_thread_actions_share_consistently_sized_message_headers(
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(browser, url, context=context)
     if surface == "panel":
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
-        card = page.locator(f'.lf-thread[data-id="{root}"]')
-        focus_panel_thread(card)
+        card = open_panel_thread(page, root)
     else:
         page.locator(".lf-margin-marker").first.click()
         card = page.locator(".lf-margin-preview .lf-page-thread")
@@ -79,10 +76,11 @@ def test_thread_actions_share_consistently_sized_message_headers(
         geometry = card.evaluate(
             """card => {
               const box = selector => card.querySelector(selector).getBoundingClientRect();
-              const title = (card.querySelector('.lf-thread-head') ??
-                card.querySelector('.lf-thread-summary'))?.getBoundingClientRect();
+              const title = card.querySelector('.lf-thread-head')?.getBoundingClientRect();
               const head = box('.lf-msg-head');
-              const action = box('.lf-resolve');
+              // The panel's Resolve stands in its view's head, off the messages' rows.
+              const action = card.querySelector('.lf-resolve')?.getBoundingClientRect()
+                ?? null;
               const body = box('.lf-msg-body');
               const center = box => box.top + box.height / 2;
               return {
@@ -92,36 +90,36 @@ def test_thread_actions_share_consistently_sized_message_headers(
                   const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
                   return body.top - name.bottom;
                 }),
-                centers: [center(head), center(action)],
-                headRight: head.right, actionLeft: action.left,
+                centers: action && [center(head), center(action)],
+                headRight: head.right, actionLeft: action?.left,
                 bodyLeft: body.left, headLeft: head.left,
-                bodyRight: body.right, actionRight: action.right,
+                bodyRight: body.right, actionRight: action?.right,
               };
             }"""
         )
-        assert abs(geometry["centers"][0] - geometry["centers"][1]) < 1, geometry
+        assert (geometry["centers"] is None) == (surface == "panel"), geometry
+        if geometry["centers"] is not None:
+            assert abs(geometry["centers"][0] - geometry["centers"][1]) < 1, geometry
+            assert geometry["headRight"] <= geometry["actionLeft"], geometry
+            assert geometry["bodyRight"] >= geometry["actionRight"], geometry
         if geometry["headerGap"] is not None:
             assert 0 <= geometry["headerGap"] <= 12, geometry
         assert len(geometry["messageGaps"]) == 3, geometry
         assert max(geometry["messageGaps"]) - min(geometry["messageGaps"]) < 0.01, (
             geometry
         )
-        assert geometry["headRight"] <= geometry["actionLeft"], geometry
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
-        assert geometry["bodyRight"] >= geometry["actionRight"], geometry
 
 
-def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
+def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
     """The picker floats from its message corner without moving the thread.
 
     A reaction list used to add forty pixels to its thread only while open. That moved
-    every later thread under the pointer and made choosing a reaction change the layout
-    being acted on. The next card is the single-factor neighbor: opening the picker is
-    the only change between these two frames."""
+    every later message under the pointer and made choosing a reaction change the
+    layout being acted on. The next message is the single-factor neighbor: opening the
+    picker is the only change between these two frames."""
     url = serve(PANEL_PAGE)
-    first = panel_comment(
-        serve.page_dir, "Keep the route visible.", {"section": "how-store"}
-    )
+    first = panel_comment(serve.page_dir, "Keep the route visible.")
     append_carried_log_record(
         serve.page_dir,
         {
@@ -133,22 +131,27 @@ def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serv
             "text": "The route stays beside the choice.",
         },
     )
-    second = panel_comment(
-        serve.page_dir, "Keep the cap visible too.", {"section": "how-cap"}
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": first,
+            "revision": 1,
+            "text": "Keep the cap visible too.",
+        },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    card = page.locator(f'.lf-thread[data-id="{first}"]')
-    neighbor = page.locator(f'.lf-thread[data-id="{second}"]')
-    card.locator(".lf-thread-summary").click()
-    trigger = card.locator(".lf-msg.agent .lf-react-trigger")
+    view = open_panel_thread(page, first)
+    card = view.locator(".lf-msg.agent")
+    neighbor = view.locator(".lf-msg").last
+    trigger = card.locator(".lf-react-trigger")
     assert trigger.evaluate("b => getComputedStyle(b).backgroundColor") == (
         "rgba(0, 0, 0, 0)"
     )
     trigger.hover()
-    expect(trigger).to_have_css("background-color", token_colour(page, "--chip"))
-    expect(trigger).to_have_css("border-top-color", token_colour(page, "--border-2"))
+    # The panel dresses its own presses; under the pointer the trigger takes a face.
+    expect(trigger).not_to_have_css("background-color", "rgba(0, 0, 0, 0)")
     before = {
         "card": card.bounding_box(),
         "neighbor": neighbor.bounding_box(),
@@ -156,7 +159,7 @@ def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serv
 
     trigger.click()
     expect(trigger).to_have_attribute("aria-expanded", "true")
-    palette = card.locator(".lf-react-palette")
+    palette = view.locator(".lf-react-palette")
     expect(palette).to_be_visible()
     after = {
         "card": card.bounding_box(),
@@ -757,123 +760,11 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     expect(toggle).to_be_in_viewport(ratio=1)
 
 
-def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
-    """Every bordered box in the Threads panel stands on one column: the find box, and
-    an open thread's messages and its reply box. The reply box once stood 7px wider on each side, so its words started at the messages'
-    text edge while its border overhung the column everything else keeps. The View
-    button beside the find box wears the chrome's own button type, as the rest of the
-    panel's buttons do."""
-    page = open_page(browser, serve(LONG_PAGE, comments=1))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    thread = page.locator(".lf-threads > .lf-thread").first
-    if thread.get_attribute("open") is None:
-        thread.locator(":scope > .lf-thread-summary").click()
-    expect(thread.locator(".lf-compose-field")).to_be_visible()
-    boxes = page.evaluate(
-        """() => {
-          const box = (selector, end = selector) => [
-            document.querySelector(selector).getBoundingClientRect().left,
-            document.querySelector(end).getBoundingClientRect().right,
-          ];
-          return {
-            message: box('.lf-thread[open] .lf-thread-transcript'),
-            reply: box('.lf-thread[open] > .lf-thread-reply .lf-compose-field'),
-            find: box('.lf-find-box', '.lf-thread-filter-toggle'),
-          };
-        }"""
-    )
-    left, right = boxes["message"]
-    for name, (at, to) in boxes.items():
-        # The find box stands on the panel's padding, a thread's boxes one transparent
-        # border inside the list's; a pixel is that border.
-        assert at == pytest.approx(left, abs=1.01), (name, boxes)
-        assert to == pytest.approx(right, abs=1.01), (name, boxes)
-    message_start = page.evaluate(
-        """() => {
-          const message = document.querySelector('.lf-thread[open] .lf-msg');
-          const reply = document.querySelector('.lf-thread[open] > .lf-thread-reply .lf-compose-field');
-          const field = reply.querySelector('leaf-text');
-          const style = getComputedStyle(field);
-          return {
-            message: message.getBoundingClientRect().left,
-            reply: field.getBoundingClientRect().left + parseFloat(style.paddingLeft),
-          };
-        }"""
-    )
-    assert message_start["message"] == pytest.approx(message_start["reply"], abs=1), (
-        message_start
-    )
-    faces = page.evaluate(
-        """() => ['.lf-thread-filter-toggle', '.lf-threads-toggle'].map((selector) => {
-          const style = getComputedStyle(document.querySelector(selector));
-          return [style.fontSize, style.lineHeight];
-        })"""
-    )
-    assert faces[0] == faces[1], faces
-
-
-@pytest.mark.parametrize("touch", [False, True])
-def test_a_short_thread_panel_keeps_its_list_and_grip_reachable(browser, serve, touch):
-    """Panel controls take their room before the list takes what remains.
-
-    View once exhausted a short panel, and an exhausted window needs a native scroll
-    route without clipping the panel's separate resize grip. The page comment card's
-    own fit in a short window is `test_comment_on_the_page_starts_a_thread_from_a_card_
-    under_the_banner`'s.
-    """
-    context = browser.new_context(
-        has_touch=touch, viewport={"width": 1200, "height": 600}
-    )
-    page = open_page(browser, serve(LONG_PAGE, comments=12), context=context)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    grip = page.locator(".lf-thread-panel > .lf-edge")
-    assert grip.evaluate("""el => {
-      const b = el.getBoundingClientRect();
-      return [b.left + 1, b.right - 1].every(x =>
-        el.contains(document.elementFromPoint(x, b.top + b.height / 2)));
-    }"""), "the panel's scrolling body clipped its resize grip"
-    assert page.locator(".lf-threads").evaluate(
-        "el => el.scrollHeight > el.clientHeight"
-    )
-    page.locator(".lf-threads > .lf-thread").first.locator(
-        ":scope > .lf-thread-summary"
-    ).focus()
-    page.keyboard.press("d")
-    page.wait_for_function("document.querySelector('.lf-threads').scrollTop > 0")
-
-    resized(page, 390, 600)
-    page.get_by_role("button", name="View", exact=True).click()
-    rendered(page)
-    assert page.locator(".lf-threads").evaluate("el => el.clientHeight > 30")
-    page.get_by_role("button", name="View", exact=True).click()
-
-    # The list may lie below the viewport while View is open. Reading keys must
-    # then move its visible containing body, and reverse that same move.
-    resized(page, 390, 280)
-    page.get_by_role("button", name="View", exact=True).click()
-    body = page.locator(".lf-thread-panel-body")
-    before = body.evaluate("el => el.scrollTop")
-    page.keyboard.press("d")
-    page.wait_for_function(
-        "before => document.querySelector('.lf-thread-panel-body').scrollTop > before",
-        arg=before,
-    )
-    after = body.evaluate("el => el.scrollTop")
-    page.keyboard.press("u")
-    page.wait_for_function(
-        "after => document.querySelector('.lf-thread-panel-body').scrollTop < after",
-        arg=after,
-    )
-
-
 @pytest.mark.parametrize("scaled", [False, True])
 def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     browser, serve, scaled
 ):
-    """A whole-frame cap reserves the image, choices and Send before text scrolls. What
-    the bar paints stays in the window; its unpainted reserve for the card may not."""
+    """A whole-frame cap reserves the image, choices and Send before text scrolls."""
     source = LONG_PAGE
     if scaled:
         source = source.replace(
@@ -906,15 +797,12 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     expect(field).to_have_js_property("value", content)
     assert field.evaluate("el => el.scrollHeight > el.clientHeight")
     bounds = bar.evaluate("el => el.getBoundingClientRect().toJSON()")
-    banner_bottom = page.locator(".lf-banner").evaluate(
-        "el => el.getBoundingClientRect().bottom"
-    )
+    assert bounds["top"] >= 6
+    assert bounds["bottom"] <= height - 8
     parts = bar.locator(
         ".lf-compose-field, .lf-fab-input, .lf-compose-submit, .lf-composer-media, "
         ".lf-response-options, .lf-response-action:visible"
     ).evaluate_all("nodes => nodes.map(node => node.getBoundingClientRect().toJSON())")
-    assert min(part["top"] for part in parts) >= banner_bottom + 6, parts
-    assert max(part["bottom"] for part in parts) <= height - 8, parts
     for part in parts:
         assert bounds["left"] <= part["left"] < part["right"] <= bounds["right"], (
             bounds,
@@ -923,30 +811,6 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
         assert bounds["top"] <= part["top"] < part["bottom"] <= bounds["bottom"], (
             bounds,
             parts,
-        )
-    # As the window shortens the bar shows only while its controls fit the room a
-    # surface stands in, and waits for room once they don't.
-    for wide, short in ((width, 200), (width, 170), (width, 140), (1440, 170)):
-        resized(page, wide, short)
-        rendered(page)
-        if not bar.is_visible():
-            continue
-        room = page.evaluate(
-            """async () => {
-              const {top, bottom} = (await window.__lfOverlayApi()).commentBoundary();
-              return {top, bottom};
-            }"""
-        )
-        shown = bar.locator(
-            ".lf-compose-field, .lf-composer-media, .lf-response-options"
-        ).evaluate_all(
-            "nodes => nodes.map(node => node.getBoundingClientRect().toJSON())"
-        )
-        assert min(part["top"] for part in shown) >= room["top"] - 4.5, (short, shown)
-        assert max(part["bottom"] for part in shown) <= room["bottom"] + 0.5, (
-            short,
-            room,
-            shown,
         )
     resized(page, width, 120)
     expect(bar).to_be_hidden()
@@ -1186,10 +1050,6 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
     expect(field).to_have_js_property("value", content)
     assert field.evaluate("(node, original) => node === original", native_field)
     resumed = bar.bounding_box()
-    painted = bar.locator(".lf-compose-field").bounding_box()
-    banner_bottom = page.locator(".lf-banner").evaluate(
-        "el => el.getBoundingClientRect().bottom"
-    )
     assert 8 <= resumed["x"] and resumed["x"] + resumed["width"] <= 382.1, resumed
-    assert banner_bottom + 6 <= painted["y"] + 0.1, painted
-    assert painted["y"] + painted["height"] <= 592.1, painted
+    assert 6 <= resumed["y"] + 0.1, resumed
+    assert resumed["y"] + resumed["height"] <= 592.1, resumed

@@ -2,8 +2,8 @@ Give each design decision one place where the user selects. When the candidates 
 fixed and visible, put them in `lf-options` inside an `lf-ask`, and draw each candidate
 in its `lf-option`, so the user selects the example they want. When the decision changes
 an existing interface, put a figure of today's interface between the question and the
-options (`references/authoring-asks.md`). A page-local control that steps every
-candidate through the same states or cases goes in that ask too.
+options (`references/authoring-decisions.md`). A page-local control that steps every
+candidate through the same states or cases goes in that lf-ask too.
 
 Use `lf-playground` when the user needs to tune a configuration before choosing it. A
 playground holds exactly one `lf-playground-preview` and one `lf-playground-output`.

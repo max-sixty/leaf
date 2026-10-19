@@ -1,5 +1,5 @@
 /* Shared visibility for addressable targets and placement for command
-   binding badges. The banner clips every target's usable box. A binding face hangs off its
+   binding badges. The chrome clips every target's usable box. A binding face hangs off its
    control's upper-left corner, and off another of its corners where that one would cover
    a different control: a digit laid over a neighbour's corner reads as that neighbour's.
    It may move back inside the viewport, but it yields wherever that move would cover
@@ -22,7 +22,6 @@
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
 import {
-  bannerFoot,
   layoutWindow,
   windowChromeBoxes,
   shownParts,
@@ -51,12 +50,11 @@ const rect = (left, top, right, bottom, sourceTop = top) =>
 
 export function keyBadgePlacement() {
   const clips = new Map();
-  const covered = bannerFoot();
-  const room = { ...layoutWindow(), top: covered };
+  const room = layoutWindow();
   const chrome = windowChromeBoxes();
   const kept = [...chrome];
 
-  // What the user can see of a box: the window, less the banner standing over its top.
+  // What the user can see of a box: the window.
   //
   // Chrome at the foot stays in it, so a map's members are never decided by it: the bar
   // states the armed map's own keys and changes width as the user filters them, so a map
@@ -135,7 +133,7 @@ export function keyBadgePlacement() {
     box && clip ? clearOfChrome(intersect(box, clip), box.top) : null;
 
   // Whether the user can see what this box was measured from. Geometry cannot answer it:
-  // a panel, a drawer, a fixed sheet or an ordinary page box covers a member without clipping
+  // a panel, a fixed sheet or an ordinary page box covers a member without clipping
   // its rectangle. Ask the rendered stack inside the box, and make the member itself answer,
   // a cover being exactly the case where something else does. Most chrome answers, which is
   // how a card behind the open panel leaves the map; the bar and the status line take no
@@ -159,7 +157,7 @@ export function keyBadgePlacement() {
     return (aims.length ? aims : [box]).some((aim) => {
       const onTop = elementFromPointAcross(
         clamp((aim.left + aim.right) / 2, 0, room.right - 1),
-        clamp((aim.top + aim.bottom) / 2, covered, room.bottom - 1),
+        clamp((aim.top + aim.bottom) / 2, room.top, room.bottom - 1),
       );
       if (!member) return !inChrome(onTop);
       return exposure === "self"
@@ -231,11 +229,11 @@ export function keyBadgePlacement() {
         /** @type {DOMRect & {held?: boolean}} */
         const place = new DOMRect(
           clamp(left, 0, right - start.width),
-          clamp(top, covered, bottom - start.height),
+          clamp(top, room.top, bottom - start.height),
           start.width,
           start.height,
         );
-        // Pulled down below the banner or up above the window's foot, the chip is held
+        // Pulled down below the window's head or up above its foot, the chip is held
         // by that edge rather than by its control's corner.
         place.held = Math.abs(place.top - top) >= 0.5;
         return place;

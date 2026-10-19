@@ -80,7 +80,7 @@ vars:
        (`document-z029x2il/p3-short-0.png`). Cause: `layout-sidebar` lacks the column
        sidebar's bounded scroll. Proposal: bound the sticky aside in the Layout and
        delete the instruction. Clear-cut.
-    4. Document: an Ask set its option cards in a narrow track beside a table, leaving
+    4. Document: an `lf-ask` set its option cards in a narrow track beside a table, leaving
        about 800px of empty space beside long options
        (`document-z029x2il/p3-laptop-2.png`). Cause: the options track turns on whenever
        a table precedes the list. Proposal: turn the track on only when the list fits
@@ -103,7 +103,7 @@ assert:
       Treat those as the supplied captures without rechecking their identical pixels.
       For other page media, open the cited originals and compare the images the HTML
       uses: cropped or marked captures must still show the cited defect.
-      Find the asks deciding the configuration controls (defect 1), the queue's progress
+      Find the `lf-ask` elements deciding the configuration controls (defect 1), the queue's progress
       (defect 2) and the options track (defect 4). Pass only if each of the three shows
       the defect as it looks today in a picture, inside that `lf-ask`: the capture the
       notes cite for it as an `<img>` or `lf-shot` (cropped or marked counts). A drawing
@@ -112,7 +112,7 @@ assert:
   - type: llm-rubric
     metric: draws-the-change
     value: |
-      Find the asks deciding the configuration controls (defect 1) and the queue's
+      Find the `lf-ask` elements deciding the configuration controls (defect 1) and the queue's
       progress (defect 2). Pass only if each shows what accepting the proposal would look
       like in a drawing (an inline `<svg>`, an `lf-diagram`, an `lf-sample`, or an HTML
       mockup laid out like the interface) inside
@@ -122,6 +122,6 @@ assert:
   - type: llm-rubric
     metric: wording-stays-text
     value: |
-      Find the ask deciding the `leaf thread reply` refusal. Pass if it carries no image,
+      Find the `lf-ask` deciding the `leaf thread reply` refusal. Pass if it carries no image,
       screenshot or drawing; showing the refusal's text, before or after, as text or code
       is fine. Fail if it holds an `<img>`, `<svg>`, `lf-shot` or `lf-diagram`.

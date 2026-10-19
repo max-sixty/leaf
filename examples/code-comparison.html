@@ -64,7 +64,6 @@
         box-sizing: border-box;
         width: 100%;
         max-width: 100%;
-        overflow-x: auto;
       }
 
       .code-candidate[data-density="compact"] lf-code pre {
@@ -341,11 +340,12 @@ export function releaseLabels(releases) {
           <section id="code-reader-feedback">
             <h2>Point at the reader element you want changed</h2>
             <p id="code-reader-feedback-guide">
-              Turn on Design mode with <kbd>l</kbd> or the More menu, then press the
-              heading or code reader below. For a keyboard choice, press <kbd>s</kbd>,
-              browse targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your
-              comment stays beside that element as its treatment changes. Describe a
-              shared change in the comment when both readers should inherit it.
+              Turn on Design mode with <kbd>l</kbd> or Annotations in the leaf's menu,
+              then press the heading or code reader below. For a keyboard choice, press
+              <kbd>s</kbd>, browse targets with <kbd>Tab</kbd>, and choose with
+              <kbd>Enter</kbd>. Your comment stays beside that element as its treatment
+              changes. Describe a shared change in the comment when both readers should
+              inherit it.
             </p>
             <section
               id="target-reader-artifact"

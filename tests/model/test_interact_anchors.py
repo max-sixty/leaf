@@ -11,7 +11,6 @@ from interact_support import (
     SUGGESTED,
     append_carried_log_record,
     append_command,
-    asks_on_user,
     before_choice,
     check_findings,
     command_findings,
@@ -20,6 +19,7 @@ from interact_support import (
     drafted,
     edit,
     found,
+    items_on_user,
     page_state,
     publish,
     published,
@@ -1488,7 +1488,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
 
 
 def test_a_closed_thread_stops_asking(page_dir):
-    """Resolving a thread suppresses its ask attention while retaining inventory."""
+    """Resolving a thread suppresses its item attention while retaining inventory."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = append_carried_log_record(
@@ -1505,7 +1505,7 @@ def test_a_closed_thread_stops_asking(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert asks_on_user(state_json(page_dir)) == [
+    assert items_on_user(state_json(page_dir)) == [
         {
             "id": "widget:gm",
             "tag": "lf-options",
@@ -1517,10 +1517,10 @@ def test_a_closed_thread_stops_asking(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "agent", "parent": root["id"]}
     )
-    assert asks_on_user(state_json(page_dir)) == []
+    assert items_on_user(state_json(page_dir)) == []
 
 
-def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
+def test_thread_items_share_one_projection_across_open_fragments(page_dir):
     """Independent thread widgets fold together while retaining their threads."""
     publish(page_dir)
     roots = []
@@ -1542,7 +1542,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
                 },
             )
         )
-    assert asks_on_user(state_json(page_dir)) == [
+    assert items_on_user(state_json(page_dir)) == [
         {
             "id": "widget:group-a",
             "tag": "lf-options",
@@ -1570,7 +1570,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             "detail": {"value": ["option-a"]},
         },
     )
-    assert asks_on_user(state_json(page_dir)) == [
+    assert items_on_user(state_json(page_dir)) == [
         {
             "id": "widget:group-b",
             "tag": "lf-options",

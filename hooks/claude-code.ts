@@ -19,13 +19,10 @@
  *   from another session (measured at 2.1.300), so for a dropped prompt the
  *   module sends Leaf a WakeRefused payload, and Leaf nudges the session through
  *   that message, as admission does for a session nothing watches. A watch that
- *   wakes during a turn calls the prompt hook itself and appends what it returns
- *   to that turn, which reads it at its next step. The appended row joins the session's transcript at once,
- *   and stays there through an Escape (measured at 2.1.291), so the hook's
- *   confirmation holds: the input is in the session's context. Claude Code
- *   shows neither that row nor the prompt hook's context in the terminal. A
- *   wake while a turn's Stop hooks run waits for them, since Leaf's hands over
- *   what is pending and decides whether the turn goes on;
+ *   wakes during a turn leaves pending input to the native PostToolBatch
+ *   boundary, shared with the default registration. A wake while Stop hooks run
+ *   waits for their decision before starting an idle turn. The module never
+ *   makes a second mid-turn delivery;
  * - a delivery Leaf's Stop hook hands over inline as a turn ends, which Claude
  *   Code would print in full, goes into the session the same way, and the turn
  *   goes on with one line in its place. The hook's output names that delivery in
@@ -185,7 +182,7 @@ async function ensureWatch($: EngineInterface, session: string, interrupted: boo
           done,
         };
       },
-      (output, live) => wake($, session, owner, output, live),
+      (output, live) => wake($, session, output, live),
     )
     .catch((error) => {
       $.ui.log(`Leaf: watch could not start: ${error}`);
@@ -209,7 +206,6 @@ function append($: EngineInterface, text: string) {
 async function wake(
   $: EngineInterface,
   session: string,
-  owner: WatchOwner,
   woke: string,
   live: () => boolean,
 ) {
@@ -219,25 +215,7 @@ async function wake(
     // line, a page's path, does.
     const prompt = `Leaf: ${woke}`;
     const ongoing = await turnGoesOn();
-    if (!live()) return;
-    if (ongoing) {
-      const context = (
-        await hook($, { hook_event_name: "UserPromptSubmit", session_id: session })
-      )?.hookSpecificOutput?.additionalContext;
-      if (!owner.open) return;
-      // The hook has confirmed what it hands over, so that goes into the session
-      // even where the turn ended while the hook ran: an idle session reads an
-      // appended row at its next turn, which the prompt below starts.
-      if (context) await append($, context);
-      const ongoing = await turnGoesOn();
-      // Confirmed input still needs an idle turn even if another watch started;
-      // a session that ended meanwhile owns neither an append nor a new prompt.
-      if (!owner.open || (!context && !live())) return;
-      if (ongoing) {
-        if (!context) await append($, prompt);
-        return;
-      }
-    }
+    if (!live() || ongoing) return;
     // Claude Code drops a plugin's prompt from an Escape until the user next types,
     // and drops one queued when they press it; Claude Code's debug log says why.
     const submitted = await $.prompt.submit({ text: prompt });

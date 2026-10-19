@@ -53,11 +53,11 @@ The optional bundled packages are:
 | Package         | Adds                                                                                               |
 | --------------- | -------------------------------------------------------------------------------------------------- |
 | `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.            |
-| `diagram`       | `lf-diagram` and its Mermaid renderer.                                                             |
+| `diagram`       | `lf-diagram`, rendering Mermaid syntax with Pele.                                                  |
 | `diff`          | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines. |
 | `file-editor`   | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                 |
 | `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.         |
-| `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback ask.         |
+| `monitoring`    | Instructions for a release workspace: current state, checks, a run log and a rollback decision.    |
 | `visual-review` | Website cases with aligned before-and-after captures and a verdict per case.                       |
 | `playwright`    | Trace import and `lf-trace`, which steps through recorded actions and screenshots.                 |
 
@@ -136,7 +136,7 @@ Custom properties come in four kinds:
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Theme inputs        | Page authors and themes set them on the root, or on a subtree: colours (`--paper`, `--ink`, `--muted`, `--accent`, `--ok`, `--danger`), faces (`--serif`, `--sans`, `--mono`), type scales, radius (`--r`), the code palette (`--code-*`), focus (`--focus-ring` and `--focus-shadow`, set together), and page geometry (`--col`, `--wide`, `--sidebar`, `--page-pad-start`, `--page-pad-end`). A value derived from an input is computed where it is declared, so setting the input on a subtree doesn't change a derived value it inherits. |
 | Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                                                                          |
-| Runtime outputs     | Leaf writes values such as `--lf-thread-panel-width` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 A `--lf-` prefix doesn't make a property an input; most are outputs. A package
@@ -183,8 +183,8 @@ colours with the page's status.
 
 An element declaration is a JSON Schema over the element's attributes, plus `x-` keys
 that say how Leaf treats the tag, such as whether a module upgrades it, its action verbs
-and whether it poses an ask. The merged registry's `$keys` entry defines each key;
-`$state` defines the members of `x-state`, and `$awaits` an ask's answer. Every
+and whether it puts an item on On me. The merged registry's `$keys` entry defines each
+key; `$state` defines the members of `x-state`, and `$awaits` an item's answer. Every
 declaration has a `description` saying what the widget is for and when to use it, and a
 valid `x-example`. The optional `x-instructions` gives the choices and obligations of
 using it.
@@ -222,9 +222,10 @@ examples can't be drawn. The checks:
 
 - `example`: no worked example shows the tag, so no other check can read it.
 - `keeps-first-box`: the widget's box changed size after first paint. Size the widget
-  for first paint as [module-authoring.md, "First paint"](module-authoring.md#first-paint)
-  describes. A widget containing others is named only for the change left once its
-  changed children are back at their first sizes.
+  for first paint as [module-authoring.md, "First
+  paint"](module-authoring.md#first-paint) describes. A widget containing others is
+  named only for the change left once its changed children are back at their first
+  sizes.
 - `grows-with-content`: a box in the widget keeps a fixed height and scrolls inside
   it, where a widget in normal flow should grow with its content (`page-layout.md`,
   "Bounds and widths"). The check also finds a fixed height while the widget is empty,
@@ -235,7 +236,7 @@ examples can't be drawn. The checks:
   key works with nothing on the page showing it. Give the command a visible control, or
   set `bindingBadge: null` for a corner badge (`module-input.md`, "Commands and
   keyboard routes"). The check reads only the commands in the example's state, so a
-  command such as a multiple-choice ask's Done needs an example in that state.
+  command such as a multiple-choice decision's Done needs an example in that state.
 
 After `leaf page init` re-vendors a page with the package (`serving-pages.md`,
 "Re-vendoring"), run `leaf page check <page> --render`, which reports a module's

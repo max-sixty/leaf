@@ -73,7 +73,7 @@ const separateTranscript = (held) => {
 // area, including Send and Resolve; an oversized editor reveals only its control.
 // scrollIntoView(nearest) on a card spanning both edges otherwise moves nothing, and
 // so does one aimed at a pinned reply row, so a long thread with one lands its end.
-export const landingTarget = (held, control) => {
+const landingTarget = (held, control) => {
   if (fitsWhole(held)) return { node: held };
   const reply = replyRowOf(held, control);
   // The thread itself, landed as a whole, is not a way into its pinned reply.
@@ -90,7 +90,7 @@ export const landingTarget = (held, control) => {
 // (geometry.js, `seenRect`).
 const onScreen = (node) => seenRect(node, new Map()) !== null;
 
-export const latestTurn = (transcript) =>
+const latestTurn = (transcript) =>
   [...transcript.querySelectorAll(":scope > :is(.lf-msg, .lf-thread-checkpoint)")].at(
     -1,
   ) ?? null;

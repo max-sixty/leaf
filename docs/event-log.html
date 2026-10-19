@@ -54,7 +54,7 @@
           authored initial values and logged actions. Packages declare their own verbs;
           Leaf processes those declarations without package-specific code.
         </p>
-        <lf-diagram id="layers-flow" data-height="769" parts="all">
+        <lf-diagram id="layers-flow" data-height="499" parts="all">
           <pre>
 flowchart TD
   accTitle: Widget actions update widget state
@@ -145,7 +145,7 @@ flowchart TD
         <h2>Verb declarations</h2>
         <p id="verbs-lede">
           This is everything <code>lf-options</code> tells Leaf about its three verbs
-          and when its ask counts as answered.
+          and when its item counts as answered.
         </p>
         <lf-code id="options-verbs" language="json" data-width="wide">
           <pre>
@@ -200,13 +200,13 @@ flowchart TD
             <code>multiple</code> group.</lf-note
           >
           <lf-note at="17"
-            >The ask's typed answer comes from the current
+            >The item's typed answer comes from the current
             <code>choose</code> value.</lf-note
           >
           <lf-note at="18"
             >A single-choice group is answered when an option is selected. A
             multiple-choice group is answered when the user presses Done. Undo can make
-            the ask unanswered again.</lf-note
+            the item unanswered again.</lf-note
           >
         </lf-code>
         <p id="coordinate">
@@ -379,8 +379,8 @@ flowchart TD
             record's line in the log.</lf-note
           >
           <lf-note at="37"
-            >This pick makes the ask's answered condition hold, so it completes the ask.
-            <code>null</code> means it closes no thread; a group with a
+            >This pick makes the item's answered condition hold, so it completes the
+            item. <code>null</code> means it closes no thread; a group with a
             <code>resolves</code> attribute would name one here.</lf-note
           >
           <lf-note at="59"

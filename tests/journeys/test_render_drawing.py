@@ -16,6 +16,7 @@ from render_cases_navigation import (
     UNDO_PAGE,
 )
 from render_harness import (
+    PANEL,
     nudge,
     open_page,
     panel_settled,
@@ -37,6 +38,7 @@ from browser.test_render_drawing import (
     mark_relation,
     stroke_over,
 )
+from browser.threads import open_panel_thread
 
 
 def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
@@ -122,14 +124,13 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert stable_mark.evaluate("node => node.isConnected")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel_settled(page)
+    panel_settled(page, view="threads")
     assert mark_relation(page, posted, "#map-trail") == pytest.approx(
         relation, abs=0.02
     )
     expect(target).not_to_have_class(re.compile(r"\blf-mark-el\b"))
-    expect(page.locator(".lf-thread-panel .lf-drawing-reference")).to_have_text(
-        "Drawing comment"
-    )
+    view = open_panel_thread(page, event["id"])
+    expect(view.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
 
     returned = open_page(browser, url)
     expect(returned.locator(posted)).to_have_count(1)
@@ -347,7 +348,7 @@ def test_a_stroke_in_empty_space_belongs_to_the_nearest_element(browser, serve):
     expect(pending).to_have_count(1)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
 
     page.reload(wait_until="load")
     wait_until_ready(page)

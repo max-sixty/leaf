@@ -4,14 +4,17 @@
    subscribes, then once per microtask in which something the last paint read has
    moved: several in one task make one call. What a paint reads is collected as it runs
    (`collectReads`, snapshot.ts), into one record: every part of the publication it
-   reads through a reader that selects its part (`readPart`, `readAsks`, a widget's
+   reads through a reader that selects its part (`readPart`, `readItems`, a widget's
    controller, the runtime getters), and every reading of something outside the
-   publication (`outsideReading`): the time it shows (`clockValue`, `ago`), and how many
-   times the page has announced `PRESENTATION`. Every paint reads the last, since a
+   publication (`outsideReading`): the time it shows (`clockValue`, `ago`), how many
+   times a caller has said the document changed (`documentChanged`), which a reading of
+   the page's own nodes keys on, and how many times the page has announced
+   `PRESENTATION`. Every paint reads the last, since a
    paint may draw from nodes it decides. The watcher follows each entry by the same rule, and a change that
    moves none of them paints nothing. So a paint never names its inputs, and none it
    reads can go unwatched. Only reads made synchronously count: a read after an `await`
-   in an asynchronous paint, or of the document's nodes, is the caller's to watch, and
+   in an asynchronous paint, or of the document's nodes by a reading that keys on
+   nothing of these, is the caller's to watch, and
    so is a private signal such as where the user stands, which a paint may also write.
    A read of the whole root (`readApplication()`) throws, so a paint reads the parts it
    draws.
@@ -28,7 +31,7 @@
    mechanical changes such as revealing held news, or on the return when the owner is
    away, while retaining the owner's lifetime and readiness proof; before the first
    paint it draws that one at once. A reading has no watcher of its own: a paint calls
-   its reader (`readAsks`, `readQueues`, `readThreads`, `readWork`, `reportSequence`,
+   its reader (`readItems`, `readQueues`, `readThreads`, `readWork`, `reportSequence`,
    `readHistory`), and one watcher serves a paint that reads several. */
 import { collectReads, outsideReading } from "/vendor/browser-runtime.js";
 import { watchPresentation } from "./semantic-state.js";

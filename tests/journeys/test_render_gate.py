@@ -19,8 +19,6 @@ from render_cases_layout import (
     BARE_IDENTIFIERS_PAGE,
     DRAWING_CONTROL_LAYER,
     DRAWING_CONTROL_WIDGETS,
-    EDGE_IDS,
-    EDGES,
     IDENTIFIERS_IN_CODE_PAGE,
     LINKED_CELLS_PAGE,
     LOOSE_SCROLLER_PAGE,
@@ -30,15 +28,11 @@ from render_cases_layout import (
     WIDE_TABLE_PAGE,
     apply_restore_case,
     arrival_findings,
-    banner_control,
-    draw_edge,
-    edge_settled,
-    edge_world,
-    geometry,
     motions,
     moved_at,
     page_at_rest,
     resize_notice_after_last_probe,
+    toggle_queue,
     user_view_restore_cases,
 )
 from render_cases_widgets import (
@@ -502,13 +496,12 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     restore_cases = user_view_restore_cases(page)
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
-    # The control, and the whole reason the silences below say anything: opening the
-    # drawer by hand is the gesture whose motion the arrivals must not have. What it
-    # paints is the runtime's business and is not named here; that it paints at all is
-    # this reading's, and a reading that reports nothing when something moved would
-    # pass every assertion after it.
-    banner_control(page, ".lf-queue").click()
-    expect(page.locator(".lf-queue-panel")).to_be_visible()
+    # The control, and the whole reason the silences below say anything: opening On me
+    # by hand is the gesture whose motion the arrivals must not have. What it paints
+    # is the runtime's business and is not named here; that it paints at all is this
+    # reading's, and a reading that reports nothing when something moved would pass
+    # every assertion after it.
+    toggle_queue(page)
     gesture = moved()
     assert gesture, "a gesture moved nothing the browser reported, so no silence counts"
 
@@ -563,8 +556,9 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
 
 
 def test_the_gate_passes_what_the_renderer_draws(browser, serve):
-    """Leaf draws what Mermaid draws, beyond the families its guide documents, and one
-    page covers the six diagram types the guide documents with addressable parts.
+    """Leaf draws every family its renderer accepts, beyond those its guide names.
+
+    One page covers the structural diagram types with addressable parts and an XY chart.
 
     State, sequence, class, ER, and XY diagrams draw markup a flowchart never does.
     The whole-page contracts (both palettes, axe, print, export, reachability) are what
@@ -590,6 +584,13 @@ classDiagram
   Runner --&gt; Job
 </pre></lf-diagram>
 """
+        + "\n".join(
+            f'<lf-diagram id="namespace-{mode}" parts="all"><pre>\n'
+            f"---\nconfig:\n  class:\n    hierarchicalNamespaces: {mode}\n---\n"
+            "classDiagram\n  namespace Org.Unit {\n    class Job\n  }\n"
+            "</pre></lf-diagram>"
+            for mode in ("true", "false")
+        )
         + "\n".join(
             f'<lf-diagram id="{name}"><pre>\n{source}\n</pre></lf-diagram>'
             for name, source in DIAGRAM_FAMILIES.items()
@@ -620,6 +621,18 @@ classDiagram
         )
         == "Line Item"
     )
+    for mode, expected in (
+        ("true", {"node:Job", "node:Org", "node:Org.Unit"}),
+        ("false", {"node:Job", "node:Org.Unit"}),
+    ):
+        assert (
+            set(
+                drawn.locator(f"#namespace-{mode}").evaluate(
+                    "e => [...e.visualParts.keys()]"
+                )
+            )
+            == expected
+        )
 
 
 def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
@@ -932,7 +945,7 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
 def test_a_table_keeps_its_columns_natural_width_wherever_it_stands(browser, serve):
     """A table's rows are as wide as its columns hold wherever it stands: bare in the
     column, in a panel, in a figure granted the page's room, granted the room itself,
-    which is a limit rather than a size, and in an Ask, even an Ask inside the granted
+    which is a limit rather than a size, and in an item, even an item inside the granted
     figure. Spreading the columns over a frame worked in Chrome alone, since Firefox
     never widens a table's grid to its caption. One granted room stands where the prose
     starts. A table too wide for the panel still scrolls inside it.
@@ -1311,8 +1324,8 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     }"""
     roomy = page.evaluate(reading)
     resized(page, 1024, 900)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
     cramped = page.evaluate(reading)
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     resized(page, 1728, 900)
@@ -1330,59 +1343,4 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
     )
     assert wide["float"] == "right", (
         f"a window wide enough for both moved the notes anyway: {wide}"
-    )
-
-
-@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
-def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge, request):
-    """A thread about a table wants room a thread about a sentence does not,
-    and a drawer of long names wants room a drawer of short ones does not; only the user
-    looking at one knows which this is. So each region's edge is a thing they take hold
-    of. The region stands over the page, so the page yields nothing at any width.
-
-    Then the same edge from the keyboard, because a user who is not holding a pointer is
-    still reading the same page, and then a reload, because a width set once and lost on
-    the next version is a width they would have to set on every revision."""
-    edge_world(request, edge)
-    page = open_page(browser, serve(edge.html(), comments=edge.comments))
-    edge.stand(page)
-    edge_settled(page, edge)
-    default = geometry(page, edge)
-
-    draw_edge(page, edge, 160)
-    drawn = geometry(page, edge)
-
-    # Focus lands on the edge with the drag, so the arrows are live on what the hand was
-    # just holding; the press states that in the form a user without a pointer makes it.
-    # Toward the side the region is held to narrows it.
-    page.locator(f"{edge.region} .lf-edge").press(
-        "ArrowRight" if edge.side == "right" else "ArrowLeft"
-    )
-    stepped = geometry(page, edge)
-
-    page.reload(wait_until="load")
-    wait_until_ready(page)
-    edge_settled(page, edge)
-    returned = geometry(page, edge)
-    page.close()
-
-    assert default["width"] == edge.wide, (
-        f"the region did not start at the width a user who has said nothing gets: "
-        f"{default}"
-    )
-    assert drawn["width"] == edge.wide + 160, (
-        f"the edge did not follow the hand: {default} then {drawn}"
-    )
-    assert drawn["page"] == default["page"], (
-        f"the page yielded room to the region: {drawn}"
-    )
-    assert drawn["chosen"] == str(edge.wide + 160), (
-        f"the user's width was not kept: {drawn}"
-    )
-    assert (stepped["width"], stepped["page"]) == (
-        drawn["width"] - 24,
-        default["page"],
-    ), f"the arrow moved something other than the edge: {stepped}"
-    assert returned["width"] == stepped["width"], (
-        f"the width did not survive the reload a version switch makes: {returned}"
     )

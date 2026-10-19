@@ -34,7 +34,6 @@ from render_harness import (
     leaf_page,
     open_page,
     page_registry,
-    shortcut_bar_text,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -225,9 +224,9 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
-    Each open Ask, a suggestion as much as an lf-ask, gets the window `m` brings it
+    Each open item, a suggestion as much as an lf-ask, gets the window `m` brings it
     into, as the user working the page meets it, including those `m` reaches past a
-    page widget move handed back to the user, which is a stop of its own and no Ask."""
+    page widget move handed back to the user, which is a stop of its own and no item."""
     tiles = "".join(
         f"<dl id='m{i}'><dt>metric {i}</dt><dd>{i}</dd></dl>" for i in range(4)
     )
@@ -254,8 +253,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             layout="sidebar",
         )
     )
-    # The first Ask is answered, and the host gave up on picking the answer up, which
-    # hands the move back: the walk's first stop is that widget, ahead of every Ask.
+    # The first item is answered, and the host gave up on picking the answer up, which
+    # hands the move back: the walk's first stop is that widget, ahead of every item.
     moved = append_command(
         serve.page_dir,
         {
@@ -297,11 +296,11 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     assert set(shows) <= set(names)
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {
-        "1200px-ask-1.png",
-        "1200px-ask-2.png",
-        "1200px-ask-3.png",
+        "1200px-item-1.png",
+        "1200px-item-2.png",
+        "1200px-item-3.png",
     } <= set(names)
-    assert "1200px-ask-4.png" not in names
+    assert "1200px-item-4.png" not in names
     assert any("each press of `m`" in label for label in shows.values())
     assert '"Pre-handover review"' in screens["next"]
     assert any("<main> 1+2 → 1+1+1" in label for label in shows.values())
@@ -579,10 +578,6 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
     expect(before_caption).to_have_attribute("aria-pressed", "false")
     expect(after_caption).to_have_attribute("aria-pressed", "false")
-    before_caption.focus()
-    assert "show before" in shortcut_bar_text(page)
-    after_caption.focus()
-    assert "show after" in shortcut_bar_text(page)
     after_caption.click()
     expect(comparison).to_have_attribute("position", "0")
     expect(before_caption).to_have_attribute("aria-pressed", "false")
@@ -593,7 +588,6 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
     # A selectable caption owns Space even at its current endpoint so it cannot
     # fall through to browser scrolling (the widget's existing command contract).
-    assert "show after" in shortcut_bar_text(page)
     after_caption.focus()
     page.evaluate("() => { document.scrollingElement.scrollTop -= 120; }")
     expect(after_caption).to_be_in_viewport()
@@ -630,7 +624,6 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
 
     handle.focus()
     expect(handle).to_be_focused()
-    assert "adjust the comparison" in shortcut_bar_text(page)
     page.keyboard.press("ArrowLeft")
     expect(comparison).to_have_attribute("position", "99")
     expect(handle).to_have_attribute("aria-valuetext", "Before 99%, after 1%")

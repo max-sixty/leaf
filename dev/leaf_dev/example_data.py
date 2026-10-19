@@ -7,12 +7,36 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT
 from leaf_dev.leaf_assets import pinned_copy
 
 TEST_PAGES = ROOT / "tests" / "fixtures" / "pages"
+
+# Captures are live authored inputs: an intermediate JSON save must fail through
+# the preview's refusal path, rather than a missing key stopping its watcher.
+_DATA_COMPANION = Draft202012Validator(
+    {
+        "type": "object",
+        "properties": {
+            "$captures": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                        "file": {"type": "string"},
+                        "asset": {"type": "string"},
+                        "lines": {"type": "string"},
+                        "format": {"type": "string"},
+                    },
+                    "anyOf": [{"required": ["file"]}, {"required": ["asset"]}],
+                },
+            },
+        },
+    }
+)
 
 
 # Where a page named on a command line is looked up.
@@ -184,7 +208,10 @@ def data_companion(source: Path) -> dict:
     companion = data_file(source)
     if not companion.exists():
         return {}
-    return json.loads(companion.read_text(encoding="utf-8"))
+    document = json.loads(companion.read_text(encoding="utf-8"))
+    if error := next(_DATA_COMPANION.iter_errors(document), None):
+        raise ValueError(f"{companion}: {error.json_path}: {error.message}")
+    return document
 
 
 def capture_file(source: Path, spec: dict) -> Path:
@@ -200,10 +227,15 @@ def capture_file(source: Path, spec: dict) -> Path:
 def data_operations(
     source: Path, *, runtime: Path = ROOT, env: dict[str, str] | None = None
 ) -> list[dict]:
-    """Every source value one example sets: captures first, then written values."""
+    """Every source value an example sets, with captures distinguished from seeds.
+
+    A capture remains authored input whose file a preview follows. A written
+    value initializes the page once, after which the page owns its current data.
+    """
     document = data_companion(source)
     captures = [
         {
+            "kind": "capture",
             "source": name,
             "value": captured_value(
                 capture_file(source, spec), spec, runtime=runtime, env=env
@@ -213,5 +245,8 @@ def data_operations(
     ]
     return [
         *captures,
-        *({"source": name, "value": value} for name, value in document.items()),
+        *(
+            {"kind": "seed", "source": name, "value": value}
+            for name, value in document.items()
+        ),
     ]

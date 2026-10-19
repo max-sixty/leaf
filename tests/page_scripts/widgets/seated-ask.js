@@ -1,4 +1,4 @@
-/* A seated Ask whose press paints optimistically before dispatching settlement. */
+/* A seated item whose press paints optimistically before dispatching settlement. */
 import {
   keeps,
   keepsText,
@@ -8,7 +8,7 @@ import {
   nothing,
 } from "/runtime/widget-api.js";
 
-export function defineSeatedAsk() {
+export function defineSeatedItem() {
   customElements.define(
     "lf-verdict",
     class extends LeafElement {

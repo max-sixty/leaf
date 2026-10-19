@@ -78,8 +78,8 @@ export function addressableSays(addressable) {
 // author wrote (the `wrote` reading), so a gloss's tip the page draws beside its phrase
 // is no part of a heading's name, and generated chrome names nothing: chrome inside
 // the element, asked about the element's own insides, since a widget an agent sent in
-// a reply stands inside the thread panel's chrome and its heading is still its name.
-// An element the contract gives no name answers "". The server names an ask's
+// a reply stands inside the floating panel's chrome and its heading is still its name.
+// An element the contract gives no name answers "". The server names an item's
 // element by the same rule off the document (`gesture_words.element_name`), and
 // `tests/name_cases.json` holds both to the same cases.
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
@@ -99,7 +99,7 @@ export function addressableName(element) {
   return declared || leadingTitle(element);
 }
 
-// What the chrome calls an element away from it: a On panel row, a Page Map heading,
+// What the chrome calls an element away from it: an On me row, a Page Map heading,
 // a thread's anchor, a feed row. The element's name comes first: `addressableName`,
 // else its own caption, the `aria-label` its author gave it, or a control's <label>.
 // An element whose words are its own (a block of prose, anything holding text of its

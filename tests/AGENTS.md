@@ -29,8 +29,8 @@ Each helper's docstring owns its contract, and code cites sections here by headi
 Message delivery has one shared journey in `leaf_dev.thread_journey`;
 `leaf_dev.commands.thread_snapshots` owns the thread appearance gate built on it.
 
-Linux browser tests use `tests/fonts.conf` and the `fonts-dejavu` package, which must be
-installed before `wt setup`; macOS uses its native fonts.
+Linux browser tests use `tests/fonts.conf` and the `fonts-dejavu` package installed
+by `wt setup`; macOS uses its native fonts.
 
 ## A failure is evidence about the test too
 
@@ -48,13 +48,17 @@ arrangements, not probabilities**), and fix that cause.
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22.18 or newer, and the pnpm
 version `package.json` pins. `wt setup` installs the browsers, their Linux
-dependencies, the example assets and the Node dependencies; `uv run` syncs Python.
-Worktrunk starts setup in the background when it creates a worktree; run `wt setup`
-before testing to wait for it and see failures. A plain clone starts it with
-`wt hook post-start project:setup`.
+libraries and fonts, the example assets and the Node dependencies; `uv run` syncs
+Python. CI and Tend install the host tools and run the same alias through
+`.github/actions/setup/action.yaml` before tests or the agent start.
+
+In local checkouts, run `wt setup` before testing to wait for any background
+preparation and see failures. Worktrunk starts it when creating a worktree; a
+plain clone uses the same alias. Tend agents run the selected tests directly in
+their prepared environment: setup's system package installation needs privileges
+unavailable inside the sandbox.
 
 ```sh
-wt setup
 uv run pytest tests/browser/widgets/test_boards.py -q -n0 -k lifecycle  # the tests a change needs
 pnpm run test:runtime                 # tests/runtime/, under Node
 uv run pytest tests                  # broad selection; the landing gate runs it (root AGENTS.md, "Working on the repository")
@@ -175,7 +179,7 @@ A property a particular page causes belongs in `render_version`, because
 `leaf page check --render` must report it to that page's author. A property identical
 for every valid page, such as how the layer restores browser state
 (`arrival_findings`), belongs in the suite. A test of a state no authored page reaches,
-such as DOM a script changes after load or the open thread panel, puts the page in
+such as DOM a script changes after load or an open panel view, puts the page in
 that state and calls the probe through `leaf.render_checks.evaluate_probe`.
 
 Where the product already answers a question, use its answer rather than copying it:
@@ -368,10 +372,11 @@ matching frame even if the gesture goes on to another result. The helpers in
 - `told` waits until the page has applied what the server holds now; call it after
   changing a file behind a live page;
 - `nudge` gives the page a reason to read; `ticked` waits for its next tick;
-- `undo` presses `z` once it is offered and waits for the undo's round trip;
+- `undo` presses `z` once the dispatcher would take it and waits for the undo's round
+  trip;
 - `rendered` (`leaf.render_checks`) waits for every repaint the input so far queued,
-  and `shortcut_bar_text` reads the bar once after it;
-- `panel_settled`, `edge_settled` and `resized` wait for their motion to end, and
+  and `available_commands` reads the dispatcher once after it;
+- `panel_settled` and `resized` wait for their motion to end, and
   `scroll_settled` (`leaf_dev.browser`) for a scroll's.
 
 Wait for something the gesture itself changes. An empty highlight or an optimistic

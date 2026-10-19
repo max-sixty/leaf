@@ -10,7 +10,7 @@ metadata:
 vars:
   prompt: |
     You are revising a Leaf page for the user. It is a `layout-column` page whose main
-    content is an Ask:
+    content is an `lf-ask`:
 
     ```html
     <lf-ask id="rollout">
@@ -33,9 +33,9 @@ assert:
     value: |
       Read the CSS and the reply to the user. Fail if any rule makes room for the marker
       in the page's layout: padding, margin, a narrower width or max-width, text-indent,
-      or a grid or flex track on the Ask, its heading, or `main`, placed at the end or
+      or a grid or flex track on the `lf-ask`, its heading, or `main`, placed at the end or
       right of the heading or block so the marker no longer overlaps the words. Fail too
       if a rule moves, hides, or restyles Leaf's marker itself. Pass if the page needs no
       such room: the reply tells the user how to hide the markers to read what is under
-      them (Hide annotations in the banner's More menu, or the `o` key), and any CSS left
+      them (Hide annotations under Annotations in the leaf's menu, or the `o` key), and any CSS left
       is unrelated to the marker. Rewording the heading is allowed but not required.

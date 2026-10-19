@@ -8,19 +8,20 @@ from interact_support import append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame
 from playwright.sync_api import expect
-from render_cases_interaction import MARKDOWN_REPLY, THREAD_ASKS, live_url
+from render_cases_interaction import MARKDOWN_REPLY, THREAD_ITEMS, live_url
 from render_cases_navigation import actions
 from render_harness import (
+    PANEL_THREAD,
+    RELEASE_FOCUS,
     REPLY_HOST_PAGE,
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
     consume_browser_errors,
     draft_control,
-    expect_asks_answered,
+    expect_items_answered,
     holding,
     http_error_console,
     open_page,
-    panel_settled,
     post_event,
     refuse,
     round_trip,
@@ -30,6 +31,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -65,9 +68,8 @@ def test_a_reply_renders_the_markdown_it_was_written_in(browser, serve):
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    body = page.locator(".lf-msg.agent .lf-msg-body")
+    view = open_panel_thread(page, "c-decision")
+    body = view.locator(".lf-msg.agent .lf-msg-body")
     expect(body.locator("li")).to_have_count(2)
     expect(body.locator("strong")).to_have_text("behind")
     expect(body.locator("blockquote")).to_have_text("which one wins?")
@@ -114,8 +116,7 @@ def test_a_suggestion_shows_the_characters_it_proposes(browser, serve):
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    body = page.locator(".lf-msg-body.lf-suggest-body")
+    body = open_panel_thread(page, "s1").locator(".lf-msg-body.lf-suggest-body")
     expect(body).to_have_text("Retry up to *five* times.")
     expect(body.locator("em")).to_have_count(0)
 
@@ -189,7 +190,7 @@ customElements.define('lf-delayed-body', class extends LeafElement {
         },
     )
     page = open_page(browser, live_url(url))
-    page.locator(".lf-threads-toggle").click()
+    open_panel_thread(page, "body-question")
     widget = page.locator("#reply-body")
     original = widget.element_handle()
     body = widget.locator("pre" if asynchronous else ".lf-draft-body")
@@ -210,6 +211,8 @@ customElements.define('lf-delayed-body', class extends LeafElement {
     assert response.ok, response.text()
     told(page)
     assert body.text_content() == "User's exact words.\n"
+    # The thread opened with the caret in its reply, where `z` is a letter.
+    page.evaluate(RELEASE_FOCUS)
     undo(page)
     expect(body).to_have_text("First line. Second line.")
     if asynchronous:
@@ -286,14 +289,16 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     held[0].continue_()
     page.unroute("**/widgets/lf-draft.js")
     told(page)
-    assert page.evaluate(frozen_reading) == {
+    # The reply's widget mounts where its thread is drawn, which is the panel's view
+    # once the user opens it there.
+    reading = page.evaluate(frozen_reading)
+    assert {key: reading[key] for key in ("descriptor", "authored", "body")} == {
         "descriptor": True,
         "authored": True,
         "body": "    First line.\n    Second line.\n",
-        "mounted": True,
     }
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
+    open_panel_thread(page, "draft-question")
+    expect(page.locator("#crossed-draft")).to_have_count(1)
     widget = page.locator("#crossed-draft")
     original = widget.element_handle()
     body = widget.locator(".lf-draft-body")
@@ -301,11 +306,13 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     expect(body).to_have_attribute(
         "data-lf-source-words", "    First line.\n    Second line.\n"
     )
-    widget.locator(".lf-draft-body").click()
+    draft_control(page, "edit", "crossed-draft").click()
     write(widget.locator("leaf-text"), "A user's exact words.\n")
     draft_control(page, "save", "crossed-draft").click()
     round_trip(page)
     assert body.text_content() == "A user's exact words.\n"
+    # The thread opened with the caret in its reply, where `z` is a letter.
+    page.evaluate(RELEASE_FOCUS)
     undo(page)
     expect(body).to_have_text("First line. Second line.")
     expect(body).to_have_attribute(
@@ -361,7 +368,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    page.locator(".lf-threads-toggle").click()
+    open_panel_thread(page, "c-decision")
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
     assert page.locator("#rp-live lf-option[chosen]").count() == 1
 
@@ -370,10 +377,11 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     # advances around the thread.
     stamp_page(d, REPLY_HOST_PAGE, "v2")
     wait_for_revision(page, 2)
-    if not page.locator(".lf-thread-panel").is_visible():
-        page.locator(".lf-threads-toggle").click()
+    open_panel_thread(page, "c-decision")
     expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
 
+    # The thread opened with the caret in its reply, where `z` is a letter.
+    page.evaluate(RELEASE_FOCUS)
     undo(page)
     assert [
         event["undoes"]
@@ -401,7 +409,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     answer and its undo, the send continuation must not overwrite that authoritative
     authored state after replay has accounted for the action."""
     url = serve(REPLY_HOST_PAGE)
-    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ITEMS[1])
     page = open_page(browser, url)
     page.keyboard.press("m")
     held = []
@@ -443,10 +451,10 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     Reconstructing after a later refusal must replay both the recorded selection and
     the separate `answer` verb, retaining both visible facts."""
     url = serve(REPLY_HOST_PAGE)
-    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ITEMS[1])
     page = open_page(browser, url)
     page.keyboard.press("m")
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    expect(page.locator(PANEL_THREAD)).to_be_visible()
 
     held = []
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
@@ -509,7 +517,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     """A queued recordless action paints immediately and each refusal removes only
     the local outcome belonging to that attempt."""
     url = serve(REPLY_HOST_PAGE)
-    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ITEMS[1])
     page = open_page(browser, url)
     page.keyboard.press("m")
     held = []
@@ -562,11 +570,11 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     """Done paints its semantic result while delivery is held, and repeated presses
     still produce one action."""
     url = serve(REPLY_HOST_PAGE)
-    for event in THREAD_ASKS:
+    for event in THREAD_ITEMS:
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     page.keyboard.press("m")
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    expect(page.locator(PANEL_THREAD)).to_be_visible()
     page.keyboard.press("m")
     expect(page.locator("#tq-set-decision")).to_be_focused()
     done = page.locator("#tq-set .lf-done")
@@ -592,25 +600,22 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     ] == [("tq-set", "answer")]
 
 
-def test_closing_a_thread_withdraws_the_ask_in_it(browser, serve):
+def test_closing_a_thread_withdraws_the_item_in_it(browser, serve):
     """A question in a thread is the thread's, so closing the thread takes the decision
     with it. The group is still there to read in the Resolved state, and still holds no
     answer — what went is the page's claim on the user, who would otherwise carry a
     decision in force for the life of the page and have `d` step them into a closed
     hidden thread to reach it."""
     url = serve(REPLY_HOST_PAGE)
-    append_carried_log_record(serve.page_dir, THREAD_ASKS[0])
+    append_carried_log_record(serve.page_dir, THREAD_ITEMS[0])
     page = open_page(browser, url)
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
 
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
-    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, True)
-    page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-value="resolved"]').click()
-    expect(page.locator(".lf-thread:not([hidden]) #tq-one")).to_have_count(1)
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
+    view = open_panel_thread(page, "c-which")
+    expect(view.locator("#tq-one")).to_have_count(1)
     expect(page.locator("#tq-redis")).not_to_have_attribute("chosen", "")

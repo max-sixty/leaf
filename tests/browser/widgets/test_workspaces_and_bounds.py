@@ -12,7 +12,7 @@ from render_cases_interaction import live_url
 from render_harness import (
     ROOT,
     displayed,
-    expect_asks_answered,
+    expect_items_answered,
     fills_the_window,
     leaf_page,
     open_page,
@@ -110,7 +110,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     browser, serve
 ):
     """The workspace Layout takes the whole window, wider than a sidebar page's capped
-    frame, and its height below the banner: each pane's body scrolls on its own. Its
+    frame, and the window's height above the panel's band: each pane's body scrolls on its own. Its
     header is one row, the title with the status beside it, so the panes keep the
     window. A window too short to hold it hands the scroll to the page."""
     frame = """() => {
@@ -297,17 +297,17 @@ def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
 
 
 def clear_of_the_bottom_chrome(page, selector):
-    """Scroll the page to its end and measure one box against the shortcut bar.
+    """Scroll the page to its end and measure one box against the floating panel's row.
 
-    The bar is the fixed chrome a page's last line has to scroll clear of; a page whose
+    The row is the fixed chrome a page's last line has to scroll clear of; a page whose
     end room is missing leaves that line under it however far the user scrolls."""
     return page.evaluate(
         """selector => {
           const page = document.scrollingElement;
           page.scrollTop = page.scrollHeight;
-          const bar = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
+          const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
           const box = document.querySelector(selector).getBoundingClientRect();
-          return {bottom: box.bottom, bar: bar.top, clear: box.bottom <= bar.top + 1};
+          return {bottom: box.bottom, row: row.top, clear: box.bottom <= row.top + 1};
         }""",
         selector,
     )
@@ -329,8 +329,8 @@ SECTIONED_PANE_PAGE = leaf_page(
 )
 
 
-THREE_PART_ASK_PAGE = leaf_page(
-    "a three-part Ask as the workspace",
+THREE_PART_ITEM_PAGE = leaf_page(
+    "a three-part item as the workspace",
     """
   <lf-ask id="workspace-ask">
     <h2>Which release should go out?</h2>
@@ -396,7 +396,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     which fills the window, scrolls it. The control is the same pane as the workspace's
     body, which fills the window.
 
-    Whatever the user scrolls to in that full-height workspace clears the bottom bar,
+    Whatever the user scrolls to in that full-height workspace clears the panel's row,
     as a document's last line does: the body scrolls as a whole and its end stands
     above the band."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
@@ -498,13 +498,13 @@ def test_a_package_pane_is_held_where_an_lf_pane_is(browser, serve):
         page.unroute_all(behavior="wait")
 
 
-def test_an_ask_gives_its_answer_what_its_context_leaves(browser, serve):
-    """An Ask as the workspace's body gives its last part, the answer, what its heading
+def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
+    """An lf-ask as the workspace's body gives its last part, the answer, what its heading
     and context leave, and never less than the answer's own height: below a context
     taller than the window the options keep theirs, nothing is drawn over them, and the
     body scrolls. A playground below a premise fits itself to what is left, its controls
     scrolling within the window."""
-    page = open_page(browser, serve(THREE_PART_ASK_PAGE))
+    page = open_page(browser, serve(THREE_PART_ITEM_PAGE))
     resized(page, 1280, 720)
     geometry = page.evaluate(
         """() => ({
@@ -552,19 +552,20 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     room = page.evaluate(
         """() => {
           const probe = document.createElement('div');
-          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-bottom-bar-h)';
+          probe.style.cssText = 'position:fixed;visibility:hidden;height:var(--lf-foot-room)';
           document.body.append(probe);
           const band = probe.getBoundingClientRect().height;
           probe.remove();
           return {
             padding: parseFloat(getComputedStyle(document.body).paddingBottom),
             band,
-            line: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().height,
+            panel: innerHeight
+              - document.querySelector('.lf-fp-row').getBoundingClientRect().top,
           };
         }"""
     )
-    # The page's end room is the band's stated height, and the band is that tall.
-    assert room["padding"] == room["band"] == room["line"] and room["band"] > 0, room
+    # The page's end room is the band's stated height, which holds the panel's row.
+    assert room["padding"] == room["band"] >= room["panel"] > 0, room
     end = clear_of_the_bottom_chrome(page, "#document-end")
     assert end["clear"], end
     page.close()
@@ -921,10 +922,10 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     """Replaceable log evidence does not become the authority for release state.
 
     The release escape path is a question the operator answers: the page lists it
-    among its Asks, and the pick reaches the agent as an action naming the option."""
+    among its items, and the pick reaches the agent as an action naming the option."""
     example = ROOT / "examples" / "live-progress.html"
     page = open_page(browser, live_url(serve(example)))
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
     with sending(page, "the rollback pick"):
         page.locator("#lp-rollback-now").click()
     pick = events_model.read_events(serve.page_dir)[-1]
@@ -934,7 +935,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         "choose",
     )
     assert pick["detail"] == {"value": ["lp-rollback-now"]}
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
 
     log = page.locator("#lp-live-log")
     listing = log.locator("pre")

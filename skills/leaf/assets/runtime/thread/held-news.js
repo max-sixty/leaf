@@ -63,8 +63,7 @@
    and a notice calls a changed message an edit.
    A closed card holds nothing, since its title row draws at one size whatever it says.
    A reply pinned to its scrollport lets a turn joining the thread's end grow up into
-   the room scrolled past (thread-list.js, `followThreadEnd`), though nothing that
-   changes above that end. A held change leaves the controls it touches drawn as they
+   the room scrolled past, though nothing that changes above that end. A held change leaves the controls it touches drawn as they
    were, and a press on one means what it drew (actions.js, `setReaction` and
    `settle`) and shows what the thread holds.
 
@@ -78,12 +77,12 @@
    - opening the thread: a seat's Resolved disclosure folding it, or a panel card the
      list opens;
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
-     walk, an ask, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
+     walk, an item, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
      a press on its title, which stands for the whole thread, whether or not it already
      stood open. Coming back to the thread they stood in is a stay, whatever puts them
      there, as when the runtime puts back a reply box a surface stopped drawing, and so
      is a move within it, such as Escape out of its reply box onto its title or going to
-     an ask it already shows;
+     an item it already shows;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
      it, an action on a widget one of them holds or one that closes it, as accepting
      the suggestion it asked for does, or a thread they start in the seat, which
@@ -92,9 +91,10 @@
 
    Held news also shows once growth anywhere in the seat would move nothing the user
    sees: none of it stands where a change of size moves what is seen (geometry.js,
-   `growthIsSeen`), as when it is scrolled under the banner. A press into the thread, such as into its reply box, shows
+   `growthIsSeen`), as when it is scrolled under the chrome. A press into the thread,
+   such as into its reply box, shows
    nothing: it asks for what it lands on, and drawing the news would move that under the
-   press. Where the destination is itself held, a message or an ask in a held turn, or a
+   press. Where the destination is itself held, a message or an item in a held turn, or a
    thread a seat holds whole, the route shows it first (`showHeld`), since nothing
    undrawn can take focus. Anything held in a seat is not drawn, so it stays unread until
    it shows.
@@ -142,7 +142,7 @@ import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { focusThread, threadFocusStop } from "./focus.js";
+import { focusThread } from "./focus.js";
 import { isReaction, messageKey, threadKey } from "./model.js";
 import { allThreads, threadIdNamed, threadState } from "./state.js";
 import { drawnThreadId, THREAD } from "./selectors.js";
@@ -158,7 +158,7 @@ import { watchOwner } from "../arrivals.js";
 // application publisher says which thread each stands in (`thread.gestured`). Their
 // words from another tab, or a turn a seat first draws after the log answered it, arrive
 // like the agent's.
-export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
+const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
 // Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
 const gestured = (key) => {
@@ -524,13 +524,8 @@ onStanding((node, cause) => {
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
   const id = drawnThreadId(thread);
-  const title = thread && threadFocusStop(thread);
   const arrived =
-    id !== null &&
-    id !== standing &&
-    (cause === "move" ||
-      cause === "step" ||
-      (cause === "press" && title !== thread && node === title));
+    id !== null && id !== standing && (cause === "move" || cause === "step");
   standing = id;
   if (arrived) showHeld(id);
 });

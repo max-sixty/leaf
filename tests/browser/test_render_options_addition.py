@@ -1,15 +1,14 @@
 """Added-option presentation and replay tests."""
 
 import base64
-import re
 
 import pytest
 from interact_support import append_carried_log_record, stamp
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASK_PAGE,
-    ASK_WITH_CONTEXT_PAGE,
+    ITEM_PAGE,
+    ITEM_WITH_CONTEXT_PAGE,
     live_url,
 )
 from render_cases_layout import (
@@ -21,6 +20,7 @@ from render_harness import (
     EXAMPLES,
     consume_browser_errors,
     example_media,
+    expect_error_waits_in_menu,
     holding,
     http_error_console,
     open_page,
@@ -35,7 +35,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):
     """Moving the widget restores draft delivery without duplicating its form."""
-    url = serve(ASK_PAGE)
+    url = serve(ITEM_PAGE)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
 
@@ -60,7 +60,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     corner rather than borrowing the selection mark's circle. It remains a full-sized
     pointer target aligned with the last line as the textarea grows.
     """
-    page = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ITEM_PAGE))
     option = page.locator("#job-camera")
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
@@ -176,7 +176,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     browser, serve
 ):
     """The add form stays in Tab order while c enters the visible thread."""
-    url = serve(ASK_WITH_CONTEXT_PAGE)
+    url = serve(ITEM_WITH_CONTEXT_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -201,7 +201,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # Standing on the Ask shows its discussion beside it, so c enters the reply
+    # Standing on the item shows its discussion beside it, so c enters the reply
     # instead of adding an answer or opening another comment box.
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(page.locator(".lf-margin-preview")).to_be_visible()
@@ -224,7 +224,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
     out of a record that never left the store.
     """
     browser, held = held_events
-    page = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ITEM_PAGE))
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
     words = "Insulate the camera battery"
@@ -273,7 +273,7 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     it.
     """
     browser, held = held_events
-    page = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ITEM_PAGE))
     form = page.locator("#jobs > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
     words = "Insulate the camera battery"
@@ -307,7 +307,7 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     the option out of its markup, as the instructions ask, and the page keeps it
     after the authored options where the user put it, so no revision moves it.
     """
-    page = open_page(browser, live_url(serve(ASK_PAGE)))
+    page = open_page(browser, live_url(serve(ITEM_PAGE)))
     form = page.locator(f"#{group} > .lf-another")
     field = form.get_by_role("textbox", name="Another option", exact=True)
     write(field, "Ask the neighbours first")
@@ -331,7 +331,7 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     assert page.evaluate(order) == [*authored, added_id]
 
     (serve.page_dir / "index.html").write_text(
-        ASK_PAGE.replace("Plastic, and one came", "Plastic, and the second came")
+        ITEM_PAGE.replace("Plastic, and one came", "Plastic, and the second came")
     )
     assert stamp(serve.page_dir, "Revised the mounts").exit_code == 0
     told(page)
@@ -362,7 +362,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     so a user who pasted a screenshot sees exactly what a user whose paste worked
     would see. The empty send in the same box already answers its own nothing out loud;
     this is the other way a box can go quiet on a gesture."""
-    page = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ITEM_PAGE))
     uploads = []
     page.on(
         "request",
@@ -375,9 +375,9 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
 
-    notice = page.locator(".lf-notice")
-    expect(notice).to_have_class(re.compile(r"\bshow\b"))
-    assert notice.inner_text() == "Images can be added to comments, not options"
+    # The error is about the add field, which the panel's field does not speak for, so
+    # it waits in the leaf's menu, the leaf's dot saying there is one.
+    expect_error_waits_in_menu(page, "Images can be added to comments, not options")
     expect(form.locator(".lf-composer-media")).to_be_hidden()
     expect(form.locator(".lf-composer-media img")).to_have_count(0)
     assert field.evaluate("box => box.value") == ""
@@ -389,13 +389,13 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     ]
 
 
-def test_an_arrival_cannot_hide_an_ask_draft(browser, serve):
+def test_an_arrival_cannot_hide_an_item_draft(browser, serve):
     """An exact-section thread cannot take an unsent option's field.
 
     The draft remains part of the decision and still becomes a real option. The thread
     stays separate: adding the option sends an action, not a second comment.
     """
-    page = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ITEM_PAGE))
     d = serve.page_dir
     first = page.locator("#jobs > .lf-another leaf-text")
     draft = "Keep this answer even if another thread arrives first."
@@ -430,12 +430,12 @@ def test_an_arrival_cannot_hide_an_ask_draft(browser, serve):
     ]
     action = next(e for e in events_model.read_events(d) if e["kind"] == "action")
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(f'.lf-thread[data-id="{external["id"]}"]')).to_have_count(1)
+    page.locator(".lf-fp-threads").click()
+    expect(page.locator(f'.lf-fp-thread[data-key="{external["id"]}"]')).to_have_count(1)
 
 
 def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
-    """The add field keeps room at its end for the Add press and the Ask's key, so on a
+    """The add field keeps room at its end for the Add press and the item's key, so on a
     phone the words before that room are few: alert-review's card group at 360px cut
     "Another option — add to select" to "Another option — ad…", which lost the verb.
     The hint says the same in words that fit, and the room it keeps is measured here

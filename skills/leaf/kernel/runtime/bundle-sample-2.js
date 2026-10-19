@@ -72,7 +72,7 @@ var request = (url, body, headers = {}) => requestJson(
   },
   "sample"
 );
-function mountSample(frame, { template, window: asWindow = false, chrome = void 0 }) {
+function mountSample(frame, { template, window: asWindow = false }) {
   if (!template) throw new Error("a sample needs an authored template id");
   let revision = runtime.currentRevision;
   let message;
@@ -299,7 +299,7 @@ function mountSample(frame, { template, window: asWindow = false, chrome = void 
       {
         sample: event.data.sample,
         nonce,
-        settings: { window: asWindow, dress: dressFor(frame) ?? void 0, chrome }
+        settings: { window: asWindow, dress: dressFor(frame) ?? void 0 }
       },
       "*",
       [pair.port2]

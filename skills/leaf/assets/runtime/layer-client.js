@@ -13,7 +13,7 @@
    process identity cannot invalidate the document. Do not let one delivery interpret
    another's state. A refused key is read here too, for every response: it is the page
    cut off from its log rather than an answer about any request, so the event door
-   throws it as it throws a lost connection and the banner names the link that ends it.
+   throws it as it throws a lost connection and the page status names the link that ends it.
 
    `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
    its own element so the rest of the page and Threads remain usable, but a presentation
@@ -38,6 +38,7 @@ import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
+import { holdingError } from "./errors.js";
 import { layerGeneration } from "./layer-generation.js";
 
 const { layer: documentLayer, release, probe } = DELIVERY;
@@ -89,12 +90,11 @@ function reloadNow(message) {
 // Each foreign answer gets its own reading of the source, because the source may move
 // while the page waits — this very page can be re-vendored during the hold — and an
 // answer carried over from an earlier reading would leave the tab with no way back. One
-// probe is in the air at a time, so a burst of refusals costs one. The words are said
-// once for the page rather than once an answer: a lasting condition explained once is
-// enough, and repeating a transient status line would hold the page's foot for as long
-// as the disagreement lasts.
+// probe is in the air at a time, so a burst of refusals costs one. Waiting lasts as long
+// as the disagreement does, so it is a held error (errors.js) rather than a passing
+// notice: raised once, it stands until an answer from this delivery is admitted.
 let asking = false;
-let saidWaiting = false;
+const holdWaiting = holdingError();
 function reloadDelivery(message) {
   if (layerReloading || asking) return;
   asking = true;
@@ -106,9 +106,7 @@ function reloadDelivery(message) {
         // The answers stay refused, which is the offline reading this page already knows
         // how to hold: authored content stays readable and the feed keeps asking, so the
         // page rejoins the log by itself once the server is back on this delivery.
-        if (saidWaiting) return;
-        saidWaiting = true;
-        notice("Waiting for the server to finish updating.");
+        holdWaiting("Waiting for the server to finish updating.");
         return;
       }
       reloadNow(message);
@@ -201,6 +199,7 @@ export function admitResponse(response) {
     reloadDelivery("Leaf has been updated — reloading this page.");
     return false;
   }
+  holdWaiting(null);
   return true;
 }
 
@@ -285,8 +284,8 @@ export const postEvent = async (event, held = runtime.data) => {
   }
   if (!admitResponse(response)) return null;
   // A refused key is no answer to the event: the server read none of it, so the send
-  // failed the way a lost connection fails and is retried as one. The banner names the
-  // link that ends it.
+  // failed the way a lost connection fails and is retried as one. The page status names
+  // the link that ends it.
   if (response.status === KEY_REFUSED)
     throw new Error("the server refused this page's key");
   return response;

@@ -9,7 +9,7 @@ putting one in the claim.
 """
 
 import model_folds as model
-from interact_support import page_packages, served_thread
+from interact_support import page_packages, served_items
 
 HUB = model.leaf_page(
     "command hub",
@@ -408,7 +408,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     threads = model.threads(state)
     assert threads["e1"]["attention"] == {
         "kind": "needs_user",
-        "reason": "ask",
+        "reason": "widget",
         "workflow": None,
     }
     assert threads["e4"]["attention"] == {
@@ -479,24 +479,14 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     state = add(
         "reply", "second", parent="first", text="And:", markup=question("hue", "Hue?")
     )
-    assert model.threads(state)["first"]["user_prompt"] == {
-        "message": "second",
-        "version": "second",
-    }
     assert state["todos"] == []
-    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
+    assert [item["id"] for item in served_items(state)["user"]] == [
         "widget:route",
         "widget:hue",
     ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
-    assert model.threads(state)["first"]["user_prompt"] == {
-        "message": "first",
-        "version": "first",
-    }
-    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
-        "widget:route"
-    ]
-    assert served_thread(state)["asks"]["all"][1]["answer"]["event"]["id"] == "reaction"
+    assert [item["id"] for item in served_items(state)["user"]] == ["widget:route"]
+    assert served_items(state)["all"][1]["answer"]["event"]["id"] == "reaction"
     state = add(
         "todo_end",
         "end",
@@ -504,9 +494,9 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
         outcome="dropped",
         detail="Asked elsewhere",
     )
-    assert model.threads(state)["first"]["user_prompt"] is None
+    assert served_items(state)["user"] == []
     state = add("reply", "answer", "user", parent="first", text="Route A")
-    first, second = served_thread(state)["asks"]["all"]
+    first, second = served_items(state)["all"]
     assert (first["status"], first["answer"]) == ("withdrawn", None)
     assert (second["status"], second["answer"]["event"]["id"]) == (
         "answered",
@@ -517,20 +507,14 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     )
     state = add("resolve", "close", "user", parent="first")
     assert state["todos"] == []
-    assert model.threads(state)["first"]["user_prompt"] is None
+    assert served_items(state)["user"] == []
     state = add("unresolve", "reopen", "user", parent="first")
-    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
-        "widget:size"
-    ]
-    assert model.threads(state)["first"]["user_prompt"] == {
-        "message": "third",
-        "version": "third",
-    }
+    assert [item["id"] for item in served_items(state)["user"]] == ["widget:size"]
 
 
-def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
+def test_frozen_item_attention_comes_from_its_widget_without_a_prose_task():
     """Frozen widgets have no independent thread seat: their user and unanswered
-    lists agree, and later prose or reactions cannot retire the widget Ask."""
+    lists agree, and later prose or reactions cannot retire the widget item."""
     events = [
         {
             "kind": "comment",
@@ -543,16 +527,15 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     ]
     state = model.reading(HUB, events)
     thread = model.threads(state)["e1"]
-    assert thread["user_prompt"] is None
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "ask",
+        "reason": "widget",
         "workflow": None,
     }
     assert state["todos"] == []
-    [ask] = served_thread(state)["asks"]["all"]
-    assert ask["id"] == "widget:routes"
-    assert ask["next_actor"] == "user"
+    [item] = served_items(state)["all"]
+    assert item["id"] == "widget:routes"
+    assert item["next_actor"] == "user"
     events.append(
         {
             "kind": "action",
@@ -562,16 +545,15 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
         }
     )
     state = model.reading(HUB, events)
-    assert model.threads(state)["e1"]["user_prompt"] is None
     assert state["todos"] == []
-    [ask] = served_thread(state)["asks"]["all"]
-    assert (ask["status"], ask["answer"]["value"]) == (
+    [item] = served_items(state)["all"]
+    assert (item["status"], item["answer"]["value"]) == (
         "answered",
         ["route-a"],
     )
 
 
-def test_summary_protects_the_unanswered_ask_after_later_agent_messages():
+def test_summary_protects_the_unanswered_item_after_later_agent_messages():
     """A summary cannot hide the question the user owes merely because a newer
     agent message is the last turn. Protection selects the canonical prompt."""
     state = model.reading(
@@ -603,7 +585,8 @@ def test_summary_protects_the_unanswered_ask_after_later_agent_messages():
         ),
     )
     thread = model.threads(state)["e1"]
-    assert thread["user_prompt"] == {"message": "e1", "version": "e1"}
+    [owed] = served_items(state)["user"]
+    assert owed["message"] == "e1"
     [summary] = thread["summaries"]
     assert summary["covers"] == ["e1", "e2"]
     assert summary["protected"] == ["e1"]

@@ -7,7 +7,7 @@ import pytest
 from interact_support import append_carried_log_record
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, PANEL_PAGE, panel_comment
+from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, panel_comment
 from render_cases_layout import ring_faults, rings_drawn
 from render_harness import (
     example_media,
@@ -26,7 +26,7 @@ from render_harness import (
 
 from browser.margin import (
     CARD_AND_REPLY,
-    COMMENT_ON_ASK,
+    COMMENT_ON_ITEM,
     DRAFTING_CARD,
     LONG_THREAD,
     LONG_THREAD_PAGE,
@@ -544,7 +544,7 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve
     color_scheme = "light"
     page = open_page(
         browser,
-        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        serve(ITEM_PAGE, events=[COMMENT_ON_ITEM]),
         color_scheme=color_scheme,
     )
     resized(page, 1440, 900)
@@ -565,19 +565,8 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve
         )
 
     resting_text_left = text_left(reply)
-    # The field owns the border. Its words share the message column and start at
-    # the same inset inside the field as the panel's words.
-    shared_inset = page.locator(
-        ".lf-threads .lf-thread-reply leaf-text"
-    ).first.evaluate(
-        """node => parseFloat(getComputedStyle(node.parentElement).borderInlineStartWidth)
-          + parseFloat(getComputedStyle(node).borderInlineStartWidth)
-          + parseFloat(getComputedStyle(node).paddingInlineStart)"""
-    )
+    # The field owns the border. Its words share the message column.
     assert resting_text_left == pytest.approx(message_left, abs=0.5)
-    assert resting_text_left - resting_field_box["x"] == pytest.approx(
-        shared_inset, abs=0.5
-    )
     expect(field).to_have_css("border-top-style", "solid")
     resting_face = field.evaluate(
         """node => {
@@ -710,7 +699,7 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
 )
 def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
     """Sharing the editor's measure, the card holds the sent words inside its scrollport."""
-    page = open_page(browser, serve(ASK_PAGE), init_script=MARGIN_EDITOR_ROOTS)
+    page = open_page(browser, serve(ITEM_PAGE), init_script=MARGIN_EDITOR_ROOTS)
     resized(page, 1200, 900)
     page.evaluate("zoom => document.documentElement.style.zoom = zoom", zoom)
     send_anchored_comment(page, text.rstrip())
@@ -725,12 +714,12 @@ def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
 
 def test_open_reply_keeps_its_top_after_card_moves_to_right_rail(browser, serve):
     """A draft opened below its target keeps its card's top once the rail widens."""
-    sidebar_page = ASK_PAGE.replace(
+    sidebar_page = ITEM_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
         1,
     )
-    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ITEM]))
     resized(page, 1200, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")
@@ -1030,9 +1019,9 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
 def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, window):
     """Zooming in, like a phone's software keyboard, shrinks the visible viewport without
     resizing the window, and a card whose reply the user is writing stands inside what
-    is left, below the banner and above the bottom bar. The zoom stands in for the
-    keyboard, which no emulation raises; the card starts low in the window, where the
-    shrunk viewport no longer reaches."""
+    is left, clear of the floating panel. The zoom stands in for the keyboard, which no
+    emulation raises; the card starts low in the window, where the shrunk viewport no
+    longer reaches."""
     filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(14))
     after = "".join(f"<p>After {i}.</p>" for i in range(30))
     source = leaf_page(
@@ -1058,16 +1047,14 @@ def test_a_thread_card_reply_stays_in_the_visible_viewport(browser, serve, windo
     def stands_in_the_visible_viewport():
         rendered(page)
         room = page.evaluate("""() => {
-          const band = document.querySelector('.lf-shortcut-bar');
-          const banner = document.querySelector('.lf-banner');
+          const panel = document.querySelector('.lf-floating-panel').getBoundingClientRect();
           const v = visualViewport;
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          const across = panel.left < card.right && card.left < panel.right;
           return {
-            card: document.querySelector('.lf-margin-preview').getBoundingClientRect().toJSON(),
-            top: Math.max(v.offsetTop, banner.getBoundingClientRect().bottom),
-            bottom: Math.min(
-              v.offsetTop + v.height,
-              band.checkVisibility() ? band.getBoundingClientRect().top : Infinity,
-            ),
+            card: card.toJSON(),
+            top: v.offsetTop,
+            bottom: Math.min(v.offsetTop + v.height, across ? panel.top : Infinity),
             left: v.offsetLeft,
             right: v.offsetLeft + v.width,
             scrolled: [scrollY, v.offsetTop],

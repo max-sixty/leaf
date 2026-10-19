@@ -7,7 +7,7 @@
   /* Aim for the reading band; the stage's intrinsic minimum preserves detail. */
   --lf-trace-stage-height: max(
     320px,
-    calc(100dvh - var(--lf-top) - var(--lf-bottom-bar-h) - 2 * var(--lf-landing-room))
+    calc(100dvh - var(--lf-top) - var(--lf-foot-room) - 2 * var(--lf-landing-room))
   );
   --lf-block-frame: 1;
   display: flex;
@@ -887,6 +887,7 @@
   border: 1px solid var(--border-2);
   box-sizing: border-box;
   background: var(--paper);
+  z-index: 0;
 }
 .lf-trace-canvas > img {
   position: absolute;
@@ -933,7 +934,19 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+/* The viewer and the marks over it are positioned boxes on the paper, which paint over
+ * an outline on the canvas itself, so its inset ring is drawn on a later box above the
+ * highest of them, the input's badge and point; the canvas's own layer keeps them all
+ * under that box. */
 .lf-trace-canvas[data-lf-focus] {
+  outline: none;
+}
+.lf-trace-canvas[data-lf-focus]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }

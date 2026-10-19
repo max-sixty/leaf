@@ -115,7 +115,7 @@ that creates that state.
 ## Explore an open design
 
 When the user is to choose among designs for a visual or interaction question, show
-the candidates side by side in one ask, where the user can compare them, try the
+the candidates side by side in one decision, where the user can compare them, try the
 interactions, comment, and pick the one to build. Their pick, or the configuration a
 playground submits, is the one implementation the change keeps. First look in the
 shipped examples and `notes/` for an exploration of the same surface, and extend it

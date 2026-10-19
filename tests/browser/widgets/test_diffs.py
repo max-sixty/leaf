@@ -57,6 +57,56 @@ def long_diff(id):
     return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
 
 
+def test_diff_wraps_prose_by_default_and_accepts_an_overflow_choice(browser, serve):
+    paragraph = "A changed paragraph should stay within the reader's width. " * 12
+
+    def patch(path):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{paragraph}\n"
+        )
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Diff wrapping",
+                "".join(
+                    f'<lf-diff id="{name}"{attribute}><pre>{patch(path)}</pre></lf-diff>'
+                    for name, path, attribute in (
+                        ("prose", "README.md", ""),
+                        ("plain-text", "notes.txt", ""),
+                        ("code", "src/app.py", ""),
+                        ("forced-wrap", "src/long.py", ' overflow="wrap"'),
+                        ("forced-scroll", "notes.md", ' overflow="scroll"'),
+                    )
+                ),
+            )
+        ),
+    )
+    resized(page, 800, 900)
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 5"
+    )
+    modes = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('lf-diff')].map(diff => {
+        const code = diff.shadowRoot.querySelector('code[data-code]');
+        return [diff.id, code.scrollWidth > code.clientWidth + 1];
+      })
+    )""")
+    assert modes == {
+        "prose": False,
+        "plain-text": False,
+        "code": True,
+        "forced-wrap": False,
+        "forced-scroll": True,
+    }, modes
+    prose_line = page.locator('lf-diff#prose [data-lf-datum=\'["README.md","new",1]\']')
+    prose_line.hover()
+    page.locator("lf-diff#prose .lf-diff-line-comment").last.click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+
+
 # Scrolls the box with the given id 400px down and reads how far below the top of its
 # content the diff's file header inside it stands. A sticky box stops at its scroller's
 # padding edge, so a box that states no start of its own pins it below its padding.

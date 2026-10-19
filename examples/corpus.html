@@ -7983,6 +7983,40 @@ observe --cohort staff</code></pre>
           </lf-diff>
         </template>
       </lf-sample>
+      <h2>Long lines in a patch</h2>
+      <p>
+        The prose file wraps by default; this code file asks for the same reading mode.
+      </p>
+      <lf-diff id="dfg-prose">
+        <pre>
+diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -1 +1 @@
+-The earlier note was brief.
++The new note describes the review decision in a whole paragraph on one source line, and it should remain readable in the space the page gives it without asking the reader to scroll sideways.
+      </pre>
+      </lf-diff>
+      <lf-diff id="dfg-wrap" overflow="wrap">
+        <pre>
+diff --git a/src/message.py b/src/message.py
+--- a/src/message.py
++++ b/src/message.py
+@@ -1 +1 @@
+-message = "Old wording."
++message = "A long sentence that explains the change in enough detail to wrap inside this diff, keeping the review beside the evidence instead of requiring a second copy of the same words."
+      </pre>
+      </lf-diff>
+      <lf-diff id="dfg-scroll" overflow="scroll">
+        <pre>
+diff --git a/src/constant.py b/src/constant.py
+--- a/src/constant.py
++++ b/src/constant.py
+@@ -1 +1 @@
+-PATTERN = "short"
++PATTERN = "^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega){1,4}$"
+      </pre>
+      </lf-diff>
 </lf-tab>
 
 <lf-tab id="corpus-feature-gallery" label="Leaf core product gallery">

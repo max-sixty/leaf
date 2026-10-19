@@ -1074,6 +1074,70 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     )
 
 
+def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
+    """A card sent in a pane grows out of its box no further than the pane's edge
+    cuts it at rest: the growth's clip and the region's are one clip, so the card and
+    its shadow never paint past the pane, even for the growth's 240ms."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Growth in a pane",
+                '<div id="grow-split"><lf-pane id="grow-pane" label="Findings"><div>'
+                '<div style="height:180px"></div>'
+                '<p id="grow-target">The export keeps each tenant in an archive.</p>'
+                '<div style="height:1600px"></div></div></lf-pane>'
+                '<lf-pane id="grow-notes" label="Notes"><div><p>Notes.</p></div>'
+                "</lf-pane></div>",
+                head=regions_side_by_side("grow-split"),
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1440, 600)
+    pane_posture(page, page.locator("#grow-pane"), "bounded")
+    box = page.locator("#grow-target").bounding_box()
+    select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
+    page.locator(".lf-fab-input").click()
+    page.keyboard.insert_text("Keep the growth inside the pane.")
+    rendered(page)
+    page.evaluate("""() => {
+      window.clips = [];
+      const sample = () => {
+        const card = document.querySelector('.lf-margin-preview');
+        if (card?.getAnimations().length) window.clips.push(getComputedStyle(card).clipPath);
+        window.sampling = requestAnimationFrame(sample);
+      };
+      window.sampling = requestAnimationFrame(sample);
+    }""")
+    with sending(page, "comment"):
+        page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    wait_for(
+        lambda: page.evaluate(
+            "document.querySelector('.lf-margin-preview').getAnimations().length"
+        ),
+        lambda n: n == 0,
+        failure="Thread growth never finished",
+    )
+    clips, rest = page.evaluate("""() => {
+      cancelAnimationFrame(window.sampling);
+      return [window.clips, getComputedStyle(document.querySelector('.lf-margin-preview')).clipPath];
+    }""")
+
+    def insets(clip):
+        # inset()'s edges before `round`, its shorthand spread to top, right, bottom, left.
+        edges = [float(v) for v in re.findall(r"-?[\d.]+", clip.split("round")[0])]
+        return [edges[i] for i in ((0, 0, 0, 0), (0, 1, 0, 1), (0, 1, 2, 1), (0, 1, 2, 3))[len(edges) - 1]]
+
+    cut = insets(rest)
+    assert len(cut) == 4 and max(cut) > -48, ("the pane cuts nothing", rest)
+    assert clips, "Send showed the card without growing it out of the box"
+    for clip in clips:
+        assert all(a >= b - 0.5 for a, b in zip(insets(clip), cut)), (clip, rest)
+
+
 @pytest.mark.parametrize(
     "size,at,long,touch,again,options,engine",
     [

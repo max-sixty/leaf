@@ -93,6 +93,8 @@ import { writingIn } from "../thread/replies.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
+// Where a reading region cuts the card, inward from each of its edges.
+const CUT_EDGES = ["--lf-cut-top", "--lf-cut-right", "--lf-cut-bottom", "--lf-cut-left"];
 
 export function createThreadPreview({
   inventory,
@@ -587,18 +589,22 @@ export function createThreadPreview({
         // Leaving with what it is about, the card passes under the chrome, which stacks
         // over it, and a reading region it stands in cuts it at the region's edge as it
         // cuts the words. An edge further out than the card paints cuts nothing, and
-        // stands at that reach, so a scroll that moves it there writes nothing.
+        // stands at that reach, so a scroll that moves it there writes nothing. Each
+        // edge's cut is its own property, which the card's clip and its growth out of
+        // the comment box both read (annotation-chrome.css).
         const region = boundary.inRegion;
-        if (region) {
-          const reach = -paintReach(preview);
-          const inset = [
-            (region.top - card.top) / scale.y,
-            (card.right - region.right) / scale.x,
-            (card.bottom - region.bottom) / scale.y,
-            (region.left - card.left) / scale.x,
-          ].map((cut) => Math.max(cut, reach));
-          preview.style.clipPath = `inset(${inset.map(layoutPx).join(" ")})`;
-        } else preview.style.removeProperty("clip-path");
+        const cuts = region
+          ? [
+              (region.top - card.top) / scale.y,
+              (card.right - region.right) / scale.x,
+              (card.bottom - region.bottom) / scale.y,
+              (region.left - card.left) / scale.x,
+            ].map((cut) => layoutPx(Math.max(cut, -paintReach(preview))))
+          : [];
+        CUT_EDGES.forEach((edge, i) => {
+          if (region) preview.style.setProperty(edge, cuts[i]);
+          else preview.style.removeProperty(edge);
+        });
         keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
         keepThreadLanding(previewList.querySelector(".lf-page-thread"));
         session.positionResult?.resolve(true);
@@ -917,7 +923,7 @@ export function createThreadPreview({
     retirePreviewSession();
     placementDriver.stop();
     delete preview.dataset.lfThreadPlacement;
-    preview.style.removeProperty("clip-path");
+    for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
     keepsHidden(preview, true);
     onClose(closed);
   }

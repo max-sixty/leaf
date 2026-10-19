@@ -293,6 +293,14 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview-close {
     flex: none;
   }
+  /* A reading region the card stands in cuts it at the region's edge
+     (thread-preview.js, `placeThreadPreview`); with no region the cuts are unset, and
+     the declaration with them, so nothing clips the card. */
+  .lf-margin-preview {
+    clip-path: inset(
+      var(--lf-cut-top) var(--lf-cut-right) var(--lf-cut-bottom) var(--lf-cut-left)
+    );
+  }
   /* A card Send opened grows out of the comment box it replaces (thread-preview.js,
      `growOut`). The box paints only its field while it is written: the user preferred
      (2026-10-19) a field that opens into its card at Send to a box painted as the card
@@ -300,22 +308,32 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      height, so the clip opens from the field, which stands the frame's insets inside the
      card, to the card's edge, then past `--raise-3`'s reach (48px), so the shadow is
      whole when the clip lifts. The card is whole beneath the clip from the first frame,
-     so no word moves. */
+     so no word moves. Each edge stops at the region's cut, so the growth never paints
+     past the region the card stands in. */
   .lf-margin-preview[data-lf-grows] {
     animation: lf-comment-grow 240ms ease;
   }
   @keyframes lf-comment-grow {
     from {
       clip-path: inset(
-        var(--lf-comment-frame-top) var(--lf-comment-frame-inline)
-          var(--lf-comment-frame-bottom) round var(--r)
+        max(var(--lf-comment-frame-top), var(--lf-cut-top, -48px))
+          max(var(--lf-comment-frame-inline), var(--lf-cut-right, -48px))
+          max(var(--lf-comment-frame-bottom), var(--lf-cut-bottom, -48px))
+          max(var(--lf-comment-frame-inline), var(--lf-cut-left, -48px)) round var(--r)
       );
     }
     85% {
-      clip-path: inset(0 round 10px);
+      clip-path: inset(
+        max(0px, var(--lf-cut-top, -48px)) max(0px, var(--lf-cut-right, -48px))
+          max(0px, var(--lf-cut-bottom, -48px)) max(0px, var(--lf-cut-left, -48px))
+          round 10px
+      );
     }
     to {
-      clip-path: inset(-48px round 58px);
+      clip-path: inset(
+        var(--lf-cut-top, -48px) var(--lf-cut-right, -48px) var(--lf-cut-bottom, -48px)
+          var(--lf-cut-left, -48px) round 10px
+      );
     }
   }
   /* A floating comment surface is carried by its edge (surface-grip.js): a band

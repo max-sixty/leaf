@@ -116,7 +116,7 @@
     "runtime/keyboard/text-entry.js": "3e063ce61d4085e4a847cb1e712265025c698379a9332211f238399de5481ce2",
     "runtime/keyboard/touch-controls.js": "4c9bca49d3881f496aee761653cbc07b6e9fac2c4f32a0a665d6d2865c53d25b",
     "runtime/landing-scroll.js": "4642800111adcc97e8c3d1c6cd9cf1e2e51f6dc7675681ec4614d2e56d44031d",
-    "runtime/layer-client.js": "06bbfc2403e3fe292aadd2cd276fa0f896493b6827189ef484344231873fd65b",
+    "runtime/layer-client.js": "24c87a5b78155fa05f9a4763e75d3b851e7e8c6a47edbeec31a5cb4e39421e18",
     "runtime/layer-generation.js": "9300945652bb515716c2e75d59925dd48d772d6b9140c800f7b2fb44768eb01e",
     "runtime/leaf-element.js": "ac02a6d147dddb6ffd02d2310b5ab6e36bc628f01757daa8810fef26b69c14d9",
     "runtime/live-leaves.js": "4870ca0a0a04d8cf83fd87cf727d2a0a61008e520dbaf70619d88180ad2f6efb",

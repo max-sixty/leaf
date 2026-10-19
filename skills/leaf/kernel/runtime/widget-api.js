@@ -91,9 +91,6 @@ import {
   watchDraft
 } from "./bundle-user-intent.js";
 import {
-  raiseError
-} from "./bundle-errors.js";
-import {
   aborted,
   bodyText,
   dataBody,
@@ -208,6 +205,7 @@ import {
   paintKeysWithin,
   plainPress,
   pressIsKeyboardActivation,
+  raiseError,
   reachedForWords,
   registry,
   relabel,

@@ -147,10 +147,6 @@ import {
   workflowLabel
 } from "./bundle-user-intent.js";
 import {
-  holdingError,
-  raiseError
-} from "./bundle-errors.js";
-import {
   aborted,
   authoredStates,
   commitWidgetDescriptors,
@@ -274,6 +270,7 @@ import {
   frameFor,
   growthIsSeen,
   hasArea,
+  holdingError,
   intersect,
   keys,
   labelOf,
@@ -293,6 +290,7 @@ import {
   postEvent,
   presented,
   pruneScopedElements,
+  raiseError,
   randomId,
   recordInteraction,
   registry,

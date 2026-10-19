@@ -1,7 +1,4 @@
 import {
-  raiseError
-} from "./bundle-errors.js";
-import {
   aborted,
   commitWidgetDescriptors,
   dataBody,
@@ -148,6 +145,7 @@ import {
   pointerAt,
   pressIsKeyboardActivation,
   projectCommandScope,
+  raiseError,
   randomId,
   registry,
   repaint,

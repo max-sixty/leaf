@@ -19,7 +19,7 @@ Put only the demonstrated page inside the template; labels, your own controls an
 instructions for using the sample go outside it.
 
 The sample uses the parent's layer and has its own event log, so its decisions and
-comments never reach the parent's log or asks. It sits in the parent as a block as tall
+comments never reach the parent's log or On me. It sits in the parent as a block as tall
 as its content, showing only the Threads row of Leaf's controls. When the sample is
 about the window itself, such as Leaf's banner or drawers, add the boolean `window`
 attribute to show a whole Leaf window at a fixed height. The user can click or Tab into

@@ -267,12 +267,12 @@ def _reference_contract(at: str, v: dict) -> str:
     )
 
 
-def _ask_context(at: str, v: dict) -> str:
+def _empty_question(at: str, v: dict) -> str:
     widgets = "; ".join(
         f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
         for w in v["widgets"]
     )
-    return f"{_line(at, v)}: an ask context registers no ask: " + (
+    return f"{_line(at, v)}: an enclosing lf-ask registers no item: " + (
         widgets
         or "it holds no widget that declares x-awaits; a question with no widget is"
         " its words alone, with no heading"
@@ -868,10 +868,10 @@ _TEXT = {
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
-    "empty-ask-context": _ask_context,
-    "ask-context-title": lambda at, v: (
-        f"{_line(at, v)}: an ask context needs a heading to title its ask, leading"
-        " its content alone or in an <hgroup> or <header>"
+    "empty-question": _empty_question,
+    "untitled-question": lambda at, v: (
+        f"{_line(at, v)}: an enclosing lf-ask needs a heading to title its items,"
+        " leading its content alone or in an <hgroup> or <header>"
     ),
     "unknown-word": lambda at, v: (
         f"{_bearing(at, v, _quoted(v['value']))}: not {_HONORED[v['declares']]} —"
@@ -1134,9 +1134,9 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "ask-context-id": _declared(lambda v: "x-ask-context must require an id"),
-    "ask-context-prose": _declared(
-        lambda v: "x-ask-context must admit prose around the ask it frames"
+    "enclosing-id": _declared(lambda v: "x-awaits.encloses must require an id"),
+    "enclosing-prose": _declared(
+        lambda v: "x-awaits.encloses must admit prose around the items it frames"
     ),
     "data-contract": _declared(
         lambda v: (
@@ -1250,7 +1250,7 @@ _TEXT = {
             " receipt, but is written by a value record"
         )
     ),
-    # Its interactions: local work, its ask, and the state its verbs write.
+    # Its interactions: local work, its item, and the state its verbs write.
     "work-inline": _declared(
         lambda v: "declares x-work but is inline; local work chrome needs a block slot"
     ),
@@ -1261,7 +1261,7 @@ _TEXT = {
         )
     ),
     "awaits-unanswered": _declared(
-        lambda v: "x-awaits local ask declares no `answered` condition"
+        lambda v: "x-awaits local item declares no `answered` condition"
     ),
     "awaits-verbs": _declared(
         lambda v: (
@@ -1281,7 +1281,7 @@ _TEXT = {
     "awaits-blanket": _declared(
         lambda v: (
             f"x-awaits blanket answer `{v['outcome']}` is not an outcome of a"
-            " deciding verb that answers its ask"
+            " deciding verb that answers its item"
         )
     ),
     "unoverruled": _declared(
@@ -1301,7 +1301,7 @@ _TEXT = {
     "reserved-resolves": _declared(
         lambda v: (
             "declares attribute `resolves`, a reserved name (the thread an"
-            " answer to its ask closes), but originates no local ask"
+            " answer to its item closes), but originates no local item"
         )
     ),
     "verb-detail-schema": _declared(
@@ -1609,8 +1609,8 @@ _TEXT = {
         f'v{v["version"]} does not declare <meta name="lf-review" content="sign-off">,'
         " so it has no approval to record"
     ),
-    "unanswered-asks": lambda at, v: (
-        f"v{v['version']} still has unanswered widget asks: {', '.join(v['asks'])}"
+    "unanswered-items": lambda at, v: (
+        f"v{v['version']} still has unanswered widget items: {', '.join(v['items'])}"
     ),
     # An action or a report, against its widget's declaration.
     "unknown-sender": lambda at, v: (
@@ -1784,8 +1784,8 @@ _TEXT = {
         f"{v['widget']} has no work seat; its widget declares no x-work and it holds"
         " no unsettled action"
     ),
-    "duplicate-ask": lambda at, v: (
-        f"{v['widget']!r} already has ask {v['ask']!r}; use that ask instead of"
+    "duplicate-item": lambda at, v: (
+        f"{v['widget']!r} already has item {v['item']!r}; use that item instead of"
         " opening duplicate work"
     ),
     "plan-depth": lambda at, v: (
@@ -1794,26 +1794,26 @@ _TEXT = {
         " deeper than the one above"
     ),
     "unknown-plan-item": lambda at, v: (
-        f"{v['item']!r} names no to-do or ask on this page; name an id `leaf task"
-        " open` printed or an ask id from `leaf page state`, or write a plain step"
+        f"{v['item']!r} names no to-do or item on this page; name an id `leaf task"
+        " open` printed or an item id from `leaf page state`, or write a plain step"
         " with a title and state"
     ),
     "unowed-start": lambda at, v: (
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task open` gave you"
     ),
-    "approval-ask": lambda at, v: (
-        f"ask {v['todo']!r} requires the user's approval of v{v['version']}; it ends"
+    "approval-item": lambda at, v: (
+        f"item {v['todo']!r} requires the user's approval of v{v['version']}; it ends"
         " at the page's Approval control"
     ),
-    "widget-ask": lambda at, v: (
+    "widget-item": lambda at, v: (
         f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
     ),
-    "users-prose-ask": lambda at, v: (
+    "users-question": lambda at, v: (
         "the user's message or settling reaction answers a question asked in words"
     ),
-    "ended-ask": lambda at, v: f"ask {v['todo']!r} is already {v['status']}",
-    "failed-prose-ask": lambda at, v: (
+    "ended-item": lambda at, v: f"item {v['todo']!r} is already {v['status']}",
+    "failed-question": lambda at, v: (
         "a question asked in words ends `done` when the user answered it elsewhere,"
         " or `dropped` when it no longer applies"
     ),

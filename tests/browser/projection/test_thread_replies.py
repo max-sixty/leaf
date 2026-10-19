@@ -8,7 +8,7 @@ from interact_support import append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame
 from playwright.sync_api import expect
-from render_cases_interaction import MARKDOWN_REPLY, THREAD_ASKS, live_url
+from render_cases_interaction import MARKDOWN_REPLY, THREAD_ITEMS, live_url
 from render_cases_navigation import actions
 from render_harness import (
     REPLY_HOST_PAGE,
@@ -16,7 +16,7 @@ from render_harness import (
     SAMPLE_TEXT,
     consume_browser_errors,
     draft_control,
-    expect_asks_answered,
+    expect_items_answered,
     holding,
     http_error_console,
     open_page,
@@ -401,7 +401,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     answer and its undo, the send continuation must not overwrite that authoritative
     authored state after replay has accounted for the action."""
     url = serve(REPLY_HOST_PAGE)
-    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ITEMS[1])
     page = open_page(browser, url)
     page.keyboard.press("m")
     held = []
@@ -443,7 +443,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     Reconstructing after a later refusal must replay both the recorded selection and
     the separate `answer` verb, retaining both visible facts."""
     url = serve(REPLY_HOST_PAGE)
-    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ITEMS[1])
     page = open_page(browser, url)
     page.keyboard.press("m")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
@@ -509,7 +509,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     """A queued recordless action paints immediately and each refusal removes only
     the local outcome belonging to that attempt."""
     url = serve(REPLY_HOST_PAGE)
-    append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
+    append_carried_log_record(serve.page_dir, THREAD_ITEMS[1])
     page = open_page(browser, url)
     page.keyboard.press("m")
     held = []
@@ -562,7 +562,7 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     """Done paints its semantic result while delivery is held, and repeated presses
     still produce one action."""
     url = serve(REPLY_HOST_PAGE)
-    for event in THREAD_ASKS:
+    for event in THREAD_ITEMS:
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     page.keyboard.press("m")
@@ -592,16 +592,16 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     ] == [("tq-set", "answer")]
 
 
-def test_closing_a_thread_withdraws_the_ask_in_it(browser, serve):
+def test_closing_a_thread_withdraws_the_item_in_it(browser, serve):
     """A question in a thread is the thread's, so closing the thread takes the decision
     with it. The group is still there to read in the Resolved state, and still holds no
     answer — what went is the page's claim on the user, who would otherwise carry a
     decision in force for the life of the page and have `d` step them into a closed
     hidden thread to reach it."""
     url = serve(REPLY_HOST_PAGE)
-    append_carried_log_record(serve.page_dir, THREAD_ASKS[0])
+    append_carried_log_record(serve.page_dir, THREAD_ITEMS[0])
     page = open_page(browser, url)
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
 
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}

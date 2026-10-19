@@ -75,11 +75,11 @@ export {
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
-export { askedInWords, readAsks } from "./asks/model.js";
-// The asks a region of the page holds, by the rule every count and walk of them reads.
-export { asksIn } from "./asks/place.js";
+export { answeredInWords, readItems } from "./items/model.js";
+// The items a region of the page holds, by the rule every count and walk of them reads.
+export { itemsIn } from "./items/place.js";
 export { comparisonChanges, watchComparison } from "./version.js";
-export { askWords } from "./asks/answer.js";
+export { answerWords } from "./items/answer.js";
 export {
   readWork,
   workRole,
@@ -87,7 +87,7 @@ export {
   directWorkElements,
   workAncestor,
 } from "./work.js";
-export { askActions } from "./application.js";
+export { itemActions } from "./application.js";
 export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";

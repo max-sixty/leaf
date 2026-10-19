@@ -20,11 +20,11 @@ from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    SEATED_ASK_LAYER,
-    SEATED_ASK_WIDGETS,
+    SEATED_ITEM_LAYER,
+    SEATED_ITEM_WIDGETS,
     live_url,
 )
-from render_cases_layout import banner_control, toggle_queue, with_one_ask
+from render_cases_layout import banner_control, toggle_queue, with_one_item
 from render_cases_navigation import (
     composer_quote,
 )
@@ -309,8 +309,8 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
             "Inline rollback",
             '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
-        layer_registry=SEATED_ASK_LAYER,
-        layer_widgets=SEATED_ASK_WIDGETS,
+        layer_registry=SEATED_ITEM_LAYER,
+        layer_widgets=SEATED_ITEM_WIDGETS,
     )
     page = open_page(browser, live_url(url))
     seat = page.locator("#proposal > .lf-thread-seat")
@@ -387,8 +387,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
             "Inline reply rollback",
             '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
-        layer_registry=SEATED_ASK_LAYER,
-        layer_widgets=SEATED_ASK_WIDGETS,
+        layer_registry=SEATED_ITEM_LAYER,
+        layer_widgets=SEATED_ITEM_WIDGETS,
     )
     root = append_carried_log_record(
         serve.page_dir,
@@ -1406,29 +1406,29 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at["room"]["width"] > at["wide"]["width"], at
 
 
-def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
+def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     browser, serve
 ):
-    """On a sidebar page an Ask and a callout keep the prose's width and left edge, so
-    the Ask's ring and pin stand beside what it asks, as on a column page. One granted
+    """On a sidebar page an item and a callout keep the prose's width and left edge, so
+    the item's ring and pin stand beside what it asks, as on a column page. One granted
     `data-width`, or holding a block of its own that declares one, takes that room for
     the evidence. On a column page the wide block breaks out of the column, as it would
-    from a section, and the Ask spans it, so the ring it wears goes round the block
+    from a section, and the item spans it, so the ring it wears goes round the block
     rather than cutting across it, while its heading keeps the column; the table's
     twelve columns need the room, since a table granted it takes only what its columns
     need. A workspace states neither width, so there every one of them, and a board,
     fills the region it stands in."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
-    ask = (
+    item = (
         '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
         'choose><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
     )
     body = (
         '<p id="prose">Prose.</p>'
-        + ask.format(id="ask", width="", table="")
-        + ask.format(id="granted", width=' data-width="wide"', table="")
-        + ask.format(id="holds", width="", table=table.format(id="holds"))
+        + item.format(id="ask", width="", table="")
+        + item.format(id="granted", width=' data-width="wide"', table="")
+        + item.format(id="holds", width="", table=table.format(id="holds"))
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
         + '<aside class="callout" id="granted-c" data-width="wide"><p>Wide.</p></aside>'
         + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
@@ -1455,29 +1455,29 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # A granted callout's padding and border fall inside the wide measure.
     for wide in ("granted", "granted-c", "holds"):
         assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
-    # The widened Ask frames its table, which stands wider than the measure.
+    # The widened item frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
-    # The Ask spans its block wherever the block breaks out, and an Ask granted the room
-    # itself holds its block in that room. In a list item, which stands in from the
-    # column, and where the page arranged the Ask, in a grid track, neither grows.
+    # The item spans its block wherever the block breaks out, and an item granted the
+    # room itself holds its block in that room. In a list item, which stands in from the
+    # column, and where the page arranged the item, in a grid track, neither grows.
     extras = (
         "<ol><li>"
-        + ask.format(id="listed", width="", table=table.format(id="listed"))
+        + item.format(id="listed", width="", table=table.format(id="listed"))
         + "</li></ol>"
-        + ask.format(
+        + item.format(
             id="both", width=' data-width="wide"', table=table.format(id="both")
         )
         + '<div style="display: grid; grid-template-columns: 350px 1fr">'
-        + ask.format(id="tracked", width="", table=table.format(id="tracked"))
+        + item.format(id="tracked", width="", table=table.format(id="tracked"))
         + "<p>Beside.</p></div>"
-        + ask.format(
+        + item.format(
             id="narrow",
             width="",
             table='<table data-width="wide"><tr><td>a</td><td>b</td></tr></table>',
         )
         + '<div id="wrapper" data-width="wide">'
-        + ask.format(
+        + item.format(
             id="wrapped",
             width="",
             table=f'<table data-width="available"><tr>{cells}</tr></table>',
@@ -1511,11 +1511,11 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         at
     )
     assert at["tracked"]["width"] == 350, at
-    # An Ask inside a breakout takes its holder's room, as any block
+    # An item inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # An Ask that spans its block is a breakout the theme grows, so the gate reads it as
-    # one, even where it reaches further than a table of two columns does; a box the
+    # An item that spans its block is a breakout the theme grows, so the gate reads it
+    # as one, even where it reaches further than a table of two columns does; a box the
     # page pulls out of the column by its margins, an inline one, or one it grows round
     # its block by margins and padding of its own, still stands in the margin.
     misplaced = evaluate_probe(column, "misplacedBoxes")
@@ -1723,10 +1723,10 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
     """A table whose cells hold sentences wraps them inside the box it stands in, and
-    scrolls nothing: in an Ask, in a panel, and in a figure granted the page's room.
+    scrolls nothing: in an item, in a panel, and in a figure granted the page's room.
     Firefox and WebKit have no scroll-state container and dropped the table's
     `container-type: inline-size scroll-state` whole, so the width its caption reads
-    (100cqi) was the window's: an Ask's two-column table laid its rows out 1728px wide
+    (100cqi) was the window's: an item's two-column table laid its rows out 1728px wide
     in a 720px column and cut its second column off."""
     sentence = (
         "When a new copy is installed, the update copies each commit and records it. "
@@ -3243,7 +3243,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
 <div style="height: 1500px"></div>
 """,
     )
-    url = serve(with_one_ask(source))
+    url = serve(with_one_item(source))
 
     reading = """() => {
       const main = document.querySelector('main'), ms = getComputedStyle(main);

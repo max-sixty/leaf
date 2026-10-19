@@ -7,8 +7,8 @@ import pytest
 from interact_support import append_carried_log_record
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, PANEL_PAGE, live_url
-from render_cases_layout import banner_control, toggle_queue, with_one_ask
+from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, live_url
+from render_cases_layout import banner_control, toggle_queue, with_one_item
 from render_harness import (
     EXAMPLES,
     leaf_page,
@@ -23,8 +23,8 @@ from render_harness import (
 )
 
 from browser.margin import (
-    ACTION_ON_ASK,
-    COMMENT_ON_ASK,
+    ACTION_ON_ITEM,
+    COMMENT_ON_ITEM,
     MARGIN_ENTRY_KEYBOARD_PAGE,
     _comment_on,
 )
@@ -103,7 +103,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
         "text": "A thread the margin draws a marker for.",
         "anchor": {"section": "how-cap"},
     }
-    page = open_page(browser, serve(with_one_ask(PANEL_PAGE), events=[comment]))
+    page = open_page(browser, serve(with_one_item(PANEL_PAGE), events=[comment]))
     offered = """() => {
       const map = document.querySelector('.lf-page-map-toggle');
       return Boolean(map) && !map.hidden && getComputedStyle(map).display !== 'none';
@@ -421,7 +421,9 @@ def test_the_banner_offers_the_map_wherever_the_markers_are_pins(browser, serve)
     920px window leaves a column page too little room beside it for the rail, so its
     markers are pins and the banner offers the map, as it does on a phone. The control is
     the same page at 1200px, where the rail stands and the toggle steps aside."""
-    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     rows = page.locator(".lf-margin-projection .lf-margin-cluster")
     for width, place, offered in ((1200, "rail", False), (920, "pin", True)):
         resized(page, width, 900)

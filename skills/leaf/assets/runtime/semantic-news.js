@@ -18,7 +18,7 @@ const identity = (record) => record.attempt ?? record.id;
 
 // News reads the shown revision's view: the one the page just presented, whose On me list
 // the drawer and banner count paint. While an activation waits (a gesture defers it, or
-// the document is a pinned version), an ask the active revision adds is not on this
+// the document is a pinned version), an item the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
 export function semanticNewsReading(root) {
   const view = root.effective.view;
@@ -49,15 +49,15 @@ function unreadContent(threadView) {
 
 function userObligations(page, threadView) {
   const held = new Map();
-  for (const ask of page.asks.user)
-    held.set(JSON.stringify(["page", ask.id]), {
-      source: ask.id,
+  for (const item of page.items.user)
+    held.set(JSON.stringify(["page", item.id]), {
+      source: item.id,
       thread: null,
     });
-  for (const ask of threadView.asks.user) {
-    held.set(JSON.stringify(["thread", ask.thread, ask.id]), {
-      source: ask.id,
-      thread: ask.thread,
+  for (const item of threadView.items.user) {
+    held.set(JSON.stringify(["thread", item.thread, item.id]), {
+      source: item.id,
+      thread: item.thread,
     });
   }
   return held;

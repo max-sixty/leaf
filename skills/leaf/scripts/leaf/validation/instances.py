@@ -1,8 +1,8 @@
 """Registry-declared markup instance validation."""
 
-from leaf.asks import asking, local_ask_entry, quoted_in, replied
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import leading_title_node
+from leaf.items import asking, encloses, local_item_entry, quoted_in, replied
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     is_element_name,
@@ -193,7 +193,7 @@ def unasked(rec: dict, entry: dict) -> dict:
     """The `x-awaits.when` conditions a widget never met, as attribute and the values
     it would ask at, or none where it asks, was asked, or can be made to ask.
 
-    The flag `x-awaits.retired` names is how an author ends an ask already
+    The flag `x-awaits.retired` names is how an author ends an item already
     asked, such as a settled decision kept with its context, so failing on it alone
     leaves the widget counted. A condition a recorded value writes can still be met
     by a gesture."""
@@ -213,15 +213,15 @@ def unasked(rec: dict, entry: dict) -> dict:
     }
 
 
-def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """A context supplies a leading title and arrival region for nested asks.
+def item_context_errors(document: SourceDocument, registry: dict) -> list[Finding]:
+    """A context supplies a leading title and arrival region for nested items.
 
-    Context never owns ask identity or registration. Any number of sources
+    Context never owns item identity or registration. Any number of sources
     can select it, and each source retains its independent answer and lifecycle.
     A context framing widgets none of which asks shows a question the On me list
     never counts and the user can't answer, so the error names what each framed
     widget lacks to ask (`unasked`). A context framing no widget asks only if it
-    declares its own reply-answered ask (`x-awaits.reply`), and then needs no
+    declares its own reply-answered item (`x-awaits.reply`), and then needs no
     heading: its words are the question.
     """
 
@@ -230,25 +230,23 @@ def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding
             (
                 holder
                 for holder in enclosing_widgets(rec)
-                if registry.get(holder["tag"], {}).get("x-ask-context")
+                if encloses(registry.get(holder["tag"], {}))
             ),
             None,
         )
 
     lf_elements = document.lf_elements
-    regions = [
-        rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask-context")
-    ]
+    regions = [rec for rec in lf_elements if encloses(registry.get(rec["tag"], {}))]
     framed = {id(region): [] for region in regions}
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
         region = context_of(rec)
-        if local_ask_entry(entry) and region and not quoted_in(rec, registry):
+        if local_item_entry(entry) and region and not quoted_in(rec, registry):
             framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
         held = framed[id(region)]
-        # The ask's title is what the shared name rule reads, so this asks that rule
+        # The item's title is what the shared name rule reads, so this asks that rule
         # rather than restating a shape it accepts. It must be a heading as well, the
         # question's place in the outline and in heading navigation.
         title = leading_title_node(document.authoring.node_of(region))
@@ -267,9 +265,9 @@ def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding
                 }
                 for rec, lacks in framed[id(region)]
             ]
-            errors.append(found_at("empty-ask-context", region, widgets=widgets))
+            errors.append(found_at("empty-question", region, widgets=widgets))
         if not titled:
-            errors.append(found_at("ask-context-title", region))
+            errors.append(found_at("untitled-question", region))
     return errors
 
 
@@ -455,7 +453,7 @@ def reference_errors(
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Conditional asks and thread seats need an id when they are live.
+    """Conditional items and thread seats need an id when they are live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.
@@ -559,7 +557,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + ask_context_errors(document, registry)
+        + item_context_errors(document, registry)
         + declared_word_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
     )

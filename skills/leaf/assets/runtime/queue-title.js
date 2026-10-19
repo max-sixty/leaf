@@ -1,11 +1,11 @@
 /* An obligation's subject, shared by the On panel and package lists.
    Membership remains with the publisher. A title reads the current conversation
-   or the rendered ask/widget it names, without interpreting events. */
+   or the rendered item or widget it names, without interpreting events. */
 import { addressableLabel } from "./addressable-names.js";
 import { elementById } from "./passages.js";
-import { askHolding } from "./standing-target.js";
-import { askPlace } from "./asks/place.js";
-import { readAsks } from "./asks/model.js";
+import { itemHolding } from "./standing-target.js";
+import { itemPlace } from "./items/place.js";
+import { readItems } from "./items/model.js";
 import { readThreads } from "./thread/state.js";
 import { threadName } from "./thread/messages.js";
 
@@ -21,9 +21,9 @@ export function queueTitle(item) {
     thread?.msgs.find((message) => message.id === item.answer.message);
   if (sent) return sent.body.text.trim() || topic;
   if (item.subject.kind === "widget") {
-    const ask = own && askHolding(readAsks().all, own);
+    const record = own && itemHolding(readItems().all, own);
     return (
-      (ask && addressableLabel(askPlace(ask).context)) ||
+      (record && addressableLabel(itemPlace(record).context)) ||
       addressableLabel(own) ||
       topic ||
       item.id

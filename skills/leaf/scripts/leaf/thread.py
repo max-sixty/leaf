@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import NamedTuple
 
 from leaf.activity import answer_command, reply_command
-from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -23,6 +22,7 @@ from leaf.files import (
 )
 from leaf.findings import Finding, Rejected
 from leaf.harness import message_identity
+from leaf.items import asking, local_item_entry, quoted_in
 from leaf.leases import contract_writer
 from leaf.passages import SourceReading
 from leaf.projection import (
@@ -395,8 +395,8 @@ def post_reply(
     the user's message is answered and the work stays on the agent in one write.
 
     ``ephemeral`` posts progress at the same response address without answering it.
-    It remains content, and cannot carry an ask, a to-do, widgets, failure or relocation.
-    Progress on an update the agent owes says what it has in hand, so it also takes that
+    It remains content, and cannot carry an item, a to-do, widgets, failure or
+    relocation. Progress on an update the agent owes says what it has in hand, so it also takes that
     update in hand with its text as the line (`todos.start_reading`), which is why that
     text is one line: the update reads Working beside its thread and in the banner, and
     the user's message gets the agent's first words and its Working line from one
@@ -729,7 +729,7 @@ def _compose_and_append(
     if asks_back and not (
         markup
         and any(
-            local_ask_entry(publication.registry.get(rec["tag"]) or {})
+            local_item_entry(publication.registry.get(rec["tag"]) or {})
             and asking(
                 rec["attrs"], publication.registry[rec["tag"]]["x-awaits"].get("when")
             )
@@ -850,8 +850,8 @@ def fail_answer(
     - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; an open reply reservation refuses it until its
       turn gives the reply up;
-    - a `markup` answer takes a failed pickup: the user's answer to the ask stands in the
-      log, and answering again sends a new answer.
+    - a `markup` answer takes a failed pickup: the user's answer to the item stands in the log,
+      and answering again sends a new answer.
 
     An update with no answer outstanding writes nothing, except that a repeated reply
     receipt is found by its `attempt` and returned. `only_if_unclaimed` leaves an update

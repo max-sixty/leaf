@@ -7,9 +7,9 @@
    panel's head names it, then what that list has done, folded behind a native
    disclosure at the foot. This retained face keys
    the rows by item and keeps their light-DOM buttons stable across presentations. A row
-   standing at an element, an ask's or a widget's the user must act on, names it in
+   standing at an element, an item's or a widget's the user must act on, names it in
    `data-lf-at`, so the row stands at that element (`declareSide`, queue-panel.js) and
-   mirrors the ring of the ask the user stands in (asks/view.js, `markHere`). The fold's
+   mirrors the ring of the item the user stands in (items/view.js, `markHere`). The fold's
    open state is the disclosure's own, a browser fact the reading never holds.
 
    A row whose to-do the user ends with Done carries a Done button beside it, which Tab
@@ -204,7 +204,7 @@ export function createQueueList() {
 }
 
 // The row standing at the element `id` names in an open list, or null: the row an
-// ask's ring is mirrored on and an arrival at that ask reveals.
+// item's ring is mirrored on and an arrival at that item reveals.
 export const rowAt = (list, id) =>
   [...list.querySelectorAll(`${ROW}[${QUEUE_AT}]`)].find(
     (row) => row.getAttribute(QUEUE_AT) === id,

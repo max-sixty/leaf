@@ -8,7 +8,7 @@ from interact_support import append_carried_log_record, element_declaration
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, SEATED_ASK_PAGE, panel_comment
+from render_cases_interaction import PANEL_PAGE, SEATED_ITEM_PAGE, panel_comment
 from render_cases_layout import in_threads_scrollport, ring_faults, rings_drawn
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
@@ -849,7 +849,7 @@ def test_an_inline_thread_rings_its_card_for_pointer_and_keyboard_focus(browser,
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
     """The system focus outline replaces the surface paint high contrast removes."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -881,7 +881,7 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     """Thread controls and complete messages keep their room when the reply is focused."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}

@@ -79,7 +79,7 @@ INSTRUCTIONS = (
 # this line nor the schema, 6 of 16 answers were prose, answering a message that
 # asked for work or asking for more context; with the schema and the line first,
 # 38 of 40 were titles; with the line last, 24 of 24.
-ASK = "Write the title of this thread."
+ITEM = "Write the title of this thread."
 OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {"title": {"type": "string"}},
@@ -186,7 +186,7 @@ def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
         parts.append(f"<passage>\n{quote[:EXCERPT_LIMIT]}\n</passage>")
     if opening := next((m for m in spoken_turns(thread) if m.get("text")), None):
         parts.append(f"<message>\n{opening['text'][:EXCERPT_LIMIT]}\n</message>")
-    return thread_id, "\n\n".join([*parts, ASK]) if parts else ""
+    return thread_id, "\n\n".join([*parts, ITEM]) if parts else ""
 
 
 def claude_code_title(request: str, page_dir: Path) -> dict:

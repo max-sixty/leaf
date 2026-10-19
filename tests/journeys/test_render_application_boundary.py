@@ -25,8 +25,8 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
     LIVE_V2,
-    SEATED_ASK_ENTRY,
-    SEATED_ASK_MODULE,
+    SEATED_ITEM_ENTRY,
+    SEATED_ITEM_MODULE,
     live_url,
 )
 from render_harness import (
@@ -346,8 +346,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     browser, serve, place
 ):
     """Rows, count, narrowing, and native islands roll back as one checkpoint."""
-    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ASK_ENTRY}
-    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ASK_MODULE}
+    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ITEM_ENTRY}
+    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ITEM_MODULE}
     url = serve(
         leaf_page(
             "Thread rollback",
@@ -840,8 +840,8 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
     Rolling back a refused reading puts back only what the reading itself took: a user
     who stood in one seat's reply when it began and moved to another seat's box before
     it failed keeps the box they moved to, caret included."""
-    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ASK_ENTRY}
-    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ASK_MODULE}
+    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ITEM_ENTRY}
+    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ITEM_MODULE}
     url = serve(
         leaf_page(
             "Thread rollback",
@@ -1149,7 +1149,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     page.evaluate(
         "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
     )
-    with sending(page, "answer the package's native Ask"):
+    with sending(page, "answer the package's native item"):
         email.get_by_role("checkbox").click()
     expect(workspace.locator(".counts")).to_contain_text("Email")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
@@ -1172,7 +1172,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     # One reply answers both questions. Counts include them, while the
     # compact answer summary names only widget choices instead of repeating words.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 asks on me · 3 answered · Email"
+        "0 waiting on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
@@ -1514,7 +1514,7 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
     assert email.evaluate(
         "node => node === originalOption && node.getRootNode() === document"
     )
-    with sending(page, "answer the unchanged native Ask after reader replacement"):
+    with sending(page, "answer the unchanged native item after reader replacement"):
         email.click()
     expect(replacement.locator(".counts")).to_contain_text("Email")
     replacement.get_by_role("button", name="Keep it concise.", exact=True).click()

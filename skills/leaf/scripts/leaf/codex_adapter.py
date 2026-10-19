@@ -1004,9 +1004,14 @@ def preparing_adapter(
                 )
             yield {"task": session_id, "app_server": running, "started": False}
             return
-        # The connection captures its causal lifecycle before observing turns.
-        # Establish it in the launching harness, independently of page ownership.
-        ensure_session(session_id, harness.lifetime())
+        # Existing active ownership already proves the canonical lifetime and
+        # generation. A detached preview can replace its adapter, but its process
+        # ancestry cannot rediscover the interactive harness that took the page.
+        # A new acquisition still establishes that evidence in its own harness.
+        # owned_pages checks generation and liveness, so retained claims cannot
+        # lend an ended session their former authority.
+        if not owned_pages(session_id):
+            ensure_session(session_id, harness.lifetime())
         with starting_detached(
             [
                 "codex",

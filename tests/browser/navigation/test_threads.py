@@ -584,13 +584,12 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, ro
 
 
 @pytest.mark.parametrize("side", ["note", "marker"])
-def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve, side):
-    """With Threads open, the list's expanded thread plays the margin card's part.
+def test_a_target_offers_c_in_the_thread_card_left_on_screen(browser, serve, side):
+    """A target's reply command belongs to the thread card the user can see.
 
-    Arriving at a commented element by the keyboard expands its thread in the list, and
-    standing there is standing at that thread: its reply box wears `c`, `c` lands in
-    it, and the walk goes on from it. Every side of the target answers alike, so the
-    arrival is made from the target's comment note and from its margin marker.
+    A note beside the passage leaves Threads open, so its thread expands in the list.
+    A marker under Threads closes the panel on keyboard arrival, exposing the marker
+    so Enter can take the user to its page card. Both reply boxes wear `c`.
     """
     url = serve(
         INLINE_PAGE, anchored=[("p", "bold text"), ("p2", "neighbouring block")]
@@ -609,14 +608,25 @@ def test_threads_answers_c_in_the_thread_it_expanded_for_a_target(browser, serve
     ]
     line = page.locator(".lf-shortcut-bar")
 
-    # The list opens with the first thread expanded, so the second target is the one
-    # whose arrival has to move it.
+    # The list opens with the first thread expanded, so the second target tests a
+    # different destination whether the panel remains or closes.
     expect(listed[1]).not_to_have_attribute("open", "")
     page.keyboard.press("Tab")  # keyboard modality, so the focus below is visible
     if side == "note":
         comment_note(page, "#p2").focus()
     else:
-        page.locator('[data-lf-margin-for="p2"] .lf-margin-marker').focus()
+        marker = page.locator('[data-lf-margin-for="p2"] .lf-margin-marker')
+        marker.focus()
+        panel_settled(page, False)
+        expect(marker).to_be_focused()
+        page.keyboard.press("Enter")
+        card = page.locator(".lf-margin-preview .lf-page-thread")
+        expect(card).to_be_focused()
+        reply = card.locator("leaf-text")
+        expect(reply).to_have_attribute("placeholder", "Reply c")
+        page.keyboard.press("c")
+        expect(reply).to_be_focused()
+        return
     expect(listed[1]).to_have_attribute("open", "")
     reply = listed[1].locator("leaf-text")
     expect(reply).to_have_attribute("placeholder", "Reply c")

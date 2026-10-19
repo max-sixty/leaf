@@ -94,13 +94,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-carrier:has(.lf-margin-cluster:is(:hover, [data-lf-focus-within])) {
     z-index: var(--lf-z-margin-raised);
   }
-  /* The frame reserves the finished thread's rows before typing. Only the editor
-     paints; the transparent header/reply slots neither take document flow nor
-     intercept presses, and placement lets the one the box grows toward stand past the
-     window's edge (comment-placement.js).
-     The frame is at least as wide as the card it becomes (`--thread-card-min`), so
-     Send's growth opens from its field (thread-preview.js, `growOut`); its tracks
-     shrink into that frame, including beside attached media. */
+  /* Placement fits the finished thread before typing: the frame reserves the card's
+     header and reply rows around the editor, and is at least as wide as the card
+     (`--thread-card-min`), so Send swaps the box for its card in place. Its tracks
+     shrink into that frame, including beside attached media. Offered on a selection,
+     only the editor paints, and the transparent rows neither take document flow nor
+     intercept presses. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
     box-sizing: border-box;
     /* An auto-height positioned box borrows its inset-modified available height.
@@ -132,6 +131,22 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   }
   .lf-fab-bar > * {
     pointer-events: auto;
+  }
+  /* Being written, focused or holding words, the box paints its frame as the card it
+     becomes, so the window's edge it meets, rising a line at a time, is the edge it
+     shows. The user asked (2026-10-18) for the box to match its card: with only the
+     editor painted, the box rose while the room below it looked free, and letting the
+     unpainted reply row hang past the window's edge instead (#3139) moved the words at
+     Send. Its rows are the box's grip, as a card's padding is (`.lf-surface-grip`). */
+  .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]):is(
+      [data-lf-focus-within],
+      :has(.lf-fab-input:not(:state(placeholder-shown)))
+    ) {
+    border-radius: 10px;
+    background: var(--paper);
+    box-shadow:
+      inset 0 0 0 1px var(--border-2),
+      var(--raise-3);
   }
   .lf-fab-bar {
     position: fixed;
@@ -294,36 +309,19 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
   .lf-margin-preview-close {
     flex: none;
   }
-  /* A card Send opened grows out of the comment box it replaces (thread-preview.js,
-     `growOut`). The box's frame and the card share their corner, width and height (the
-     box is at least the card's minimum width), so the clip opens from the box's field,
-     which stands the frame's insets inside the card, to the card's edge. The card is
-     whole beneath the clip from the first frame, so no word moves. */
-  .lf-margin-preview[data-lf-grows] {
-    animation: lf-runtime-4f3c2a8d-comment-grow 240ms ease;
-  }
-  @keyframes lf-runtime-4f3c2a8d-comment-grow {
-    from {
-      clip-path: inset(
-        var(--lf-comment-frame-top) var(--lf-comment-frame-inline)
-          var(--lf-comment-frame-bottom) round var(--r)
-      );
-    }
-    to {
-      clip-path: inset(0 round 10px);
-    }
-  }
   /* A floating comment surface is carried by its edge (surface-grip.js): a band
      `--lf-grip-out` outside its box and `--lf-grip-in` inside, cut out of a box over
      the surface by an even-odd clip, which also bounds where it takes a press, so the
      surface's own controls and words keep theirs. The card's band is its padding,
      inside the border its overflow clips at; the comment box's hugs its field, whose
-     inside is the caret's, from outside. The band paints nothing: the pointer on it
-     takes the grab cursor and, after a beat, the surface's own border takes the
-     accent, so a pointer crossing the band to a control inside flashes nothing. It
-     used to tint the whole band, which on the card lit a 12px frame at every crossing.
-     A focused field's ring already stands in the box's border, so there the cursor
-     alone shows the grip. */
+     inside is the caret's, from outside. Once the box paints its frame, the grip is the
+     whole frame stacked beneath the box's controls, so it takes every press they
+     don't, wherever a short window lets them borrow the reserved rows. The band paints
+     nothing: the pointer on it takes the grab cursor and, after a beat, the surface's
+     own border takes the accent, so a pointer crossing the band to a control inside
+     flashes nothing. It used to tint the whole band, which on the card lit a 12px
+     frame at every crossing. A focused field's ring already stands in the unpainted
+     box's border, so there the cursor alone shows the grip. */
   .lf-surface-grip {
     --lf-grip-out: 0px;
     --lf-grip-in: var(--lf-comment-inset);
@@ -357,6 +355,15 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     border-color: color-mix(in srgb, var(--accent) 55%, var(--border-2));
     transition: border-color 0.1s 0.15s;
   }
+  .lf-fab-bar:is(
+      [data-lf-focus-within],
+      :has(.lf-fab-input:not(:state(placeholder-shown)))
+    ):is(:has(> .lf-surface-grip:hover), [data-lf-carried]) {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, var(--border-2)),
+      var(--raise-3);
+    transition: box-shadow 0.1s 0.15s;
+  }
   [data-lf-carried],
   [data-lf-carried] * {
     cursor: grabbing;
@@ -373,6 +380,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     .lf-fab-bar > .lf-surface-grip {
       --lf-grip-out: 12px;
     }
+  }
+  .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]):is(
+      [data-lf-focus-within],
+      :has(.lf-fab-input:not(:state(placeholder-shown)))
+    )
+    > .lf-surface-grip {
+    inset: 0;
+    clip-path: none;
+    z-index: -1;
+    border-radius: 10px;
   }
   /* A target-only box is not carried; one seated in a widget hides its grip in that
      widget's tree (response.css). */

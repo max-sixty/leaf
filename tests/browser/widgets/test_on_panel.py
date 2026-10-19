@@ -244,7 +244,7 @@ def test_item_cards_keep_identity_and_publisher_order_when_the_live_dom_moves(
     expect(sug_refill).to_be_focused()
     assert cards.evaluate_all("items => items.map(item => item.dataset.key)") == order
     assert cards.evaluate_all(
-        "widgets => items.every(item => window.__lfItemCards.get(item.dataset.key) === item)"
+        "items => items.every(item => window.__lfItemCards.get(item.dataset.key) === item)"
     )
 
 

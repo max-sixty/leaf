@@ -1333,7 +1333,7 @@ SEATED_ITEM_ENTRY = {
     "type": "object",
     "properties": {
         "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-        "items": {"type": "boolean"},
+        "asks": {"type": "boolean"},
         "restated": {"type": "boolean"},
     },
     "required": ["id"],
@@ -1353,10 +1353,10 @@ SEATED_ITEM_ENTRY = {
     },
     "x-awaits": {
         "value": "settle",
-        "when": {"items": [True]},
+        "when": {"asks": [True]},
         "answered": {"settle": {}},
     },
-    "x-thread-seat": {"when": {"items": [True]}},
+    "x-thread-seat": {"when": {"asks": [True]}},
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
 

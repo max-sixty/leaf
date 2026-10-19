@@ -30,6 +30,10 @@
 
    Travel asks this owner to clear whatever surface hides a destination (`clearFor`),
    so every trip that promises to show one closes the same surfaces by the same rule.
+   The keyboard's own steps are such trips: a Tab, or a key-led move, onto a page stop
+   the surface beside the page stands over clears it, since the ring the user follows
+   would stand under it. A press lands where the user could see, and a return where they
+   already stood, so neither clears.
 
    A surface that stands under the bottom bar, as a drawer does (its list ends above the
    band's stated height), keeps that band over it in the covering posture too: the band
@@ -65,6 +69,8 @@ import {
   closeLayer,
   handBack,
   layerLanding,
+  onStanding,
+  pressLed,
   standingIn,
 } from "./focus.js";
 import { userStore } from "./storage.js";
@@ -314,6 +320,11 @@ export function createAuxiliarySurfaces({
     if (!selected || !holder || under(holder, selected.surface)) return;
     if (selected.covers() || hides(selected.surface, where)) select(null);
   }
+  // A covering surface leaves the page inert, so only one beside it can stand over a stop.
+  onStanding((node, cause) => {
+    if (cause !== "step" && (cause !== "move" || pressLed())) return;
+    if (!controllers.get(selectedKey)?.covers()) clearFor(node);
+  });
   const selectedSurface = () => controllers.get(selectedKey)?.surface ?? null;
   const coveringSurface = () => active?.surface ?? null;
   const coveringScroller = () => active?.scroller() ?? null;

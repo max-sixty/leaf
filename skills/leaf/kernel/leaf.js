@@ -10415,9 +10415,9 @@ var ThreadListView = class extends RetainedFace {
     const row = this.#rows.find(
       (row2) => row2.kind === "thread" && this.#views.get(row2.key).ownsMessage(id)
     );
-    if (!row || row.node.hidden) return;
+    if (!row) return;
     this.#select(row.key);
-    this.#showExpanded();
+    if (!row.node.hidden) this.#showExpanded();
   }
   incomingTail(reading, card) {
     const prior = this.committed.rows.find(

@@ -228,16 +228,18 @@ export function createThreadPresentation({
     const thread = target && closestAcross(target, ".lf-thread");
     if (!thread) return;
     const id = thread.dataset.id;
-    if (thread.hidden) {
-      const { mayReveal } = event.detail;
-      const revealed = view.narrowing.revealThread(id);
-      if (revealed)
-        event.detail.present(
-          revealed.then(() => {
-            if (mayReveal() && thread.isConnected) threadsBox.revealNavigation(id);
-          }),
-        );
-    } else threadsBox.revealNavigation(id);
+    // Chosen before narrowing lets a hidden card back in, so the list's paint for the
+    // reveal opens it, rather than opening the last choice for the reveal to close.
+    threadsBox.revealNavigation(id);
+    if (!thread.hidden) return;
+    const { mayReveal } = event.detail;
+    const revealed = view.narrowing.revealThread(id);
+    if (revealed)
+      event.detail.present(
+        revealed.then(() => {
+          if (mayReveal() && thread.isConnected) threadsBox.revealNavigation(id);
+        }),
+      );
   }
 
   function attach(panel) {

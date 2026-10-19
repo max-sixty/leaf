@@ -5761,16 +5761,16 @@ function createThreadPresentation({
     const thread = target && closestAcross(target, ".lf-thread");
     if (!thread) return;
     const id = thread.dataset.id;
-    if (thread.hidden) {
-      const { mayReveal } = event.detail;
-      const revealed = view.narrowing.revealThread(id);
-      if (revealed)
-        event.detail.present(
-          revealed.then(() => {
-            if (mayReveal() && thread.isConnected) threadsBox.revealNavigation(id);
-          })
-        );
-    } else threadsBox.revealNavigation(id);
+    threadsBox.revealNavigation(id);
+    if (!thread.hidden) return;
+    const { mayReveal } = event.detail;
+    const revealed = view.narrowing.revealThread(id);
+    if (revealed)
+      event.detail.present(
+        revealed.then(() => {
+          if (mayReveal() && thread.isConnected) threadsBox.revealNavigation(id);
+        })
+      );
   }
   function attach(panel) {
     const listener = (event) => onReveal(panel, event);

@@ -7480,8 +7480,6 @@ function createFloatingPanel({
           ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
         </button>`;
     }
-    const openThreads2 = threads().filter((candidate) => !candidate.resolved);
-    const at = thread ? openThreads2.indexOf(thread) : -1;
     const titleClass = top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title";
     const crumb = top.view === "threads" && searching ? html`<input
             class="lf-fp-search"
@@ -7506,9 +7504,7 @@ function createFloatingPanel({
                     >${keyed(
       thread.key,
       html`<span class="lf-fp-news-outlet"></span>`
-    )}${at >= 0 ? html`<span class="lf-fp-where"
-                            >${at + 1} of ${openThreads2.length}</span
-                          >` : nothing}</span
+    )}</span
                   >` : nothing}`;
     return html`<div class="lf-fp-crumb">${crumb}</div>
       <div class="lf-fp-aux">${aux}</div>

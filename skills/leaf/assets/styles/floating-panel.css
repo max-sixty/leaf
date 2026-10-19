@@ -779,17 +779,15 @@
     background: none;
     color: var(--ink);
   }
-  .lf-fp-sep,
-  .lf-fp-where {
+  .lf-fp-sep {
     flex: none;
     color: var(--lf-fp-muted);
   }
-  /* The thread's facts after its title, the news it holds and where it stands among
-     the open ones, keep the crumb's end whole, so a title the agent or the user
-     rewrites, or news arriving, gives or takes room before them, truncating the
-     title, and moves nothing else. They stand further from the controls after them
-     than those stand from each other, so they read with the title rather than as
-     controls. */
+  /* The thread's facts after its title, the news it holds, keep the crumb's end
+     whole, so a title the agent or the user rewrites, or news arriving, gives or
+     takes room before them, truncating the title, and moves nothing else. They stand
+     further from the controls after them than those stand from each other, so they
+     read with the title rather than as controls. */
   .lf-fp-facts {
     flex: none;
     display: flex;
@@ -811,10 +809,6 @@
     padding-block: var(--lf-fp-news-reach);
     margin-block: calc(-1 * var(--lf-fp-news-reach));
     font-size: 12px;
-  }
-  .lf-fp-where {
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
   }
   .lf-fp-aux {
     flex: none;

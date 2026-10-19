@@ -277,10 +277,32 @@
     outline-offset: 0;
     border-radius: var(--r);
   }
-  /* An attached image's shelf takes a line of its own over the page's words, as it does
-     over a thread's reply (response.css). */
-  .lf-fp-box {
-    flex-wrap: wrap;
+  /* What the field's draft carries, its attached images, hangs off the box rather
+     than standing in it: the shelf stands on a ground of its own just over the box's top
+     edge, above the field's start, so attaching neither grows the box nor moves a
+     word, in the page's field and an open thread's reply alike. With a view open it
+     hangs over the view's head. The user chose this on 19 October, comparing it live
+     with the shelf taking a line of its own over the words, which grew the box by a
+     line the one thumbnail left mostly empty, and with thumbnails shrunk into the row
+     beside the words, which kept the box whole but made each picture a chip. */
+  .lf-fp-card {
+    anchor-name: --lf-fp-card;
+  }
+  .lf-fp-field {
+    anchor-name: --lf-fp-field;
+  }
+  .lf-fp-field .lf-composer-media:not([hidden]) {
+    position: fixed;
+    bottom: calc(anchor(--lf-fp-card top) + 6px);
+    left: anchor(--lf-fp-field left);
+    width: max-content;
+    max-width: anchor-size(--lf-fp-field width);
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--lf-fp-surface);
+    box-shadow:
+      0 0 0 1px var(--lf-fp-ring),
+      var(--raise-2);
   }
   /* The anchored comment box on a page drawing its own annotations, standing in the
      field's place while its composer is open and no view is open above the row

@@ -407,12 +407,12 @@
   /* The page's views (the root set of a `main` that carries no Layout; lf-tabs.js). The
    * page lays them out (layouts.css, "A page of views"): the list in a column down the
    * left and the open view beside it, arranged by its own Layout. The set draws no
-   * frame; its list wears the ground and the open tab's face every strip wears, so the
-   * open view reads as it does in any set. The list sticks under the banner, ruled off
-   * from the views, so it stands in
-   * one place whichever view is open and wherever it is read, and scrolls on its own
-   * where it holds more names than the window's height. On a phone it is a row over the
-   * view, scrolled sideways. */
+   * frame; its list stands on the page's ground with the page's title, and the open
+   * tab wears the face every strip's open tab wears. The open view is ruled off from the
+   * column. The list sticks under the title, so it stands in one place whichever view is open and
+   * wherever it is read, and scrolls on its own where it holds more names than the
+   * window's height leaves under the title. On a phone it is a row over the view,
+   * scrolled sideways. */
   :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="views"]) {
     margin: 0;
     border: 0;
@@ -422,17 +422,17 @@
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow="views"] > .lf-tabstrip {
     position: sticky;
-    top: var(--lf-top);
+    top: calc(var(--lf-top) + var(--lf-views-title-h, 0px));
     align-self: start;
-    block-size: var(--lf-view-height);
+    block-size: calc(var(--lf-view-height) - var(--lf-views-title-h, 0px));
     flex-direction: column;
     gap: 0;
     padding: var(--sp-4) 8px;
     overflow-x: hidden;
     overflow-y: auto;
     border-bottom: 0;
-    border-inline-end: 1px solid var(--rule);
     border-radius: 0;
+    --lf-tabstrip-bg: var(--paper);
     min-block-size: 0;
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow="views"] > .lf-tabstrip > .lf-tabstrip-scroll {
@@ -442,6 +442,7 @@
    * and draws nothing, and its Layout sets its padding. */
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="views"] > lf-tab:not([hidden]) {
     padding: 0;
+    border-inline-start: 1px solid var(--rule);
     --lf-block-frame: trim;
   }
   /* A view not shown keeps its box in flow for find-in-page (`hidden="until-found"`), so
@@ -465,6 +466,9 @@
       border-inline-end: 0;
       border-bottom: 1px solid var(--border-2);
       min-block-size: var(--lf-tabstrip-h);
+    }
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="views"] > lf-tab:not([hidden]) {
+      border-inline-start: 0;
     }
     :scope:is(lf-tabs)[data-lf-tabs-flow="views"].lf-rendered
       > .lf-tabstrip
@@ -616,6 +620,7 @@
       }
       & > lf-tab {
         padding: 0;
+        border-inline-start: 1px solid var(--rule);
         --lf-block-frame: trim;
       }
       @container lf-shell (width < 640px) {
@@ -624,6 +629,9 @@
           border-bottom: 1px solid var(--border-2);
           border-radius: 0;
           background: var(--paper);
+        }
+        & > lf-tab {
+          border-inline-start: 0;
         }
       }
     }

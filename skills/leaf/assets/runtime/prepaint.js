@@ -873,11 +873,31 @@
     }
     return changed;
   };
+  // A page of views' title, which its list sticks under (layouts.css, "A page of
+  // views"): no CSS stacks one sticking box under another of unknown height. The title
+  // is what stands before the views, in the one row above the list.
+  const TITLE = "--lf-views-title-h";
+  const title = () => {
+    const body = document.body;
+    const main = document.querySelector("body > main");
+    if (!body) return false;
+    const views =
+      main && !isLayoutBox(main) ? main.querySelector(":scope > [data-lf-views]") : null;
+    let height = 0;
+    for (let node = views?.previousElementSibling; node; node = node.previousElementSibling)
+      height = Math.max(height, node.getBoundingClientRect().height);
+    const value = height ? `${Math.round(height)}px` : "";
+    if (body.style.getPropertyValue(TITLE) === value) return false;
+    if (value) setRuntimeRootStyle(body, TITLE, value);
+    else removeRuntimeRootStyle(body, TITLE);
+    return true;
+  };
   const residency = () => {
     const seated = seat();
+    const titled = title();
     const stood = stand();
     const reading = breakouts();
-    return { ...reading, changed: reading.changed || seated || stood };
+    return { ...reading, changed: reading.changed || seated || titled || stood };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from

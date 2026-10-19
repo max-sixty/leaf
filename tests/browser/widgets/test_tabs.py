@@ -33,9 +33,9 @@ ROOT_TABS_PAGE = ROOT / "tests/fixtures/pages/root-tabs.html"
 
 def test_views_switch_without_moving_the_list_and_follow_history(browser, serve):
     """A switch between a page's views is not fragment travel. The list stays where it is
-    on screen: a view never read opens at its start, level with the list, and leaves the
-    page's title alone when it is on screen, and a view read past its start reopens
-    where the user left it. Pointer, keyboard, and Back/Forward agree, and a
+    on screen beside the page's title: a view never read opens at its start, at the top
+    of the page level with the title, and a view read past its start reopens where the
+    user left it. Pointer, keyboard, and Back/Forward agree, and a
     fresh load of the remembered view shows the page's top.
 
     A view's place is where the user was reading in it, not a pixel offset: a window
@@ -89,7 +89,8 @@ def test_views_switch_without_moving_the_list_and_follow_history(browser, serve)
             "selector => document.querySelector(selector).getBoundingClientRect().top",
             panel,
         )
-        assert top == pytest.approx(strip.bounding_box()["y"], abs=1)
+        title = page.locator("main > header").bounding_box()["y"]
+        assert top == pytest.approx(title, abs=1)
 
     expect(plan).to_have_attribute("aria-selected", "true")
     assert settled() == 0
@@ -97,11 +98,11 @@ def test_views_switch_without_moving_the_list_and_follow_history(browser, serve)
     assert switch(summary) == 0
     assert switch(evidence) == 0
     assert page.url.endswith("#evidence-tab")
-    # Read Evidence past its start; Plan, never read, opens at its start, level with the
-    # list, rather than at the top of the page.
+    # Read Evidence past its start; Plan, never read, opens at its start, the top of the
+    # page.
     evidence_read = read_at(450)
     plan_start = switch(plan)
-    assert 0 < plan_start < evidence_read
+    assert plan_start == 0
     at_start("#plan-tab")
     # Summary fits under the title, so it opens with the title and nothing to scroll.
     assert switch(summary) == 0
@@ -339,8 +340,8 @@ def _stacked_headers(browser, serve):
 
 
 def test_a_diffs_header_in_a_view_pins_at_the_landing_edge(browser, serve):
-    """A diff's file header in a view pins at the inset the list of views sticks at: a
-    sticky header has a stated height and adds it to `--lf-top` for what it stands over. A
+    """A diff's file header in a view pins at the inset the page's title sticks at, at the
+    top of the list of views: a sticky header has a stated height and adds it to `--lf-top` for what it stands over. A
     landing on one of the diff's rows arrives below the header, and the part of a row
     under the header reads as not on screen."""
     page = _stacked_headers(browser, serve)
@@ -353,8 +354,8 @@ def test_a_diffs_header_in_a_view_pins_at_the_landing_edge(browser, serve):
         const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
         row.scrollIntoView({block: 'start', behavior: 'instant'});
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-        // The list of views sticks at the same inset as every header over the page.
-        const edge = box(document.querySelector('#root-tabs > .lf-tabstrip')).top;
+        // The page's title sticks at the same inset as every header over the page.
+        const edge = box(document.querySelector('main > header')).top;
         const landed = {edge, head: box(head).bottom, row: box(row).top};
         // Half a row under the diff's header.
         document.scrollingElement.scrollTop += box(row).top - box(head).bottom

@@ -65,12 +65,14 @@ that suits it. Write one `lf-tabs` in a `main` that carries no Layout, and give 
 </main>
 ```
 
-The list of views stands down the window's left edge, beside the open view, with each
-view's `summary` under its label. The page's `header`, the one element to write before
-the set, stands over every view, and a workspace view fills the window below it: keep it
-to a title, and a line on the subject where it needs one. On a phone the title, the list and the view stack. Each view opens where the
-user last read it. Give each view its own heading, and a column view its own contents
-outline. The views share the page's history, Threads panel and asks.
+The page's `header`, the one element to write before the set, heads a column down the
+window's left edge, and the list of views stands under it, with each view's `summary`
+under its label. Both stay in view while a long view scrolls. Each view takes the rest of
+the width from the top of the window, so a workspace view fills the window. Keep the
+header to the page's title, since it shares the column's width, and give each view its
+own heading, and a column view its own contents outline. On a phone the title, the list
+and the view stack. Each view opens where the user last read it. The views share the
+page's history, Threads panel and asks.
 
 ## A sidebar page
 

@@ -1791,17 +1791,17 @@
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow=views] > .lf-tabstrip {
     position: sticky;
-    top: var(--lf-top);
+    top: calc(var(--lf-top) + var(--lf-views-title-h, 0px));
     align-self: start;
-    block-size: var(--lf-view-height);
+    block-size: calc(var(--lf-view-height) - var(--lf-views-title-h, 0px));
     flex-direction: column;
     gap: 0;
     padding: var(--sp-4) 8px;
     overflow-x: hidden;
     overflow-y: auto;
     border-bottom: 0;
-    border-inline-end: 1px solid var(--rule);
     border-radius: 0;
+    --lf-tabstrip-bg: var(--paper);
     min-block-size: 0;
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow=views] > .lf-tabstrip > .lf-tabstrip-scroll {
@@ -1809,6 +1809,7 @@
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=views] > lf-tab:not([hidden]) {
     padding: 0;
+    border-inline-start: 1px solid var(--rule);
     --lf-block-frame: trim;
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=views] > lf-tab[hidden] {
@@ -1830,6 +1831,9 @@
       border-inline-end: 0;
       border-bottom: 1px solid var(--border-2);
       min-block-size: var(--lf-tabstrip-h);
+    }
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=views] > lf-tab:not([hidden]) {
+      border-inline-start: 0;
     }
     :scope:is(lf-tabs)[data-lf-tabs-flow=views].lf-rendered > .lf-tabstrip > .lf-tab-run {
       flex: none;
@@ -1971,6 +1975,7 @@
       }
       & > lf-tab {
         padding: 0;
+        border-inline-start: 1px solid var(--rule);
         --lf-block-frame: trim;
       }
       @container lf-shell (width < 640px) {
@@ -1979,6 +1984,9 @@
           border-bottom: 1px solid var(--border-2);
           border-radius: 0;
           background: var(--paper);
+        }
+        & > lf-tab {
+          border-inline-start: 0;
         }
       }
     }

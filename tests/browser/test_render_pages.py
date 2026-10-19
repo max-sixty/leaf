@@ -3218,13 +3218,13 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
 
 
 def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, serve):
-    """A page of views stands the list of views in a column down the left, and lays the
-    open view out beside it, under the page's title, as a page of its own with that
-    view's Layout: a column view takes the column, margin residents, contents map and
-    breakouts a column page takes in a window as wide as the room beside the list, and a
-    workspace view fills that room down to the window's foot, so neither it nor a short
-    view leaves the page anything to scroll. On a phone the list stacks over the view,
-    under the title."""
+    """A page of views stands its title and, under it, the list of views in a column down
+    the left, and lays the open view out beside them from the top of the page, as a page
+    of its own with that view's Layout: a column view takes the column, margin residents,
+    contents map and breakouts a column page takes in a window as wide as the room beside
+    the list, and a workspace view fills that room from the top of the window to its
+    foot, so neither it nor a short view leaves the page anything to scroll. On a phone
+    the title, the list and the view stack."""
     column_body = """
 <h1>Migration plan</h1>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
@@ -3273,8 +3273,8 @@ def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, 
     list_box = page.locator("#views > [role=tablist]").bounding_box()
     title_box = page.locator("#title h1").bounding_box()
     view_box = page.locator("#plan").bounding_box()
-    assert title_box["y"] + title_box["height"] <= view_box["y"], (title_box, view_box)
-    assert list_box["x"] + list_box["width"] <= title_box["x"], (list_box, title_box)
+    assert title_box["y"] + title_box["height"] <= list_box["y"], (title_box, list_box)
+    assert title_box["x"] + title_box["width"] <= view_box["x"], (title_box, view_box)
     assert list_box["x"] + list_box["width"] <= 1600 - in_view["width"], list_box
     assert in_view["margin"] == "rail map note", in_view
     assert root_overflow(page) == 0
@@ -3300,7 +3300,7 @@ def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, 
     )
     assert work["box"] == "work", work
     assert work["width"] == in_view["width"], work
-    assert work["top"] >= title_box["y"] + title_box["height"], work
+    assert work["top"] == round(view_box["y"]), work
     assert work["bottom"] == work["mainBottom"] > 700, work
     assert page.evaluate(fits) == 0
     page.get_by_role("tab", name="Note").click()

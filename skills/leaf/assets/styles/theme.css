@@ -1278,6 +1278,15 @@ h3 {
     line-height: 1.1;
   }
 }
+/* A page of views' title heads the narrow column its list of views stands in
+ * (layouts.css, "A page of views"), so it is set as that column's heading. */
+@container style(--lf-views-title: 1) {
+  h1 {
+    font-size: var(--t-3);
+    line-height: 1.25;
+    letter-spacing: normal;
+  }
+}
 p {
   margin: 13px 0;
 }

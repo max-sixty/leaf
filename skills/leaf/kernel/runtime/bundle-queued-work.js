@@ -589,7 +589,7 @@ var sending = (turn) => ({
   workflow: turn.id
 });
 function foldThreads(threads, gestures) {
-  if (!gestures.length) return threads;
+  if (!gestures.length) return [...threads];
   const withdrawn = new Set(
     gestures.flatMap((gesture) => gesture.kind === "undo" ? [gesture.undoes] : [])
   );
@@ -625,7 +625,7 @@ function foldThreads(threads, gestures) {
       const thread = byName.get(gesture.parent);
       if (!thread) continue;
       const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
-      thread.msgs.splice(thread.msgs.length - streaming, 0, gesture);
+      thread.msgs = thread.msgs.toSpliced(thread.msgs.length - streaming, 0, gesture);
       if (!isReaction(gesture)) thread.resolved = null;
     } else if (gesture.kind === "edit") {
       const thread = byName.get(gesture.message);
@@ -1642,7 +1642,7 @@ function localTodos(state, local) {
   const all = state?.browser.todos ?? [];
   const served = all.filter((todo) => todo.state === "open");
   const ended = all.filter((todo) => todo.state !== "open");
-  const reopened = (todo) => todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
+  const reopened = (todo) => todo.outcome !== null && undoing.has(todo.outcome.id);
   const open = [
     ...served,
     ...ended.filter(reopened).map((todo) => ({ ...todo, state: "open", outcome: null }))

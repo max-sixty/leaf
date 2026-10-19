@@ -360,8 +360,12 @@ def test_every_served_agent_record_carries_the_name_it_is_shown_under():
     )
 
     thread = model.threads(state)["e1"]
-    assert [message["agent"] for message in thread["msgs"]] == [None, "Agent", "Codex"]
-    assert thread["root"]["agent"] is None
+    assert [message.get("agent") for message in thread["msgs"]] == [
+        None,
+        "Agent",
+        "Codex",
+    ]
+    assert "agent" not in thread["root"]
     assert thread["resolved"]["agent"] == "Agent"
     assert [(row["id"], row["agent"]) for row in state["history"]] == [
         ("e4", "Agent"),

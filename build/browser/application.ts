@@ -46,14 +46,13 @@ import type {
   LocalEdit,
   ThreadGesture,
   Message,
-  WidgetEvent,
   LocalAction,
   ActionSpec,
   PendingProjection,
   ProjectionEntry,
-  Coverage,
   ContentVersion,
 } from "./domain.ts";
+import type { ServedState } from "./contract.js";
 
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
@@ -165,155 +164,50 @@ function advance(
   return { ...entry, state, admitted: entry.admitted ?? admitted };
 }
 
-interface WireProjection {
-  entries: {
-    event: WidgetEvent;
-    coordinate: [string, string, string];
-    restated: string[];
-    absorbed: boolean;
-    stands: boolean;
-    scope: string;
-    spec: Omit<ActionSpec, "writer">;
-    value: unknown;
-  }[];
-  actions: string[];
-  reports: string[];
-  desired: string[];
-}
-
-/** A request and its contained answer. The source owns the canonical value;
- * identity includes its kind so authored ids and message ids cannot collide. */
-interface ItemRecord {
-  id: string;
-  source:
-    { kind: "widget"; id: string; tag: string } | { kind: "approval"; version: number };
-  thread: string | null;
-  message: string | null;
-  prompt: { text: string | null; target: string };
-  answer: { value: unknown; event: Event | null } | null;
-  /** `items.py` owns the statuses; only a question answered in words is
-   * `answered_elsewhere`. */
-  status: "open" | "answered" | "answered_elsewhere" | "withdrawn";
-  /** The agent's `leaf task end` that retired a question answered in words: where the
-   * answer is, or why the item no longer applies. */
-  end: { detail: string | null; event: Event } | null;
-  next_actor: "user" | "agent" | null;
-}
-
+/** The state the server serves (`served_state/state.schema.json`), whose type the
+ * build generates. The server answers `active` and `browser` null only before a page's
+ * first revision, when it serves no document a runtime could run in
+ * (`http._serve_root`), so every answer this runtime reads has both. The names below
+ * select from it. */
+type AuthoritativeState = ServedState & {
+  active: NonNullable<ServedState["active"]>;
+  browser: NonNullable<ServedState["browser"]>;
+};
+type ServerView = AuthoritativeState["browser"]["views"][string];
+/** A server view with its basis, the transport identity, left off. */
+type PageView = Omit<ServerView, "basis">;
+type WireProjection = ServerView["document"]["projection"];
+type ItemRecord = ServerView["document"]["items"]["all"][number];
 interface WireItems {
-  all: ItemRecord[];
-  user: ItemRecord[];
-  unanswered: ItemRecord[];
+  all: readonly ItemRecord[];
+  user: readonly ItemRecord[];
+  unanswered: readonly ItemRecord[];
 }
+type WireWorkflow = ServedState["workflows"][number];
 
-/** One served workflow, as `served_state.browser.served_workflows` serializes it;
- * `AuthoritativeState.workflows` lists them strongest first. */
-interface WireWorkflow {
-  id: string;
-  seq: number;
-  revision: number | null;
-  input: string | null;
-  /** The message a thread input shows on: its own, or the one an edit rewrote. */
-  message: string | null;
-  subject: { kind: "thread" | "widget"; id: string };
-  thread: string | null;
-  /** Whether the agent is at work on it (`served_state.work.at_work`). */
-  at_work: boolean;
-  holds_thread: boolean;
-  coordinate: unknown;
-  answer: { kind: "reply" | "turn" | "markup" } | null;
-  stage: "sent" | "queued" | "picked_up" | "working" | "replying" | "answered";
-  ts: string | null;
-  detail: string | null;
-  agent: string | null;
-  session: string | null;
-  delivery_seq: number | null;
-  delivery_session: string | null;
-  delivery_turn: string | null;
-  response: object | null;
-  activity: readonly {
-    kind: string;
-    detail: string;
-    ts: string;
-    session: string | null;
-    turn: string | null;
-  }[];
-  condition: {
-    kind: "ended" | "interrupted" | "stale" | "failed";
-    operation: "delivery" | "work" | "response";
-  } | null;
-  next_actor: "user" | "agent";
-  /** The starts that take the move in hand, which the Stop hook reads. */
-  started_by: readonly {
-    item: string;
-    session: string | null;
-    turn: string | null;
-    seq: number;
-  }[];
-  quiet: boolean;
-  dropped: boolean;
-}
-
-/** Published workflows include local sends, before the server can classify quietness. */
-export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
+/** Published workflows include local sends, before the server can classify them: a
+ * send has no stage the server knows yet, and a widget move no coordinate the server
+ * has read. */
+export type Workflow = Omit<WireWorkflow, "stage" | "coordinate"> & {
   stage: WireWorkflow["stage"] | "sending";
-  quiet?: boolean;
-  dropped?: boolean;
+  coordinate: readonly (string | null)[] | null;
 };
 
-/** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
- * to-do or item whose title, owner and state it shows; `done` of `total` counts its
- * children, dropped ones left out. */
-interface WirePlanStep {
-  /** An item whose prompt has no text names no title. */
-  title: string | null;
-  state: "open" | "working" | "done" | "failed" | "dropped";
-  owner: "agent" | "user";
-  item: { kind: "todo" | "item"; id: string } | null;
-  running: WireTodo["running"];
-  since: string | null;
-  steps: WirePlanStep[];
-  done: number;
-  total: number;
-}
+/** One to-do as the browser publishes it: as the server serves it, or ended by this
+ * tab's Done, which the server has not dated yet. */
+export type WireTodo = Omit<ServedTodo, "outcome"> & {
+  outcome: ServedTodo["outcome"] | { ts: null; detail: null };
+};
+type ServedTodo = AuthoritativeState["browser"]["todos"][number];
 
-/** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
- * every to-do on either side, open or ended, an ended one with its outcome. It is the
- * one record of each; the queue items and thread readings the browser draws select
- * from it. Items are separate records and never appear in this list. */
-export interface WireTodo {
-  id: string;
-  owner: "agent" | "user";
-  subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
-  thread: string | null;
-  title: string | null;
-  state: "open" | "done" | "failed" | "dropped";
-  ts: string;
-  revision: number | null;
-  /** The start that holds the to-do, while one does; one gone quiet holds nothing
-   * (`activity._canonical_todos`). */
-  running: {
-    id: string;
-    text: string;
-    seq: number;
-    ts: string;
-    agent: string | null;
-    session: string | null;
-    turn: string | null;
-  } | null;
-  agent: string | null;
-  session: string | null;
-  outcome: { id?: string; ts: string | null; detail?: string | null } | null;
-}
-
-/** One item on On me or On <agent>, as `served_state.queues` serves it: `owner` names
- * the list. A widget or approval item keeps its record; a to-do item the fields a row
- * draws. */
+/** One item on On me or On <agent>, as `served_state.queues` serves it or this tab
+ * places it: `owner` names the list. A widget or approval item keeps its record; a
+ * to-do item the fields a row draws. */
 interface QueueItem {
-  kind: "widget" | "approval" | "todo" | "resend" | "answer" | "work";
+  kind: ServerView["queues"]["on_user"][number]["kind"];
   id: string;
   owner: "user" | "agent";
-  subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
+  subject: WireWorkflow["subject"];
   thread: string | null;
   /** Whether the agent has it in hand now. */
   live: boolean;
@@ -330,9 +224,9 @@ type DoneItem = QueueItem & {
 };
 
 interface WireQueues {
-  on_user: QueueItem[];
-  on_agent: QueueItem[];
-  done: DoneItem[];
+  on_user: readonly QueueItem[];
+  on_agent: readonly QueueItem[];
+  done: readonly DoneItem[];
 }
 
 export interface SemanticDocument {
@@ -374,94 +268,6 @@ export interface WidgetDescriptor {
   ancestors: readonly { id: string; tag: string }[];
   quoted: boolean;
 }
-
-interface AuthoritativeState {
-  taken: number;
-  layer: { generation: string };
-  active: { revision: number; version?: number | null; label?: string | null };
-  versions?: { revision: number; version: number; url: string }[];
-  revision_labels: Record<string, string>;
-  events: Event[];
-  /** Each bound file's stamp, by binding, which moves when the file may have. */
-  files: Record<string, string>;
-  workflows: WireWorkflow[];
-  /** The machine's other live pages, each its compact activity summary
-   * (`server_rows.py`). */
-  others: ({ page_key: string; url: string; title: string } & Record<
-    string,
-    unknown
-  >)[];
-  browser: {
-    basis: { through_seq: number };
-    views: Record<
-      string,
-      {
-        basis: { revision: number; through_seq: number };
-        document: {
-          projection: WireProjection;
-          items: WireItems;
-        };
-        /** The frozen threads as this revision reads them: its registry classifies
-         * their widgets' decisions, and so the items and attention those give. */
-        thread: {
-          threads: Thread[];
-          projection: WireProjection;
-          items: WireItems;
-        };
-        /** Each gesture undo can take back, latest first; `newest` marks the user's
-         * latest gesture (`served_state.document`). */
-        undo: { event: Event; coordinate?: string[]; newest?: true }[];
-        coverage: Coverage[];
-        /** The view's report feed, in log order (`projection.canonical_reports`). */
-        reports: {
-          id: string;
-          target: { kind: "widget"; id: string };
-          source: "report";
-          action: string;
-          detail: Record<string, unknown>;
-          text: string | null;
-          ts: string;
-          revision: number;
-          seq: number;
-          agent: string | null;
-          session: string | null;
-          disposition: "effective" | "outranked" | "settled";
-        }[];
-        published_at: string | null;
-        queues: WireQueues;
-        /** The items approving this version waits on (`items.approval_blocking`). */
-        approval_blocking: string[];
-      }
-    >;
-    /** Approvals in force across every stamp, for Threads' event timeline. */
-    approval_history: Event[];
-    receipts: Event[];
-    /** Every thread whose history each logged event changes
-     * (`thread_context.thread_memberships`). */
-    thread_memberships: Record<string, string[]>;
-    todos: WireTodo[];
-    /** The agent's plan in force, or null (`plans.plan_reading`). */
-    plan: {
-      id: string;
-      ts: string;
-      agent: string | null;
-      session: string | null;
-      steps: WirePlanStep[];
-    } | null;
-    /** Each version's note, by version (`served_state.browser`). */
-    version_notes: Record<string, string>;
-    /** The newest events as a history feed reads them, sent only to a page holding a
-     * widget that declares `x-history` (`history.history`). */
-    history?: object[];
-  };
-  activity: unknown;
-  reading?: string;
-  agent?: string;
-}
-
-type ServerView = AuthoritativeState["browser"]["views"][string];
-/** A server view with its basis, the transport identity, left off. */
-type PageView = Omit<ServerView, "basis">;
 
 // The server classifies a view's page and thread entries alike under that revision's
 // registry, so every entry is one the view's widgets can draw.
@@ -588,8 +394,8 @@ function localTodos(state: AuthoritativeState | null, local: readonly LedgerEntr
   const all = state?.browser.todos ?? [];
   const served = all.filter((todo) => todo.state === "open");
   const ended = all.filter((todo) => todo.state !== "open");
-  const reopened = (todo: WireTodo) =>
-    todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
+  const reopened = (todo: ServedTodo) =>
+    todo.outcome !== null && undoing.has(todo.outcome.id);
   const open = [
     ...served,
     ...ended
@@ -1141,7 +947,7 @@ export function createSemanticApplication({
     // closes changes in the reading that logs the answer, and the gesture concerns it
     // from that reading on.
     const logged = state?.browser.thread_memberships ?? {};
-    const threadsOfEntry = (entry: LedgerEntry): string[] => {
+    const threadsOfEntry = (entry: LedgerEntry): readonly string[] => {
       const filed = entry.admitted ? logged[entry.admitted.id] : undefined;
       if (filed) return filed;
       const { event } = entry;

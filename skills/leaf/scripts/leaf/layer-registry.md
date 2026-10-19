@@ -93,10 +93,15 @@ would break under this one: the served state, a runtime module the server relies
 or an event drops, renames or changes the meaning of something the other side reads,
 or a field the page's runtime sends becomes required.
 Adding a field or kind the older code ignores needs no bump. The browser build holds
-the event contract to this: it keeps the contract as it last stood at the current
-number (`build/browser/protocol-contract.d.ts`), and `protocol.test.ts` fails a
-change that drops a kind or a field at any depth, requires a new one, or narrows a
-value's type or constant, until the change takes what it took or the number moves.
+the event records and the served state to this. It generates their types from `$events`
+and from `served_state/state.schema.json`, the served state's one declaration, and
+keeps them as they last stood at the current number
+(`build/browser/protocol-contract.d.ts`). `protocol.test.ts` fails a change that drops
+a kind or a field at any depth, requires a new one, or narrows a value's type or
+constant, until the change takes what it took or the number moves. The served state
+runs the other way, since a page's older runtime reads what this Leaf serves: the test
+fails a change that stops serving a field or widens a value's type, such as one that
+makes a field nullable.
 
 The check reads the types generated from the schemas, which carry no patterns,
 bounds or conditional clauses, so a change to one of those is the author's to judge. The promise runs one

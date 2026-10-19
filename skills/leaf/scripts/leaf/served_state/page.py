@@ -1,4 +1,9 @@
-"""The complete state response for one served page."""
+"""The complete state response for one served page.
+
+`state.schema.json` beside this module declares its shape and is each field's home: a
+field's meaning is its description there. The tests hold real readings to it
+(`interact_support.served_state_error`), and the browser build generates the type the
+runtime and the Worker read it by."""
 
 from datetime import timedelta
 from pathlib import Path
@@ -72,25 +77,8 @@ def read_served_page(
     )
     state = {
         "layer": identity,
-        # The server clock used to calibrate browser timestamps and relative ages.
-        # A laptop an hour out would otherwise date new comments an hour out too.
-        # An edge host refreshes this and `taken` together at delivery; captured
-        # event timestamps and already-folded activity retain their original dates.
         "now": context.now,
-        # How long working may go unheard before it reads as quiet, measured on that
-        # clock. Activity below is already folded; a package dating a
-        # worker's own reports asks `quietSince`, which reads this rather than a copy.
         "working_grace_ms": WORKING_GRACE // timedelta(milliseconds=1),
-        # The moment this answer was taken, for a tab holding two. Answers cross — two
-        # sockets, one held by a proxy or a test while a later one lands, a POST's
-        # answer beside a read — and the log's sequence orders everything in a state
-        # but the reading and its data, which are hashes with no order of their own.
-        # Live answers are stamped inside their page transaction; an edge host
-        # dates a fresh read of its atomic stored publication at delivery. This
-        # orders the readings whichever order they land. The wall clock rather
-        # than a counter: a counter starts over
-        # with the server, and a tab open across that restart would refuse every
-        # answer until the count caught up.
         "taken": context.taken,
         "active": active,
         "versions": list(context.versions),
@@ -103,16 +91,11 @@ def read_served_page(
         },
         "source_error": source_error,
         "data": browser_data_from(context.data, selected_registry),
-        # Which bound file moved: an editor reads its file only when this stamp does.
         "files": context.bound_files(),
         **context.presence,
         "activity": activity,
         "workflows": workflows,
         "browser": browser,
-        # As logged: a message's text is Markdown the page's vendored runtime renders,
-        # and its markup is the fragment the CLI gate validated. The wire adds nothing,
-        # so the only vocabulary a page's frozen layer has to keep speaking is the
-        # log's own, which $events already stamps.
         "events": context.events,
         **({"preview": preview} if preview else {}),
         **({"publication": publication} if publication else {}),

@@ -8,9 +8,9 @@
  * without writing them. This module owns its source root, outputs, and their layer
  * paths, and writes and checks every other committed Node-built output beside them:
  * the initial renderers (`build/initial.mjs`), the stylesheets (`build/styles.mjs`),
- * the modules generated from the registry (`build/registry.mjs`), the kernel
- * event contract and the protocol baseline `protocol.test.ts` holds it to
- * (`event-types.mjs`), the third-party bundles (`build/vendor.mjs`), and last the
+ * the modules generated from the registry (`build/registry.mjs`), the page
+ * protocol's types, the event records and the served state, and the baseline
+ * `protocol.test.ts` holds them to (`contract-types.mjs`), the third-party bundles (`build/vendor.mjs`), and last the
  * kernel compiled from all of them (`build/runtime-bundle.mjs`). The kernel's
  * directory, the layer's `vendor/` and each package's hold nothing else, so a file
  * there that no build writes is stale. Leaf installation, vendoring, activation, and
@@ -41,7 +41,7 @@ import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
 import { transformSync } from "amaro";
 import { build } from "esbuild";
-import { eventTypes } from "./event-types.mjs";
+import { contractTypes } from "./contract-types.mjs";
 import { initialOutputs } from "../initial.mjs";
 import { litNamespace, litPath } from "../lit.mjs";
 import { registryOutputs } from "../registry.mjs";
@@ -186,8 +186,8 @@ async function litModule() {
   ];
 }
 
-// The event contract as it last stood at the current page protocol, which
-// `protocol.test.ts` holds every later contract at that protocol to taking. A build
+// The protocol's contract as it last stood at the current page protocol, which
+// `protocol.test.ts` holds every later contract at that protocol to. A build
 // whose typecheck passes moves it forward to the contract it built; a new protocol
 // starts it again (`layer-registry.md`, "Page protocol").
 const protocolContractPath = path.join(root, sourceRoot, "protocol-contract.d.ts");
@@ -197,7 +197,7 @@ async function protocolContract(contract) {
     await readFile(path.join(root, assets, "registry.json"), "utf8"),
   );
   const protocol = registry.$events.protocol;
-  const header = `/* @noformat The event contract pages vendored at protocol ${protocol} speak, as it last stood (protocol.test.ts). */`;
+  const header = `/* @noformat The contract pages vendored at protocol ${protocol} speak and read, as it last stood (protocol.test.ts). */`;
   return { header, text: `${header}\n${contract.slice(contract.indexOf("\n") + 1)}` };
 }
 
@@ -262,10 +262,10 @@ function typecheck(config, reports = () => true) {
 }
 
 export async function buildOutputs() {
-  const contractPath = path.join(root, sourceRoot, "event-contract.d.ts");
-  const contract = await eventTypes(new URL("../../", import.meta.url));
+  const contractPath = path.join(root, sourceRoot, "contract.d.ts");
+  const contract = await contractTypes(new URL("../../", import.meta.url));
   if ((await readFile(contractPath, "utf8")) !== contract)
-    throw new Error("Stale kernel event types; run pnpm run build:browser");
+    throw new Error("Stale protocol types; run pnpm run build:browser");
   if ((await protocolHeader()) !== (await protocolContract(contract)).header)
     throw new Error("Stale protocol contract; run pnpm run build:browser");
   typecheck("tsconfig.json");
@@ -421,10 +421,10 @@ async function main(args) {
   if (args.length > 1 || (args.length && args[0] !== "--check")) {
     throw new Error("Usage: node build/browser/build.mjs [--check]");
   }
-  const contract = await eventTypes(new URL("../../", import.meta.url));
+  const contract = await contractTypes(new URL("../../", import.meta.url));
   const protocol = await protocolContract(contract);
   if (args[0] !== "--check") {
-    await writeFile(path.join(root, sourceRoot, "event-contract.d.ts"), contract);
+    await writeFile(path.join(root, sourceRoot, "contract.d.ts"), contract);
     if ((await protocolHeader()) !== protocol.header)
       await writeFile(protocolContractPath, protocol.text);
   }

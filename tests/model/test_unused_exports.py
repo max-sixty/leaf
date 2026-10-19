@@ -45,7 +45,7 @@ BUNDLED = re.compile(r"(^|/)vendor/|^skills/leaf/kernel/")
 # A third-party bundle's own input under `build/` exports the surface of the package
 # it stands in for, which the bundled dependency reads and this tree never names
 # (`build/AGENTS.md`). Its own imports are still readers. `protocol-contract.d.ts` is
-# `event-contract.d.ts` as it last stood at this protocol, which `build/browser/build.mjs`
+# `contract.d.ts` as it last stood at this protocol, which `build/browser/build.mjs`
 # copies whole, so its exports are those of the contract this checks.
 UNCHECKED = re.compile(
     r"^build/(?!browser/)[^/]+/|^build/browser/protocol-contract\.d\.ts$"

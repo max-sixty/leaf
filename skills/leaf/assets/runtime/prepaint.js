@@ -363,6 +363,7 @@
         : target.importNode(sourceShells.get(source) ?? source, false);
     origins.set(copy, origins.get(source) ?? node);
     copy.removeAttribute?.("data-lf-opening");
+    copy.removeAttribute?.("data-lf-sole-content");
     const held = source.localName === "template" ? source.content : source;
     const into = copy.localName === "template" ? copy.content : copy;
     if (source.localName === "template") origins.set(into, origins.get(held) ?? held);
@@ -428,9 +429,9 @@
   };
   // The box the page's Layout arranges (layouts.css, `--lf-layout-box`): the page's
   // `main` (passages.js, `pageDocument`), or the shown child of a `main` that carries no
-  // Layout itself, or the shown child of a view of such a `main`, a member of the child
-  // that shows one at a time (`data-lf-views`). A view not shown hides what it holds
-  // (`hidden="until-found"`), so a box in it is not shown. Its parent is the shell the
+  // Layout itself, or the shown child of a part of such a `main`, a member of its child
+  // that holds the page's parts (`data-lf-views="parts"`). A part not shown hides what
+  // it holds (`hidden="until-found"`), so a box in it is not shown. Its parent is the shell the
   // Layout places it in. CSS declares the box, so the runtime reads no Layout class.
   // Without a Layout, the box is `main`.
   const isLayoutBox = (box) =>
@@ -438,15 +439,15 @@
   const layoutBox = () => {
     const main = document.querySelector("body > main");
     if (!main || isLayoutBox(main)) return main;
-    const views = main.querySelector(":scope > [data-lf-views]");
+    const parts = main.querySelector(':scope > [data-lf-views="parts"]');
     const boxes = [
       ...main.children,
-      ...[...(views?.children ?? [])].flatMap((view) => [...view.children]),
+      ...[...(parts?.children ?? [])].flatMap((part) => [...part.children]),
     ];
     return boxes.find((box) => box.checkVisibility() && isLayoutBox(box)) ?? main;
   };
   // The shell that last held the column, so a column that moves to another shell, as
-  // when another view is shown, leaves none of its tracks behind.
+  // when another part is shown, leaves none of its tracks behind.
   let lastShell = null;
   const seat = () => {
     const body = document.body;
@@ -507,7 +508,7 @@
     const shell = { left: shellLeft, right: shellLeft + shellNode.clientWidth * scale };
     // A resident fixed to the window, as the contents map is (toc.css), stands from the
     // shell's left edge rather than the window's, which differ where the page puts
-    // something before the shell, as a page's list of views does.
+    // something before the shell, as a page's list of parts does.
     const left = Math.round(shellLeft) ? `${Math.round(shellLeft)}px` : "";
     const moved = body.style.getPropertyValue("--lf-shell-left") !== left;
     if (left) setRuntimeRootStyle(body, "--lf-shell-left", left);
@@ -833,18 +834,20 @@
     }
     return changed;
   };
-  // A page of views' title, which its list sticks under (layouts.css, "A page of
-  // views"): no CSS stacks one sticking box under another of unknown height. The title
-  // is what stands before the views, in the one row above the list.
-  const TITLE = "--lf-views-title-h";
+  // A page of parts' title, which its list sticks under (layouts.css, "A page of
+  // parts"): no CSS stacks one sticking box under another of unknown height. The title
+  // is what stands before the parts, in the one row above the list.
+  const TITLE = "--lf-parts-title-h";
   const title = () => {
     const body = document.body;
     const main = document.querySelector("body > main");
     if (!body) return false;
-    const views =
-      main && !isLayoutBox(main) ? main.querySelector(":scope > [data-lf-views]") : null;
+    const parts =
+      main && !isLayoutBox(main)
+        ? main.querySelector(':scope > [data-lf-views="parts"]')
+        : null;
     let height = 0;
-    for (let node = views?.previousElementSibling; node; node = node.previousElementSibling)
+    for (let node = parts?.previousElementSibling; node; node = node.previousElementSibling)
       height = Math.max(height, node.getBoundingClientRect().height);
     const value = height ? `${Math.round(height)}px` : "";
     if (body.style.getPropertyValue(TITLE) === value) return false;
@@ -983,13 +986,34 @@
   // parser's tasks and never inside one, and a member parsed later may be the one that
   // opens. Parsing is over before any module runs, so nothing here races an upgrade.
   const OPENING = "data-lf-opening";
+  // The opening view's only content block gets a marker so its first-paint height
+  // rule need not put a structural selector over every element in the document.
+  const SOLE_CONTENT = "data-lf-sole-content";
+  const soleContents = new WeakMap();
+  const soleContent = (member) => {
+    let sole = null;
+    for (const child of member.children) {
+      if (child.matches("script, style, template")) continue;
+      if (sole) return null;
+      sole = child;
+    }
+    return sole;
+  };
   const mark = () => {
     for (const holder of document.querySelectorAll("[data-lf-views]")) {
       const members = [...holder.children];
       const open = choose(holder, members);
-      for (const member of members)
+      for (const member of members) {
         if (member.hasAttribute(OPENING) !== (member === open))
           member.toggleAttribute(OPENING, member === open);
+        const sole = member === open ? soleContent(member) : null;
+        const previous = soleContents.get(member);
+        if (previous !== sole) {
+          previous?.removeAttribute(SOLE_CONTENT);
+          sole?.setAttribute(SOLE_CONTENT, "");
+          soleContents.set(member, sole);
+        }
+      }
     }
   };
   const initialLayout = () => {
@@ -1014,6 +1038,8 @@
     opening(holder, members) {
       for (const member of holder.querySelectorAll(`:scope > [${OPENING}]`))
         member.removeAttribute(OPENING);
+      for (const member of members)
+        soleContents.get(member)?.removeAttribute(SOLE_CONTENT);
       return choose(holder, members);
     },
     keep(holder, member) {

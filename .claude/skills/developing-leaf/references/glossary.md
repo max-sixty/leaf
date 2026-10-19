@@ -103,12 +103,13 @@ Don't say *widget entry* for an element declaration, *item* for an addressable e
 | **Page shell** | The body-level box that sizes the page after the chrome takes its space |
 | **Content frame** | `body > main`, the root of authored content and its reading column in flow posture |
 | **Layout** | A shipped class (`layouts.css`, the `lf-layouts` cascade layer) that arranges the box it is on: the page Layouts `layout-column`, `layout-sidebar` and `layout-workspace` on the content frame only, and `layout-tiles` on any block |
-| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
+| **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a part, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame`. It sets its children's width and trims their outer margins |
 | **Text** and **surface** | How a block uses its frame's width. Text (a paragraph, list item, quote, caption, heading, or a block given the column) keeps the reading measure. Every other block is a surface and takes the width its frame allows: `wide` up to `--wide`, `available` all of it |
 | **Bounded block** | A block that keeps its own height and scrolls inside it (`x-bound`, `data-bound`), which makes it a reading region |
 | **Sidebar page** | A content frame on `layout-sidebar`, as wide as the window up to a cap, with the body beside its `aside` when both fit |
 | **Margin sidebar** | `aside.sidebar` on a column page: supporting material, usually navigation, in the left margin where it fits and in flow otherwise |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
+| **Part** | One `lf-part` of a page of parts: a `main` with no Layout holding one `lf-parts`, whose parts each hold a child carrying that part's own Layout, listed down the window's left edge under the page's title. Not a **view**, which is Leaf's panel's |
 | **Full-height** | A workspace that exactly fills the window, where the window is large enough, marked by `--lf-full-height: 1` on `main`; the web calls it a full-height or app-shell layout |
 | **Pane** | One reading region, usually in a workspace: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable place on the page that navigation and reading-position recovery use |

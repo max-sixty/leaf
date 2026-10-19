@@ -5,7 +5,6 @@ import pytest
 from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame, rendered
-from model_folds import views_page
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ITEMS_PAGE,
@@ -78,7 +77,7 @@ def test_an_item_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
             + first
             + "</details>"
         )
-    source = views_page(
+    source = leaf_page(
         "Ask travel across tabs",
         '<h1>Review the two proposals</h1><lf-tabs id="views">'
         '<lf-tab id="first" label="First">'

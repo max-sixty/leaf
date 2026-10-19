@@ -182,7 +182,7 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
 
 
 def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
-    """A tab panel the page makes scroll is the box its diff's header pins to, though
+    """A page tab panel the page makes scroll is the box its diff's header pins to, though
     the tab strip stacks its height onto what the panel holds: the panel's own scroll
     restarts `--lf-top`. An undecided option card clips its rounded corners and scrolls
     nothing, so a diff in an option pins at the root's slot as the page scrolls past it."""
@@ -202,6 +202,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         ),
     )
     resized(page, 1280, 900)
+    expect(page.locator("lf-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
     )

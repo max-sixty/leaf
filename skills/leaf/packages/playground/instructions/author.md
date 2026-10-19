@@ -25,10 +25,10 @@ Give the `lf-playground` `data-width="available"` wherever it stands, so it take
 room it is given while the question and premise in its `lf-ask` keep the prose width.
 Where the playground is the page's subject, make the page a workspace (`<main
 class="layout-workspace density-working">`) whose body is that `lf-ask`. When the page
-also carries reading that supports the playground, make it a page of views instead: the
-first view is that workspace, `<div class="layout-workspace density-working">` holding
-the `lf-ask`, and the reading goes in later views, each a column
-(`references/page-layout.md`, "A page of views"). Either way the playground fills the
+also carries reading that supports the playground, make it a page of parts instead: the
+first part is that workspace, `<div class="layout-workspace density-working">` holding
+the `lf-ask`, and the reading goes in later parts, each a column
+(`references/page-layout.md`, "A page of parts"). Either way the playground fills the
 window. Where the playground is one exhibit in a document, it breaks out of the
 document's column. Draw the candidates directly in the preview, without a card around
 each.

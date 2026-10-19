@@ -91,15 +91,20 @@ table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
   window from the title's left edge. Broken out of a column, the same surface would sit
   below the opening prose, with edges that match neither the title nor the prose, which
   suits a figure a document cites but not the page's main item. Reading that supports the
-  surface, such as the review behind a design the reader tunes, goes in views of its own
-  after the surface's, on a page of views (below). A document read top to bottom beside a
+  surface, such as the review behind a design the reader tunes, goes in parts of its own
+  after the surface's, on a page of parts (below). A document read top to bottom beside a
   panel kept in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
   (`page-layout.md`, "A sidebar page").
-- **Several views of one subject**, such as a playground to try beside the proposal it
-  argues for and the reasoning behind it, are a page of views: one `lf-tabs` set in a
-  `main` with no Layout, each view with a Layout of its own (`page-layout.md`, "A page
-  of views"). The views share one history, Threads list and On me list. A tab set
-  inside a view holds local alternatives within it.
+- **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
+  views that share one history, Threads list and On me list; a tabbed section holds
+  local alternatives within a view. The `lf-tabs` entry says which placement makes
+  which.
+- **Parts of one subject that each want their own Layout**, such as a playground to try
+  beside the proposal it argues for and the reasoning behind it, are a page of parts:
+  one `lf-parts` in a `main` with no Layout, each part with a Layout of its own
+  (`page-layout.md`, "A page of parts"). Where the views share the page's Layout and
+  a header across the top, such as one shared with a site's other pages, they are page
+  tabs instead.
 
 A page can grow without changing its Layout: a report that gains live status gains a
 row of tiles. Leaf's panel takes its own room at the window's foot, and comment markers
@@ -126,8 +131,8 @@ disclosure in the page's flow when there isn't. The same links remain available 
 keyboard and touch; printing shows the complete outline. On a sidebar page, put the
 contents and a short verdict or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
 to fit the window, and put detailed evidence and history in the body or behind a
-disclosure. A workspace has its own navigation, and so does a page of views, whose
-column views each take their own outline.
+disclosure. Workspaces and root page tabs have their own navigation, and so does a
+page of parts, whose column parts each take their own outline.
 
 ## Read the registry
 

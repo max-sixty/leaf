@@ -9,8 +9,8 @@ which shape fits which subject.
 
 A Layout is a class that arranges the box it is on. Three set the page's shape. Each
 goes on `main`, or on a child of a `main` that carries none, which the page then lays
-out as it would `main` while that child is shown, as each view of a page of views
-does ("A page of views"):
+out as it would `main` while that child is shown, as each part of a page of parts
+does ("A page of parts"):
 
 | Class              | The page                                                            |
 | ------------------ | ------------------------------------------------------------------- |
@@ -42,37 +42,40 @@ The page's own `<style>` comes after the Layout, so ordinary rules can change a 
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
 that no Layout fits writes its own grid or flex rules.
 
-## A page of views
+## A page of parts
 
-A page whose subject has several views, such as a playground to try, the proposal it
-argues for and the reasoning behind it, puts each in a view of its own with the Layout
-that suits it. Write one `lf-tabs` in a `main` that carries no Layout, and give each
-`lf-tab` one child carrying that view's Layout:
+A page whose subject has parts of different shapes, such as a playground to try, the
+proposal it argues for and the reasoning behind it, puts each in a part of its own with
+the Layout that suits it. Write one `lf-parts` in a `main` that carries no Layout, and
+give each `lf-part` one child carrying that part's Layout:
 
 ```html
 <main>
   <header>
     <h1>Floating comment panel</h1>
   </header>
-  <lf-tabs id="views">
-    <lf-tab id="try" label="Try" summary="The panel, live">
+  <lf-parts id="parts">
+    <lf-part id="try" label="Try" summary="The panel, live">
       <div class="layout-workspace">…</div>
-    </lf-tab>
-    <lf-tab id="proposal" label="Proposal" summary="What changes and why">
+    </lf-part>
+    <lf-part id="proposal" label="Proposal" summary="What changes and why">
       <article class="layout-column">…</article>
-    </lf-tab>
-  </lf-tabs>
+    </lf-part>
+  </lf-parts>
 </main>
 ```
 
-The page's `header`, the one element to write before the set, heads a column down the
-window's left edge, and the list of views stands under it, with each view's `summary`
-under its label. Both stay in view while a long view scrolls. Each view takes the rest of
-the width from the top of the window, so a workspace view fills the window. Keep the
-header to the page's title, since it shares the column's width, and give each view its
-own heading, and a column view its own contents outline. On a phone the title, the list
-and the view stack. Each view opens where the user last read it. The views share the
+The page's `header`, the one element to write before the parts, heads a column down the
+window's left edge, and the list of parts stands under it, with each part's `summary`
+under its label. Both stay in view while a long part scrolls. Each part takes the rest of
+the width from the top of the window, so a workspace part fills the window. Keep the
+header to the page's title, since it shares the column's width, and give each part its
+own heading, and a column part its own contents outline. On a phone the title, the list
+and the part stack. Each part opens where the user last read it. The parts share the
 page's history, Threads panel and On me list.
+
+Where the views share one Layout and the page's header runs across the top, as a site's
+pages that share one header do, use page tabs instead (the `lf-tabs` entry).
 
 ## A sidebar page
 

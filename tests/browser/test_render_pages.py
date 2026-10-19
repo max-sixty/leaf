@@ -3204,14 +3204,14 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
         assert left <= edges[0] and edges[1] <= right, in_child
 
 
-def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, serve):
-    """A page of views stands its title and, under it, the list of views in a column down
-    the left, and lays the open view out beside them from the top of the page, as a page
-    of its own with that view's Layout: a column view takes the column, margin residents,
+def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, serve):
+    """A page of parts stands its title and, under it, the list of parts in a column down
+    the left, and lays the open part out beside them from the top of the page, as a page
+    of its own with that part's Layout: a column part takes the column, margin residents,
     contents map and breakouts a column page takes in a window as wide as the room beside
-    the list, and a workspace view fills that room from the top of the window to its
-    foot, so neither it nor a short view leaves the page anything to scroll. On a phone
-    the title, the list and the view stack."""
+    the list, and a workspace part fills that room from the top of the window to its
+    foot, so neither it nor a short part leaves the page anything to scroll. On a phone
+    the title, the list and the part stack."""
     column_body = """
 <h1>Migration plan</h1>
 <aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
@@ -3221,16 +3221,16 @@ def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, 
 <div id="room" data-width="available">Available evidence.</div>
 <div style="height: 1200px"></div>
 """
-    views = leaf_page(
-        "views",
+    parts = leaf_page(
+        "parts",
         f"""<header id="title"><h1>Release review</h1></header>
-<lf-tabs id="views">
-<lf-tab id="plan" label="Plan"><article id="box" class="layout-column">{column_body}</article></lf-tab>
-<lf-tab id="queue" label="Queue"><div id="work" class="layout-workspace">
+<lf-parts id="parts">
+<lf-part id="plan" label="Plan"><article id="box" class="layout-column">{column_body}</article></lf-part>
+<lf-part id="queue" label="Queue"><div id="work" class="layout-workspace">
 <header><h1>Queue</h1></header><div id="regions"><p>Work one item at a time.</p></div>
-</div></lf-tab>
-<lf-tab id="note" label="Note"><article class="layout-column"><p>One line.</p></article></lf-tab>
-</lf-tabs>""",
+</div></lf-part>
+<lf-part id="note" label="Note"><article class="layout-column"><p>One line.</p></article></lf-part>
+</lf-parts>""",
         layout=None,
     )
     reading = """() => {
@@ -3253,22 +3253,22 @@ def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, 
       }
       return measured;
     }"""
-    page = open_page(browser, serve(views))
+    page = open_page(browser, serve(parts))
     resized(page, 1600, 900)
     page.get_by_role("tab", name="Plan").click()
-    in_view = page.evaluate(reading)
-    list_box = page.locator("#views > [role=tablist]").bounding_box()
+    in_part = page.evaluate(reading)
+    list_box = page.locator("#parts > [role=tablist]").bounding_box()
     title_box = page.locator("#title h1").bounding_box()
     view_box = page.locator("#plan").bounding_box()
     assert title_box["y"] + title_box["height"] <= list_box["y"], (title_box, list_box)
     assert title_box["x"] + title_box["width"] <= view_box["x"], (title_box, view_box)
-    assert list_box["x"] + list_box["width"] <= 1600 - in_view["width"], list_box
-    assert in_view["margin"] == "rail map note", in_view
+    assert list_box["x"] + list_box["width"] <= 1600 - in_part["width"], list_box
+    assert in_part["margin"] == "rail map note", in_part
     assert root_overflow(page) == 0
 
-    alone = open_page(browser, serve(leaf_page("views", column_body, layout="column")))
-    resized(alone, in_view["width"], 900)
-    assert {**alone.evaluate(reading), "width": in_view["width"]} == in_view
+    alone = open_page(browser, serve(leaf_page("parts", column_body, layout="column")))
+    resized(alone, in_part["width"], 900)
+    assert {**alone.evaluate(reading), "width": in_part["width"]} == in_part
     alone.close()
 
     fits = """() => {
@@ -3286,7 +3286,7 @@ def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, 
         }"""
     )
     assert work["box"] == "work", work
-    assert work["width"] == in_view["width"], work
+    assert work["width"] == in_part["width"], work
     assert work["top"] == round(view_box["y"]), work
     assert work["bottom"] == work["mainBottom"] > 700, work
     assert page.evaluate(fits) == 0
@@ -3295,7 +3295,7 @@ def test_each_view_of_a_page_of_views_is_laid_out_as_a_page_of_its_own(browser, 
 
     resized(page, 390, 800)
     stacked = page.evaluate(
-        """() => ['#title', '#views > [role=tablist]', '#work'].map(selector => {
+        """() => ['#title', '#parts > [role=tablist]', '#work'].map(selector => {
           const box = document.querySelector(selector).getBoundingClientRect();
           return [Math.round(box.top), Math.round(box.bottom), Math.round(box.width)];
         })"""

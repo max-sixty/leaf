@@ -39,6 +39,11 @@
         min-block-size: 5rem;
       }
 
+      /* Each form of change is a line of its own. */
+      #bg-change-forms > span {
+        display: block;
+      }
+
       .bg-feature-detail {
         color: var(--ink-2);
         font-weight: 400;
@@ -354,7 +359,7 @@
           widgets have focused working pages in the package catalog.
         </p>
         <p id="bg-start">
-          Choose a view from the list. Its contents spine and Page Map lead to each
+          Choose a part from the list. Its contents spine and Page Map lead to each
           feature. The top link brings the eyebrow and heading together; the first dot
           sits at the spine’s origin. The title has the largest ring, section rings are
           smaller, and deeper headings use small dots. The current destination fills its
@@ -363,8 +368,8 @@
         </p>
       </header>
 
-      <lf-tabs id="bg-gallery-tabs">
-        <lf-tab id="bg-view-decisions" label="Decisions"
+      <lf-parts id="bg-gallery-tabs">
+        <lf-part id="bg-view-decisions" label="Decisions"
           ><article class="layout-column">
             <aside class="sidebar" id="bg-sidebar-decisions">
               <lf-toc id="bg-contents-decisions" max-level="2"></lf-toc>
@@ -1001,10 +1006,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </ul>
               </section>
             </section>
-          </article></lf-tab
+          </article></lf-part
         >
 
-        <lf-tab id="bg-view-threads" label="Threads"
+        <lf-part id="bg-view-threads" label="Threads"
           ><article class="layout-column">
             <aside class="sidebar" id="bg-sidebar-threads">
               <lf-toc id="bg-contents-threads" max-level="2"></lf-toc>
@@ -1568,10 +1573,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </ul>
               </section>
             </section>
-          </article></lf-tab
+          </article></lf-part
         >
 
-        <lf-tab id="bg-view-page" label="Page & layout"
+        <lf-part id="bg-view-page" label="Page & layout"
           ><article class="layout-column">
             <aside class="sidebar" id="bg-sidebar-page">
               <lf-toc id="bg-contents-page" max-level="2"></lf-toc>
@@ -2406,7 +2411,7 @@ gallery/
               </section>
 
               <section id="bg-tab-set">
-                <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab</p>
+                <p class="eyebrow bg-feature-elements">lf-tabs · lf-tab · lf-parts · lf-part</p>
                 <h3>
                   <strong>Tabs</strong
                   ><span class="bg-feature-detail">: saved panel selection</span>
@@ -2426,14 +2431,15 @@ gallery/
                     embedded strip: the new panel opens at its start.
                   </li>
                   <li>
-                    In this gallery's own views, scroll one, switch away, and switch
-                    back: a view you have not read opens below the tab strip, and a view
-                    you already read returns to its place. The strip stays put even when
-                    the next view is shorter than the window. Browser Back and Forward
-                    return to the corresponding views.
+                    This gallery is itself a page of parts (<code>lf-parts</code>), each
+                    with a column of its own. Scroll one, switch away, and switch back: a
+                    part you have not read opens at its start, and a part you already
+                    read returns to its place. The list of parts stays put even when the
+                    next part is shorter than the window. Browser Back and Forward
+                    return to the corresponding parts.
                   </li>
                   <li>
-                    Narrow the window until the gallery's own tab names overflow, then
+                    Narrow the window until the rollout review's tab names overflow, then
                     page them with the edge arrows. With reduced motion, the move is
                     immediate.
                   </li>
@@ -2992,10 +2998,10 @@ switch --readers checkout-api,orders-api</code></pre>
                 </div>
               </div>
             </section>
-          </article></lf-tab
+          </article></lf-part
         >
 
-        <lf-tab id="bg-view-data" label="Data & work"
+        <lf-part id="bg-view-data" label="Data & work"
           ><article class="layout-column">
             <aside class="sidebar" id="bg-sidebar-data">
               <lf-toc id="bg-contents-data" max-level="2"></lf-toc>
@@ -3142,10 +3148,10 @@ switch --readers checkout-api,orders-api</code></pre>
                 </p>
               </details>
             </section>
-          </article></lf-tab
+          </article></lf-part
         >
 
-        <lf-tab id="bg-view-interactions" label="Interactions"
+        <lf-part id="bg-view-interactions" label="Interactions"
           ><article class="layout-column">
             <aside class="sidebar" id="bg-sidebar-interactions">
               <lf-toc id="bg-contents-interactions" max-level="2"></lf-toc>
@@ -3234,9 +3240,9 @@ switch --readers checkout-api,orders-api</code></pre>
                 </lf-sample>
               </section>
             </section>
-          </article></lf-tab
+          </article></lf-part
         >
-      </lf-tabs>
+      </lf-parts>
     </main>
   </body>
 </html>

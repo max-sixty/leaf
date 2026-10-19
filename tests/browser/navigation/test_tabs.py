@@ -72,7 +72,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     holders = page.evaluate(
         """ids => Object.fromEntries(ids.map(id => {
           const target = document.getElementById(id);
-          const panel = target?.closest('#bg-gallery-tabs > lf-tab');
+          const panel = target?.closest('#bg-gallery-tabs > lf-part');
           const tab = panel && document.querySelector(
             `#bg-gallery-tabs [role="tab"][aria-controls="${panel.id}"]`);
           return [id, {tag: target?.localName || null,
@@ -95,8 +95,8 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
                   generated: target?.dataset.lfGen === '1'};
         })"""
     )
-    # The open view's outline starts at the view, whose sections follow.
-    assert targets[0] == {"href": "#bg-view-data", "tag": "lf-tab", "generated": False}
+    # The open part's outline starts at the part, whose sections follow.
+    assert targets[0] == {"href": "#bg-view-data", "tag": "lf-part", "generated": False}
     assert all(
         target["tag"] == "section" and not target["generated"] for target in targets[1:]
     ), targets
@@ -230,7 +230,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
     resized(page, 390, 900)
     page.evaluate("scrollTo(0, 0)")
-    expect(page.locator("lf-tab:not([hidden]) aside.sidebar")).to_be_hidden()
+    expect(page.locator("lf-part:not([hidden]) aside.sidebar")).to_be_hidden()
     # A phone drops the contents spine out of the flow rather than stacking it above
     # the reading, so the page's first section still opens within the first screen;
     # left in the flow it lands a screen below the fold. Which section that is belongs
@@ -320,31 +320,33 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
 @pytest.mark.parametrize(
     "placement",
-    # Directly in a main with no Layout, under the page's title, and inside a block.
-    ["views", "nested"],
+    # Directly in main beside other blocks, and inside one; alone in main is the
+    # first case without its neighbours.
+    ["among-blocks", "nested"],
 )
 def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
     browser, serve, placement
 ):
     """The same tab vocabulary has page or section scope from where it is placed: the
-    first set directly in a main with no Layout is the page's views, and a set inside
-    another block is a tabbed section."""
+    first set directly in main is page navigation whatever stands beside it, and a set
+    inside another block is a tabbed section."""
     sample = re.search(
         r'<lf-tabs id="bg-tabs">.*?</lf-tabs>', FEATURE_GALLERY.read_text(), re.DOTALL
     )
     assert sample is not None
     heading = "<header><h1>Project views</h1></header>"
+    body = {
+        "alone": heading + sample[0],
+        "among-blocks": heading
+        + '<aside class="sidebar"><p>Contents</p></aside>'
+        + sample[0]
+        + "<p>This conclusion follows the tab set.</p>",
+        "nested": heading + "<section>" + sample[0] + "</section>",
+    }[placement]
     embedded = placement == "nested"
-    body = heading + ("<section>" + sample[0] + "</section>" if embedded else sample[0])
     page = open_page(
         browser,
-        live_url(
-            serve(
-                leaf_page(
-                    "Root tab gallery", body, layout="column" if embedded else None
-                )
-            )
-        ),
+        live_url(serve(leaf_page("Root tab gallery", body))),
     )
     tabs = page.locator("#bg-tabs")
     expect(tabs).to_have_css("border-left-width", "1px" if embedded else "0px")
@@ -364,8 +366,8 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         page.evaluate("window.__retainedTabs = document.querySelector('#bg-tabs')")
         source = serve.page_dir / "index.html"
         original = source.read_text()
-        # An earlier tab set in main becomes the page's views, and this one becomes a
-        # tabbed section without being rebuilt.
+        # An earlier tab set in main takes over the page's navigation, and this one
+        # becomes a tabbed section without being rebuilt.
         stamp_page(
             serve.page_dir,
             original.replace(
@@ -381,7 +383,7 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         assert page.evaluate(
             "window.__retainedTabs === document.querySelector('#bg-tabs')"
         )
-        stamp_page(serve.page_dir, original, "Restore the page's views")
+        stamp_page(serve.page_dir, original, "Restore page tabs")
         wait_for_revision(page, 3)
         expect(tabs).to_have_css("border-left-width", "0px")
         expect(tabs.get_by_role("tab").nth(1)).to_have_attribute(

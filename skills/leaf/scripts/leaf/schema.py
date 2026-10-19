@@ -400,7 +400,7 @@ EXTENSION_SCHEMA = {
                 },
             ]
         },
-        "x-views": {"const": True},
+        "x-views": {"enum": [True, "parts"]},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-within": {
             "type": "array",

@@ -6,7 +6,6 @@ import base64
 import pytest
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame
-from model_folds import views_page
 from playwright.sync_api import expect
 from render_cases_interaction import ITEM_PAGE, live_url
 from render_cases_layout import glyph_action_face, token_colour
@@ -437,11 +436,7 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
         )
     page = open_page(
         browser,
-        serve(
-            (views_page if hidden_tab else leaf_page)(
-                "Resume travel", '<h1 id="top">Resume travel</h1>' + body
-            )
-        ),
+        serve(leaf_page("Resume travel", '<h1 id="top">Resume travel</h1>' + body)),
     )
     page.locator("#editable .lf-draft-body").click()
     edit = page.locator("#editable .lf-draft-edit")

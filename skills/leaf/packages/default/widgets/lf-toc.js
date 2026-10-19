@@ -126,10 +126,10 @@ customElements.define(
         this.#rememberFocus();
     };
 
-    // The outline is of the document it stands in: the page's `main`, or the view of a
-    // page with several that holds it (`data-lf-views`, lf-tabs.js).
+    // The outline is of the document it stands in: the page's `main`, or the part of a
+    // page made of parts that holds it (`data-lf-views="parts"`, lf-tabs.js).
     #document() {
-      return this.closest("body > main > [data-lf-views] > *, main");
+      return this.closest('body > main > [data-lf-views="parts"] > *, main');
     }
 
     connectedCallback() {

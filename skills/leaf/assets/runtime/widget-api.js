@@ -264,6 +264,7 @@ export async function mountSample(frame, options) {
 export { dressSamples, wear } from "./dress.js";
 export { landInThread } from "./application.js";
 export { threadInput } from "./thread/landing.js";
+export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export { shownParts } from "./geometry.js";
 export { renderRetired, textNodesUnder } from "./passages.js";
 export { isPagePaint } from "./declared-words.js";

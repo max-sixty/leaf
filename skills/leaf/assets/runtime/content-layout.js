@@ -60,11 +60,11 @@ function readBreakouts() {
   layoutChanged(pageDocument());
   repaintPage();
 }
-// A view shown or hidden can change which box the page's Layout arranges (prepaint.js,
-// `layoutBox`): a child of `main`, or a child of a view. Read before the frame paints,
-// so the open view stands in its own margin from its first frame.
+// A part shown or hidden can change which box the page's Layout arranges (prepaint.js,
+// `layoutBox`): a child of `main`, or a child of a part. Read before the frame paints,
+// so the open part stands in its own margin from its first frame.
 const mayHoldLayoutBox = (node) =>
-  node.matches("body > main > *, body > main > [data-lf-views] > *");
+  node.matches('body > main > *, body > main > [data-lf-views="parts"] > *');
 export function openResidency({ onRead }) {
   readFinished = onRead;
   residencyOpen = true;

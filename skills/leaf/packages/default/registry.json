@@ -471,8 +471,8 @@
     "x-upgrade": false
   },
   "lf-tabs": {
-    "description": "Several views shown one at a time: a page's views, a tabbed box, or a queue beside its open item.",
-    "x-instructions": "The first `lf-tabs` written directly in a `main` that carries no Layout is the page's views: give each `lf-tab` one child carrying that view's Layout, such as `<article class=\"layout-column\">` (`page-layout.md`, \"A page of views\"), and put the page's short title in one `header` before the set. Any other tab set is a framed box within the page. Put the main current view first. Make each `lf-tab` a self-contained view; history, threads, versions and sign-off belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
+    "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",
+    "x-instructions": "The first `lf-tabs` written directly in `main` is the page's navigation; any other tab set is a framed box within the page. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads, versions and sign-off belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
     "type": "object",
     "properties": {
       "id": {
@@ -522,7 +522,7 @@
   },
   "lf-tab": {
     "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
-    "x-instructions": "In a side-list queue or a page's list of views each item's `summary` shows under its label, so the user can choose an item without opening it. Start the summary with what the item is about, such as the problem a ticket reports, unless the label already says so, then what sets it apart from its neighbours, such as its age or suggested outcome. Leave out the item's group, which its heading shows. Where items fall into kinds the user works through in turn, such as merge, close and FYI, give each item its kind as `group` and place each kind's items together in the order to take them; adjacent tabs with the same group share one heading. Keep ids distinct across tabs, which share the page's id space.",
+    "x-instructions": "In a side-list queue each item's `summary` shows under its label, so the user can choose an item without opening it. Start the summary with what the item is about, such as the problem a ticket reports, unless the label already says so, then what sets it apart from its neighbours, such as its age or suggested outcome. Leave out the item's group, which its heading shows. Where items fall into kinds the user works through in turn, such as merge, close and FYI, give each item its kind as `group` and place each kind's items together in the order to take them; adjacent tabs with the same group share one heading. Keep ids distinct across tabs, which share the page's id space.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -543,6 +543,47 @@
     "required": ["id", "label"],
     "additionalProperties": false,
     "x-owners": ["lf-tabs"],
+    "x-content": "markup",
+    "x-upgrade": false
+  },
+  "lf-parts": {
+    "description": "A page made of parts, each laid out by a Layout of its own and shown one at a time, listed down the window's left edge under the page's title.",
+    "x-instructions": "Use it where a page holds work of different shapes, such as a workspace and the reading behind it, that each want a Layout of their own (`page-layout.md`, \"A page of parts\"). Write it directly in a `main` that carries no Layout, after one `header` holding the page's short title, and give each `lf-part` one child carrying that part's Layout, such as `<article class=\"layout-column\">`. Put the main current part first. History, threads, versions and sign-off belong to the whole page. When current work no longer needs a part, remove it, moving any passage an open thread or an unretracted decision is anchored to into a `details` in the relevant part. Where the parts share one Layout, use page tabs (`lf-tabs`) in a `main` that carries it instead.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "members",
+    "x-upgrade": true,
+    "x-patch": "members",
+    "x-views": "parts",
+    "x-example": "<header>\n  <h1>Retry storm</h1>\n</header>\n<lf-parts id=\"parts\">\n  <lf-part id=\"part-decide\" label=\"Decide\" summary=\"Ship the retry cap?\">\n    <div class=\"layout-workspace density-working\">\n      <p id=\"decide-intro\">Compare the two caps.</p>\n    </div>\n  </lf-part>\n  <lf-part id=\"part-background\" label=\"Background\">\n    <article class=\"layout-column\">\n      <p id=\"storm-history\">The storm started with the 2.3 release.</p>\n    </article>\n  </lf-part>\n</lf-parts>"
+  },
+  "lf-part": {
+    "description": "One labeled part of a page, holding the box its own Layout arranges.",
+    "x-instructions": "Hold exactly one child, carrying the part's Layout. Its `summary` shows under its label in the list, so the user can tell the parts apart before opening one; start it with what the part holds unless the label already says so. Keep ids distinct across parts, which share the page's id space.",
+    "x-name": "label",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string"
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": ["id", "label"],
+    "additionalProperties": false,
+    "x-owners": ["lf-parts"],
     "x-content": "markup",
     "x-upgrade": false
   },

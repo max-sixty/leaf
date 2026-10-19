@@ -53,7 +53,7 @@ function readBreakouts() {
   layoutChanged(pageDocument());
   repaintPage();
 }
-var mayHoldLayoutBox = (node) => node.matches("body > main > *, body > main > [data-lf-views] > *");
+var mayHoldLayoutBox = (node) => node.matches('body > main > *, body > main > [data-lf-views="parts"] > *');
 function openResidency({ onRead }) {
   readFinished = onRead;
   residencyOpen = true;

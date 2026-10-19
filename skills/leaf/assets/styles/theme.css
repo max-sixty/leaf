@@ -34,7 +34,7 @@
  * declares `--lf-block-frame: 1` in the rule that draws it. Style queries use that custom
  * property to trim child margins and to bound wide content. A project box then receives
  * the same behavior without joining a tag list. A box whose edges trim but which draws
- * nothing, such as `main` or a view of a page of views, declares `--lf-block-frame: trim`, so
+ * nothing, such as `main` or a page tab's panel, declares `--lf-block-frame: trim`, so
  * it passes wide room on to its contents rather than withholding it.
  *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
@@ -161,15 +161,16 @@
   --lf-top: var(--lf-head-room);
   /* A scroller's landing band, which its `scroll-padding-top` states (the root's, below),
      in two parts: how much of the sticky-header slot it covers whole (`--lf-top-covered`:
-     on the root, the head room), and the room it leaves below that
+     on the root, the head room and a page tab strip), and the room it leaves below that
      for a landing's focus ring (`--lf-landing-room`). The layer's focus margin reads
      both (shadow.css, at `--lf-head-inset`), and a box that scrolls restarts them
      (state.css). */
-  --lf-top-covered: var(--lf-head-room);
+  --lf-top-covered: calc(var(--lf-head-room) + var(--lf-root-headers, 0px));
   --lf-landing-room: 12px;
-  /* A tab strip's stated height: its 8px head, a name's 38px face or the aim floor
-     where that is taller, and its 1px rule. The default package draws a row strip at
-     it, and a header stuck under it inside the set stacks below it. */
+  /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
+     floor where that is taller, and its 1px rule. The default package draws the strip
+     at it, and the root's `scroll-padding` adds it where a page tab strip stands over
+     the root (`--lf-root-headers`, lf-tabs.js). */
   --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   /* Stacking: one ascending ladder for everything the runtime lifts over the page.
      A number local to a component's own stacking context stays where it is written.
@@ -585,7 +586,7 @@ html:not([data-lf-live]) {
  * than an error. A box says so itself instead, in the same declaration where it draws the
  * frame, and the trim finds it through a style query. Every box that draws a frame traps
  * its children's margins, and some boxes trap them without drawing anything (`main`'s
- * padding, a view of a page of views, a goal's float containment), so the declaration has one
+ * padding, a page tab's panel, a goal's float containment), so the declaration has one
  * value for each: `1` draws a frame, and `trim` only trims. The trim reads both; what
  * else a frame does (withholding the page's room, layouts.css) reads `1`.
  * `--lf-block-frame` inherits, so the reset inside holds the claim to the box's own
@@ -698,6 +699,8 @@ html {
     height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
+    /* A sticky header over the whole root, a page tab strip, adds its stated height as
+     * `--lf-root-headers` (lf-tabs.js). */
     scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-bottom: calc(
       var(--lf-foot-room) + max(12px, var(--focus-ring-room))
@@ -945,14 +948,14 @@ main {
  * it scroll (reach.js, `paintSlot`), and the mark restarts the slot ([data-lf-scrolls],
  * state.css), so a box the page or a package makes scroll restarts too. The mark sits
  * above packages and Layouts, so it outranks a value stacked onto a box that scrolls (a
- * tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
+ * page tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
  * box that starts its slot other than at 0 states beside its `--lf-top` (a workspace
  * pane's body, a thread list). A box that clips without scrolling says
  * `overflow: clip`, since `hidden` scrolls, for a script, and so holds the headers
  * inside it. A box that sticks keeps the value it met for its own `top`, so a sticking
  * box that scrolls headers restarts the slot for them itself (a column's sidebar,
  * layouts.css).
- * A sticky header (a tab strip, a diff's file header) has a stated height and
+ * A sticky header (a page tab strip, a diff's file header) has a stated height and
  * sticks at the `--lf-top` it inherits; what it stands over takes that value plus its
  * height, which the header's holder passes on under a second name, since a custom
  * property cannot read itself. The stacked value goes on a box that does not itself
@@ -1120,9 +1123,9 @@ h3 {
     line-height: 1.1;
   }
 }
-/* A page of views' title heads the narrow column its list of views stands in
- * (layouts.css, "A page of views"), so it is set as that column's heading. */
-@container style(--lf-views-title: 1) {
+/* A page of parts' title heads the narrow column its list of parts stands in
+ * (layouts.css, "A page of parts"), so it is set as that column's heading. */
+@container style(--lf-parts-title: 1) {
   h1 {
     font-size: var(--t-3);
     line-height: 1.25;
@@ -2226,8 +2229,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
  * a container changes only what a widget measures against itself. The default package
  * makes its card a container for the same reason; its sample is a table, which
  * containment skips, so it states `--lf-box-cap` for what it holds instead. The package
- * also makes a boxed tab set's panel a container; a view of a page of views is the
- * shell its Layout's box stands in (layouts.css), which an exhibit breaks out into. A container takes no
+ * also makes a boxed tab set's panel a container; a page tab's panel is the page's own
+ * flow, which an exhibit breaks out through, so it is not one. A container takes no
  * width from what it holds, so a framed box placed where its width would come from its
  * content (an auto flex basis, a `fit-content` track) is only as wide as its other
  * parts there; the page gives it a width. */

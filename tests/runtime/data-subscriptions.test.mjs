@@ -577,3 +577,138 @@ test("a projection watcher's paint that reads the whole publication fails", asyn
   assert.equal(errors.mock.callCount(), 1);
   assert.match(errors.mock.calls[0].arguments[0], /whole publication/);
 });
+
+test("typed widget outputs share data inputs and scope readings to producer instances", async () => {
+  const { publishOutput, watchData, dataReader } = await import("/runtime/data.js");
+  adoptRegistry({
+    "lf-output": { "x-output": { rows: { contract: "rows" } } },
+    "lf-consumer": {
+      "x-data": {
+        rows: { reference: "for", output: "rows", contract: "rows" },
+      },
+      "x-refers": { for: {} },
+    },
+  });
+  document.body.innerHTML =
+    '<main><lf-output id="feed"></lf-output><lf-consumer id="page" for="feed"></lf-consumer></main><div class="lf-msg-body"><lf-output id="feed"></lf-output><lf-consumer id="message" for="feed"></lf-consumer></div>';
+  const [pageProducer, messageProducer] = document.querySelectorAll("lf-output");
+  const pageConsumer = document.querySelector("#page");
+  const messageConsumer = document.querySelector("#message");
+  const pageReadings = [];
+  const messageReadings = [];
+  const stopPage = watchData(pageConsumer, "rows", (snapshot) =>
+    pageReadings.push(snapshot),
+  );
+  const stopMessage = watchData(messageConsumer, "rows", (snapshot) =>
+    messageReadings.push(snapshot),
+  );
+  const current = dataReader(pageConsumer, "rows");
+  const settle = () => new Promise((resolve) => setTimeout(resolve));
+  const pageValue = { rows: ["page"] };
+  publishOutput(pageProducer, "rows", pageValue);
+  pageValue.rows[0] = "mutated";
+  publishOutput(messageProducer, "rows", { rows: ["message"] });
+  await settle();
+  assert.deepEqual(pageReadings, [
+    null,
+    {
+      contract: "rows",
+      value: { rows: ["page"] },
+      origin: { derived: [{ widget: "feed" }] },
+    },
+  ]);
+  assert.deepEqual(messageReadings.at(-1).value, { rows: ["message"] });
+  assert.deepEqual(current().value, { rows: ["page"] });
+  publishOutput(pageProducer, "rows", { rows: ["page"] });
+  await settle();
+  assert.equal(pageReadings.length, 2, "same complete value does not repaint");
+  pageReadings.at(-1).value.rows[0] = "consumer mutation";
+  assert.deepEqual(current().value, { rows: ["page"] });
+  // Both data APIs capture the authored relation once. A live attribute mutation
+  // must not rebind on an unrelated output publication or misattribute its origin.
+  const otherProducer = document.createElement("lf-output");
+  otherProducer.id = "other";
+  document.querySelector("main").append(otherProducer);
+  publishOutput(otherProducer, "rows", { rows: ["other"] });
+  pageConsumer.setAttribute("for", "other");
+  publishOutput(pageProducer, "rows", { rows: ["changed first"] });
+  await settle();
+  const captured = {
+    contract: "rows",
+    value: { rows: ["changed first"] },
+    origin: { derived: [{ widget: "feed" }] },
+  };
+  assert.deepEqual(pageReadings.at(-1), captured);
+  assert.deepEqual(current(), captured);
+  // A new instance reusing the id owns a different output. The previous instance's
+  // departure must not clear its replacement, including in the same mutation batch.
+  const replacement = document.createElement("lf-output");
+  replacement.id = "feed";
+  pageProducer.replaceWith(replacement);
+  publishOutput(replacement, "rows", { rows: ["replacement"] });
+  await settle();
+  assert.deepEqual(pageReadings.at(-1).value, { rows: ["replacement"] });
+  publishOutput(replacement, "rows", null);
+  await settle();
+  assert.equal(pageReadings.at(-1), null);
+  replacement.remove();
+  otherProducer.remove();
+  messageProducer.remove();
+  await settle();
+  assert.equal(messageReadings.at(-1), null);
+  stopPage();
+  stopMessage();
+});
+
+test("source readiness includes asynchronous widget-output consumers", async () => {
+  const { publishOutput, watchData } = await import("/runtime/data.js");
+  adoptRegistry({
+    "lf-feed": {
+      "x-data": { rows: { source: "source", contract: "rows" } },
+      "x-output": { rows: { contract: "rows" } },
+    },
+    "lf-consumer": {
+      "x-data": {
+        rows: { source: "source", reference: "for", output: "rows", contract: "rows" },
+      },
+      "x-refers": { for: {} },
+    },
+  });
+  document.body.innerHTML =
+    '<main><lf-feed id="feed" source="deployments"></lf-feed><lf-consumer id="consumer" for="feed"></lf-consumer></main>';
+  const producer = document.querySelector("lf-feed");
+  let release;
+  let started;
+  const begun = new Promise((resolve) => (started = resolve));
+  const rendering = new Promise((resolve) => (release = resolve));
+  const stopConsumer = watchData(
+    document.querySelector("lf-consumer"),
+    "rows",
+    (snapshot) => {
+      if (snapshot?.value === "next") {
+        started();
+        return rendering;
+      }
+    },
+  );
+  const stopProducer = watchData(producer, "rows", (snapshot) =>
+    publishOutput(producer, "rows", snapshot?.value ?? null),
+  );
+  acceptData(
+    {
+      version: `outputs-${++fixtureSequence}`,
+      sources: { deployments: { contract: "rows", revision: "next", value: "next" } },
+    },
+    1,
+  );
+  let presented = false;
+  const completed = notifyDataSubscribers().then(() => (presented = true));
+  await begun;
+  await Promise.resolve();
+  assert.equal(presented, false, "derived rendering holds the source readiness stamp");
+  release();
+  await completed;
+  assert.equal(presented, true);
+  stopProducer();
+  stopConsumer();
+});

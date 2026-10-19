@@ -354,9 +354,12 @@ function shadowStage(host, nodes) {
   const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   watchArrivalsIn(root);
   root.adoptedStyleSheets = [
-    ...annotationMarkSheets,
-    marksSheet,
-    ...widgetSheets.values()
+    .../* @__PURE__ */ new Set([
+      ...root.adoptedStyleSheets,
+      ...annotationMarkSheets,
+      marksSheet,
+      ...widgetSheets.values()
+    ])
   ];
   watchDisclosures(root);
   watchLayers(root);

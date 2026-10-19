@@ -453,7 +453,10 @@ let stood = null;
 // list's `focusin`. A focus that leaves for nowhere and returns, as a window losing
 // and regaining focus does, is none.
 const readers = new Set();
-export const onStanding = (read) => readers.add(read);
+export const onStanding = (read) => {
+  readers.add(read);
+  return () => readers.delete(read);
+};
 let published = null;
 let departed = false;
 let readings = 0;

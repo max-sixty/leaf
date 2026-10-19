@@ -31,7 +31,10 @@
 //
 // A box may grow or shrink at one edge while text and controls remain stationary.
 // Reading text is measured with Range fragments, including text inside a stationary
-// parent. Controls and declared regions keep their actual boxes. Runtime-declared
+// parent. A control's complete text identifies its label: a retained fragment inside
+// a replaced label is new content, even when a renderer reuses its text node.
+// The control's own box remains protected through that replacement.
+// Controls and declared regions keep their actual boxes. Runtime-declared
 // bounded reflow retains its historical ownership, stationary-boundary and clipping
 // proof. An append region may carry following content inside its stationary
 // scrollport by its measured suffix growth: new children, the existing ones retaining
@@ -967,6 +970,17 @@
       const scaleY = !range && node.offsetHeight ? rect.height / node.offsetHeight : 1;
       const fragments = range ? [...range.getClientRects()] : [rect];
       const style = getComputedStyle(element);
+      let labelOwner = null;
+      if (range)
+        for (
+          let ancestor = element;
+          ancestor instanceof Element;
+          ancestor = up(ancestor)
+        )
+          if (ancestor.matches(pressControls)) {
+            labelOwner = ancestor;
+            break;
+          }
       let paintedElement = element;
       while (
         paintedElement instanceof Element &&
@@ -1062,6 +1076,8 @@
         runtime: !range && node.matches(".lf-chrome, [data-lf-runtime]"),
         control: !range && node.matches(interactive),
         reading: Boolean(range) || readingMedia(element),
+        labelOwner,
+        labelText: labelOwner?.textContent ?? null,
         shown,
       };
       const seen = placed.get(node) ?? [];
@@ -2130,6 +2146,12 @@
       for (const [before, after] of [[0, 2]]) {
         const prior = readings[before],
           next = readings[after];
+        if (
+          prior.paint.labelOwner &&
+          (prior.paint.labelOwner !== next.paint.labelOwner ||
+            prior.paint.labelText !== next.paint.labelText)
+        )
+          continue;
         const scroll = scrollMotion(node, around[before].at, around[after].at);
         const motion = animationMotion(
           node,

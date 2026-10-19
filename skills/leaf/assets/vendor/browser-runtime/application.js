@@ -930,6 +930,11 @@ export function createSemanticApplication({
     reach: "waiting"                                                                ,
     hostAvailable: true,
     data: { version: null                 , sources: {}                            },
+    // Ephemeral typed values derived by mounted widgets; no server run or revision.
+    outputs: {}
+
+
+     ,
     effective: derive(
       {
         revision: null,
@@ -1239,11 +1244,13 @@ export function createSemanticApplication({
       ),
     );
     next.data = share(prior.data, next.data);
+    next.outputs = share(prior.outputs, next.outputs);
     next.semanticEpoch =
       prior.semanticEpoch +
       Number(
         next.effective !== prior.effective ||
           next.data !== prior.data ||
+          next.outputs !== prior.outputs ||
           next.phase !== prior.phase ||
           next.document.revision !== prior.document.revision,
       );
@@ -1421,6 +1428,21 @@ export function createSemanticApplication({
     setReach(reach                      ) {
       if (publisher.peek().reach === reach) return publisher.peek();
       return publish({ reach });
+    },
+    publishOutput(
+      widget        ,
+      output        ,
+      reading                                             ,
+    ) {
+      const prior = publisher.peek();
+      const values = { ...prior.outputs[widget] };
+      if (reading === null) delete values[output];
+      else values[output] = structuredClone(reading);
+      const outputs = { ...prior.outputs };
+      if (Object.keys(values).length) outputs[widget] = values;
+      else delete outputs[widget];
+      if (share(prior.outputs, outputs) === prior.outputs) return prior;
+      return publish({ outputs });
     },
     // Source revisions are digests with no order, so a reading's data is ordered by
     // the moment the server took it: an answer taken before the one already accepted

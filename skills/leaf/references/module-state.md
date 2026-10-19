@@ -110,7 +110,7 @@ if (once(this)) watchData(this, "builds", (snapshot) => render(snapshot));
 ```
 
 `watchData(element, input, callback)` throws for an input the element's entry does not
-declare. It reads the source binding from the element's markup once, as it subscribes.
+declare. It reads the source or widget-output binding from the element's markup once, as it subscribes.
 The callback receives `null` while the source has no readable value, otherwise a clone of
 `{source, contract, revision, run, updated, value, origin}`. `revision` identifies the
 value itself; `run` identifies its publication, including a rerun with the same value or
@@ -125,6 +125,17 @@ the contract it requires. Register once for the element; returns follow `module-
 "Connection lifetimes". The returned function ends the subscription for good. Its `refresh()`
 repaints the last delivered snapshot, on the return when asked while the owner is away;
 it neither delivers a pending source reading nor revives a retired subscription.
+
+A widget-output binding uses the same subscription and `LeafElement.data(input)`.
+Its snapshot is `{contract, value, origin: {derived: [{widget: producerId}]}}`,
+without source revision, run, or update time. `publishOutput(element, name, value)`
+requires a declared `x-output` and an id. Publishing `null` clears the output;
+repeating an unchanged value does not redeliver. The producer publishes only values
+that satisfy its declared contract, just as its other module-owned facts do.
+Consumers receive independent clones and return their rendering promises through
+the same presentation boundary. Publish the value that matches the rendering in
+the turn that commits it; clear an unreadable output rather than retaining stale
+records after a failed replacement.
 
 If the callback renders asynchronously, it returns that promise, so Leaf publishes the
 source revision as ready only after the projection settles. A rejection is that

@@ -1,6 +1,30 @@
 {
   "$data": {
     "contracts": {
+      "file-list": {
+        "description": "A collection of files, optionally carrying navigation keys and change status.",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {"type": "string", "minLength": 1},
+                  "key": {"type": "string", "minLength": 1},
+                  "status": {"enum": ["added", "modified", "deleted", "renamed"]}
+                },
+                "required": ["path"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["files"],
+          "additionalProperties": false
+        },
+        "records": {"items": "files", "key": "path"}
+      },
       "measured-scalar": {
         "description": "The latest scalar emitted by a repeatable measurement source. Authored lf-num text freezes the value a version states; the source snapshot records whether that measurement ran again.",
         "schema": {

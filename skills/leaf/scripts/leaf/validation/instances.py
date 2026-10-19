@@ -72,6 +72,11 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(found_at("attribute-schema", rec, **schema_reading(err)))
+        for input_name, spec in entry.get("x-data", {}).items():
+            if rec["attrs"].get(spec.get("source")) and rec["attrs"].get(
+                spec.get("reference")
+            ):
+                errors.append(found_at("ambiguous-data-binding", rec, input=input_name))
         # A member stands directly in an owner; one declaring x-within may also stand
         # at any depth inside one of the regions it names. It belongs to its nearest
         # owner, so going outward it must meet such a region before any owner.
@@ -390,6 +395,27 @@ def reference_errors(
                 errors.append(found_at("outside-reference", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
+        for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
+            target = rec["attrs"].get(spec.get("reference"))
+            producer = by_id.get(target)
+            if not target or not producer:
+                continue  # The ordinary relation check names a missing target.
+            output = (
+                registry.get(producer["tag"], {})
+                .get("x-output", {})
+                .get(spec["output"])
+            )
+            if output is None or output["contract"] != spec["contract"]:
+                errors.append(
+                    found_at(
+                        "output-contract",
+                        rec,
+                        input=input_name,
+                        target=target,
+                        output=spec["output"],
+                        contract=spec["contract"],
+                    )
+                )
     owned = [
         (tag, attr, reference)
         for tag, entry in registry.items()

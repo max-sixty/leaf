@@ -564,7 +564,8 @@ function diffBlocks(root) {
     // of an upgraded widget are opaque to comparison.
     const bindingAttrs = new Set();
     for (const input of Object.values(entry["x-data"] ?? {})) {
-      bindingAttrs.add(input.source);
+      if (input.source) bindingAttrs.add(input.source);
+      if (input.reference) bindingAttrs.add(input.reference);
     }
     const binding = [...bindingAttrs]
       .sort()

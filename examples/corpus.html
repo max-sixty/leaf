@@ -2146,6 +2146,23 @@
         }
       }
 </style>
+<!-- file-tree.html authored styles -->
+<style>
+      .review-files {
+        display: grid;
+        grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+        gap: 1.5rem;
+        align-items: start;
+      }
+      .review-files > * {
+        min-inline-size: 0;
+      }
+      @media (max-width: 52rem) {
+        .review-files {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+</style>
 <!-- feature-gallery.html authored styles -->
 <style>
       @import url("/page/theme.css");
@@ -7821,6 +7838,43 @@ observe --cohort staff</code></pre>
           conflict recovery. Without a binding, the editor explains what is missing.
         </p>
       </details>
+</lf-tab>
+
+<lf-tab id="corpus-file-tree" label="File tree package">
+<h1 id="file-review">Review the importer change</h1>
+      <p id="file-review-guide">
+        Select a file to open its patch. Use the tree's arrow keys to explore folders,
+        then Enter to visit a file. Search narrows the tree. Comments belong to the
+        patch beside it, where each file and source line keeps its own identity.
+      </p>
+      <div class="review-files">
+        <lf-file-tree
+          id="review-files"
+          for="importer-patch"
+          aria-label="Changed files"
+          data-height="288"
+        ></lf-file-tree>
+        <lf-diff
+          id="importer-patch"
+          source="importer-change"
+          collapsed
+          data-height="173"
+        >
+          <pre></pre>
+        </lf-diff>
+      </div>
+      <h2 id="standalone-files">Explore a proposed layout</h2>
+      <p id="standalone-files-guide">
+        This second tree reads its own file list. Selecting a file highlights it; there
+        is no connected destination. Folders and selection are local navigation, so
+        exploring the proposal records no decision.
+      </p>
+      <lf-file-tree
+        id="proposed-files"
+        source="proposed-layout"
+        aria-label="Proposed layout"
+        data-height="288"
+      ></lf-file-tree>
 </lf-tab>
 
 <lf-tab id="corpus-diff-thread-gallery" label="Diff conversations">

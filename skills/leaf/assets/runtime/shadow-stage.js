@@ -15,6 +15,10 @@
    reasoning as renderSaid — a rule each widget has to remember is a rule that gets
    forgotten, and the forgetting is invisible until a page ships without it.
 
+   Adopted sheets supplied by an embedded renderer remain that renderer's: staging
+   adds Leaf's sheets without discarding them. A renderer that replaces the adopted
+   list stages again before yielding, restoring the shared annotation sheets too.
+
    The root is infrastructure owned here, not a template render container. Stage a
    concrete container and render templates inside it; retaining that container across
    stage updates keeps Lit's markers, native editors, and directive lifetimes intact. */
@@ -61,9 +65,12 @@ export function shadowStage(host, nodes) {
   // observer crosses the boundary on its own.
   watchArrivalsIn(root);
   root.adoptedStyleSheets = [
-    ...annotationMarkSheets,
-    marksSheet,
-    ...widgetSheets.values(),
+    ...new Set([
+      ...root.adoptedStyleSheets,
+      ...annotationMarkSheets,
+      marksSheet,
+      ...widgetSheets.values(),
+    ]),
   ];
   // A root is the one place the shortcut bar's watch cannot reach on its own: a `toggle`
   // from inside one is not composed, and a MutationObserver does not cross the

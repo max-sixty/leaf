@@ -63,6 +63,16 @@ const click = (target) =>
   );
 const settled = () => new Promise((resolve) => setTimeout(resolve));
 
+test("a departing package releases its standing reader", () => {
+  const { first, second } = scene();
+  const places = [];
+  const stop = onStanding((node) => places.push(node));
+  focusDestination(first, "move");
+  stop();
+  focusDestination(second, "move");
+  assert.deepEqual(places, [first]);
+});
+
 test("a placement reaches every reader with the cause it names", () => {
   const { first, second, other } = scene();
   focusDestination(first, "move");

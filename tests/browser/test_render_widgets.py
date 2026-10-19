@@ -11587,3 +11587,71 @@ def ceiling(limit):
     assert digest_rows[0] == 0 and len(digest_rows) > 1, reading
     assert set(digest_rows[1:]) == {2}, reading
     assert reading["gutterSpans"] == [True, True], reading
+
+
+def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
+    """The optional tree consumes a path list on its own and retains its mounted
+    navigation when an unrelated data value changes."""
+    url = serve(
+        leaf_page(
+            "Explore project files",
+            "<h1>Project files</h1>"
+            '<lf-file-tree id="project-files" source="project" '
+            'data-height="280"></lf-file-tree>',
+        ),
+        packages=("file-tree",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "README.md"},
+                {"path": "src/main.py", "status": "added"},
+            ],
+        },
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#project-files")
+    row = tree.get_by_role("treeitem", name=re.compile(r"README\.md"))
+    expect(row).to_be_visible()
+    row.click()
+    expect(row).to_have_attribute("aria-selected", "true")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "README.md", "status": "modified"},
+                {"path": "src/main.py"},
+            ],
+        },
+    )
+    expect(row).to_have_attribute("aria-selected", "true")
+    search = tree.get_by_role("textbox")
+    search.fill("main")
+    expect(tree.get_by_role("treeitem", name=re.compile(r"README\.md"))).to_have_count(
+        0
+    )
+    search.fill("no-such-file")
+    expect(tree.get_by_role("treeitem")).to_have_count(0)
+    expect(tree).to_contain_text("No matching files.")
+    search.fill("")
+    expect(row).to_be_visible()
+
+
+def test_file_tree_keyboard_keeps_focused_files_in_the_outer_viewport(browser, serve):
+    """The virtualized list and the page scroll cooperate on a phone's keyboard route."""
+    source = Path(__file__).resolve().parents[2] / "examples/developer/file-tree.html"
+    url = serve(source)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    tree = page.locator("#proposed-files")
+    first = tree.get_by_role("treeitem", name=re.compile(r"parser\.py"))
+    first.tap()
+    first.press("End")
+    last = tree.get_by_role("treeitem", name=re.compile(r"README\.md"))
+    expect(last).to_be_focused()
+    expect(last).to_be_in_viewport()

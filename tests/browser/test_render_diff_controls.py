@@ -1,5 +1,6 @@
 """Diff controls share canonical fields and preserve the compact source reader."""
 
+import re
 from html import escape
 
 import pytest
@@ -14,6 +15,69 @@ from render_harness import (
     open_page,
     reported_browser_errors,
 )
+
+
+def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(browser, serve):
+    """A separately mounted navigator follows a diff's output and travels through
+    the ordinary datum route, including reactivation and updated source evidence."""
+
+    def patch(path, value):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{value}\n"
+        )
+
+    url = serve(
+        leaf_page(
+            "Browse patch files",
+            "<h1>Review the importer</h1>"
+            '<lf-file-tree id="files" for="patch" data-height="250"></lf-file-tree>'
+            '<lf-diff id="patch" source="change" collapsed><pre></pre></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(
+            patch("src/importer.py", "keep_names = True")
+            + patch("tests/importer.py", "assert keep_names")
+        ),
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#files")
+    row = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).first
+    expect(row).to_be_visible()
+    folds = page.locator("#patch .lf-diff-fold")
+    expect(folds.first).not_to_have_attribute("open", "")
+    row.click()
+    expect(folds.first).to_have_attribute("open", "")
+    expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
+    # The same selected file still has an activation route after its patch closes.
+    folds.first.locator("summary").click()
+    row.click()
+    expect(folds.first).to_have_attribute("open", "")
+    # Moving within the tree is exploration; Enter follows the focused file.
+    other = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).last
+    other.focus()
+    other.press("Enter")
+    expect(folds.last).to_have_attribute("open", "")
+    expect(folds.last.locator("pre")).to_contain_text("assert keep_names")
+    # A source update replaces the producer inventory, rather than leaving stale rows.
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(patch("src/reader.py", "preserve_case = True")),
+    )
+    next_row = tree.get_by_role("treeitem", name=re.compile(r"reader\.py"))
+    expect(next_row).to_be_visible()
+    expect(
+        tree.get_by_role("treeitem", name=re.compile(r"importer\.py"))
+    ).to_have_count(0)
+    next_row.click()
+    expect(page.locator("#patch pre")).to_contain_text("preserve_case = True")
+    # Clearing the input clears the derived inventory too.
+    data_model.cmd_data_clear(serve.page_dir, "change")
+    expect(tree.get_by_role("treeitem")).to_have_count(0)
 
 
 @pytest.mark.parametrize("bound", [False, True], ids=["inline", "bound"])

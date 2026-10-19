@@ -1,10 +1,13 @@
-/* The accepted external data and its watchers.
+/* Accepted external values, mounted-widget outputs, and their typed watchers.
 
    The browser orders data readings by when the server took them, independently of
    the log sequence, because overlapping poll and POST responses can order the authorities
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
    contract, revision, run, updated, value, origin}`, or `null` while the bound source has no
-   readable value. Subscriptions pause while their owner is absent, and a return
+   readable value. A widget-output binding receives `{contract, value, origin}` with
+   derived widget provenance, without a server source, revision or run. Outputs join
+   the same immutable application publication and presentation barrier as sources.
+   Subscriptions pause while their owner is absent, and a return
    delivers by the rule every returning paint follows (`readingPaint` in
    `presence.js`), which also reports a failing callback once and keeps its
    subscription. Contract, publication, or validity changes redeliver; overlapping
@@ -28,6 +31,7 @@ import { registry } from "./registry.js";
 import { reportPageError, requestJson } from "./layer-client.js";
 import { watchOwner } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
+import { referencedProjection, requireReference } from "./references.js";
 
 export function acceptData(candidate, taken) {
   return applicationState.acceptData(candidate, taken);
@@ -43,6 +47,7 @@ function readingIdentity(reading) {
   return reading
     ? JSON.stringify([
         reading.contract,
+        reading.revision === undefined ? reading.value : null,
         reading.revision ?? null,
         reading.run ?? null,
         reading.error ?? null,
@@ -81,18 +86,94 @@ const declaredInput = (element, input) => {
   return declaration;
 };
 
+// Mounted widgets own their derived values. The publication holds the immutable
+// reading, while this weak lifetime record only lets a retained node return with it.
+const outputOwners = new WeakMap();
+const outputKeys = new WeakMap();
+let outputSequence = 0;
+function outputKey(element) {
+  if (!outputKeys.has(element)) outputKeys.set(element, `output:${++outputSequence}`);
+  return outputKeys.get(element);
+}
+export function publishOutput(element, output, value) {
+  const declaration = registry[element.localName]?.["x-output"]?.[output];
+  if (!declaration)
+    throw new Error(
+      `publishOutput(${element.localName}, ${output}) output is not declared by this widget`,
+    );
+  if (!element.id) throw new Error("publishOutput requires a widget id");
+  let owner = outputOwners.get(element);
+  if (!owner) {
+    owner = { values: new Map(), connected: false };
+    outputOwners.set(element, owner);
+    watchOwner(element, {
+      connect() {
+        owner.connected = true;
+        for (const [name, reading] of owner.values)
+          applicationState.publishOutput(outputKey(element), name, reading);
+      },
+      disconnect() {
+        owner.connected = false;
+        for (const name of owner.values.keys())
+          applicationState.publishOutput(outputKey(element), name, null);
+      },
+    });
+  }
+  const reading =
+    value === null
+      ? null
+      : { contract: declaration.contract, value: structuredClone(value) };
+  owner.values.set(output, reading);
+  if (owner.connected)
+    applicationState.publishOutput(outputKey(element), output, reading);
+}
+
+function inputBinding(element, declaration) {
+  const source = declaration.source ? element.getAttribute(declaration.source) : null;
+  const widget = declaration.reference && element.getAttribute(declaration.reference);
+  if (source && widget)
+    throw new Error(
+      `<${element.localName}> input binds both an external source and widget output`,
+    );
+  if (declaration.reference)
+    requireReference("watchData", element, declaration.reference);
+  const selected = applicationState.select((root) => {
+    if (source)
+      return Object.hasOwn(root.data.sources, source)
+        ? root.data.sources[source]
+        : null;
+    if (!widget) return null;
+    const producer = referencedProjection(element, declaration.reference, widget);
+    if (!producer) return null;
+    const key = outputKey(producer);
+    const outputs = Object.hasOwn(root.outputs, key) ? root.outputs[key] : null;
+    return outputs && Object.hasOwn(outputs, declaration.output)
+      ? outputs[declaration.output]
+      : null;
+  });
+  const snapshot = (reading, input) =>
+    source
+      ? {
+          source,
+          ...reading,
+          origin: {
+            input,
+            source,
+            contract: declaration.contract,
+            revision: reading.revision,
+          },
+        }
+      : { ...reading, origin: { derived: [{ widget }] } };
+  return { source, widget, selected, snapshot };
+}
+
 // A `LeafElement`'s reader of one bound input (leaf-element.js): the value `watchData`
 // would deliver for the accepted source reading, read through a selection of that
 // source, so a render that reads it is drawn again when the source moves. The binding
 // is captured at the first read, as `watchData` captures it at mount.
 export function dataReader(element, input) {
   const declaration = declaredInput(element, input);
-  const source = element.getAttribute(declaration.source);
-  const selected = applicationState.select((root) =>
-    source && Object.hasOwn(root.data.sources, source)
-      ? root.data.sources[source]
-      : null,
-  );
+  const { source, widget, selected, snapshot } = inputBinding(element, declaration);
   // What the element shows moves only as state application delivers, as a `watchData`
   // subscription's staged paint does, so a reading accepted for a revision still being
   // activated never draws into the document it replaces. The first read takes the
@@ -112,35 +193,26 @@ export function dataReader(element, input) {
       return () => deliveryListeners.delete(moved);
     },
   );
-  stagedReadings.add(selected);
+  if (!widget) stagedReadings.add(selected);
   let reported = null;
   return () => {
     // The accepted reading claims the element's region inside the publication that
     // accepts it; the delivered one draws.
     selected.read();
     const sourceStore = /** @type {{contract: string, revision?: string} | null} */ (
-      delivered.read()
+      widget ? selected.read() : delivered.read()
     );
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
       reported = sourceStore;
       reportPageError(
-        `data source ${source} carries contract ${sourceStore.contract}; ` +
+        `${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; ` +
           `<${element.localName}> input ${input} requires ${declaration.contract}`,
       );
     }
-    if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+    if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return null;
-    return structuredClone({
-      source,
-      ...sourceStore,
-      origin: {
-        input,
-        source,
-        contract: declaration.contract,
-        revision: sourceStore.revision,
-      },
-    });
+    return structuredClone(snapshot(sourceStore, input));
   };
 }
 
@@ -171,13 +243,13 @@ export function watchData(element, input, callback) {
   // Markup owns the binding. Capture it at mount so module code cannot turn a live
   // attribute mutation into an unvalidated rebind. Version activation mounts a new
   // element and therefore establishes a new subscription when authored markup changes.
-  const source = element.getAttribute(declaration.source);
+  const {
+    source,
+    widget,
+    selected: selectedSource,
+    snapshot,
+  } = inputBinding(element, declaration);
   const paint = readingPaint(element, callback);
-  const selectedSource = applicationState.select((root) =>
-    source && Object.hasOwn(root.data.sources, source)
-      ? root.data.sources[source]
-      : null,
-  );
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
   let presentation = null;
@@ -205,13 +277,6 @@ export function watchData(element, input, callback) {
   // recovery from an incompatible contract without a new content revision.
   const deliver = (snapshot, identity) => {
     if (paint.owes(identity)) {
-      if (snapshot)
-        snapshot.origin = {
-          input,
-          source,
-          contract: declaration.contract,
-          revision: snapshot.revision,
-        };
       const rendering = paint(identity, structuredClone(snapshot));
       // The paint reported a failed callback; it does not hold the data version back.
       completion = Promise.resolve(rendering).catch(() => {});
@@ -223,14 +288,14 @@ export function watchData(element, input, callback) {
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && paint.owes(identity))
       reportPageError(
-        `data source ${source} carries contract ${sourceStore.contract}; ` +
+        `${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; ` +
           `watchData(${element.localName}, ${input}) requires ${declaration.contract}`,
       );
     // The server validates values once. An incompatible named contract or an
     // invalid/missing value clears this seat, keeping its subscription for recovery.
-    if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+    if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return deliver(null, identity);
-    return deliver({ source, ...sourceStore }, identity);
+    return deliver(snapshot(sourceStore, input), identity);
   };
   const stage = (sourceStore) => {
     const identity = readingIdentity(sourceStore);
@@ -264,6 +329,10 @@ export function watchData(element, input, callback) {
         return rendering;
       }
       stage(sourceStore);
+      // Derived values are produced while painting the retained document, rather
+      // than by a server answer awaiting activation. Their claimed region starts
+      // after this publication, and joins the same data presentation barrier.
+      if (widget) queueMicrotask(notifySelected);
     });
     mounting = false;
     if (stopped) {

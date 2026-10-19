@@ -60,6 +60,9 @@
         "source": "source"
       }
     },
+    "x-output": {
+      "files": { "contract": "file-list" }
+    },
     "x-upgrade": true,
     "x-shadow": true,
     "x-thread-surface": true,

@@ -263,8 +263,12 @@ DATA_INPUTS_SCHEMA = {
                 "pattern": f"^{DATA_CONTRACT_NAME}$",
             },
             "source": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "reference": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "output": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
-        "required": ["contract", "source"],
+        "dependentRequired": {"reference": ["output"], "output": ["reference"]},
+        "required": ["contract"],
+        "anyOf": [{"required": ["source"]}, {"required": ["reference", "output"]}],
         "additionalProperties": False,
     },
 }
@@ -298,6 +302,19 @@ EXTENSION_SCHEMA = {
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
         "x-text-format": {"enum": ["inline-markdown", "markdown"]},
         "x-data": DATA_INPUTS_SCHEMA,
+        "x-output": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "contract": {"type": "string", "pattern": f"^{DATA_CONTRACT_NAME}$"}
+                },
+                "required": ["contract"],
+                "additionalProperties": False,
+            },
+        },
         "x-example": {"type": "string"},
         "x-exhibit": {"type": "boolean"},
         "x-instructions": {"type": "string", "pattern": r"\S"},

@@ -209,6 +209,10 @@ control is visible after upgrade. Authored inputs keep focus at once, so typing 
 during startup.
 
 `focused()` is the element where the user stands, across shadow trees.
+`onStanding(read)` calls `read(node, cause, left)` synchronously when that place changes,
+including inside a declared shadow root, and returns its unsubscribe function. Register
+it inside `whileConnected` and call that function in the connection's cleanup. The
+causes are `return`, `press`, `step`, `move`, and `drop`; a dropped place is `null`.
 `standingIn(scope)` says whether the user stands in a scope, across shadow trees, and
 `whenLeft(element, leave)` runs `leave` once when they move off an element; a window
 losing system focus does not count. A group reached by its own arrows offers one Tab

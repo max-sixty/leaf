@@ -310,7 +310,7 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     bindings = [
         spec
         for spec in entry.get("x-data", {}).values()
-        if rec["attrs"].get(spec["source"]) == source
+        if rec["attrs"].get(spec.get("source")) == source
     ]
     if not bindings:
         return Finding("datum-unbound-source", values=named)

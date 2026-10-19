@@ -2148,6 +2148,15 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     registry["lf-test-data"]["required"].remove("source")
 
     assert registry_validation.validate_registry(registry, "test registry") is registry
+    entry = registry["lf-test-data"]
+    entry["properties"]["for"] = entry["properties"].pop("source")
+    entry["x-refers"] = {"for": {}}
+    entry["x-data"]["data"] = {
+        "contract": "test-data",
+        "reference": "for",
+        "output": "rows",
+    }
+    assert registry_validation.validate_registry(registry, "test registry") is registry
 
 
 @pytest.mark.parametrize(
@@ -6102,3 +6111,55 @@ def test_created_ids_cannot_collide_across_page_and_frozen_content():
                 ],
             )
         assert refused_on(refused.value).code == "created-exists"
+
+
+def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings():
+    from leaf.validation.instances import reference_errors, widget_errors
+
+    registry = {
+        "lf-producer": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "x-content": "empty",
+            "x-output": {"rows": {"contract": "rows"}},
+        },
+        "lf-consumer": {
+            "type": "object",
+            "properties": {
+                name: {"type": "string"} for name in ("id", "source", "for")
+            },
+            "x-content": "empty",
+            "x-data": {
+                "rows": {
+                    "contract": "rows",
+                    "source": "source",
+                    "reference": "for",
+                    "output": "rows",
+                }
+            },
+            "x-refers": {"for": {}},
+        },
+    }
+
+    def errors(binding):
+        document = structure_model.SourceDocument(
+            f'<lf-producer id="feed"></lf-producer><lf-consumer id="consumer" {binding}></lf-consumer>'
+        )
+        records = document.lf_elements
+        by_id = {rec["attrs"]["id"]: rec for rec in records}
+        return widget_errors(records, registry) + reference_errors(
+            records, registry, set(by_id), by_id
+        )
+
+    assert errors('for="feed"') == []
+    assert errors('source="external"') == []
+    assert [finding.code for finding in errors('for="feed" source="external"')] == [
+        "ambiguous-data-binding"
+    ]
+    registry["lf-consumer"]["x-data"]["rows"].pop("source")
+    registry["lf-consumer"]["properties"].pop("source")
+    assert errors('for="feed"') == []
+    registry["lf-producer"]["x-output"]["rows"]["contract"] = "other"
+    assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]
+    registry["lf-producer"].pop("x-output")
+    assert [finding.code for finding in errors('for="feed"')] == ["output-contract"]

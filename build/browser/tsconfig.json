@@ -20,6 +20,7 @@
         "../../skills/leaf/packages/diagram/vendor/*",
         "../../skills/leaf/packages/diff/vendor/*",
         "../../skills/leaf/packages/file-editor/vendor/*",
+        "../../skills/leaf/packages/file-tree/vendor/*",
         "../../skills/leaf/packages/playwright/vendor/*"
       ],
       "/widgets/*": [

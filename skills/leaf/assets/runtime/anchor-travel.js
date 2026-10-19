@@ -31,11 +31,10 @@
  * trip that departs by none.
  */
 
+import { referencedProjection, requireReference } from "./references.js";
 import {
   addressedElements,
   fragmentTarget,
-  referencedProjection,
-  requireReference,
   resolveAnchor,
   revealAddressed,
   sectionOf,

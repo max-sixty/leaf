@@ -52,6 +52,7 @@ import {
   once,
   paintKeys,
   projectData,
+  publishOutput,
   projectedDatum,
   threadSurface,
   readingPaint,
@@ -1119,6 +1120,7 @@ customElements.define(
         if (source === null) {
           releaseOutlets(this);
           this.fileEntries = null;
+          this.publishFiles();
           this.sharedStyles = null;
           this.diffTools = null;
           this.filesBody = null;
@@ -1234,6 +1236,7 @@ customElements.define(
           this.projectFiles();
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools.search.value);
+          this.publishFiles();
           for (const restore of restores) restore?.();
         } finally {
           resume();
@@ -1241,6 +1244,7 @@ customElements.define(
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
         this.fileEntries = null;
+        this.publishFiles();
         this.sharedStyles = null;
         this.diffTools = null;
         this.filesBody = null;
@@ -1251,6 +1255,33 @@ customElements.define(
         failSoft(this, err, typeof source === "string" ? source : undefined);
         if (snapshot !== undefined) projectData(this, [], { snapshot });
       }
+    }
+
+    // The inventory belongs to this parse, rather than to any particular navigator.
+    // Keys are opaque addresses in this widget's existing datum space; consumers
+    // neither parse patches nor know how a diff encodes a file identity.
+    publishFiles() {
+      const status = {
+        add: "added",
+        delete: "deleted",
+        modify: "modified",
+        rename: "renamed",
+      };
+      publishOutput(
+        this,
+        "files",
+        this.fileEntries
+          ? {
+              files: this.fileEntries.map(({ record }) => ({
+                path: record.path,
+                key: diffDatumKey({ path: record.path, file: true }),
+                ...(status[record.operation]
+                  ? { status: status[record.operation] }
+                  : {}),
+              })),
+            }
+          : null,
+      );
     }
 
     // A patch that fails to load may load on Retry. One this widget cannot draw never
@@ -1596,9 +1627,9 @@ customElements.define(
       const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
       if (entry.filtered) this.clearFilter();
-      if (coordinate.file) return null;
-      if (!entry.details || entry.loaded || entry.failed) return null;
+      if (!entry.details) return null;
       entry.details.toggleAttribute("open", true);
+      if (entry.loaded || entry.failed) return null;
       return this.loadEntry(entry);
     }
 

@@ -1297,6 +1297,33 @@
       }
     ]
   },
+  "importer-change": "diff --git a/src/importer.py b/src/importer.py\n--- a/src/importer.py\n+++ b/src/importer.py\n@@ -1,2 +1,2 @@\n def read_field(name):\n-    return name.lower()\n+    return name\ndiff --git a/tests/test_importer.py b/tests/test_importer.py\n--- a/tests/test_importer.py\n+++ b/tests/test_importer.py\n@@ -1 +1 @@\n-assert read_field(\"UserID\") == \"userid\"\n+assert read_field(\"UserID\") == \"UserID\"\ndiff --git a/notes.md b/notes.md\nnew file mode 100644\n--- /dev/null\n+++ b/notes.md\n@@ -0,0 +1 @@\n+Preserve field names exactly as supplied.\n",
+  "proposed-layout": {
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "src/importer.py",
+        "status": "modified"
+      },
+      {
+        "path": "src/formats/csv.py",
+        "status": "added"
+      },
+      {
+        "path": "src/formats/json.py",
+        "status": "renamed"
+      },
+      {
+        "path": "tests/test_importer.py"
+      },
+      {
+        "path": "legacy/parser.py",
+        "status": "deleted"
+      }
+    ]
+  },
   "dfg-patch-source": "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return \"old\"\n+return \"new\"\n",
   "gallery-latency": 184,
   "gallery-markdown": "# Release ready\n\nThe **importer** now preserves field names.\n\n- Review the schema\n- Publish the release\n\n| Check | Result |\n| --- | --- |\n| Round trip | Passed |\n\n[Read the release](https://example.com/release)\n",

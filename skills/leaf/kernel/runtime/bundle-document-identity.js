@@ -188,8 +188,6 @@ import {
   anchorForRange,
   anchoringIsReady,
   fragmentTarget,
-  referencedProjection,
-  requireReference,
   resolveAnchor,
   revealAddressed,
   sectionOf,
@@ -248,6 +246,7 @@ import {
   TEXT_BLOCK,
   alignInlineText,
   authored,
+  authoredScope,
   closestAcross,
   elementById,
   excerptWords,
@@ -1919,6 +1918,29 @@ function watchProjection(owner, paint, ready = null) {
   return stop;
 }
 
+// runtime/references.js
+function requireReference(verb, owner, attribute) {
+  if (typeof attribute !== "string" || !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute))
+    throw new TypeError(
+      `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`
+    );
+}
+function referencedProjection(owner, attribute, id = owner.getAttribute(attribute)) {
+  if (!id) return null;
+  const { tag, key } = registry[owner.localName]["x-refers"][attribute];
+  if (tag) {
+    const within = registry[tag]["x-unique"][key];
+    const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
+    const scope2 = scopeOf(owner);
+    return [...scope2?.querySelectorAll(tag) ?? []].find(
+      (member) => scopeOf(member) === scope2 && member.getAttribute(key) === id
+    ) ?? null;
+  }
+  const scope = authoredScope(owner);
+  const page = pageDocument();
+  return elementById(id, scope) ?? (scope === page ? null : elementById(id, page));
+}
+
 // runtime/anchor-travel.js
 var scrollingBoxFor = (element) => scrollersOf(element).next().value ?? null;
 function scrollToFragment(element) {
@@ -2547,7 +2569,8 @@ function diffBlocks(root) {
     const entry = registry[w.localName] ?? {};
     const bindingAttrs = /* @__PURE__ */ new Set();
     for (const input of Object.values(entry["x-data"] ?? {})) {
-      bindingAttrs.add(input.source);
+      if (input.source) bindingAttrs.add(input.source);
+      if (input.reference) bindingAttrs.add(input.reference);
     }
     const binding = [...bindingAttrs].sort().map((attr) => [attr, w.getAttribute(attr)]);
     pairs.push([w, ` ${w.tagName}#${w.id}${JSON.stringify(binding)}`]);
@@ -5445,7 +5468,9 @@ function createDataProjection({ invalidateDom: invalidateDom2 }) {
     if (!root.id)
       throw new TypeError("projectData root needs an id to name its projection");
     const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
-    if (snapshot === void 0 && Object.values(declaredInputs).some(({ source }) => root.hasAttribute(source)))
+    if (snapshot === void 0 && Object.values(declaredInputs).some(
+      ({ source, reference }) => source && root.hasAttribute(source) || reference && root.hasAttribute(reference)
+    ))
       throw new Error(
         `projectData(${root.id}) must receive the snapshot that supplied its records`
       );
@@ -8166,6 +8191,7 @@ var subscriptionSequence = 0;
 function readingIdentity(reading) {
   return reading ? JSON.stringify([
     reading.contract,
+    reading.revision === void 0 ? reading.value : null,
     reading.revision ?? null,
     reading.run ?? null,
     reading.error ?? null,
@@ -8179,7 +8205,7 @@ async function notifyDataSubscribers() {
   for (const delivered of [...deliveryListeners]) delivered(round);
   const current = [...subscriptions];
   for (const subscription of current) subscription.notify();
-  const regions = current.map((subscription) => subscription.region);
+  const regions = current.flatMap((subscription) => subscription.regions);
   await whenApplicationRegionsPresented(
     regions,
     () => runtime.data.version === version
@@ -8195,12 +8221,76 @@ var declaredInput = (element, input) => {
     );
   return declaration;
 };
+var outputOwners = /* @__PURE__ */ new WeakMap();
+var outputKeys = /* @__PURE__ */ new WeakMap();
+var outputSequence = 0;
+function outputKey(element) {
+  if (!outputKeys.has(element)) outputKeys.set(element, `output:${++outputSequence}`);
+  return outputKeys.get(element);
+}
+function publishOutput(element, output, value) {
+  const declaration = registry[element.localName]?.["x-output"]?.[output];
+  if (!declaration)
+    throw new Error(
+      `publishOutput(${element.localName}, ${output}) output is not declared by this widget`
+    );
+  if (!element.id) throw new Error("publishOutput requires a widget id");
+  let owner = outputOwners.get(element);
+  if (!owner) {
+    owner = { values: /* @__PURE__ */ new Map(), connected: false };
+    outputOwners.set(element, owner);
+    watchOwner(element, {
+      connect() {
+        owner.connected = true;
+        for (const [name, reading2] of owner.values)
+          applicationState.publishOutput(outputKey(element), name, reading2);
+      },
+      disconnect() {
+        owner.connected = false;
+        for (const name of owner.values.keys())
+          applicationState.publishOutput(outputKey(element), name, null);
+      }
+    });
+  }
+  const reading = value === null ? null : { contract: declaration.contract, value: structuredClone(value) };
+  owner.values.set(output, reading);
+  if (owner.connected)
+    applicationState.publishOutput(outputKey(element), output, reading);
+}
+function inputBinding(element, declaration) {
+  const source = declaration.source ? element.getAttribute(declaration.source) : null;
+  const widget = declaration.reference && element.getAttribute(declaration.reference);
+  if (source && widget)
+    throw new Error(
+      `<${element.localName}> input binds both an external source and widget output`
+    );
+  if (declaration.reference)
+    requireReference("watchData", element, declaration.reference);
+  const selected = applicationState.select((root) => {
+    if (source)
+      return Object.hasOwn(root.data.sources, source) ? root.data.sources[source] : null;
+    if (!widget) return null;
+    const producer = referencedProjection(element, declaration.reference, widget);
+    if (!producer) return null;
+    const key = outputKey(producer);
+    const outputs = Object.hasOwn(root.outputs, key) ? root.outputs[key] : null;
+    return outputs && Object.hasOwn(outputs, declaration.output) ? outputs[declaration.output] : null;
+  });
+  const snapshot = (reading, input) => source ? {
+    source,
+    ...reading,
+    origin: {
+      input,
+      source,
+      contract: declaration.contract,
+      revision: reading.revision
+    }
+  } : { ...reading, origin: { derived: [{ widget }] } };
+  return { source, widget, selected, snapshot };
+}
 function dataReader(element, input) {
   const declaration = declaredInput(element, input);
-  const source = element.getAttribute(declaration.source);
-  const selected = applicationState.select(
-    (root) => source && Object.hasOwn(root.data.sources, source) ? root.data.sources[source] : null
-  );
+  const { source, widget, selected, snapshot } = inputBinding(element, declaration);
   let shown;
   let taken = -1;
   const delivered = outsideReading(
@@ -8216,56 +8306,49 @@ function dataReader(element, input) {
       return () => deliveryListeners.delete(moved2);
     }
   );
-  stagedReadings.add(selected);
+  if (!widget) stagedReadings.add(selected);
   let reported = null;
   return () => {
     selected.read();
     const sourceStore = (
       /** @type {{contract: string, revision?: string} | null} */
-      delivered.read()
+      widget ? selected.read() : delivered.read()
     );
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && reported !== sourceStore) {
       reported = sourceStore;
       reportPageError(
-        `data source ${source} carries contract ${sourceStore.contract}; <${element.localName}> input ${input} requires ${declaration.contract}`
+        `${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; <${element.localName}> input ${input} requires ${declaration.contract}`
       );
     }
-    if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+    if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return null;
-    return structuredClone({
-      source,
-      ...sourceStore,
-      origin: {
-        input,
-        source,
-        contract: declaration.contract,
-        revision: sourceStore.revision
-      }
-    });
+    return structuredClone(snapshot(sourceStore, input));
   };
 }
 var deliveries = 0;
 var deliveryListeners = /* @__PURE__ */ new Set();
 var stagedReadings = /* @__PURE__ */ new WeakSet();
 var stagesOnly = (reading) => stagedReadings.has(reading);
-function joinDataDelivery(region) {
-  const subscription = { region, notify() {
+function joinDataDelivery(regions) {
+  const subscription = { regions, notify() {
   } };
   subscriptions.add(subscription);
   return () => subscriptions.delete(subscription);
 }
 function watchData(element, input, callback) {
   const declaration = declaredInput(element, input);
-  const source = element.getAttribute(declaration.source);
+  const {
+    source,
+    widget,
+    selected: selectedSource,
+    snapshot
+  } = inputBinding(element, declaration);
   const paint = readingPaint(element, callback);
-  const selectedSource = applicationState.select(
-    (root) => source && Object.hasOwn(root.data.sources, source) ? root.data.sources[source] : null
-  );
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
   let presentation = null;
-  const subscription = { region, notify: () => notifySelected() };
+  const subscription = { regions: [region], notify: () => notifySelected() };
   let stopSelection;
   let pendingDelivery = null;
   let stopped = false;
@@ -8285,16 +8368,9 @@ function watchData(element, input, callback) {
     disconnect();
     paint.stop();
   }
-  const deliver = (snapshot, identity2) => {
+  const deliver = (snapshot2, identity2) => {
     if (paint.owes(identity2)) {
-      if (snapshot)
-        snapshot.origin = {
-          input,
-          source,
-          contract: declaration.contract,
-          revision: snapshot.revision
-        };
-      const rendering = paint(identity2, structuredClone(snapshot));
+      const rendering = paint(identity2, structuredClone(snapshot2));
       completion = Promise.resolve(rendering).catch(() => {
       });
     }
@@ -8305,11 +8381,11 @@ function watchData(element, input, callback) {
     const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
     if (incompatible && paint.owes(identity2))
       reportPageError(
-        `data source ${source} carries contract ${sourceStore.contract}; watchData(${element.localName}, ${input}) requires ${declaration.contract}`
+        `${source ? `data source ${source}` : `widget output ${widget}.${declaration.output}`} carries contract ${sourceStore.contract}; watchData(${element.localName}, ${input}) requires ${declaration.contract}`
       );
-    if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+    if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value"))
       return deliver(null, identity2);
-    return deliver({ source, ...sourceStore }, identity2);
+    return deliver(snapshot(sourceStore, input), identity2);
   };
   const stage = (sourceStore) => {
     const identity2 = readingIdentity(sourceStore);
@@ -8334,6 +8410,7 @@ function watchData(element, input, callback) {
         return rendering;
       }
       stage(sourceStore);
+      if (widget) queueMicrotask(notifySelected);
     });
     mounting = false;
     if (stopped) {
@@ -8411,6 +8488,8 @@ export {
   pageOutline,
   threadSection,
   inRecentOrder,
+  requireReference,
+  referencedProjection,
   createAnchorTravel,
   versionsReading,
   comparisonChanges,
@@ -8453,6 +8532,7 @@ export {
   askEnding,
   acceptData,
   notifyDataSubscribers,
+  publishOutput,
   dataReader,
   stagesOnly,
   joinDataDelivery,

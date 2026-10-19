@@ -421,6 +421,54 @@ def test_a_shift_without_input_fails(browser, distance):
     )
 
 
+@pytest.mark.parametrize(
+    "fault", ["", "unchanged-label", "neighbor", "control", "region"]
+)
+def test_replaced_control_labels_do_not_retain_their_recycled_fragments(browser, fault):
+    """A reused suffix belongs to the new label; surviving controls still hold still."""
+    page = browser.new_page()
+    source = """<!doctype html><body style="margin:0">
+<style>#file, button { display:block; width:240px; height:40px; text-align:left;
+  font:16px monospace; white-space:nowrap; }</style>
+<button id="file"><span id="stem">importer.</span><span id="extension">py</span></button>
+<button id="neighbor">Keep this control here</button></body>"""
+    if fault == "region":
+        source = source.replace(
+            '<button id="file">', '<div id="file" role="tree">'
+        ).replace("</span></button>", "</span></div>")
+    page.goto("data:text/html," + quote(source))
+    paint(page)
+    before = page.locator("#extension").evaluate("""node => {
+      window.originalSuffix = node.firstChild;
+      return node.getBoundingClientRect().x;
+    }""")
+    page.evaluate(
+        """fault => {
+      if (fault === 'unchanged-label') extension.style.marginLeft = '20px';
+      else stem.firstChild.data = 'reader.';
+      if (fault === 'neighbor') neighbor.style.marginLeft = '20px';
+      if (fault === 'control') file.style.marginLeft = '20px';
+    }""",
+        fault,
+    )
+    paint(page)
+    after = page.locator("#extension").evaluate("""node => ({
+      x: node.getBoundingClientRect().x, retained: node.firstChild === originalSuffix,
+    })""")
+    assert after["retained"] is True
+    if not fault:
+        assert after["x"] < before
+    judge_watches()
+    if fault:
+        target = {
+            "unchanged-label": "span#extension",
+            "neighbor": "button#neighbor",
+            "control": "button#file",
+            "region": "span#extension",
+        }[fault]
+        consume_browser_errors(page, moved_within(target))
+
+
 PASSIVE_LABELS = """<!doctype html><body class="lf-chrome" style="margin:0; font:12px monospace">
 <div id="row" data-lf-reflow="text" style="display:flex; align-items:baseline; width:360px; line-height:24px">
   <div id="header" style="display:flex; align-items:baseline">

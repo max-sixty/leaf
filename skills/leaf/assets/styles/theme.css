@@ -1209,11 +1209,19 @@ video {
  * ratio, and `height: auto` above overrides the attribute. Restating the attributes
  * as a ratio keeps that DevTools issue to images that really load into no room,
  * which is what lets the render gate refuse every issue Chrome raises. The ratio
- * holds after loading too, so attributes that misstate an image's shape draw it at
- * theirs. A browser without typed attr() drops the line and keeps the attribute
- * ratio it maps, which yields to the loaded image. */
+ * holds after loading too, so where delivery read the file's own size from page
+ * media (`data-lf-media-width`, `data-lf-media-height`), an image given a width takes
+ * its ratio from that size: a width and height typed by hand that misstate the
+ * file's shape would otherwise stretch it. An image with no width keeps no ratio, so
+ * the render gate still sees one that loads into no room. A browser without typed
+ * attr() drops these lines and keeps the attribute ratio it maps, which yields to the
+ * loaded image. */
 img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
+}
+img:where([width][data-lf-media-width]) {
+  aspect-ratio: attr(data-lf-media-width type(<number>)) /
+    attr(data-lf-media-height type(<number>));
 }
 /* A page's images are mostly captures of interfaces, often of this same paper and
  * type, so nothing but a drawn edge says where a capture ends and the page resumes.

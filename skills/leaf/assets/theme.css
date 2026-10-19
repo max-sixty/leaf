@@ -475,6 +475,9 @@ video {
 img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
 }
+img:where([width][data-lf-media-width]) {
+  aspect-ratio: attr(data-lf-media-width type(<number>)) / attr(data-lf-media-height type(<number>));
+}
 img {
   box-shadow: 0 0 0 1px var(--border-2), var(--raise-1);
 }

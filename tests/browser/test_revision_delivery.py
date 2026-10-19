@@ -2,9 +2,12 @@
 
 import struct
 
+import pytest
 from leaf.revision_delivery import (
     media_size,
 )
+from render_cases_layout import SHOT_SRC, SHOTS
+from render_harness import leaf_page, open_page
 
 
 def test_delivery_reads_an_image_s_size_as_the_browser_decodes_it(browser):
@@ -37,3 +40,30 @@ def test_delivery_reads_an_image_s_size_as_the_browser_decodes_it(browser):
     # An upload is checked by its signature alone, so a file cut short after it is a
     # file delivery still serves.
     assert media_size(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR") is None
+
+
+def test_a_page_image_keeps_its_file_s_shape_when_its_attributes_misstate_it(
+    browser, serve
+):
+    """An image's width and height attributes hold its room before it loads, and an
+    agent types them by hand, so a pair copied from another capture once stretched a
+    600 by 300 capture to its neighbour's shape. Delivery reads the file's own size,
+    so the image draws at that shape, at the attribute's width or squeezed to a
+    phone's column."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Captures",
+                f'<h1>Captures</h1><img id="misstated" src="{SHOT_SRC["before"]}"'
+                ' width="500" height="400" alt="A panel">',
+            ),
+            media={SHOT_SRC["before"]: SHOTS["before"]},
+        ),
+    )
+    image = page.locator("#misstated")
+    for width in (1200, 390):
+        page.set_viewport_size({"width": width, "height": 800})
+        box = image.bounding_box()
+        assert box["width"] <= 500
+        assert box["width"] / box["height"] == pytest.approx(2, abs=0.02), (width, box)

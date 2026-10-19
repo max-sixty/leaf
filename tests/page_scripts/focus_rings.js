@@ -98,7 +98,8 @@
     globalThis.__lfRingBoxes = boxes;
   }
 
-  // Every focus ring the page is showing right now, and what is wrong with each.
+  // The carriers of every focus ring the page is showing right now. Faults are read
+  // after the protocol supplies the pseudo-elements' own border boxes.
   //
   // Asked of every box painting one, rather than of the focused one.
   // The two are not the same set: three rules draw the ring on something other than the
@@ -114,19 +115,7 @@
   // Both carriers of the band are read. Most of the layer's rules draw it as an outline;
   // two cast it as a shadow instead, and a reading that knew only the outline reported the
   // response bar and the browsed target hint as boxes with no ring on them at all.
-  async function ringsDrawn() {
-    // shownBand, rather than a fourth reading of what a box clips to. Its own comment
-    // carries why: page check --render imports it so the band a handover is refused
-    // against and the band the page paints to are one reading, and written twice they
-    // disagreed twice. This was the third copy and it was wrong in both of the ways that
-    // comment names — it asked only about overflow, so paint containment and
-    // content-visibility clipped a ring away with nothing said, and it measured the
-    // padding box with the scrollbar's gutter still in it.
-    const { shownBand } = await window.__lfCheckApi();
-    const holds = (a, b) => {
-      for (let n = b; n; n = flatParent(n)) if (n === a) return true;
-      return false;
-    };
+  function ringCandidates() {
     const { accent, mixed } = accentSwatch();
     // The band this box casts as a shadow, where it draws one, in the width it draws it
     // at. Its own comment carries what makes a shadow that band rather than a lift.
@@ -179,22 +168,52 @@
       !claimed.some((claim) => claim.el === focused)
     )
       claimed.push({ el: focused, cs: getComputedStyle(focused) });
+    // A skipped until-found panel retains stale boxes; only rendered carriers count.
+    const visible = claimed.filter(({ el }) =>
+      el.checkVisibility({
+        contentVisibilityAuto: true,
+        opacityProperty: true,
+        visibilityProperty: true,
+      }),
+    );
+    const rings = visible
+      .map((claim) => ({
+        ...claim,
+        outlined:
+          claim.cs.outlineStyle === "none" ? 0 : parseFloat(claim.cs.outlineWidth) || 0,
+        cast: hereShadow(claim.cs),
+        here: isFocusRing(claim.cs),
+      }))
+      .filter(({ outlined, cast }) => outlined || cast);
+    globalThis.__lfRingClaims = rings;
+    stash(rings.map(({ el }) => el));
+    return rings.map(({ outlined, pseudo }) => ({
+      pseudo: pseudo ? "after" : null,
+      carrier: outlined ? "outline" : "box-shadow",
+    }));
+  }
+
+  // Complete the same candidate reading after the protocol has measured pseudo boxes.
+  // A pseudo-element need not share its originating element's border box: anchored
+  // frames and frames moving with scrolled contents both depend on its actual layout.
+  async function ringsDrawn(rectangles) {
+    // shownBand, rather than a fourth reading of what a box clips to. Its own comment
+    // carries why: page check --render imports it so the band a handover is refused
+    // against and the band the page paints to are one reading, and written twice they
+    // disagreed twice. This was the third copy and it was wrong in both of the ways that
+    // comment names — it asked only about overflow, so paint containment and
+    // content-visibility clipped a ring away with nothing said, and it measured the
+    // padding box with the scrollbar's gutter still in it.
+    const { shownBand } = await window.__lfCheckApi();
+    const holds = (a, b) => {
+      for (let n = b; n; n = flatParent(n)) if (n === a) return true;
+      return false;
+    };
+    const focused = deepFocus();
+    const claimed = globalThis.__lfRingClaims;
+    delete globalThis.__lfRingClaims;
     const answers = [];
-    const boxes = [];
-    for (const { el, cs, pseudo } of claimed) {
-      // A ring on something the browser is not rendering is not on screen, and its box is
-      // whatever the last layout left behind. An inactive lf-tab is the case: it carries
-      // `hidden="until-found"`, so the UA gives it `content-visibility: hidden`, its
-      // contents are skipped, and the decision inside one still answers a stale rect three
-      // thousand pixels from the band its own panel now reports.
-      if (
-        !el.checkVisibility({
-          contentVisibilityAuto: true,
-          opacityProperty: true,
-          visibilityProperty: true,
-        })
-      )
-        continue;
+    for (const [index, { el, cs, pseudo, cast, outlined, here }] of claimed.entries()) {
       // Straight off the computed style, which holds because no ring in this layer moves.
       // A ring on its way somewhere reads as wherever it has got to — mid-transition the
       // platform reports the animated value, which early on is the value the property is
@@ -212,13 +231,9 @@
       // wherever there is one, so every box this reading already measured is measured the
       // same way: the two carriers are on different boxes in this layer, and where a box
       // ever wears both, the outline is the one the layer's own rules put there.
-      const cast = hereShadow(cs);
-      const outlined =
-        cs.outlineStyle === "none" ? 0 : parseFloat(cs.outlineWidth) || 0;
       const w = outlined || cast;
-      if (!w) continue;
       const grow = outlined ? outlined + (parseFloat(cs.outlineOffset) || 0) : cast;
-      const b = el.getBoundingClientRect();
+      const b = pseudo ? rectangles[index] : el.getBoundingClientRect();
       const ring = {
         top: b.top - grow,
         left: b.left - grow,
@@ -586,10 +601,9 @@
           break;
         }
       }
-      boxes.push(el);
       answers.push({
         who: named(el),
-        here: isFocusRing(cs),
+        here,
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
         carrier: outlined ? "outline" : "box-shadow",
@@ -604,7 +618,6 @@
         covers,
       });
     }
-    stash(boxes);
     return answers;
   }
 
@@ -725,6 +738,7 @@
   }
 
   return {
+    ringCandidates,
     ringsDrawn,
     newStop,
     seenStop,

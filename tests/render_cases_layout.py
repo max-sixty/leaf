@@ -1602,6 +1602,9 @@ def in_threads_scrollport(page, selector):
 
 
 RINGS_DRAWN = browser_function("focus_rings.js", "ringsDrawn", using="control_name.js")
+RING_CANDIDATES = browser_function(
+    "focus_rings.js", "ringCandidates", using="control_name.js"
+)
 
 
 COVERED_TOP = """() => {
@@ -1690,12 +1693,13 @@ def _winning_declaration(matches, carrier):
     return won.get(True) or won.get(False)
 
 
-def ring_rules(page, wants):
+def _read_ring_boxes(page, wants, *, geometry=False):
     """For each box the last probe stashed (`stash`, focus_rings.js), the selector of
     the rule that drew its ring with the ring's token, or "" where none did.
 
     `wants` holds one `(pseudo, carrier)` pair per box: the pseudo-element the ring is
-    on, if any, and whether it is an outline or a box shadow."""
+    on, if any, and whether it is an outline or a box shadow. With `geometry`, also
+    return pseudo border rectangles from the browser's layout, aligned with `wants`."""
     if not wants:
         return []
     cdp = _ring_session(page)
@@ -1712,6 +1716,7 @@ def ring_rules(page, wants):
         int(p["name"]): p["value"]["objectId"] for p in listed if p["name"].isdigit()
     }
     rules = []
+    rectangles = []
     for index, (pseudo, carrier) in enumerate(wants):
         node = cdp.send("DOM.requestNode", {"objectId": ids[index]})["nodeId"]
         styles = cdp.send("CSS.getMatchedStylesForNode", {"nodeId": node})
@@ -1721,15 +1726,41 @@ def ring_rules(page, wants):
                 for entry in styles["pseudoElements"]
                 if entry["pseudoType"] == pseudo
             )
+            if geometry:
+                described = cdp.send("DOM.describeNode", {"nodeId": node})["node"]
+                pseudo_node = next(
+                    entry
+                    for entry in described["pseudoElements"]
+                    if entry["pseudoType"] == pseudo
+                )
+                border = cdp.send(
+                    "DOM.getBoxModel",
+                    {"backendNodeId": pseudo_node["backendNodeId"]},
+                )["model"]["border"]
+                rectangles.append(
+                    {
+                        "left": min(border[::2]),
+                        "right": max(border[::2]),
+                        "top": min(border[1::2]),
+                        "bottom": max(border[1::2]),
+                    }
+                )
         else:
             matches = list(styles["matchedCSSRules"])
             if inline := styles.get("inlineStyle"):
                 matches.append({"rule": {"origin": "inline", "style": inline}})
+        if geometry and not pseudo:
+            rectangles.append(None)
         won = _winning_declaration(matches, carrier)
         drew = won and RING_TOKEN[carrier].search(won[1])
         rules.append(_matched_selector(won[0]) if drew else "")
     cdp.send("Runtime.releaseObjectGroup", group)
-    return rules
+    return (rules, rectangles) if geometry else rules
+
+
+def ring_rules(page, wants):
+    """The winning ring selector for each stashed box and `(pseudo, carrier)` pair."""
+    return _read_ring_boxes(page, wants)
 
 
 def ring_rule(target, pseudo=None, carrier="outline"):
@@ -1745,8 +1776,15 @@ def rings_drawn(page):
 
     A non-focused element mark painting the band with no ring rule behind it is the
     pointer's feedback contour rather than a ring, so it is left out."""
-    answers = page.evaluate(RINGS_DRAWN)
-    rules = ring_rules(page, [(seen["pseudo"], seen["carrier"]) for seen in answers])
+    candidates = page.evaluate(RING_CANDIDATES)
+    if not candidates:
+        return []
+    rules, rectangles = _read_ring_boxes(
+        page,
+        [(seen["pseudo"], seen["carrier"]) for seen in candidates],
+        geometry=True,
+    )
+    answers = page.evaluate(RINGS_DRAWN, rectangles)
     drawn = []
     for seen, rule in zip(answers, rules, strict=True):
         if seen.pop("mark") and not seen["focused"] and not rule:

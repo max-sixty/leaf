@@ -1127,7 +1127,9 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
     """The target, not the point inside it, places the action bar. A layout change
     resolves that same target again, and the quiet outline stays on it until an
     outside press dismisses both."""
-    page = open_page(browser, serve(PART_DIAGRAM_PAGE.replace("graph LR", "graph TD", 1)))
+    page = open_page(
+        browser, serve(PART_DIAGRAM_PAGE.replace("graph LR", "graph TD", 1))
+    )
     start = page.locator('#flow g[data-id="S"]')
     bar = page.locator(".lf-fab-bar")
 

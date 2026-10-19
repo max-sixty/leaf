@@ -68,6 +68,65 @@ assert:
       Compact Remove / Keep controls need not have comparison chips; this case
       checks the advice marker rather than the card treatment.
 variants:
+  # Claude d693ee03-0814-46f1-bb84-52e638722236 read the complete instructions
+  # and rich examples, then gave five well-explained fixes identical Do it / Not
+  # now labels. Local context alone does not make the choices substantive.
+  hardening-outcomes:
+    metadata:
+      purpose: "Choices: independent proposals name their concrete outcomes even when their questions already explain them."
+    vars:
+      prompt: |
+        The user asked you to audit the data structures Leaf passes between
+        runtimes and versions, and propose the first fixes. The audit is complete.
+        You have already written the inventory and a three-option decision comparing
+        where the generated reference should live. Write the next section, "First
+        fixes", with the independent proposals the user can accept or reject.
+
+        Notes, in priority order:
+        - Served state: Python emits /api/state, and the browser, Worker and Node
+          tests each hold their own picture of it. A Python field rename could
+          silently stop the Worker noticing an owed reply. Propose a JSON Schema
+          beside served_state, the existing generator emitting AuthoritativeState,
+          and the Worker importing that type.
+        - Protocol check: it sees type changes, but tightening a schema pattern or
+          maxLength can pass the check while an older page's events start failing.
+          Propose recording a schema fingerprint per protocol number; a change fails
+          until its author judges whether to bump the protocol or move the fingerprint.
+        - Machine records: claims, session lifecycles, status.json and service.json
+          are read by every installed Leaf through key-presence checks. A renamed
+          lifecycle field can silently make claims inactive. Propose a schema and
+          format for each record, with one canonical status writer.
+        - Event kinds: Python keeps MESSAGE_KINDS, UNDOABLE_KINDS, WIDGET_KINDS and
+          WRITERS; the browser hand-copies two of those sets and its paint names.
+          Propose putting them in $events and generating the browser's copies through
+          the existing registry builder.
+        - Clear-cut cleanups, as one batch: remove unused old-record reads and an
+          uncalled endpoint; route sample writes through admission and the canonical
+          data/status writers; hold registry declarations to their schemas; centralize
+          state-home path and permission handling. No compatibility behavior is required.
+
+        No implementation has been authorized. The page directory is not reachable
+        here, so reply with the section's HTML. Read the lf-ask, lf-options and
+        lf-option registry entries before writing it.
+    assert:
+      - type: llm-rubric
+        metric: specific-choice-names
+        value: |
+          The proposals are covered by initially undecided accept/reject decisions.
+          Independent proposals can be grouped only when the group explains why
+          each is clear-cut. Judge labels at the decision's granularity. For a
+          single proposal, each option's label or title names its concrete outcome
+          or action. For example, names
+          might distinguish generating served-state types from retaining handwritten
+          types, or fingerprinting schemas from keeping type-only checks. Equivalent
+          wording is fine. Repeated generic Do it / Not now, Apply / Keep, or similar
+          names fail even if the enclosing question and paragraphs explain the proposal.
+          A detailed body after a generic title does not satisfy the naming criterion.
+          Accept/reject titles that only repeat a proposal's name do not describe
+          the resulting behavior. A heterogeneous cleanup batch can name applying
+          or deferring the bounded set, provided the same decision frame explains
+          every member's effect and why it is clear-cut; its title need not list
+          those effects again. Fail if any decision misses its criterion.
   checkbox-wording:
     metadata:
       purpose: "Diagnostic: the original checkbox request is ambiguous about partial-review outcomes."

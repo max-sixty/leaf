@@ -89,10 +89,10 @@ makes it the active revision with the answer. Rerunning an answer with the same
 coming, `--failure <code>` posts a failure receipt, which settles the input without
 reopening a resolved thread.
 
-When an answer has `writer: "turn"`, your turn's final text answers it (your
-harness's "Replies"). Use `leaf response reply` instead when the answer needs markup,
-an ask, a to-do, a title, or a moved anchor. To have a command hub worker answer,
-forward it the `answer.ref` as that package's coordinator instructions say.
+When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
+"Replies"). Use `leaf response reply` instead when the answer needs markup, a question
+back, a to-do, a title, or a moved anchor. To have a command hub worker answer, forward
+it the `answer.ref` as that package's coordinator instructions say.
 
 ## Preserve revised anchors
 
@@ -132,7 +132,7 @@ Every answer declares what it leaves the thread with:
   to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
 - A question back: put it in an `lf-ask` in `--markup`. It is an item on the user's
-  On me list, `widget:<its id>` in `page state`'s `asks`, until their next message in
+  On me list, `widget:<its id>` in `page state`'s `items`, until their next message in
   the thread answers it or you end it
   ([The On lists](conversation-loop.md#the-on-lists)). An answer that asks this way
   needs no flag.
@@ -168,8 +168,8 @@ thread that owes no reply, use `leaf thread reply --ephemeral`.
 The thread shows the latest progress as one dim working message above its reply box,
 with its author and posting time. Progress never counts as unread. Your next ordinary
 reply takes its place, with the progress folded behind it. Progress carries only text;
-asks, to-dos, markup, anchor
-moves and failure receipts each need a reply of their own.
+questions, to-dos, markup, anchor moves and failure receipts each need a reply of
+their own.
 
 Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
 `lf-options` or an `lf-ask`, waits on the user and keeps its thread "My turn" until

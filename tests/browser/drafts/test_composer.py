@@ -8,7 +8,7 @@ import pytest
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, live_url
+from render_cases_interaction import ITEM_PAGE, live_url
 from render_cases_layout import glyph_action_face, token_colour
 from render_cases_navigation import compose, pending_text
 from render_harness import (
@@ -547,7 +547,7 @@ def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
 def test_resume_writing_returns_to_an_option_being_added(browser, serve):
     """The field adding an option the author did not list is a writing place like any
     other: Resume writing comes back to it with its words, which stay its own."""
-    page = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ITEM_PAGE))
     field = page.locator("#jobs > .lf-another leaf-text")
     write(field, "An option of mine.")
     page.locator("body").focus()
@@ -626,7 +626,7 @@ def test_composer_return_edits_or_sends_according_to_its_keyboard(
 @pytest.mark.parametrize("surface", ["on", "threads"])
 def test_covering_surface_retains_the_open_passage_editor(browser, serve, surface):
     """Every covering auxiliary surface lends room back to the same native editor."""
-    page = open_page(browser, serve(ASK_PAGE))
+    page = open_page(browser, serve(ITEM_PAGE))
     resized(page, 900, 844)
     page.locator(".lf-queue" if surface == "on" else ".lf-threads-toggle").click()
     rendered(page)

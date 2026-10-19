@@ -494,7 +494,7 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     expect(returning).to_be_focused()
 
 
-def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
+def test_item_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     browser, serve, other_leaf
 ):
     """The fixed menu retains each Lit-faced control and hands off removed focus."""
@@ -515,7 +515,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     resized(page, 390, 900)
     expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
-    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
+    assert answer_all.locator(":scope > lf-item-banner-face").count() == 1
     order = page.evaluate(
         """() => [...document.querySelector('.lf-banner-menu').children,
                     ...document.querySelector('.lf-banner-actions').children]
@@ -1036,7 +1036,7 @@ def test_the_band_stays_over_the_covering_leaves_drawer(browser, serve, other_le
     the Pages drawer, which always covers the page, is no exception: the band states the
     keys the drawer answers and stays over it and its scrim, its More control live. The
     covering drawer used to stand over the band, hiding the hints it painted for the drawer
-    ("open it in a tab", "close pages") under the drawer and the scrim, where the Asks
+    ("open it in a tab", "close pages") under the drawer and the scrim, where the items
     drawer, standing beside the page, left them in view."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)

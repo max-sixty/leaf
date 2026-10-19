@@ -152,10 +152,10 @@ import { retainUserIntent } from "./user-intent.js";
 import { settleThread } from "./thread/folding.js";
 import { queueItemKey, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
-import { itemOutcome } from "./queues.js";
+import { carriesItem, itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
-import { askEnding } from "./asks/answer.js";
-import { askedInWords } from "./asks/model.js";
+import { itemEnding } from "./items/answer.js";
+import { answeredInWords } from "./items/model.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -287,7 +287,7 @@ export function createFloatingPanel({
   threadActions,
   registerChromeThreadPresentation,
   observeFeedback,
-  asks: askView,
+  items: itemView,
   queueActions,
   withdraw,
   settlement,
@@ -1079,6 +1079,9 @@ export function createFloatingPanel({
     );
     const press = view.querySelector(".lf-fp-new-reply");
     if (!node || !press) return;
+    // Focusing New reply can scroll this view to reveal the button. That scroll
+    // must not remove the focused button before its Enter press can activate it.
+    if (press === focused()) return;
     if (node.getBoundingClientRect().top >= press.getBoundingClientRect().top) return;
     waiting = null;
     paint();
@@ -1142,7 +1145,7 @@ export function createFloatingPanel({
     if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
     paint();
     // The reader draws what the view arriving holds, and lets go of what the one
-    // leaving held: a thread's messages, or the asks On shows as messages.
+    // leaving held: a thread's messages, or the items On shows as messages.
     const drawn =
       reading || before?.view === "queue" ? present({ release: reading }) : null;
     if (!changed || reducedMotion() || !pagePresented()) {
@@ -1789,12 +1792,12 @@ export function createFloatingPanel({
       }`;
   }
 
-  // ---------- On: asks answered where they are read ----------
+  // ---------- On: items answered where they are read ----------
   // The lists are the publisher's (`readQueues`): what waits on the user and on the
   // agent, a tab each, and under each what left it, its Done (`owner`). The view has no
   // name of its own: its title is the open tab's. An item the user answers here stays
   // where it stood, saying its answer and offering Undo, until the view closes, so
-  // answering one ask never carries the next under the pointer. Done stands open under
+  // answering one item never carries the next under the pointer. Done stands open under
   // the list rather than folded, since a fold opening would grow the view up from under
   // the pointer that opened it.
   let queueTab = "you";
@@ -1828,10 +1831,10 @@ export function createFloatingPanel({
     };
   };
 
-  // The undo list's entry for the gesture that answered an ask, where it can still be
+  // The undo list's entry for the gesture that answered an item, where it can still be
   // taken back (undo.js).
-  const answerGesture = (ask) => {
-    const id = ask?.answer?.event?.id ?? ask?.answer?.event;
+  const answerGesture = (item) => {
+    const id = item?.answer?.event?.id ?? item?.answer?.event;
     if (!id) return null;
     const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id,
@@ -1841,7 +1844,7 @@ export function createFloatingPanel({
   const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : "On me");
 
   function onItemCard(item, list) {
-    const ask = item.kind === "ask" ? item.ask : null;
+    const record = carriesItem(item) ? item.item : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     // A question asked in words is a message in its thread, and reads as that message,
     // drawn whole by Leaf's reader as the thread draws it (`nominate`), images and all:
@@ -1849,10 +1852,10 @@ export function createFloatingPanel({
     // above, where it has a name of its own rather than the message's opening words.
     // Where the page's package draws its conversations instead, Leaf's reader draws
     // none here, and the message's words stand for it under the thread's name.
-    const inWords = ask !== null && askedInWords(ask);
+    const inWords = record !== null && answeredInWords(record);
     const asking =
       inWords && thread
-        ? thread.msgs.find((candidate) => candidate.id === ask.message)
+        ? thread.msgs.find((candidate) => candidate.id === record.message)
         : null;
     const message = asking && presentation?.primary !== false ? asking : null;
     const title = message
@@ -1865,14 +1868,14 @@ export function createFloatingPanel({
       : asking
         ? messageReading(asking, { panel: false, reactions: [], workflows: [] }).body
             .plainText
-        : ask?.prompt?.text;
+        : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
-    const answered = ask && ask.status !== "open";
+    const answered = record && record.status !== "open";
     const choices =
-      ask && !answered && ask.source.kind === "widget" && !inWords
-        ? askView.choicesOf(ask)
+      record && !answered && record.source.kind === "widget" && !inWords
+        ? itemView.choicesOf(record)
         : null;
-    const gesture = answered ? answerGesture(ask) : null;
+    const gesture = answered ? answerGesture(record) : null;
     const discuss = thread
       ? html`<button
           type="button"
@@ -1887,13 +1890,15 @@ export function createFloatingPanel({
       class="lf-fp-quiet"
       @click=${() => {
         close();
-        void (ask ? askView.open(ask.id) : queueActions.open(queueItemKey(item)));
+        void (record
+          ? itemView.open(record.id)
+          : queueActions.open(queueItemKey(item)));
       }}
     >
       Show
     </button>`;
     let answers;
-    if (list === "done" && !ask)
+    if (list === "done" && !record)
       answers = html`<span class="lf-fp-said"
           >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
         >${thread ? discuss : nothing}`;
@@ -1902,7 +1907,7 @@ export function createFloatingPanel({
           >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said">${askEnding(ask)}</span>${
+      answers = html`<span class="lf-fp-said">${itemEnding(record)}</span>${
           gesture
             ? html`<button
                 type="button"
@@ -1913,7 +1918,7 @@ export function createFloatingPanel({
               </button>`
             : nothing
         }`;
-    else if (ask?.source.kind === "approval") {
+    else if (record?.source.kind === "approval") {
       const approval = approvalReading();
       answers = html`<button
         type="button"
@@ -1957,7 +1962,7 @@ export function createFloatingPanel({
       </button>`;
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
-    const approval = ask?.source.kind === "approval";
+    const approval = record?.source.kind === "approval";
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
@@ -1989,7 +1994,7 @@ export function createFloatingPanel({
     const card = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
     return card?.querySelector("button") ?? card;
   };
-  // An approval is an ask, always On me's, open or done.
+  // An approval is an item, always On me's, open or done.
   function arriveAtApproval() {
     chooseQueueTab("you");
     open({ view: "queue" }, { reopen: true, focus: false });

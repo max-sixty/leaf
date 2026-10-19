@@ -14,7 +14,7 @@ from render_cases_interaction import (
     LIVE_READING,
     LIVE_V1,
     LIVE_V2,
-    SEATED_ASK_PAGE,
+    SEATED_ITEM_PAGE,
     WRAP_TOP,
     live_url,
 )
@@ -47,7 +47,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     An unrelated source revision arrives while retaining the editor and restoring the
     page's reading position. Opening the reply proves the notice held genuine growth.
     """
-    source = SEATED_ASK_PAGE.replace(
+    source = SEATED_ITEM_PAGE.replace(
         "</main>",
         '<p id="reading">The next passage remains where I am reading.</p>'
         + "<p>Further context. "
@@ -748,8 +748,10 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     expect(page.locator("#standing-control")).to_be_visible()
 
 
-def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser, serve):
-    """Ask repaint keeps the list's reading; explicit arrival reveals its row."""
+def test_item_repaints_keep_the_queues_reading_until_an_explicit_arrival(
+    browser, serve
+):
+    """Item repaint keeps the list's reading; explicit arrival reveals its row."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'
@@ -770,13 +772,13 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
     drawer = page.locator(list_selector)
     drawer.evaluate(
         """list => list.addEventListener('scroll', () => {
-          if (list.scrollTop > 100) window.readLaterAsks = true;
+          if (list.scrollTop > 100) window.readLaterItems = true;
         })"""
     )
     box = drawer.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.wheel(0, 700)
-    page.wait_for_function("() => window.readLaterAsks")
+    page.wait_for_function("() => window.readLaterItems")
     scroll_settled(page, list_selector)
     reading = drawer.evaluate("list => list.scrollTop")
     assert reading > 100, "painting the standing row must not undo scrolling the list"

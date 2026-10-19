@@ -32,8 +32,8 @@ For a page with contents, start at the top at desktop and phone widths and jump 
 later section without first scrolling to find the navigation. Follow the page's links
 with pointer and keyboard, and check that each destination leaves the user oriented.
 
-For a page with asks, the check also saves the window at each of the first eight asks
-as `m` reaches it from the top (`conversation-loop.md`, "The On lists"). At each,
+For a page with items on On me, the check also saves the window at each of the first
+eight as `m` reaches it from the top (`conversation-loop.md`, "The On lists"). At each,
 confirm that the question, premise, alternatives and evidence are visible together,
 that the numbers shown match the actions offered, and that the next `m` reaches the next
 item on the user's On me list.
@@ -47,7 +47,7 @@ unfinished, along with the run of the page's code if it needed one.
 
 Stamp a record at each checkpoint the user would name, such as sign-off or the end of
 the conversation, and wherever a reference requires a stamped version, as taking in an
-answer to a page ask does (`authoring-revisions.md`). Answering a message is not a
+answer to a page's item does (`authoring-revisions.md`). Answering a message is not a
 checkpoint.
 
 ```bash
@@ -62,7 +62,7 @@ version.
 
 To finish, handle every event in the delivered batch and write the answer each
 acknowledged update's `answer` names (`event-batches.md`). A finished record ends on a
-stamped final version that honours open asks and the reports still in force; an
+stamped final version that honours open items and the reports still in force; an
 unstamped quick page can go idle directly. Then run:
 
 ```bash

@@ -26,10 +26,10 @@ survive a rewrite (`page-authoring.md`, "Stable anchors").
 Page modules follow `module-authoring.md`, "What a behavior module owes", whose rules
 keep page controls working after a reconnect and inside quoted threads.
 
-A page module that shows the asks in each card or section of its own layout reads them
-from Leaf: `readAsks()` in a `watchProjection` paint, with `asksIn(region)` selecting
-each region's asks and `askActions.next({within})` moving to the next one waiting on the
-user (`module-reading.md`, "Reading asks and obligation queues").
+A page module that shows the items in each card or section of its own layout reads them
+from Leaf: `readItems()` in a `watchProjection` paint, with `itemsIn(region)` selecting
+each region's items and `itemActions.next({within})` moving to the next one waiting on
+the user (`module-reading.md`, "Reading items and obligation queues").
 
 `leaf page check` opens the page once in the host's browser when it has code of its own,
 such as a script or a page widget, or a data widget such as a chart. It fails on any

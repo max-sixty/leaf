@@ -3,7 +3,7 @@
    A module subclasses `LeafElement` and draws in `render()`, as any `LitElement` does,
    into the element itself unless `createRenderRoot()` names a part it generated.
    `render()` reads whatever it shows through readers: the widget's own reading
-   (`this.reading`, `this.state`), a bound data source (`this.data(input)`), asks,
+   (`this.reading`, `this.state`), a bound data source (`this.data(input)`), items,
    reports, work, the time (`ago`, `clockValue`). Every reader it calls synchronously is
    collected (`collectReads`, snapshot.ts), and a move of any of them updates the element
    again, as a watcher's or a region's paint is followed; nothing else is. Lit's own

@@ -1,4 +1,4 @@
-"""Board, suggestion, ask, and widget composition tests."""
+"""Board, suggestion, question, and widget composition tests."""
 
 import re
 from itertools import pairwise
@@ -25,7 +25,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     toggle_queue,
     unfolded_button,
-    with_one_ask,
+    with_one_item,
 )
 from render_cases_navigation import (
     actions,
@@ -82,8 +82,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is one row above the panel, scrolled
     sideways, so the open item never lands below the whole queue. A row carries its
-    panel's summary under its name, and beside the name its item's ask state: an open
-    mark while the ask is unanswered, then a check and the picked option's title, said
+    panel's summary under its name, and beside the name its item's state: an open
+    mark while the item is unanswered, then a check and the picked option's title, said
     in the tab's description too. Answered is the log's reading, so an undo puts the
     open mark back once its answer is adopted, and the agent settling the question
     keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
@@ -155,7 +155,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
-    expect(answer).to_have_attribute("data-lf-asks", "open")
+    expect(answer).to_have_attribute("data-lf-items", "open")
     expect(answer).to_have_text("")
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
@@ -207,11 +207,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("z")
     holding(page, held, 1, "the undo")
-    expect(answer).to_have_attribute("data-lf-asks", "answered")
+    expect(answer).to_have_attribute("data-lf-items", "answered")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(answer).to_have_attribute("data-lf-asks", "open")
+    expect(answer).to_have_attribute("data-lf-items", "open")
     expect(answer).to_have_text("")
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. Unanswered"
@@ -285,10 +285,10 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     assert 0 <= top < 200, top
 
 
-def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
-    """An Ask in a document is prose and a control, not a workspace's region.
+def test_an_ordinary_two_part_item_retains_document_flow(browser, serve):
+    """An item in a document is prose and a control, not a workspace's region.
 
-    The control is the same Ask as a full-height workspace's body, which hands its height to
+    The control is the same item as a full-height workspace's body, which hands its height to
     the answer."""
     source = leaf_page(
         "Session-store follow-ups",
@@ -303,15 +303,15 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
 """,
     )
     page = open_page(browser, serve(source))
-    ask = page.locator("#session-triage-decision")
-    assert ask.evaluate("node => getComputedStyle(node).display") == "block"
+    item = page.locator("#session-triage-decision")
+    assert item.evaluate("node => getComputedStyle(node).display") == "block"
     assert (
-        ask.locator(":scope > h2").evaluate(
+        item.locator(":scope > h2").evaluate(
             "heading => getComputedStyle(heading).marginTop"
         )
         != "0px"
     )
-    assert ask.evaluate(
+    assert item.evaluate(
         """async node => {
           const leaf = await window.__lfWidgetApi();
           return leaf.readingPosture(node) === 'flow'
@@ -328,7 +328,7 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     expect(page.locator("#session-triage-decision")).to_have_css("display", "flex")
     page.close()
 
-    # The workspace's full height reaches every Ask in it; an Ask held in a pane is
+    # The workspace's full height reaches every item in it; an item held in a pane is
     # that pane's content, not the body, and keeps its document flow.
     in_pane = held.replace(
         '<lf-ask id="session-triage-decision">',
@@ -483,7 +483,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 <div style="height: 380px"></div>
 """,
     )
-    url = serve(with_one_ask(source))
+    url = serve(with_one_item(source))
     page = open_page(browser, url)
     resized(page, 1400, 900)
     nav = page.get_by_role("navigation", name="On this page")
@@ -2070,7 +2070,7 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     ) == [
         False,
         False,
-    ], "the authored change's emphasis crossed into the Ask's generated key hints"
+    ], "the authored change's emphasis crossed into the item's generated key hints"
 
 
 def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, serve):

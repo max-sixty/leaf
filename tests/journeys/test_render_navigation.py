@@ -32,8 +32,8 @@ from render_harness import (
     RELEASE_FOCUS,
     ROOT,
     command_reference_rows,
-    expect_items_answered,
     expect_comment_notes,
+    expect_items_answered,
     leaf_page,
     navigate,
     open_page,
@@ -71,7 +71,7 @@ def go_to_passage(page, page_dir, words):
     page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
 
 
-# An ask's digits beside a page-scoped command with a context key of its own,
+# An item's digits beside a page-scoped command with a context key of its own,
 # registered the way an authored module does.
 QUICK_KEYS_PAGE = leaf_page(
     "quick keys",
@@ -225,7 +225,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-detail > footer")).to_contain_text(
         "This revision incorporates both answers"
     )
-    # The revision settles both questions; the ask inventory retains answers
+    # The revision settles both questions; the item inventory retains answers
     # after an authored revision settles their sources (`items.py`).
     expect_items_answered(page, "2/2")
 
@@ -323,7 +323,7 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
         "enables shared refreshes for web clients"
     )
     expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
-    # The Ask reading keeps an Ask the user answered after a later version settles it
+    # The item reading keeps an item the user answered after a later version settles it
     # (`items.py`, the retained answered inventory).
     expect_items_answered(page, "1/1")
 
@@ -782,7 +782,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
 
     An Ask stood on while On me stands lets go first, then On me; a thread's Ask
     reached by `m` with Threads open leaves through the panel's own step."""
-    # A page Ask stood on while On me, which the keyboard opened, stands over the page.
+    # A page item stood on while On me, which the keyboard opened, stands over the page.
     page = open_page(browser, serve(ITEMS_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -796,7 +796,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
-    # `m` from a heading into a thread's Ask, with Threads already open: Escape puts the
+    # `m` from a heading into a thread's item, with Threads already open: Escape puts the
     # panel's view away, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.locator(".lf-fp-threads").click()
@@ -946,7 +946,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         {"kind": "resolve", "author": "user", "parent": thread},
     )
     round_trip(page)
-    expect(page.locator('.lf-margin-marker[data-lf-kinds~="ask"]')).to_have_count(0)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="on-me"]')).to_have_count(0)
     page.locator("#opts-decision").evaluate(
         "node => document.scrollingElement.scrollTo(0, node.offsetTop)"
     )
@@ -999,7 +999,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         == 1
     ), "showing deferred news announced it a second time"
 
-    # The ask route may scroll these hyperlinks out of the visible target map.
+    # The item route may scroll these hyperlinks out of the visible target map.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")

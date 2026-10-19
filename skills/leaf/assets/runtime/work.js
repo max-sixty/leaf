@@ -114,13 +114,13 @@ const done = (goal, read) => {
   return role.done.includes(roleState(goal, "goal", read));
 };
 
-// The elements of the asks waiting on the user that `goal` holds (`itemsIn`) and owns
+// The elements of the items waiting on the user that `goal` holds (`itemsIn`) and owns
 // itself: in its scope, under no nearer goal, and not a goal.
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
   return (
     itemsIn(goal, open)
-      // `itemsIn` holds widgets' asks, which each name their widget.
+      // `itemsIn` holds widgets' items, which each name their widget.
       .map((item) => elementById(/** @type {{id: string}} */ (item.source).id))
       .filter(
         (item) =>
@@ -187,7 +187,7 @@ export function readWork(scope) {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  // An ask stops work only while it waits on the user; one they left with the agent
+  // An item stops work only while it waits on the user; one they left with the agent
   // does not (items/place.js).
   const open = readItems().user.filter((item) => item.source.kind === "widget");
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));

@@ -2,12 +2,12 @@
 
 from typing import NamedTuple
 
-from ..items import approval_blocking, collection
 from ..document_reading import DocumentReading
 from ..events import UndoReading
 from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
+from ..items import approval_blocking, collection
 from ..passages import SourceReading
 from ..projection import (
     FrozenThreadReading,
@@ -40,7 +40,7 @@ class BrowserReading(NamedTuple):
 def _thread_attention(
     thread: dict, owed: bool, candidates: list[dict], todos: list[dict]
 ) -> dict | None:
-    """Whose turn one thread is: `needs_user` while an ask in it is the user's
+    """Whose turn one thread is: `needs_user` while an item in it is the user's
     (`owed`), or for an update the user must send again (`resend`); `waiting` while a
     workflow holds the thread with the agent, which covers every input
     `events.unanswered_turns` holds, or while a to-do the agent opened on it stands;
@@ -166,7 +166,7 @@ def browser_state(
             )
         )
         # The view's own reading of the log: its document, and the frozen thread
-        # widgets with the asks and attention they give, under its registry.
+        # widgets with the items and attention they give, under its registry.
         viewed = durable.viewing(page)
         reading = viewed.document
         thread, thread_reading = browser_thread(viewed, work.live_reply)
@@ -203,8 +203,8 @@ def browser_state(
             active.get("activated_at") if active_revision == revision else None,
         )
         document = browser_document(reading, revision)
-        # The view's asks are its own document's beside its frozen thread's, so it
-        # carries the lists they add up to and the asks approving it waits on.
+        # The view's items are its own document's beside its frozen thread's, so it
+        # carries the lists they add up to and the items approving it waits on.
         items = document["items"]["all"] + thread["items"]["all"]
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
@@ -246,14 +246,14 @@ def browser_state(
         **page_history,
         "views": views,
         # Approvals in force across every stamp, for Threads' event timeline.
-        # Current-version approval state lives only in its ask.
+        # Current-version approval state lives only in its item.
         "approval_history": durable.approvals,
         "activity": activity,
         "workflows": workflows,
         # Every to-do, open and ended, the one record the browser reads each from
         # (`work_reading.WorkReading.page_todos`).
         "todos": todos,
-        # The agent's outline of the work, its steps naming to-dos and asks by id
+        # The agent's outline of the work, its steps naming to-dos and items by id
         # (`plans.plan_reading`), or None.
         "plan": durable.plan,
         "receipts": [event for event in events if event.get("attempt")],

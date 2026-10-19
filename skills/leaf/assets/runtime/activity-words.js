@@ -91,7 +91,7 @@ const publicationWords = (published) => [
 ];
 
 // The updates an open turn picked up, by kind: a comment in a thread, or an answer to an
-// ask. A lone update is the user's own; several are counted.
+// item. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "the comment" : "the answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -234,7 +234,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
       adds: "",
-      items: true,
+      asks: true,
     };
   if (reach === "refused")
     return {
@@ -243,7 +243,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
       summary: "Key refused — open Leaf's link in a new tab",
       explanation: KEY_REFUSED_LINE,
       adds: "Keep this tab open so pending changes can send.",
-      items: true,
+      asks: true,
     };
   if (reach !== "reached")
     return {
@@ -320,7 +320,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     explanationParts,
     adds: textOf(addsParts),
     addsParts,
-    items: asked || waitsThere,
+    asks: asked || waitsThere,
     actionableWork,
   };
 }
@@ -330,7 +330,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
 // waits on the user on its On me mark. What a widget registered is counted as what is
 // left to answer, since only a row or the walk names it by its widget (`itemWord`).
 const QUEUE_WORDS = Object.freeze({
-  item: ["to answer", "to answer"],
+  widget: ["to answer", "to answer"],
   approval: ["approval", "approvals"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
@@ -365,7 +365,7 @@ const WITHOUT_QUEUES = new Set(["broken", "refused", "unreachable", "publication
 // publication's introduction and links, which
 // remain an ordinary reading row rather than children of the status disclosure button.
 export function statusModel(status, queues, agent) {
-  const { kind, tone, summary, items = false, publication = null } = status;
+  const { kind, tone, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
   let explanationParts = [...(status.explanationParts ?? textParts(explanation))];
   let addsParts = [...(status.addsParts ?? textParts(adds))];
@@ -398,7 +398,7 @@ export function statusModel(status, queues, agent) {
     summaryParts: status.summaryParts ?? textParts(summary),
     explanationParts,
     addsParts,
-    items,
+    asks,
     explanation,
     adds,
     publication: publicationModel,

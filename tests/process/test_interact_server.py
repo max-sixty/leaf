@@ -57,7 +57,7 @@ from interact_support import (
     said,
     spawn_probe,
     vendored_at_another_protocol,
-    vendored_before_the_item_rename,
+    vendored_before_a_key_rename,
     wait_for,
 )
 from leaf import activity as activity_model
@@ -4619,7 +4619,7 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
 ):
     """A Leaf that renamed an x- key reads only the new name, so a page an older Leaf
     vendored, at the same protocol, would lose what it declares under the old one: a
-    framed ask its prompt and landing region. The page is refused until a re-vendor,
+    framed item its prompt and landing region. The page is refused until a re-vendor,
     which the refusal names. Afterwards the revision saved since serves with the
     prompt, while the one saved before neither opens nor takes input, as a revision
     saved at another protocol does."""
@@ -4631,15 +4631,15 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
     page = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n" + framed)
     (page_dir / "index.html").write_text(page)
     revisioning_model.activate_source(page_dir)
-    vendored_before_the_item_rename(page_dir)
+    vendored_before_a_key_rename(page_dir)
     # Read as the next process does, which holds nothing of the revision saved above.
     with fresh_process():
-        _serve_after_the_item_rename(page_dir)
+        _serve_after_a_key_rename(page_dir)
 
 
-def _serve_after_the_item_rename(page_dir):
+def _serve_after_a_key_rename(page_dir):
     comment = {"kind": "comment", "author": "user", "text": "Which plan?"}
-    with pytest.raises(event_model.EventRefused, match="x-question-context") as refused:
+    with pytest.raises(event_model.EventRefused, match="x-noun") as refused:
         append_command(page_dir, {**comment, "revision": 1})
     assert f"leaf page init {page_dir}" in str(refused.value)
 
@@ -4662,9 +4662,7 @@ def _serve_after_the_item_rename(page_dir):
     try:
         status, body = fetch(f"{temporary.origin}/revisions/{old}")
         assert status == 409, body
-        assert "Revision 1 was saved by a Leaf that declares x-question-context" in (
-            body.decode()
-        )
+        assert "Revision 1 was saved by a Leaf that declares x-noun" in (body.decode())
         assert fetch(f"{temporary.origin}/revisions/{new}")[0] == 200
 
         def commented(revision):
@@ -4676,7 +4674,7 @@ def _serve_after_the_item_rename(page_dir):
         before = event_model.read_events(page_dir)
         status, body = commented(1)
         assert status == 400, body
-        assert "x-question-context" in body.decode()
+        assert "x-noun" in body.decode()
         assert event_model.read_events(page_dir) == before
         assert commented(2)[0] == 200
     finally:

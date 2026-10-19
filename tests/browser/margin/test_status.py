@@ -571,7 +571,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     only thing that changes between the two readings is who spoke last. Pickup and work
     remain secondary when another thread on the same target still needs the user.
     Rails and pins keep that priority in both color schemes, including a target
-    whose authored Ask has been handed to the agent by its comment.
+    whose authored item has been handed to the agent by its comment.
     """
     comment = {**COMMENT_ON_ITEM, "anchor": {"section": target}}
     page = open_page(
@@ -628,7 +628,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     assert _margin_entry_paint(marker) == {
         "background": with_agent["background"],
         "icon": token_colour(page, "--accent"),
-    }, "the answered thread lost its blue cue after the Ask handoff"
+    }, "the answered thread lost its blue cue after the item handoff"
     append_carried_log_record(
         serve.page_dir,
         {
@@ -952,7 +952,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     seat, so the cluster's identity survives the change of promise. Once the handoff and
     claim are complete, the margin entry leaves instead of restating widget state.
 
-    The group is single-choice so the pick itself answers the Ask: a tick in a
+    The group is single-choice so the pick itself answers the item: a tick in a
     group that waits for Done hands the agent nothing, so it has no receipt.
     """
     single = ITEM_PAGE.replace(

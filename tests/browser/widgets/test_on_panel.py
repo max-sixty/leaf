@@ -1,4 +1,4 @@
-"""On me in the floating panel: the cards that name each open and answered Ask, their
+"""On me in the floating panel: the cards that name each open and answered item, their
 identity and order, and what an answered one says."""
 
 import pytest
@@ -6,9 +6,9 @@ from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ITEMS_IN_ORDER,
+    CHANGE_SHAPES_PAGE,
     ITEM_WITH_CONTEXT_PAGE,
     ITEMS_PAGE,
-    CHANGE_SHAPES_PAGE,
     ON_ITEM_SAYS,
 )
 from render_harness import (
@@ -37,11 +37,11 @@ def open_on_me(page):
 
 def on_card(page, at):
     """The On me card for the item `at` names, such as `widget:sug-refill`."""
-    return page.locator(f'{ON_ME} .lf-fp-on-item[data-key=\'["ask","{at}"]\']')
+    return page.locator(f'{ON_ME} .lf-fp-on-item[data-key=\'["widget","{at}"]\']')
 
 
 def test_on_me_lists_open_and_answered_items(browser, serve):
-    """The panel's On me mark lists every open Ask under On me, in document order, and
+    """The panel's On me mark lists every open item under On me, in document order, and
     every answered one under Done with its current answer, so the user can review and
     revise. A twelfth widget joins by declaring x-awaits.
 
@@ -70,13 +70,13 @@ def test_on_me_lists_open_and_answered_items(browser, serve):
         ("widget:honored", "done"),
     ]
     for card in cards:
-        assert card["kind"] == "item", card
+        assert card["kind"] == "widget", card
         if card["list"] == "you":
             assert card["w"] > 100 and card["h"] > 20, (
                 f"{card['id']}'s card has no size"
             )
 
-    # The Ask leads with its authored heading rather than the first option's answer.
+    # The item leads with its authored heading rather than the first option's answer.
     said = {c["id"]: c for c in cards}
     assert said["widget:live-question"]["prompt"].startswith(
         "Where should sessions live?"
@@ -204,11 +204,11 @@ def test_item_cards_keep_identity_and_publisher_order_when_the_live_dom_moves(
     cards = page.locator(f"{ON_ME} .lf-fp-on-item")
     expect(cards).to_have_count(len(ALL_ITEMS_IN_ORDER))
     order = [
-        '["ask","widget:live-question"]',
-        '["ask","widget:sug-refill"]',
-        '["ask","widget:t-baffles-review"]',
-        '["ask","widget:t-bath-choice"]',
-        '["ask","widget:honored"]',
+        '["widget","widget:live-question"]',
+        '["widget","widget:sug-refill"]',
+        '["widget","widget:t-baffles-review"]',
+        '["widget","widget:t-bath-choice"]',
+        '["widget","widget:honored"]',
     ]
 
     page.evaluate(
@@ -220,7 +220,7 @@ def test_item_cards_keep_identity_and_publisher_order_when_the_live_dom_moves(
           window.__lfItemCards = new Map(cards.map(card => [card.dataset.key, card]));
           const honored = document.querySelector('#honored-decision');
           document.querySelector('#live-question-decision').before(honored);
-          window.__lfItemCards.get('["ask","widget:sug-refill"]').focus();
+          window.__lfItemCards.get('["widget","widget:sug-refill"]').focus();
           document.dispatchEvent(new Event('lf-presentation'));
         }"""
     )
@@ -244,13 +244,13 @@ def test_item_cards_keep_identity_and_publisher_order_when_the_live_dom_moves(
     expect(sug_refill).to_be_focused()
     assert cards.evaluate_all("items => items.map(item => item.dataset.key)") == order
     assert cards.evaluate_all(
-        "items => items.every(item => window.__lfItemCards.get(item.dataset.key) === item)"
+        "widgets => items.every(item => window.__lfItemCards.get(item.dataset.key) === item)"
     )
 
 
 def test_a_completed_item_persists_and_on_me_says_its_current_answer(browser, serve):
     """Completion survives a reload, and On me, opened from the keyboard, keeps the
-    answered Ask under Done saying its current answer, which follows a revision."""
+    answered item under Done saying its current answer, which follows a revision."""
     page = open_page(browser, serve(ITEM_WITH_CONTEXT_PAGE))
     resized(page, 1200, 900)
     expect_items_answered(page, "0/1")
@@ -264,7 +264,7 @@ def test_a_completed_item_persists_and_on_me_says_its_current_answer(browser, se
     expect_items_answered(page, "1/1")
 
     # With nothing on the user, the view opens on an empty list with Done under it; ↓
-    # enters the first card there, the Ask's.
+    # enters the first card there, the item's.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")

@@ -1,4 +1,4 @@
-/* Display wording for an ask's canonical answer. This is presentation only:
+/* Display wording for an item's canonical answer. This is presentation only:
    membership, typed values and completion come from the application publication.
    A widget family formats answerWords(value, element); prose uses its typed text or token. */
 import { widgetWord } from "../addressable-names.js";
@@ -22,7 +22,8 @@ export function itemWord(item) {
 export function answerWords(item) {
   if (item.answer === null) return "";
   if (item.source.kind === "approval") return "Approved";
-  if (answeredInWords(item)) return item.answer.value.text ?? item.answer.value.token ?? "";
+  if (answeredInWords(item))
+    return item.answer.value.text ?? item.answer.value.token ?? "";
   const source = elementById(item.source.id);
   const formatter =
     /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */ (
@@ -33,7 +34,7 @@ export function answerWords(item) {
     .trim();
 }
 
-/* How a finished ask ended, in the words a Done row and the floating panel show:
+/* How a finished item ended, in the words a Done row and the floating panel show:
    its answer, after a colon so the two never read as one phrase, an answer given
    elsewhere, or its withdrawal. */
 export function itemEnding(item) {

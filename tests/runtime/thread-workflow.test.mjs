@@ -73,7 +73,7 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
-test("thread attention gives an open user ask precedence over agent work", () => {
+test("thread attention gives an open user item precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
@@ -333,7 +333,7 @@ test("a frozen message widget keeps its exact workflow in the message and thread
 
 test("a thread this tab opened carries every field a served thread does", () => {
   const root = {
-    id: "pending:ask",
+    id: "pending:question",
     kind: "comment",
     author: "user",
     text: "Question",

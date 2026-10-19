@@ -69,7 +69,7 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     return stroke_over(page, locator, steps=steps, points=points)
 
 
-# Two joined options of one ask, with prose around them so the page scrolls them
+# Two joined options of one item, with prose around them so the page scrolls them
 # into the middle of the window and on past it.
 FILLER = "\n".join(
     f"<p id='filler-{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(12)

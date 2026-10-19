@@ -1,4 +1,4 @@
-"""Board, suggestion, ask, and widget composition tests."""
+"""Board, suggestion, question, and widget composition tests."""
 
 import re
 from itertools import pairwise
@@ -95,8 +95,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     one at a time. Where the set holds both the list is a column left of the open panel,
     walked down as well as across; on a phone it is one row above the panel, scrolled
     sideways, so the open item never lands below the whole queue. A row carries its
-    panel's summary under its name, and beside the name its item's ask state: an open
-    mark while the ask is unanswered, then a check and the picked option's title, said
+    panel's summary under its name, and beside the name its item's state: an open
+    mark while the item is unanswered, then a check and the picked option's title, said
     in the tab's description too. Answered is the log's reading, so an undo puts the
     open mark back once its answer is adopted, and the agent settling the question
     keeps the check. Answering moves no row. A tab's name is its label whatever the row shows, and a panel bounds what it
@@ -302,9 +302,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
 
 def test_an_ordinary_two_part_item_retains_document_flow(browser, serve):
-    """An Ask in a document is prose and a control, not a workspace's region.
+    """An item in a document is prose and a control, not a workspace's region.
 
-    The control is the same Ask as a full-height workspace's body, which hands its height to
+    The control is the same item as a full-height workspace's body, which hands its height to
     the answer."""
     source = leaf_page(
         "Session-store follow-ups",
@@ -344,7 +344,7 @@ def test_an_ordinary_two_part_item_retains_document_flow(browser, serve):
     expect(page.locator("#session-triage-decision")).to_have_css("display", "flex")
     page.close()
 
-    # The workspace's full height reaches every Ask in it; an Ask held in a pane is
+    # The workspace's full height reaches every item in it; an item held in a pane is
     # that pane's content, not the body, and keeps its document flow.
     in_pane = held.replace(
         '<lf-ask id="session-triage-decision">',
@@ -2075,7 +2075,7 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     ) == [
         False,
         False,
-    ], "the authored change's emphasis crossed into the Ask's generated key hints"
+    ], "the authored change's emphasis crossed into the item's generated key hints"
 
 
 def test_a_decision_travels_between_tabs_and_the_log_has_the_last_word(browser, serve):

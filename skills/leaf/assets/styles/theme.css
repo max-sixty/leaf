@@ -1660,7 +1660,7 @@ svg.drawing .danger {
  * the change is has to have. An element generating none measures (0,0) at the document's
  * origin, which is not a degenerate answer but a wrong one, naming the top of the page.
  * Four consumers met that separately and each worked around it where it stood: the ring
- * had nothing to hang on, the Ask walk's travel centred the document, a container's edge
+ * had nothing to hang on, the item walk's travel centred the document, a container's edge
  * rule reached past the wrapper to the slots, and the widget prepends a span to itself
  * for its controls to anchor from. None of the first three arises here now. The fourth
  * outlived the reason it was written for and earns its place on another: what a widget
@@ -2082,7 +2082,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   display: block;
 }
 /* The label is one line, cut where the tooltip's width runs out: most are a kind's
-   word, and an Ask's is its question, which the marker's accessible name also says. */
+   word, and an item's is its question, which the marker's accessible name also says. */
 .lf-margin-entry-label-word {
   white-space: nowrap;
   overflow: hidden;

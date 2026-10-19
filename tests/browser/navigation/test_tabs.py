@@ -48,7 +48,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     A preview can name a gallery section directly: arriving at a fragment held in a
     closed tab is one runtime path whichever section it names, so one arrival proves
     it, and the same page answers which tab holds every other destination. Each core
-    surface then opens and shows the gallery's own content: its Ask in On me, its
+    surface then opens and shows the gallery's own content: its item in On me, its
     open, resolved, and media threads in Threads, its earlier version, the other open
     page, and at phone width its Page Map. Live external data, the Threads tab's
     presets operating a sample's panel, sign-off gating, design comments and transport
@@ -127,12 +127,12 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         has_text="Which map should the sample team carry?"
     )
     expect(map_item).to_have_count(1)
-    expect(map_item).to_have_attribute("data-key", '["ask","widget:bg-choice"]')
+    expect(map_item).to_have_attribute("data-key", '["widget","widget:bg-choice"]')
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     gallery_tab("tab", name="Decisions").click()
     page.locator("#bg-question-api > summary").click()
-    page.get_by_role("button", name="Read current ask", exact=True).click()
+    page.get_by_role("button", name="Read current item", exact=True).click()
     reading = json.loads(page.locator("#bg-question-reading").inner_text())
     assert reading["id"] == "widget:bg-choice"
     assert reading["source"]["id"] == "bg-choice"

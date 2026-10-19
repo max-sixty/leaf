@@ -573,13 +573,13 @@
   }
   /* Page tabs told they have a definite height to fill (`--lf-full-height`, layouts.css),
    * as a full-height workspace's body is, give the open tab what the strip leaves. A tab
-   * that is one block, such as a playground's Ask, passes that height on and says so,
-   * so the playground fills the window as it does when its Ask is the body. A tab of
+   * that is one block, such as a playground's lf-ask, passes that height on and says so,
+   * so the playground fills the window as it does when its lf-ask is the body. A tab of
    * reading keeps its flow, and where it runs longer the body scrolls under the sticky
    * strip. */
   @container style(--lf-full-height: 1) {
     /* The set is the body's scroller here, and a block filling it, such as the
-     * playground's Ask, would lose its ring's sides to the scroller's edges, so the set
+     * playground's lf-ask, would lose its ring's sides to the scroller's edges, so the set
      * keeps the ring's room inside them; its margin gives the inline room back, so the
      * strip and the panel keep the edges they had. */
     :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] {

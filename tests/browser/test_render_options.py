@@ -18,11 +18,11 @@ from leaf import service as service_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    CHIP_PAGE,
+    INLINE_CASE_PAGE,
     ITEM_PAGE,
     ITEM_SHAPES_PAGE,
     ITEM_WITH_CONTEXT_PAGE,
-    CHIP_PAGE,
-    INLINE_CASE_PAGE,
     NESTED_ITEM_PAGE,
     SETTLED_ITEM_PAGE,
     STACKED_OPTIONS_PAGE,
@@ -251,7 +251,7 @@ def test_a_row_too_narrow_to_dock_a_rail_stacks_it_instead(browser, serve):
 
 
 def test_a_live_card_pick_uses_header_state_and_remains_pressable(browser, serve):
-    """A completed Ask keeps the same live-card state when reopened for review."""
+    """A completed item keeps the same live-card state when reopened for review."""
     page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
     mark = page.locator("#opt-lax .lf-pick")
@@ -586,7 +586,7 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
 
 
 def test_item_addresses_are_screen_only_apparatus(browser, serve):
-    """An Ask's key hints stay out of selected page words and off paper."""
+    """An item's key hints stay out of selected page words and off paper."""
     page = open_page(browser, serve(ITEM_WITH_CONTEXT_PAGE))
     page.keyboard.press("m")
     badges = page.locator("#storage-options > lf-option > .lf-key-badge")
@@ -604,7 +604,7 @@ def test_item_addresses_are_screen_only_apparatus(browser, serve):
         }"""
     )
     assert "1" not in selected and "2" not in selected, (
-        f"the Ask's binding digits came away with its authored words: {selected!r}"
+        f"the lf-ask's binding digits came away with its authored words: {selected!r}"
     )
     assert badges.evaluate_all(
         "els => els.every(el => getComputedStyle(el).userSelect === 'none')"
@@ -677,7 +677,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     assert ring["atOpeningEdge"], f"the ring is not in the card's state slot: {ring}"
 
     # And a user arriving by keyboard can see the exact row they landed on. The
-    # permanent group frame stays put, the Ask's external location band stands
+    # permanent group frame stays put, the item's external location band stands
     # down, and one inset ring belongs to the active row. A real Tab verifies the
     # keyboard route as well as the shared focus treatment.
     # Read as a style rather than a width, because `outline: none` leaves
@@ -779,7 +779,7 @@ def test_an_open_option_ring_stays_visible_at_rest(browser, serve, color_scheme)
 def test_an_item_leads_with_one_authored_heading(browser, serve):
     """The question is document content above the answers, never generated group chrome.
 
-    Each shape of Ask is read on the one page that holds them all."""
+    Each shape of item is read on the one page that holds them all."""
     page = open_page(browser, serve(ITEM_SHAPES_PAGE))
     for item, group, question in (
         ("cards-decision", "cards", "Where should a session live?"),
@@ -800,7 +800,7 @@ def test_an_item_leads_with_one_authored_heading(browser, serve):
 def test_a_first_item_starts_at_the_pages_content_edge_even_in_a_live_sample(
     browser, serve
 ):
-    """An Ask's heading begins at the edge of the frame that holds it."""
+    """An item's heading begins at the edge of the frame that holds it."""
     page = open_page(
         browser,
         serve(
@@ -838,7 +838,7 @@ def test_a_first_item_starts_at_the_pages_content_edge_even_in_a_live_sample(
                   - parseFloat(getComputedStyle(main).paddingTop);
             }"""
         )
-        assert abs(gap) < 1, f"the first Ask leaves {gap}px above its question"
+        assert abs(gap) < 1, f"the first lf-ask leaves {gap}px above its question"
 
     framed_gap = page.locator("#own-frame").evaluate(
         """frame => {
@@ -850,13 +850,15 @@ def test_a_first_item_starts_at_the_pages_content_edge_even_in_a_live_sample(
               - parseFloat(style.paddingTop);
         }"""
     )
-    assert abs(framed_gap) < 1, f"a framed Ask leaves {framed_gap}px above its question"
+    assert abs(framed_gap) < 1, (
+        f"a framed lf-ask leaves {framed_gap}px above its question"
+    )
     later_gap = page.locator("#later-ask > h2").evaluate(
         """heading => heading.getBoundingClientRect().top
           - document.querySelector('#between-asks').getBoundingClientRect().bottom"""
     )
     assert abs(later_gap - 48) < 1, (
-        f"an Ask later in the page keeps {later_gap}px rather than 48px above its question"
+        f"an lf-ask later in the page keeps {later_gap}px rather than 48px above its question"
     )
 
 
@@ -1259,7 +1261,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
 def test_one_band_says_where_the_user_is_standing(browser, serve):
     """The user's band is drawn once, on the exact option row being worked.
 
-    The Ask retains its semantic location marker, but its exterior outline would
+    The item retains its semantic location marker, but its exterior outline would
     look like a second group border and vanish as state changes. The active row carries
     keyboard location instead; the group's permanent frame does not change."""
     page = open_page(browser, serve(ITEM_WITH_CONTEXT_PAGE))
@@ -1473,7 +1475,7 @@ def test_a_group_says_how_many_of_it_the_user_may_take(browser, serve):
 
 
 def test_only_bound_cards_yield_their_header_state_to_the_item(browser, serve):
-    """An Ask binding badge replaces only the state control on the card that owns it.
+    """An item binding badge replaces only the state control on the card that owns it.
 
     A package may contribute more actions than the nine contextual number bindings.
     The remaining cards still need their checkboxes: hiding every sibling as soon as
@@ -1539,12 +1541,12 @@ def test_an_item_inside_an_option_keeps_its_own_arity(browser, serve):
 
 
 def test_a_nested_items_commands_belong_only_to_their_own_item(browser, serve):
-    """An Ask projects commands from its answer source, but containment alone does
-    not confer ownership: a second Ask may stand inside an option as evidence.
+    """An item projects commands from its answer source, but containment alone does
+    not confer ownership: a second item may stand inside an option as evidence.
 
-    The outer Ask must therefore expose only its two choices. Otherwise both numbered
+    The outer item must therefore expose only its two choices. Otherwise both numbered
     command sets collide when the user navigates there, and the inner question either
-    breaks the key routes or lends its answers to the wrong Ask.
+    breaks the key routes or lends its answers to the wrong item.
     """
     page = open_page(browser, serve(NESTED_ITEM_PAGE))
     page.keyboard.press("m")
@@ -1993,7 +1995,7 @@ def test_a_pick_states_the_whole_set(browser, serve):
     ]
     expect(
         page.locator('[data-lf-margin-for="bracket-decision"] .lf-margin-marker')
-    ).to_have_attribute("data-lf-kinds", "item")
+    ).to_have_attribute("data-lf-kinds", "on-me")
 
 
 def test_a_send_waits_for_the_send_before_it(browser, serve):
@@ -2498,7 +2500,7 @@ def test_a_thread_items_done_press_keeps_its_keys_and_one_workflow(browser, serv
 
 
 def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
-    """A titled card's pick mark and the digit the Ask walk puts in its place share one
+    """A titled card's pick mark and the digit the item walk puts in its place share one
     seat in the card's corner, and a margin pin standing in that corner steps below the
     controls it finds there. It found the 11px mark alone, so once an answer brought the
     pin it stood over the lower edge of the first card's digit, which then gave way to a
@@ -2542,10 +2544,10 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
 
 
 def test_an_item_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve):
-    """The walk hangs an Ask control's digit off the control's upper-left corner. In the
-    notification playground at 1024px its Create button wraps under Reset and Copy, 8px
-    below them, and a digit hung on that corner stood over Reset's; it now takes the first
-    corner that stands over no other control."""
+    """The walk hangs an item control's digit off the control's upper-left corner. In
+    the notification playground at 1024px its Create button wraps under Reset and Copy,
+    8px below them, and a digit hung on that corner stood over Reset's; it now takes the
+    first corner that stands over no other control."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "notification-playground"))
     )

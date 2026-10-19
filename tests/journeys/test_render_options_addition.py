@@ -22,7 +22,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve):
     """The empty route borrows Add's seat, then both actions keep stable seats."""
     page = open_page(browser, serve(ITEM_PAGE))
-    # The second Ask carries the card presentation, which is where the row's trailing
+    # The second item carries the card presentation, which is where the row's trailing
     # room is contested: its options wear their binding badges at the corner, so the
     # draft's badge is the one that had the edge.
     page.keyboard.press("m")

@@ -1,4 +1,4 @@
-"""Widget actions and decisions: verbs local to their owning widget, declared Ask
+"""Widget actions and decisions: verbs local to their owning widget, declared item
 conditions, replay and undo, and suggestion settlements retiring their slots."""
 
 import json
@@ -65,7 +65,7 @@ def thread_quote(page, page_dir):
 def test_a_projected_attribute_opens_an_item_captured_from_authored_markup(
     browser, serve
 ):
-    """Predicate operands survive upgrade even when the Ask starts closed."""
+    """Predicate operands survive upgrade even when the item starts closed."""
     entry = {
         "description": "A test-owned conditional Ask.",
         "type": "object",
@@ -135,7 +135,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         told(page)
         if count:
             expect_items_answered(page, "0/1")
-        # The phase move is the agent's to answer. The ask leaves the user's
+        # The phase move is the agent's to answer. The item leaves the user's
         # queue when its condition closes, retaining its withdrawn card under Done.
         # An open view keeps its cards seated, so each reading is a fresh opening.
         if view.count():

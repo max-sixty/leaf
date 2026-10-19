@@ -1,4 +1,4 @@
-"""`WorkReading`: the to-dos, asks, plan and workflows one document and its log hold.
+"""`WorkReading`: the to-dos, items, plan and workflows one document and its log hold.
 
 Its readings come from the event log and one revision's document and registry.
 Admission builds it against the newest revision, under the registry of the page that
@@ -12,9 +12,9 @@ state. A `WorkReading` lasts for one transaction and is never written to disk.
 
 from functools import cached_property
 
-from .items import collection, replied, thread_item_readings
 from .document_reading import read_document
 from .events import approvals_in_force, build_threads
+from .items import collection, replied, thread_item_readings
 from .plans import plan_reading
 from .projection import frozen_thread_reading
 from .read_state import content_version
@@ -46,8 +46,8 @@ class WorkReading:
     def viewing(self, page) -> "WorkReading":
         """This log read beside another revision's document, as a view pinned to that
         revision shows it. That revision captured its frozen thread widgets under its
-        own registry, so their decisions, the asks they answer and the attention those
-        asks give a thread are classified under it, as the page's own are. The threads
+        own registry, so their decisions, the items they answer and the attention those
+        items give a thread are classified under it, as the page's own are. The threads
         themselves fold as every reading of them does, under the published page's
         containment (`events.build_threads`)."""
         if page is self.page:
@@ -87,7 +87,7 @@ class WorkReading:
     @cached_property
     def prompts(self) -> dict:
         """Each thread's question the user owes words to: the latest open
-        reply-answered ask on them there, by its message and that message's content
+        reply-answered item on them there, by its message and that message's content
         version, which the thread's head marks Waiting on me."""
         prompts = {}
         for item in self.widget_items["user"]:

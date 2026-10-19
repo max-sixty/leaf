@@ -55,7 +55,7 @@ var queueWidgetUpdate = (widget, update) => schedule.enqueue(
 var PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  asks: 2
+  items: 2
 });
 var documentPresenters = [];
 var publications = applicationState.select((root) => root);

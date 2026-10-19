@@ -98,7 +98,7 @@ test("accepted messages and user obligations arrive together after a quiet basel
     threads: [
       thread(
         "t",
-        [message("old", { unread: false }), message("new", { seq: 2, item: true })],
+        [message("old", { unread: false }), message("new", { seq: 2 })],
         { kind: "needs_user", reason: "widget" },
         { message: "new", version: "new" },
       ),
@@ -181,7 +181,7 @@ test("a second question in the same waiting thread has its own source version", 
     threads: [
       thread(
         "t",
-        [message("first", { item: true })],
+        [message("first")],
         { kind: "needs_user", reason: "widget" },
         { message: "first", version: "first" },
       ),
@@ -195,7 +195,7 @@ test("a second question in the same waiting thread has its own source version", 
       threads: [
         thread(
           "t",
-          [message("first", { item: true }), message("second", { seq: 2, item: true })],
+          [message("first"), message("second", { seq: 2 })],
           { kind: "needs_user", reason: "widget" },
           { message: "second", version: "second" },
         ),
@@ -409,7 +409,7 @@ test("one producer notice states a reply and new obligation as separate facts", 
     threads: [
       thread(
         "t",
-        [message("answer", { agent: "Sam", item: true })],
+        [message("answer", { agent: "Sam" })],
         { kind: "needs_user", reason: "widget" },
         { message: "answer", version: "answer" },
       ),

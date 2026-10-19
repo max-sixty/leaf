@@ -1123,11 +1123,11 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     browser, serve, live_leaf
 ):
     """A held key repeats keydown where a real button fires once. A walk wants that — t
-    down threads, q down Asks, arrows down the drawer — and a press that toggles or navigates
-    does not: a held `]` was a page navigation per repeat, and a held pick a `choose` per
-    repeat, each of them one decision the user made once. So a row says whether it
-    repeats and the default is no, where before only `offer`'s own listener had thought
-    about it and the global table had not.
+    down threads, q down items, arrows down the drawer — and a press that toggles or
+    navigates does not: a held `]` was a page navigation per repeat, and a held pick a
+    `choose` per repeat, each of them one decision the user made once. So a row says
+    whether it repeats and the default is no, where before only `offer`'s own listener
+    had thought about it and the global table had not.
 
     No gesture Playwright makes carries the repeat flag, so the press is dispatched with
     it set. That is the event a held key sends and the handler under test is the one the
@@ -1149,7 +1149,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
 
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision[data-lf-item]")).to_have_count(1)
-    page.evaluate(press, ["m", True])  # the same grammar repeats for asks
+    page.evaluate(press, ["m", True])  # the same grammar repeats for items
     expect(page.locator("#sug-refill[data-lf-item]")).to_have_count(1)
 
     drawer = page.locator('.lf-fp-view[data-view="leaves"]')
@@ -1217,7 +1217,7 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
 def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):
     """A margin marker is placed in the document beside the words it marks, outside
     `.lf-chrome`, and the standing floor used to read that container to tell a
-    destination from a control. So a marker reached by Tab wore the let-go of an Ask
+    destination from a control. So a marker reached by Tab wore the let-go of an item
     or a heading — "let go" — where the Threads toggle beside it, which is a control
     of the same standing, backs out onto the page. The floor asks `inUi` now, the one
     reading of which layer a node is in, and a marker gets the same word as the toggle.
@@ -1237,11 +1237,11 @@ def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve)
 
 
 def test_an_items_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
-    """A pick inside an Ask wears the chrome face, as a margin marker does, and is not
+    """A pick inside an item wears the chrome face, as a margin marker does, and is not
     a control of Leaf's for all that: it is inside a destination, so Escape lets go of
-    it onto the page. The Ask is the asks view's own reading rather than the ring's
-    paint, which only the Ask the walk stands at wears, so the word does not change
-    under an unmoved focus when Space answers the Ask and the ring comes off."""
+    it onto the page. The item is the items view's own reading rather than the ring's
+    paint, which only the item the walk stands at wears, so the word does not change
+    under an unmoved focus when Space answers the item and the ring comes off."""
     page = open_page(browser, serve(BINDING_BADGE_PAGE))
     pick = page.locator("#cards .lf-pick").first
     pick.focus()
@@ -1511,7 +1511,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
 @pytest.mark.parametrize("entry", ["walk", "option", "aim"])
 def test_comment_escape_returns_to_its_authored_parent(browser, serve, entry):
     """Closing a comment removes one layer: composer, then its authored subject.
-    The same Ask is the parent when walking, standing on an option, or aiming at
+    The same item is the parent when walking, standing on an option, or aiming at
     its heading; entry history cannot change its Escape route."""
     page = open_page(browser, serve(WHERE_I_STAND_PAGE))
     item = page.locator("#shape-decision")

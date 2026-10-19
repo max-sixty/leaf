@@ -86,7 +86,7 @@ export const queueWidgetUpdate = (widget, update) =>
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, and the ask view resolves
+// thread resolves its passages over the nodes that leaves, and the item view resolves
 // the widget nodes those passages placed. Declaring the order here is what lets every
 // publisher simply publish.
 export const PRESENTATION_ORDER = Object.freeze({

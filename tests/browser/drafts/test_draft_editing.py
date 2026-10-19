@@ -331,7 +331,7 @@ def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
 def test_a_draft_in_an_item_takes_no_digits_and_answers_from_its_controls(
     browser, serve
 ):
-    """A draft lends its Ask no digits, so a digit typed while standing on the Ask
+    """A draft lends its item no digits, so a digit typed while standing on the item
     or in the editor is not a command; the user Tabs to Edit and saves with
     Mod+Enter."""
     original = "Keep **this** source editable."

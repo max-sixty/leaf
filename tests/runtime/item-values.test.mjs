@@ -10,7 +10,7 @@ import { servedItemValues } from "../served.mjs";
 const cases = servedItemValues();
 
 for (const fixture of cases) {
-  test(`Ask value agrees with Python: ${fixture.name}`, () => {
+  test(`Item value agrees with Python: ${fixture.name}`, () => {
     const authored = new Map([
       [
         "owner",

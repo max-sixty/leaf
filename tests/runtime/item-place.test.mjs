@@ -3,7 +3,7 @@ import test from "node:test";
 import { itemsIn, itemPlace } from "/runtime/items/place.js";
 import { itemHolding } from "/runtime/standing-target.js";
 
-test("shared context keeps placement and containment specific to each ask", () => {
+test("shared context keeps placement and containment specific to each item", () => {
   document.body.innerHTML =
     '<section id="context"><div id="first"><button>One</button></div><div id="second"><button>Two</button></div></section>';
   const item = (id) => ({
@@ -31,7 +31,7 @@ test("shared context keeps placement and containment specific to each ask", () =
   }
 });
 
-test("a region holds the live widget asks whose source is it or stands under it", () => {
+test("a region holds the live widget items whose source is it or stands under it", () => {
   document.body.innerHTML =
     '<section id="queue"><div id="item"><div id="first"></div><div id="gone"></div></div></section><div id="outside"></div>';
   const item = (id, status = "open", kind = "widget") => ({

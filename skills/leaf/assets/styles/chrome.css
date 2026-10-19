@@ -187,7 +187,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
    It is an outline, so it moves nothing. A widget carrying the location itself stands
    it down with `--lf-item-ring: none` on the decision. */
 /* The ring stands outside the decision, so a landing keeps its room at the scroller's
-   edge, as a margin entry's does (theme.css): an ask landed at the top of a scrolling
+   edge, as a margin entry's does (theme.css): an item landed at the top of a scrolling
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
 [data-lf-item] {
   outline: var(--lf-item-ring, var(--focus-ring));
@@ -1024,7 +1024,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     top: 0;
     display: block;
   }
-  /* Ask binding badges sit on the answer control's upper-left corner: the single digit is
+  /* Item binding badges sit on the answer control's upper-left corner: the single digit is
      a local label for the control it touches. */
   .lf-command-binding-badge {
     transform: translate(-50%, -50%);

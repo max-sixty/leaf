@@ -134,7 +134,7 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     """A turn that ends without answering settles what it was given, whatever it was.
 
     The hosted site starts a turn for every move that owes an answer: a message or
-    an answer to a page Ask. Each takes the failure its own answer takes, and each
+    an answer to a page item. Each takes the failure its own answer takes, and each
     leaves the next step with the user, so none stays owed with no turn coming for
     it. A pick stays in force on the page, and the workflow says it was
     not answered until the user answers again. A message is told in its own

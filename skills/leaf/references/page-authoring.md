@@ -28,7 +28,7 @@ have to picture from a description, and put that thing on the page in its own fo
   show that effect in one of the forms above, with the code beside it.
 
 Pages that decide, plan or review show their subject the same way: a work item that
-fixes a visible fault shows the fault, and an ask's options show what each answer gives
+fixes a visible fault shows the fault, and a decision's options show what each answer gives
 the user (`authoring-decisions.md`). A table or list whose rows say where things sit, how
 large they are or what connects to what should be a drawing.
 
@@ -96,7 +96,7 @@ table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
   a postmortem beside its timeline, is a `layout-sidebar` page (`page-layout.md`, "A
   sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
-  views that share one history, Threads list and set of asks; a tabbed section holds
+  views that share one history, Threads list and On me list; a tabbed section holds
   local alternatives within a view. The `lf-tabs` entry says which placement makes
   which.
 

@@ -11,7 +11,6 @@ from interact_support import (
     SUGGESTED,
     append_carried_log_record,
     append_command,
-    items_on_user,
     before_choice,
     check_findings,
     command_findings,
@@ -20,6 +19,7 @@ from interact_support import (
     drafted,
     edit,
     found,
+    items_on_user,
     page_state,
     publish,
     published,
@@ -1488,7 +1488,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
 
 
 def test_a_closed_thread_stops_asking(page_dir):
-    """Resolving a thread suppresses its ask attention while retaining inventory."""
+    """Resolving a thread suppresses its item attention while retaining inventory."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = append_carried_log_record(

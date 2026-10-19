@@ -4,13 +4,13 @@
 
    What waits on the user is the application's one reading, `queues.on_user`
    (the server's `served_state.queues`, with this tab's sends placed against it): each open
-   ask or to-do on the user, each thread holding a resend, and each page widget action
+   item or to-do on the user, each thread holding a resend, and each page widget action
    handed back to them. The walk does not decide membership; it stops once at each place
-   an item is arrived at, so a thread holding an open ask is reached as that ask. `t` still walks every open thread
+   an item is arrived at, so a thread holding an open item is reached as that item. `t` still walks every open thread
    (navigation.js).
 
    Arrival belongs to the item's owner, so the walk adds no arrival of its own beside
-   theirs: an ask arrives through the ask view's `arriveAtRecord`; a thread through the
+   theirs: an item arrives through the item view's `arriveAtRecord`; a thread through the
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
    lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
    onto the widget the action was made on, the element, or the page's head; the
@@ -27,29 +27,29 @@
    `walkOrigin` reads that place from the browser on each press, for this walk and the
    thread walk alike. There is no remembered destination underneath those readings, and
    the chrome is a binding badge, not a page position, so its controls do not become the
-   walk's origin. The user stands on an item when they stand in its ask, in its thread
+   walk's origin. The user stands on an item when they stand in its widget, in its thread
    (`threadHere`), or in its widget or element, and the press steps off it. Standing on
    a to-do Done ends, `x` is that Done, a step in the panel's row under a finger
    (`queue-api.js`, `done`): the user's `todo_end`, which leaves On me in the turn it is
    pressed.
 
-   Page order is each item's place in the page as rendered: an ask's own element, or its
-   thread's passage for an ask seated in a thread; a thread's passage; the widget an action
+   Page order is each item's place in the page as rendered: an item's own element, or its
+   thread's passage for an item seated in a thread; a thread's passage; the widget an action
    was made on or the element a to-do is on; the page's head for a to-do on the whole
    page. An item with no place on the page, a general thread or one whose passage is
    gone, comes after every placed one in the list's own order, as the t/T walk reaches
    such threads from its list's ends. A step past either end comes round to the other.
 
    The walk can also step within one region of the page (`itemActions.next`, as an
-   `lf-tally`'s Next on me presses it): its stops are then the asks waiting on the user
+   `lf-tally`'s Next on me presses it): its stops are then the items waiting on the user
    that the region holds (`itemsIn`, items/place.js), stepped by the same standing and
    page order, and its position counts them alone. A press from outside the region, such as
-   one on the tally's own control above it, counts from the ask the user last went to, if
+   one on the tally's own control above it, counts from the item the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
    control, so they keep it, while any other move the user makes ends it. Without one it
-   counts from the first of the region's asks they see, as a place they are at without
+   counts from the first of the region's items they see, as a place they are at without
    standing on it, and with none in sight it enters at the region's edge, Next at the
-   first and Previous at the last. That ask, kept by identity
+   first and Previous at the last. That item, kept by identity
    so a revision replacing its node keeps it, is the one place the walk keeps, and only
    this case reads it: anywhere else the user's own place decides.
 
@@ -69,7 +69,7 @@ import { itemWord } from "./items/answer.js";
 import { answeredInWords, readItems } from "./items/model.js";
 import { itemsIn, itemPlace } from "./items/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
-import { itemNoun } from "./queues.js";
+import { carriesItem, itemNoun } from "./queues.js";
 import { drawnThreadId } from "./thread/selectors.js";
 import { watchProjection } from "./projection-watch.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -84,26 +84,24 @@ const NOUNS = Object.freeze({
   page: "To-do",
   approval: "Approval",
 });
-// What a stop is called: an ask by its widget's own word, else by where it is arrived
+// What a stop is called: an item by its widget's own word, else by where it is arrived
 // at, but a to-do on an element is a To-do rather than the Update a widget's stop
 // otherwise is.
 const nounOf = (item, stop) =>
-  item.kind === "item" && stop.kind !== "approval"
+  carriesItem(item) && stop.kind !== "approval"
     ? itemWord(item.item)
     : stop.kind === "widget" && itemNoun(item) === "todo"
       ? "To-do"
       : NOUNS[stop.kind];
 
-// Where an item of either list, or one that is done, is arrived at: a widget ask by
-// the ask's own id, a question asked in words in a thread, like anything else, by the
+// Where an item of either list, or one that is done, is arrived at: a widget item by
+// the item's own id, a question asked in words in a thread, like anything else, by the
 // thread it stands in, a to-do on the page as a whole at the page's head, or else the
 // element it stands on, as an action is arrived at on the widget it was made on.
 const stopOf = (item) =>
-  item.kind === "item" && item.item.source.kind === "approval"
+  item.kind === "approval"
     ? { kind: "approval", id: item.id, thread: null }
-    : item.kind === "item" &&
-        item.item.source.kind === "widget" &&
-        !(item.thread !== null && answeredInWords(item.item))
+    : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.item))
       ? { kind: "item", id: item.id, thread: item.thread, item: item.item }
       : item.thread !== null
         ? { kind: "thread", id: item.thread, thread: item.thread }
@@ -164,18 +162,18 @@ export function createQueueWalk({
     return byRenderedOrder(list, (stop) => stop.place);
   }
 
-  // The stops of a walk within `region`: the asks waiting on the user it holds.
+  // The stops of a walk within `region`: the items waiting on the user it holds.
   function stopsWithin(region) {
     const held = new Set(itemsIn(region).map((item) => item.id));
     return stops().filter((stop) => stop.kind === "item" && held.has(stop.id));
   }
   const stopsOf = (region) => (region ? stopsWithin(region) : stops());
 
-  // The item the user stands on, if any: the thread holding them, the ask holding their
+  // The item the user stands on, if any: the thread holding them, the item holding their
   // place, or the innermost element that does, in page order the last that holds them,
-  // as `itemHolding` reads asks. The page's own stop is its head element alone, never
+  // as `itemHolding` reads items. The page's own stop is its head element alone, never
   // what that holds, since on a page without a heading the head is `main`. Standing in
-  // a thread that holds an open ask is not standing on that ask. `here` is the place
+  // a thread that holds an open item is not standing on that item. `here` is the place
   // the step counts from, the user's own unless a caller names another.
   function standingStop(list, { place: here, kind } = walkOrigin()) {
     if (kind !== "standing") return null;
@@ -210,11 +208,11 @@ export function createQueueWalk({
   // The stop `dir` steps to, and whether it came round an end to reach it: off the one
   // the user stands on, else from their place by the page walks' rule (`stepFrom`,
   // standing-target.js). Within a region, a place outside it enters at the end the step
-  // faces. `enter` starts inside a selected tab's panel; `at` starts at a visible ask
+  // faces. `enter` starts inside a selected tab's panel; `at` starts at a visible item
   // without stepping off it.
   function step(list, dir, region, origin) {
     // Outside the region nothing the user stands on is one of its stops, even where the
-    // press sits inside an ask's context.
+    // press sits inside the lf-ask around an item.
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
     const standing = standingStop(list, origin);
     if (standing) return cycledRow(list, standing, dir);
@@ -244,7 +242,7 @@ export function createQueueWalk({
     );
   }
 
-  // An answered ask is arrived at the same way, which is how On me's Done
+  // An answered item is arrived at the same way, which is how On me's Done
   // rows return the user to one to review or revise it.
   function arriveAt(stop) {
     if (stop.kind === "item") {
@@ -405,8 +403,8 @@ export function createQueueWalk({
   // An On me row arrives where the walk would, whichever list its item is on.
   const arriveAtItem = (item) => arriveAt(stopOf(item));
 
-  // The id of the ask the user last went to, for a walk within a region pressed from
-  // outside it. Sequential navigation passes over what it crosses, so it keeps the ask.
+  // The id of the item the user last went to, for a walk within a region pressed from
+  // outside it. Sequential navigation passes over what it crosses, so it keeps the item.
   let wentTo = null;
   onStanding((node, cause) => {
     if (cause === "step") return;
@@ -425,7 +423,7 @@ export function createQueueWalk({
     if (under(here.place, within)) return walk(toward, within, here);
     if (kept)
       return walk(toward, within, { place: itemPlace(kept).source, kind: "standing" });
-    // What the user reads in the region: the first of its asks any of which they see,
+    // What the user reads in the region: the first of its items any of which they see,
     // where they are without standing on it, so a waiting one is the next and an
     // answered one leads to the next after it.
     const clips = new Map();

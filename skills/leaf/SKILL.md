@@ -75,7 +75,7 @@ line for each refusal or note, with the words in `error` or `text`.
    page renders; the reading shows what you meant.
    `references/page-checkpoints.md`, "Stamp checkpoints", says when to stamp
    again; each later stamp repeats the render check and the reading for the views
-   and asks it adds. A quick page takes this review once a stamp makes it a record.
+   and On me items it adds. A quick page takes this review once a stamp makes it a record.
 5. Read the contract that "Harness selection" below picks. Follow
    `references/conversation-loop.md`, "Status and handoff", and serve and hand
    over the page the way that contract says.
@@ -120,7 +120,7 @@ side on a sidebar page, or a workspace the user moves through instead of
 scrolling. A Layout class on `main` sets the shape, and the page's own CSS
 adjusts it. `references/page-authoring.md`, "Composing a page", owns the choice
 of shape, `references/page-layout.md` each shape's geometry, and
-`references/authoring-decisions.md` where each ask goes.
+`references/authoring-decisions.md` where each decision goes.
 
 Include only controls and gestures that advance the user's task. Widget actions,
 resolutions and sign-offs can be undone; sent words stay in the log.
@@ -169,7 +169,7 @@ never have to follow a chain of references to find one.
 ### First handoff
 
 - `references/conversation-loop.md`: before a page handoff, starting work on the page,
-  work long enough to delegate, or asking the user to do something no ask answers.
+  work long enough to delegate, or asking the user to do something no widget answers.
 - The contract "Harness selection" picks: before the first handoff and when a
   delivery arrives.
 
@@ -189,7 +189,7 @@ never have to follow a chain of references to find one.
   session's page.
 - `references/module-authoring.md`: before writing or changing browser behavior in
   a page script, page-owned widget or package widget. Then, as the behavior needs
-  them: `references/module-reading.md` for reading the page, content helpers, asks
+  them: `references/module-reading.md` for reading the page, content helpers, items
   and history; `references/module-state.md` for recorded state and data;
   `references/module-input.md` for commands, focus and text entry;
   `references/module-scroll-and-motion.md` for scrolling, travel and motion; and

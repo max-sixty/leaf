@@ -295,7 +295,7 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
 
 
 def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
-    """Chrome may not publish stale asks before the log has answered.
+    """Chrome may not publish stale items before the log has answered.
 
     The log has accepted the page's one suggestion. Holding the first replay makes the
     dangerous interval deterministic: discussion stays available, but the On me mark

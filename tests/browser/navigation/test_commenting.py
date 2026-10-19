@@ -316,7 +316,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
 
     Where they are standing is the unanswered decision first, because that is what the page
-    has already told them: markHere rings the whole ask when m/M lands on its control.
+    has already told them: markHere rings the whole item when m/M lands on its control.
     Below a decision it is the innermost item, which is the aim's own reading — so a focused
     link speaks for the paragraph holding it, no id of its own being what an anchor needs.
 
@@ -403,7 +403,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
         ).startswith("§ option · "), "the box named the question, not the option"
         drop()
 
-    # Below any ask, the innermost item: the paragraph the focused link sits in.
+    # Below any item, the innermost item: the paragraph the focused link sits in.
     rendered(page)
     passage_link = page.locator("#p1 a")
     passage_link.focus()
@@ -427,15 +427,15 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     Nothing the user did moved either, which is the whole of the complaint; the reply
     phase here is what says the ring has stopped tracking the count rather than merely
     tracking it late. `c` names the user's own thread throughout, because its target,
-    the widget, lies within the Ask the user holds (`commentDestination`), and the press
-    lands in that thread's reply box.
+    the widget, lies within the item the user holds (`commentDestination`), and the
+    press lands in that thread's reply box.
 
     A picked group is the control on the other side. It is answered, so it is off both
     readings and must stay off: the switch is about a seat the user is mid-sentence in,
     not about reopening what a pick has closed.
 
-    The seat and the ask are the project widget SEATED_ITEM_ENTRY declares, for the reason
-    test_a_seat_thread_leaves_the_pick_it_is_about_live gives."""
+    The seat and the item are the project widget SEATED_ITEM_ENTRY declares, for the
+    reason test_a_seat_thread_leaves_the_pick_it_is_about_live gives."""
     url = serve(
         leaf_page(
             "mid-sentence",
@@ -472,10 +472,10 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     page = open_page(browser, url)
 
-    # The completion count includes every active Ask: the authored pick is complete;
-    # the seated Ask and suggestion are not.
+    # The completion count includes every active item: the authored pick is complete;
+    # the seated item and suggestion are not.
     expect_items_answered(page, "1/3")
-    # In On me the seated Ask is the agent's: the comment in its seat is owed a reply,
+    # In On me the seated item is the agent's: the comment in its seat is owed a reply,
     # which stands for it, so it is neither the user's item nor done.
     panel_control(page, "queue").click()
     panel_settled(page, view="queue")
@@ -520,14 +520,14 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             },
         )
     told(page)
-    # Back on the user's open list, the same Ask is still incomplete, so the
+    # Back on the user's open list, the same item is still incomplete, so the
     # completion count remains stable.
     expect_items_answered(page, "1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
     expect(page.locator("#shape-decision")).to_have_attribute("data-lf-item", "1")
 
     # And the press means that thread, so the next line joins the one the first line
-    # opened rather than starting another on the Ask or the widget. Whichever surface
+    # opened rather than starting another on the item or the widget. Whichever surface
     # draws the thread is the destination's choice; which thread it is is this test's.
     page.keyboard.press("c")
     page.wait_for_function(
@@ -558,7 +558,7 @@ def test_c_in_a_thread_reaches_that_threads_own_box(browser, serve):
     its own, so a press meaning "say something about this" belongs to that box rather
     than to the page the panel stands over. `threadBox` states the same rule from
     the other side when it declines to seat a widget standing inside a thread, and the
-    asks and the `m`/`M` walk include the ones an agent sent — without this the same
+    items and the `m`/`M` walk include the ones an agent sent — without this the same
     question answered one way on the page and another in the panel.
 
     A resolved thread is the case that has to be asked separately, and the reason this

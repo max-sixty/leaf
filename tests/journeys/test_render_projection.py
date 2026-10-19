@@ -1706,7 +1706,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
 
 
 def test_a_thread_item_waits_until_answered(browser, serve):
-    """A question in a thread is one of the page's asks — an obligation for the user
+    """A question in a thread is one of the page's items — an obligation for the user
         wherever it stands — and `m` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
@@ -1869,7 +1869,7 @@ def test_a_thread_item_waits_until_answered(browser, serve):
 )
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided):
     """An input action discharges the request live; the honoring version removes its
-    authored `needed` condition and its Ask, so incorporating its state into source
+    authored `needed` condition and its item, so incorporating its state into source
     cannot turn the input back into a decision."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
@@ -1900,7 +1900,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
-    # A draft without `needed` is optional editing, not an ask framed by an `lf-ask`.
+    # A draft without `needed` is optional editing, not an item framed by an `lf-ask`.
     honoring = honoring.replace(
         '<lf-ask id="decision-ledger-fixture-region">',
         '<div id="decision-ledger-fixture-region">',
@@ -1911,7 +1911,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     assert '<lf-ask id="decision-ledger-fixture-region">' not in honoring
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    # The saved answer remains in the reviewable ask inventory after the source
+    # The saved answer remains in the reviewable item inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
     expect_items_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(

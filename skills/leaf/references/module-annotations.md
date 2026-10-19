@@ -56,9 +56,9 @@ these entries calls `this.actions.activate(key)`, so a key and a press do the sa
 thing.
 
 `kind` says what the whole contribution is: `action` by default, or `change`, `comment`,
-`ask`, `activity` and the margin's other kinds. Where the margin is short of room, a pin
-with a primary control and one other folds into a single button with the kind's icon and
-name. `read()` may also return `readings`, items each with an `id` unique within the
+`on-me`, `activity` and the margin's other kinds. Where the margin is short of room, a
+pin with a primary control and one other folds into a single button with the kind's icon
+and name. `read()` may also return `readings`, items each with an `id` unique within the
 contribution and an optional `activate`, which the registration's `activateReading(id)`
 calls.
 
@@ -92,7 +92,7 @@ Thread's turns, and `threadSummary(thread)` its `topic`, the name Threads, the m
 Page Map show it under, and its `latest` activity.
 
 Address a Thread by its `key`, which stays the same after the server admits it. Its `id`
-is the name asks and workflows use. `root` is its opening message, `anchor` names the
+is the name items and workflows use. `root` is its opening message, `anchor` names the
 `section` and `datum` it is attached to, and `attention.kind` is `"needs_user"` when it
 waits on the user and `"waiting"` when it is with the agent. `offers: {open, reply,
 resolve, reopen}` says which actions are available now. A message's `reactions` lists
@@ -225,7 +225,7 @@ the same targets and returns the same array as `threadOutlets`, for passages and
 parts as well as data; a widget's own outlet still wins. Outlets stay inside the
 element, and if `render` fails, presentation fails.
 
-The same element can show asks, updates, status and margin actions by registering
+The same element can show items, updates, status and margin actions by registering
 `consumeAnnotations(owner, render)`. `render` runs synchronously after the conversations
 are placed, with the current inventory and a view:
 

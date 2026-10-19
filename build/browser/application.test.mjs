@@ -55,7 +55,7 @@ const descriptor = {
   quoted: false,
 };
 const empty = () => ({ entries: [], actions: [], reports: [], desired: [] });
-// The ask reading `served_state` sends, in its own wire spelling.
+// The item reading `served_state` sends, in its own wire spelling.
 const noItems = () => ({
   all: [],
   user: [],
@@ -78,7 +78,7 @@ const wireItem = (
   status: "open",
   next_actor: "user",
 });
-// A view's asks as the served lists hold them: each the user owes on their list, On me,
+// A view's items as the served lists hold them: each the user owes on their list, On me,
 // and each that is no longer open, done.
 const itemQueues = (records) => {
   const item = (record) =>
@@ -1282,9 +1282,9 @@ for (const resolved of [null, { author: "user" }]) {
   });
 }
 
-test("a pending gesture leaves asks and On me as served until the log answers", () => {
-  // A settling reaction answered the agent's question, so the server lists the ask as
-  // done. Which asks taking it back reopens is the log's reading, so On me moves
+test("a pending gesture leaves items and On me as served until the log answers", () => {
+  // A settling reaction answered the agent's question, so the server lists the item as
+  // done. Which items taking it back reopens is the log's reading, so On me moves
   // when the server answers the undo, not before.
   const item = {
     kind: "comment",
@@ -1313,7 +1313,11 @@ test("a pending gesture leaves asks and On me as served until the log answers", 
     status: "answered",
     next_actor: null,
   };
-  accepted.browser.views[1].thread.items = { all: [answered], user: [], unanswered: [] };
+  accepted.browser.views[1].thread.items = {
+    all: [answered],
+    user: [],
+    unanswered: [],
+  };
   const done = {
     ...servedRecordItem(answered, { subject: { kind: "thread", id: item.id } }),
     state: "done",
@@ -1330,7 +1334,7 @@ test("a pending gesture leaves asks and On me as served until the log answers", 
   assert.deepEqual(pending.queues.on_user, []);
   assert.deepEqual(
     pending.queues.done.map(({ kind, id }) => [kind, id]),
-    [["item", answered.id]],
+    [["widget", answered.id]],
   );
 
   const reopened = { ...answered, answer: null, status: "open", next_actor: "user" };
@@ -1352,13 +1356,13 @@ test("a pending gesture leaves asks and On me as served until the log answers", 
   assert.equal(thread.all[0].attention.kind, "needs_user");
   assert.deepEqual(
     queues.on_user.map(({ kind, id }) => [kind, id]),
-    [["item", answered.id]],
+    [["widget", answered.id]],
   );
 });
 
-test("the publisher carries the server's Ask reading, page asks before thread asks", () => {
+test("the publisher carries the server's item reading, page items before thread items", () => {
   const app = capture();
-  // The authored document names the Ask, but only the log's reading says whether it
+  // The authored document names the item, but only the log's reading says whether it
   // still stands, so neither the wait for that reading nor an offline page lists it.
   for (const phase of ["waiting", "offline"]) {
     app.setPhase(phase);
@@ -1398,7 +1402,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
   }, TypeError);
 
   // A local gesture does not edit the reading: the user sees their answer in the
-  // widget's own state at once, while the log answers which Asks still stand in the
+  // widget's own state at once, while the log answers which items still stand in the
   // state this POST returns.
   app.enqueue(action("answer"), "now");
   assert.deepEqual(
@@ -1499,7 +1503,7 @@ test("approval leaves On me in its sending turn and undo restores the exact vers
   const item = record();
   assert.equal(item.source.kind, "approval");
   assert.equal(onUser()[0].id, item.id);
-  assert.equal(onUser()[0].kind, "item");
+  assert.equal(onUser()[0].kind, "approval");
   assert.equal(onUser()[0].offers.done, false);
   app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
   assert.equal(onUser().length, 1);
@@ -1642,7 +1646,7 @@ test("a revision changing a verb's writer retains delivery without drawing the o
   assert.equal(app.read().unresolved.length, 1);
 });
 
-test("An ask contains the local typed answer while completion waits for admission", () => {
+test("An item contains the local typed answer while completion waits for admission", () => {
   const declared = {
     ...descriptor,
     declaration: {
@@ -1670,12 +1674,12 @@ test("An ask contains the local typed answer while completion waits for admissio
   assert.equal(pending.all[0].status, "open");
   assert.equal(pending.all[0], pending.user[0]);
   assert.equal(pending.all[0], pending.unanswered[0]);
-  assert.equal(app.read().effective.queues.on_user[0].kind, "item");
+  assert.equal(app.read().effective.queues.on_user[0].kind, "widget");
   app.refuse("typed");
   assert.equal(app.read().effective.items.all[0].answer, null);
 });
 
-test("empty completed answer and wrapper changes preserve ask identity", () => {
+test("empty completed answer and wrapper changes preserve item identity", () => {
   const choose = {
     unit: "widget",
     writer: "user",
@@ -1717,7 +1721,7 @@ test("empty completed answer and wrapper changes preserve ask identity", () => {
   app.adopt(reading);
   assert.deepEqual(app.read().effective.items.all[0].answer.value, []);
   assert.equal(app.read().effective.queues.on_user.length, 0);
-  assert.equal(app.read().effective.queues.done[0].kind, "item");
+  assert.equal(app.read().effective.queues.done[0].kind, "widget");
   const wrapped = structuredClone(reading);
   wrapped.taken = 3;
   wrapped.browser.views[1].document.items.all[0].prompt.target = "new-context";
@@ -1726,7 +1730,7 @@ test("empty completed answer and wrapper changes preserve ask identity", () => {
   assert.equal(app.read().effective.items.all[0].prompt.target, "new-context");
 });
 
-test("pending undo removes completed empty ask values and refusal restores them", () => {
+test("pending undo removes completed empty item values and refusal restores them", () => {
   for (const [record, value] of [
     [{ kind: "attribute", attr: "chosen" }, []],
     [{ kind: "body" }, ""],
@@ -1832,7 +1836,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
   assert.equal(app.read().effective.items.all[0].answer, null);
 });
 
-test("pending undo removes a custom ask answer before authoritative completion changes", () => {
+test("pending undo removes a custom item answer before authoritative completion changes", () => {
   const declared = {
     ...descriptor,
     declaration: {

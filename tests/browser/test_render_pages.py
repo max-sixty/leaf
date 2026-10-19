@@ -1413,11 +1413,11 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
 def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     browser, serve
 ):
-    """On a sidebar page an Ask and a callout keep the prose's width and left edge, so
-    the Ask's ring and pin stand beside what it asks, as on a column page. One granted
+    """On a sidebar page an item and a callout keep the prose's width and left edge, so
+    the item's ring and pin stand beside what it asks, as on a column page. One granted
     `data-width`, or holding a block of its own that declares one, takes that room for
     the evidence. On a column page the wide block breaks out of the column, as it would
-    from a section, and the Ask spans it, so the ring it wears goes round the block
+    from a section, and the item spans it, so the ring it wears goes round the block
     rather than cutting across it, while its heading keeps the column; the table's
     twelve columns need the room, since a table granted it takes only what its columns
     need. A workspace states neither width, so there every one of them, and a board,
@@ -1430,7 +1430,7 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     )
     body = (
         '<p id="prose">Prose.</p>'
-        + item.format(id="item", width="", table="")
+        + item.format(id="ask", width="", table="")
         + item.format(id="granted", width=' data-width="wide"', table="")
         + item.format(id="holds", width="", table=table.format(id="holds"))
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
@@ -1454,17 +1454,17 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     edge = at["prose"]["left"]
     # An option list keeps the measure whatever one option holds: only a box's own
     # blocks widen it.
-    for boxed in ("item", "callout", "list"):
+    for boxed in ("ask", "callout", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
     for wide in ("granted", "granted-c", "holds"):
         assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
-    # The widened Ask frames its table, which stands wider than the measure.
+    # The widened item frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
-    # The Ask spans its block wherever the block breaks out, and an Ask granted the room
-    # itself holds its block in that room. In a list item, which stands in from the
-    # column, and where the page arranged the Ask, in a grid track, neither grows.
+    # The item spans its block wherever the block breaks out, and an item granted the
+    # room itself holds its block in that room. In a list item, which stands in from the
+    # column, and where the page arranged the item, in a grid track, neither grows.
     extras = (
         "<ol><li>"
         + item.format(id="listed", width="", table=table.format(id="listed"))
@@ -1508,18 +1508,18 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     assert at["holds"] == at["holds-t"], at
     heading = column.locator("#holds h3").bounding_box()
     assert round(heading["x"]) == at["prose"]["left"], (heading, at)
-    assert at["item"] == at["prose"], at
+    assert at["ask"] == at["prose"], at
     assert at["listed"] == at["listed-t"], at
     assert at["listed"]["width"] < at["prose"]["width"], at
     assert at["both"] == at["both-t"] == {"width": 1080, "left": at["holds"]["left"]}, (
         at
     )
     assert at["tracked"]["width"] == 350, at
-    # An Ask inside a breakout takes its holder's room, as any block
+    # An item inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # An Ask that spans its block is a breakout the theme grows, so the gate reads it as
-    # one, even where it reaches further than a table of two columns does; a box the
+    # An item that spans its block is a breakout the theme grows, so the gate reads it
+    # as one, even where it reaches further than a table of two columns does; a box the
     # page pulls out of the column by its margins, an inline one, or one it grows round
     # its block by margins and padding of its own, still stands in the margin.
     misplaced = evaluate_probe(column, "misplacedBoxes")
@@ -1546,7 +1546,7 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     )
     resized(workspace, 1726, 900)
     at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
-    for block in ("prose", "item", "granted", "granted-c", "holds", "callout", "list"):
+    for block in ("prose", "ask", "granted", "granted-c", "holds", "callout", "list"):
         assert at[block] == at["region"], (block, at)
     assert at["board"] == at["region"], at
 
@@ -1727,10 +1727,10 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
     """A table whose cells hold sentences wraps them inside the box it stands in, and
-    scrolls nothing: in an Ask, in a panel, and in a figure granted the page's room.
+    scrolls nothing: in an item, in a panel, and in a figure granted the page's room.
     Firefox and WebKit have no scroll-state container and dropped the table's
     `container-type: inline-size scroll-state` whole, so the width its caption reads
-    (100cqi) was the window's: an Ask's two-column table laid its rows out 1728px wide
+    (100cqi) was the window's: an item's two-column table laid its rows out 1728px wide
     in a 720px column and cut its second column off."""
     sentence = (
         "When a new copy is installed, the update copies each commit and records it. "

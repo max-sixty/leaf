@@ -91,7 +91,7 @@ SUGGESTION_PINS = """(ids) => ids.map((id) => {
 })"""
 
 
-# An Ask in the middle of a long page, so its margin host can be scrolled out from under
+# An item in the middle of a long page, so its margin host can be scrolled out from under
 # a parked pointer and back.
 ITEM_IN_LONG_PAGE = LONG_PAGE.replace(
     "<p id='p20'>",
@@ -498,7 +498,7 @@ def test_margin_target_hover_requires_pointer_movement(browser, serve):
     margins_laid_out(page)
     parked = host.bounding_box()
     assert not parked["y"] < pointer["y"] < parked["y"] + parked["height"], (
-        "the pointer starts inside the Ask margin host"
+        "the pointer starts inside the item margin host"
     )
     page.mouse.move(pointer["x"], pointer["y"])
 
@@ -1174,7 +1174,9 @@ def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
 def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
     """The On view or an authored sidebar does not turn the contextual card into a
     thread view in the panel."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     resized(page, 2100, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()

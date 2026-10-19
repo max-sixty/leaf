@@ -145,7 +145,7 @@ PAGE_MAP_EVENTS = [
 
 
 def test_the_standing_item_marks_its_selected_margin_reading(browser, serve):
-    """The page and margin projections identify the same selected Ask."""
+    """The page and margin projections identify the same selected item."""
     page = open_page(browser, serve(ITEM_PAGE))
     resized(page, 1440, 900)
 
@@ -670,9 +670,9 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
 
 
 def test_the_chrome_names_an_item_by_its_question(browser, serve):
-    """An Ask is named by its heading, not its heading run into its options and their
+    """An item is named by its heading, not its heading run into its options and their
     chips: the card in the panel's On me view, and the Page Map group for it, whose one
-    row says why the Ask is there rather than naming it a second time."""
+    row says why the item is there rather than naming it a second time."""
     page = open_page(browser, serve(ITEM_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -911,7 +911,9 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
 def test_the_page_map_walk_stops_at_both_visible_edges(browser, serve):
     """The Page Map is a vertical list: its arrows stop at its first and last markers,
     while Home and End remain direct routes to those edges."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     markers = page.locator(".lf-margin-marker:visible")
     assert markers.count() > 1, "the Page Map has no pair of visible markers to walk"
 
@@ -1085,7 +1087,9 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
 
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
     """The Page Map is one destination while its compact rail changes posture."""
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     resized(page, 390, 760)
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
@@ -1098,7 +1102,7 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
         page.locator('.lf-margin-cluster[data-lf-place="rail"]').first
     ).to_be_visible()
     expect(dialog).to_be_visible()
-    # The Ask stands once, under the row saying where its answer has got to.
+    # The item stands once, under the row saying where its answer has got to.
     expect(dialog.locator(".lf-page-map-action")).to_have_count(4)
     expect(
         dialog.locator(".lf-page-map-action").filter(
@@ -1113,7 +1117,9 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
 def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
     """The open dialog is a live projection, not a snapshot from its opening press."""
     height = 480
-    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
+    page = open_page(
+        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+    )
     resized(page, 390, height)
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")

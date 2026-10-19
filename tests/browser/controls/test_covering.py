@@ -128,7 +128,9 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
 def test_an_open_view_stands_through_a_replaced_document(browser, serve):
     """A live version can update main under an open view without putting it away: the
     view and the user's place in it stand, and closing it shows the updated document."""
-    source = LONG_PAGE.replace('<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>{ONE_ITEM}')
+    source = LONG_PAGE.replace(
+        '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>{ONE_ITEM}'
+    )
     url = serve(source)
     page = open_page(browser, live_url(url))
     resized(page, 500, 640)

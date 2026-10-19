@@ -39,7 +39,7 @@ from interact_support import (
     registry_refusal,
     shipped_payload,
     vendored_at_another_protocol,
-    vendored_before_the_item_rename,
+    vendored_before_a_key_rename,
     wait_for,
     words,
 )
@@ -373,8 +373,8 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshape):
 
 
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):
-    """A layer vendored before an x- key was renamed (`x-question-context`, now
-    `x-ask-context`) declares nothing under the new name, so this Leaf would quietly
+    """A layer vendored before an x- key was renamed (`x-noun`, say, now `x-word`)
+    declares nothing under the new name, so this Leaf would quietly
     drop what the key said. The layer still reads, but the one reading every server
     and writer refuses on (`layer.incompatible_layer`) names the re-vendor, and so
     does `page check` from a session that may not make it, as one that does not
@@ -392,12 +392,10 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
         path.unlink()
         path.write_text(json.dumps(registry))
 
-    vendored(
-        lambda keys: keys.update({"x-question-context": keys.pop("x-ask-context")})
-    )
+    vendored(lambda keys: keys.update({"x-noun": keys.pop("x-word")}))
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
-    assert write_refusal(page_dir).values["retired"] == ["x-question-context"]
+    assert write_refusal(page_dir).values["retired"] == ["x-noun"]
     checked = CliRunner().invoke(
         cli_model.cli, ["page", "check", str(page_dir)], env=other
     )
@@ -406,9 +404,9 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
     assert finding["code"] == "retired-layer"
-    assert "x-question-context" in finding["text"] and revendor in finding["text"]
+    assert "x-noun" in finding["text"] and revendor in finding["text"]
 
-    vendored(lambda keys: keys.pop("x-question-context"))
+    vendored(lambda keys: keys.pop("x-noun"))
     assert write_refusal(page_dir) is None
 
 
@@ -416,7 +414,7 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
     ("vendored", "named"),
     [
         (vendored_at_another_protocol, "page protocol"),
-        (vendored_before_the_item_rename, "x-question-context"),
+        (vendored_before_a_key_rename, "x-noun"),
     ],
 )
 def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, named):
@@ -459,9 +457,9 @@ def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed
     revision is published as well as before: here the layer and the revision it
     captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
     Leaf left them."""
-    replied = _replying_after(claimed, server, vendored_before_the_item_rename)
+    replied = _replying_after(claimed, server, vendored_before_a_key_rename)
     assert replied.returncode != 0, replied.stdout
-    assert "x-question-context" in replied.stderr
+    assert "x-noun" in replied.stderr
     assert f"leaf page init {claimed}" in replied.stderr
     # The re-vendor it names repairs the page: init runs on it, and the reply goes.
     for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):

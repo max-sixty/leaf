@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from .items import quoted_in
 from .files import latest_revision
 from .findings import Finding
+from .items import quoted_in
 from .passages import page_passages
 from .projection import (
     PageReading,

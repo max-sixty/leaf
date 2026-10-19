@@ -191,11 +191,11 @@ interface ItemRecord {
   message: string | null;
   prompt: { text: string | null; target: string };
   answer: { value: unknown; event: Event | null } | null;
-  /** `items.py` owns the statuses; only an ask answered in words is
+  /** `items.py` owns the statuses; only a question answered in words is
    * `answered_elsewhere`. */
   status: "open" | "answered" | "answered_elsewhere" | "withdrawn";
-  /** The agent's `leaf task end` that retired an ask answered in words: where the
-   * answer is, or why the ask no longer applies. */
+  /** The agent's `leaf task end` that retired a question answered in words: where the
+   * answer is, or why the item no longer applies. */
   end: { detail: string | null; event: Event } | null;
   next_actor: "user" | "agent" | null;
 }
@@ -262,10 +262,10 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
 };
 
 /** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
- * to-do or ask whose title, owner and state it shows; `done` of `total` counts its
+ * to-do or item whose title, owner and state it shows; `done` of `total` counts its
  * children, dropped ones left out. */
 interface WirePlanStep {
-  /** An ask whose prompt has no text names no title. */
+  /** An item whose prompt has no text names no title. */
   title: string | null;
   state: "open" | "working" | "done" | "failed" | "dropped";
   owner: "agent" | "user";
@@ -280,7 +280,7 @@ interface WirePlanStep {
 /** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
  * every to-do on either side, open or ended, an ended one with its outcome. It is the
  * one record of each; the queue items and thread readings the browser draws select
- * from it. Asks are separate records and never appear in this list. */
+ * from it. Items are separate records and never appear in this list. */
 export interface WireTodo {
   id: string;
   owner: "agent" | "user";
@@ -307,9 +307,10 @@ export interface WireTodo {
 }
 
 /** One item on On me or On <agent>, as `served_state.queues` serves it: `owner` names
- * the list. An ask item keeps its record; a to-do item the fields a row draws. */
+ * the list. A widget or approval item keeps its record; a to-do item the fields a row
+ * draws. */
 interface QueueItem {
-  kind: "item" | "todo" | "resend" | "answer" | "work";
+  kind: "widget" | "approval" | "todo" | "resend" | "answer" | "work";
   id: string;
   owner: "user" | "agent";
   subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
@@ -401,7 +402,7 @@ interface AuthoritativeState {
           items: WireItems;
         };
         /** The frozen threads as this revision reads them: its registry classifies
-         * their widgets' decisions, and so the asks and attention those give. */
+         * their widgets' decisions, and so the items and attention those give. */
         thread: {
           threads: Thread[];
           projection: WireProjection;
@@ -428,7 +429,7 @@ interface AuthoritativeState {
         }[];
         published_at: string | null;
         queues: WireQueues;
-        /** The asks approving this version waits on (`asks.approval_blocking`). */
+        /** The items approving this version waits on (`items.approval_blocking`). */
         approval_blocking: string[];
       }
     >;
@@ -502,7 +503,7 @@ const NO_ITEMS = {
 /* The admitted inventory owns membership and widget completion. Approval and its
  * undo draw their direct result immediately. Widget values come from
  * the same local-inclusive fold used by their controls, so a partial answer is
- * visible before its POST settles the ask. */
+ * visible before its POST settles the item. */
 function normalizedItems(
   view: PageView | null,
   widgets: ReturnType<typeof foldWidgetStates>,
@@ -667,8 +668,8 @@ function currentWidgetRelations(
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. A send moves an item the server listed only where the item is
  * its own subject: a Done or its undo moves a to-do between its list and done, and an
- * approval or its undo moves the approval ask. What a send leaves anything else, such
- * as which asks in its thread it answers, waits for the server's reading of it. This
+ * approval or its undo moves the approval item. What a send leaves anything else, such
+ * as which items in its thread it answers, waits for the server's reading of it. This
  * adds only the items a send alone implies: its own answer owed, which stands for the
  * response its thread was already owed, and the resend a refused one leaves. Nothing
  * here selects a list again. */
@@ -703,13 +704,14 @@ function localQueues(
   };
   const itemOf = (item: QueueItem) => {
     const local = record.get(item.id);
-    if (!local) throw new Error(`Queue item ${item.id} names no ask`);
+    if (!local) throw new Error(`Queue item ${item.id} names no item`);
     return local;
   };
   // Whether an item the server listed as open still stands open in this tab.
   const standsOpen = (item: QueueItem) => {
     switch (item.kind) {
-      case "item":
+      case "widget":
+      case "approval":
         return itemOf(item).next_actor === "user";
       case "todo":
         return open.has(item.id);
@@ -723,17 +725,17 @@ function localQueues(
   };
   // Whether an item the server listed as done stands open again in this tab.
   const reopened = (item: DoneItem) =>
-    item.kind === "item"
+    carriesItem(item)
       ? itemOf(item).status === "open" && itemOf(item).next_actor === "user"
       : item.kind === "todo" && open.has(item.id);
   // Whether an item the server listed as open has ended in this tab.
   const endedHere = (item: QueueItem) =>
-    item.kind === "item"
+    carriesItem(item)
       ? itemOf(item).status !== "open"
       : item.kind === "todo" && ended.has(item.id);
-  // An ask item carries this tab's record of its ask.
+  // A widget or approval item carries this tab's record of its item.
   const current = <T extends QueueItem>(item: T): T =>
-    item.kind === "item" ? { ...item, item: itemOf(item) } : item;
+    carriesItem(item) ? { ...item, item: itemOf(item) } : item;
   const asOpen = ({
     state: _state,
     ended: _ended,
@@ -744,7 +746,7 @@ function localQueues(
     ...current(item),
     live: false,
     state:
-      item.kind === "item" && itemOf(item).status === "withdrawn" ? "dropped" : "done",
+      carriesItem(item) && itemOf(item).status === "withdrawn" ? "dropped" : "done",
     ended: null,
     detail: null,
   });
@@ -783,9 +785,7 @@ function localQueues(
     ].toSorted(
       (a, b) =>
         onUserRank(a) - onUserRank(b) ||
-        (a.kind === "item" && b.kind === "item"
-          ? asked.get(a.id)! - asked.get(b.id)!
-          : 0),
+        (carriesItem(a) && carriesItem(b) ? asked.get(a.id)! - asked.get(b.id)! : 0),
     ),
     on_agent: [
       ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),
@@ -815,10 +815,14 @@ function localQueues(
   };
 }
 
-// The order the server lists On me in: asks, to-dos, then resends; asks among
-// themselves in the order the view's ask inventory holds them.
+// The order the server lists On me in: widget and approval items, to-dos, then
+// resends; items among themselves in the order the view's item inventory holds them.
 const onUserRank = (item: QueueItem) =>
-  item.kind === "item" ? 0 : item.kind === "todo" ? 1 : 2;
+  carriesItem(item) ? 0 : item.kind === "todo" ? 1 : 2;
+
+// Whether a list item is a widget's or an approval's, which carries its record.
+const carriesItem = (item: QueueItem) =>
+  item.kind === "widget" || item.kind === "approval";
 
 type SemanticRoot = ReturnType<ReturnType<typeof createSemanticApplication>["read"]>;
 type RootProjection = SemanticRoot["effective"]["projection"];
@@ -1065,7 +1069,7 @@ export function createSemanticApplication({
     });
     // A local comment belongs to the shown document even before saved history arrives.
     // Fold it through the same ledger and receipt path in every phase; collection.phase
-    // still says whether this is a complete reading. The asks need the log to say which
+    // still says whether this is a complete reading. The items need the log to say which
     // of them the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.

@@ -996,8 +996,9 @@ def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
 
 
 def test_a_live_revision_reorders_the_page_and_item_inventory_together(browser, serve):
-    """Retained Ask descriptors follow the incoming document's order, and plain declared
-    elements a revision removes leave the semantic document with their upgraded owner."""
+    """Retained item descriptors follow the incoming document's order, and plain
+    declared elements a revision removes leave the semantic document with their upgraded
+    owner."""
 
     def question(identity, label):
         return f"""<lf-ask id="{identity}-ask"><h2>{label}?</h2>

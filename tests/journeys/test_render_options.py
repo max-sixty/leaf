@@ -13,9 +13,9 @@ from interact_support import (
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    EXHIBIT_EXTENT,
     ITEM_PAGE,
     ITEM_WITH_CONTEXT_PAGE,
-    EXHIBIT_EXTENT,
     SAMPLE_EXAMPLES,
     live_url,
 )
@@ -107,7 +107,7 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
 def test_a_selected_item_keeps_one_action_context_while_tab_reaches_its_field(
     browser, serve
 ):
-    """The Ask owns its numbered actions wherever focus stands inside it.
+    """The item owns its numbered actions wherever focus stands inside it.
 
     Tab traverses the real controls without replacing that action map. Another option is
     the next numbered route into its shared text box rather than an Enter alias on a mark.
@@ -117,7 +117,7 @@ def test_a_selected_item_keeps_one_action_context_while_tab_reaches_its_field(
 
     page.keyboard.press("m")
     mark = page.locator("#storage-evict .lf-pick")
-    # The Ask's own numbered actions are what the keys reach, under the one context the
+    # The item's own numbered actions are what the keys reach, under the one context the
     # question owns, with Escape's way out of the standing beside them as it is
     # anywhere the user is holding something.
     assert active_digit_bindings(page) == "1–3"
@@ -130,8 +130,8 @@ def test_a_selected_item_keeps_one_action_context_while_tab_reaches_its_field(
     expect(write_hint).to_have_text("3")
     expect(write_hint).to_be_visible()
 
-    # Enter has no invented meaning on the Ask or an option mark. Tab enters the real
-    # controls, while the same Ask-owned numbers and binding badges remain standing there.
+    # Enter has no invented meaning on the item or an option mark. Tab enters the real
+    # controls, while the same item-owned numbers and binding badges remain standing there.
     page.keyboard.press("Enter")
     expect(page.locator("#storage-decision")).to_be_focused()
     page.keyboard.press("3")
@@ -190,7 +190,7 @@ def test_a_selected_item_keeps_one_action_context_while_tab_reaches_its_field(
     page.keyboard.press("2")
     expect(page.locator("#storage-stop")).to_have_attribute("chosen", "")
     chosen = page.locator("#storage-stop .lf-pick")
-    # The digit acts within the Ask without turning binding selection into focus
+    # The digit acts within the item without turning binding selection into focus
     # navigation; the user remains on the control they tabbed to.
     expect(mark).to_be_focused()
     expect(chosen).to_have_attribute("role", "checkbox")
@@ -202,9 +202,9 @@ def test_a_selected_item_keeps_one_action_context_while_tab_reaches_its_field(
     # unavailable foot. In a phone window the field otherwise lands underneath the panel:
     # geometrically in the viewport, but neither visible nor operable as the next stop.
     #
-    # Short enough that the ask's own foot is under the panel when the user arrives,
+    # Short enough that the item's own foot is under the panel when the user arrives,
     # which is the only arrangement in which the claim can be read at all. With the whole
-    # ask on screen a Tab stop is already where the browser would put it, nothing
+    # item on screen a Tab stop is already where the browser would put it, nothing
     # scrolls, and the reading goes green over the travel it is about; the assertion
     # before the presses says so rather than leaving it to the window's height to be
     # right. Chrome's focus scroll moves a stop only when it stands wholly outside the
@@ -215,7 +215,7 @@ def test_a_selected_item_keeps_one_action_context_while_tab_reaches_its_field(
     clearance = """() => document.querySelector('.lf-fp-card').getBoundingClientRect().top
       - document.querySelector('#storage-options > .lf-another')
         .getBoundingClientRect().bottom"""
-    # An unframed page ask arrives in two document scrolls, an instant one to reveal it
+    # An unframed page item arrives in two document scrolls, an instant one to reveal it
     # and a glide onto its region, and a Tab pressed into the glide reads a position the
     # page is only passing through: it goes on to its own destination afterwards and takes
     # the measurement with it. Motion is not what this reads, so the arrival is asked to

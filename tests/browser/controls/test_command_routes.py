@@ -114,7 +114,7 @@ KEYBOARD_HINT_REGISTRY = {
         "type": "object",
         "properties": {
             "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "items": {"type": "boolean"},
+            "asks": {"type": "boolean"},
             "restated": {"type": "boolean"},
         },
         "required": ["id"],
@@ -199,7 +199,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 @pytest.mark.parametrize("hint_seat", ["widget", "corner"])
 def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hint_seat):
-    """A package command needs no Ask role to expose its working keyboard route.
+    """A package command needs no item role to expose its working keyboard route.
 
     The same scope stands on the widget and its question context. Focus, native text
     entry, control availability, and replacement change dispatch and the inline hint
@@ -254,7 +254,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     rendered(page)
     expect(result).to_have_text("0")
 
-    # The question context forwards the widget's declaration without an Ask allocator.
+    # The question context forwards the widget's declaration without an item allocator.
     page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(badge).to_be_visible()
@@ -865,7 +865,7 @@ customElements.define('lf-verdict', class extends HTMLElement {
 def test_route_corner_hint_overrides_the_rows_face_in_item_and_widget(browser, serve):
     """Explicit null chooses a corner hint instead of inheriting the row's face.
 
-    Ask forwarding and the intrinsic route must preserve that choice and merge into
+    Item forwarding and the intrinsic route must preserve that choice and merge into
     one hint when both bindings reach the same original command.
     """
     registry = {

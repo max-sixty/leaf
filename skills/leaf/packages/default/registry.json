@@ -26,10 +26,9 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-ask-context": true,
     "x-awaits": {
       "reply": true,
-      "yields": true
+      "encloses": true
     },
     "x-word": "question",
     "x-upgrade": false,
@@ -180,7 +179,7 @@
   },
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
-    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case inside its lf-option. For an accept-or-reject proposal, a figure of today beside the change compares both answers, so it stays with the group. Use `multiple` when the picks form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Items the user can answer independently are separate asks (references/authoring-decisions.md). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the decision. An option the user adds stays in the group from the log, where the user put it; leave it out of revisions. A `multiple` ask needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case inside its lf-option. For an accept-or-reject proposal, a figure of today beside the change compares both answers, so it stays with the group. Use `multiple` when the picks form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Choices the user can answer independently are separate decisions (references/authoring-decisions.md). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the decision. An option the user adds stays in the group from the log, where the user put it; leave it out of revisions. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -366,7 +365,7 @@
   },
   "lf-shot": {
     "description": "A before-and-after pair of screenshots under a draggable divider, with optional outlines of what changed and a view of the changed pixels.",
-    "x-instructions": "Use it for two versions of an interface. Set `before` and `after` to the paths `leaf page media` prints, and describe the pair in `alt`. `authoring-evidence.md`, \"Source files and media\", covers making captures, laying out captures that vary along more than one axis in a table, and when to add `outlines` or `pixels`. Put explanation in the prose around the pair, not inside the element. When a decision turns on the change, put the pair inside the option that proposes it, or, for an accept-or-reject ask, with the group, where it shows both answers.",
+    "x-instructions": "Use it for two versions of an interface. Set `before` and `after` to the paths `leaf page media` prints, and describe the pair in `alt`. `authoring-evidence.md`, \"Source files and media\", covers making captures, laying out captures that vary along more than one axis in a table, and when to add `outlines` or `pixels`. Put explanation in the prose around the pair, not inside the element. When a decision turns on the change, put the pair inside the option that proposes it, or, for an accept-or-reject decision, with the group, where it shows both answers.",
     "type": "object",
     "properties": {
       "id": {
@@ -494,8 +493,8 @@
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tally": {
-    "description": "A count of the open asks in one region, such as the decisions left in a queue, with an optional control that goes to the next one.",
-    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose asks it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the asks waiting on the user. Don't also state the count in prose or chips; the tally keeps it current.",
+    "description": "A count of the open items in one region, such as the decisions left in a queue, with an optional control that goes to the next one.",
+    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose items it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the items waiting on the user. Don't also state the count in prose or chips; the tally keeps it current.",
     "type": "object",
     "properties": {
       "id": {

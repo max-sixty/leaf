@@ -10,11 +10,6 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from pathlib import Path
 
-from leaf.items import (
-    approval_blocking,
-    asking,
-    quoted_in,
-)
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
@@ -26,6 +21,11 @@ from leaf.events import (
 )
 from leaf.files import version_revisions
 from leaf.findings import Finding
+from leaf.items import (
+    approval_blocking,
+    asking,
+    quoted_in,
+)
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
@@ -751,7 +751,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a widget that seats work, an element, or the page; a
     to-do on a thread comes from the reply that promises it. A completing note and
     `todo_end` share completion authority.
-    A `todo_end` also admits an agent's end of an ask answered in words; a
+    A `todo_end` also admits an agent's end of a question answered in words; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -802,7 +802,9 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
             None,
         )
         if item is not None:
-            return Finding("duplicate-item", values={"widget": widget, "item": item["id"]})
+            return Finding(
+                "duplicate-item", values={"widget": widget, "item": item["id"]}
+            )
         return None
 
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}

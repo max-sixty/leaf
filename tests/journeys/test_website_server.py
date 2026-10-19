@@ -4,12 +4,13 @@ import os
 
 import leaf_website as website_server
 import pytest
+from browser.threads import open_panel_thread
 from leaf.delivery import current_responses
 from leaf.event_log import read_events
 from leaf.leases import take_lease, waiter_lease_path
 from leaf.render_checks import rendered
 from leaf.thread import ProviderFinal, cmd_resolve, post_reply
-from leaf_dev.commands import journey, verify_site
+from leaf_dev.commands import verify_site
 from playwright.sync_api import expect
 from process.website_server import (
     _no_harness_outlives_its_test_fixture,  # noqa: F401 (fixtures)
@@ -17,21 +18,18 @@ from process.website_server import (
 )
 from render_harness import (
     LONG_PAGE,
+    PANEL_THREAD,
     open_page,
     page_comment,
-    panel_settled,
+    panel_field,
     told,
     write,
 )
 
 
-@pytest.mark.parametrize(
-    ("read_elsewhere", "reveal"),
-    [(False, "click"), (False, "arrive"), (True, None)],
-    ids=["click", "arrive", "elsewhere"],
-)
+@pytest.mark.parametrize("read_elsewhere", [False, True], ids=["here", "elsewhere"])
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
-    browser, serve, read_elsewhere, reveal, request
+    browser, serve, read_elsewhere, request
 ):
     """A resolve during a turn cannot hide its completed answer from Open Threads.
 
@@ -44,8 +42,6 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     verify_site.observe_startup(page)
     page.reload()
     told(page)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, True)
     box = page_comment(page)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
     write(box, "edit the page")
@@ -61,11 +57,16 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     watcher = take_lease(waiter_lease_path(page_dir, "hosted-thread"))
     assert watcher is not None
     request.addfinalizer(watcher.close)
-    thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
-    # An active editor holds the turn's opening so this journey exercises the receipt
-    # beside held news; an idle panel thread streams it immediately. The reply joins
-    # the thread with its first words, not when the turn opens its draft.
-    thread.locator("leaf-text").focus()
+    # The send opens the new thread's view in the panel, its reply standing in the
+    # field with the caret in it.
+    thread = page.locator(f'{PANEL_THREAD}[data-thread="{comment["id"]}"]')
+    expect(thread).to_be_visible()
+    # The user goes on writing in the reply, which the agent's resolve below must not
+    # take from under them. The agent's reply joins the thread with its first words,
+    # not when the turn opens its draft.
+    reply = panel_field(page)
+    expect(reply).to_be_focused()
+    write(reply, "While you look")
     turn.begin()
     turn.reply_stream.update(
         {
@@ -81,29 +82,13 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     # would never exercise a workflow receipt disappearing beside the news control.
     told(page)
     rendered(page)
-    metadata = thread.locator(
-        ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head"
-    )
-
-    def held_header():
-        return metadata.evaluate("""head => {
-          const rect = selector => head.querySelector(selector).getBoundingClientRect();
-          const author = rect('b');
-          const time = rect('time');
-          const meta = rect('.lf-msg-meta');
-          const news = head.closest('.lf-thread').querySelector('.lf-thread-news')
-            .getBoundingClientRect();
-          return {authorX: author.x, timeX: time.x, metadataRight: meta.right,
-            newsLeft: news.left};
-        }""")
-
+    # The turn's opening streams into the open thread at its end, where it moves none
+    # of the words above it.
+    expect(thread.locator(".lf-msg.agent")).to_contain_text("Looking at the page.")
+    metadata = thread.locator(".lf-msg").first.locator(":scope > .lf-msg-head")
     receipt = metadata.locator(".lf-msg-sending")
     expect(receipt).to_have_text("Replying")
-    news = thread.locator(".lf-thread-news")
-    expect(news).to_be_visible()
-    news_left = news.bounding_box()["x"]
-    held = held_header()
-    assert held["metadataRight"] <= held["newsLeft"], held
+    news = page.locator(".lf-fp-head .lf-thread-news")
 
     def receipt_words():
         return receipt.evaluate("""node => {
@@ -115,29 +100,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     receipt_width = receipt_words()
     initial_receipt = receipt.inner_text()
     assert receipt.evaluate("node => node.scrollWidth <= node.clientWidth")
-    # The gap belongs to neither receipt nor notice. Read its actual paint as
-    # well as the retained parent box: unclipped glyphs can escape a child whose
-    # bounding box still fits, without changing any metadata/news geometry.
-    thread.evaluate(
-        "node => Promise.all(node.getAnimations({subtree: true})"
-        ".filter(animation => Number.isFinite("
-        "animation.effect.getComputedTiming().endTime))"
-        ".map(animation => animation.finished))"
-    )
-    gutter = receipt.evaluate(
-        """node => {
-      const metadata = node.closest('.lf-msg-meta').getBoundingClientRect();
-      const notice = node.closest('.lf-thread').querySelector('.lf-thread-news')
-        .getBoundingClientRect();
-      const receipt = node.getBoundingClientRect();
-      const x = Math.ceil(metadata.right);
-      const y = Math.floor(receipt.top);
-      return {x, y, width: Math.floor(notice.left) - x,
-        height: Math.ceil(receipt.bottom) - y};
-    }"""
-    )
-    assert gutter["width"] > 0, gutter
-    gutter_before = page.screenshot(clip=gutter)
+    head = metadata.bounding_box()
     # Losing the provider watcher changes Replying to the longer stale receipt
     # while its answer still waits. The words spend their own retained box.
     watcher.close()
@@ -150,22 +113,15 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         receipt_width,
         receipt_words(),
     )
-    assert held_header() == held
-    assert page.screenshot(clip=gutter) == gutter_before, (
-        "the longer workflow receipt painted into the gap before held news"
-    )
+    assert metadata.bounding_box() == head
     cmd_resolve(page_dir, comment["id"])
     told(page)
     rendered(page)
-    # The agent's resolution is news, so the card the user is looking at stays in
-    # Open Threads, holding it behind its notice, rather than folding out from in
-    # front of them.
-    expect(thread).to_have_count(1)
-    expect(news).to_have_text("Resolved · 1 new reply")
+    # The agent's resolution is news, so the thread the user is writing in stays open
+    # in front of them, holding it behind its notice.
     expect(thread).to_be_visible()
+    expect(news).to_have_text("Resolved")
     expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
-    assert news.bounding_box()["x"] == news_left
-    assert held_header() == held
     if read_elsewhere:
         box = page_comment(page)
         write(box, "A separate thread")
@@ -176,8 +132,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
             for event in read_events(page_dir)
             if event["kind"] == "comment" and event["id"] != comment["id"]
         ]
-        other_thread = page.locator(f'.lf-thread[data-id="{other["id"]}"]')
-        expect(other_thread).to_have_attribute("open", "")
+        other_thread = page.locator(f'{PANEL_THREAD}[data-thread="{other["id"]}"]')
+        expect(other_thread).to_be_visible()
 
     committed = page.evaluate("Date.now()")
     turn.commit(
@@ -199,64 +155,49 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     rendered(page)
     drawn = page.evaluate("Date.now()")
     if read_elsewhere:
-        # The thread folded when the user's new one opened, and a folded card holds
-        # nothing, since its title row draws at one size.
-        expect(other_thread).to_have_attribute("open", "")
-        expect(news).to_have_count(0)
-        expect(thread.locator(".lf-msg.agent")).to_be_hidden()
+        # The user's new thread stands in the view, so the answer shows nowhere yet.
+        expect(other_thread).to_be_visible()
+        expect(thread).to_have_count(0)
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
-        # Its row is all the user sees of the answer, and the page times the answer
-        # from it whatever the journey is doing then.
-        [folded] = [
+        [elsewhere] = [
             event
             for event in read_events(page_dir)
             if event["kind"] == "reply" and event["parent"] == comment["id"]
         ]
+        # The resolve does not hide it: Threads still lists the thread among the open
+        # ones, and opening it there shows the answer, which the page times then.
+        view = open_panel_thread(page, comment["id"])
+        message = view.locator(".lf-msg.agent").filter(has_text="deployment verified")
+        expect(message).to_be_visible()
         shown = page.evaluate(
             "window.__leafVerifier.replyShownAt",
-            {"thread": comment["id"], "id": folded["id"], "ts": folded["ts"]},
+            {"thread": comment["id"], "id": elsewhere["id"]},
         )
-        assert shown["by"] == "row"
-        assert committed <= shown["at"] <= drawn
+        assert shown["by"] == "message"
+        assert committed <= shown["at"]
     else:
-        # The short thread's reopened answer would move its active editor, so the
-        # reader explicitly opens the news before the visibility clock can see it. The
-        # card stands as drawn, open, so the reopening is no news.
-        expect(news).to_have_text("1 new reply")
-        assert news.bounding_box()["x"] == news_left
-        assert held_header() == held
+        # The answer completes the streamed opening in place at the thread's end, so it
+        # moves nothing the user reads or writes and shows at once, the resolve it
+        # reopens with it; the page times it from its own message.
+        expect(news).to_be_hidden()
+        expect(page.locator(".lf-fp-settle")).to_have_text(
+            "Resolve", use_inner_text=True
+        )
         expect(
             thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
-        ).to_have_count(0)
+        ).to_be_visible()
+        expect(reply).to_have_js_property("value", "While you look")
         answer_id = next(
             event["id"]
             for event in read_events(page_dir)
             if event["kind"] == "reply" and event["parent"] == comment["id"]
         )
-        # The held answer's notice is what the user is shown of it, and the page
-        # times the answer from the notice before anyone opens it.
-        held_answer = next(e for e in read_events(page_dir) if e["id"] == answer_id)
         shown = page.evaluate(
             "window.__leafVerifier.replyShownAt",
-            {"thread": comment["id"], "id": answer_id, "ts": held_answer["ts"]},
+            {"thread": comment["id"], "id": answer_id},
         )
-        assert shown["by"] == "notice"
+        assert shown["by"] == "message"
         assert committed <= shown["at"] <= drawn
-        if reveal == "click":
-            journey.open_news(page, comment["id"])
-        else:
-            # Choosing the thread's title is an arrival, which shows what it holds.
-            title = thread.locator(":scope > .lf-thread-summary")
-            title.click()
-            expect(title).to_be_focused()
-            expect(thread).to_have_attribute("open", "")
-        expect(news).to_have_count(0)
-        # Opened, the answer's own message comes into view too, though the notice
-        # had already shown the user it was there.
-        page.wait_for_function(
-            "id => window.__leafVerifier.visibleReplyDebug().shown.messages[id]",
-            arg=answer_id,
-        )
         assert current_responses(page_dir, read_events(page_dir)) == {}
     [answer] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert answer["parent"] == comment["id"]

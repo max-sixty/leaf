@@ -1,11 +1,13 @@
 # Goal: the floating Leaf panel
 
-> **Status (2026-10-16): the default chrome (TODO #28).** Checkpoints 1–3 landed
-> on `main` behind the preference, off by default. The user disliked their look, so
+> **Status (2026-10-19): Leaf's only chrome (TODO #28).** Checkpoints 1–3 landed
+> on `main` behind a preference, off by default. The user disliked their look, so
 > a second round redesigned it from a sketch they tried and configured (below, "The
-> overhaul"). On 16 October the user made the rebuilt panel the default, with **Use
-> the banner** in the leaf's menu, and **Use the Leaf panel** in the banner's More
-> menu, to switch between them (`chrome-choice.js`).
+> overhaul"). On 16 October the user made the rebuilt panel the default, and later
+> that day asked to remove the banner, the bottom bar and the switch between them:
+> "we'd like to remove the banner. it's useful as reference code, but we don't need
+> to support users switching to it." That removal landed on 19 October (#3100). The
+> old chrome survives only in Git history; `b5b6153c4` is the last commit holding it.
 >
 > On 13 October the user retired the Codex reference: the panel is judged by Leaf's
 > own aesthetic and the user's eye, not against the Codex app. The phone waits until
@@ -26,10 +28,10 @@ what the module header of `runtime/floating-panel.js` now states:
 
 - **Three sizes, chosen by what the user does.** Folded (the leaf in the corner),
   the row, and a view opened above the row. The Layout row, the Minimal and Moderate
-  displays and the Classic choice are gone from the panel; the preference keeps only
-  where the panel was left (`rest`).
+  displays and the Classic choice are gone from the panel; the user's stored
+  preference keeps only where the panel was left (`rest`).
 - **The field holds the status**, a thread's turn in a thread, and passing notices,
-  which no longer stand at the window's head (`--lf-notice-seat: panel`).
+  which no longer stand at the window's head (notifications.js).
 - **Marks with counts in the row**: the question mark and the thread mark with a
   dot for news. Send stands in their place while the user types. (The pen that
   opened Annotations left the row on 13 October: "remove the pen, keep
@@ -66,20 +68,16 @@ icon.
   stands beside its passage. If the drop needs treating, steer toward that box rather
   than giving the field a second way to anchor.
 
-Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
-bottom of the page, like the Codex app's floating chat panel, and replaces both
-the banner and the bottom bar. Classic chrome stayed the default until 16 October.
-Build it on
-current `main` in the Leaf repository, behind a user preference, and land it
-there in steps, so the user can keep developing it from `main` without
-changing what anyone else sees.
+Leaf's chrome is one panel that hovers over the bottom of the page, like the
+Codex app's floating chat panel, in place of the banner and the bottom bar it
+replaced. Develop it on current `main` in the Leaf repository, and land it there
+in steps.
 
 The bar is high. The user wants something excellent, and a previous attempt
 failed on looks, not function: it worked, and it looked like a form. So treat
 the appearance and feel below as requirements, on a par with the behavior.
 
-Commit this file as `notes/floating-panel/GOAL.md` in your first commit. Re-read
-it after every context compaction and before every review round. It is the
+Re-read this file after every context compaction and before every review round. It is the
 spec. Your memory of it is not.
 
 ## The design you are building
@@ -127,7 +125,7 @@ prototype. Each stays a requirement unless the user changes it.
 
 **One panel replacing both bars.** "Turning this into something like the codex
 floating panel … as part of removing the top and bottom bars." It needs a way to
-reach everything the banner and bottom bar offer today: threads, the On panel,
+reach everything the banner and bottom bar offered: threads, the On panel,
 Versions, the agent's status, approval, page comments, modes, the page's other
 controls, and keyboard shortcuts. These "pop out a panel above"; letting the
 user move the panel, and pop it out downward, is welcome but optional.
@@ -141,7 +139,7 @@ leaf mark, a one-line comment field, the On me count, the count of new
 replies, and, on a desk, a door to annotating. "If it's not possible to glance
 and see how many unread there are, then we need to resolve that." The empty
 field shows the agent's status where a placeholder would say "Comment…": the
-line the banner shows today, such as what the agent is working on or what it
+line the banner showed, such as what the agent is working on or what it
 wants back. "The 'Comment...' could instead show the Agent status that is
 currently in the top bar." Clicking in it starts a page comment. Minimizing to
 the mark alone is a deliberate gesture, and the panel then stays minimized
@@ -162,8 +160,8 @@ basic, and then extensible."
 - "Fairly terse … numbers next to icons rather than saying whole words."
 - A **Moderate** display adds keyboard shortcuts and position notices such as
   `Thread 3 of 12`. It is still much less than a side panel. The menu's Layout
-  row offers Minimal, Moderate and Classic, and the choice persists (see "The
-  preference").
+  row offered Minimal, Moderate and Classic, and the choice persisted; the
+  overhaul removed it.
 
 **Threads and the On lists inside the panel.** The user asked to "think about the
 full lifecycle of threads: creating them, resolving them; being able to find
@@ -230,9 +228,10 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   opens or closes, since the user found views slow to appear (15 October). (The first
   build tweened the card's height; a layout tween's last frame landed outside CI's
   input window as a shift.)
-- **The focused field shows no frame and no ground**: one quiet line opens above it,
-  with the keys that send. A dark frame around the field was the previous attempt's
-  "form" look.
+- **The focused field shows no ground, and wears the anchored comment box's focus
+  ring** while it holds the caret, so a key that moves the caret there, `c` among
+  them, shows where the words will go (the user's pick, #3097). A dark frame around
+  the field at rest was the previous attempt's "form" look.
 - **While the user types, Send floats in the field's end corner,** as an anchored
   comment box's does, and the counts step aside for the field; they come back when
   the caret leaves, and the line naming where the words go stays while the field holds
@@ -250,10 +249,10 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
 - **The answer the user waits for grows the thread's view,** up to its height limit,
   with New reply only past it; other news in an open thread still moves nothing. The
   user chose growth over a reserved New reply slot on 14 October (#2916).
-- **Answers are the widget's own choices** (a multiple-choice ask shows its options and
+- **Answers are the widget's own choices** (a multiple-choice item shows its options and
   Done), recorded exactly as on the page; the On view has On me / On {agent} / Done.
 - **Messages draw with Leaf's own reader** (the panel is a registered thread
-  presentation), so asks, reactions and HTML replies work in the panel.
+  presentation), so questions, reactions and HTML replies work in the panel.
 - **The menu carries the banner's inventory,** drawn from each contributor's declared
   row, less what the row and its views already hold (Threads, On me, the page
   comment, approval). Navigate, Annotations, About and Versions take the menu's place
@@ -263,8 +262,9 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   to go back"), over the view keeping its place with a "‹ Menu /" crumb.
 - **On a phone, a count at rest is its number beside an icon,** so the agent's status
   keeps the field ("numbers next to icons rather than saying whole words").
-- **Passing notices are said in the empty field** (the overhaul); a walk's position
-  still stands centred at the window's head.
+- **Passing notices and a walk's position are said in the empty field** (the
+  overhaul; on 16 October the user asked that whatever is not anchored to the page
+  stand at the panel rather than against the window).
 - **The panel shows no key hints**, neither the bottom bar's resting hints nor the
   `g` sequence's destination list: the menu's rows carry their shortcuts and `?` opens
   the full reference. The user chose this over one or two hints in the line above the
@@ -301,33 +301,13 @@ the defects.
 **Same state and commands, new presentation.** The floating panel is another
 presentation of what Leaf already owns. Threads, the On lists, status and
 versions come from the application publication. The panel's controls come from
-the banner toolbar's contributor inventory (`banner-toolbar.js`) and the command
-registry behind the shortcut bar. A control that a package contributes appears
-in the panel without the panel naming it.
-
-The toolbar's contributors hand over their own DOM nodes, which can't become
-one-line menu rows. Extend the contributor contract so that each contributor
-also declares its label and a terse value, and render the rows from that. Don't
-scrape the nodes. When an existing component's markup can't produce the spec's
-appearance, as the classic composer can't, write the panel's own presentation.
-You may refactor a shared component as long as classic chrome still renders and
-behaves exactly as before. Never bend the design to fit a component. Root
+the page's controls (`page-controls.js`), where each contributor declares its row
+with a label and a terse value, and from the command register. A control that a
+package contributes appears in the panel without the panel naming it. When an
+existing component's markup can't produce the spec's appearance, write the panel's
+own presentation. Never bend the design to fit a component. Root
 `AGENTS.md`'s cross-runtime invariants still hold; read them before you design
 the state flow.
-
-**The preference.** The user turns the panel on once, and it applies to every
-page they open on that origin. Store it in the user-scoped store that
-`prepaint.js` reads before the page paints, as the Quick keyboard shortcuts
-preference does, so a page never paints the classic bars and then swaps them
-out. A URL parameter sets and stores it, on or off, which is how the user turns
-the panel on from classic chrome; previews and tests set it in their own
-browser contexts. The panel's Layout row can switch back to Classic. Classic
-chrome gains no new control. With the preference off, every page looks and
-behaves exactly as it does today.
-
-**Samples.** An `lf-sample window` child follows the same preference, or takes
-it from an attribute. That lets a review page show classic and floating side by
-side.
 
 ## How to work
 
@@ -344,7 +324,7 @@ comments as they arrive. Give them a new checkpoint at each milestone:
 
 - the resting panel, the leaf mark's status, and the menu;
 - Threads, opening, answering and resolving a thread, and writing in the one box;
-- asks answered inline in the On view, Versions, approval, modes, and the Moderate display;
+- items answered inline in the On view, Versions, approval, modes, and the Moderate display;
 - motion and polish.
 
 Budget about eight hours of work. If the user hasn't answered a checkpoint
@@ -370,16 +350,15 @@ ordinary window sizes. Edge cases nobody asked about, such as pinch zoom, unusua
 viewports and exotic input, go to the open-items list unless they break the
 requested experience. Fix the main path's look and feel first.
 
-**Tests.** Cover each journey with the preference on: comment, reply, resolve
-and reopen, filter, open a thread, answer a question, switch versions, minimize,
-and restore. Check that the existing chrome tests pass with it off. Follow
+**Tests.** Cover each journey: comment, reply, resolve and reopen, filter, open a
+thread, answer a question, switch versions, fold, and unfold. Follow
 `tests/AGENTS.md`'s "Run what the change needs", and don't run the whole suite
 locally.
 
 ## Landing
 
 When the user accepts a checkpoint, open a pull request that lands that work on
-`main` behind the preference. Merging it is the user's call; merge only when
+`main`. Merging it is the user's call; merge only when
 they tell you to. Do the same for each later checkpoint they accept, so their
 development continues from `main`. The work is done when the user accepts the
 build as a whole.

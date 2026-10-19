@@ -3,8 +3,8 @@
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
 import { declarationFor, layerFact, registry } from "./registry.js";
-import { readAsks } from "./asks/model.js";
-import { asksIn } from "./asks/place.js";
+import { readItems } from "./items/model.js";
+import { itemsIn } from "./items/place.js";
 import { elementById } from "./passages.js";
 import { quietSince } from "./presence.js";
 import { quoted } from "./widget-descriptors.js";
@@ -114,14 +114,14 @@ const done = (goal, read) => {
   return role.done.includes(roleState(goal, "goal", read));
 };
 
-// The elements of the asks waiting on the user that `goal` holds (`asksIn`) and owns
+// The elements of the items waiting on the user that `goal` holds (`itemsIn`) and owns
 // itself: in its scope, under no nearer goal, and not a goal.
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
   return (
-    asksIn(goal, open)
-      // `asksIn` holds widgets' asks, which each name their widget.
-      .map((ask) => elementById(/** @type {{id: string}} */ (ask.source).id))
+    itemsIn(goal, open)
+      // `itemsIn` holds widgets' items, which each name their widget.
+      .map((item) => elementById(/** @type {{id: string}} */ (item.source).id))
       .filter(
         (item) =>
           item !== goal &&
@@ -138,7 +138,7 @@ function stopped(goal, open, nested, read) {
   if (read(goal).thread.heldBy) return true;
   if (nested.length) return true;
   if (!role.stopped.includes(roleState(goal, "goal", read))) return false;
-  if (open.some((ask) => ask.source.id === goal.id)) return true;
+  if (open.some((item) => item.source.id === goal.id)) return true;
   const children = directWorkElements(goal, "goal");
   return children.length
     ? children.some((child) => stopped(child, open, interventions(child, open), read))
@@ -187,9 +187,9 @@ export function readWork(scope) {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  // An ask stops work only while it waits on the user; one they left with the agent
-  // does not (asks/place.js).
-  const open = readAsks().user.filter((ask) => ask.source.kind === "widget");
+  // An item stops work only while it waits on the user; one they left with the agent
+  // does not (items/place.js).
+  const open = readItems().user.filter((item) => item.source.kind === "widget");
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map((worker) =>

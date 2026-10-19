@@ -223,6 +223,7 @@ class CodexChild:
         temporary = cwd / "tmp"
         temporary.mkdir(exist_ok=True)
         config_home = home / ".codex"
+        self.native_sessions = config_home / "sessions"
         if not config_home.exists():
             codex_home(
                 config_home,

@@ -12,11 +12,13 @@ from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    PANEL,
     comment_note,
     consume_browser_errors,
     holding,
     leaf_page,
     open_page,
+    panel_field,
     primed,
     round_trip,
     stored_draft_text,
@@ -24,6 +26,8 @@ from render_harness import (
     undo,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -254,38 +258,37 @@ customElements.define('lf-test-surface', class extends HTMLElement {
     # completion edge before checking that the digit produced no stale send.
     page.keyboard.press("1")
     page.keyboard.press("c")
-    expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
+    expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
     round_trip(page)
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
         if event.get("token")
     ]
-    page.keyboard.press("Escape")  # out of the page comment card
-    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
-    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    page.keyboard.press("Escape")  # out of the panel's field
+    expect(panel_field(page)).not_to_be_focused()
+    no_view = page.locator(f"{PANEL}[data-open]")
+    expect(no_view).to_have_count(0)
     # A retired thread lands on the surface the user's own gesture reaches. With the
     # widget still on the page its passages keep a page-local destination, so each datum
-    # gets a margin entry and its comment note opens the fallback card with Threads
-    # shut; a disconnected widget leaves no such destination and the panel answers.
+    # gets a margin entry and its comment note opens the fallback card with the panel's
+    # views shut; a disconnected widget leaves no such destination and the panel's
+    # Threads answers, the thread's reply standing in the panel's field.
     if failure in {"disconnect", "target-removed"}:
         expect(markers).to_have_count(0)
-        page.locator(".lf-threads-toggle").click()
-        fallback = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
+        fallback = open_panel_thread(page, roots[0])
+        reply = panel_field(page)
     else:
         expect(markers).to_have_count(2)
         comment_note(page, "#broken").press("Enter")
         fallback = page.locator(
             f'.lf-margin-preview .lf-page-thread[data-thread="{roots[0]}"]'
         )
-        expect(page.locator(".lf-thread-panel")).not_to_have_class(
-            re.compile(r"\bopen\b")
-        )
+        reply = fallback.locator("leaf-text")
+        expect(no_view).to_have_count(0)
     expect(fallback).to_be_visible()
     expect(fallback).to_contain_text("Discuss broken")
-    expect(fallback.locator("leaf-text")).to_have_js_property(
-        "value", "Keep this unsent reply."
-    )
+    expect(reply).to_have_js_property("value", "Keep this unsent reply.")
     if failure not in {"disconnect", "target-removed"}:
         page.keyboard.press("Escape")
         broken.evaluate("""widget => {
@@ -322,12 +325,12 @@ customElements.define('lf-test-surface', class extends HTMLElement {
         consume_browser_errors(page, expected)
 
 
-def test_page_annotation_view_seats_asks_and_contributed_controls(browser, serve):
-    """A page that owns its annotations shows its asks and contributed actions in its
+def test_page_annotation_view_seats_items_and_contributed_controls(browser, serve):
+    """A page that owns its annotations shows its items and contributed actions in its
     own box: Leaf hands the consumer each entry's items and native controls, and the
-    page only arranges them. Activating an item reaches its ask, and a seated
+    page only arranges them. Activating an item reaches its item, and a seated
     control still runs its contribution's action. The view follows the log: an answered
-    ask leaves once the server holds the answer, and Undo brings it back."""
+    item leaves once the server holds the answer, and Undo brings it back."""
     url = serve(
         leaf_page(
             "Page annotation view",
@@ -890,7 +893,10 @@ def test_source_retired_during_required_reader_prepare_is_not_claimed(browser, s
     page.locator("#retire").click()
     assert page.locator("#subject").count() == 0
     page.evaluate("()=>releasePanel()")
-    page.wait_for_function("""async()=>{
-      const {applicationPresented}=await window.__lfCheckApi();return applicationPresented();
+    # `wait_for_function` takes an async predicate's promise as its answer, so the
+    # reading is installed first and waited on synchronously.
+    page.evaluate("""async()=>{
+      window.__lfPresented=(await window.__lfCheckApi()).applicationPresented;
     }""")
+    page.wait_for_function("()=>window.__lfPresented()")
     expect(page.locator("#rail .lf-page-thread")).to_have_count(0)

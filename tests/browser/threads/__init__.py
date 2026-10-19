@@ -1,5 +1,5 @@
-"""Comment threads on a rendered page and in the Threads panel, with the helpers and
-page constants their modules share."""
+"""Comment threads on a rendered page and in the floating panel's Threads and thread
+views, with the helpers and page constants their modules share."""
 
 import base64
 import json
@@ -14,59 +14,84 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
-    SEATED_ASK_LAYER,
-    SEATED_ASK_WIDGETS,
+    SEATED_ITEM_LAYER,
+    SEATED_ITEM_WIDGETS,
     panel_comment,
 )
 from render_cases_navigation import source_revision
 from render_harness import (
+    PANEL,
+    PANEL_THREAD,
     leaf_page,
     open_page,
     page_comment,
+    panel_field,
     panel_settled,
-    resized,
     scroll_settled,
     write,
 )
 
-# Where focus given to the Threads list lands while it shows a thread: the title of the
-# thread it shows open (thread-list-view.js).
-OPEN_TITLE = ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
+# The open thread's reply, the editor standing in the panel's field, and the thread's
+# held news, which the panel stands in its view's head.
+PANEL_REPLY = '.lf-fp-field leaf-text[name="reply"]'
+PANEL_NEWS = ".lf-fp-head .lf-thread-news"
 
 
-def focus_panel_thread(thread):
-    """Stand on a panel thread through its native disclosure title."""
-    title = thread.locator(":scope > .lf-thread-summary")
-    if thread.get_attribute("open") is None:
-        title.click()
-    else:
-        title.focus()
+def open_threads(page):
+    """Stand the panel's Threads view open: by the open thread's way back to it, which
+    stands while the counts step aside for words being typed, else by its count."""
+    if page.locator(PANEL).get_attribute("data-open") == "threads":
+        return
+    back = page.locator(".lf-fp-head .lf-fp-back", has_text="Threads")
+    (back if back.count() else page.locator(".lf-fp-threads")).click()
+    panel_settled(page, view="threads")
 
 
-def hold_visible_thread_presentation(page, thread_id):
-    """Hold the list candidate that reveals one named thread."""
-    page.evaluate(
-        """(threadId) => {
-          const list = document.querySelector('.lf-threads');
-          const present = list.present.bind(list);
-          let release;
-          const held = new Promise(resolve => { release = resolve; });
-          let used = false;
-          list.present = (model) => {
-            const reveals = model.rows.some(row =>
-              row.kind === 'thread' && row.descriptor.id === threadId &&
-              row.descriptor.visible);
-            if (!reveals) return present(model);
-            if (!used) {
-              used = true;
-              window.visibleThreadPresentationHeld = true;
-            }
-            return held.then(() => present(model));
-          };
-          window.releaseVisibleThreadPresentation = release;
+def thread_row(page, key):
+    """The thread `key`'s row in the panel's Threads view, opening Threads where it is
+    not the view standing open. Its `.lf-fp-value` says the thread's state, less the
+    word the filter showing it already says. `key` may be the thread's id: a thread this
+    tab started is keyed by the attempt that sent it (thread/model.js, `threadKey`)."""
+    key = page.evaluate(
+        """async (id) => {
+          const {readThreads} = await window.__lfWidgetApi();
+          return readThreads().threads.find((t) => t.id === id)?.key ?? id;
+        }""",
+        key,
+    )
+    open_threads(page)
+    return page.locator(
+        f'.lf-fp-view[data-view="threads"] .lf-fp-thread[data-key="{key}"]'
+    )
+
+
+def open_panel_thread(page, thread_id):
+    """Open the thread `thread_id` in the panel the way a reader finds it, and return its
+    view, standing open: Threads, under the filter that lists it (Resolved for a
+    resolved thread, else Open), then its row. A thread already open there is left as it
+    stands. A row is keyed by the thread's key, which for a thread this tab started is
+    the attempt that sent it (thread/model.js, `threadKey`), so the page's own reading
+    finds it."""
+    view = page.locator(f'{PANEL_THREAD}[data-thread="{thread_id}"]')
+    if view.count():
+        return view
+    found = page.evaluate(
+        """async (id) => {
+          const {readThreads} = await window.__lfWidgetApi();
+          const thread = readThreads().threads.find((t) => t.id === id);
+          return thread ? {key: thread.key, resolved: thread.resolved} : null;
         }""",
         thread_id,
     )
+    assert found, f"the page holds no thread {thread_id}"
+    open_threads(page)
+    page.locator(".lf-fp-filters button").filter(
+        has_text="Resolved" if found["resolved"] else "Open"
+    ).click()
+    page.locator(f'.lf-fp-thread[data-key="{found["key"]}"]').click()
+    expect(view).to_be_visible()
+    panel_settled(page, view="thread")
+    return view
 
 
 # Named from the command's own answer: a page open on this directory appends a
@@ -316,57 +341,6 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
         )
 
 
-THREAD_STANDING = """() => {
-  const active = document.activeElement;
-  const card = active?.closest('.lf-thread');
-  if (!card) return null;
-  const list = card.closest('.lf-threads');
-  const peer = [...list.querySelectorAll(':scope > .lf-thread:not([hidden])')]
-    .find(other => other !== card && !other.matches(':focus-within'));
-  const paint = getComputedStyle(card.querySelector(".lf-thread-summary"));
-  const focusPaint = getComputedStyle(active);
-  const resting = peer && getComputedStyle(peer.querySelector(".lf-thread-summary"));
-  const box = card.getBoundingClientRect();
-  const viewport = list.getBoundingClientRect();
-  return {
-    background: paint.backgroundColor,
-    outline: focusPaint.outlineStyle,
-    restingBackground: resting?.backgroundColor ?? null,
-    cuts: [
-      box.top < viewport.top - .5 && 'top',
-      box.right > viewport.right + .5 && 'right',
-      box.bottom > viewport.bottom + .5 && 'bottom',
-      box.left < viewport.left - .5 && 'left',
-    ].filter(Boolean),
-    scrolled: list.scrollHeight > list.clientHeight,
-  };
-}"""
-
-
-def standing_thread(page):
-    """The current thread's surface paint, beside a resting thread for comparison."""
-    return page.evaluate(THREAD_STANDING)
-
-
-def thread_mark_fault(reading):
-    """Why a current thread is indistinguishable from a resting card, if it is.
-
-    The focused card wears the same inset ring after pointer or keyboard arrival,
-    over the quiet ground that says the user is in it. `rings_drawn` reads whether
-    a ring is whole; this reads that the marks the arrival owes are there."""
-    if not reading:
-        return "focus is not inside a thread"
-    if reading["restingBackground"] is None:
-        return "there is no resting peer to distinguish the current thread from"
-    if reading["outline"] != "solid":
-        return f"the current thread wears a {reading['outline']} outline, not solid"
-    if reading["background"] == reading["restingBackground"]:
-        return "the current thread's surface is the same as a resting card's"
-    if reading["cuts"]:
-        return f"the current thread's {', '.join(reading['cuts'])} edge is cut"
-    return None
-
-
 LANDING_WORDS = (
     "This message has enough words in it to wrap over several lines in the panel, "
     "so that a thread of a dozen of them is taller than the list's scrollport. "
@@ -395,35 +369,28 @@ def seed_panel_threads(page_dir, threads, long_index=None, messages=12):
     return roots
 
 
-def open_threads_list(page, width, height):
-    resized(page, width, height)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-
-
 def reply_by_keyboard(page, root):
-    """Stand on the thread's title and press `c` into its reply box."""
-    card = page.locator(f'.lf-thread[data-id="{root}"]')
-    title = card.locator(":scope > .lf-thread-summary")
-    if card.get_attribute("open") is None:
-        title.click()
-    title.focus()
+    """Open the thread in the panel, stand on its view and press `c` into its reply,
+    the panel's field; return the view."""
+    view = open_panel_thread(page, root)
+    view.focus()
     rendered(page)
-    title.press("c")
-    expect(card.locator("leaf-text")).to_be_focused()
+    page.keyboard.press("c")
+    reply = panel_field(page)
+    expect(reply).to_be_focused()
+    expect(reply).to_have_attribute("name", "reply")
     rendered(page)
-    scroll_settled(page, ".lf-threads")
-    return card
+    return view
 
 
-# Where a node stands against the list's landing band: its scrollport less the
-# scroll padding the focus ring takes.
+# Where a node stands against the open panel view's landing band: its scrollport less
+# the scroll padding the focus ring takes.
 IN_LANDING_BAND = """node => {
-  const list = document.querySelector('.lf-threads');
+  const list = document.querySelector('.lf-fp-view:not([data-leaving])');
   const shown = list.getBoundingClientRect();
   const style = getComputedStyle(list);
-  const band = [shown.top + parseFloat(style.scrollPaddingTop),
-                shown.bottom - parseFloat(style.scrollPaddingBottom)];
+  const band = [shown.top + (parseFloat(style.scrollPaddingTop) || 0),
+                shown.bottom - (parseFloat(style.scrollPaddingBottom) || 0)];
   const box = node.getBoundingClientRect();
   return {inside: box.top >= band[0] - 1 && box.bottom <= band[1] + 1,
           box: [Math.round(box.top), Math.round(box.bottom)],
@@ -505,8 +472,8 @@ def seated_page(serve, kind):
             f'<h1>Review the plan</h1>{SEAT_FILLER}<lf-verdict id="proposal" asks>'
             f"Should these jobs share a visit?</lf-verdict>{SEAT_FILLER}",
         ),
-        layer_registry=SEATED_ASK_LAYER,
-        layer_widgets=SEATED_ASK_WIDGETS,
+        layer_registry=SEATED_ITEM_LAYER,
+        layer_widgets=SEATED_ITEM_WIDGETS,
     ), "#proposal"
 
 
@@ -530,20 +497,18 @@ def to_window_foot(page, locator, gap):
     scroll_settled(page)
 
 
-def clear_of_the_bar(page, locator):
-    """Whether the node is wholly in the window and clear of the fixed shortcut bar.
-
-    The bar yields a panel standing beside the page its width, so it covers only the
-    columns it spans."""
+def clear_of_the_panel(page, locator):
+    """Whether the node is wholly in the window and clear of the floating panel, which
+    stands over the window's foot across the columns it spans."""
     return page.evaluate(
-        """([node, bar]) => {
+        """([node, card]) => {
           const box = node.getBoundingClientRect();
-          const b = bar?.getBoundingClientRect();
-          const covers = b && b.left < box.right && box.left < b.right;
+          const b = card.getBoundingClientRect();
+          const covers = b.height > 0 && b.left < box.right && box.left < b.right;
           const foot = covers ? b.top : innerHeight;
           return box.height > 0 && box.top >= 0 && box.bottom <= foot + 0.5;
         }""",
-        [locator.element_handle(), page.locator(".lf-shortcut-bar").element_handle()],
+        [locator.element_handle(), page.locator(".lf-fp-card").element_handle()],
     )
 
 
@@ -595,47 +560,43 @@ def pressed_send_surface(browser, serve, surface):
             {"section": "how-store"},
         )
         page = open_page(browser, url)
+        field = page.locator(".lf-fp-field")
         if surface == "general":
             box = page_comment(page)
-            holder = page.locator(".lf-page-comment-card .lf-general")
+            holder = field
         elif surface == "card":
             page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
             holder = page.locator(".lf-margin-preview")
             box = holder.locator(".lf-thread-reply leaf-text")
         elif surface in {"composer", "composer-panel"}:
             if surface == "composer-panel":
-                page.locator(".lf-threads-toggle").click()
-                panel_settled(page)
+                page.locator(".lf-fp-threads").click()
+                panel_settled(page, view="threads")
             page.locator("#how-cap").click(click_count=3)
             page.locator(".lf-fab-input").click()
             holder = page.locator(".lf-composer")
             box = holder.locator("leaf-text")
         else:
-            page.locator(".lf-threads-toggle").click()
-            panel_settled(page)
-            holder = page.locator(f'.lf-thread[data-id="{root}"]')
-            holder.locator(".lf-thread-summary").click()
-            box = holder.locator(":scope > .lf-thread-reply leaf-text")
+            open_panel_thread(page, root)
+            holder = field
+            box = field.locator('leaf-text[name="reply"]')
+            box.click()
         send = holder.locator(".lf-compose-submit")
-        # Conversation sends land on their card or title. The page-comment card closes
-        # to its banner control; `c` starts another comment there.
+        # Conversation sends land where the conversation goes on: a card's on its card,
+        # the panel's in its field, a page comment opening its thread there, which the
+        # field then replies in.
+        reply_box = field.locator('leaf-text[name="reply"]')
         after = {
             "card": holder.locator(".lf-page-thread"),
             "composer": page.locator(".lf-margin-preview .lf-page-thread"),
-            "composer-panel": page.locator(
-                ".lf-thread", has_text="Sent from the box."
-            ).locator(":scope > .lf-thread-summary"),
-            "panel": holder.locator(".lf-thread-summary"),
-            "general": page.locator(".lf-page-comment"),
+            "composer-panel": page.locator(".lf-margin-preview .lf-page-thread"),
+            "panel": reply_box,
+            "general": reply_box,
         }[surface]
         reply = (
             page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
-            if surface in {"card", "composer"}
-            else page.locator(".lf-thread", has_text="Sent from the box.").locator(
-                ":scope > .lf-thread-reply leaf-text"
-            )
-            if surface == "composer-panel"
-            else box
+            if surface.startswith("composer") or surface == "card"
+            else reply_box
         )
     write(box, "Sent from the box.")
     rendered(page)
@@ -701,15 +662,18 @@ customElements.define('lf-capture-art', class extends HTMLElement {
 
 
 def open_capture_area(page, *, touch=False):
-    """Enter the screenshot tool through its ordinary page-control route."""
-    more = page.get_by_role("button", name="More page controls", exact=True)
-    capture = page.get_by_role("button", name="Capture area", exact=True)
-    if touch:
-        more.tap()
-        capture.tap()
-    else:
-        more.click()
-        capture.click()
+    """Enter the screenshot tool through its ordinary page-control route: the leaf's
+    menu, Annotations, Capture area."""
+    menu = page.locator(".lf-fp-menu")
+    for press in (
+        page.locator(".lf-fp-leaf"),
+        menu.locator('.lf-fp-item[data-row="group:annotate"]'),
+        menu.locator('.lf-fp-item[data-row="command:capture.region.open"]'),
+    ):
+        if touch:
+            press.tap()
+        else:
+            press.click()
     surface = page.get_by_role("region", name="Capture area", exact=True)
     expect(surface).to_be_visible()
     return surface

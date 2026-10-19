@@ -28,8 +28,8 @@ have to picture from a description, and put that thing on the page in its own fo
   show that effect in one of the forms above, with the code beside it.
 
 Pages that decide, plan or review show their subject the same way: a work item that
-fixes a visible fault shows the fault, and an ask's options show what each answer gives
-the user (`authoring-asks.md`). A table or list whose rows say where things sit, how
+fixes a visible fault shows the fault, and a decision's options show what each answer gives
+the user (`authoring-decisions.md`). A table or list whose rows say where things sit, how
 large they are or what connects to what should be a drawing.
 
 A drawing or chart makes its point through its geometry: where its marks sit, their
@@ -96,13 +96,13 @@ table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
   a postmortem beside its timeline, is a `layout-sidebar` page (`page-layout.md`, "A
   sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
-  views that share one history, Threads panel and set of asks; a tabbed section holds
+  views that share one history, Threads list and On me list; a tabbed section holds
   local alternatives within a view. The `lf-tabs` entry says which placement makes
   which.
 
 A page can grow without changing its Layout: a report that gains live status gains a
-row of tiles. Leaf's banner and bottom bar take their own space, and comment markers go
-in the margin or over their targets, so leave room for neither.
+row of tiles. Leaf's panel takes its own room at the window's foot, and comment markers
+go in the margin or over their targets, so leave room for neither.
 
 ## Contents navigation
 

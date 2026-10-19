@@ -22,7 +22,7 @@ $ARGUMENTS
 
 ## Must remember
 
-- **Everything waiting on the user is an item in their On me list**, including
+- **Everything waiting on the user is an item on their On me list**, including
   each decision you leave to them that your next step doesn't depend on. Register
   it before a page heading, a chat open item or a `needs input:` line mentions it.
   `references/conversation-loop.md`, "The On lists", says how to register each
@@ -50,7 +50,7 @@ line for each refusal or note, with the words in `error` or `text`.
    `references/packages.md`, "Package reach", lists the packages. Use
    `playground` when the user tunes several values or behaviors before choosing.
    Drawn candidates the user picks among need no package, since the user selects
-   the candidate itself (`references/authoring-asks.md`). Running `page init`
+   the candidate itself (`references/authoring-decisions.md`). Running `page init`
    again with a package adds it to a page already written.
 2. Read all of `references/page-authoring.md`, then each reference the page
    needs, listed under "Author a version" below. Choose elements and class idioms
@@ -75,7 +75,7 @@ line for each refusal or note, with the words in `error` or `text`.
    page renders; the reading shows what you meant.
    `references/page-checkpoints.md`, "Stamp checkpoints", says when to stamp
    again; each later stamp repeats the render check and the reading for the views
-   and asks it adds. A quick page takes this review once a stamp makes it a record.
+   and On me items it adds. A quick page takes this review once a stamp makes it a record.
 5. Read the contract that "Harness selection" below picks. Follow
    `references/conversation-loop.md`, "Status and handoff", and serve and hand
    over the page the way that contract says.
@@ -103,9 +103,16 @@ contract you picked. `references/codex-setup.md` owns terminal App Server setup.
 ## Stay responsive
 
 `references/conversation-loop.md`, "When to write", owns the immediate reply and
-work status for each user update. For work that would delay the next update,
-follow its "Long-running work": background workers do the work while you keep
-the page and answer the user.
+work status for each user update. The parent session owns the Leaf conversation:
+answer the user, keep the page current, and direct background subagents doing the
+substantive research, editing and testing. Keep direct answers, small page changes,
+and the review and integration of worker results with you. Having more work to do
+is a reason to delegate it, while you remain available for the user's next move.
+
+`references/conversation-loop.md`, "Long-running work", owns worker briefs,
+results and work that continues beyond your turn. If subagents are unavailable,
+run long operations in the background and follow your harness's delivery loop
+between bounded steps.
 
 ## Page contract
 
@@ -120,7 +127,7 @@ side on a sidebar page, or a workspace the user moves through instead of
 scrolling. A Layout class on `main` sets the shape, and the page's own CSS
 adjusts it. `references/page-authoring.md`, "Composing a page", owns the choice
 of shape, `references/page-layout.md` each shape's geometry, and
-`references/authoring-asks.md` where each ask goes.
+`references/authoring-decisions.md` where each decision goes.
 
 Include only controls and gestures that advance the user's task. Widget actions,
 resolutions and sign-offs can be undone; sent words stay in the log.
@@ -158,7 +165,7 @@ never have to follow a chain of references to find one.
   a `page/registry.json`, or anything loaded from another server.
 - `references/live-samples.md`: before letting the user operate a Leaf page inside a
   page or a thread message.
-- `references/authoring-asks.md`: when the page or your reply leaves anything for
+- `references/authoring-decisions.md`: when the page or your reply leaves anything for
   the user to decide or sign off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising the page's current state.
@@ -169,7 +176,7 @@ never have to follow a chain of references to find one.
 ### First handoff
 
 - `references/conversation-loop.md`: before a page handoff, starting work on the page,
-  work long enough to delegate, or asking the user to do something no ask answers.
+  work long enough to delegate, or asking the user to do something no widget answers.
 - The contract "Harness selection" picks: before the first handoff and when a
   delivery arrives.
 
@@ -189,7 +196,7 @@ never have to follow a chain of references to find one.
   session's page.
 - `references/module-authoring.md`: before writing or changing browser behavior in
   a page script, page-owned widget or package widget. Then, as the behavior needs
-  them: `references/module-reading.md` for reading the page, content helpers, asks
+  them: `references/module-reading.md` for reading the page, content helpers, items
   and history; `references/module-state.md` for recorded state and data;
   `references/module-input.md` for commands, focus and text entry;
   `references/module-scroll-and-motion.md` for scrolling, travel and motion; and

@@ -1,24 +1,27 @@
 import {
   LeafEditorView,
-  askActions,
-  askWords,
+  answerWords,
+  claimTraversals,
   comparisonChanges,
   consumeAnnotations,
   currentProjection,
   dataReader,
   dispatchWidget,
   invalidateDom,
+  itemActions,
   joinDataDelivery,
   landInThread,
   loadDeferred,
   navigateToDatum,
   placePageThreads,
   projectData,
+  pushEntry,
   queueActions,
   queueItemKey,
   queueTitle,
   readQueues,
   registerThreadPresentation,
+  replaceEntry,
   stagesOnly,
   threadActions,
   threadBox,
@@ -45,11 +48,9 @@ import {
   HeldReading,
   allButCommandReference,
   anchorLabel,
-  askedInWords,
-  asksIn,
+  answeredInWords,
   beginWalk,
   capturePlace,
-  claimTraversals,
   clearDraft,
   copyBlock,
   ensureSyntaxLanguage,
@@ -57,6 +58,7 @@ import {
   highlightBlocks,
   inlineMarkdownFragment,
   isPagePaint,
+  itemsIn,
   keepView,
   langForPath,
   listWalkPosition,
@@ -68,13 +70,11 @@ import {
   openingView,
   paintMarkdown,
   placeKeeper,
-  pushEntry,
   quietWord,
-  readAsks,
+  readItems,
   readThreads,
   releaseOutlets,
   renderMarkdown,
-  replaceEntry,
   restorePlace,
   retainUserIntent,
   rowWalk,
@@ -90,9 +90,6 @@ import {
   tokenLines,
   watchDraft
 } from "./bundle-user-intent.js";
-import {
-  raiseError
-} from "./bundle-errors.js";
 import {
   aborted,
   bodyText,
@@ -180,6 +177,7 @@ import {
   LayerRefused,
   PAGE_PAINT_ATTRIBUTE,
   PRESS,
+  PRESSABLE,
   announce,
   closeNativeLayer,
   commandScope,
@@ -207,6 +205,7 @@ import {
   paintKeysWithin,
   plainPress,
   pressIsKeyboardActivation,
+  raiseError,
   reachedForWords,
   registry,
   relabel,
@@ -912,9 +911,9 @@ var done = (goal, read) => {
 };
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
-  return asksIn(goal, open).map((ask) => elementById(
+  return itemsIn(goal, open).map((item) => elementById(
     /** @type {{id: string}} */
-    ask.source.id
+    item.source.id
   )).filter(
     (item) => item !== goal && !workRole(item, "goal") && workAncestor(item, "scope") === scope && workAncestor(item.parentElement, "goal") === goal && !quoted(item)
   );
@@ -924,7 +923,7 @@ function stopped(goal, open, nested, read) {
   if (read(goal).thread.heldBy) return true;
   if (nested.length) return true;
   if (!role.stopped.includes(roleState(goal, "goal", read))) return false;
-  if (open.some((ask) => ask.source.id === goal.id)) return true;
+  if (open.some((item) => item.source.id === goal.id)) return true;
   const children = directWorkElements(goal, "goal");
   return children.length ? children.some((child) => stopped(child, open, interventions(child, open), read)) : true;
 }
@@ -962,7 +961,7 @@ function readWork(scope) {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  const open = readAsks().user.filter((ask) => ask.source.kind === "widget");
+  const open = readItems().user.filter((item) => item.source.kind === "widget");
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map(
@@ -1632,6 +1631,7 @@ export {
   PAGE_INTERFACE,
   PRESENTATION,
   PRESS,
+  PRESSABLE,
   TEXT_BOX,
   TEXT_FIELD,
   aborted,
@@ -1644,10 +1644,8 @@ export {
   allButCommandReference,
   anchorLabel,
   announce,
-  askActions,
-  askWords,
-  askedInWords,
-  asksIn,
+  answerWords,
+  answeredInWords,
   atLayoutPrecision,
   atScrollEnd,
   authoredScope,
@@ -1714,6 +1712,8 @@ export {
   isCanonicalMediaUrl,
   isNativeLayer,
   isPagePaint,
+  itemActions,
+  itemsIn,
   keepView,
   keeps,
   keepsHidden,
@@ -1777,8 +1777,8 @@ export {
   raiseError,
   rankAt,
   reachedForWords,
-  readAsks,
   readHistory,
+  readItems,
   readQueues,
   readThreads,
   readWork,

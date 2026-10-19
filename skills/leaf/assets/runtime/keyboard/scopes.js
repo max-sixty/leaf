@@ -1,8 +1,8 @@
 /* Scopes: where a group of rows applies, registered against an element and gathered by
    title for the surfaces that project them.
 
-   Standing in a surface is where focus is, not merely that the surface is open. A drawer's
-   or panel's own button lives in the banner, so opening by pointer leaves the user
+   Standing in a surface is where focus is, not merely that the surface is open. A view's
+   own button lives in the floating panel, so opening by pointer leaves the user
    outside it, and a key, a Tab or a click on its contents is what puts them in. Inside a
    text box the letter is a character, Shift+Enter writes a newline in a composer, and arrows move the caret.
    The typing scope claims those text-editing keys, so a user reaches a surface's
@@ -21,7 +21,7 @@
    An executable command owns its button's availability through its predicates;
    disabled attributes are outputs. ARIA refusal retains keyboard standing while
    activation checks the current command. Withdrawal returns both original attributes.
-   Preserve the order of that list because the dispatcher and shortcut bar walk inward to
+   Preserve the order of that list because the dispatcher and hints walk inward to
    outward while the full reference groups the same scopes for reading. */
 import {
   AsyncDirective,
@@ -45,7 +45,6 @@ import {
   declaredBindings,
   titleOf,
   descriptionOf,
-  lineOf,
   live,
   parsed,
   spokenBinding,
@@ -284,7 +283,7 @@ function wireDeclaredButtons(scope) {
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 const elementScopes = new WeakMap();
 // The scopes other owners project onto an element, keyed by the owner, so one control can
-// carry several: a margin entry holds its widget's scope and an ask's digit route at once.
+// carry several: a margin entry holds its widget's scope and an item's digit route at once.
 const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
 export const scopeIdentity = (scope) => scope.identity ?? scope;
@@ -346,9 +345,6 @@ function contextRows(declarations) {
           id: row.id,
           title: () => titleOf(row),
           description: () => descriptionOf(row),
-          get line() {
-            return row.line;
-          },
           get keys() {
             return this.routes.map(({ binding }) => binding);
           },
@@ -375,7 +371,6 @@ function contextRows(declarations) {
                     binding,
                     title: () => titleOf(contribution),
                     description: () => descriptionOf(contribution),
-                    line: contribution.line,
                     control: contribution.control ?? row.control,
                     bindingBadge:
                       contribution.bindingBadge !== undefined
@@ -531,8 +526,8 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * `aria-keyshortcuts` projection are both settled there; a first paint that refuses a
  * scope retracts it from both indexes. That first paint reads this element alone: a
  * declaration changes no other element's shortcuts, so attaching one asks for no
- * page-wide reflection. One a painter attaches mid-frame, as the banner's touch
- * controls are, is read at the head of the frame its repaint schedules.
+ * page-wide reflection. One a painter attaches mid-frame is read at the head of the
+ * frame its repaint schedules.
  *
  * Passing a `commandScope()` capability in place of `title` attaches that one
  * declaration to retained widget DOM as well as its generated projections. Returns the
@@ -682,8 +677,8 @@ export function projectCommandScope(control, projector, capability = null) {
 // Commands whose scope stands in one widget, in declaration order. Preserve the
 // declaring scope beside each row: a control presentation may be hoisted elsewhere,
 // while Decision ownership still belongs to the source that declared the command.
-// This is the shared capability reading: the dispatcher, shortcut bar and reference use
-// the same rows directly, while projections such as the On panel select the role they need.
+// This is the shared capability reading: the dispatcher, hints and reference use
+// the same rows directly, while projections such as On me select the role they need.
 // A scope may sit on a nested control rather than the widget itself, so containment
 // follows the runtime's cross-shadow parent walk instead of a light-DOM selector.
 function scopesWithin(root, activeOnly) {
@@ -720,7 +715,7 @@ export function commandsWithin(root) {
 // Every declaration on one element is painted as one native shortcut attribute. A local
 // declaration and any number of projected ones can coexist, so none may erase another's
 // bindings. Each scope's live rows are read and refused on their own; the attribute is
-// their union, since two scopes on one control may name one press: an ask's route names
+// their union, since two scopes on one control may name one press: an item's route names
 // the intrinsic key of the command it routes to, which that command's own scope names.
 function reflectElementShortcuts(element) {
   const available = scopesAt(element).filter((scope) => !scope.when || scope.when());
@@ -915,7 +910,7 @@ export const paintKeys = () => {
 };
 /** Mark for reflection the scoped elements inside `root`, as a renderer that has just
  * rewritten that part of the document does, and repaint the frame whose shared surfaces,
- * the shortcut bar among them, read the same rows. */
+ * the hints among them, read the same rows. */
 export const paintKeysWithin = (root) => {
   for (const ref of scopeRefs) {
     const scoped = ref.deref();
@@ -932,7 +927,7 @@ export const paintKeysWithin = (root) => {
  */
 export const saying = (rows) =>
   activeRows(rows, "an announced scope")
-    .map((row) => `${spoken(row)} ${lineOf(row)}`)
+    .map((row) => `${spoken(row)} ${titleOf(row)}`)
     .join(", ");
 // A row's own label where it has one, read the way every other surface reads a cell, and
 // the bindings where it has none — which is what keeps a listener hearing "Escape" rather

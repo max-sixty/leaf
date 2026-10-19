@@ -20,8 +20,8 @@
    history, but not the user. A route's view also puts the row in place of its own
    (`carry`), taking it from a view that holds it out of sight. A closed card whose
    thread is still in the margin, and a hidden panel, keep their rows, since the user
-   goes on there when they open again. A view that cannot draw another row, a primary
-   reader's reply part (primary-reader.js), takes the session and caret into its own. */
+   goes on there when they open again. Every view draws whichever row it holds, a
+   primary reader's reply part (primary-reader.js) as a card does. */
 import {
   captureDraftEditing,
   loadDraft,
@@ -161,14 +161,6 @@ function dismissContext(context) {
   session.owner?.changed();
 }
 export const dismissReply = (key) => dismissContext(replyContext(key));
-// Withholding an entire surface ends capture without dismissing its editing session
-// or discarding its words. A panel can retain all its reply nodes while it is hidden.
-export function cancelReplyDictation(surface) {
-  for (const instances of views.values())
-    for (const composition of instances)
-      if (surface.contains(composition.controls.input))
-        composition.sync.cancelDictation();
-}
 // A pointer press elsewhere puts the composition away. Keyboard activation emits
 // click too, but Send, Resolve and the declared leave command own their addressed row.
 document.addEventListener(
@@ -200,15 +192,13 @@ function handOver(target, owner) {
 
 // Once no view shows the session's row, the view now drawing its thread puts that row
 // in place of its own, and the user goes on in their own editor, with its undo history.
-// A view holding the row out of sight gives it up and draws a fresh one. A view that
-// cannot draw another row, a primary reader's reply part, keeps its own.
+// A view holding the row out of sight gives it up and draws a fresh one.
 function carry(target, owner) {
-  const giver = owner.binding;
   if (
     target === owner ||
     owner.retired ||
-    !target.binding?.take ||
-    (giver && (!giver.give || owner.row.checkVisibility()))
+    !target.binding ||
+    (owner.binding && owner.row.checkVisibility())
   )
     return target;
   const session = compositions.get(owner.context);
@@ -235,10 +225,9 @@ function parkRow(row) {
 // within `surface`: each goes to a view drawing that thread now, or to the park.
 export function releaseReplies(surface) {
   for (const { owner } of compositions.values()) {
-    if (!owner?.binding?.give || !surface.contains(owner.row)) continue;
+    if (!owner?.binding || !surface.contains(owner.row)) continue;
     const shown = [...views.get(owner.context)].find(
-      (view) =>
-        view !== owner && view.binding.take && view.controls.input.checkVisibility(),
+      (view) => view !== owner && view.controls.input.checkVisibility(),
     );
     if (shown) handOver(shown, owner);
     else {
@@ -268,9 +257,17 @@ export function replyControlDestination(node) {
 // A thread's reply draft has several views, and sending claims its exact generation.
 // A second view pressing Send afterwards reads the generation as
 // spent and refuses on its own — in this tab and in any other showing the page, which is
-// further than a hold kept in this document's memory reached.
-const sendReply = (draftCtx, key, text, owns, actions) =>
-  sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
+// further than a hold kept in this document's memory reached. A send returns its
+// flight, which says whether the log took it; nothing when nothing was sent.
+function sendReply(draftCtx, key, text, owns, actions) {
+  let flight = null;
+  const sent = sendMessage(
+    draftCtx,
+    owns,
+    (attempt) => (flight = actions.reply(key, text, { attempt })),
+  );
+  return sent && { flight };
+}
 
 // One reply row: its native editor, wired once to the thread's draft, send, and typing
 // continuation. `key` is the thread's `threadKey`, which names its draft; `parent` reads
@@ -307,12 +304,14 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
     // sent from, read before the send draws, around wherever the send left them
-    // standing. A view whose box stays for the next turn lands the send itself (`sent`).
+    // standing. A view whose box stays for the next turn lands the send itself (`sent`),
+    // told whether the log takes it.
     send: (_text, raw, owns) => {
       const { actions, landSent, sent } = composition.binding;
       const land = sendLanding(input);
-      if (!sendReply(draftCtx, key, raw, owns, actions)) return;
-      if (sent) return sent();
+      const reply = sendReply(draftCtx, key, raw, owns, actions);
+      if (!reply) return;
+      if (sent) return sent(reply.flight);
       landSent(closestAcross(input, THREAD));
       land(focused());
     },
@@ -341,8 +340,6 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
 function attach(composition, binding) {
   const { context, row, controls, sync } = composition;
   composition.binding = binding;
-  controls.input.lfRevealReply = binding.reveal ?? undefined;
-  binding.sizes?.observe(row);
   let instances = views.get(context);
   if (!instances) views.set(context, (instances = new Set()));
   instances.add(composition);
@@ -374,8 +371,6 @@ function attach(composition, binding) {
   return ({ handingOn = false } = {}) => {
     if (!handingOn) sync.cancelDictation();
     stopMirror();
-    binding.sizes?.unobserve(row);
-    delete controls.input.lfRevealReply;
     row.removeEventListener("focusin", begin);
     instances.delete(composition);
     if (!instances.size) views.delete(context);
@@ -432,16 +427,15 @@ export async function restoreReplyEditing(editing, land) {
 // A presentation may say what its empty box reads (`hint`) and is named
 // (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
 // where its box stays for the next turn, as the floating panel's field does, land a
-// send itself (`sent`) rather than stand on the thread.
+// send itself (`sent`) rather than stand on the thread. The view draws its row again
+// on `redraw`, as it takes another in its place.
 export function createReplyView(
   key,
   commands,
+  redraw,
   {
     onChange = () => {},
     editLast = null,
-    reveal = null,
-    sizes = null,
-    redraw = null,
     hint = "Reply",
     accessibleName = "Reply",
     busy = () => false,
@@ -461,29 +455,27 @@ export function createReplyView(
     });
   };
   let composition = fresh();
-  const binding = { ...commands, onChange, editLast, reveal, sizes, sent };
+  const binding = { ...commands, onChange, editLast, sent };
   let detach = attach(composition, binding);
-  // A view that draws its row again on `redraw` can take the session's in its place,
-  // and give its own up for a fresh one (`carry`), drawn by the step it returns.
-  if (redraw) {
-    binding.give = () => {
-      detach({ handingOn: true });
-      composition = fresh();
-      detach = attach(composition, binding);
-      return redraw;
-    };
-    binding.take = (owner) => {
-      // The row going holds no place of the user's: whoever carries the owner's row
-      // puts them in it (focus.js, `replyDestination`), not the redraw's focus hold.
-      if (standingIn(composition.row)) focused().blur();
-      detach();
-      // The row given up is gone for good, so no later hand-off carries it back.
-      composition.retired = true;
-      composition = owner;
-      detach = attach(composition, binding);
-      redraw();
-    };
-  }
+  // A view takes the session's row in its place and draws it (`redraw`), and gives its
+  // own up for a fresh one (`carry`), drawn by the step it returns.
+  binding.give = () => {
+    detach({ handingOn: true });
+    composition = fresh();
+    detach = attach(composition, binding);
+    return redraw;
+  };
+  binding.take = (owner) => {
+    // The row going holds no place of the user's: whoever carries the owner's row
+    // puts them in it (focus.js, `replyDestination`), not the redraw's focus hold.
+    if (standingIn(composition.row)) focused().blur();
+    detach();
+    // The row given up is gone for good, so no later hand-off carries it back.
+    composition.retired = true;
+    composition = owner;
+    detach = attach(composition, binding);
+    redraw();
+  };
   return {
     get node() {
       return composition.row;
@@ -497,14 +489,7 @@ export function createReplyView(
     // document, `shown`, so the move keeps the user in the row (dom-move.js).
     claim(shown) {
       const owner = compositions.get(composition.context)?.owner;
-      if (
-        binding.take &&
-        owner &&
-        owner !== composition &&
-        !owner.binding &&
-        !owner.retired &&
-        shown()
-      )
+      if (owner && owner !== composition && !owner.binding && !owner.retired && shown())
         binding.take(owner);
     },
     dispose: () => detach(),

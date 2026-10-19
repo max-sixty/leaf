@@ -16,12 +16,12 @@
      replaced handing focus to its successor, is no move of the user's.
 
    Each asks what the browser asks of an ordinary control: whether the window shows all of
-   it, below the banner and above the bottom bar. A surface waiting hidden for room to
-   stand says so (`away`), since its hidden box measures wherever it was left. A surface half under the banner is as
-   unseen there as one scrolled off altogether. The room is the chrome's
-   (`shownWindow`) rather than the landing band a landing aims for (`landingBand`):
-   the boundary holds a surface flush under the banner, above that band's top, where
-   it is wholly seen and needs no bringing back. What a scroller inside the surface hides
+   it, above the floating panel's row. A surface waiting hidden for room to stand says so
+   (`away`), since its hidden box measures wherever it was left. A surface half under
+   the panel is as unseen there as one scrolled off altogether. The room is the chrome's
+   (`shownWindow`) rather than the landing band a landing aims for (`landingBand`): the
+   boundary holds a surface flush at the window's head, above that band's top, where it
+   is wholly seen and needs no bringing back. What a scroller inside the surface hides
    is the browser's to reveal, so the control is measured within the surface's own box.
 
    A surface hears no keys of its own. A key reaches it only as what the keyboard makes
@@ -42,7 +42,7 @@ export function offFlowSurfaceOf(node) {
   return null;
 }
 
-// A pixel's slack, so a card the boundary holds flush under the banner reads as shown.
+// A pixel's slack, so a card the boundary holds flush at the window's head reads as shown.
 const unseen = (node, surface) => {
   const box = node.getBoundingClientRect();
   const bounds = surface.getBoundingClientRect();

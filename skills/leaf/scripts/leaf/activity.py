@@ -506,7 +506,7 @@ def canonical_activity(
     answer may commit first; the automatic final then yields to it.
 
     `detail_source` preserves the selected start's event and item identity when
-    its authored words supply the banner detail. Harness observations and general
+    its authored words supply the status's detail. Harness observations and general
     status declarations have no exact input source. Consumers never recover one
     by matching the displayed words."""
     from .todos import TodoReading
@@ -557,7 +557,7 @@ def canonical_activity(
 
     # The items in hand: each Working update, by the start that holds it, and each to-do
     # a start runs on, each beside how quiet and whether dropped that start is. Their
-    # newest start is the line the banner shows.
+    # newest start is the line the page's status shows.
     in_hand = [
         (aging[item["id"]][0], aging[item["id"]][1:])
         for item in workflows
@@ -595,7 +595,7 @@ def canonical_activity(
     # Page activity counts the updates the agent owes, one per answer. A receipt
     # reports delivery for every update the user handed over, but an update that owes
     # nothing, an input a newer one in its thread answers through, and a failed
-    # answer the user must resend are no work the banner may promise the agent
+    # answer the user must resend are no work the status may promise the agent
     # picks up.
     obligations = [item for item in workflows if item["answer"] is not None]
     in_hand_now = [(start, age) for start, age in in_hand if not age[0]]
@@ -714,7 +714,7 @@ def canonical_activity(
             "active": len(active_updates),
             "handling": len(handling),
             # Of those, the updates in a thread: comments. The rest are widget actions in
-            # an answered ask, the only widget actions that owe an answer.
+            # an answered item, the only widget actions that owe an answer.
             "handling_comments": sum(
                 item["subject"]["kind"] == "thread" for item in handling
             ),

@@ -483,7 +483,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     one, names its thread: the output is that thread with a page of its messages,
     their frozen markup, and the state of its widgets, paged by --after and
     --limit. A widget on the page names itself: its element, its current actions
-    and reports, its asks and to-dos, and its workflows."""
+    and reports, its items and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
     if target is None and (after is not None or limit is not None):
@@ -1226,12 +1226,12 @@ def task() -> None:
     Your list, which the user sees as On <your name>, holds each user update you owe
     an answer, named by the update's event id, and each to-do you opened. Before
     working on one, run `leaf task start` with a line saying what you are doing:
-    the item reads Working with that line, beside it and in the banner. A to-do
+    the item reads Working with that line, beside it and in Leaf's panel. A to-do
     stays on your list through replies, resolutions, versions and the end of the
     session that opened it, until `leaf task end` or a stamp that `--completes` its
     widget ends it. A to-do you open `--on user` goes on the user's On me list
     instead, until they press its Done or you end it. `leaf task plan` arranges
-    to-dos, asks and plain steps into one outline of the work. Every write prints
+    to-dos, items and plain steps into one outline of the work. Every write prints
     the record it appended, one JSON line, as `page events` prints it.
     """
 
@@ -1263,7 +1263,7 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> dict:
 
 
 @task.command(
-    "start", short_help="Start work on an update or to-do, with the banner's line."
+    "start", short_help="Start work on an update or to-do, with its status line."
 )
 @click.argument("dir", metavar="PAGE")
 @click.argument("item", metavar="ID")
@@ -1273,8 +1273,8 @@ def task_start(dir: str, item: str, text: str) -> dict:
 
     ID is the event id of a user update you owe, as its delivery names it, or an
     open to-do's id. LINE names the work and its subject in one sentence; it shows
-    beside the update or to-do and in the banner. Your answer to the update, or the
-    to-do's end, ends the start. If your turn ends first, the item reads stalled
+    beside the update or to-do and in Leaf's panel. Your answer to the update, or the
+    to-do's end, ends the start. If your turn ends first, the update or to-do reads stalled
     until you answer it or start it again."""
     from leaf.todos import cmd_start
 
@@ -1294,7 +1294,7 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> dict:
     TODO may also be the id of a question the user answers in words, such as an
     `lf-ask` in a reply (`widget:<id>`): `done` records that the user answered it
     elsewhere, DETAIL saying where, and `dropped` withdraws it. Neither records an
-    answer from the user. An ask a widget's state answers ends through that state
+    answer from the user. An item a widget's state answers ends through that state
     or an authored withdrawal."""
     from leaf.todos import cmd_end
 
@@ -1315,7 +1315,7 @@ def task_plan(dir: str, input_file) -> dict:
 
     Each step has a `depth`, 0 for a goal and one more for each level under it.
     A plain step has a `title` and a `state`: open, working, done or dropped.
-    A step can instead name an `item`, a to-do's id or an ask's id, and shows
+    A step can instead name an `item`, a to-do's id or an item's id, and shows
     that item's title and state, so work that stays owed past your turn is a
     to-do the plan names:
 

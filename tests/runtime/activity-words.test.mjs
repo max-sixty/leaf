@@ -1,4 +1,4 @@
-/* What the banner and the leaves drawer say for each served activity reading
+/* What the status and All pages say for each served activity reading
    (`activity-words.js`).
 
    Every case starts from the activity the server sends for a page a live session holds
@@ -21,7 +21,7 @@ const NOW = Date.parse(servedActivity().ts);
 const minutesAgo = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
 const NO_QUEUES = { on_user: [], on_agent: [], done: [] };
 
-// The page's served state with `activity`, as the banner reads it.
+// The page's served state with `activity`, as the status reads it.
 const state = (activity) => ({
   activity: servedActivity(activity),
   agent: "Claude",
@@ -265,7 +265,7 @@ test("a status asks the user to act only where its words do", () => {
   assert.equal(reached("refused"), true);
 });
 
-test("the disclosure names what waits on each side, and the row counts the agent's", () => {
+test("the explanation names what waits on each side", () => {
   const reading = servedReading("queues on both sides");
   const { queues } = reading.browser.views["1"];
   const status = pageStatus({
@@ -273,17 +273,11 @@ test("the disclosure names what waits on each side, and the row counts the agent
     activity: servedActivity({ kind: "listening" }),
   });
   const model = statusModel(status, queues, reading.agent);
-  assert.equal(model.queues, "On Agent: 2");
-  // The row cuts a long name to the room its box keeps; the disclosure keeps it whole.
   const long = statusModel(status, queues, "Codex Research Agent");
-  assert.deepEqual(
-    [long.queues, long.queuesWidest],
-    ["On Codex Resea…: 2", "On Codex Resea…: 99"],
-  );
   assert.match(long.explanation, /Waiting on Codex Research Agent: 1 reply/);
   assert.equal(
     model.explanation,
-    "Agent awaits — select text to comment. Waiting on me: 2 asks, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
+    "Agent awaits — select text to comment. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
   );
   // A page with nothing waiting adds nothing, and an offline page counts nothing.
   assert.equal(statusModel(status, NO_QUEUES, "Agent").explanation, status.explanation);
@@ -292,12 +286,9 @@ test("the disclosure names what waits on each side, and the row counts the agent
     queues,
     reading.agent,
   );
-  assert.deepEqual(
-    [offline.queues, offline.explanation],
-    [
-      "",
-      "Server offline — reconnecting. Keep this page open so pending changes can send.",
-    ],
+  assert.equal(
+    offline.explanation,
+    "Server offline — reconnecting. Keep this page open so pending changes can send.",
   );
 });
 
@@ -311,7 +302,7 @@ test("what the disclosure adds to the row says only what the row does not", () =
   assert.equal(adds(work), "");
   assert.equal(
     adds({ ...work, observed_kind: "tool", observed: "Running the tests" }, queues),
-    "Running the tests. Waiting on me: 2 asks, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Claude: 1 reply, 1 to-do (Rebuild the chart).",
+    "Running the tests. Waiting on me: 2 to answer, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Claude: 1 reply, 1 to-do (Rebuild the chart).",
   );
   assert.equal(adds({ kind: "listening", detail: "pick a storage engine" }), "");
   // What the sentence says past the row, without the state the row already says.

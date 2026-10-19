@@ -9,7 +9,7 @@
  * bindings to one original command share a face, with a reachable contextual alias
  * preferred. Every remaining reachable binding stays in the accessible projection.
  *
- * Paint after the shortcut bar's layout, so placement sees current fixed chrome.
+ * Paint after the chrome's layout, so placement sees current fixed chrome.
  * The lent face is restored when its command leaves reach; stale source references
  * have already been rejected by the dispatcher. Accessible shortcuts compose with
  * existing control scopes through scopes.js rather than a second attribute writer.
@@ -17,7 +17,6 @@
 import { bindings, commandRoutes, routedCommand, spell, word } from "./bindings.js";
 import { availableCommandRoutes } from "./dispatch.js";
 import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
-import { coveringAuxiliarySurface } from "./register.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { chipSeats } from "./chip-seats.js";
 import { renderedUnder } from "../shadow.js";
@@ -201,7 +200,6 @@ export function createCommandHints({ presentedControl }) {
           {
             id: "keyboard.control-route",
             title: "Control shortcuts",
-            line: false,
             keys: [...keys],
           },
         ]),
@@ -219,12 +217,8 @@ export function createCommandHints({ presentedControl }) {
       seats.place([]);
       return;
     }
-    // A covering auxiliary surface does not invalidate the commands or their accessible
-    // shortcuts, but it does hide the page controls outside it that binding-badge faces
-    // claim to label. What a surface standing over the page hides is shownRect's to say,
-    // which the placement below reads.
-    const covering = coveringAuxiliarySurface();
-    const covered = (control) => covering && !renderedUnder(control, covering);
+    // What a surface standing over the page hides is shownRect's to say, which the
+    // placement below reads.
     const placement = keyBadgePlacement();
     const bindingBadgeClaims = new Map();
     for (const { bindingBadge } of visualRoutes)
@@ -236,7 +230,7 @@ export function createCommandHints({ presentedControl }) {
 
     // Reuse a widget's page-local binding badge where it has one. Besides preserving the
     // widget's own card-versus-row alignment, leaving this face in the page's stack keeps
-    // the fixed shortcut bar above it. One face belongs to one action, and every part of
+    // the fixed chrome above it. One face belongs to one action, and every part of
     // it must be visible on top; otherwise the ordinary core chip carries the same route.
     // That can be read only off the face as it would stand, so the face stays lent while
     // its route stands: one that is not exposed keeps the digit and its box but turns
@@ -248,7 +242,6 @@ export function createCommandHints({ presentedControl }) {
       // A control the window does not show cannot show its face either, and wearing
       // the face only to measure it away would write it twice on every scroll.
       if (
-        covered(control) ||
         !bindingBadge?.isConnected ||
         bindingBadgeClaims.get(bindingBadge) !== 1 ||
         !placement.visibleBounds(control)
@@ -282,7 +275,6 @@ export function createCommandHints({ presentedControl }) {
 
     const chips = [];
     for (const { binding, control, bindingBadge } of visualRoutes) {
-      if (covered(control)) continue;
       if (bindingBadge && worn.has(bindingBadge)) continue;
       const presented = presentedControl(control) ?? control;
       if (!presented.checkVisibility()) continue;

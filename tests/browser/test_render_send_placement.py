@@ -119,7 +119,7 @@ PHRASE = """(words) => {
 
 class Passage:
     """Words in the long paragraph, selected by dragging across them or, under a
-    finger, by the platform's selection and the banner's Comment on selection."""
+    finger, by the platform's selection and the panel's Comment on selection."""
 
     block = "#long"
 
@@ -135,9 +135,7 @@ class Passage:
                 }}""",
                 self.words,
             )
-            page.locator(".lf-banner-actions").get_by_role(
-                "button", name="Comment on selection"
-            ).tap()
+            page.locator(".lf-fp-step", has_text="Comment on selection").tap()
             return
         rect = self.line(page)
         y = rect["top"] + rect["height"] / 2
@@ -170,14 +168,15 @@ class Element:
         target.click(modifiers=["Alt"], position={"x": 40, "y": y})
 
     def line(self, page):
-        """Its top as the window shows it, which a scroll may have clipped."""
+        """Its top as the window shows it, which a scroll may have clipped, less the
+        ring's room at the window's head."""
         return page.evaluate(
             """([selector, head]) => {
               const {left, top, right, bottom} = document.querySelector(selector)
                 .getBoundingClientRect();
               return {left, top: Math.max(top, head), right, bottom};
             }""",
-            [self.block, page.evaluate(BANNER_FOOT) + 8],
+            [self.block, 8],
         )
 
 
@@ -215,10 +214,6 @@ CASES = {
         {"again": True},
     ),
 }
-
-BANNER_FOOT = (
-    "() => document.querySelector('.lf-banner').getBoundingClientRect().bottom"
-)
 
 SIDES = {
     "right-start": "right",
@@ -327,8 +322,8 @@ def sent(browser, serve, name, shots):
     page.keyboard.insert_text(COMMENT)
     rendered(page)
     box_side = SIDES[bar.get_attribute("data-lf-placement")]
-    # Both placement readings describe the complete frame, including the transparent
-    # slots around the editor. The glyph test below measures the painted words.
+    # Both placement readings describe the complete frame, including the reserved
+    # rows around the editor. The glyph test below measures the painted words.
     box = page.evaluate(RECT, ".lf-fab-bar")
     words, block = on.line(page), page.evaluate(RECT, on.block)
     phone_room = None
@@ -736,10 +731,16 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             page.mouse.move(880, 650)
             page.mouse.wheel(0, 350)
             scroll_settled(page)
+        # The pointer wheels what scrolls, off the box, which takes the wheel as its
+        # card does.
         mouse = (
             (before_target["x"] + 50, content_box["y"] + 35)
             if region in ("code", "content")
-            else (120 if scroller else 100, 100 if region == "combined" else 350)
+            else (120, 100)
+            if region == "combined"
+            else (120, before_target["y"] - 40)
+            if region == "pane"
+            else (100, 350)
         )
         page.mouse.move(*mouse)
         page.mouse.wheel(0, wheel)
@@ -1075,34 +1076,49 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
 
 
 @pytest.mark.parametrize(
-    "size,at,long,touch,again,options",
+    "size,at,long,touch,again,options,engine",
     [
-        ((1440, 900), 0.4, False, False, False, False),
-        ((900, 600), 0.85, False, False, False, False),
-        ((390, 844), 0.12, False, False, False, False),
-        ((900, 600), 0.4, True, False, False, False),
-        ((900, 600), 0.4, "scrolled", False, False, False),
-        ((1440, 900), 0.4, "paragraphs", False, False, False),
-        ((1440, 900), 0.4, False, False, True, False),
-        ((390, 844), 0.4, "passage", True, False, False),
+        ((1440, 900), 0.4, False, False, False, False, "browser"),
+        ((900, 600), 0.75, False, False, False, False, "browser"),
+        ((390, 844), 0.12, False, False, False, False, "browser"),
+        ((900, 600), 0.4, True, False, False, False, "browser"),
+        ((900, 600), 0.4, "scrolled", False, False, False, "browser"),
+        ((1440, 900), 0.4, "paragraphs", False, False, False, "browser"),
+        ((1440, 900), 0.4, False, False, True, False, "browser"),
+        ((390, 844), 0.4, "passage", True, False, False, "browser"),
+        # Firefox sized this one-line comment's card 13px wider than its box.
         pytest.param(
-            (900, 600), 0.85, False, False, False, True, id="above-with-options"
+            (1728, 999),
+            0.4,
+            "line",
+            False,
+            False,
+            False,
+            "firefox_browser",
+            id="line-firefox",
+        ),
+        pytest.param(
+            (900, 600),
+            0.75,
+            False,
+            False,
+            False,
+            True,
+            "browser",
+            id="above-with-options",
         ),
     ],
 )
 def test_send_grows_thread_around_the_words(
-    browser, serve, size, at, long, touch, again, options
+    request, serve, size, at, long, touch, again, options, engine
 ):
-    """The card grows out of the comment box, and the draft's words stand where they
-    were typed through Send and its acknowledgement: the box and the card share one text
-    column and foot, and the card stands its words as far above its end as the box did. The
-    growth only clips the card, so the words its layout places are the ones painted.
-    Read inside the editor solely to measure its actual glyphs, without changing its
-    closed-root behavior.
-
-    The one exception is a box grown into the window's edge: typing lets the card's
-    unpainted head or reply row stand past it, so Send moves the words by exactly that
-    much to bring the card inside, unless the card fills the window and scrolls them."""
+    """The box being written is drawn as the card it becomes, and Send swaps one for
+    the other in that rectangle, so the draft's words stand where they were typed through
+    Send and its acknowledgement: the box and the card share one text column and foot,
+    and the card stands its words as far above its end as the box did. Read inside the
+    editor solely to measure its actual glyphs, without changing its closed-root
+    behavior."""
+    browser = request.getfixturevalue(engine)
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
@@ -1134,6 +1150,8 @@ def test_send_grows_thread_around_the_words(
     )
     if long == "paragraphs":
         text = "First paragraph.\n\nSecond paragraph."
+    if long == "line":
+        text = "Show it in the text box, then move it to the errors list."
     page.keyboard.insert_text(text)
     rendered(page)
     if long == "scrolled":
@@ -1146,23 +1164,7 @@ def test_send_grows_thread_around_the_words(
         page.locator(".lf-fab-input").focus()
         rendered(page)
     if long == "passage":
-        assert FIRST_LINE.line(page)["bottom"] > page.evaluate(BANNER_FOOT)
-    # How far the box's frame stands past the room a surface stands in, which Send
-    # takes back to bring the card's head and reply row inside.
-    room = page.evaluate("""async () => {
-      const {commentBoundary} = await window.__lfOverlayApi();
-      const {top, bottom} = commentBoundary();
-      return {top, bottom};
-    }""")
-    frame = page.locator(".lf-fab-bar").bounding_box()
-    # A frame taller than that room becomes a card that fills it and scrolls its
-    # words, which then stay put.
-    past = (
-        max(0, room["top"] - frame["y"])
-        - max(0, frame["y"] + frame["height"] - room["bottom"])
-        if frame["height"] <= room["bottom"] - room["top"] + 0.75
-        else 0
-    )
+        assert FIRST_LINE.line(page)["bottom"] > 0
     page.evaluate("""() => {
       const input = document.querySelector('.lf-fab-input');
       const blockRects = node => {
@@ -1196,12 +1198,12 @@ def test_send_grows_thread_around_the_words(
       const editor = window.editorRoots.get(input).querySelector('.cm-content');
       window.beforeWords = rects(editor);
       window.beforePageScroll = scrollY;
+      const bar = document.querySelector('.lf-fab-bar');
+      window.box = {frame: bar.getBoundingClientRect().toJSON(),
+        painted: getComputedStyle(bar, '::before').backgroundColor !== 'rgba(0, 0, 0, 0)'};
       window.sendFrames = [];
-      window.grew = false;
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
-        window.grew ||= Boolean(card?.getAnimations().some(animation =>
-          animation.effect.getKeyframes().some(frame => 'clipPath' in frame)));
         const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
           window.sendFrames.push({rects:rects(body), pageScroll:scrollY,
@@ -1221,32 +1223,26 @@ def test_send_grows_thread_around_the_words(
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
     rendered(page)
-    wait_for(
-        lambda: page.evaluate(
-            "document.querySelector('.lf-margin-preview').getAnimations().length"
-        ),
-        lambda n: n == 0,
-        failure="Thread growth never finished",
-    )
     reading = page.evaluate("""() => {
       cancelAnimationFrame(window.sampling);
-      return {before:beforeWords,pageScroll:beforePageScroll,frames:sendFrames,grew};
+      return {before:beforeWords,pageScroll:beforePageScroll,frames:sendFrames,box};
     }""")
-    assert reading["grew"], "Send showed the card without growing it out of the box"
+    assert reading["box"]["painted"], "The box being written showed only its field"
     assert reading["frames"]
+    # The card takes the box's rectangle, less the response choices the box alone
+    # carries under its field.
+    edges = ("left", "right", "top") if options else ("left", "right", "top", "bottom")
     for frame in reading["frames"]:
+        assert {edge: frame["frame"][edge] for edge in edges} == pytest.approx(
+            {edge: reading["box"]["frame"][edge] for edge in edges}, abs=0.75
+        ), reading
         assert frame["frame"]["left"] >= -0.75
         assert frame["frame"]["right"] <= size[0] + 0.75
-        assert frame["frame"]["top"] >= room["top"] - 0.75, (room, frame["frame"])
-        assert frame["frame"]["bottom"] <= room["bottom"] + 0.75, (room, frame["frame"])
+        assert frame["frame"]["top"] >= -0.75
+        assert frame["frame"]["bottom"] <= size[1] + 0.75
         assert [v for r in frame["rects"] for v in r] == pytest.approx(
-            [
-                v + past * (i % 4 == 1)
-                for r in reading["before"]
-                for i, v in enumerate(r)
-            ],
-            abs=0.75,
-        ), (past, reading)
+            [v for r in reading["before"] for v in r], abs=0.75
+        ), reading
         assert frame["pageScroll"] == reading["pageScroll"], reading
     expect(
         card.get_by_role("button", name="Resolve thread", exact=True)
@@ -1260,13 +1256,16 @@ def test_send_grows_thread_around_the_words(
         if painted_growth:
             rendered(page)
             # Layout Instability compares painted frames; a RAF measurement can
-            # catch an intermediate height the browser never actually displayed.
+            # catch an intermediate height the browser never actually displayed. The
+            # card grows up from its foot here, so its painted top rises. Its source
+            # rect is the card's visual rect, which takes in the ink below its box, so
+            # that rect's height need not change while the card's does.
             card.evaluate("""card => {
               const growth = [];
               const record = entries => {
                 for (const entry of entries) for (const source of entry.sources) {
                   if (source.node !== card || !source.previousRect.height) continue;
-                  const before = source.previousRect.height, after = source.currentRect.height;
+                  const before = source.previousRect.top, after = source.currentRect.top;
                   if (Math.abs(after - before) > 0.75) growth.push({before, after});
                 }
               };
@@ -1286,7 +1285,7 @@ def test_send_grows_thread_around_the_words(
         ).to_be_visible()
         if painted_growth:
             growth = page.evaluate("window.__replyGrowth()")
-            assert len(growth) == 1 and growth[0]["after"] > growth[0]["before"], growth
+            assert len(growth) == 1 and growth[0]["after"] < growth[0]["before"], growth
 
         # The first sent message, subsequent turns, metadata and the empty reply
         # share one reading edge, both during the handoff and after reopening.

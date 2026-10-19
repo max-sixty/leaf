@@ -7,7 +7,7 @@
    chip the window's edge or the chrome holds in, or one naming a control on the fixed
    chrome, stands where the window holds it, so a scroll leaves it in place.
 
-   A chip stacks under the bars and banner it keeps clear of, so one riding a scroll
+   A chip stacks under the chrome it keeps clear of, so one riding a scroll
    slides beneath them as the page does, unless its target stacks at or above that
    level, in a surface standing over the page, where the chip stands above every
    surface instead (chrome.css, `.lf-key-chips`). */

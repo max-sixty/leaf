@@ -77,11 +77,11 @@ container's id, and `rankAt(state.<verb>, container, index, unit)`, which places
 unit at `index` among the container's others and keeps it there however other units
 move. A verb with no record sends what its `detail` schema declares.
 
-A widget that poses an ask can give its class `static answerWords(value, element)`,
-returning short words for the answer in the On panel. `value` is the ask's
+A widget that puts an item on On me can give its class `static answerWords(value, element)`,
+returning short words for the answer in the On lists. `value` is the item's
 `answer.value`, and `element` gives the authored markup, such as option labels; read
-only that, not what the module draws. Without it, the On panel shows no words for the
-answer (`module-reading.md`, "Reading asks and obligation queues").
+only that, not what the module draws. Without it, the On lists show no words for the
+answer (`module-reading.md`, "Reading items and obligation queues").
 
 ## Bound data and projections
 

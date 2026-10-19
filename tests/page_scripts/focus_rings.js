@@ -233,9 +233,10 @@
       let scrolled = false;
       const above = flatParent;
       // One side, one message, named for the innermost box that took it. A scroll region's
-      // edge is often the window's to the pixel — .lf-threads' right edge is .lf-thread-panel's is
-      // innerWidth — and one ring reported twice reads as two defects. The innermost box is
-      // the more useful of the two answers anyway: it is the box the control lives in.
+      // edge is often the window's to the pixel — a list flush with a window-edge panel
+      // shares its right edge, which is innerWidth — and one ring reported twice reads as
+      // two defects. The innermost box is the more useful of the two answers anyway: it
+      // is the box the control lives in.
       const taken = {};
       const took = (band, who) => {
         // Only the sides where this box is showing the control's own edge, which is the
@@ -292,9 +293,10 @@
       // box stops somewhere. It is the outermost clip there is: a fixed subtree is laid out
       // against it, and everything else reaches it through body, which is this page's
       // scroller. Not a claim that nothing else could clip a fixed box — a containing block
-      // established by transform, filter or containment is a real case, and .lf-banner's
-      // backdrop-filter is one such generator — but the walk covers that case now by asking
-      // every box on the way up instead of branching on the focused one's own position.
+      // established by transform, filter or containment is a real case, and a chrome
+      // surface's backdrop-filter is one such generator — but the walk covers that case
+      // now by asking every box on the way up instead of branching on the focused one's
+      // own position.
       took({ top: 0, left: 0, bottom: innerHeight, right: innerWidth }, "the window");
       for (const side of ["top", "left", "bottom", "right"])
         if (taken[side]) cuts.push(taken[side]);
@@ -324,10 +326,10 @@
       // hit-testable. A pixel of ring outside the control's box therefore returns whatever
       // is beneath, and beneath is where the answer would have to come from.
       //
-      // That is sound where an ancestor's hit surface covers the sample. The shortcut
-      // bar takes no hits outside its More button, so a ring pixel there returns the
-      // page underneath. The auxiliary envelope also takes no hits, but its panel
-      // restores them inside its box. Read each ring side under the nearest such box;
+      // That is sound where an ancestor's hit surface covers the sample. A chrome layer
+      // that takes no hits, such as the floating panel's window-wide ground, returns the
+      // page underneath for a ring pixel there, unless a box inside it restores hits
+      // over the sample. Read each ring side under the nearest such box;
       // `cuts` remains a geometry reading even where hit order says nothing.
       const orderedAt = (x, y) => {
         let hitSurface = null;
@@ -342,7 +344,7 @@
         return true;
       };
       // Whether a fixed surface standing over this ring is worth reporting. Tab scrolls
-      // the control it lands on clear of the banner — that is what the document's
+      // the control it lands on clear of fixed chrome — that is what the document's
       // scroll-padding is for — so a fixed bar over the focused control's ring is a
       // promise broken. Over a ring some ancestor wears it is not: nobody scrolled that
       // box, and where its top edge comes to rest a pixel under the bar is the user's
@@ -385,8 +387,8 @@
       // Each run sampled in the middle of the part of it that is on screen, rather than in
       // the middle of the whole run. They differ for anything taller or wider than the
       // window, and then the plain midpoint is a point the user cannot see: an option
-      // group 1791px tall was sampled 22px down the window, which is inside the banner,
-      // and the banner's status dot came back as standing over its ring.
+      // group 1791px tall was sampled 22px down the window, which is inside the chrome
+      // fixed there, and its status dot came back as standing over its ring.
       const runX = [Math.max(ring.left, 0), Math.min(ring.right, innerWidth)];
       const runY = [Math.max(ring.top, 0), Math.min(ring.bottom, innerHeight)];
       const shownRun = runX[0] <= runX[1] && runY[0] <= runY[1];
@@ -429,24 +431,35 @@
           // which is a fact about where the control was put rather than about the ring being
           // drawn outside its box. The claim worth making is the other one: where the control
           // can be seen, so can the ring that names it. Stated without a case on purpose —
-          // the one this was written for was the drawer's edge handle running the whole height
-          // of the window under the banner, which stopped being true in 3a8f16f0, the commit
-          // that added this comment and the handle's top inset together.
+          // the one this was written for was a drawer's edge handle running the whole height
+          // of the window under the chrome at its top, which stopped being true in 3a8f16f0,
+          // the commit that added this comment and the handle's top inset together.
           //
-          // The step in has to clear the ring's own band, and `grow + w` from the ring's
-          // edge is what lands `w + 1` inside the box whichever side of it the ring is
-          // drawn on. Written as `grow + 1` it cleared an outward ring, where grow is
-          // already at least w, and landed inside an inset one, where grow is nought:
-          // every covered inset ring answered that the control was behind the same thing
-          // and was dropped without a word. The rings the panel's own list draws are all
-          // inset, so this went blind in the same commit that made them so — a thread
-          // lying two pixels under a cover is a card with three sides, and the gate
-          // written to catch exactly that reported nothing.
-          const step = grow + w + 1;
+          // The step in has to clear the ring's own band. Past an outward ring, `grow + 1`
+          // lands on the control's own outermost pixels, so a control whose edge stands
+          // behind the cover counts as behind it: a button whose last 4px ran under the
+          // open Threads panel was reported for the ring's run there. An inset ring, where
+          // grow is nought, needs `grow + w + 1` to land `w + 1` inside the box. With
+          // `grow + 1` there, every covered inset ring answered that the control was behind
+          // the same thing and was dropped without a word. The rings the panel's own list
+          // draws are all inset, so this went blind in the same commit that made them so —
+          // a thread lying two pixels under a cover is a card with three sides, and the
+          // gate written to catch exactly that reported nothing.
+          const step = grow > 0 ? grow + 1 : grow + w + 1;
           const inx = x + (side === "left" ? step : side === "right" ? -step : 0);
           const iny = y + (side === "top" ? step : side === "bottom" ? -step : 0);
           const inside = document.elementsFromPoint(inx, iny);
           if (inside.includes(over)) break;
+          // The same surface counts, not only the same box: a page control under the open
+          // Threads panel, where it overlays a narrow window, had its ring's run under one
+          // card's title while the stepped-in point landed on the card's body.
+          const front = inside.findIndex((n) => n === el || holds(el, n));
+          if (
+            inside
+              .slice(0, front < 0 ? inside.length : front)
+              .some((n) => holds(n, over) && !holds(n, el))
+          )
+            break;
           // Or the other way about: a box the control itself paints over. An outline is
           // painted by its control at its control's level, so a box the control stands in
           // front of cannot stand over the ring around it — and the sample lands on one of
@@ -501,10 +514,29 @@
               parseFloat(s.opacity) < 1
             );
           };
+          // The level a box's side paints at inside the box holding both sides: the
+          // outermost stacking context on its way up, at its z-index, or at nought for a
+          // context that names none.
+          const level = (n) => {
+            let z = 0;
+            for (let a = n; a && !(holds(a, el) && holds(a, over)); a = above(a)) {
+              const s = getComputedStyle(a);
+              if (stacked(s, above(a))) z = parseFloat(s.zIndex) || 0;
+              else if (forms(a)) z = 0;
+            }
+            return z;
+          };
           let under = false;
           let hoisted = false;
           for (let a = over; a && control >= 0;) {
-            if (holds(a, el)) break;
+            // Neither side ranked at the stepped-in point, so their order is that of the
+            // two sides inside the box holding both: a control whose side paints at a
+            // higher level paints over the cover. A shot's rail, sticky at z-index 1, is
+            // the case: its buttons' rings run onto the image the rail stands above.
+            if (holds(a, el)) {
+              under = level(el) > level(over);
+              break;
+            }
             const acs = getComputedStyle(a);
             const ranked = inside.indexOf(a);
             if (ranked >= 0) {
@@ -579,9 +611,11 @@
   }
 
   // A keyboard stop this sweep has not reached, one it has, or the document boundary.
-  // This deliberately waits for no settled geometry: focus paint is synchronous, and the
-  // ring samples (RING_CASES) own ring geometry. Avoiding a layout-settlement probe at
-  // every Tab is what makes a complete native-stop sweep cheap.
+  // This deliberately waits for no settled geometry: focus paint, and the scroll that
+  // brings a stop into view, are synchronous, so the rings a stop lights read as it
+  // lands, and only a stop whose rings read faulty waits for the page to come to rest
+  // before it is read again. Avoiding a layout-settlement probe at every Tab keeps a
+  // complete native-stop sweep affordable.
   function newStop() {
     const e = deepFocus();
     if (!e || e === document.body || e === document.documentElement) return "empty";

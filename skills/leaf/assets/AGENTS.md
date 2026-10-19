@@ -51,12 +51,9 @@ representative desktop viewport.
   content leaves free. The floating panel's more-room mark stands in the corner a long
   draft leaves free over the leaf (`floating-panel.js`, `expand`) rather than in a strip
   of its own over the words.
-- **Auxiliary surfaces open over the page and never change its geometry.** The On
-  panel, the thread panel and the Pages drawer take no space from the page;
-  `auxiliary-surfaces.js` decides whether one sits beside a live page or covers it
-  (`standsBeside`). The Threads panel is being redesigned (`TODO.md`, "Reconsider
-  thread navigation"): put findings about it into that redesign rather than polishing
-  the current panel.
+- **The chrome opens over the page and never changes its geometry.** The floating
+  panel and the views it opens take no space from the page; the theme keeps the room
+  its row rests in at the page's foot (`--lf-foot-room`, theme.css).
 - **A widget in ordinary flow grows with its content.** A widget scrolls inside itself
   only when its task needs a region kept in view while its contents move, or for a
   live stream whose newest entry the reader follows. A box that keeps its own height
@@ -83,33 +80,27 @@ representative desktop viewport.
   `tests/shift_watch.js`, which the browser fixture runs on every test outside a
   module marked `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
 - **A runtime region whose contents rearrange inside it declares `data-lf-reflow`.**
-  The message header declares `text`: its labels may rewrap, its controls stay put. The
-  shortcut bar declares `controls`: hints and controls may rearrange. A thread card's
-  transcript declares `append`: it may grow at its end, by new messages or by a last
-  child marked `data-lf-append-tail` such as the working message, and only the reply
+  The message header declares `text`: its labels may rewrap, its controls stay put. A
+  thread card's transcript declares `append`: it may grow at its end, by new messages or by a last
+  child marked `data-lf-append-tail` such as the working message, growing or giving way
+  to the answer that takes its place, and only the reply
   row and later cards move with that growth. When the growth would push a reply row the
   user just sent below its landing band, the transcript scrolls instead
   (`sendLanding` in `thread/reply-landing.js`). Put the attribute on the box that owns
-  the space. A nested region keeps every guarantee of the regions around it. Owners: `thread/thread-card.js`, `thread/messages.js`,
-  `keyboard/shortcut-bar.js`.
+  the space. A nested region keeps every guarantee of the regions around it. Owners:
+  `thread/thread-card.js`, `thread/messages.js`.
 - **News never moves what the reader is reading.** News from the server grows above
   the screen, where scroll anchoring absorbs it, or below it. Anywhere else it waits
   behind a fixed-size control until the reader goes to it, and an editor in use stays
   still. Check: `test_news_just_after_a_press_moves_nothing`. Owners:
   `thread/held-news.js`, which also holds widget rows (`HeldReading`) and boxes a late
-  arrival would resize (`heldGrowth`); `newsMoves` in `thread/thread-card.js`;
-  `thread/thread-list.js` for the Threads panel's reading place; `keeping` in
-  `thread/thread-list-view.js` for a card news would take out of view; and
+  arrival would resize (`heldGrowth`); `newsMoves` in `thread/thread-card.js`; and
   `reading-continuity.js` for a hidden tab. One exception, which the user chose: the
   answer the user waits for in the floating panel's thread grows that view up to its
   cap, its head rising while the field stays put (`floating-panel.js`, `fitAnswer`).
   The shift watch credits exactly that growth: a scrollport declared to stand on its
   foot (`data-lf-rises`) that rises with its `append` region's growth, by no more than
   it, carrying its head (`appendGrowth` in `tests/shift_watch.js`).
-- **A turn of the user's own takes them with it.** When the user's reply or Reopen
-  moves its card out of the Threads panel's current filter, the panel widens its view
-  to keep the thread and the user together. If the server refuses, the view goes back
-  only if the user hasn't acted since (`thread/folding.js`).
 - **A box floating over the page grows inside the window.** The comment box and the
   thread card grow toward the window edge that has room, and never scroll the page to
   make room (`annotation-overlay/comment-placement.js`). A box a scroll carried away
@@ -165,7 +156,7 @@ representative desktop viewport.
 - **A face used twice is a token or a shared rule**, and a rule names it rather than
   spelling it out. A lift names one of the theme's three heights, `--raise-1` to
   `--raise-3` (`styles/theme.css`, beside `--shade`); boxes that wear one face, such as
-  the chip a focused skip link and picture proxy show under the banner, share one rule.
+  the chip a focused skip link and picture proxy show at the window's head, share one rule.
   Check: `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Each thread's `unread` and `attention` are computed once**, and every surface that
   paints them uses that value, so the Threads toggle, filters, panel, margin entry and
@@ -208,30 +199,30 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Composition and the application's state                                                                     | `application.js`, `semantic-state.js`, `context.js`                                                                                                                       |
 | Delivery, accepted state, and wakeups                                                                       | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js`                                                                                   |
 | Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                                 |
-| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js`, `queues.js`                                                       |
+| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `items/model.js`, `queues.js`                                                      |
 | Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                                          |
 | Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `widget-elements.js`                                                                                                                      |
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                                 |
 | Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                                     |
 | Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`                                            |
-| Chrome and available space                                                                                  | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js`                                                                                                 |
+| Chrome and available space                                                                                  | `chrome.js`, `floating-panel.js`, `page-layout.js`, `page-controls.js`                                                                                                    |
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                                        |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                                      |
 | Focus and navigation                                                                                        | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                                    |
-| Asks                                                                                                        | `asks/`                                                                                                                                                                   |
+| Items                                                                                                       | `items/`                                                                                                                                                                  |
 | Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                                     |
-| Threads                                                                                                     | `thread/`, `thread-panel.js`                                                                                                                                              |
+| Threads                                                                                                     | `thread/`                                                                                                                                                                 |
 | Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                                |
 | Annotation records and Page Map                                                                             | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js`                                                                                        |
 | Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                                     |
 | Passages and target identity                                                                                | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                      |
 | Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
-| Banner and approvals                                                                                        | `banner*.js`                                                                                                                                                              |
-| Drawers and neighboring pages                                                                               | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js`                                                                                                        |
+| Page status, approval and what a user copies about the page                                                 | `page-status.js`, `page-about.js`                                                                                                                                         |
+| Neighboring pages                                                                                           | `live-leaves.js`                                                                                                                                                          |
 | Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                                          |
-| Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/shortcut-bar.js`                                                                                           |
+| Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/status-context.js`                                                                                         |
 | Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                                         |
-| Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`, `retained-face.js`                                                                        |
+| Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`                                                                                            |
 | Child pages                                                                                                 | `sample*.js`                                                                                                                                                              |
 | Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `page-sheets.js`                                                                                                        |
 | Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                                             |
@@ -312,8 +303,7 @@ Two script answers already exist. `focus.js` sets `data-lf-focus` and
 `data-lf-focus-within`, because native `:focus` also matches retargeted shadow hosts
 and a held label press; style focus with those attributes. `geometry.js` decides
 whether the user can see a box (`seenRect`, `declareOccluder`), because Leaf's chrome
-covers the page without clipping it and the shortcut bar takes no pointer hits for
-`elementsFromPoint` to find.
+covers the page without clipping it.
 
 A rendering callback does its layout reads before its writes, because a read after a
 write forces a synchronous layout. A document-wide renderer that reads DOM another
@@ -333,7 +323,7 @@ the ordered list of this tab's unresolved work into the one state every componen
 | version shown                                                                                                 | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document |
 | accepted history                                                                                              | the server's event log and its `/api/state` answer, which the publisher adopts whole                                                                     |
 | unresolved browser work                                                                                       | the publisher's one ordered list                                                                                                                         |
-| threads, workflow, attention, asks, to-dos, activity, unread                                                  | the server's state; the browser adds only its own unresolved sends and the versions it is marking read                                                   |
+| threads, workflow, attention, items, to-dos, activity, unread                                                 | the server's state; the browser adds only its own unresolved sends and the versions it is marking read                                                   |
 | what waits on the user and on the agent                                                                       | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                       |
 | what the DOM shows                                                                                            | the presentation coordinator's renderer tickets and preparation regions                                                                                  |
 | when a document-wide renderer paints                                                                          | the order `PRESENTATION_ORDER` in `runtime/semantic-state.js` declares                                                                                   |
@@ -406,7 +396,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The language a file path means                                                                        | `syntax.js` `langForPath`, from the registry's `$languages`                        |
 | Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
 | Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |
-| Threads, workflow, attention, asks, and whether they are answered                                     | the server's state, under "One writer for each fact"                               |
+| Threads, workflow, attention, items, and whether they are answered                                    | the server's state, under "One writer for each fact"                               |
 | A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowLabel`, `progressFace`, `todoLabel`                  |
 | A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
 | What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
@@ -414,7 +404,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The thread a name names: its id, a message's, or this tab's attempt                                   | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
 | The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
-| Which asks a region of the page holds                                                                 | `asks/place.js` `asksIn`                                                           |
+| Which items a region of the page holds                                                                | `items/place.js` `itemsIn`                                                         |
 
 ### Facts both runtimes know
 
@@ -428,10 +418,10 @@ review, ask why that fact isn't generated.
 
 ## Startup and presentation
 
-Authored HTML paints at once, and the render-blocking theme reserves the banner and
-bottom bar, so mounting the runtime moves nothing. Prose, links and scrolling work while
-widgets upgrade; comments and drawing work from `data-lf-upgraded`, while thread
-history still shows as loading. `../references/module-authoring.md`, "Startup and
+Authored HTML paints at once, and the render-blocking theme reserves the floating
+panel's room at the page's foot, so mounting the runtime moves nothing. Prose, links
+and scrolling work while widgets upgrade; comments and drawing work from
+`data-lf-upgraded`, while thread history still shows as loading. `../references/module-authoring.md`, "Startup and
 presentation", says how a module keeps work off the presentation path and how held
 keys replay.
 
@@ -466,12 +456,13 @@ first alone. Code outside the page waits on `pageReadiness`, through
 
 ## Authoritative projection
 
-Python decides which asks exist, when a widget is complete, and when a thread is
-answered. The server sends complete ask lists for the page (`document.asks`) and for
-each thread's frozen markup (`thread.asks`). The browser reads a widget's answer from
+Python decides which items exist, when a widget is complete, and when a thread is
+answered. Each view carries every item record once, the page's and its frozen threads'
+(`items`); a row of On me names its item by id, and the publisher joins the two. The
+browser reads a widget's answer from
 the same state its controls draw and doesn't reapply the `x-awaits.answered` rule. A
-required-version approval is an ask the browser updates at once, restoring the server's
-state on refusal. A thread gesture changes no attention and no ask until the server's
+required-version approval is an item the browser updates at once, restoring the server's
+state on refusal. A thread gesture changes no attention and no item until the server's
 reading of it arrives (root `AGENTS.md`, "Responsiveness").
 
 Every state read carries one `through_seq`, and version comparison asks `/api/view` at

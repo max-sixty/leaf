@@ -6,7 +6,7 @@ registry-declared widget gets a widget controller. Then read the sections your
 behavior needs in the files beside this one:
 
 - [module-reading.md](module-reading.md): the page's words, elements and declarations,
-  content helpers, and page readings such as asks and history;
+  content helpers, and page readings such as items and history;
 - [module-state.md](module-state.md): the widget controller, declared state, data
   subscriptions, and editing a bound file;
 - [module-input.md](module-input.md): commands and keyboard routes, focus, pointer
@@ -207,7 +207,7 @@ A widget extends `LeafElement`, a `LitElement` base class that draws everything 
 its authored children. One-time building goes in `setup()`, in place of `once(this)`;
 a `setup()` that throws shows its failure and the widget draws nothing after it.
 `render()` reads through Leaf's readers: `this.reading` and `this.state`,
-`this.data(input)` for a bound source, and page readings such as `readAsks`,
+`this.data(input)` for a bound source, and page readings such as `readItems`,
 `reportSequence` or `ago`. The element redraws whenever anything it read changes, in one
 ordered pass after the publication that moved it, parents before children. Return a
 template, `nothing` when the render places retained nodes itself, or `noChange`. Work

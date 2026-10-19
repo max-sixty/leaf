@@ -23,22 +23,13 @@ const REACT = "lf-react";
 const HOVER = "lf-mark-hover";
 const HERE = "lf-mark-here";
 
-export function createAnchorPaint({
-  targetPaint,
-  pointer,
-  standingThreadId,
-  hoveredPanelThreadId,
-  panelThreadForId,
-}) {
+export function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
   const marked = new Map();
   const visualTargets = new Map();
   let pendingMarks = [];
   let pendingOutline = [];
   let actionOutline = [];
   let hovering = null;
-  let hoverFromPanel = false;
-  let hoverParts = [];
-  let hoverThread = null;
   let hereParts = [];
   let hoverFrame = 0;
   let mounted = false;
@@ -55,17 +46,15 @@ export function createAnchorPaint({
 
   // An element's threads and reactions draw nothing on it at rest: its margin entry
   // already says it holds them, and a contour means "this, now". Only a moment projects
-  // one — a draft, an action, the pointer on the thread's row in Threads, the thread the
-  // user stands in.
+  // one — a draft, an action, the thread the user stands in.
   function paintVisualStates() {
     const pending = new Set(pendingOutline);
     const action = new Set(actionOutline);
-    const hover = new Set(elementMarks(hoverParts));
     const here = new Set(elementMarks(hereParts));
     // Paint every element state in the chrome plane. A declared visual substitutes its
     // registered surface so compound pictures keep their contour.
     const elements = new Set(
-      [pending, action, hover, here]
+      [pending, action, here]
         .flatMap((states) => [...states])
         .filter((element) => element instanceof Element),
     );
@@ -76,7 +65,6 @@ export function createAnchorPaint({
     const sources = [
       ["pending", pending],
       ["action", action],
-      ["hover", hover],
       ["focus", focus],
       ["here", here],
     ];
@@ -110,36 +98,19 @@ export function createAnchorPaint({
     }
   }
 
-  function panelThread(id) {
-    return id ? panelThreadForId(id) : null;
-  }
-
-  // The pointer on a thread lights its row in Threads and its words on the page. Its
-  // element is lit only from the row: on the page the pointer is inside the element
-  // anywhere in it, so the contour would stand round a section for as long as the user
-  // read with the mouse resting in it. The hand still says a press opens the thread.
-  function paintHover(id, fromPanel, repaintVisuals = true) {
+  // The pointer on a thread's words lights them. Its element is not lit: the pointer is
+  // inside the element anywhere in it, so the contour would stand round a section for as
+  // long as the user read with the mouse resting in it. The hand still says a press
+  // opens the thread.
+  function paintHover(id) {
     hovering = id;
-    hoverFromPanel = fromPanel;
-    const thread = panelThread(id);
-    if (hoverThread !== thread) {
-      hoverThread?.classList.toggle(HOVER, false);
-      thread?.classList.toggle(HOVER, true);
-      hoverThread = thread;
-    }
     const where = marksFor(id);
-    const parts = fromPanel ? where.filter((mark) => mark instanceof Element) : [];
-    for (const part of hoverParts)
-      if (!parts.includes(part)) part.classList.toggle(HOVER, false);
-    for (const part of parts) part.classList.toggle(HOVER, true);
-    hoverParts = parts;
     CSS.highlights.set(
       HOVER,
       Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
         priority: 1,
       }),
     );
-    if (repaintVisuals) paintVisualStates();
   }
 
   // Standing follows focus, rather than the last travel (thread/focus.js,
@@ -186,24 +157,16 @@ export function createAnchorPaint({
     return null;
   }
 
-  // Hover reads both the pointer and panel :hover inside the scheduled frame. Capturing
-  // a node at event time would leave reconciliation able to replace it before paint.
+  // Hover reads the pointer inside the scheduled frame. Capturing a node at event time
+  // would leave reconciliation able to replace it before paint.
   function refreshHover() {
-    if (hoverFrame || (!marked.size && !hovering && !hoverThread)) return;
+    if (hoverFrame || (!marked.size && !hovering)) return;
     hoverFrame = nextRender(() => {
       hoverFrame = 0;
       const at = pointer();
       const onMark = markAt(at.x, at.y);
       document.body.classList.toggle("lf-over-mark", Boolean(onMark));
-      const row = hoveredPanelThreadId();
-      const id = row ?? onMark;
-      const fromPanel = Boolean(row);
-      if (
-        id !== hovering ||
-        fromPanel !== hoverFromPanel ||
-        panelThread(id) !== hoverThread
-      )
-        paintHover(id, fromPanel);
+      if (onMark !== hovering) paintHover(onMark);
     });
   }
 
@@ -262,8 +225,7 @@ export function createAnchorPaint({
     paintStanding(false);
     // This pass creates new Range objects. Rebind hover even when the semantic id did
     // not change, then update the shared visual projection once.
-    if (hovering || hoverThread || hoverParts.length)
-      paintHover(hovering, hoverFromPanel, false);
+    if (hovering) paintHover(hovering);
     paintVisualStates();
     refreshHover();
   }
@@ -284,17 +246,12 @@ export function createAnchorPaint({
     pendingOutline = [];
     actionOutline = [];
     paintOutlines(before);
-    for (const element of hoverParts) element.classList.toggle(HOVER, false);
     for (const element of hereParts) element.classList.toggle(HERE, false);
-    hoverThread?.classList.toggle(HOVER, false);
     for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
     targetPaint.setTargets([]);
     pendingMarks = [];
     visualTargets.clear();
     hovering = null;
-    hoverFromPanel = false;
-    hoverParts = [];
-    hoverThread = null;
     hereParts = [];
   }
 

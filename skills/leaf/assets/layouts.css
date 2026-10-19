@@ -265,7 +265,7 @@
    * the render check names (layout.js, `off-axis`).
    *
    * A block breaks out only from a holder whose content box is the column's, such as
-   * the column itself, a section or an Ask standing in it. One in a box standing in from the
+   * the column itself, a section or an lf-ask standing in it. One in a box standing in from the
    * column (a list item, a quotation, a page's own indented block) or one the page
    * arranged keeps to its holder, and the runtime marks it so (`data-lf-kept`,
    * prepaint.js `breakouts`): the room beside it is not the page's to give, and its
@@ -296,7 +296,7 @@
      * because its proximity outranks order, letting these rules beat a later rule of
      * equal specificity in this layer, such as a tile's margin (`.layout-tiles > *`).
      * A widget holding authored blocks (`x-content: markup`), one of which breaks out,
-     * shares the arithmetic, so it may span that block: an Ask does (ask.css). `wide`
+     * shares the arithmetic, so it may span that block: an lf-ask does (ask.css). `wide`
      * and `available` each refine the second rule. */
     :where(:is(main, main > *):is(.layout-column, .layout-sidebar)) {
       :is(
@@ -482,7 +482,7 @@
     margin-top: 0;
   }
   /* A track holding one block keeps it in view beside the scrolling body: sticky below
-   * the banner and any tab strip, scrolling what it holds within the window, and only
+   * the window's head room and any tab strip, scrolling what it holds within the window, and only
    * inside its own flex line. The track itself never scrolls, so it keeps its flex
    * sizing. Whether the track stands beside the body depends on widths no query reads,
    * so the margin reading marks it (`data-lf-beside`, prepaint.js `residency`). Like a
@@ -520,7 +520,7 @@
   .layout-tiles > * {
     margin: 0;
   }
-  /* Workspace: a full-height page between the banner and the bottom bar. Header and
+  /* Workspace: a full-height page between the window's head room and foot room. Header and
    * footer take their content's height and the body the rest, arranged as the body says:
    * a grid of panes, a pane, or a widget composing its own regions. Each pane's body
    * scrolls on its own, and `--lf-full-height` on the workspace tells a body widget it has a
@@ -611,7 +611,7 @@
     }
     /* The body passes the window's height to its panes; one that is not a pane scrolls
      * as a whole. Each box that scrolls here stops sticking boxes at its own top
-     * (`--lf-top: 0px`; the theme's banner offset is the window's) and holds its height
+     * (`--lf-top: 0px`; the theme's head room is the window's) and holds its height
      * on purpose (`--lf-holds-height`, theme.css). */
     :is(main, main > *).layout-workspace
       > :not(header, footer, [data-lf-reading-role="pane"]) {

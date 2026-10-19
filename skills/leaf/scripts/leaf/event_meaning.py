@@ -7,8 +7,8 @@ referenced element still changes containment without changing an old event.
 
 from functools import cached_property
 
-from leaf.asks import answer_verbs, answering_action, asking, replayed_attrs
 from leaf.events import event_document
+from leaf.items import answer_verbs, answering_action, asking, replayed_attrs
 from leaf.projection import (
     authored_positions,
     frozen_thread_reading,
@@ -108,14 +108,14 @@ def state_meaning(event: dict, entry: dict, scope: str, origin: str) -> dict:
 def answer_meaning(
     sender, record: dict, event: dict, readings: AdmissionReadings
 ) -> tuple[bool, str | None]:
-    """Whether this admitted action answers its widget's ask, and the thread it closes.
+    """Whether this admitted action answers its widget's item, and the thread it closes.
 
-    The answering action is the one whose admission makes the ask's declared state
+    The answering action is the one whose admission makes the item's declared state
     condition hold, so it is read with the candidate in force in the fold of its own
     document. The thread it closes is the widget's authored `resolves`, read from the
     immutable document that sent it rather than carried in the command. A decision
     whose outcome is the widget's `x-withdrawn-as` leaves the page as if nothing had
-    been proposed, so it answers the ask and closes no thread: turning a fix down
+    been proposed, so it answers the item and closes no thread: turning a fix down
     leaves the question it was written for open. A registered source may retain
     answer provenance after its request is withdrawn; only a source currently
     asking can close the thread it declares."""
@@ -148,9 +148,9 @@ def answer_meaning(
             reading.spoken,
             registry,
             registered=any(
-                ask["source"]["kind"] == "widget"
-                and ask["source"]["id"] == event["widget"]
-                for ask in readings.work.all_asks["all"]
+                item["source"]["kind"] == "widget"
+                and item["source"]["id"] == event["widget"]
+                for item in readings.work.all_items["all"]
             ),
         ),
         record["attrs"].get("resolves")

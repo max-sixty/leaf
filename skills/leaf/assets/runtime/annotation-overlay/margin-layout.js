@@ -366,7 +366,7 @@ function samePassage(passage, words) {
 }
 
 // Said on the chrome root where the margin's residency is decided: where the markers are
-// pins, the banner offers the Page Map in their place (chrome.css). Until the residency
+// pins, the floating panel offers the Page Map in their place. Until the residency
 // is decided it says nothing, rather than one answer the decision then takes back.
 export function syncMarginResidency(changed) {
   paintPins();
@@ -398,7 +398,7 @@ function placeMarginEntryLabel(control) {
   }
   const marginEntryBox = control.getBoundingClientRect();
   const labelBox = label.getBoundingClientRect();
-  // The window the page shows, under the banner and over the bottom bar (geometry.js).
+  // The window the page shows, over the floating panel's room (geometry.js).
   const room = shownWindow({ gap: 4 });
   const edgeAligned = Math.max(
     room.left,

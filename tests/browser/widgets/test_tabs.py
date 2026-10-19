@@ -207,7 +207,7 @@ def test_a_url_into_a_hidden_root_view_lands_once_the_view_is_built(browser, ser
 
 
 def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
-    """The root strip sticks under the banner and paints over the document, so what
+    """The root strip sticks at the window's top and paints over the document, so what
     passes under it is not on screen: `shownRect`, the one reading of that, clips a
     block behind the stuck strip to the strip's foot, which the strip's stated height
     puts at `--lf-top` inside its panels. At the top of the page the strip is in flow
@@ -243,7 +243,8 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     )
     scroll_settled(page)
     stuck = page.evaluate(READ)
-    assert stuck["strip"]["top"] > 0, stuck
+    # Stuck at the window's top, where no chrome stands above it.
+    assert stuck["strip"]["top"] == pytest.approx(0, abs=0.5), stuck
     assert stuck["behind"]["top"] < stuck["strip"]["bottom"] < stuck["behind"]["bottom"]
     assert stuck["band"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
     assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
@@ -550,7 +551,7 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     """A page tab is a section of the page, so a `wide` or `available` table in its
     open panel takes the box and the column widths its twin outside the set takes: at
     first paint, before the runtime has drawn the strip, then at a desktop window, with
-    the thread panel open over it, and on a phone. A boxed set's panel draws a frame,
+    Threads open over it, and on a phone. A boxed set's panel draws a frame,
     so the same table there stays inside it. Each table has twelve columns, so on a
     column page, where a table granted room takes what its columns need, it needs the
     room."""
@@ -624,9 +625,9 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     assert twins("desktop") == first
     # Wider than the reading column, which a workspace's prose does not keep.
     assert first["in-wide"]["width"] > 720, first
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    twins("panel open")
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    twins("threads open")
     resized(page, 390, 800)
     twins("phone")
 
@@ -718,10 +719,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     assert stacked["page"] <= 0 and stacked["item"][1] > 0, stacked
 
 
-def test_side_tabs_distinguish_withdrawn_asks_from_answers(browser, serve):
-    """A row's mark says its item's asks are open until every one is answered, and
+def test_side_tabs_distinguish_withdrawn_items_from_answers(browser, serve):
+    """A row's mark says its item's items are open until every one is answered, and
     withdrawal retires a request without claiming the user answered it: a row whose
-    only ask was withdrawn shows no mark, and one whose other ask is answered shows
+    only item was withdrawn shows no mark, and one whose other item is answered shows
     the answer."""
     source = leaf_page(
         "Question outcomes",
@@ -735,8 +736,8 @@ def test_side_tabs_distinguish_withdrawn_asks_from_answers(browser, serve):
     )
     page = open_page(browser, live_url(serve(source)))
     marks = page.locator("#queue .lf-tab-answer")
-    expect(marks.nth(0)).to_have_attribute("data-lf-asks", "open")
-    expect(marks.nth(1)).to_have_attribute("data-lf-asks", "open")
+    expect(marks.nth(0)).to_have_attribute("data-lf-items", "open")
+    expect(marks.nth(1)).to_have_attribute("data-lf-items", "open")
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -745,15 +746,15 @@ def test_side_tabs_distinguish_withdrawn_asks_from_answers(browser, serve):
         "Retire unanswered requests",
     )
     wait_for_revision(page, 2)
-    expect(marks.nth(0)).not_to_have_attribute("data-lf-asks", re.compile(".*"))
-    expect(marks.nth(1)).to_have_attribute("data-lf-asks", "answered")
+    expect(marks.nth(0)).not_to_have_attribute("data-lf-items", re.compile(".*"))
+    expect(marks.nth(1)).to_have_attribute("data-lf-items", "answered")
     expect(marks.nth(1)).to_have_text("Keep")
 
 
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
-    """An ask answered before the page loads is named once the page presents, however
+    """An item answered before the page loads is named once the page presents, however
     late the answering widget's module arrives: startup imports every module the
-    document names before the first reading brings the ask inventory. A longer ticket
+    document names before the first reading brings the item inventory. A longer ticket
     name and its summary keep their own lines beside a complete short outcome."""
     url = serve(
         leaf_page(
@@ -1063,7 +1064,7 @@ def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
 
 
 def test_root_tab_targets_remain_global(browser, serve):
-    """Ask travel crosses hidden tabs."""
+    """Item travel crosses hidden tabs."""
     url = serve(ROOT_TABS_PAGE)
     page = open_page(
         browser,

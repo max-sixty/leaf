@@ -681,6 +681,8 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         ("sticky_tail", None),
         ("tail_growth", None),
         ("undeclared_tail_growth", "button#reply"),
+        ("tail_replaced", None),
+        ("undeclared_tail_replaced", "button#reply"),
         ("region_growth", "button#reply"),
         ("tail_and_region_growth", "button#reply"),
         ("growing_port", None),
@@ -700,9 +702,9 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     browser, fault, protected
 ):
     """An arrival, or a last child declared the growing tail growing where none
-    arrives, may move its reply and later cards, preserving the transcript; so may a
-    port sized to what it holds that grows at its foot with it, as a floating card does,
-    and no further."""
+    arrives or giving way to what arrives in its place, may move its reply and later
+    cards, preserving the transcript; so may a port sized to what it holds that grows at
+    its foot with it, as a floating card does, and no further."""
     # A floating port: nothing follows it in flow, so its foot is free to grow.
     floating = (
         "position:fixed;top:0;left:0;"
@@ -711,7 +713,8 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     )
     tail = (
         " data-lf-append-tail"
-        if fault in {"tail_growth", "region_growth", "tail_and_region_growth"}
+        if fault
+        in {"tail_growth", "region_growth", "tail_and_region_growth", "tail_replaced"}
         else ""
     )
     page = browser.new_page()
@@ -752,6 +755,11 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           next.textContent = 'The newly appended reply.';
           next.style.cssText = `margin:0;height:${fault.startsWith('sticky_') ? 400 : 40}px`;
           if (fault === 'prepend') source.prepend(next);
+          else if (fault.endsWith('tail_replaced')) {
+            next.style.height = '80px';
+            document.getElementById('old').replaceWith(next);
+            next.id = 'old';
+          }
           else if (fault.endsWith('tail_growth'))
             document.getElementById('old').style.height = '80px';
           else if (fault === 'region_growth') source.style.paddingBottom = '40px';
@@ -773,7 +781,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     judge_watches()
     if not protected:
         grown = page.locator("#old").bounding_box()
-        if fault == "tail_growth":
+        if fault in {"tail_growth", "tail_replaced"}:
             assert grown == {**before, "height": before["height"] + 40}
         else:
             assert grown == before
@@ -787,6 +795,44 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     else:
         errors = consume_browser_errors(page, {"code": "moved-without-input"})
         assert names_move(errors, protected), errors
+
+
+@pytest.mark.parametrize("taken_down", [True, False])
+def test_a_control_shown_again_elsewhere_is_no_move(browser, taken_down):
+    """A control taken off the page and later shown again where the page has since
+    moved, as a thread's news notice is, appears there; one standing while the page
+    moves under it is carried."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0">'
+            '<div id="above" style="height:100px"></div>'
+            '<div id="seat"><button id="notice">1 new</button></div>'
+            # A box with nothing to read, which the notice's return moves, so Chrome
+            # reports a shift in the frame it returns in.
+            '<div style="height:20px;background:gray"></div></body>'
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """takenDown => {
+          const notice = document.getElementById('notice');
+          if (takenDown) notice.remove();
+          document.getElementById('above').style.height = '200px';
+          window.__notice = notice;
+        }""",
+        taken_down,
+    )
+    paint(page)
+    if taken_down:
+        page.evaluate("() => document.getElementById('seat').append(window.__notice)")
+        paint(page)
+        judge_watches()
+        return
+    judge_watches()
+    errors = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert names_move(errors, "button#notice"), errors
 
 
 @pytest.mark.parametrize(

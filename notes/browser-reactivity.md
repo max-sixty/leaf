@@ -14,7 +14,7 @@ findings; each owning module's header states the current contract.
 - **Watchers collect what they read.** `watchProjection(owner, paint)` collects every
   part of the publication its paint reads synchronously (`collectReads`, `snapshot.ts`)
   and repaints when one of those parts moves (`runtime/projection-watch.js`). It is the
-  one watcher packages use too: a reading has a reader (`readAsks`, `readQueues`,
+  one watcher packages use too: a reading has a reader (`readItems`, `readQueues`,
   `readThreads`, `readWork`, `reportSequence`, `readHistory`, a controller's `read()`)
   and no watcher of its own, so a paint that reads several needs one watcher, and a
   paint that narrates reports passes `reportsPresented` as the watcher's proof. The
@@ -25,13 +25,12 @@ findings; each owning module's header states the current contract.
   signals it reads, such as where the user stands, which a paint may also write:
   tracked by an effect, the annotation inventory's paint re-ran itself without end and
   hung the page.
-- **Chrome paints are watchers too.** The banner's status, the floating panel, the
-  version picker and the pages drawer each paint through one `watchProjection`, and
-  call its `refresh()` for their own mechanical inputs, such as an open menu or a
-  comparison. How the server answered the latest read is in the publication (`reach`),
+- **Chrome paints are watchers too.** The floating panel and the version picker each
+  paint through one `watchProjection`, and call its `refresh()` for their own
+  mechanical inputs, such as an open menu or a comparison. How the server answered the latest read is in the publication (`reach`),
   so the status reads it rather than the state feed pushing each answer at it.
 - **Regions collect what they read.** The four document regions (projection, threads,
-  asks, the Questions panel) are `applicationPresenter`s (`runtime/semantic-state.js`).
+  items, the On panel) are `applicationPresenter`s (`runtime/semantic-state.js`).
   Each one's `reading` says whether it owes a paint, and the parts its reading and its
   paint read are collected, as a watcher's are. A publication that moves none of them
   carries the region's last commit into the new epoch. Another owner a paint drives
@@ -111,8 +110,8 @@ inside its selection, so its callers subscribe to the result rather than to its
 inputs (`skills/leaf/assets/AGENTS.md`, "Working on the runtime"). A review found more
 readers breaking it, now selections of what they return: `readThreads` (the thread
 collection, not all thread state), the to-dos and undo list (`runtime.todos`,
-`runtime.undo`, not the whole browser reading or view), and approval's blocking asks
-and approved state (not every ask). No check finds the rest;
+`runtime.undo`, not the whole browser reading or view), and approval's blocking items
+and approved state (not every item). No check finds the rest;
 `leaf-dev bench-latency` against the previous commit shows one that costs time.
 
 ## What reactivity will not fix

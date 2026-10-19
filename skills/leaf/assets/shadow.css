@@ -119,13 +119,13 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   outline-offset: var(--focus-ring-gap);
 }
 :where(:focus, [data-lf-focus]) {
-  scroll-margin-block: var(--focus-ring-room);
+  scroll-margin-block: var(--focus-ring-landing);
 }
 :where([data-lf-sticks]) {
   --lf-head-inset: 0px;
 }
 :where(:focus, [data-lf-focus]) {
-  scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top)) + var(--lf-head-inset, calc(var(--focus-ring-room) + var(--lf-landing-room, 0px))) - var(--lf-landing-room, 0px));
+  scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top)) + var( --lf-head-inset, calc(var(--focus-ring-landing) + var(--lf-landing-room, 0px)) ) - var(--lf-landing-room, 0px));
 }
 [data-lf-offer]:where(:not([data-lf-offer=""])) {
   cursor: pointer;
@@ -150,15 +150,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-msg-control,
 .lf-margin-entry,
 .lf-thread-action,
-.lf-preview,
-.lf-layer-reference,
-.lf-version-diff,
-.lf-version-row,
 .lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
 }
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-skip, .lf-btn, .lf-version-row, .lf-version-diff)),
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer=checkbox], [data-lf-offer=radio], .lf-skip, .lf-btn)),
 .lf-outline-chip:is(button, [role=button]),
 .lf-thread-notice:is(button),
 .lf-react,
@@ -243,7 +239,6 @@ summary {
 }
 :root,
 .lf-page-thread,
-.lf-thread,
 .lf-fab-bar {
   --lf-thread-text-inset: 13px;
   --lf-group-ring-end: 6px;
@@ -261,9 +256,6 @@ summary {
   --lf-thread-action-room: var(--lf-msg-head-height);
   --lf-thread-notice-room: var(--lf-msg-head-height);
   --lf-thread-message-control-room: 0px;
-}
-.lf-read-boundary {
-  height: 0;
 }
 @property --lf-msg-ground { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --lf-msg-arrival { syntax: "<number>"; inherits: false; initial-value: 0; }
@@ -718,7 +710,7 @@ button.lf-thread-notice[data-lf-focus] {
   border-top: 1px solid var(--rule);
   margin: var(--hr-margin-block) 0;
 }
-:is(.lf-thread-transcript, .lf-thread-reply, .lf-general) {
+:is(.lf-msg-body, leaf-text) {
   --quote-inset: 10px;
   --pre-inset: 10px;
 }
@@ -1476,7 +1468,6 @@ button.lf-media-open {
   outline-offset: 0;
   border-color: transparent;
 }
-.lf-page-comment-card,
 .lf-response-control {
   filter: drop-shadow(var(--raise-1));
 }

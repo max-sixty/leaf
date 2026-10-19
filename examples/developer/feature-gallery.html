@@ -237,12 +237,12 @@
       ]
     </script>
     <script type="module">
-      import { afterPresentation, commands, readAsks } from "/runtime/widget-api.js";
+      import { afterPresentation, commands, readItems } from "/runtime/widget-api.js";
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const ask = readAsks().all.find((q) => q.id === "widget:bg-choice");
+        const item = readItems().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
-        output.textContent = JSON.stringify(ask, null, 2);
+        output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;
       });
 
@@ -327,11 +327,7 @@
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
           progress: "bg-progress-question",
         }[view];
-        void sample.showThread(thread, {
-          surface: "panel",
-          status: view === "resolved" ? "resolved" : "open",
-          waiting: view === "you" ? "user" : "all",
-        });
+        void sample.showThread(thread, { surface: "panel" });
       }
 
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {
@@ -376,10 +372,10 @@
             </h2>
             <p id="bg-core-surfaces-guide">
               An <code>lf-ask</code> puts a heading and context around the choice below.
-              <strong>On me</strong> lists everything waiting on you: open asks, threads
-              whose question is yours to answer (such as the gallery thread about a
-              pasted image), to-dos the agent put on you, and updates whose reply failed
-              and need sending again.
+              <strong>On me</strong> lists everything waiting on you: open items, a
+              question in a thread among them (such as the gallery thread about a pasted
+              image), to-dos the agent put on you, and updates whose reply failed and
+              need sending again.
             </p>
             <ul id="bg-core-surfaces-steps">
               <li>
@@ -389,20 +385,20 @@
                 with reduced motion, there is no glide or highlight.
               </li>
               <li>
-                Look at the banner: the <strong>On me</strong> control beside Threads
-                counts what is on you, and the agent's count, such as
-                <strong>On Claude: 1</strong>, follows its status.
+                Look at Leaf's panel at the window's foot: the <strong>On me</strong>
+                mark beside Threads counts what is on you.
               </li>
               <li>
-                Press either, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the experimental
-                On panel opens where Threads opens, on the list you pressed, with a tab
-                for the other. What left each list is folded under it as Done: answered
-                asks under On me, sent replies and ended to-dos under the agent's. Press
-                Enter on a row: it goes where <kbd>m</kbd> would.
+                Press it, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the On view opens
+                above the panel's row on On me, with a tab for the agent's list, such as
+                <strong>On Claude</strong>, each tab counting its list. What left each
+                list stands under it as Done: answered items under On me, sent replies
+                and ended to-dos under the agent's. Press Enter on a row: it goes where
+                <kbd>m</kbd> would.
               </li>
               <li>
                 On a stamped page that asks for sign-off, find the version approval
-                among the asks: its row leads to the banner's Approve control, approving
+                among the items: its row in On me holds the Approve control, approving
                 answers it, and Undo reopens it.
               </li>
               <li>
@@ -421,15 +417,15 @@
               </lf-options>
             </lf-ask>
             <details id="bg-question-api">
-              <summary>Inspect the ask record</summary>
+              <summary>Inspect the item record</summary>
               <p>
-                The map's ask is <code>widget:bg-choice</code> whether or not it has an
+                The map's item is <code>widget:bg-choice</code> whether or not it has an
                 <code>lf-ask</code> wrapper. Choose a map, then read its current record:
                 <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
               <button id="bg-read-question" class="button" type="button">
-                Read current ask
+                Read current item
               </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
@@ -443,19 +439,17 @@
               </p>
               <ul>
                 <li>
-                  Open the On panel: the to-do waits under On me, and its row has a Done
-                  button.
+                  Open On me: the to-do waits there, and its row has a Done button.
                 </li>
                 <li>
-                  Press <kbd>m</kbd> until it lands on the to-do, after the ask above,
-                  then press <kbd>x</kbd>, or under a finger the banner's
-                  <strong>Done</strong>: the to-do moves to On me's Done fold, and the
-                  agent is told.
+                  Press <kbd>m</kbd> until it lands on the to-do, after the item above,
+                  then press <kbd>x</kbd>, or its row's <strong>Done</strong> in On me:
+                  the to-do moves under On me's Done, and the agent is told.
                 </li>
               </ul>
             </section>
             <section id="bg-widget-shortcut-hints">
-              <h3>Inline hints outside an ask</h3>
+              <h3>Inline hints outside a question</h3>
               <p>
                 Tab into this sample: <kbd>1</kbd> appears beside its button. Press
                 <kbd>1</kbd>: the note gets focus, the hint disappears, and digits type
@@ -474,7 +468,7 @@
             <section id="bg-keyboard-preference">
               <h3>Quick keyboard shortcuts</h3>
               <p>
-                Open <strong>More → Keyboard shortcuts</strong> and turn off
+                Open <strong>Keyboard shortcuts</strong> in the leaf's menu and turn off
                 <strong>Quick keyboard shortcuts</strong>. Letters, numbers and symbols
                 now keep their ordinary meaning: <kbd>c</kbd> leaves the page alone, and
                 the note sample above loses its <kbd>1</kbd> hint. Its button and text
@@ -483,33 +477,13 @@
               </p>
             </section>
             <section id="bg-floating-panel">
-              <h3>The floating panel and the banner</h3>
+              <h3>The floating panel</h3>
               <p>
                 Leaf's controls stand in one panel hovering over the foot of the page.
-                <strong>Use the banner</strong>, at the foot of the leaf's menu, trades
-                it for the banner and the bottom bar on every page, and
-                <strong>Use the Leaf panel</strong> in the banner's More menu brings it
-                back. A window sample shows the chrome its <code>chrome</code> attribute
-                names, whichever you chose. Below, the same page in each: press the
-                floating panel's leaf for the menu, and its field to comment.
+                In the window below, press the panel's leaf for the menu, and its field
+                to comment.
               </p>
-              <lf-sample
-                id="bg-chrome-classic"
-                label="classic chrome"
-                window
-                chrome="classic"
-              >
-                <template id="bg-chrome-classic-page" data-sample>
-                  <h1>Trail notes</h1>
-                  <p>The covered terrace is a short walk from the shelter.</p>
-                </template>
-              </lf-sample>
-              <lf-sample
-                id="bg-chrome-floating"
-                label="floating panel"
-                window
-                chrome="floating"
-              >
+              <lf-sample id="bg-chrome-floating" label="floating panel" window>
                 <template id="bg-chrome-floating-page" data-sample>
                   <h1>Trail notes</h1>
                   <p>The covered terrace is a short walk from the shelter.</p>
@@ -517,20 +491,19 @@
               </lf-sample>
             </section>
             <p id="bg-core-controls-guide">
-              The banner also shows <strong>Threads</strong>, the
-              <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
-              then <kbd>Shift+P</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
-              twice), and <strong>All pages</strong> when another Leaf page is live. A
-              quiet status line at the bottom right reports the current keyboard walk or
-              a useful command result. It moves above the bottom-left shortcuts when
-              room is tight.
+              The leaf's menu also holds <strong>Versions</strong>,
+              <strong>Keyboard shortcuts</strong> (<kbd>?</kbd>), and under Navigate
+              <strong>All pages</strong> when another Leaf page is live;
+              <strong>Page Map</strong> is <kbd>g</kbd> then <kbd>Shift+P</kbd>. The
+              empty comment field reports the current keyboard walk or a useful command
+              result where it would show the agent's status.
             </p>
             <p id="bg-share-guide">
-              On a local server, open <strong>More → Share</strong> and copy the link,
-              then open it in a fresh browser profile. The link keeps the current
+              On a local server, choose <strong>Copy link</strong> in the leaf's menu,
+              then open the link in a fresh browser profile. The link keeps the current
               address and passage and includes the access key even after a reload. The
-              Share panel states that the key grants access to every Leaf page served by
-              the same machine. Sample windows and the public website omit Share.
+              row states that the key grants access to every Leaf page served by the
+              same machine. Sample windows and the public website omit Copy link.
             </p>
             <p id="bg-history-return-guide">
               Follow
@@ -611,9 +584,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </lf-draft>
             <p id="bg-history-guide">
               <strong>Picked up</strong> means the saved edit entered an agent turn. The
-              receipt follows that edit through delivery and response. The banner
-              describes the agent’s overall availability, including work on other parts
-              of the page.
+              receipt follows that edit through delivery and response. The panel's
+              status describes the agent’s overall availability, including work on other
+              parts of the page.
             </p>
             <lf-draft id="bg-history">
               <pre>The sample workshop is in the blue room.</pre>
@@ -703,10 +676,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: approve a version</span>
               </h3>
               <p id="bg-signoff-guide">
-                This gallery deliberately leaves sample asks unanswered, so
+                This gallery deliberately leaves sample items unanswered, so
                 <strong>Approve version</strong> remains unavailable. On a settled page
                 it records approval for the current version; <kbd>z</kbd>, or “Undo” in
-                “More page controls” on a touch screen, takes that approval back.
+                the leaf's menu, takes that approval back.
               </p>
             </section>
 
@@ -714,32 +687,31 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <h3>
                 <strong>Comment on the page</strong
                 ><span class="bg-feature-detail"
-                  >: start a page thread from the banner</span
+                  >: start a page thread from Leaf's panel</span
                 >
               </h3>
               <p id="bg-page-comment-card-guide">
-                The comment symbol beside Threads on the banner starts a thread about
-                the whole page.
+                The panel's comment field starts a thread about the whole page.
               </p>
               <ul id="bg-page-comment-card-steps">
                 <li>
-                  With Threads shut, press the symbol, or press <kbd>c</kbd> with
-                  nothing selected: a card hangs from the symbol.
+                  Click the field, or press <kbd>c</kbd> with nothing selected: the
+                  status gives way to “Comment on the page” and the caret stands in the
+                  field.
                 </li>
                 <li>
-                  Write a sentence and send it: the card closes and focus returns to the
-                  symbol. Threads flashes yellow with its count one higher while the
-                  panel stays shut, and the new thread is in Threads. Press
-                  <kbd>c</kbd> to write again.
+                  Write a sentence and send it: the new thread is in Threads, whose
+                  count goes up by one, and the caret stays in the field for the next
+                  comment.
                 </li>
                 <li>
-                  Press <kbd>Escape</kbd> or click elsewhere: the card goes away and
-                  keeps what you wrote for the next time it opens.
+                  Press <kbd>Escape</kbd> or click elsewhere: the field keeps what you
+                  wrote for the next time you come back to it.
                 </li>
                 <li>
-                  Open Threads and press the symbol: the same card opens over the panel.
+                  Open a thread in Threads: the same field now replies to it, and
+                  closing the thread gives the field back to the page.
                 </li>
-                <li>On a phone, find “Comment on the page” in “More page controls”.</li>
               </ul>
             </section>
 
@@ -747,7 +719,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <h3>Dictate a comment</h3>
               <p id="bg-comment-dictation-guide">
                 In a browser with speech recognition, every empty comment or reply box
-                offers a microphone where Send will stand. The page comment card, a
+                offers a microphone where Send will stand. The panel's comment field, a
                 passage's comment box, and a thread reply all use the same control.
               </p>
               <ul id="bg-comment-dictation-steps">
@@ -779,8 +751,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Press <kbd>l</kbd>, then click <strong>Street map</strong>. Leaf opens a
                 comment about <code>lf-option · bg-choice-street</code> without choosing
                 the option. Press <kbd>Escape</kbd> to leave design mode. On a touch
-                screen, choose “Design mode” in “More page controls”, tap “Street map”,
-                and tap “Exit Design mode” on the banner to leave.
+                screen, choose “Design mode” under Annotations in the leaf's menu, tap
+                “Street map”, and tap “Exit Design mode” in the panel's row to leave.
               </p>
             </section>
 
@@ -828,8 +800,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   usable while Draw mode is on.
                 </li>
                 <li>
-                  On a touch screen, choose “Draw mode” in “More page controls”; “Undo
-                  stroke” and “Exit Draw mode” stand on the banner while the mode is on.
+                  On a touch screen, choose “Draw mode” under Annotations in the leaf's
+                  menu; “Undo stroke” and “Exit Draw mode” stand in the panel's row
+                  while the mode is on.
                 </li>
               </ul>
             </section>
@@ -844,15 +817,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <ul id="bg-area-capture-steps">
                 <li>
-                  Open “More page controls”, choose “Capture area”, and drag a rectangle
-                  around this paragraph or a nearby widget. Arrow keys move the
-                  rectangle, and <kbd>Shift</kbd>
+                  Open Annotations in the leaf's menu, choose “Capture area”, and drag a
+                  rectangle around this paragraph or a nearby widget. Arrow keys move
+                  the rectangle, and <kbd>Shift</kbd>
                   with an arrow resizes it.
                 </li>
                 <li>
-                  Choose “Attach capture” in the banner, or press <kbd>Enter</kbd>: the
-                  image appears in an anchored comment, where you can add words, remove
-                  the image, or send it alone.
+                  Choose “Attach capture” in the panel's row, or press <kbd>Enter</kbd>:
+                  the image appears in an anchored comment, where you can add words,
+                  remove the image, or send it alone.
                 </li>
                 <li>
                   Press <kbd>Escape</kbd> or “Cancel capture” instead: you leave without
@@ -873,20 +846,20 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >
               </h3>
               <p id="bg-align-current-item-guide">
-                Align current item at top moves the block you are reading to just below
-                the banner.
+                Align current item at top moves the block you are reading to the
+                window's top.
               </p>
               <ul id="bg-align-current-item-steps">
                 <li>
                   Select some words in this paragraph, or focus the heading above, and
                   scroll until it sits lower on screen. Press <kbd>g</kbd> and
-                  <kbd>z</kbd>, or choose Align current item at top in More page
-                  controls: its reading block moves just below the banner, and your
-                  focus and selection stay.
+                  <kbd>z</kbd>, or under a finger choose Align current item at top under
+                  Navigate in the leaf's menu: its reading block moves to the window's
+                  top, and your focus and selection stay.
                 </li>
                 <li>
-                  Try it on a focused ask: its question aligns. Try it on a focused
-                  thread in Threads: its card aligns inside the panel. In a bounded
+                  Try it on a focused question: its heading aligns. Try it on a focused
+                  thread in Threads: its card aligns inside the view. In a bounded
                   reading area, the block aligns within that area's own scroller.
                 </li>
                 <li>
@@ -906,12 +879,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </h3>
               <p id="bg-restored-selection-guide">
                 Select a passage here, then press <kbd>Escape</kbd> and read somewhere
-                else. Press <kbd>g</kbd> and <kbd>v</kbd>, or choose Restore selection
-                in More page controls: the page reveals the passage and selects the same
-                words with the same working end. A live revision can replace their
-                markup; removed or ambiguous words report that the passage is
-                unavailable. Selecting inside an editor keeps its native meaning.
-                <kbd>g</kbd> then <kbd>V</kbd> still opens versions.
+                else. Press <kbd>g</kbd> and <kbd>v</kbd>, or under a finger choose
+                Restore selection under Navigate in the leaf's menu: the page reveals
+                the passage and selects the same words with the same working end. A live
+                revision can replace their markup; removed or ambiguous words report
+                that the passage is unavailable. Selecting inside an editor keeps its
+                native meaning. <kbd>g</kbd> then <kbd>V</kbd> still opens versions.
               </p>
             </section>
 
@@ -933,8 +906,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Scroll somewhere else, then press <kbd>g</kbd> and <kbd>i</kbd>, or
-                  choose Resume writing in More: the page returns to this editor and
-                  restores the caret.
+                  under a finger choose Resume writing under Navigate in the leaf's
+                  menu: the page returns to this editor and restores the caret.
                 </li>
                 <li>
                   Send the comment, move elsewhere, and use Resume writing again: its
@@ -1011,13 +984,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 
         <lf-tab id="bg-view-threads" label="Threads">
           <section id="bg-panel-views">
-            <h2><strong>Threads panel views</strong></h2>
+            <h2><strong>Threads in the panel</strong></h2>
             <p id="bg-panel-views-guide">
-              Choose a view to open the real Threads panel in this practice page. The
+              Choose a view to open its thread in this practice page's Leaf panel. The
               controls, messages, filters, and unread state are live. Reset restores the
               seeded discussion after trying a reply or changing a thread.
             </p>
-            <div id="bg-panel-presets" role="group" aria-label="Threads panel views">
+            <div id="bg-panel-presets" role="group" aria-label="Threads in the panel">
               <button
                 type="button"
                 class="button"
@@ -1113,17 +1086,16 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </li>
               <li>
                 With a thread focused, open Threads, including with <kbd>g</kbd> then
-                <kbd>T</kbd>: the same thread stays focused in the panel.
+                <kbd>T</kbd>: the same thread stays focused in the list.
               </li>
               <li>
-                Under “View”, choose “Open” or “Resolved”, and “Me” or the agent's name
-                under “Waiting on”, to narrow the list, and combine “Page” or “Anchored”
-                with “Content” or “Design”. Switch “Order” from the page's order to
-                “Recent”: the thread with the latest message comes first under its day.
+                Choose “Open”, “Unread”, “Drafts” or “Resolved” at the head of Threads
+                to narrow the list, each tab keeping its count, or search the threads'
+                words with the find button beside them.
               </li>
               <li>
-                Look at a collapsed row: it keeps its message count, last activity, and
-                status, and “On me” also names the action you owe.
+                Look at a row: it is one line, the thread's title and its status, and a
+                thread waiting on you says so.
               </li>
               <li>
                 Open a short thread: Reply follows its last message. In a long one,
@@ -1163,8 +1135,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <ul id="bg-thread-api-steps">
                 <li>
-                  Answer the channel ask inside its message, write a reply, and switch
-                  layouts before sending: the same draft follows the conversation.
+                  Answer the channel question inside its message, write a reply, and
+                  switch layouts before sending: the same draft follows the
+                  conversation.
                 </li>
                 <li>
                   Double-click your own message: you can rewrite it in any layout, Feed
@@ -1172,7 +1145,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Start a conversation and mark the proofreading to-do Done: the
-                  package's lists and Leaf's On panel show the same outcomes.
+                  package's lists and Leaf's On view show the same outcomes.
                 </li>
                 <li>
                   Use first-unread and question navigation: each lands in this reader.
@@ -1314,15 +1287,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </li>
               <li>
                 If the server refuses the send, the words stay on this passage, where
-                opening the comment box again finds them; the card under “Comment on the
-                page” gets them back in place.
+                opening the comment box again finds them; a page comment's words return
+                to the panel's comment field.
               </li>
               <li>
                 On a touch screen, select words and tap “Comment on selection” in the
-                banner: the field opens after the native selection menu closes. To
-                comment on the whole paragraph, open “More page controls”, choose
-                “Select element”, then tap it; “Cancel selection” leaves the page
-                unchanged.
+                panel's row: the field opens after the native selection menu closes.
               </li>
             </ul>
             <p id="bg-revised-quotes-guide">
@@ -1400,7 +1370,6 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               These passages have real threads in this gallery. Open Threads to compare
               each row's status and compact last-activity time, then open a row to
               inspect its messages. The title remains in the header when the card opens.
-              Drag the panel’s left edge inward to see the status move below a title.
               The first pair shows a title before and after naming.
             </p>
             <section id="bg-thread-state-titles">
@@ -1452,8 +1421,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     needs an answer even though the agent added a later progress
                     message. In Threads, “My turn to answer” still says so. Open the
                     control and reply: the control turns blue as the thread comes back
-                    to the agent. The same reading fills the panel’s “Me” filter and
-                    this target’s Page Map row.
+                    to the agent. The same reading fills this target’s Page Map row.
                   </p>
                   <p id="bg-thread-media">
                     <strong>Pasted images.</strong> That thread includes an image
@@ -1484,7 +1452,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <h3>Resolved</h3>
               <p id="bg-resolved-text">
                 <strong>A resolved thread.</strong> The room has a projector. Its
-                earlier question is resolved. Open Threads in the banner, select
+                earlier question is resolved. Open Threads in Leaf's panel, choose
                 “Resolved”, open the thread, and press its underlined “Resolved” to
                 bring its Thread control back to the page.
               </p>
@@ -1663,13 +1631,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-ask-across">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
             <h2>
-              <strong>An ask around its figure</strong
+              <strong>A question around its figure</strong
               ><span class="bg-feature-detail">: options laid across</span>
             </h2>
             <p id="bg-ask-across-guide">
-              This ask holds a chart and ends in one list of titled options. Under the
-              chart the three cards stand side by side, so the question, the chart and
-              every option fit one window; narrow the window and the cards stack.
+              This question holds a chart and ends in one list of titled options. Under
+              the chart the three cards stand side by side, so the question, the chart
+              and every option fit one window; narrow the window and the cards stack.
             </p>
             <lf-ask id="bg-across-ask">
               <h3>Which trail should the sample team hike on Saturday?</h3>
@@ -1724,14 +1692,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               The tab list stands left of the open item: each row shows its name and
               summary, with the chosen outcome on its own line. Rows sharing a
               <code>group</code> sit under that group's heading. The
-              <code>lf-tally</code> above it counts the queue's asks still to answer.
+              <code>lf-tally</code> above it counts the queue's items still to answer.
             </p>
             <ul id="bg-side-list-steps">
               <li>
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Press Next on me in the tally: it opens the first item's ask, whose row
+                Press Next on me in the tally: it opens the first item, whose row
                 carries an open mark.
               </li>
               <li>
@@ -1904,7 +1872,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: annotations beside their targets</span>
             </h3>
             <p id="bg-margin-layer-guide">
-              Leaf places threads, unanswered asks, actions, changes, and delivery or
+              Leaf places threads, unanswered items, actions, changes, and delivery or
               work status beside the content they concern. With enough room beside the
               reading column, their controls stand in the rail. Where the rail is
               absent, the same controls appear as pins near their targets on the page.
@@ -1931,14 +1899,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               Press <kbd>o</kbd> to hide pins and passage marks while reading the
               content beneath them. Controls in the rail stay visible, and nothing on
               the page moves. Press it again to bring the annotations back. On a touch
-              screen, open “More page controls” and choose “Hide annotations”, then
-              “Show annotations”.
+              screen, open Annotations in the leaf's menu and choose “Hide annotations”,
+              then “Show annotations”.
             </p>
             <p id="bg-margin-layer-actions-guide">
               <strong>Action pins without a rail.</strong> This practice page has no
               rail. The suggestion's “Accept” and “Reject” controls appear as pins
               beside the proposed wording. Choose either, then use “Undo” to restore the
-              suggestion. These annotations work without a thread or an ask.
+              suggestion. These annotations work without a thread or an item.
             </p>
             <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
               <template id="bg-margin-layer-actions-page" data-sample data-rail="none">
@@ -2634,11 +2602,11 @@ gallery/
               <section id="bg-durable-embedding" hidden>
                 <h3>Stamped page in a frame</h3>
                 <p id="bg-durable-frame-guide">
-                  Open the earlier map decision, then open its Threads panel. This is
-                  the gallery's ordinary stamped v2, with its durable history and
-                  original text. Reloading the frame keeps that version; it is not a
-                  temporary practice copy. Its scheme, hostname, and port match this
-                  page; another origin cannot frame it.
+                  Open the earlier map decision, then open its Threads. This is the
+                  gallery's ordinary stamped v2, with its durable history and original
+                  text. Reloading the frame keeps that version; it is not a temporary
+                  practice copy. Its scheme, hostname, and port match this page; another
+                  origin cannot frame it.
                 </p>
                 <div id="bg-durable-frame-host">
                   <button id="bg-durable-frame-open" class="button" type="button">
@@ -2661,9 +2629,9 @@ gallery/
               <section id="bg-window-practice">
                 <h3>Window sample</h3>
                 <p id="bg-window-sample-guide">
-                  A practice page as a whole window: its banner keeps its status row,
-                  its bottom bar holds its shortcuts, and the frame keeps a window's
-                  height however short the page is. Press its
+                  A practice page as a whole window: its Leaf panel floats at the
+                  window's foot, and the frame keeps a window's height however short the
+                  page is. Press its
                   <strong>Open threads</strong>
                   button to see its authored conversation. Add a reply, then Reset: the
                   original conversation returns, and this gallery gets no thread.
@@ -3134,9 +3102,9 @@ switch --readers checkout-api,orders-api</code></pre>
             <section id="bg-interaction-threads">
               <h3>Open and close Threads</h3>
               <p id="bg-interaction-threads-guide">
-                Press <strong>Threads</strong> in the sample's top bar to open the
-                Threads panel and read its conversation, then close the panel with its ×
-                button or <kbd>Escape</kbd>.
+                Press <strong>Threads</strong> in the sample's panel to open the list,
+                open its conversation, then put the view away with its Close button or
+                <kbd>Escape</kbd>.
               </p>
               <lf-sample
                 id="bg-motion-threads-sample"

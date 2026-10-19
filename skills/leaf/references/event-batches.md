@@ -56,7 +56,7 @@ Events keep their stored fields and log order, without the browser's retry key
   answer is written, `leaf status idle` refuses, and the Stop hook holds the turn
   open unless the turn started the update (`references/conversation-loop.md`,
   "Long-running work"). Events with no `answer` owe nothing: a page action outside
-  any ask, a pick still waiting for the user's Done, or a message followed by a
+  any item, a pick still waiting for the user's Done, or a message followed by a
   newer one in its thread (your reply to the newer one covers both).
 - `handling`: ids of clauses in the batch's `handling` object, in reading order. The
   object holds each clause's text once, and the ids mean nothing outside the batch.
@@ -88,4 +88,4 @@ to follow. Receipt commands refuse input that no longer belongs to this session.
 
 Write every answer still owed, then return to your harness's wait loop. Run
 `leaf status … waiting` once everything is answered and the next step is the
-user's; while you keep working, leave an item started instead.
+user's; while you keep working, leave the update or to-do started instead.

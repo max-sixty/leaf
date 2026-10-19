@@ -53,15 +53,10 @@ function requestFrame() {
     // feature painters have settled it. Selection changes only the entry representing
     // that reading; focus, open state, and agent work keep their separate contours.
     p.paintSelectedMarginEntries?.();
-    // A finger's stand-ins for the keys, whose step on the banner's row is a box chrome
-    // layout measures, as the shortcut bar's words are.
+    // A finger's stand-ins for the keys, read where the register is read.
     p.paintTouchControls?.();
-    // The shortcut bar is geometry for every Go-to and target-picker hint painted around
-    // it. Render its new words first, then let chrome-layout.js place that resulting box
-    // before any consumer reads it. ResizeObserver remains the door for font, window, and
-    // other size changes; state-driven content changes complete in this frame rather than
-    // leaving placement and hints one observer frame behind.
-    p.renderShortcutBar?.();
+    // What the panel says between notices about where the keyboard has the user.
+    p.paintStatusContext?.();
     p.syncLayout?.();
     if (shiftPage) p.pageShifted?.();
     // Controls and geometry that depend on the laid-out content above. Text boxes paint
@@ -73,7 +68,7 @@ function requestFrame() {
     // The chips are where the user can go, beside the ring saying where they are and the
     // line saying what the next press does: one paint, because a chip repainted by its
     // own door alone went stale on the door it did not have, as when a poll that retires
-    // an ask moves the list under an armed window.
+    // an item moves the list under an armed window.
     p.paintGoToHints?.();
     p.paintTargetPickerHints?.();
     p.paintCommandHints?.();

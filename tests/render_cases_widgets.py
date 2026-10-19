@@ -7,7 +7,6 @@ from browser_sources import browser_source
 from leaf import anchor_capture as anchor_capture_model
 from leaf import passages as passages_model
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
 from render_harness import (
@@ -282,6 +281,10 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
+<lf-diagram id="path" parts="all"><pre>
+graph LR
+  A["Bold and plain"] --&gt; B[after]
+</pre></lf-diagram>
 <lf-diagram id="exchange" parts="all"><pre>
 sequenceDiagram
   participant User
@@ -334,6 +337,7 @@ graph LR
   S -->|miss/outage| F[verify signed fallback]
   F --> H
   C -->|no| L[login]
+  H --> O[write response]
 </pre></lf-diagram>
 <lf-board id="plan">
   <lf-column id="d1" label="Todo"><lf-card id="dk1"><strong>One</strong></lf-card></lf-column>
@@ -809,19 +813,22 @@ DIFF_PRESS = """() => {
                 : hit && (hit.localName + '.' + hit.className) };
 }"""
 
-DIFF_LANDING = """() => {
+# Where a press in a diff landed, beside the top of the page's landing band (check-api.js,
+# `landingBand`): below whatever chrome covers the window's top edge, which with the
+# floating panel at the foot is the window's own top.
+DIFF_LANDING = """async () => {
     const diff = document.querySelector('lf-diff');
     const at = diff.shadowRoot.activeElement;
     const file =
       (at && at.closest('details')) || diff.shadowRoot.querySelector('details');
     const head = file && file.querySelector('summary');
-    const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+    const { landingBand } = await window.__lfCheckApi();
     return { stop: at && at.localName, line: at && at.dataset.line,
              path: head && head.querySelector('.lf-diff-path').textContent,
              top: at && Math.round(at.getBoundingClientRect().top),
              headTop: head && Math.round(head.getBoundingClientRect().top),
              headBottom: head && Math.round(head.getBoundingClientRect().bottom),
-             bannerBottom: Math.round(banner.bottom) };
+             bandTop: Math.round(landingBand(document.scrollingElement).top) };
 }"""
 
 # main's content box, body's, the page's own box, and where each named element stands in
@@ -1000,16 +1007,17 @@ RAIL_FIT = """() => {
              right: r.right,
              past: Math.max(r.right - (box.right - right), box.left + left - r.left) };
 }"""
-# The room the document leaves at each end for a bar standing over it. Both are boxes in
-# the flow, so the reading is the flow's own: what stands above the page's first block and
-# what is left under its last.
+# The room the document leaves at each end for chrome standing over it, beside the
+# floating panel's footprint at the window's foot: from its row's top edge down. The
+# room is in the flow, so the reading is the flow's own: what stands above the page's
+# first block and what is left under its last.
 CHROME_ROOM = """() => {
     const scroller = document.scrollingElement;
     const box = document.querySelector('main').getBoundingClientRect();
+    const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
     return { head: box.top + scroller.scrollTop,
              foot: scroller.scrollHeight - (box.bottom + scroller.scrollTop),
-             banner: document.querySelector('.lf-banner').offsetHeight,
-             line: document.querySelector('.lf-shortcut-bar').offsetHeight };
+             panel: row.height ? innerHeight - row.top : 0 };
 }"""
 # The same reading taken at the stamp, which is the one moment nothing out here can
 # reach: a MutationObserver's callback is a microtask off the stamp's own write.
@@ -1227,19 +1235,6 @@ it reaches this part of the page.</p>
 # either side of it holding the note's 384px, with an exhibit growing past prose into
 # that same margin.
 NOTE_BAND = 1600
-
-
-def _painted_line(page):
-    """Every row in the gesture's next shortcut-bar paint, including rows behind More.
-
-    Consume the coalesced frame once: polling could pass on an unrelated later paint.
-    Read rows rather than visible text because hidden rows still state liveness.
-    """
-    rendered(page)
-    return page.eval_on_selector_all(
-        ".lf-shortcut-bar .lf-shortcut",
-        "els => els.map(e => [...e.children].map(c => c.textContent).join(' '))",
-    )
 
 
 SCROLLED = "() => document.scrollingElement.scrollTop > 0"

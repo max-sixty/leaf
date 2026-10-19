@@ -17,7 +17,7 @@ import { inChrome, pageQueryAll } from "../passages.js";
 import { inUi } from "../shadow.js";
 import { pageSelection } from "../composing/capture.js";
 import { heldThread } from "../thread/focus.js";
-import { heldAsk } from "../standing-target.js";
+import { heldItem } from "../standing-target.js";
 import { leavesBox } from "../thread/landing.js";
 import { claimsEsc } from "./scopes.js";
 import { DISCLOSE, DISCLOSURE_SELECTOR, disclosed } from "./disclosure.js";
@@ -34,9 +34,9 @@ import { pageCommand, pageRung, pageScope } from "./register.js";
 // arrived, with the press that finishes the motion unnamed.
 //
 // The page's parts and not every one, which is the reading the target map takes as well:
-// the chrome's own links are the leaves drawer's and its resolved comments are the panel's,
+// the chrome's own links are All pages' and its resolved comments are the panel's,
 // and both of those declare what they answer themselves. Asked of the document at large,
-// "On a link" was had by every page — a machine with one neighbour has a drawer full of
+// "On a link" was had by every page — a machine with one neighbour has a list full of
 // links — so the reference named it wherever the user went, on pages holding none to
 // stand on. One derivation and not a copy apiece: what a scope here asks is the same pair
 // of questions of a different selector, and the day the chrome rule changes is the day a
@@ -103,13 +103,12 @@ pageCommand({
   title: "Caret browsing",
   description:
     "Select text with the browser's keyboard caret, then comment on the selection",
-  line: false,
 });
 
 // Standing is a destination on the page. Releasing it lands at its floor, the document.
-// A thread in the panel has no floor of its own: the list holding focus hands it to the
-// thread it shows open (thread-list-view.js), so the panel's own rungs — its narrowing,
-// then closing it — are the way out of a panel thread.
+// A thread in the floating panel has no floor of its own: what stands open there, the
+// menu and then a view, is a step of this ladder (floating-panel.js), so putting the
+// view away is the way out of a panel thread.
 //
 // Inner controls, reply boxes, and native layers answer first. Page-side state waits
 // while focus is in the panel. On the page, a selection or mode unwinds before the
@@ -128,7 +127,7 @@ export function declareStanding({ pageState }) {
     if (inChrome(focused(document))) return null;
     const thread = heldThread();
     if (pageSelection() || pageState()) return null;
-    return thread || heldAsk() || !inUi(focused()) ? document.body : null;
+    return thread || heldItem() || !inUi(focused()) ? document.body : null;
   };
   pageScope("standing", {
     title: "Standing on something",
@@ -149,7 +148,7 @@ export function declareStanding({ pageState }) {
 }
 
 // The foot of Escape's ladder, the page's own. Above it stand the surfaces a user can
-// put on — a captured target, a drawer, a narrowing, the thread panel, a page mode — each
+// put on — a captured target, the floating panel's views, a page mode — each
 // contributed by its owner, so the ladder is read off `RUNG_LADDER` rather than written
 // out anywhere. This step leaves the chrome, after every surface has had its turn, and
 // stands down while the let-go above answers, so the reference names one press rather

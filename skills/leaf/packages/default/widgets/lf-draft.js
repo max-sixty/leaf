@@ -10,7 +10,7 @@
  * control at its top right copies the Markdown source the box shows. The same
  * command declarations own pointer activation, keyboard routes, availability and
  * accessible shortcut hints. The editor's own keys, Save's and Escape's, show in the
- * shared shortcut bar. The controls take no context keys, so an ask lends them
+ * shared shortcut bar. The controls take no context keys, so an item lends them
  * no digits; Tab reaches them, as it does every native button. Comments and workflow
  * receipts keep their own annotation layer; hiding annotations cannot hide the
  * editor's controls. The editor and its tools are Leaf surfaces even inside the
@@ -64,6 +64,7 @@ import {
   retainUserIntent,
   scrollIntoView,
   focused,
+  PRESSABLE,
 } from "/runtime/widget-api.js";
 
 const ACTIONS = [
@@ -93,7 +94,7 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends LeafElement {
-    // What the ask was answered with: the current words.
+    // What the item was answered with: the current words.
     static answerWords(value) {
       return markdownWords(value).trim() || "Empty";
     }
@@ -120,15 +121,16 @@ customElements.define(
 
       this.#offerControls();
 
-      // A click opens the exact source at its rendered caret. Native controls,
-      // links and completed word selections own their own gestures.
+      // A click opens the exact source at its rendered caret. Presses, links and
+      // completed word selections own their own gestures; Leaf's generated chrome that
+      // is no press, such as the thread message a reply's draft stands in, does not.
       this.addEventListener("click", (ev) => {
         // A keyboard activation carries no place, and the keyboard's door is the ✎. The
         // primary button only: a middle- or right-press is not the gesture this is for.
         if (
           pressIsKeyboardActivation(ev) ||
           ev.button !== 0 ||
-          /** @type {Element} */ (ev.target).closest("[data-lf-offer], a, button")
+          /** @type {Element} */ (ev.target).closest(`${PRESSABLE}, a, button`)
         )
           return;
         if (reachedForWords(this)) return;

@@ -281,13 +281,14 @@ class ModelPage:
         return []
 
 
-def spawn_probe(spawn, page_dir, body, **environment):
+def spawn_probe(spawn, page_dir, body, *, stdin=None, **environment):
     """Run a deterministic race seam in an isolated Leaf application process."""
     env = {name: str(value) for name, value in environment.items()}
     return spawn(
         [sys.executable, "-c", PROBE_BOOTSTRAP + body],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        stdin=stdin,
         text=True,
         env=os.environ | {"PAGE": str(page_dir)} | env,
     )

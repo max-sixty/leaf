@@ -12,7 +12,7 @@ import {
   EVERYTHING,
   allBindings,
   answers,
-  bindingEnabled,
+  bindingEnabledFor,
   bindings,
   commandEntries,
   commandReady,
@@ -26,6 +26,7 @@ import {
   nativeLayers,
   pagePresented,
   pageUpgraded,
+  quickShortcuts,
   referencedCommandEntry,
   routedCommand,
   scopeAvailable,
@@ -280,7 +281,7 @@ var runsElsewhere = (row, scope, control) => {
   if (controls.includes(control)) return false;
   return ownsLeafInvocation(row) || controls.some((each) => each != null);
 };
-var shadow = () => {
+var shadow = (quick = quickShortcuts()) => {
   const claims = [];
   let activation = null;
   return {
@@ -289,7 +290,11 @@ var shadow = () => {
       if (scope.claims) claims.push(scope.claims);
       if (scope.activation)
         activation = { claims: scope.activation, control: scope.root };
-      const owned = scope.el ? scope.rows.filter(ownsLeafInvocation).flatMap(bindings).filter((binding) => binding !== "Escape" && !activation?.claims(binding)) : [];
+      const owned = scope.el ? scope.rows.filter(ownsLeafInvocation).flatMap(
+        (row) => declaredBindings(row).filter(
+          (binding) => bindingEnabledFor(binding, quick)
+        )
+      ).filter((binding) => binding !== "Escape" && !activation?.claims(binding)) : [];
       if (owned.length) claims.push((binding) => owned.includes(binding));
     }
   };
@@ -394,8 +399,8 @@ function dispatchKey(ev) {
   matched.run();
   return true;
 }
-var reachableBindings = (row, scope, nearer, unclaimedEscape, commands2) => (commands2 ? declaredBindings(row) : bindings(row)).filter(
-  (binding) => commands2 && !bindingEnabled(binding) ? true : binding === "Escape" ? unclaimedEscape.has(scopeIdentity(scope)) : !nearer.takes(binding, row, scope)
+var reachableBindings = (row, scope, nearer, unclaimedEscape, commands2, quick = quickShortcuts()) => (commands2 ? declaredBindings(row) : bindings(row)).filter(
+  (binding) => commands2 && !bindingEnabledFor(binding, quick) ? true : binding === "Escape" ? unclaimedEscape.has(scopeIdentity(scope)) : !nearer.takes(binding, row, scope)
 );
 function commandMatching(matches, commands2 = false) {
   const unclaimedEscape = unclaimedScopes("Escape");
@@ -426,10 +431,13 @@ function activeCommandLabel(ids) {
   const command = commandMatching((entry) => wanted.has(entry.id));
   return command?.binding != null ? spell(command.binding) : "";
 }
-function availableCommandRoutes({ commands: commands2 = false } = {}) {
+function availableCommandRoutes({
+  commands: commands2 = false,
+  quick = quickShortcuts()
+} = {}) {
   const routes = /* @__PURE__ */ new Map();
   const unclaimedEscape = unclaimedScopes("Escape");
-  const nearer = shadow();
+  const nearer = shadow(quick);
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
@@ -438,7 +446,8 @@ function availableCommandRoutes({ commands: commands2 = false } = {}) {
         scope,
         nearer,
         unclaimedEscape,
-        commands2
+        commands2,
+        quick
       );
       for (const binding of allBindings(row).length ? reachable : [void 0]) {
         for (const command of commandEntries(row, [binding])) {

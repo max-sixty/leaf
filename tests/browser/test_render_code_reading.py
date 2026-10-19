@@ -34,7 +34,6 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
         permissions=["clipboard-read", "clipboard-write"],
     )
     page = open_page(browser, url, context=context)
-    page.set_default_timeout(10000)
     host = page.locator("#code")
     pre = host.locator("pre")
     before = pre.evaluate("e => ({text:e.textContent, height:e.clientHeight})")
@@ -90,7 +89,6 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     (serve.page_dir / "index.html").write_text(changed)
     page.wait_for_function(
         "document.querySelector('#code pre').textContent.includes('max_attempts=3')",
-        timeout=10000,
     )
     rendered(page)
     expect(pre).to_be_focused()

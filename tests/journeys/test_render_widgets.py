@@ -187,11 +187,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     clearance = tabs.first.evaluate("""tab => {
       const name = tab.querySelector('.lf-tab-name');
       const style = getComputedStyle(name);
-      return {ringRight: name.getBoundingClientRect().right
+      return {ringBottom: name.getBoundingClientRect().bottom
         + parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
-        answerLeft: tab.querySelector('.lf-tab-answer').getBoundingClientRect().left};
+        answerTop: tab.querySelector('.lf-tab-answer').getBoundingClientRect().top};
     }""")
-    assert clearance["ringRight"] <= clearance["answerLeft"], clearance
+    assert clearance["ringBottom"] <= clearance["answerTop"], clearance
 
     moved = page.locator("#queue").evaluate(
         """async queue => {
@@ -470,8 +470,8 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 
     Section rows divide the available height according to the content they lead, a
     moving lens shows the visible band, and late content growth redraws both. Labels
-    reveal without moving the map or changing the item under the pointer. The same
-    links remain an ordinary open outline where the margin posture is unavailable.
+    reveal without moving the map or changing the item under the pointer. Outside
+    the margin posture, the same links open through a native disclosure.
 
     The map fills the space between the window's top, where no chrome stands, and
     the room the floating panel keeps at its foot. Its rows keep the last section in
@@ -970,6 +970,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     toggle_queue(page, open=False)
 
     resized(page, 700, 900)
+    toc.locator("summary").click()
     expect(prepare).to_have_css("opacity", "1")
     expect(prepare).to_have_css("pointer-events", "auto")
     expect(start).to_be_hidden()
@@ -1037,6 +1038,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     coarse = open_page(browser, url, context=context)
     expect(coarse.locator("aside.sidebar")).to_have_css("position", "sticky")
     expect(coarse.locator("#contents")).to_have_css("position", "static")
+    coarse.locator("#contents summary").click()
     expect(
         coarse.get_by_role("navigation", name="On this page").get_by_role(
             "link", name="Prepare the copy", exact=False

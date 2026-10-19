@@ -363,6 +363,7 @@
         : target.importNode(sourceShells.get(source) ?? source, false);
     origins.set(copy, origins.get(source) ?? node);
     copy.removeAttribute?.("data-lf-opening");
+    copy.removeAttribute?.("data-lf-sole-content");
     const held = source.localName === "template" ? source.content : source;
     const into = copy.localName === "template" ? copy.content : copy;
     if (source.localName === "template") origins.set(into, origins.get(held) ?? held);
@@ -947,13 +948,34 @@
   // parser's tasks and never inside one, and a member parsed later may be the one that
   // opens. Parsing is over before any module runs, so nothing here races an upgrade.
   const OPENING = "data-lf-opening";
+  // The opening view's only content block gets a marker so its first-paint height
+  // rule need not put a structural selector over every element in the document.
+  const SOLE_CONTENT = "data-lf-sole-content";
+  const soleContents = new WeakMap();
+  const soleContent = (member) => {
+    let sole = null;
+    for (const child of member.children) {
+      if (child.matches("script, style, template")) continue;
+      if (sole) return null;
+      sole = child;
+    }
+    return sole;
+  };
   const mark = () => {
     for (const holder of document.querySelectorAll("[data-lf-views]")) {
       const members = [...holder.children];
       const open = choose(holder, members);
-      for (const member of members)
+      for (const member of members) {
         if (member.hasAttribute(OPENING) !== (member === open))
           member.toggleAttribute(OPENING, member === open);
+        const sole = member === open ? soleContent(member) : null;
+        const previous = soleContents.get(member);
+        if (previous !== sole) {
+          previous?.removeAttribute(SOLE_CONTENT);
+          sole?.setAttribute(SOLE_CONTENT, "");
+          soleContents.set(member, sole);
+        }
+      }
     }
   };
   const initialLayout = () => {
@@ -978,6 +1000,8 @@
     opening(holder, members) {
       for (const member of holder.querySelectorAll(`:scope > [${OPENING}]`))
         member.removeAttribute(OPENING);
+      for (const member of members)
+        soleContents.get(member)?.removeAttribute(SOLE_CONTENT);
       return choose(holder, members);
     },
     keep(holder, member) {

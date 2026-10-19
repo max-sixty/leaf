@@ -637,10 +637,11 @@ var contextualRoute = (route, command) => ({
 var routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
 var quickShortcuts = () => document.documentElement.lfKeyboard.quick;
 var setQuickShortcuts = (on) => document.documentElement.lfKeyboard.setQuick(on);
-var bindingEnabled = (binding) => {
+var bindingEnabledFor = (binding, quick) => {
   const { key, mods } = parsed(binding);
-  return quickShortcuts() || key.length !== 1 || key === " " || mods.some((mod) => mod !== "Shift");
+  return quick || key.length !== 1 || key === " " || mods.some((mod) => mod !== "Shift");
 };
+var bindingEnabled = (binding) => bindingEnabledFor(binding, quickShortcuts());
 var bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 var commandEntries = (row, active = bindings(row), { includeUnavailable = false } = {}) => {
   const routes = commandRoutes(row);
@@ -3323,6 +3324,7 @@ export {
   routedCommand,
   quickShortcuts,
   setQuickShortcuts,
+  bindingEnabledFor,
   bindingEnabled,
   bindings,
   commandEntries,

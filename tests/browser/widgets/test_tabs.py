@@ -504,6 +504,46 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
+def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
+    browser, serve
+):
+    source = leaf_page(
+        "Workspace page tab",
+        '<header><h1>Review</h1></header><lf-tabs id="views">'
+        '<lf-tab id="work" label="Work"><template></template>'
+        '<section id="surface"><p>Work here.</p>'
+        '</section></lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p>'
+        "</lf-tab></lf-tabs>",
+        layout="workspace",
+    )
+    boot = []
+    page = browser.new_page(viewport={"width": 1280, "height": 720})
+    page.route("**/leaf.js", lambda route: boot.append(route))
+    try:
+        with page.expect_request("**/leaf.js"):
+            page.goto(serve(source), wait_until="commit")
+        displayed(page)
+        assert boot, "the runtime was not held"
+
+        def heights():
+            return page.evaluate("""() => {
+              const tab = document.querySelector('#work').getBoundingClientRect();
+              const block = document.querySelector('#surface').getBoundingClientRect();
+              return {tab: tab.height, block: block.height, bottom: tab.bottom - block.bottom};
+            }""")
+
+        first = heights()
+        assert first["tab"] > 300 and abs(first["bottom"]) <= 1, first
+        boot.pop().continue_()
+        wait_until_ready(page)
+        upgraded = heights()
+        assert abs(upgraded["bottom"]) <= 1, upgraded
+    finally:
+        for route in boot:
+            route.continue_()
+        page.unroute_all(behavior="wait")
+
+
 @pytest.mark.parametrize("layout", ["column", "sidebar", "workspace"])
 def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     browser, serve, layout

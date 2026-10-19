@@ -658,12 +658,11 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(touch_pre).to_have_attribute("tabindex", "0")
     assert touch_pre.bounding_box() == frame
 
-    # A wrapping widget's block has no authored stop to retain. Its touch focus is lent
-    # for the reading gesture, shows the same corner control, and disappears when the
-    # user leaves its source.
+    # The widget's source keeps a tab stop for its reading commands even when wrapping
+    # removes overflow. Touch focus reveals the same corner copy control.
     numbered_pre = touch.locator("#numbered > pre")
     numbered_control = touch.locator("#numbered > .lf-code-copy")
-    assert numbered_pre.get_attribute("tabindex") is None
+    expect(numbered_pre).to_have_attribute("tabindex", "0")
     expect(numbered_control).to_have_css("opacity", "0")
     numbered_pre.tap(position={"x": 20, "y": 20})
     expect(numbered_pre).to_be_focused()
@@ -672,7 +671,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     numbered_control.get_by_role("button").tap()
     copied(widget)
     touch.locator("#title").tap()
-    expect(numbered_pre).not_to_have_attribute("tabindex")
+    expect(numbered_pre).to_have_attribute("tabindex", "0")
     expect(numbered_control).to_have_css("opacity", "0")
 
 

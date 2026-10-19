@@ -87,7 +87,7 @@
     "runtime/focus.js": "c1c56bb2ff588b8af42d53cbb42c32c013f5a95b8a7227d85a25263460553b0d",
     "runtime/geometry.js": "621dc381a1ec0bebb77fc556f74ca993c7cd1925f0c87fea6df9aaba84074bb1",
     "runtime/held-word.js": "c7d09fc54a1201ac9e5b009bddac0148c0eb5705041ae0879c4f56ce91e6b912",
-    "runtime/history.js": "cd7d7f62d1b6028bc7de79565b23027f871f181d5c24c60d89aa8737c4a5465b",
+    "runtime/history.js": "5b4a2723d2e702d314bb05fb7de9fa6ff3b4ffbd03a88617f668d758c4e71a77",
     "runtime/icons.js": "d9127eda1753b7003ff960dd9f1decca60377a56832d9205c32e82a5bc3b774e",
     "runtime/ids.js": "eb4def53d836be4790db5f4037d5fa780592751beea38a01354378720201cdd3",
     "runtime/image-difference.js": "5321030b61e7221b37a5b949f578f0ddc25889127689f18e4c2a877d669b8aaa",

@@ -659,8 +659,6 @@ function foldThreads(threads, gestures) {
 var reactionsAt = (threads, anchor) => threads.filter(
   (thread) => bareReaction(thread) && !thread.resolved && sameAnchor(thread.anchor, anchor)
 ).map((thread) => thread.root);
-var awaitsAgent = (thread) => !thread.resolved && thread.attention?.kind === "waiting";
-var awaitsUser = (thread) => !thread.resolved && thread.attention?.kind === "needs_user";
 var seatRoot = (thread) => thread.seat;
 var moved = (message) => ({
   seq: message.edited?.seq ?? message.seq ?? null,
@@ -2508,8 +2506,6 @@ export {
   bareReaction,
   discussed,
   reactionsAt,
-  awaitsAgent,
-  awaitsUser,
   seatRoot,
   moved,
   lastMovedAt,

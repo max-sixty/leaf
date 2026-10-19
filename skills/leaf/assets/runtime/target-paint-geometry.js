@@ -153,7 +153,7 @@ export function paintShape(host, geometry, { left, top, right, bottom }, options
 // stands in (css-anchors.js). Each box that clips a target (`paintClips`) gets a frame
 // cut to its band, inside the frame of the box holding it; the boxes stand in a carrier
 // in the innermost. The window's cuts, a header stuck over the page's top and, for paint
-// stacked above them, the auxiliary surfaces, stand in the window's plane, as a frame
+// stacked above them, the chrome's views, stand in the window's plane, as a frame
 // fixed where the window holds it. Each other frame is anchored to the scroller whose
 // band it cuts, and each box to its own target, so it follows that target through
 // layout, a transform or a sticky offset as well: a scroll anywhere around a target

@@ -398,7 +398,7 @@ def post_reply(
     It remains content, and cannot carry an item, a to-do, widgets, failure or
     relocation. Progress on an update the agent owes says what it has in hand, so it also takes that
     update in hand with its text as the line (`todos.start_reading`), which is why that
-    text is one line: the update reads Working beside its thread and in the banner, and
+    text is one line: the update reads Working beside its thread and in the page's status, and
     the user's message gets the agent's first words and its Working line from one
     write.
     """

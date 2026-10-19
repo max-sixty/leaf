@@ -74,7 +74,7 @@ function hintMap(t, names) {
       take: "go there",
       all: "All hints.",
     },
-    chrome: { barriers: () => [], lineBox: () => null, viewportTop: () => 0 },
+    chrome: { barriers: () => [] },
   });
   session.mount();
   const [walk, choose] = session.walkRows({

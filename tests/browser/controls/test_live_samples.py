@@ -20,6 +20,7 @@ from render_harness import (
 from browser.controls import (
     LIVE_SAMPLES_PAGE,
 )
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -106,9 +107,7 @@ def test_an_agent_reply_runs_its_live_sample_in_the_thread(browser, serve):
     )
     assert replied.exit_code == 0, replied.output
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(f'.lf-thread[data-id="{question}"] .lf-thread-summary').click()
-    sample = page.locator("#reply-practice")
+    sample = open_panel_thread(page, question).locator("#reply-practice")
     sample.evaluate("async sample => await sample.ready")
     child = sample.locator("iframe").element_handle().content_frame()
     child.lf_traffic = Traffic(child)

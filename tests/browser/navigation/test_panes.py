@@ -14,6 +14,7 @@ from render_cases_navigation import pending_text, wait_for_pending_mark
 from render_harness import (
     CORPUS_SOURCES,
     EXAMPLES,
+    PANEL,
     RELEASE_FOCUS,
     comment_note,
     holding,
@@ -25,7 +26,6 @@ from render_harness import (
     resized,
     round_trip,
     scroll_settled,
-    shortcut_bar_text,
     stamp_page,
     suggestion_control,
     wait_for_revision,
@@ -35,6 +35,7 @@ from render_harness import (
 from browser.navigation import (
     READING_REGIONS_PAGE,
 )
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -247,7 +248,7 @@ def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
     page.locator("#p8").evaluate("p => p.scrollIntoView({block: 'start'})")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("p")
     page.keyboard.press("Tab")
@@ -259,9 +260,11 @@ def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
         }"""
     )
 
-    page.locator(".lf-threads").focus()
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    if page.locator(PANEL).get_attribute("data-open") != "threads":
+        page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
     top = page.evaluate("document.scrollingElement.scrollTop")
     page.keyboard.press("d")
     page.wait_for_function(f"() => document.scrollingElement.scrollTop > {top}")
@@ -269,7 +272,7 @@ def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
 
 def test_a_let_go_never_lands_in_a_closed_fold(browser, serve):
     """A closed `<details>` keeps its contents' boxes where they would stand open, as an
-    inactive tab's panel does, so where the fold sat just under the banner the let-go
+    inactive tab's panel does, so where the fold sat just above the window the let-go
     took a paragraph inside it for what the user was reading. Focus cannot land in a
     closed fold, so closing Threads left the user on its toggle instead of the page."""
     page = open_page(
@@ -286,22 +289,21 @@ def test_a_let_go_never_lands_in_a_closed_fold(browser, serve):
         ),
     )
     resized(page, 1280, 800)
-    # The summary passes under the banner, and the closed words would stand below it.
+    # The summary passes above the window, and the closed words would stand below it.
     page.evaluate(
         """() => {
           const fold = document.getElementById('fold');
           fold.scrollIntoView({block: 'start', behavior: 'instant'});
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
           const summary = fold.querySelector('summary').getBoundingClientRect();
-          document.scrollingElement.scrollTop += summary.bottom - banner.bottom + 2;
+          document.scrollingElement.scrollTop += summary.bottom + 2;
         }"""
     )
     scroll_settled(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator('.lf-fp-view[data-view="threads"]')).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
 
 
@@ -320,57 +322,6 @@ def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, s
     drawn = rings_drawn(page)
     assert drawn, "the focused pane body wears no ring"
     assert not ring_faults(drawn, "the focused pane body")
-
-
-def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
-    context = browser.new_context(
-        viewport={"width": 390, "height": 700}, reduced_motion="reduce"
-    )
-    page = open_page(browser, serve(READING_REGIONS_PAGE), context=context)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    panel = page.locator(".lf-thread-panel")
-    expect(panel).to_be_visible()
-    assert panel.evaluate("surface => surface.closest('dialog').matches(':modal')")
-    page.evaluate(
-        """async () => {
-          const { registerReadingRegion } = await window.__lfWidgetApi();
-          const list = document.querySelector('.lf-threads');
-          const nested = document.createElement('div');
-          nested.id = 'nested-reading';
-          nested.style.cssText = 'height:100px;overflow:auto';
-          nested.innerHTML = '<button id="nested-focus">Nested</button>' +
-            '<div style="height:1000px"></div>';
-          list.append(nested);
-          const filler = document.createElement('div');
-          filler.style.height = '1000px';
-          list.append(filler);
-          registerReadingRegion({ id: 'nested-reading', host: nested, body: nested });
-        }"""
-    )
-    nested = page.locator("#nested-reading")
-    list_box = page.locator(".lf-threads")
-    page.locator("#nested-focus").focus()
-    page.keyboard.press("d")
-    page.wait_for_function(
-        "() => document.querySelector('#nested-reading').scrollTop > 0"
-    )
-    assert list_box.evaluate("box => box.scrollTop") == 0
-
-    nested_position = nested.evaluate("box => box.scrollTop")
-    close = panel.get_by_role("button", name="Close threads")
-    close.focus()
-    page.keyboard.press("d")
-    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
-    assert nested.evaluate("box => box.scrollTop") == nested_position
-
-    list_box.evaluate("box => box.scrollTop = 0")
-    close.evaluate("button => button.blur()")
-    # A modal dialog may return focus to its list on blur; either way the panel's
-    # list, not the previously focused nested region, receives the next page step.
-    page.keyboard.press("d")
-    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
-    assert nested.evaluate("box => box.scrollTop") == nested_position
 
 
 def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
@@ -705,9 +656,8 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator(".lf-notice")).to_have_text("Draft kept — g i resumes writing")
+    expect(page.locator(".lf-live")).to_contain_text("Draft kept — g i resumes writing")
     page.keyboard.press("g")
-    assert "Resume writing" in shortcut_bar_text(page)
     page.keyboard.press("i")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", draft)
@@ -716,7 +666,7 @@ def test_a_tall_local_comment_survives_its_panes_posture_and_return(browser, ser
 
 def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser, serve):
     # A short run between the right pane's opening line and its landmark, so the opening
-    # line can sit under the banner while the landmark stands high enough in the window
+    # line can sit just above the window while the landmark stands high enough in it
     # for the pane, once it scrolls on its own, to put it back at the same height.
     source = READING_REGIONS_PAGE.replace(
         '<div style="height: 320px"></div>', '<div style="height: 60px"></div>'
@@ -729,12 +679,12 @@ def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser,
     page.evaluate("() => document.activeElement?.blur()")
     box = right_landmark.bounding_box()
     page.mouse.move(box["x"] + 8, box["y"] + 8)
-    # Leave the pane's opening line inside the window but hidden by the banner. The
-    # user is on the landmark below it, not on a line they cannot see.
+    # Leave the pane's opening line just above the window. The user is on the landmark
+    # below it, not on a line they cannot see.
     start = page.locator("#right-start")
     goal = page.evaluate(
-        """() => document.querySelector('.lf-banner').getBoundingClientRect().bottom -
-          document.querySelector('#right-start').getBoundingClientRect().height - 10"""
+        """() => -document.querySelector('#right-start').getBoundingClientRect().height
+          - 10"""
     )
     page.mouse.wheel(0, start.bounding_box()["y"] - goal)
     page.wait_for_function(
@@ -742,13 +692,12 @@ def test_a_wheel_reading_without_focus_becomes_the_bounded_pane_subject(browser,
         arg=[start.element_handle(), goal],
     )
     scroll_settled(page)
-    covered = page.evaluate(
-        """() => [document.querySelector('#right-start').getBoundingClientRect().toJSON(),
-          document.querySelector('.lf-banner').getBoundingClientRect().bottom]"""
+    hidden = page.evaluate(
+        "() => document.querySelector('#right-start').getBoundingClientRect().bottom"
     )
-    assert 0 < covered[0]["bottom"] < covered[1], covered
-    # How far the landmark stands below the top of what its scroller shows: the page's
-    # banner covers the top of the window, and scroll-padding says by how much.
+    assert hidden <= 0, hidden
+    # How far the landmark stands below the top of what its scroller shows, past any
+    # scroll-padding at its top.
     below_band = """([landmark, box]) => landmark.getBoundingClientRect().top -
       (box === document.scrollingElement ? 0 : box.getBoundingClientRect().top) -
       (parseFloat(getComputedStyle(box).scrollPaddingTop) || 0)"""
@@ -1107,10 +1056,6 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
         ),
     )
     resized(page, 1400, 900)
-    # Open Threads first: the panel narrows the page, and the panes' reflow is not the
-    # travel under test.
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     pane_posture(page, page.locator("#review-detail"), "bounded")
     queue = page.locator("#review-queue > :not(header, footer)")
     detail = page.locator("#review-detail > :not(header, footer)")
@@ -1123,11 +1068,26 @@ def test_thread_travel_reveals_a_review_detail_in_its_pane_only(browser, serve):
     assert detail_before > 0
     expect(page.locator("#review-cache")).not_to_be_in_viewport()
 
-    page.locator(".lf-thread-summary").click()
-    page.locator(".lf-thread .lf-quote").click()
+    travel_to_passage(page, only_thread(serve.page_dir))
     expect(page.locator("#review-cache")).to_be_in_viewport()
     assert detail.evaluate("el => el.scrollTop") < detail_before
     assert queue.evaluate("el => el.scrollTop") == queue_before
+
+
+def only_thread(page_dir):
+    """The id of the one thread a test's page holds."""
+    (root,) = [
+        event["id"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    ]
+    return root
+
+
+def travel_to_passage(page, thread_id):
+    """Open the thread in the panel and take its way to the passage it is about."""
+    open_panel_thread(page, thread_id)
+    page.locator(".lf-fp-quiet").filter(has_text="On the page").click()
 
 
 BOUNDED_LOG_FILLER = "".join(
@@ -1167,8 +1127,7 @@ def test_thread_travel_into_a_bounded_log_scrolls_the_log_and_the_page_no_more(
         ),
     )
     resized(page, 1400, 900)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    thread = only_thread(serve.page_dir)
     log = page.locator(".log")
     passage = log.locator("p").nth(3)
     placed = """([log, passage, bar]) => {
@@ -1181,10 +1140,8 @@ def test_thread_travel_into_a_bounded_log_scrolls_the_log_and_the_page_no_more(
     handles = [
         log.element_handle(),
         passage.element_handle(),
-        page.locator(".lf-shortcut-bar").element_handle(),
+        page.locator(".lf-fp-row").element_handle(),
     ]
-    quote = page.locator(".lf-thread .lf-quote")
-    page.locator(".lf-thread-summary").click()
 
     # The log stands in the middle of the window, opened on its newest entry.
     page.evaluate(
@@ -1196,7 +1153,7 @@ def test_thread_travel_into_a_bounded_log_scrolls_the_log_and_the_page_no_more(
     scroll_settled(page)
     assert not page.evaluate(placed, handles)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
-    quote.click()
+    travel_to_passage(page, thread)
     scroll_settled(page, ".log")
     scroll_settled(page)
     assert page.evaluate(placed, handles), "the passage was left out of view"
@@ -1209,7 +1166,7 @@ def test_thread_travel_into_a_bounded_log_scrolls_the_log_and_the_page_no_more(
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     scroll_settled(page)
     assert not page.evaluate(placed, handles)
-    quote.click()
+    travel_to_passage(page, thread)
     scroll_settled(page, ".log")
     scroll_settled(page)
     assert page.evaluate(placed, handles), "the passage stayed off the window"
@@ -1257,8 +1214,8 @@ def test_reading_keys_page_the_bounded_log_the_user_stands_in(browser, serve):
 def test_the_item_walk_lands_an_item_in_a_bounded_log_at_the_log_top(browser, serve):
     """An item inside a block that bounds its height arrives at the top of that block,
     which is the box scrolling it. The walk measured its run-up against the window and
-    moved the page to put it under the banner, sliding a log the user could already
-    see."""
+    moved the page to put it at the window's top, sliding a log the user could
+    already see."""
     early = "".join(f"<p>Early {n}: a line before the question.</p>" for n in range(8))
     entries = "".join(
         f"<p>Entry {n}: the deploy copied shard {n} to the new key format.</p>"

@@ -319,7 +319,6 @@ button.lf-media-open {
 }
 /* Floating comment surfaces have one elevation. The page card reserves the ring's
    room inside its scrollport; a filter lets its shadow extend beyond that clip. */
-.lf-page-comment-card,
 .lf-response-control {
   filter: drop-shadow(var(--raise-1));
 }

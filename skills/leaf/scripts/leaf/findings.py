@@ -491,8 +491,8 @@ _TEXT = {
         f"the browser gate failed while running its probe module: {v['error']}"
     ),
     "probe-failed": lambda at, v: f"the browser probe module failed: {v['error']}",
-    "no-banner": lambda at, v: (
-        "the runtime never injected its banner — "
+    "no-runtime": lambda at, v: (
+        "the runtime never injected its chrome — "
         + (_explained(v["console"]) or "and no console message explains why")
     ),
     "never-reached": lambda at, v: (

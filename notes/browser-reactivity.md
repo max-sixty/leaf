@@ -25,10 +25,9 @@ findings; each owning module's header states the current contract.
   signals it reads, such as where the user stands, which a paint may also write:
   tracked by an effect, the annotation inventory's paint re-ran itself without end and
   hung the page.
-- **Chrome paints are watchers too.** The banner's status, the floating panel, the
-  version picker and the pages drawer each paint through one `watchProjection`, and
-  call its `refresh()` for their own mechanical inputs, such as an open menu or a
-  comparison. How the server answered the latest read is in the publication (`reach`),
+- **Chrome paints are watchers too.** The floating panel and the version picker each
+  paint through one `watchProjection`, and call its `refresh()` for their own
+  mechanical inputs, such as an open menu or a comparison. How the server answered the latest read is in the publication (`reach`),
   so the status reads it rather than the state feed pushing each answer at it.
 - **Regions collect what they read.** The four document regions (projection, threads,
   items, the On panel) are `applicationPresenter`s (`runtime/semantic-state.js`).

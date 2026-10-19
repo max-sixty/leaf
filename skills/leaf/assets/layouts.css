@@ -482,7 +482,7 @@
     margin-top: 0;
   }
   /* A track holding one block keeps it in view beside the scrolling body: sticky below
-   * the banner and any tab strip, scrolling what it holds within the window, and only
+   * the window's head room and any tab strip, scrolling what it holds within the window, and only
    * inside its own flex line. The track itself never scrolls, so it keeps its flex
    * sizing. Whether the track stands beside the body depends on widths no query reads,
    * so the margin reading marks it (`data-lf-beside`, prepaint.js `residency`). Like a
@@ -520,7 +520,7 @@
   .layout-tiles > * {
     margin: 0;
   }
-  /* Workspace: a full-height page between the banner and the bottom bar. Header and
+  /* Workspace: a full-height page between the window's head room and foot room. Header and
    * footer take their content's height and the body the rest, arranged as the body says:
    * a grid of panes, a pane, or a widget composing its own regions. Each pane's body
    * scrolls on its own, and `--lf-full-height` on the workspace tells a body widget it has a
@@ -611,7 +611,7 @@
     }
     /* The body passes the window's height to its panes; one that is not a pane scrolls
      * as a whole. Each box that scrolls here stops sticking boxes at its own top
-     * (`--lf-top: 0px`; the theme's banner offset is the window's) and holds its height
+     * (`--lf-top: 0px`; the theme's head room is the window's) and holds its height
      * on purpose (`--lf-holds-height`, theme.css). */
     :is(main, main > *).layout-workspace
       > :not(header, footer, [data-lf-reading-role="pane"]) {

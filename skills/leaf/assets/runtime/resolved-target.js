@@ -5,7 +5,10 @@
  * where panel order and attached chrome sit: a verified control face for a named
  * control passage, otherwise its readable block or authored item. Frame-bound paint uses only an exact
  * target; a fallback place remains useful for travel and attached chrome, but cannot
- * supply the original coordinates of an absent visual part. */
+ * supply the original coordinates of an absent visual part. An element an agent sent in
+ * a message, which the page draws only while a reader shows that message, resolves to
+ * the message while none does: it names its `message` and no `place`, so it has no
+ * mark, margin row or page order, and travel to it opens the message. */
 
 import { shownParts } from "./geometry.js";
 import { rangeOf } from "./passages.js";
@@ -27,6 +30,15 @@ export const resolvedPassage = ({ place, segments }) => ({
   kind: "passage",
   place,
   segments,
+});
+
+export const resolvedInMessage = ({ message }) => ({
+  exact: true,
+  status: "exact",
+  datumElement: null,
+  kind: "message",
+  message,
+  place: null,
 });
 
 export const targetElement = (resolved) =>

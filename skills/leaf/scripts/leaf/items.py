@@ -367,7 +367,7 @@ def sections_with_agent(threads: dict) -> set[str]:
     the user has said something about it and waits on the reply, so it leaves
     their list until the agent answers. That is not an answer, since the widget's
     state is untouched, and the item stays open, its controls live. The browser
-    receives the lists this leaves rather than deciding again, so the banner's
+    receives the lists this leaves rather than deciding again, so On me's
     count and `page state` cannot disagree about whose turn it is.
 
     Which kind of thread does not enter into it: a seat's, a quote on the item's

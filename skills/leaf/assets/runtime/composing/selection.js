@@ -145,7 +145,6 @@ function wordsOf(element) {
 export let composerOpen = false;
 
 export function createSelectionComposer({
-  panelIsOpen,
   setReact,
   reactionTokens,
   reactionAvailable,
@@ -173,7 +172,7 @@ export function createSelectionComposer({
   // What the open composer's comment is about: "design" for one opened in design mode, so
   // the anchor chosen there — a widget, a control, a runtime part — posts with the word
   // that says so. Decided at the open, where the anchor is, and carried with the draft: a
-  // draft on the banner remains about design however the mode stands when it is sent.
+  // draft in the panel remains about design however the mode stands when it is sent.
   // The composer's draft is keyed by the passage it is on. Under one key — which is what it
   // was while a draft lived and died in one tab — two tabs composing on different passages
   // would each overwrite the other's words, so the key says which passage and the record
@@ -411,7 +410,7 @@ export function createSelectionComposer({
   function showComposer(open) {
     if (open && composerField.hasChildNodes()) composer.append(composerField);
     if (!open) syncComposer?.cancelDictation();
-    // Hiding keeps the words and used to say nothing at all, so a press on the banner took
+    // Hiding keeps the words and used to say nothing at all, so a press on the chrome took
     // the box off screen with the user's sentence in it and left no sign the sentence
     // still existed — recoverable only by reselecting that exact passage on that exact
     // version. Said here rather than at each dismissal because every one of them — an
@@ -757,20 +756,17 @@ export function createSelectionComposer({
         // card or title, never back on its page target. A later
         // gesture may already have moved the user elsewhere while presentation was
         // settling.
-        if (shouldReveal || panelIsOpen()) {
+        if (shouldReveal) {
           const destination = await revealSent({
-            part: shouldReveal ? "thread" : "reply",
-            focus: shouldReveal,
+            part: "thread",
+            focus: true,
             travel: false,
             flash: false,
-            intent: shouldReveal
-              ? restrictUserIntent(currentIntent, revealAvailable)
-              : currentIntent,
+            intent: restrictUserIntent(currentIntent, revealAvailable),
             origin,
           });
           const thread = destination && closestAcross(destination, THREAD);
-          if (shouldReveal && mayReveal() && thread)
-            currentIntent.handoff(() => landSent(thread));
+          if (mayReveal() && thread) currentIntent.handoff(() => landSent(thread));
         }
       },
     });

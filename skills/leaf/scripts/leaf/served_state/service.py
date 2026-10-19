@@ -213,7 +213,7 @@ class PageStateService:
         return state
 
     def activity_row(self) -> tuple[dict, str, dict]:
-        """Compact delivery output of the same transaction and fold as the banner.
+        """Compact delivery output of the same transaction and fold as the page's status.
 
         No neighboring-page discovery runs here. The reading and live facts
         name the inputs the publisher keeps, so a concurrent writer invalidates

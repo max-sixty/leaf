@@ -269,7 +269,7 @@
   },
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
-    "x-instructions": "Start a card with small.tag labels naming the facts that tell the alternatives apart, then a `<strong>` title and a sentence giving its consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its labels, and give the reason in prose. `chosen` records the user's pick. Below, show what choosing it gives the user (references/authoring-decisions.md): where options differ in arrangement, structure or mechanism, an svg.drawing thumbnail of each in the same frame, alike except where they differ; where they differ in how an existing interface looks, a capture of each; where they differ in behavior, that behavior working inside each; where they differ in wording, the words as they would appear. Add paragraphs or a fact rail only when that is not enough; a bare label suits an option that needs no case. Direct text takes inline Markdown; block content needs HTML children. A `for` target must stay useful whatever is decided, and does not supply the option's words. Rewriting a picked option needs `restated` ($restated).",
+    "x-instructions": "Word the alternatives as `references/authoring-decisions.md` says. For a card, start with small.tag labels naming the facts that tell the alternatives apart, then a `<strong>` title and its concrete consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its labels, and give the reason in prose. `chosen` records the user's pick. Below, show what choosing it gives the user (references/authoring-decisions.md): where options differ in arrangement, structure or mechanism, an svg.drawing thumbnail of each in the same frame, alike except where they differ; where they differ in how an existing interface looks, a capture of each; where they differ in behavior, that behavior working inside each; where they differ in wording, the words as they would appear. Add paragraphs or a fact rail only when that is not enough. Direct text takes inline Markdown; block content needs HTML children. A `for` target must stay useful whatever is decided, and does not supply the option's words. Rewriting a picked option needs `restated` ($restated).",
     "type": "object",
     "properties": {
       "id": {
@@ -518,7 +518,7 @@
       "for": {}
     },
     "x-upgrade": true,
-    "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship it</lf-option>\n        <lf-option id=\"retries-hold\">Hold for a canary</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove it</lf-option>\n        <lf-option id=\"flag-keep\">Keep it a release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
+    "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship the retry cap</lf-option>\n        <lf-option id=\"retries-hold\">Canary the retry cap first</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove the stale flag</lf-option>\n        <lf-option id=\"flag-keep\">Keep the flag for another release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
     "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
@@ -590,7 +590,7 @@
   },
   "lf-sample": {
     "description": "A quotation of page content, either static or an operable child Leaf page.",
-    "x-instructions": "For a live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome; chrome=\"floating\" or chrome=\"classic\" shows it in that chrome rather than the reader's own. Keep invented content visibly fictional. Read live-samples.md for child-page interaction, reset, and isolation.",
+    "x-instructions": "For a live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Keep invented content visibly fictional. Read live-samples.md for child-page interaction, reset, and isolation.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -600,10 +600,6 @@
       },
       "label": {
         "type": "string"
-      },
-      "chrome": {
-        "enum": ["classic", "floating"],
-        "description": "For a window sample, the chrome its child page reads with; without it, the reader's own preference."
       },
       "window": {
         "type": "boolean"

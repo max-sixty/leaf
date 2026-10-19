@@ -25,7 +25,7 @@ from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
 from leaf_dev.browser import shell_executable, use_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Frame, Page, sync_playwright
 
 __all__ = ["LEAF_COMMAND"]
 
@@ -44,6 +44,26 @@ LEAF_COMMAND = list(SOURCE_LEAF_COMMAND)
 # the run was launched, and the child would outlive it still serving its page.
 # A caught signal is what `exec` resets to the default in each child.
 signal.signal(signal.SIGINT, signal.default_int_handler)
+
+
+# `wait_for_function` takes an async predicate's promise as a truthy answer and returns
+# at once, so a wait written that way passes without waiting; about twenty did. Refuse
+# one where it is written, and wait on a synchronous predicate instead
+# (render_harness.wait_for_check_api).
+def _refusing_async_predicates(wait_for_function):
+    def wait(self, expression, *args, **kwargs):
+        if re.match(r"\s*async\b", expression):
+            raise ValueError(
+                "wait_for_function returns at once on an async predicate; "
+                f"wait on a synchronous one: {expression[:80]!r}"
+            )
+        return wait_for_function(self, expression, *args, **kwargs)
+
+    return wait
+
+
+Page.wait_for_function = _refusing_async_predicates(Page.wait_for_function)
+Frame.wait_for_function = _refusing_async_predicates(Frame.wait_for_function)
 # Domain test modules import their assertions explicitly. Register only the modules
 # that own fixtures once for the complete suite.
 pytest_plugins = ("interact_support", "render_harness")

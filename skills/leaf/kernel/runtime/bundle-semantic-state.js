@@ -55,8 +55,7 @@ var queueWidgetUpdate = (widget, update) => schedule.enqueue(
 var PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  items: 2,
-  queue: 3
+  items: 2
 });
 var documentPresenters = [];
 var publications = applicationState.select((root) => root);
@@ -142,19 +141,23 @@ var applicationPresenter = ({
   return Object.freeze({ present, disconnect });
 };
 var documentChanges = 0;
-var documentChanged = () => documentChanges;
+var documentListeners = /* @__PURE__ */ new Set();
+var documentReading = outsideReading(
+  () => documentChanges,
+  (moved) => {
+    documentListeners.add(moved);
+    return () => documentListeners.delete(moved);
+  }
+);
+var documentChanged = () => documentReading.read();
 var presentDocument = () => {
   documentChanges += 1;
   for (const present of documentPresenters) void present();
+  const round = {};
+  for (const moved of [...documentListeners]) moved(round);
   return schedule.passed();
 };
 var whenDocumentPresented = () => schedule.passed();
-var PresentationRetentionError = class extends AggregateError {
-};
-var failSoftAfterRetention = (proof) => (reason) => {
-  if (reason instanceof PresentationRetentionError) throw reason;
-  return proof;
-};
 var currentEpoch = () => untracked(() => readApplication().semanticEpoch);
 var currentApplicationPresentation = () => ({
   document: documentToken,
@@ -345,8 +348,6 @@ export {
   documentChanged,
   presentDocument,
   whenDocumentPresented,
-  PresentationRetentionError,
-  failSoftAfterRetention,
   whenApplicationPresented,
   applicationPresented,
   whenWidgetsPresented,

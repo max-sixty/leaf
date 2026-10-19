@@ -269,3 +269,4 @@ export { shownParts } from "./geometry.js";
 export { renderRetired, textNodesUnder } from "./passages.js";
 export { isPagePaint } from "./declared-words.js";
 export { heldGrowth } from "./thread/held-news.js";
+export { PRESSABLE } from "./widget-elements.js";

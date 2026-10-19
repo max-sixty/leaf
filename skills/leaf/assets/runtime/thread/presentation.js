@@ -1,21 +1,22 @@
-/* Thread presentation across panel, page seats, widget outlets, and margin.
+/* Thread presentation across page seats, widget outlets, the primary reader and the
+   margin.
 
    This owner receives records and narrow view capabilities. It never reads delivery,
    assembles protocol events, or imports state application. It reads the published fold
    for every textual/geometry view. It is an epoch presenter: the publication claims its
    region and the pass paints it, after the projection whose provenance words its
    passages resolve over. Its presentation ticket commits the thread surfaces
-   together with preparation for frozen widgets newly joined to the panel. Surface
+   together with the primary reader's preparation. Surface
    callbacks nominate outlets during preparation; their seats, composer and ownership
    commit together after every required member is ready. A mechanical
-   repaint — a draft, a hover, a narrowing — claims the same region through `present`.
+   repaint — a draft, a hover — claims the same region through `present`.
    Reply continuity begins after commit and runs independently: its selected route may
    itself need this renderer to finish. Its caret follows the actual returned editor;
    its failures reach the page's existing asynchronous error channel. */
 import { untracked } from "/vendor/browser-runtime.js";
 import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
-import { closestAcross, elementById, inChrome } from "../passages.js";
+import { elementById, inChrome } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
 import { holdThreadPlace } from "./focus.js";
 import { holdReplyCompositions } from "./replies.js";
@@ -61,8 +62,6 @@ export function createThreadPresentation({
   threadAt,
   read,
 }) {
-  const panels = new Set();
-  let mounted = false;
   let primary = null;
 
   // The paint follows what it reads, before it waits for preparation and in the
@@ -74,9 +73,8 @@ export function createThreadPresentation({
   // waiting, and repainting the margin and the anchors to say it again is work done
   // ahead of the first paint the user is waiting on, so all of them read as one
   // unchanging value. A thread the user starts in that window is drawn, and so is its
-  // removal, the refusal of the last send included. A user who opens the panel then
-  // asks for the reading directly, through `present`, and gets it: every phase owes a
-  // reading when asked. A page that draws no thread surface (`available` false, as an
+  // removal, the refusal of the last send included. A caller that asks for the reading
+  // directly, through `present`, gets it: every phase owes a reading when asked. A page that draws no thread surface (`available` false, as an
   // offline export does) owes no reading at all.
   const presenter = applicationPresenter({
     region: "thread",
@@ -120,8 +118,6 @@ export function createThreadPresentation({
       threadAt,
       seated: (id) => Boolean(surfaceFocusTarget(id, { part: "thread" })),
     });
-    let prepared = null;
-    const livePanels = [...panels].filter((panel) => panel.threadsBox.isConnected);
     let surfaces = null;
     try {
       const { all: threads } = threadState();
@@ -149,12 +145,6 @@ export function createThreadPresentation({
         : null;
       const paintPrepared = (primaryCandidate) => {
         if (!current()) return;
-        prepared = Promise.all(
-          livePanels.map(({ controller, view }) =>
-            controller.renderThreads(collection, view, resume),
-          ),
-        );
-        void prepared.catch(() => {});
         renderSeats(listed, inlineView);
         // Capture every core message and approval age before yielding to a package.
         // Their shared clock refreshes this whole presentation, including its outlets.
@@ -163,19 +153,17 @@ export function createThreadPresentation({
         return Promise.race([
           Promise.all([
             surfaces.completion,
-            prepared.then((candidates) => {
-              if (current() && primaryCandidate?.current())
-                return primaryCandidate.paint().then(() => candidates);
-              return candidates;
-            }),
-          ]),
-          cancelled.then(() => null),
+            // The reader paints after this stretch, so what it reads is its own.
+            Promise.resolve().then(() =>
+              current() && primaryCandidate?.current()
+                ? primaryCandidate.paint()
+                : null,
+            ),
+          ]).then(() => true),
+          cancelled.then(() => false),
         ]).then(
-          resume((result) => {
-            if (!result) return;
-            const [, candidates] = result;
-            if (!current()) return;
-            for (const candidate of candidates) candidate?.commit();
+          resume((completed) => {
+            if (!completed || !current()) return;
             // Preparation may materialize or retire targets without another publication.
             // Preserve immediate semantic paint, then refresh the same directory and its
             // retained decoration before any nominated surface actually moves.
@@ -207,63 +195,10 @@ export function createThreadPresentation({
       anchorControls.withholdVisualActions();
       read.abort();
       primary?.cancel();
-      // A synchronous sibling failure may leave the panel's widget preparation in
-      // flight. Invalidate its private generation before restoring the whole reading.
-      await Promise.all(
-        livePanels.map(async ({ controller, view }) => {
-          if (!primary) return controller.restoreThreadList();
-          controller.cancel();
-          const fallback = await controller.renderThreads(readThreads(), view);
-          if (current()) fallback?.commit();
-        }),
-      );
       if (!current()) return;
       retainThreadSeats(batch);
       throw error;
     }
-  }
-
-  function onReveal({ threadsBox, view }, event) {
-    const target = event.detail?.target;
-    const thread = target && closestAcross(target, ".lf-thread");
-    if (!thread) return;
-    const id = thread.dataset.id;
-    // Chosen before narrowing lets a hidden card back in, so the list's paint for the
-    // reveal opens it, rather than opening the last choice for the reveal to close.
-    threadsBox.revealNavigation(id);
-    if (!thread.hidden) return;
-    const { mayReveal } = event.detail;
-    const revealed = view.narrowing.revealThread(id);
-    if (revealed)
-      event.detail.present(
-        revealed.then(() => {
-          if (mayReveal() && thread.isConnected) threadsBox.revealNavigation(id);
-        }),
-      );
-  }
-
-  function attach(panel) {
-    const listener = (event) => onReveal(panel, event);
-    panel.threadsBox.addEventListener("lf-reveal", listener);
-    panel.detach = () => panel.threadsBox.removeEventListener("lf-reveal", listener);
-  }
-
-  function registerPanel({ controller, threadsBox, view }) {
-    const panel = { controller, threadsBox, view, detach: () => {} };
-    panels.add(panel);
-    if (mounted) {
-      attach(panel);
-      void present();
-    }
-    return {
-      update: present,
-      unregister() {
-        if (!panels.delete(panel)) return;
-        panel.detach();
-        controller.cancel();
-        if (mounted) void present();
-      },
-    };
   }
 
   function registerPrimary(reader) {
@@ -277,20 +212,8 @@ export function createThreadPresentation({
       void present();
     };
   }
-  function primaryOwnsMessage(message) {
-    return primary?.ownsMessage(message) ?? false;
-  }
-
-  function mount() {
-    mounted = true;
-    for (const panel of panels) attach(panel);
-  }
-
   return {
-    mount,
     present,
-    registerPanel,
     registerPrimary,
-    primaryOwnsMessage,
   };
 }

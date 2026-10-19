@@ -17,14 +17,17 @@ from render_cases_interaction import (
     executable_revision,
     live_url,
 )
-from render_cases_layout import banner_control
 from render_harness import (
+    PANEL,
     RELEASE_FOCUS,
+    expect_panel_says,
     holding,
     is_problem,
     leaf_page,
     open_page,
     page_comment,
+    panel_control,
+    panel_menu,
     panel_settled,
     refuse,
     sending,
@@ -47,12 +50,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     passage's viewport coordinate therefore survive. Five paragraphs arrive above that
     passage so a raw scroll offset cannot satisfy the position assertion.
     """
-    # Deliberately collide with a property the runtime owns after startup. Authored
-    # replacement must remove source properties without erasing a live runtime override.
-    first = LIVE_V1.replace(
-        '<html lang="en">',
-        '<html lang="en" style="--lf-thread-panel-width: 420px">',
-    ).replace("<body>", '<body tabindex="0">')
+    first = LIVE_V1.replace("<body>", '<body tabindex="0">')
     version_url = serve(first)
     page = open_page(browser, live_url(version_url))
     assert "/versions/" not in page.url, f"the live address redirected to {page.url}"
@@ -69,19 +67,10 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     before = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    runtime_panel_width = page.locator("html").evaluate(
-        "el => el.style.getPropertyValue('--lf-thread-panel-width')"
-    )
-    assert runtime_panel_width == "420px"
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
 
-    second = LIVE_V2.replace(
-        '<html lang="fr" data-live-root="second">',
-        '<html lang="fr" data-live-root="second" '
-        'style="--lf-thread-panel-width: 1000px">',
-    )
-    (serve.page_dir / "index.html").write_text(second)
+    (serve.page_dir / "index.html").write_text(LIVE_V2)
     told(page)
     expect(page).to_have_title("Live second")
 
@@ -97,32 +86,25 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert "/versions/" not in page.url, (
         f"the update changed the live address to {page.url}"
     )
-    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
-    assert (
-        page.locator("html").evaluate(
-            "el => el.style.getPropertyValue('--lf-thread-panel-width')"
-        )
-        == runtime_panel_width
-    ), "authored style replacement erased a runtime-owned property"
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
     after = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
     assert abs(after - before) <= 4, (
         f"the passage moved from {before}px to {after}px in the viewport"
     )
-    version = page.locator(".lf-version")
-    expect(version).to_have_text("Showing Draft")
-    expect(version).to_have_attribute("title", re.compile(r"^Draft after v1:"))
-    expect(version).to_have_attribute("aria-label", "Draft after v1: open versions")
-    banner_control(page, ".lf-version").click()
-    expect(page.locator(".lf-version-menu")).to_contain_text("Current · Draft after v1")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-signoff")).to_have_count(1)
-    expect(page.locator(".lf-signoff")).to_be_visible()
-    expect(page.locator(".lf-signoff")).to_have_attribute("aria-disabled", "true")
-    expect(page.locator(".lf-signoff")).to_have_attribute(
-        "aria-description", "There is no stamped version to approve yet"
+    expect(panel_control(page, "versions").locator(".lf-fp-value")).to_have_text(
+        "Draft"
     )
+    versions = panel_menu(page, "versions")
+    expect(versions.locator(".lf-fp-version[data-current]")).to_contain_text(
+        "Current · Draft after v1"
+    )
+    approval = versions.locator(".lf-fp-approval .lf-fp-item")
+    expect(approval).to_have_count(1)
+    expect(approval).to_be_disabled()
+    expect(approval).to_contain_text("There is no stamped version to approve yet")
+    page.keyboard.press("Escape")
     assert page.locator('meta[name="description"]').get_attribute("content") == "second"
     assert page.locator("html").get_attribute("lang") == "fr"
     assert page.locator("html").get_attribute("data-live-root") == "second"
@@ -158,15 +140,16 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     )
     assert stamped.exit_code == 0, stamped.output
     told(page)
-    expect(page.locator(".lf-version")).to_contain_text("v2")
-    expect(page.locator(".lf-signoff")).to_be_visible()
+    expect(panel_control(page, "versions").locator(".lf-fp-value")).to_have_text("v2")
+    expect(panel_control(page, "approval")).to_be_enabled()
+    page.keyboard.press("Escape")
     assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
         "stamping the displayed revision replaced its main"
     )
 
     write(page_comment(page), "This comment belongs to the live draft.")
     with sending(page, "the comment on the live draft"):
-        page.locator(".lf-general .lf-compose-submit").click()
+        page.keyboard.press("ControlOrMeta+Enter")
     assert events_model.read_events(serve.page_dir)[-1]["revision"] == 2
 
 
@@ -200,38 +183,33 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # The fourth row is the one the third revision brings, so wait on the news that
     # revision lights rather than on the title, which already said this before the write
     # and so states no ordering at all.
-    expect(page.locator(".lf-version")).to_have_attribute("data-lf-news", "")
     expect(page).to_have_title("Live second")
 
-    # The picker stands behind More, and a mouse press anywhere outside the composer
-    # stands the composer down (standDown) — so reaching the picker by mouse would end
-    # the hold on the very gesture that opens the menu, and whether the page had followed
-    # by then would come down to whether a state read landed between the two presses. The
-    # keyboard route leaves the composer open through both.
-    page.locator(".lf-banner-more").press("Enter")
-    expect(page.locator(".lf-banner-menu")).to_be_visible()
-    page.locator(".lf-version").press("Enter")
-    rows = page.locator(".lf-version-row")
+    # The leaf's menu is reached by keys, since a mouse press anywhere outside the
+    # composer stands the composer down (standDown) — so reaching Versions by mouse
+    # would end the hold on the very gesture that opens the menu, and whether the page
+    # had followed by then would come down to whether a state read landed between the
+    # two presses. The keyboard route leaves the composer open through both.
+    page.locator(".lf-fp-leaf").press("Enter")
+    expect(page.locator(PANEL)).to_have_attribute("data-menu", "")
+    page.locator('.lf-fp-item[data-row="versions"]').press("Enter")
+    rows = page.locator(".lf-fp-menu[data-level=versions] .lf-fp-version")
+    # The third revision's row is what the hold leaves the page short of.
     expect(rows).to_have_count(4)
-    same_revision = page.locator('.lf-version-row[data-lf-revision="2"]')
-    expect(same_revision).to_have_count(2)
-    stamped_row = page.locator(
-        '.lf-version-row[data-lf-revision="2"][data-lf-version="2"]'
-    )
-    draft_row = page.locator(
-        '.lf-version-row[data-lf-revision="2"]:not([data-lf-version])'
-    )
-    expect(stamped_row).to_contain_text("v2")
-    expect(draft_row).to_contain_text("This view · v2")
-    stamped_row.evaluate("row => window.__lfStampedRow = row")
-    draft_row.evaluate("row => window.__lfDraftRow = row")
+    latest = rows.filter(has_text="Current · Draft after v2").locator(".lf-fp-item")
+    stamped_row = rows.filter(has_text=re.compile(r"^\s*v2\b")).locator(".lf-fp-item")
+    draft_row = rows.filter(has_text="This view · v2").locator(".lf-fp-item")
+    expect(stamped_row).to_have_count(1)
+    expect(draft_row).to_have_count(1)
 
-    page.keyboard.press("v")
+    latest.press("Enter")
     expect(page).to_have_title("Live third")
-    banner_control(page, ".lf-version").click()
+    panel_menu(page, "versions")
     expect(rows).to_have_count(3)
-    assert stamped_row.evaluate("row => row === window.__lfStampedRow")
-    assert page.evaluate("() => !window.__lfDraftRow.isConnected")
+    # The menu draws its rows afresh at each opening: the stamped version keeps its
+    # row, and the view of its revision the page has left has none.
+    expect(stamped_row).to_have_count(1)
+    expect(draft_row).to_have_count(0)
     stamped_row.click()
     page.wait_for_url(re.compile(r"/versions/v2\.html\?pin=$"))
 
@@ -284,12 +262,9 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     (serve.page_dir / "index.html").write_text(LIVE_V2.replace("</main>", ""))
     told(live)
     told(pinned)
-    expect(live.locator(".lf-latest-chip")).to_contain_text(
-        "Latest edit couldn't be shown"
-    )
-    expect(pinned.locator(".lf-latest-chip")).not_to_contain_text(
-        "Latest edit couldn't be shown"
-    )
+    # The failed save is a held error, which the empty field says in its status's place.
+    expect_panel_says(live, "Latest edit not shown")
+    expect_panel_says(pinned, "Latest edit not shown", says=False)
     expect(live).to_have_title("Live first")
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
@@ -297,13 +272,16 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     told(pinned)
 
     expect(live).to_have_title("Live second")
-    expect(live.locator(".lf-version")).to_have_text("Showing Draft")
-    expect(live.locator(".lf-version")).to_have_attribute(
-        "title", re.compile(r"^Draft after v1:")
+    expect_panel_says(live, "Latest edit not shown", says=False)
+    expect(panel_control(live, "versions").locator(".lf-fp-value")).to_have_text(
+        "Draft"
     )
+    expect(
+        panel_menu(live, "versions").locator(".lf-fp-version[data-current]")
+    ).to_contain_text("Current · Draft after v1")
     expect(pinned).to_have_title("Live first")
     expect(pinned).to_have_url(re.compile(r"/versions/v1\.html"))
-    expect(pinned.locator(".lf-version")).to_contain_text("v1")
+    expect(panel_control(pinned, "versions").locator(".lf-fp-value")).to_have_text("v1")
 
 
 def test_the_live_page_retains_a_page_comment_while_adopting_revisions(browser, serve):
@@ -329,12 +307,6 @@ def test_the_live_page_retains_a_page_comment_while_adopting_revisions(browser, 
     expect(general).to_have_js_property(
         "value", "Do not replace the page under these words."
     )
-    approval = page.locator(".lf-signoff")
-    expect(approval).to_have_count(1)
-    page.evaluate(
-        "control => { window.__lfApprovalControl = control; }",
-        approval.element_handle(),
-    )
 
     # Continue editing after the first release, then adopt v3 while the field stands.
     page_comment(page)
@@ -351,8 +323,6 @@ def test_the_live_page_retains_a_page_comment_while_adopting_revisions(browser, 
     told(page)
     expect(page).to_have_title("Live third")
     assert "/versions/" not in page.url
-    expect(approval).to_be_hidden()
-    assert approval.evaluate("control => control === window.__lfApprovalControl")
     expect(page.locator("body")).not_to_have_class(re.compile(r"\blive-second\b"))
     assert page.locator("body").get_attribute("data-live-body") is None
     assert (
@@ -361,9 +331,6 @@ def test_the_live_page_retains_a_page_comment_while_adopting_revisions(browser, 
         )
         == ""
     ), "the retired version's authored inline property survived"
-    assert page.locator("html").evaluate(
-        "el => el.style.getPropertyValue('--lf-thread-panel-width').trim()"
-    ), "activation erased a runtime-owned root property"
     assert page.locator('meta[name="description"]').get_attribute("content") == "third"
 
 

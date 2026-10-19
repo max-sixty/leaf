@@ -7,14 +7,12 @@ from html import escape
 from pathlib import Path
 
 import pytest
-from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, response_reference
+from interact_support import append_carried_log_record, response_reference, wait_for
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import structure as structure_model
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import rendered
@@ -34,7 +32,6 @@ from render_cases_layout import (
     AIM_SEAM_PAGE,
     SHOT_SRC,
     SHOTS,
-    banner_control,
 )
 from render_cases_navigation import (
     ADDRESSED_PAGE,
@@ -66,16 +63,19 @@ from render_harness import (
     EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
+    PANEL,
+    PANEL_THREAD,
     SAID_PAGE,
     _traffic,
     compare_with,
     consume_browser_errors,
+    expect_panel_says,
     hold_selection,
     holding,
     http_error_console,
     leaf_page,
     open_page,
-    open_versions,
+    panel_menu,
     panel_settled,
     post_event,
     reported_browser_errors,
@@ -83,14 +83,72 @@ from render_harness import (
     scroll_settled,
     select,
     sending,
-    shortcut_bar_text,
     stamp_page,
     told,
     wait_for_revision,
     write,
 )
 
+from browser.threads import open_panel_thread
+
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def comment_ids(page_dir):
+    """The ids of the page's comments, in the order the log holds them."""
+    return [
+        e["id"] for e in events_model.read_events(page_dir) if e["kind"] == "comment"
+    ]
+
+
+def thread_quote(page, thread_id):
+    """Open the thread in the panel, once the page reads it, and return the quote
+    heading its view."""
+    page.evaluate(
+        "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
+    )
+    page.wait_for_function(
+        "id => window.__lfThreadsApi.readThreads().threads.some((t) => t.id === id)",
+        arg=thread_id,
+    )
+    open_panel_thread(page, thread_id)
+    return page.locator(".lf-fp-quote")
+
+
+def on_the_page(page, *, key=False):
+    """Take the open thread's way back to its words, On the page, by pointer or key."""
+    door = page.locator(".lf-fp-aux").get_by_role(
+        "button", name="On the page", exact=True
+    )
+    if key:
+        door.focus()
+        page.keyboard.press("Enter")
+    else:
+        door.click()
+
+
+def stranded_quotes(page):
+    """The quote of each thread the page reads whose passage it finds nowhere, read in
+    the panel's view of every thread, which is put away again."""
+    ids = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).readThreads().threads"
+        ".map((thread) => thread.id)"
+    )
+    stranded = []
+    for thread_id in ids:
+        quote = thread_quote(page, thread_id)
+        if quote.count() and "detached" in quote.get_attribute("class").split():
+            stranded.append(quote.inner_text())
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    return stranded
+
+
+def expect_open_threads(page, count):
+    """Wait until the panel's Threads mark counts `count` open threads."""
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "title", re.compile(rf"^Threads, {count} open")
+    )
 
 
 def open_selected_comment(page):
@@ -109,32 +167,6 @@ def selected_comment_marks_chosen_start(page, chosen):
           const painted = [...(CSS.highlights.get('lf-pending') ?? [])][0];
           return painted?.compareBoundaryPoints(Range.START_TO_START, range) === 0;
         }"""
-    )
-
-
-def test_the_banner_stands_where_it_says_it_does(browser, serve):
-    """The document reserves exactly the head covered by the painted banner.
-
-    A missing reservation puts the first block under the banner. A mismatched reservation
-    also makes anchored browser scrolls stop above or below the visible page.
-    """
-    url = serve(LONG_PAGE)
-    page = open_page(browser, url)
-    stated, drawn = page.evaluate(
-        """() => [
-            parseFloat(getComputedStyle(document.body, '::before').height),
-            document.querySelector('.lf-banner')?.getBoundingClientRect().bottom ?? null,
-        ]"""
-    )
-    page.close()
-
-    assert stated > 0, (
-        f"the banner reserves {stated}px, so the page's first block is no longer held "
-        "clear of its painted chrome"
-    )
-    assert drawn == stated, (
-        f"the banner is drawn to {drawn}px but the page reserves {stated}px, so the "
-        "first block and anchored scrolls land against different edges"
     )
 
 
@@ -169,14 +201,13 @@ def test_a_comment_box_follows_its_passage_and_resume_returns_the_writer(
     page.wait_for_function(
         """() => {
           const bar = document.querySelector('.lf-fab-bar').getBoundingClientRect();
-          const head = document.querySelector('.lf-banner').getBoundingClientRect().bottom;
-          return bar.top >= head && bar.bottom <= innerHeight;
+          return bar.top >= 0 && bar.bottom <= innerHeight;
         }"""
     )
     expect(bar).to_be_visible()
     expect(field).to_have_js_property("value", "x")
     assert page.locator("#triage-lede").evaluate(
-        "node => { const r = node.getBoundingClientRect(); return r.bottom > 48 && r.top < innerHeight; }"
+        "node => { const r = node.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight; }"
     )
 
 
@@ -219,8 +250,8 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
-    thread = page.locator(".lf-thread .lf-quote").first
-    assert thread.text_content().strip().strip("“”") == "In flight"
+    quote = thread_quote(page, comment_ids(serve.page_dir)[-1])
+    assert quote.text_content().strip().strip("“”") == "In flight"
 
     # A second version reworking one card's prose and nothing else. The page follows it,
     # and the anchor is on a word only the runtime puts there, so it has to be found
@@ -233,7 +264,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     )
     wait_for_revision(page, 2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    assert page.locator(".lf-thread .lf-quote.detached").count() == 0, (
+    assert stranded_quotes(page) == [], (
         "the comment came loose from the heading when the version turned over"
     )
 
@@ -321,7 +352,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         # next case asks for one.
         with sending(page, f"the fence {index} comment"):
             page.keyboard.press("ControlOrMeta+Enter")
-        expect(page.locator(".lf-thread")).to_have_count(index)
+        expect_open_threads(page, index)
         actual_anchor = [
             event["anchor"]
             for event in events_model.read_events(serve.page_dir)
@@ -371,12 +402,10 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
         assert result.exit_code == 0, result.output
         roots.append(json.loads(result.output))
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     for root in roots:
-        expect(
-            page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
-        ).to_have_text(f"“{root['anchor']['quote']}”")
+        expect(thread_quote(page, root["id"])).to_have_text(
+            f"“{root['anchor']['quote']}”"
+        )
     source = (serve.page_dir / "index.html").read_text()
     updated = source.replace(
         "The first draft uses an early estimate",
@@ -388,15 +417,11 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
         "The revised plan uses the current forecast for the rollout."
     )
     for root in roots:
-        thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
-        expect(thread).to_be_visible()
-        expect(thread.locator(".lf-quote")).to_contain_text(
-            f"“{root['anchor']['quote']}” Changed"
-        )
-        expect(thread.locator(".lf-quote")).to_have_attribute("role", "button")
-        expect(thread.locator(".lf-quote")).to_have_attribute("tabindex", "0")
-        expect(thread.locator(".lf-quote.detached")).to_have_count(0)
-        expect(thread.locator(".lf-msg")).to_have_count(1)
+        quote = thread_quote(page, root["id"])
+        expect(quote).to_contain_text(f"“{root['anchor']['quote']}”")
+        expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
+        expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
+        expect(page.locator(f"{PANEL_THREAD} .lf-msg")).to_have_count(1)
     moves = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -454,7 +479,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, 
     write(page.locator(".lf-composer leaf-text"), "Keep the question with its context.")
     with sending(page, "the comment across preserving containers"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect_open_threads(page, 1)
     actual = [
         event["anchor"]
         for event in events_model.read_events(serve.page_dir)
@@ -462,10 +487,9 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, 
     ][-1]
     assert actual == expected
     page.reload()
-    expect(page.locator(".lf-thread .lf-quote")).to_have_text(f"“{quote}”")
-    expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
-        re.compile("detached")
-    )
+    held = thread_quote(page, comment_ids(serve.page_dir)[-1])
+    expect(held).to_have_text(f"“{quote}”")
+    expect(held).not_to_have_class(re.compile("detached"))
 
 
 def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
@@ -482,20 +506,17 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     before = events_model.read_events(serve.page_dir)
     sent = _traffic(page).sends
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-thread")).to_have_count(
-        len([e for e in before if e["kind"] == "comment"])
-    )
-    comment = page.locator(".lf-thread .lf-quote", has_text="1,998 / 1,999 rows")
-    expect(comment).to_contain_text(quote)
-    thread_id = comment.evaluate("quote => quote.closest('.lf-thread').dataset.id")
-    page.locator(f'.lf-thread[data-id="{thread_id}"] .lf-thread-summary').click()
-    comment.click()
+    expect_open_threads(page, len([e for e in before if e["kind"] == "comment"]))
+    [thread_id] = [
+        e["id"]
+        for e in before
+        if e["kind"] == "comment" and (e.get("anchor") or {}).get("quote") == quote
+    ]
+    expect(thread_quote(page, thread_id)).to_contain_text(quote)
+    on_the_page(page)
     expect(page.locator("#lp-check-finance")).to_be_in_viewport()
     # The panel stood over the region the comment is about, so the trip cleared it.
     panel_settled(page, open=False)
-    expect(page.locator(".lf-queue-row")).to_have_count(0)
 
     assert _traffic(page).sends == sent
     assert events_model.read_events(serve.page_dir) == before
@@ -539,12 +560,11 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
-    thread = page.locator(".lf-thread .lf-quote").first
-    assert thread.text_content().strip().strip("“”") == "Heated bird bath"
+    quote = thread_quote(page, comment_ids(d := serve.page_dir)[-1])
+    assert quote.text_content().strip().strip("“”") == "Heated bird bath"
 
     # A second version reworking the other panel's prose and nothing else: the name the
     # comment is on is still there, so the comment is still on it.
-    d = serve.page_dir
     stamp_page(
         d,
         CONTROL_LABEL_PAGE.replace(
@@ -554,7 +574,7 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     )
     wait_for_revision(page, 2)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    assert page.locator(".lf-thread .lf-quote.detached").count() == 0, (
+    assert stranded_quotes(page) == [], (
         "the comment came loose from the tab's name when the version turned over"
     )
 
@@ -620,7 +640,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     ), "the control must hang beside the selected paragraph"
 
     # A box that takes no pointer cannot be covered for the pointer, which is the whole
-    # subject here: the skip link rests transparent and inert under the banner and only
+    # subject here: the skip link rests transparent and inert at the window's head and only
     # becomes a control at all when the keyboard reaches it.
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
         .filter(c => (!c.closest(".lf-chrome") || c.closest(".lf-margin-cluster"))
@@ -782,27 +802,24 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
 
-    # Focus inside the first panel item paints that group's predictable digits, once a
-    # keyboard gesture has asked for a paint — opening Threads by key is that gesture here.
-    # The sequence is a nearer keyboard layer and takes the digits back while it stands, so
-    # each face is read from the one moment its own layer renders it rather than from a
-    # single frame that cannot hold both.
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+T")
-    page.locator(".lf-thread-summary").first.click()
-    page.locator("#tq-one .lf-pick").first.focus()
-    picked = page.locator("#tq-one .lf-key-badge").first
+    # Focus inside the first thread's item, open in the panel, paints that group's
+    # predictable digits once a keyboard gesture has asked for a paint. The sequence is a
+    # nearer keyboard layer and takes the digits back while it stands, so each face is
+    # read from the one moment its own layer renders it rather than from a single frame
+    # that cannot hold both.
+    open_panel_thread(page, "c-which")
+    item = f"{PANEL_THREAD} #tq-one"
+    page.locator(f"{item} .lf-pick").first.focus()
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("ArrowUp")
+    picked = page.locator(f"{item} .lf-key-badge").first
     expect(picked).to_be_visible()
-    option = faces(page, "#tq-one .lf-key-badge")[0]
+    option = faces(page, f"{item} .lf-key-badge")[0]
     page.keyboard.press("g")
     sequence_step = page.locator(CHIPS).first.locator("kbd").last
     expect(sequence_step).to_be_visible()
     assert sequence_step.get_attribute("data-lf-sequence-step-state") == "neutral"
-    sequence, legend = faces(
-        page,
-        f"{CHIPS} kbd:last-child",
-        '.lf-shortcut-bar .lf-shortcut[data-lf-command-ids~="navigation.target"] kbd:last-child',
-    )
+    [sequence] = faces(page, f"{CHIPS} kbd:last-child")
 
     # The option's binding badge and the sequence's letter keep one physical key face. Both are
     # ordinary available bindings, so geometry and emphasis stay the same.
@@ -815,7 +832,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
         )
     )
     assert "mono" in option["key"]["font-family"]
-    assert option["emphasis"] == sequence["emphasis"] == legend["emphasis"]
+    assert option["emphasis"] == sequence["emphasis"]
 
     # Target picker uses letters rather than digits, but it names the same physical
     # keys. Closing the Go-to sequence and opening selection must not reveal a fourth face.
@@ -1011,10 +1028,7 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     quoted = "Paragraph 3. Filler. Filler. Filler."
     page = open_page(browser, serve(LONG_PAGE, anchored=(("p3", quoted),)))
     resized(page, 1400, 900)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator(".lf-thread-summary").click()
-    card = page.locator(".lf-thread-panel .lf-quote").first
+    card = thread_quote(page, comment_ids(serve.page_dir)[-1])
     expect(card).to_be_visible()
     into = card.bounding_box()
     # A paragraph level with the thread's quoted words, so the overshoot is sideways:
@@ -1094,11 +1108,9 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
                 "anchor": {"section": None, "quote": quote},
             },
         )
-    page.locator(".lf-threads-toggle").click()
-    page.wait_for_function(
-        f"() => document.querySelectorAll('.lf-thread').length === {len(forms)}"
-    )
-    stranded = page.locator(".lf-thread-panel .lf-quote.detached").all_text_contents()
+    told(page)
+    expect_open_threads(page, len(forms))
+    stranded = stranded_quotes(page)
     assert stranded == [], f"quotes naming a passage that is right there: {stranded}"
 
     # The elasticity runs one way only. A quote is free to have gaps the page lacks; a
@@ -1114,10 +1126,9 @@ def test_a_quote_finds_its_passage_whatever_its_whitespace(browser, serve):
             "anchor": {"section": None, "quote": "boldtext"},
         },
     )
-    page.wait_for_function(
-        f"() => document.querySelectorAll('.lf-thread').length === {len(forms) + 1}"
-    )
-    assert page.locator(".lf-thread-panel .lf-quote.detached").count() == 1, (
+    told(page)
+    expect_open_threads(page, len(forms) + 1)
+    assert len(stranded_quotes(page)) == 1, (
         "a quote gluing two of the page's words together still found a passage"
     )
 
@@ -1187,12 +1198,10 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
     captured = composer_quote(page)["text"].strip("\u201c\u201d")
     write(page.locator(".lf-composer leaf-text"), "a comment on the capped passage")
     page.keyboard.press("ControlOrMeta+Enter")
-    settled = page.locator('.lf-thread:not([data-id^="pending:"])')
-    page.wait_for_function("""() => document.querySelectorAll(
-            '.lf-thread:not([data-id^="pending:"])').length === 1
-        || document.querySelector('.lf-notice').classList.contains('show')""")
-    assert settled.count() == 1, (
-        f"the comment never posted — the page says {page.locator('.lf-notice').text_content()!r}"
+    wait_for(
+        lambda: comment_ids(serve.page_dir),
+        bool,
+        failure="the comment never posted",
     )
 
     # And the file behind that answer, read back through Python's UTF-8 decoder, which is
@@ -1241,7 +1250,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#p").scroll_into_view_if_needed()
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
 
     # And the composer's own mark belongs to no thread, so it opens nothing. Its first
     # range runs up to the posted one, so this lands on the draft and nothing else.
@@ -1252,9 +1261,8 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
         "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
-    assert not page.locator(".lf-thread-panel").evaluate(
-        "el => el.classList.contains('open')"
-    ), (
+    rendered(page)
+    assert page.locator(PANEL).get_attribute("data-open") is None, (
         "clicking the composer's own highlight opened the panel, but it belongs to no thread"
     )
 
@@ -1283,16 +1291,13 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
         },
     )
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    if page.locator(".lf-thread-panel.open").count():
-        page.get_by_role("button", name="Close threads").click()
-        panel_settled(page, open=False)
 
     page.locator("#fig").scroll_into_view_if_needed()
     spot = page.evaluate("""() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
                                     return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }""")
     page.mouse.click(spot["x"], spot["y"])
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
     expect(
         page.locator(".lf-fab-input"),
         "the click opened the thread and then offered to comment on it as well",
@@ -1355,12 +1360,9 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     page.evaluate("document.querySelector('main').append(detachedCodeSource)")
     expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
     page.locator("#source").focus()
-    assert "copy code" in shortcut_bar_text(page)
     page.keyboard.press("Tab")
     expect(page.locator("#code-link")).to_be_focused()
     # A link inside the block keeps its Enter from the block's Copy.
-    on_link = shortcut_bar_text(page)
-    assert "Follow" in on_link and "copy code" not in on_link, on_link
     page.keyboard.press("Enter")
     expect(page).to_have_url(re.compile(r"#destination$"))
 
@@ -1681,12 +1683,11 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
             },
         },
     )
-    page.locator(".lf-threads-toggle").click()
     # Posted to the server rather than through the page, so the page hears about it
     # when its next poll asks.
     told(page)
-    expect(page.locator(".lf-thread")).to_have_count(1)
-    expect(page.locator(".lf-thread-panel .lf-quote.detached")).to_have_count(0)
+    expect_open_threads(page, 1)
+    assert stranded_quotes(page) == []
     # The mark is a painted range, so what it covers is read back off CSS.highlights
     # rather than off the DOM.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -2485,14 +2486,11 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
     page = open_page(browser, url)
-    line = page.locator(".lf-shortcut-bar")
 
     comparison = page.locator("lf-shot wa-comparison")
     handle = comparison.get_by_role("scrollbar")
     handle.scroll_into_view_if_needed()
     handle.focus()
-    expect(line).to_contain_text("adjust the comparison")
-    expect(line).to_contain_text("show before or after")
     page.keyboard.press("ArrowRight")
     expect(comparison).to_have_attribute("position", "51")
     page.keyboard.press("End")
@@ -2503,9 +2501,7 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     summary.scroll_into_view_if_needed()
     summary.focus()
     assert details.evaluate("el => el.open"), "the fixture's disclosure starts open"
-    expect(line).to_contain_text("hide this file")
     page.keyboard.press("Enter")
-    expect(line).to_contain_text("show this file")
     assert not details.evaluate("el => el.open")
     # The line is one of two surfaces naming this row's keys, and a listener reads the
     # other. Both answer from the same DISCLOSE call, so both turn over on the toggle —
@@ -2523,65 +2519,13 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     # document alone it finds none here, the page's only <details> being the ones the
     # widget put in a shadow root. The press is what says so, not the chip: this widget's
     # own row is the nearer of the two naming these keys, so it prints them either way.
-    expect(line).to_contain_text("⏎ / space / →")
     page.keyboard.press("ArrowRight")
     assert details.evaluate("el => el.open")
-    # And the word turns over inside the press, read once so a poll cannot answer for it.
+    # And the keys turn over inside the press, read once so a poll cannot answer for it.
     # A toggle from a staged root is not composed, so no document listener hears it: this
-    # is the watch `shadowStage` hands each root, and without it the line sat on "show
-    # this file" until the next poll two seconds later.
-    said = shortcut_bar_text(page)
-    assert "⏎ / space / ←" in said, said
-    assert "hide this file" in said, said
+    # is the watch `shadowStage` hands each root.
+    rendered(page)
     assert summary.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
-
-    # Neither control is handed a letter by any platform, so the page's own keyboard
-    # stands behind both of them.
-    expect(line).to_contain_text("comment")
-
-
-def test_tab_between_two_staged_controls_turns_the_shortcut_bar_over(browser, serve):
-    """The line says the keys of the control the user stands on, including after a Tab
-    from one control to another inside one widget's shadow tree.
-
-    Such a move reaches the document as no focus event at all, so a repaint that waits
-    for one leaves the line naming the keys of the control the user left, until the
-    heartbeat or a resize repaints it. A file's title and its comment button make
-    different presses, and the line names them differently."""
-    url = serve(
-        DIFF_PAGE.replace(
-            '<lf-diff id="patch">', '<lf-diff id="patch" source="review-patch">'
-        )
-    )
-    patch = DIFF_PAGE.split("<pre>", 1)[1].split("</pre>", 1)[0]
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
-    page = open_page(browser, url)
-    page.keyboard.press("Tab")  # keyboard modality, as a user reaching the title has
-    title = page.locator("lf-diff summary.lf-diff-head").first
-    title.scroll_into_view_if_needed()
-    title.focus()
-    expect(title).to_be_focused()
-    on_title = shortcut_bar_text(page)
-    assert "hide this file" in on_title, on_title
-
-    page.keyboard.press("Tab")
-    expect(page.locator("lf-diff .lf-diff-file-comment:focus")).to_have_count(1)
-    said = shortcut_bar_text(page)
-    assert "next hunk" in said, said
-    assert "this file" not in said, said
-
-    # A control hidden under the user drops them to the body with no move of theirs, and
-    # the line stops naming the keys of a control that is no longer there.
-    page.evaluate(
-        """() => {
-          let at = document.activeElement;
-          while (at.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
-          at.style.display = "none";
-        }"""
-    )
-    page.wait_for_function("() => document.activeElement === document.body")
-    said = shortcut_bar_text(page)
-    assert "next hunk" not in said, said
 
 
 def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
@@ -2759,7 +2703,7 @@ def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, arriva
 
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     """A figure can carry more than one thread. When the page's record of what it drew was
-    keyed by the mark, the second comment overwrote the first, and the panel told the
+    keyed by the mark, the second comment overwrote the first, and the thread told the
     user the first one's passage wasn't in this version — while it sat outlined on
     screen for the second."""
     url = serve(INLINE_PAGE)
@@ -2775,9 +2719,9 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
                 "anchor": {"section": "fig"},
             },
         )
-    page.locator(".lf-threads-toggle").click()
-    page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 2")
-    stranded = page.locator(".lf-thread-panel .lf-quote.detached").all_text_contents()
+    told(page)
+    expect_open_threads(page, 2)
+    stranded = stranded_quotes(page)
     assert stranded == [], f"outlined on screen, reported missing: {stranded}"
     # The projected contour an open thread raises stays above the figure's own paint
     # without putting any paint over its contents.
@@ -2818,8 +2762,9 @@ def thread_a_press_opened(page):
     return page.evaluate(f"() => {FOCUSED_THREAD}.innerText")
 
 
-def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
-    """The card the pointer lights and the card a press opens are one reading of one point.
+def test_a_press_on_a_mark_opens_the_thread_under_the_point(browser, serve):
+    """The thread the pointer is over and the thread a press opens are one reading of one
+    point.
 
     They came from two doors, though. The hover hit-tests the pointer record the runtime
     keeps, and the click read its own clientX and clientY — a `click` is a legacy mouse
@@ -2847,7 +2792,7 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
             },
         )
     page = open_page(browser, url)
-    expect(page.locator(".lf-thread")).to_have_count(2)
+    expect_open_threads(page, 2)
     seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
     assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
         "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
@@ -2856,10 +2801,6 @@ def test_a_press_on_a_mark_opens_the_thread_the_hover_promised(browser, serve):
     )
 
     page.mouse.move(seam["x"], seam["y"])
-    promised = page.locator(".lf-thread.lf-mark-hover")
-    expect(promised).to_have_count(1)
-    expect(promised).to_contain_text(f"About {seam['at']}.")
-
     page.mouse.click(seam["x"], seam["y"])
     opened = thread_a_press_opened(page)
     assert opened and f"About {seam['at']}." in opened, (
@@ -2875,7 +2816,7 @@ MARKED_SENTENCE = (
 
 
 def mark_the_first_sentence(browser, serve):
-    """`EDGE_PAGE` with its opening sentence commented on, Threads open.
+    """`EDGE_PAGE` with its opening sentence commented on.
 
     The sentence's own tail is left unmarked, which is where the shift-click below starts
     so that only its extension reaches the painted words."""
@@ -2892,8 +2833,6 @@ def mark_the_first_sentence(browser, serve):
     )
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     return page
 
 
@@ -2912,7 +2851,7 @@ def words_in_hand(page):
           return {
             selected: sel && !sel.isCollapsed ? sel.toString() : "",
             inPanel: Boolean(
-              document.querySelector('.lf-thread-panel')?.contains(document.activeElement)
+              document.querySelector('.lf-floating-panel')?.contains(document.activeElement)
             ),
           };
         }"""
@@ -2990,12 +2929,10 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     arm asserts the settled result, and the press below asserts that the mark still opens.
 
     A click ends a gesture that took words as surely as it ends a press, and the mark's
-    door read every one of them as a press. With Threads open the thread it opened landed
-    the user in the panel's reply box, and focusing a text box collapses the document's
-    selection — so the words went, the 💬 with them, and marked passages became the one
-    part of a page a user could not quote. The panel is why it shows here and not on a
-    closed one, where the same travel focuses a card and leaves the selection in place;
-    both doors are the one misreading, so this asserts the open panel, where it is visible.
+    door read every one of them as a press. The thread it opened took the user's focus,
+    and a thread whose reply box takes it collapses the document's selection — so the
+    words went, the 💬 with them, and marked passages became the one part of a page a user
+    could not quote.
 
     All three gestures, because the first reading written for this covered only the drag:
     it asked how far the pointer had travelled, and a double-click's second press and a
@@ -3004,7 +2941,6 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     taken off the current selection rather than off what the press changed refuses that
     press as a gesture of its own, and the mark stops opening at all."""
     page = mark_the_first_sentence(browser, serve)
-    # Wide enough that the open panel stands clear of the sentence a gesture extends into.
     resized(page, 1920, 900)
     take(page)
     expect(page.locator(".lf-fab-input")).to_be_visible()
@@ -3019,8 +2955,8 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     )
 
     page.mouse.click(*mark_point(page, "lf-mark"))
-    expect(page.locator(".lf-threads .lf-thread leaf-text")).to_be_focused()
-    expect(page.locator(".lf-threads .lf-thread")).to_contain_text("About the retry.")
+    opened = thread_a_press_opened(page)
+    assert opened and "About the retry." in opened, opened
 
 
 def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
@@ -3141,7 +3077,7 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
         viewport={"width": 1200, "height": 900}, color_scheme="light", has_touch=True
     )
     page = open_page(browser, url, context=context)
-    expect(page.locator(".lf-thread")).to_have_count(2)
+    expect_open_threads(page, 2)
     seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
     assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
         "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
@@ -3247,7 +3183,7 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     d = serve.page_dir
     stamp_page(d, DRIFT_V2, "revised")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
+    assert stranded_quotes(page) == []
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     [transition] = [
         event for event in events_model.read_events(d) if event["kind"] == "reanchor"
@@ -3278,7 +3214,7 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     assert reply["revision"] == 2 and reply["anchor"]["quote"] == revised_passage
     told(page)
 
-    quote = page.locator(".lf-thread .lf-quote")
+    quote = thread_quote(page, root["id"])
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
     expect(quote).to_contain_text(revised_passage)
     painted = page.evaluate(
@@ -3348,14 +3284,14 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
 
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    quote = page.locator(f'.lf-thread[data-id="{root["id"]}"] .lf-quote')
+    quote = thread_quote(page, root["id"])
     expect(quote).to_contain_text("The version stamp never lands")
     expect(quote).to_have_class(re.compile(r"\bdetached\b"))
-    expect(quote).not_to_have_attribute("role", "button")
-    expect(quote).not_to_have_attribute("tabindex", "0")
     expect(quote).to_have_attribute("title", re.compile("no longer"))
+    # With nowhere on the page to go, the view offers no way there.
+    expect(
+        page.locator(".lf-fp-aux button:enabled", has_text="On the page")
+    ).to_have_count(0)
 
 
 def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
@@ -3484,7 +3420,7 @@ def test_an_ambiguous_one_sided_anchor_from_an_older_capture_detaches(browser, s
         },
     )
     page = open_page(browser, url)
-    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(1)
+    assert len(stranded_quotes(page)) == 1
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
 
@@ -3539,10 +3475,8 @@ def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     write(page.locator(".lf-composer leaf-text"), "The whole of it.")
     with sending(page, "the comment on the dragged passage"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-thread")).to_have_count(1)
-    expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
-        re.compile("detached")
-    )
+    expect_open_threads(page, 1)
+    assert stranded_quotes(page) == []
     anchor = [
         e["anchor"] for e in events_model.read_events(serve.page_dir) if e.get("anchor")
     ][-1]
@@ -3580,13 +3514,11 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
     write(page.locator(".lf-composer leaf-text"), "All of it.")
     with sending(page, "the comment on the whole page"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(page.locator(".lf-thread")).to_have_count(1)
+    expect_open_threads(page, 1)
     # The posted anchor resolves on the ordinary pass too, which is the one that would
     # have thrown: a detached quote here is the search having failed to find the page
     # inside the page.
-    expect(page.locator(".lf-thread .lf-quote")).not_to_have_class(
-        re.compile("detached")
-    )
+    assert stranded_quotes(page) == []
 
 
 def test_select_all_on_a_page_with_a_diff_leaves_the_page_responsive(browser, serve):
@@ -3631,7 +3563,7 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     d = serve.page_dir
     stamp_page(d, THIN_V2, "revised")
     wait_for_revision(page, 2)
-    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
+    assert stranded_quotes(page) == []
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
     [transition] = [
         event for event in events_model.read_events(d) if event["kind"] == "reanchor"
@@ -3657,22 +3589,17 @@ QUEUES_V2 = QUEUES_V1.replace(
 
 def test_a_thread_whose_quote_was_rewritten_keeps_its_words(browser, serve):
     """A version that rewrites the words a comment quoted leaves its thread on their
-    section. The card keeps naming the quoted words rather than the section's new
-    heading, marked as changed, and those words still find the thread."""
+    section. The thread keeps naming the quoted words rather than the section's new
+    heading, marked as changed."""
     quote = "what an item is stays open"
     url = serve(QUEUES_V1, anchored=[("queues", quote)])
     page = open_page(browser, live_url(url))
     stamp_page(serve.page_dir, QUEUES_V2, "plain headings")
     wait_for_revision(page, 2)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-
-    head = page.locator(".lf-thread-panel .lf-thread .lf-quote")
+    [thread] = comment_ids(serve.page_dir)
+    head = thread_quote(page, thread)
     expect(head.locator(".lf-quote-label")).to_have_text(f"“{quote}”")
     expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
-
-    page.get_by_role("searchbox", name="Find in threads").fill("item is stays")
-    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
 
 
 def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, serve):
@@ -3745,10 +3672,9 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     assert inserted[0].strip().startswith("Aggregates supplied the rate"), inserted
     assert "Two years of incident write-ups" not in inserted[0], inserted
 
-    # The press reports the move; the banner's status line holds a moment's news, and
-    # a paragraph put through it is clipped and a hover away.
-    expect(page.locator(".lf-notice")).to_have_text(
-        "paragraph changed since v1 · showing an inline diff from v1"
+    # The press reports the move where the panel says a moment's news.
+    expect_panel_says(
+        page, "paragraph changed since v1 · showing an inline diff from v1"
     )
 
     # A passage the revision added has no counterpart to show, so the inline label says
@@ -3761,9 +3687,7 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
         "New since v1"
     )
     expect(page.locator("#ret-cost-keep .lf-version-inline-deletion")).to_have_count(0)
-    expect(page.locator(".lf-notice")).to_have_text(
-        "paragraph changed since v1 · v1 had nothing here"
-    )
+    expect_panel_says(page, "paragraph changed since v1 · v1 had nothing here")
 
     # And the same inside a list item, where a sibling would be markup no <ol> may hold.
     step = page.locator(
@@ -3782,7 +3706,7 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     # The reading is the runtime's own words (.lf-ui), so the page's reading does not
     # move under it: both threads keep the passages they quote, one of them inside the
     # block now holding the inline comparison.
-    expect(page.locator(".lf-thread .lf-quote.detached")).to_have_count(0)
+    assert stranded_quotes(page) == []
     assert page.evaluate(marks) == 2
 
     # The same press closes it, and stopping the comparison takes every inline part and
@@ -3892,7 +3816,7 @@ def test_a_state_only_version_change_does_not_offer_an_empty_text_diff(browser, 
     expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
     change.click()
     expect(page.locator("#card .lf-version-inline-label")).to_have_count(0)
-    expect(page.locator(".lf-notice")).to_have_text("card changed since v1")
+    expect_panel_says(page, "card changed since v1")
 
 
 def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
@@ -3959,493 +3883,9 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
     ) == ["new-map", "route"]
 
 
-def test_the_number_hint_names_only_versions_that_still_exist(browser, serve):
-    """The compact range derives both ends from the exact numbered routes."""
-    url = serve(INLINE_PAGE)
-    _publish(serve.page_dir, 2, INLINE_PAGE, "two")
-    _publish(serve.page_dir, 3, INLINE_PAGE, "three")
-    first = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "note" and event["version"] == 1
-    )
-    # An interrupted publication is repaired when state is read. Model an
-    # unavailable older revision whose note has no recoverable publication.
-    log = serve.page_dir / "events.jsonl"
-    events = events_model.read_events(serve.page_dir)
-    for event in events:
-        if event.get("revision") == first["revision"]:
-            event.pop("publication", None)
-    log.write_text(
-        "".join(json.dumps(event) + "\n" for event in events), encoding="utf-8"
-    )
-    files_model.revision_path(serve.page_dir, first["revision"]).unlink()
-    page = open_page(browser, url.replace("v1.html", "v3.html"))
-
-    open_versions(page)
-    menu_line = shortcut_bar_text(page)
-    assert "2–3\nopen version" in menu_line, menu_line
-    assert "1–3" not in menu_line, menu_line
-
-
-def test_the_versions_menu_can_close_from_every_door(browser, serve):
-    """A version menu opened from either door returns to its actual origin.
-
-    A first version's menu has no version walk, so its exits cannot depend on one.
-
-    A menu opened while nothing held focus has nobody to hand focus back to, so the
-    browser left focus on its hidden row until the next rendering update: a key
-    pressed in that frame was dispatched from a control the user could no longer see.
-    Closing it lets go in the same task.
-    """
-    url = serve(INLINE_PAGE)
-    page = open_page(browser, live_url(url))
-    menu = page.locator(".lf-version-menu")
-    line = page.locator(".lf-shortcut-bar")
-
-    assert page.evaluate("() => document.activeElement === document.body")
-    open_versions(page)
-    expect(menu).to_be_visible()
-    assert menu.evaluate("m => m.contains(document.activeElement)"), "no row took focus"
-    assert menu.evaluate(
-        "m => { m.hidePopover(); return document.activeElement === document.body; }"
-    )
-
-    # One version: the menu opens from the global route and Escape ends it.
-    page.keyboard.press("g")
-    expect(line).to_contain_text("versions")
-    page.keyboard.press("Escape")
-    page.keyboard.press("v")
-    expect(menu).to_be_hidden()
-    open_versions(page)
-    expect(menu).to_be_visible()
-    expect(page.locator(".lf-version-row")).to_have_count(1)
-    page.keyboard.press("Escape")
-    expect(menu).not_to_be_visible()
-    expect(page.locator(".lf-version")).to_be_focused()
-    expect(page.locator(".lf-banner-menu")).to_be_visible()
-
-    # A menu opened from the keyboard returns to its banner door, just as one opened
-    # by pointer does, rather than to the heading that held focus before the shortcut.
-    origin = page.locator("h1")
-    origin.evaluate("node => node.tabIndex = -1")
-    origin.focus()
-    open_versions(page)
-    expect(menu).to_be_visible()
-    page.keyboard.press("Escape")
-    expect(menu).not_to_be_visible()
-    expect(page.locator(".lf-version")).to_be_focused()
-    expect(page.locator(".lf-banner-menu")).to_be_visible()
-
-    # The pointer's door reaches the same layer and Escape still ends it. A one-row menu
-    # offers neither a walk nor an exact-version shortcut that would reopen the page the
-    # user is already on.
-    banner_control(page, ".lf-version").click()
-    expect(menu).to_be_visible()
-    pointer_line = shortcut_bar_text(page)
-    assert "walk — marking changes" not in pointer_line, pointer_line
-    assert "open version" not in pointer_line, pointer_line
-    page.keyboard.press("Escape")
-    expect(menu).not_to_be_visible()
-    open_versions(page)
-    keyboard_line = shortcut_bar_text(page)
-    assert "walk — marking changes" not in keyboard_line, keyboard_line
-    assert "open version" not in keyboard_line, keyboard_line
-    page.keyboard.press("Escape")
-
-    # The line is the menu's while the user is in it: its own actions are named and the
-    # page's keys are gone with the presses the mode took.
-    open_versions(page)
-    expect(line).not_to_contain_text("walk — marking changes")
-    expect(line).not_to_contain_text("page down")
-    page.keyboard.press("Escape")
-
-    # A second version makes the walk and numbered destinations live without changing
-    # the panel or its exits.
-    _publish(serve.page_dir, 2, INLINE_PAGE, "second")
-    wait_for_revision(page, 2)
-    page.wait_for_function(
-        "() => document.querySelectorAll('.lf-version-row').length > 1"
-    )
-    open_versions(page)
-    expect(line).to_contain_text("walk — marking changes")
-    expect(line).to_contain_text("open version")
-    page.keyboard.press("Escape")
-
-
-def test_version_notes_stay_readable_beside_compare_at_narrow_widths(browser, serve):
-    """A revision note may contain a URL or an unbroken identifier. Both latest
-    rows spanning the menu and earlier rows sharing it with Compare wrap the whole
-    note inside their own press, rather than clipping it behind the next column.
-    """
-    long_url = (
-        "Source: https://github.com/max-sixty/leaf/blob/"
-        + "a" * 40
-        + "/skills/leaf/assets/runtime/version-picker.js"
-    )
-    long_token = "Revision artifact: " + "abcdef0123456789" * 12
-    url = serve(INLINE_PAGE)
-    _publish(serve.page_dir, 2, INLINE_PAGE, long_url)
-    _publish(serve.page_dir, 3, INLINE_PAGE, long_token)
-    context = browser.new_context(
-        viewport={"width": 320, "height": 568},
-        has_touch=True,
-        is_mobile=True,
-    )
-    page = open_page(browser, live_url(url), context=context)
-    for width in (320, 1200):
-        page.set_viewport_size({"width": width, "height": 568 if width == 320 else 900})
-        open_versions(page)
-        menu = page.locator(".lf-version-menu")
-        expect(menu).to_be_visible()
-        for version, note in ((2, long_url), (3, long_token)):
-            row = menu.locator(f'.lf-version-row[data-lf-version="{version}"]')
-            expect(row.locator(".lf-version-note")).to_have_text(note)
-            row.scroll_into_view_if_needed()
-            boxes = row.evaluate("""row => {
-              const menu = row.closest('.lf-version-menu');
-              const note = row.querySelector('.lf-version-note');
-              const r = row.getBoundingClientRect(), n = note.getBoundingClientRect();
-              return {menuWidth: menu.clientWidth, menuScroll: menu.scrollWidth,
-                rowWidth: row.clientWidth, rowScroll: row.scrollWidth,
-                noteLeft: n.left, noteRight: n.right, rowLeft: r.left, rowRight: r.right};
-            }""")
-            assert boxes["menuScroll"] <= boxes["menuWidth"] + 1, boxes
-            assert boxes["rowScroll"] <= boxes["rowWidth"] + 1, boxes
-            assert boxes["noteLeft"] >= boxes["rowLeft"], boxes
-            assert boxes["noteRight"] <= boxes["rowRight"], boxes
-        expect(
-            menu.get_by_role("menuitemcheckbox", name="Compare with v2")
-        ).to_be_visible()
-        page.keyboard.press("Escape")
-        page.keyboard.press("Escape")
-
-
-@pytest.mark.watch_shifts
-def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
-    """The picker is a press and a menu rather than a select, which buys the notes
-    somewhere they can be read whole and costs the platform's own popup: opening,
-    closing, and the keys between. A select came with all of that, so what this
-    asserts is the part that had to be written back — the pointer route opens through
-    More, focus lands on the version being read so the walk starts where the user is,
-    ↑/↓ clamp at the ends and Home/End reach them, Escape closes the replacing panel,
-    and a click anywhere else closes without navigating.
-
-    The note is the reason the menu exists at all: a select's closed label is its
-    selected option's whole text, so the note had to be on the bar or nowhere, and on
-    the bar it ellipsized. Here it wraps."""
-    long_note = (
-        "a note far too long to have ever fitted on the bar, which is the whole "
-        "reason the notes moved off it and into a list that can give them a line each"
-    )
-    url = serve(INLINE_PAGE)
-    _publish(serve.page_dir, 2, INLINE_PAGE, long_note)
-    _publish(serve.page_dir, 3, INLINE_PAGE, "third")
-    # Pinned to v2, so there is a version either side of the one being read.
-    page = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
-
-    btn = page.locator(".lf-version")
-    menu = page.locator(".lf-version-menu")
-    expect(btn).to_have_text("Showing v2")
-    expect(menu).to_be_hidden()
-
-    banner_control(page, ".lf-version").click()
-    expect(menu).to_be_visible()
-    # Versions replaces More rather than covering its own invoker. Escape closes the
-    # one root panel and leaves the page as the keyboard destination.
-    expect(page.locator(".lf-banner-menu")).to_be_hidden()
-    page.locator(".lf-banner-more").click()
-    expect(menu).to_be_hidden()
-    expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(btn).to_be_visible()
-    banner_control(page, ".lf-version").click()
-    expect(menu).to_be_visible()
-    expect(page.locator(".lf-banner-menu")).to_be_hidden()
-    page.keyboard.press("Escape")
-    expect(menu).to_be_hidden()
-    expect(btn).to_be_focused()
-    expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(btn).to_be_visible()
-    page.keyboard.press("Escape")
-
-    open_versions(page)
-    expect(menu).to_be_visible()
-    # The walk starts on the version being read, not at the top of the list.
-    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
-    # The note is the whole note, on its own lines under the version it belongs to.
-    expect(
-        page.locator('.lf-version-row[data-lf-version="2"] .lf-version-note')
-    ).to_have_text(long_note)
-    assert page.evaluate(
-        "() => { const n = document.querySelector("
-        "'.lf-version-row[data-lf-version=\"2\"] .lf-version-note');"
-        "  return n.getBoundingClientRect().height > "
-        "         parseFloat(getComputedStyle(n).fontSize) * 1.6; }"
-    ), "the note that a select could not hold is on one line here too"
-
-    # The feature-gallery Axe baseline sees this menu shut, so the role
-    # relationship it declares open — a menu owning menuitems, named — is checked
-    # nowhere else. A select carried all of that from the platform and this does not.
-    # Each scheme has its own contrast to hold.
-    for color_scheme in ("dark", "light"):
-        page.emulate_media(color_scheme=color_scheme)
-        result = Axe().run(
-            page,
-            options={
-                "runOnly": {"type": "tag", "values": ["wcag2a", "wcag2aa", "wcag21a"]},
-                "resultTypes": ["violations"],
-            },
-        )
-        serious = [
-            v["id"]
-            for v in result.response["violations"]
-            if v["impact"] in {"serious", "critical"}
-        ]
-        assert serious == [], (color_scheme, result.response["violations"])
-    # The visible word is part of the accessible name too. This rule is not included by
-    # axe's WCAG-tag selection above, so ask for it directly where Compare exists.
-    label_result = Axe().run(
-        page,
-        options={
-            "runOnly": {
-                "type": "rule",
-                "values": ["label-content-name-mismatch"],
-            },
-            "resultTypes": ["violations"],
-        },
-    )
-    assert label_result.response["violations"] == []
-
-    # The keys are one declaration, so the "?" reference names them too — a page with a
-    # second version is the first that has a list to walk. The expanded shortcut bar
-    # stands beside the menu; the reference is a modal and global chrome, so entering it
-    # dismisses the menu the way the platform dismisses any auto popover, and leaves it
-    # dismissed. The rows are read off the declaration rather than off the current mode,
-    # which is why they are there to read at all once the menu has gone.
-    page.keyboard.press("?")
-    expect(menu).to_be_visible()
-    page.keyboard.press("?")
-    expect(menu).to_be_hidden()
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "In the versions menu"
-    )
-    expect(page.locator(".lf-command-reference")).to_contain_text("Later version")
-    expect(page.locator(".lf-command-reference")).to_contain_text("Earlier version")
-    expect(page.locator(".lf-command-reference")).to_contain_text("Latest version")
-    expect(page.locator(".lf-command-reference")).to_contain_text("Earliest version")
-    expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(menu).to_be_hidden()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
-        "data-lf-expanded", "false"
-    )
-    # The help layer returns to the visible root disclosure that preceded it. The
-    # independent gV route below works directly from that real landing.
-    expect(page.locator(".lf-banner-more")).to_be_focused()
-
-    open_versions(page)
-    expect(menu).to_be_visible()
-    page.locator('.lf-version-row[data-lf-version="2"]').focus()
-    position = page.locator(".lf-walk-position")
-    page.keyboard.press("ArrowUp")
-    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
-    expect(position).to_have_text("Version 1 of 3")
-    page.keyboard.press("ArrowUp")  # clamped: the first row keeps the focus
-    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
-    expect(position).to_have_attribute("data-lf-boundary", "")
-    page.keyboard.press("ArrowDown")
-    page.keyboard.press("ArrowDown")
-    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-    expect(position).to_have_text("Version 3 of 3")
-    page.keyboard.press("ArrowDown")  # clamped at the other end too
-    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-    expect(position).to_have_attribute("data-lf-boundary", "")
-    # Home and End reach either end in one press; End lands where the walk down did and
-    # states the same comparison.
-    page.keyboard.press("Home")
-    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
-    expect(position).to_have_text("Version 1 of 3")
-    page.keyboard.press("End")
-    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-    expect(position).to_have_text("Version 3 of 3")
-    # The comparison the row it landed on states, which the reopen below reads: the base is
-    # settled when the picker says so, and the base's document is a fetch away, so a test
-    # that closed the menu on the press alone would ask where the walk stands from a loaded
-    # machine and be told the version being read.
-    expect(btn).to_have_text("Showing v2")
-    expect(btn).to_have_class(re.compile(r"\bon\b"))
-
-    # Escape closes the menu and returns to its banner control.
-    page.keyboard.press("Escape")
-    expect(menu).to_be_hidden()
-    expect(btn).to_be_focused()
-
-    # g V opens it from anywhere on the page, the way g L opens the leaves drawer, and lands
-    # where the walk should carry on from, so that walk is the next press rather than a
-    # Tab-hunt across the banner. This menu is the only place the notes are, so what each
-    # version changed is reachable by keyboard through this key or not at all.
-    #
-    # Which row that is, is the comparison's: the walk above marked from v1, so the base
-    # is v1 and the row carrying it is where an open lands. Landing on the version being
-    # read would put the focus and the base on different rows, and the user's next arrow
-    # press would then move the base off the version they marked from — the whole reason
-    # the two are one thing (the picker's focusSelectedRow).
-    open_versions(page)
-    expect(menu).to_be_visible()
-    menu_line = shortcut_bar_text(page)
-    assert "1–3\nopen version" in menu_line, menu_line
-    assert "back" not in menu_line, menu_line
-    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-    expect(btn).to_have_text("Showing v2")
-    expect(btn).to_have_class(re.compile(r"\bon\b"))
-    expect(btn).to_have_attribute("title", re.compile(r"\(g V\)$"))
-    # And walking back up to the version being read is the way off it, which is the row
-    # an open lands on with no comparison active.
-    page.keyboard.press("ArrowUp")
-    expect(btn).to_have_text("Showing v2")
-    expect(btn).not_to_have_class(re.compile(r"\bon\b"))
-    # Inside the menu the letter is the menu's own — the newest version, tested where
-    # it navigates — so Escape closes this and returns to the banner control.
-    page.keyboard.press("Escape")
-    expect(menu).to_be_hidden()
-    expect(btn).to_be_focused()
-    open_versions(page)
-    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
-    page.keyboard.press("Escape")
-
-    # A click on the page closes it and leaves the user where they were.
-    open_versions(page)
-    expect(menu).to_be_visible()
-    # A point in the page's left margin: outside the column, and well clear of a menu
-    # that hangs from the right of the bar over whatever the column has at the top.
-    page.mouse.click(30, 700)
-    expect(menu).to_be_hidden()
-    assert "/versions/v2.html" in page.url, "closing the menu navigated"
-
-    # The same press from the key's door, which is the one a hand-back can reach: opened
-    # with the pointer the user was on the button going in, so nothing moves them either
-    # way. A press away from the menu is not a way back to the picker — it is the user
-    # going somewhere else — and a close that hands focus to the bar whenever it finds none
-    # takes them off the page they just pressed into. Escape says return; this does not.
-    open_versions(page)
-    expect(menu).to_be_visible()
-    page.mouse.click(30, 700)
-    expect(menu).to_be_hidden()
-    expect(btn).not_to_be_focused()
-
-    # A number is the corresponding row's press even when travel is unnecessary: the
-    # current row closes the menu just as clicking it does.
-    open_versions(page)
-    expect(menu).to_be_visible()
-    page.keyboard.press("2")
-    expect(menu).to_be_hidden()
-    assert "/versions/v2.html" in page.url
-
-    # Choosing another number is exact historical navigation, including for the newest
-    # stamp.
-    open_versions(page)
-    expect(menu).to_be_visible()
-    page.keyboard.press("3")
-    page.wait_for_url(re.compile(r"/versions/v3\.html"))
-    assert re.search(r"[?&]pin(?:=|&|$)", page.url)
-
-
-def test_the_versions_menu_suspends_the_pages_own_keys(browser, serve):
-    """A mode standing over the page takes the page's keys. The sequence and the reference
-    always did and this menu did not, so mid-walk `d` scrolled a page the user had
-    stopped looking at and `c` opened the composer under the list. None of it failed
-    loudly: each press did exactly what it promises, somewhere the user was not — and
-    the shortcut bar went on offering all of them, which is what made the offer the bug rather
-    than the press.
-
-    A claim is not the blanket it replaced, so the exemption is asserted beside it: the
-    reference is the one key a mode keeps, being the key that says what the mode's own keys
-    are, and a user who has just opened something unfamiliar is the user who wants it.
-
-    Which presses are asserted is decided by what a suspended one leaves to read. A key
-    the mode swallows moves nothing, and nothing is what an assertion made too early reads
-    on a key that worked — so the presses here are the two whose effect is a class and a
-    focus move in the same task as the keydown (`t` and `c`, both of which would raise the
-    panel and one of which would take the focus out of the menu). `d` lands a glide later,
-    where "not yet" and "never" read alike; the line is where it is held, off the same
-    claim the dispatcher reads."""
-    url = serve(LONG_PAGE, comments=2)
-    _publish(
-        serve.page_dir,
-        2,
-        LONG_PAGE.replace("Paragraph 3.", "Paragraph three."),
-        "reworded a paragraph",
-    )
-    page = open_page(browser, url.replace("v1.html", "v2.html"))
-    menu = page.locator(".lf-version-menu")
-    panel = page.locator(".lf-thread-panel")
-    line = page.locator(".lf-shortcut-bar")
-    # Hold a desktop page size so opening the menu changes only the active keyboard scope.
-    resized(page, 1200, 900)
-    # Every one of them live on the page, which is what makes the suspension below the
-    # mode's rather than the rows' own liveness.
-    for word in ["threads", "page down / up"]:
-        expect(line).to_contain_text(word)
-    page.keyboard.press("g")
-    expect(line).to_contain_text("versions")
-    page.keyboard.press("Escape")
-
-    open_versions(page)
-    expect(menu).to_be_visible()
-    row = page.locator('.lf-version-row[data-lf-version="2"]')
-    expect(row).to_be_focused()
-    # The line narrows to the menu's own keys with the page's gone from it, which is the
-    # same claim the dispatcher reads — one statement, both surfaces.
-    expect(line).to_contain_text("walk — marking changes")
-    expect(line).to_contain_text("open that version")
-    for word in ["threads", "page down / up", "design mode"]:
-        expect(line).not_to_contain_text(word)
-
-    # The exemption: the progressive help route still lists the mode standing over the
-    # page. The expanded shortcut bar stands beside the menu, and the reference is a
-    # modal, so entering it dismisses the menu as the platform dismisses any auto popover
-    # and does not rebuild it. Reopening is what stands the mode up again, and the user is
-    # back on the row they left, since a scope is where focus is and the overlay takes the
-    # focus.
-    expect(line).to_contain_text("more")
-    page.keyboard.press("?")
-    expect(menu).to_be_visible()
-    page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_be_visible()
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "In the versions menu"
-    )
-    expect(menu).to_be_hidden()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(menu).to_be_hidden()
-
-    open_versions(page)
-    expect(menu).to_be_visible()
-    expect(row).to_be_focused()
-    expect(line).to_contain_text("walk — marking changes")
-
-    page.keyboard.press("t")  # would raise the panel and walk focus out of the menu
-    page.keyboard.press("c")  # would raise it and put focus in its box
-    expect(panel).to_be_hidden()
-    expect(row).to_be_focused()
-    expect(menu).to_be_visible(), "a page key closed the menu it was suspended by"
-
-    # And with the mode down the same key reaches the page, so what stopped it was the menu
-    # standing over the page rather than the key being broken.
-    page.keyboard.press("Escape")
-    page.keyboard.press("Escape")
-    expect(menu).to_be_hidden()
-    page.keyboard.press("t")
-    expect(panel).to_be_visible()
-    expect(page.locator(".lf-thread-summary").first).to_be_focused()
-
-
 def clearance_page(browser, serve):
     """One commented passage between spacers, and a way to stand its bottom edge
-    `offset` pixels below the top of the shortcut bar's scroll padding."""
+    `offset` pixels below the top of the panel's scroll padding at the foot."""
     source = leaf_page(
         "Bottom clearance",
         """
@@ -4482,10 +3922,10 @@ def clearance_page(browser, serve):
 def test_thread_travel_keeps_its_passage_above_the_bottom_reading_clearance(
     browser, serve
 ):
-    """Anchor travel treats the bottom toolbar's scroll padding as covered space.
+    """Anchor travel treats the panel's scroll padding at the foot as covered space.
 
     A passage can be geometrically inside the viewport while its last line is under the
-    shortcut bar. The control places it just above that band first, proving travel leaves
+    panel. The control places it just above that band first, proving travel leaves
     a readable destination alone, then inside the band, where the same public thread walk
     must move it back into the usable reading area.
     """
@@ -4522,7 +3962,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     """The walk above travels for this geometry; a press on the same words does not,
     because the user's hand is already on them and the card fits beside them."""
     page, place_bottom = clearance_page(browser, serve)
-    # 10px into the band keeps the line's middle, where the press lands, off the bar.
+    # 10px into the band keeps the line's middle, where the press lands, off the panel.
     covered = place_bottom(10)
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-page-thread")).to_be_focused()
@@ -4567,167 +4007,28 @@ def test_a_pinned_row_opens_its_card_clear_of_the_passage(browser, serve):
     page.evaluate("() => document.scrollingElement.scrollBy(0, 900)")
     rendered(page)
     assert page.locator(".lf-margin-preview").evaluate(
-        "card => card.getBoundingClientRect().bottom"
-        " <= document.querySelector('.lf-banner').getBoundingClientRect().bottom"
+        "card => card.getBoundingClientRect().bottom <= 0"
     )
 
 
 def test_a_version_published_under_an_open_menu_reaches_it(browser, serve):
-    """An open menu keeps its row snapshot and focus until dismissal refreshes it."""
+    """A version published while the Versions list stands open joins it in place, and
+    the user stays on the row they stood on."""
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, INLINE_PAGE, "two")
     page = open_page(browser, url, pin=True)
-    menu = page.locator(".lf-version-menu")
-    expect(page.locator(".lf-version-row")).to_have_count(2)
-
-    # Popover's deferred toggle handler places its initial focus. Let that
-    # arrival finish before choosing a different row to keep through the update.
-    page.evaluate(
-        """() => document.querySelector('.lf-version-menu').addEventListener(
-          'toggle', () => { window.__lfVersionMenuOpened = true; }, { once: true }
-        )"""
-    )
-    banner_control(page, ".lf-version").click()
-    expect(menu).to_be_visible()
-    page.wait_for_function("window.__lfVersionMenuOpened === true")
-    focused_row = page.locator(".lf-version-row").first
+    rows = panel_menu(page, "versions").locator(".lf-fp-version")
+    expect(rows).to_have_count(2)
+    focused_row = rows.first.locator(".lf-fp-item")
     focused_row.focus()
     focused_row.evaluate("row => window.__lfFocusedVersionRow = row")
     _publish(serve.page_dir, 3, INLINE_PAGE, "three")
     told(page)  # the poll that carries it has been and gone
-    # Deferred, so the walk the user is in the middle of is undisturbed.
-    expect(page.locator(".lf-version-row")).to_have_count(2)
-    assert focused_row.evaluate("row => row === window.__lfFocusedVersionRow")
-    expect(focused_row).to_be_focused()
-
-    page.keyboard.press("Escape")
-    expect(menu).to_be_hidden()
-    # Dismissal applies the deferred update without another publication.
-    expect(page.locator(".lf-version-row")).to_have_count(3)
-    expect(page.locator(".lf-version-row").first).to_contain_text("v3 (latest version)")
-
-
-def test_dismissing_versions_during_thread_upgrade_preserves_the_new_version(
-    browser, serve
-):
-    """Menu dismissal paints rows without overwriting an in-flight state application."""
-    url = serve(
-        INLINE_PAGE,
-        layer_registry={
-            "lf-menu-preparation": {
-                "description": "A thread widget with controlled asynchronous preparation.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "data",
-                "x-upgrade": True,
-                "x-example": '<lf-menu-preparation id="example"><pre>Prepared</pre></lf-menu-preparation>',
-            }
-        },
-        layer_widgets={
-            "lf-menu-preparation.js": """
-import {once, widgetController} from '/runtime/widget-api.js';
-customElements.define('lf-menu-preparation', class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    widgetController(this).present(
-      new Promise(resolve => { window.finishMenuPreparation = resolve; }),
-    );
-  }
-});
-"""
-        },
+    expect(rows).to_have_count(3)
+    expect(rows.first).to_contain_text("v3")
+    assert page.evaluate(
+        "() => document.activeElement === window.__lfFocusedVersionRow"
     )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "version-question",
-            "author": "user",
-            "revision": 1,
-            "text": "Please prepare the next version.",
-        },
-    )
-    _publish(serve.page_dir, 2, INLINE_PAGE, "two")
-    page = open_page(browser, url, pin=True)
-    menu = page.locator(".lf-version-menu")
-    banner_control(page, ".lf-version").click()
-    expect(menu).to_be_visible()
-
-    # The first read sees both the publication and the reply. Hold any crossed read
-    # so a second application cannot repair version facts corrupted by dismissal.
-    reads = []
-
-    page.route("**/api/state", lambda route: reads.append(route))
-    with page.expect_request("**/api/state"):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "parent": "version-question",
-                "author": "agent",
-                "revision": 1,
-                "text": "Preparing the update.",
-                "markup": '<lf-menu-preparation id="version-preparation"><pre>Prepared</pre></lf-menu-preparation>',
-            },
-        )
-        _publish(serve.page_dir, 3, INLINE_PAGE, "three")
-    holding(page, reads, 1, "the version-menu state read")
-    assert reads
-    reads[0].continue_()
-    page.wait_for_function("() => typeof window.finishMenuPreparation === 'function'")
-    expect(page.locator(".lf-version-row")).to_have_count(2)
-    try:
-        page.keyboard.press("Escape")
-        expect(menu).to_be_hidden()
-        expect(page.locator(".lf-version-row")).to_have_count(3)
-    finally:
-        page.evaluate("() => window.finishMenuPreparation()")
-    told(page)
-    expect(page.locator(".lf-version-row").first).to_contain_text("v3 (latest version)")
-
-
-def test_comparison_selection_moves_before_its_documents_finish_loading(browser, serve):
-    """The selected comparison follows the keyboard immediately while its result loads."""
-    v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
-    v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
-    url = serve(INLINE_PAGE)
-    _publish(serve.page_dir, 2, v2, "reworded the neighbour")
-    _publish(serve.page_dir, 3, v3, "reworded the compound")
-    page = open_page(browser, url.replace("v1.html", "v3.html"))
-
-    compare_with(page, 1)
-    expect(page.locator(".lf-ins-block")).to_have_count(2)
-    open_versions(page)
-    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-    held = []
-    view_request = re.compile(r"/api/view\?")
-    page.route(view_request, lambda route: held.append(route))
-
-    with page.expect_request(view_request):
-        page.keyboard.press("ArrowUp")
-    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
-    holding(page, held, 1, "the comparison document")
-    assert held, "the comparison document was not requested"
-    v1_compare = page.locator('.lf-version-diff[data-lf-version="1"]')
-    v2_compare = page.locator('.lf-version-diff[data-lf-version="2"]')
-    expect(v1_compare).to_have_attribute("aria-checked", "false")
-    expect(v2_compare).to_have_attribute("aria-checked", "true")
-    expect(v2_compare).to_have_attribute("aria-busy", "true")
-    expect(page.locator(".lf-ins-block")).to_have_count(0)
-
-    # The selection, not only the settled marks, is the menu's state. Reopening
-    # while its documents are held returns to the row the user just selected.
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-version-menu")).to_be_hidden()
-    open_versions(page)
-    expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
-
-    held[0].continue_()
-    expect(v2_compare).not_to_have_attribute("aria-busy", re.compile(r".+"))
-    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
-    expect(page.locator(".lf-ins-block")).to_have_count(1)
 
 
 def test_pending_comparison_moves_with_a_live_revision(browser, serve):
@@ -4737,7 +4038,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, v2, "reworded the neighbour")
     page = open_page(browser, live_url(url))
-    expect(page.locator(".lf-version")).to_have_text("Showing v2")
+    wait_for_revision(page, 2)
 
     held = []
     requests = []
@@ -4753,19 +4054,11 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
     page.route(view_request, hold_first_view)
     released = False
     try:
-        open_versions(page)
-        expect(page.locator('.lf-version-row[data-lf-version="2"]')).to_be_focused()
-        page.keyboard.press("ArrowDown")
-        expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
+        compare_with(page, 1)
         holding(page, held, 1, "the comparison view")
-        expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_attribute(
-            "aria-busy", "true"
-        )
-        page.keyboard.press("Escape")
 
         _publish(serve.page_dir, 3, v3, "reworded the compound")
         wait_for_revision(page, 3)
-        expect(page.locator(".lf-version")).to_have_text("Showing v3")
         expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
         expect(page.locator(".lf-ins-block")).to_have_count(2)
         assert len(requests) >= 2, "the selected base was not restored after activation"
@@ -4774,7 +4067,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
         with page.expect_response(held[0].request.url):
             held[0].continue_()
         released = True
-        expect(page.locator(".lf-version")).to_have_text("Showing v3")
+        rendered(page)
         expect(page.locator(".lf-ins-block")).to_have_count(2)
     finally:
         if held and not released:
@@ -4790,16 +4083,8 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     button can name one version — so the menu is where it stops being one, and every row
     older than this one offers itself.
 
-    The rest is what the user can tell afterwards: the closed control says a
-    comparison is active, and reopening says which one, on the rows it spans.
-
-    From the keyboard the base is the row the walk stands on, so the marks follow the
-    walk: the note says in words what a version changed and the page says it in the
-    passages, without the user leaving the list to find out. That is also the whole of
-    the way off, the page having no key for a comparison. It costs nothing to find,
-    because the two ends of the walk are the two versions the user already has in mind:
-    an open lands on the current base, and stepping toward the latest ends on the version being read,
-    which is comparable with nothing."""
+    The rest is what the user can tell afterwards: reopening says which comparison
+    stands, and its Compare pressed again is the way off."""
     v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
     v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
     url = serve(INLINE_PAGE)
@@ -4817,88 +4102,27 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(page.locator(".lf-ins-block")).to_have_count(2)
     expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-ins-block\b"))
 
-    # The closed face keeps its stable address while the comparison remains in the
-    # control's accessible name and active treatment.
-    picker = page.locator(".lf-version")
-    expect(picker).to_have_text("Showing v3")
-    expect(picker).to_have_class(re.compile(r"\bon\b"))
-    expect(picker).to_have_attribute(
-        "aria-label", "v3: comparing with v1; open versions"
+    # Reopened, the list says which comparison stands.
+    menu = panel_menu(page, "versions")
+    expect(menu.get_by_role("menuitem", name="Compare with v1")).to_have_attribute(
+        "aria-pressed", "true"
     )
-    banner_control(page, ".lf-version").click()
-    expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_have_attribute(
-        "aria-checked", "true"
+    expect(menu.get_by_role("menuitem", name="Compare with v2")).to_have_attribute(
+        "aria-pressed", "false"
     )
-    expect(page.locator('.lf-version-diff[data-lf-version="2"]')).to_have_attribute(
-        "aria-checked", "false"
-    )
-    # And the span it covers, which is what a base three versions back makes worth
-    # saying: the rail runs from it to the version being read.
-    assert page.evaluate(
-        "() => [...document.querySelectorAll('.lf-version-row.lf-compared')]"
-        ".map(r => r.dataset.lfVersion)"
-    ) == ["3", "2", "1"]
 
-    # Pressing the current base again is the way off, and clears the marks and state.
-    page.locator('.lf-version-diff[data-lf-version="1"]').click()
+    # Pressing the current base again is the way off, and clears the marks.
+    menu.get_by_role("menuitem", name="Compare with v1").click()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
-    expect(picker).to_have_text("Showing v3")
-    expect(picker).not_to_have_class(re.compile(r"\bon\b"))
-    expect(picker).to_have_attribute("aria-label", "v3: open versions")
 
-    # Compare is still reachable by keyboard, a Tab off the row it belongs to, and still the
-    # toggle the pointer presses.
-    banner_control(page, ".lf-version").click()
-    page.locator('.lf-version-row[data-lf-version="1"]').focus()
-    page.keyboard.press("Tab")
-    expect(page.locator('.lf-version-diff[data-lf-version="1"]')).to_be_focused()
+    # Compare is reachable by keyboard too: the walk stands on it after its version.
+    menu = panel_menu(page, "versions")
+    menu.locator(".lf-fp-version").filter(has_text="v1").locator(".lf-fp-item").focus()
+    page.keyboard.press("ArrowDown")
+    compare = menu.get_by_role("menuitem", name="Compare with v1")
+    expect(compare).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-ins-block")).to_have_count(2)
-
-    # And the keyboard's way off, which is the walk: an open lands on the base the marks
-    # came from rather than on the version being read, so the user starts at one end of
-    # the span the rail draws and steps toward the latest to the other, where nothing is older to
-    # compare against. Landing on the version being read instead would put the base a
-    # press away from moving under them.
-    open_versions(page)
-    expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    page.keyboard.press("ArrowUp")
-    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
-    expect(page.locator(".lf-ins-block")).to_have_count(0)
-    page.keyboard.press("Escape")
-
-    # And the walk, which is the same series of comparisons made by standing on the rows
-    # rather than by naming a base: each step marks what changed since the row it lands
-    # on, and the list stays up while the page marks behind it — the user is reading
-    # the note and the passages together.
-    menu = page.locator(".lf-version-menu")
-    open_versions(page)
-    expect(page.locator('.lf-version-row[data-lf-version="3"]')).to_be_focused()
-    expect(page.locator(".lf-ins-block")).to_have_count(0)
-
-    page.keyboard.press("ArrowDown")
-    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
-    expect(page.locator(".lf-ins-block")).to_have_count(1)
-    expect(menu).to_be_visible()
-
-    page.keyboard.press("ArrowDown")
-    expect(page.locator(".lf-ins-block")).to_have_count(2)
-    expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-ins-block\b"))
-    expect(page.locator(".lf-version")).to_have_text("Showing v3")
-
-    # Back up, one version at a time: the earlier base's marks go with it rather than
-    # standing beside the new one's, which is what a comparison being one base means.
-    page.keyboard.press("ArrowUp")
-    expect(page.locator(".lf-ins-block")).to_have_count(1)
-    expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
-
-    # And up onto the version being read, which is no comparison — the way off, on the
-    # row an open lands on when no comparison is active.
-    page.keyboard.press("ArrowUp")
-    expect(page.locator(".lf-ins-block")).to_have_count(0)
-    expect(page.locator(".lf-version")).to_have_text("Showing v3")
-    expect(menu).to_be_visible()
 
 
 def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
@@ -5024,10 +4248,8 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
     expect(outlet.locator(".lf-page-thread leaf-text")).not_to_be_focused()
     expect(details).not_to_have_attribute("open", "")
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, True)
-    expect(page.locator(".lf-thread .lf-quote")).to_have_text("§ app.py · file")
-    expect(page.locator(".lf-thread")).to_contain_text("Review this file as a whole.")
+    expect(thread_quote(page, comments[0]["id"])).to_have_text("§ app.py · file")
+    expect(page.locator(PANEL_THREAD)).to_contain_text("Review this file as a whole.")
 
     # A thread on a line of the file still unloaded is named as its drawn row would be,
     # not by the widget holding it.
@@ -5046,9 +4268,13 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             },
         },
     )
-    expect(page.locator(".lf-thread")).to_have_count(2)
+    told(page)
+    expect_open_threads(page, 2)
     expect(page.locator("lf-diff [data-line-type]")).to_have_count(0)
-    quotes = page.locator(".lf-thread .lf-quote").all_text_contents()
+    quotes = [
+        thread_quote(page, thread).inner_text()
+        for thread in comment_ids(serve.page_dir)
+    ]
     assert sorted(" ".join(quote.split()) for quote in quotes) == [
         "§ app.py · file",
         "§ app.py · new line 1",
@@ -5229,13 +4455,10 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     page = open_page(browser, url)
     patch_tab = page.locator("#patch-tab")
     expect(patch_tab).to_have_attribute("hidden", re.compile(".*"))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, True)
-    page.locator(".lf-thread-summary").click()
-    quote = page.locator(".lf-threads > .lf-thread .lf-quote")
+    quote = thread_quote(page, comment_ids(serve.page_dir)[0])
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
 
-    quote.click()
+    on_the_page(page)
 
     expect(patch_tab).not_to_have_attribute("hidden", re.compile(".*"))
     added = page.locator(
@@ -5307,7 +4530,8 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
 
     All file evidence is checked first; opening one file renders only that file. An existing line thread on a
     different unopened file remains attached at its disclosure; pressing its quote
-    renders that file before ordinary exact-line navigation resumes.
+    renders that file before ordinary exact-line navigation resumes. The press is the
+    thread's On the page, in the panel.
     """
     authored = leaf_page(
         "deferred diff",
@@ -5353,16 +4577,10 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
 
     if activation == "keyboard":
         resized(page, 400, 900)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, True)
-    page.locator(".lf-thread-summary").click()
-    quote = page.locator(".lf-threads > .lf-thread .lf-quote")
+    [thread] = comment_ids(serve.page_dir)
+    quote = thread_quote(page, thread)
     expect(quote).not_to_have_class(re.compile(r"\bdetached\b"))
-    if activation == "keyboard":
-        quote.focus()
-        page.keyboard.press("Enter")
-    else:
-        quote.click()
+    on_the_page(page, key=activation == "keyboard")
     page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
     search = page.locator("lf-diff .lf-diff-search input")
     if superseded:
@@ -5373,24 +4591,35 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     expect(second).to_be_in_viewport()
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(1)
     reply = page.locator("lf-diff .lf-diff-thread-outlet leaf-text")
+    # The travel lands the user in the thread beside its line.
+
+    def landed():
+        page.wait_for_function(
+            """() => {
+              const chain = [];
+              for (let at = document.activeElement; at; at = at.shadowRoot?.activeElement)
+                chain.push(at);
+              return chain.some((node) =>
+                node.closest?.('.lf-diff-thread-outlet .lf-page-thread'));
+            }"""
+        )
+
     if superseded:
         expect(search).to_be_focused()
-        quote.click()
-    expect(reply).to_be_focused()
+        thread_quote(page, thread)
+        on_the_page(page)
+    landed()
     expect(second).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
 
     # Closing an already-loaded file removes its outlet too. Both return gestures
-    # must rebuild that outlet before transferring keyboard focus to its reply.
+    # must rebuild that outlet before transferring keyboard focus to its thread.
     details = page.locator("lf-diff .lf-diff-file > details").nth(1)
     details.evaluate("element => { element.open = false; }")
     expect(reply).to_have_count(0)
-    if activation == "keyboard":
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page, True)
-    quote.focus()
-    page.keyboard.press("Enter")
-    expect(reply).to_be_focused()
+    thread_quote(page, thread)
+    on_the_page(page, key=True)
+    landed()
     assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
 
@@ -5415,7 +4644,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
     expect(first).to_have_count(1)
     page.locator("lf-diff").evaluate("node => { node.tabIndex = -1; node.focus(); }")
     page.keyboard.press("]")
-    expect(page.locator(".lf-walk-position")).to_have_text("Hunk 1 of 1")
+    expect_panel_says(page, "Hunk 1 of 1")
 
     page.keyboard.press("]")
     page.wait_for_function("typeof window.__leafReleaseDeferred === 'function'")
@@ -5601,10 +4830,8 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     context = browser.new_context()
     context.route("**/api/deferred*", refuse)
     page = open_page(browser, url, context=context)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page, True)
-    page.locator(".lf-thread-summary").click()
-    page.locator(".lf-threads > .lf-thread .lf-quote").click()
+    thread_quote(page, comment_ids(serve.page_dir)[0])
+    on_the_page(page)
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )

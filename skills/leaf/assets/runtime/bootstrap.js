@@ -7,11 +7,10 @@
   // not going to produce a different one. `t` is the host key a handover link carries;
   // the server has already answered it with the cookie every later request rides on,
   // so what stays in the address bar is a link the user can copy, share, or screen
-  // without handing out every page on the machine. `lf-chrome` chooses the chrome
-  // once, which prepaint.js has already stored. All four leave before the user sees
-  // them.
+  // without handing out every page on the machine. All three leave before the user
+  // sees them.
   const recovered = arrived.searchParams.has("_leaf-recovered");
-  const marks = ["_leaf-revision", "_leaf-recovered", "t", "lf-chrome"];
+  const marks = ["_leaf-revision", "_leaf-recovered", "t"];
   if (marks.some((mark) => arrived.searchParams.has(mark))) {
     for (const mark of marks) arrived.searchParams.delete(mark);
     history.replaceState(history.state, "", arrived);
@@ -78,9 +77,6 @@
           settings.window ? null : "",
         );
         dress(worn);
-        // A sample keeps no store of its own across loads, so its chrome is the one its
-        // containing page names for it (sample.js), before the runtime builds any.
-        if (settings.chrome) root.lfChrome?.adopt(settings.chrome);
         for (const type of ["pointerdown", "keydown"])
           window.addEventListener(type, enterSample, true);
       };
@@ -132,8 +128,7 @@
       });
     });
   }
-  // A served page draws the live chrome, the floating panel or the banner and the bottom
-  // bar, so the theme reserves its room from the first paint (`html[data-lf-live]`). An export runs the
+  // A served page draws the live chrome, the floating panel, so the theme reserves its room from the first paint (`html[data-lf-live]`). An export runs the
   // runtime without them (prepaint.js).
   root.toggleAttribute("data-lf-live", true);
   const incarnation = script.dataset.lfServer;

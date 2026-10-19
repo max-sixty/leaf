@@ -1,7 +1,4 @@
 import {
-  raiseError
-} from "./bundle-errors.js";
-import {
   aborted,
   commitWidgetDescriptors,
   dataBody,
@@ -17,7 +14,6 @@ import {
 } from "./bundle-media.js";
 import {
   flashDuration,
-  foldBlock,
   motion,
   scrollBehavior
 } from "./bundle-motion.js";
@@ -114,16 +110,12 @@ import {
   adoptRegistry,
   announce,
   answersTouch,
-  ariaShortcuts,
   bindings,
-  buttonCommand,
   checked,
   clampedRow,
   clippedContents,
   clippingAxes,
-  closeNativeLayer,
   commandScope,
-  commandsOn,
   cycledRow,
   declarationFor,
   declareCommandReadiness,
@@ -135,15 +127,11 @@ import {
   growthIsSeen,
   headerInset,
   holdStatus,
-  iconElement,
   iconTemplate,
   inUi,
   inWindowChrome,
   keys,
-  labelOf,
   landingBand,
-  lineOf,
-  live,
   loadShadowRules,
   measure,
   nearestScrollBy,
@@ -157,15 +145,14 @@ import {
   pointerAt,
   pressIsKeyboardActivation,
   projectCommandScope,
+  raiseError,
   randomId,
-  reachedForWords,
   registry,
   repaint,
   reportPageError,
   revealLayer,
   sameLayer,
   seenRect,
-  showNativeLayer,
   shownBox,
   shownRect,
   shownWindow,
@@ -181,8 +168,7 @@ import {
   watchArrivals,
   watchCommandScopes,
   watchOwner,
-  whenNone,
-  word
+  whenNone
 } from "./bundle-page-paint.js";
 import {
   applicationState,
@@ -205,15 +191,12 @@ import {
   cancelRender,
   caretAtKey,
   carriedFrom,
-  deepFocus,
   drawn,
   focusDestination,
   focused,
-  forwardFocus,
   holdFocus,
   holdStanding,
   inputCount,
-  isNativeLayer,
   keeps,
   keepsHidden,
   keepsText,
@@ -225,7 +208,6 @@ import {
   onStanding,
   readCaret,
   recentPlaceInput,
-  releaseFocus,
   renderedOrder,
   renderedParent,
   renderedUnder,
@@ -251,7 +233,6 @@ import {
   moved,
   nothing,
   pendingForParent,
-  ref,
   render,
   repeat,
   sameAnchor,
@@ -308,10 +289,10 @@ function focusedInView() {
   const node = focused();
   return node && !inWindowChrome(node) && seenRect(node, /* @__PURE__ */ new Map()) && !stuckBox(node) ? node : null;
 }
-function placeCandidates({ inherited, named, preferred, visible: visible2 }) {
-  const lead = inherited || named[0] || preferred || visible2[0];
-  const at = visible2.indexOf(lead);
-  const rest = at < 0 ? visible2 : [...visible2.slice(at + 1), ...visible2.slice(0, at + 1)];
+function placeCandidates({ inherited, named, preferred, visible }) {
+  const lead = inherited || named[0] || preferred || visible[0];
+  const at = visible.indexOf(lead);
+  const rest = at < 0 ? visible : [...visible.slice(at + 1), ...visible.slice(0, at + 1)];
   return [...new Set([inherited, ...named, preferred, lead, ...rest].filter(Boolean))];
 }
 function placeCorrection({
@@ -334,12 +315,12 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     owner,
     snapshot: () => ({
       hold: current,
-      references: current?.references.filter(live2) ?? []
+      references: current?.references.filter(live) ?? []
     }),
     sync: ({ hold, references }, paid) => {
       if (current !== hold) return;
       for (const reference of references)
-        if (live2(reference)) reference.contentTop += paid;
+        if (live(reference)) reference.contentTop += paid;
       hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
     }
   };
@@ -353,7 +334,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
   const rendered = (key) => !key ? null : [...scroller.querySelectorAll(items)].find(
     (node) => identity(node) === key && heldBox(node)
   );
-  const live2 = (reference) => {
+  const live = (reference) => {
     if (heldBox(reference.node)) return reference.node;
     const replacement = rendered(reference.key);
     if (replacement) reference.node = replacement;
@@ -380,7 +361,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
   }
   function correct(hold) {
     if (current !== hold || !active()) return false;
-    const reference = hold.references.find(live2);
+    const reference = hold.references.find(live);
     if (!reference) return false;
     const now = heldBox(reference.node).top + scroller.scrollTop;
     const was = reference.contentTop;
@@ -398,7 +379,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
       placeKept(scroller);
     }
     for (const candidate of hold.references) {
-      const node = live2(candidate);
+      const node = live(candidate);
       if (node) candidate.contentTop = heldBox(node).top + scroller.scrollTop;
     }
     hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
@@ -437,25 +418,25 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     };
     const { x, y } = pointerAt();
     const over = x >= band.left && x <= band.right && y >= band.top && y <= band.bottom;
-    const visible2 = nodes.filter((node) => {
+    const visible = nodes.filter((node) => {
       const box = boxes.get(node);
       return node.checkVisibility() && box.width && box.height && box.bottom > topFor(node) && box.top < band.bottom;
     }).sort((a, b) => boxes.get(a).top - boxes.get(b).top);
-    const beginning = visible2.filter((node) => boxes.get(node).top >= topFor(node));
-    const shown = new Set(visible2);
+    const beginning = visible.filter((node) => boxes.get(node).top >= topFor(node));
+    const shown = new Set(visible);
     const pointer = over ? document.elementFromPoint(x, y)?.closest?.(items) : null;
     const focus = focused()?.closest?.(items);
     const named = (recentPlaceInput() === "pointer" ? [pointer, focus] : [focus, pointer]).filter((node) => beginning.includes(node));
     const reading = preferred();
     const candidates = placeCandidates({
       inherited: prior?.references.find(
-        (candidate) => live2(candidate) && shown.has(candidate.node)
+        (candidate) => live(candidate) && shown.has(candidate.node)
       )?.node,
       named,
       preferred: shown.has(reading) ? reading : null,
       visible: beginning
     });
-    const references = [.../* @__PURE__ */ new Set([...candidates, ...visible2])].filter((node) => scroller.contains(node)).map((node) => ({
+    const references = [.../* @__PURE__ */ new Set([...candidates, ...visible])].filter((node) => scroller.contains(node)).map((node) => ({
       node,
       key: identity(node),
       contentTop: node.getBoundingClientRect().top + scroller.scrollTop
@@ -856,7 +837,7 @@ function capturePlace(region = null, blocks = textBlocks()) {
   const column = bounds && readerColumn(bounds, body);
   let named = null;
   const range = document.createRange();
-  const lineOf2 = (block, rect, runs) => {
+  const lineOf = (block, rect, runs) => {
     for (const run of runs) {
       if (quoteFrom(run).length < QUOTABLE) continue;
       const segments = lineAt(run, boxTop, range, block.matches(HEADING));
@@ -874,15 +855,15 @@ function capturePlace(region = null, blocks = textBlocks()) {
     if (stuckBox(block, box) || scrollsAlone(block, box)) continue;
     const section = closestAcross(block, ADDRESSABLE);
     sectioned ??= section && { block, rect, section };
-    line = lineOf2(block, rect, runs);
+    line = lineOf(block, rect, runs);
     if (line) break;
   }
   if (line && column !== null && !spans(line.block, line.rect, column)) {
-    const row2 = { top: boxTop, bottom: line.bottom };
-    for (const [block, rect, runs] of blocksOnScreen(region, blocks, row2)) {
+    const row = { top: boxTop, bottom: line.bottom };
+    for (const [block, rect, runs] of blocksOnScreen(region, blocks, row)) {
       if (block === line.block || stuckBox(block, box) || scrollsAlone(block, box) || !spans(block, rect, column))
         continue;
-      const beside = lineOf2(block, rect, runs);
+      const beside = lineOf(block, rect, runs);
       if (beside && beside.landmark.range.getBoundingClientRect().top < line.bottom) {
         line = beside;
         break;
@@ -931,8 +912,8 @@ var drawnQuote = (view) => {
   return segments.every(({ node }) => drawsLandmark(renderedParent(node))) ? segments : [];
 };
 function landmarkOf(view) {
-  const live2 = focusedPlace(view);
-  if (live2) return { node: live2, top: () => shownBox(live2).top };
+  const live = focusedPlace(view);
+  if (live) return { node: live, top: () => shownBox(live).top };
   const drawn3 = drawnPlace(view);
   if (drawn3) return drawn3;
   const segments = drawnQuote(view);
@@ -1036,11 +1017,11 @@ function declareSide(bridge) {
 }
 function itemHolding(items, node) {
   if (!node) return null;
-  const places2 = items.filter((item) => item.source.kind === "widget").map((item) => ({ item, ...itemPlace(item, items) }));
+  const places = items.filter((item) => item.source.kind === "widget").map((item) => ({ item, ...itemPlace(item, items) }));
   const holds = (element) => element && (element === node || under(node, element));
-  const source = places2.findLast((place2) => holds(place2.source));
+  const source = places.findLast((place2) => holds(place2.source));
   if (source) return source.item;
-  const contexts = places2.filter((place2) => holds(place2.node));
+  const contexts = places.filter((place2) => holds(place2.node));
   return contexts.length === 1 ? contexts[0].item : null;
 }
 function sideOf(node) {
@@ -1086,156 +1067,12 @@ function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
     if (!place2) return dir > 0;
     return renderedUnder(here, place2) || Math.sign(renderedOrder(here, place2)) === -dir;
   });
-  const row2 = dir > 0 ? reach[0] : reach.at(-1);
-  return row2 ? { row: row2, wrapped: false } : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
+  const row = dir > 0 ? reach[0] : reach.at(-1);
+  return row ? { row, wrapped: false } : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
 }
 function heldItem(node = focused()) {
   const item = itemHolding(readItems().all, placeOf(node));
   return itemPlace(item).node;
-}
-
-// runtime/history.js
-var claims = /* @__PURE__ */ new Set();
-var places = /* @__PURE__ */ new Map();
-function readPlace(focus = deepFocus()) {
-  const place2 = placeOf(focus);
-  const selection = getSelection();
-  const range = selection.rangeCount ? pageRange(selection) : null;
-  const ends = range && [
-    [new WeakRef(range.startContainer), range.startOffset],
-    [new WeakRef(range.endContainer), range.endOffset]
-  ];
-  if (ends && selectionBackward(selection, range)) ends.reverse();
-  return {
-    focus: focus && new WeakRef(focus),
-    place: place2 && new WeakRef(place2),
-    caret: readCaret(focus),
-    ends,
-    offset: [scrollX, scrollY]
-  };
-}
-function returnPlace(checkpoint) {
-  const focus = checkpoint.focus?.deref();
-  const place2 = checkpoint.place?.deref();
-  const { caret } = checkpoint;
-  const ends = checkpoint.ends?.map(([ref2, offset]) => [ref2.deref(), offset]);
-  if (focus !== document.body && drawn(focus)) {
-    focusDestination(focus, "return", { caret });
-    if (caret) return;
-  } else if (drawn(place2)) focusDestination(place2, "return");
-  else deepFocus()?.blur();
-  const selection = getSelection();
-  selection.removeAllRanges();
-  if (ends?.every(
-    ([node, offset]) => node && drawn(node.nodeType === 1 ? node : upFrom(node)) && offset <= (node.nodeType === 3 ? node.length : node.childNodes.length)
-  )) {
-    selectEnds(...ends);
-  }
-}
-var writing = false;
-function write(method, state, url) {
-  writing = true;
-  try {
-    history[method](state, "", url);
-  } finally {
-    writing = false;
-  }
-}
-function pushEntry(url, state = null) {
-  write("pushState", state, url);
-}
-function replaceEntry(url, state = history.state) {
-  write("replaceState", state, url);
-}
-function prepareEntry() {
-  const key = window.navigation?.currentEntry?.key;
-  const place2 = readPlace();
-  const offset = place2.offset;
-  const sourceUrl = window.location.href;
-  const sourceState = history.state;
-  return (url, state, replace) => {
-    if (replace) {
-      replaceEntry(url, state);
-      return;
-    }
-    const arrival = [scrollX, scrollY];
-    if (window.location.href !== sourceUrl || history.state !== sourceState)
-      replaceEntry(sourceUrl, sourceState);
-    window.scrollTo({ left: offset[0], top: offset[1], behavior: "instant" });
-    pushEntry(url, state);
-    window.scrollTo({ left: arrival[0], top: arrival[1], behavior: "instant" });
-    if (key) places.set(key, place2);
-  };
-}
-function claimTraversals(claim, { signal } = {}) {
-  claims.add(claim);
-  signal?.addEventListener("abort", () => claims.delete(claim), { once: true });
-}
-var mounted = false;
-function mountHistory({ followFragment, returnToFragment }) {
-  if (mounted) return;
-  mounted = true;
-  window.navigation?.addEventListener("navigate", (event) => {
-    if (!event.destination.sameDocument || !event.canIntercept) return;
-    const url = new URL(event.destination.url);
-    if (event.navigationType !== "replace") {
-      const live2 = new Set(window.navigation.entries().map((entry) => entry.key));
-      for (const key2 of places.keys()) if (!live2.has(key2)) places.delete(key2);
-      const key = window.navigation.currentEntry?.key;
-      if (key) places.set(key, readPlace());
-    }
-    if (event.navigationType === "traverse") {
-      const handler2 = claimed(url) ?? returnToFragment(url);
-      const place2 = places.get(event.destination.key);
-      const mayReturn = retainUserIntent({ available: () => !event.signal.aborted });
-      event.intercept({
-        scroll: "manual",
-        focusReset: "manual",
-        handler: async () => {
-          if (!mayReturn()) return;
-          const scrollers = /* @__PURE__ */ new Set([
-            pageScroller,
-            ...readingRegions().map((region) => region.body)
-          ]);
-          for (const scroller of scrollers)
-            scroller.scrollTo({
-              left: scroller.scrollLeft,
-              top: scroller.scrollTop,
-              behavior: "instant"
-            });
-          await new Promise((resolve) => nextFrame(() => nextFrame(resolve)));
-          if (!mayReturn()) return;
-          let work;
-          mayReturn.handoff(() => {
-            work = handler2?.();
-          });
-          await work;
-          if (!mayReturn()) return;
-          if (!handler2) {
-            if (place2)
-              window.scrollTo({
-                left: place2.offset[0],
-                top: place2.offset[1],
-                behavior: "instant"
-              });
-            else event.scroll();
-          }
-          if (place2) returnPlace(place2);
-        }
-      });
-      return;
-    }
-    if (writing || event.formData || !url.hash) return;
-    const handler = followFragment(url);
-    if (handler) event.intercept({ scroll: "manual", focusReset: "manual", handler });
-  });
-}
-function claimed(url) {
-  for (const claim of claims) {
-    const handler = claim(url);
-    if (handler) return handler;
-  }
-  return null;
 }
 
 // runtime/syntax-languages.js
@@ -1350,18 +1187,18 @@ async function highlightBlocks(root) {
 // runtime/declared-words.js
 var PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some((mark) => mark.paint === name);
-function quietWord(el2, word2) {
+function quietWord(el2, word) {
   const title = el2.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el2.firstChild;
   const existing = el2.querySelector(":scope > .lf-quiet");
   if (existing) {
-    if (existing === seat && existing.textContent === word2) return;
+    if (existing === seat && existing.textContent === word) return;
     existing.remove();
   }
-  if (!word2) return;
+  if (!word) return;
   const span = Object.assign(document.createElement("span"), {
     className: "lf-ui lf-quiet",
-    textContent: word2
+    textContent: word
   });
   span.dataset.lfGen = "1";
   move(el2, span, title ? title.nextSibling : el2.firstChild);
@@ -1480,18 +1317,18 @@ function* elementsIn(root, selector) {
 }
 function markDeclared(root) {
   for (const [key, mark] of Object.entries(registry.$marks)) {
-    const { paint: paint2, authored, message } = mark;
+    const { paint, authored, message } = mark;
     if (!message) continue;
     const tags = tagsDeclaring((entry) => entry[key]);
     for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el2 of elementsIn(root, tag))
-        keeps(el2, paint2, declared === true || mark.presence ? "" : declared);
+        keeps(el2, paint, declared === true || mark.presence ? "" : declared);
     }
     if (authored) {
       for (const el2 of elementsIn(root, `[${authored}]`))
         if (mark.authored_on !== "declared" || tags.includes(el2.localName))
-          keeps(el2, paint2, el2.getAttribute(authored));
+          keeps(el2, paint, el2.getAttribute(authored));
     }
   }
 }
@@ -2283,15 +2120,15 @@ function rememberPassageParts(scope = document, source = ["page", null]) {
     (entry) => entry["x-upgrade"] && !entry["x-verbatim"]
   ))
     for (const root of within(scope, tag)) {
-      const live2 = initialOrigin(root);
-      if (rememberedPassageRoots.has(live2)) continue;
-      rememberedPassageRoots.add(live2);
-      fencePassageParts(live2, [...root.children].map(initialOrigin));
+      const live = initialOrigin(root);
+      if (rememberedPassageRoots.has(live)) continue;
+      rememberedPassageRoots.add(live);
+      fencePassageParts(live, [...root.children].map(initialOrigin));
     }
   for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
-    const live2 = initialOrigin(root);
-    if (rememberedPassageRoots.has(live2)) continue;
-    rememberedPassageRoots.add(live2);
+    const live = initialOrigin(root);
+    if (rememberedPassageRoots.has(live)) continue;
+    rememberedPassageRoots.add(live);
     identifyPreserving(root, [...source, ownerIndex]);
   }
 }
@@ -2808,7 +2645,6 @@ function createWritingResume({
     title: "Resume writing",
     touch: "Resume writing",
     menu: "keys",
-    covering: true,
     when: () => writingPlace !== null,
     run: resume
   };
@@ -2938,11 +2774,11 @@ function bringBackSurfaceOf(node, behavior = scrollBehavior()) {
 }
 
 // runtime/thread/selectors.js
-var THREAD = ".lf-thread, .lf-page-thread, [data-lf-thread-view]";
-var drawnThreadId = (node) => node?.dataset.id ?? node?.dataset.thread ?? null;
+var THREAD = ".lf-page-thread, [data-lf-thread-view]";
+var drawnThreadId = (node) => node?.dataset.thread ?? null;
 var SAYS_IN = `${THREAD}, .lf-thread-seat`;
 var SAY_ROW = ".lf-thread-reply, .lf-say";
-var SAY_BOX = SAY_ROW.split(", ").map((row2) => `:scope > ${row2} ${TEXT_FIELD}`).join(", ");
+var SAY_BOX = SAY_ROW.split(", ").map((row) => `:scope > ${row} ${TEXT_FIELD}`).join(", ");
 
 // runtime/thread/reply-landing.js
 var replyRowOf = (held, control) => {
@@ -3208,9 +3044,9 @@ function holdToRead() {
 var OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 var open = /* @__PURE__ */ new Map();
 var sending = /* @__PURE__ */ new Set();
-function holdsMessageEdit(id, view, panel) {
+function holdsMessageEdit(id, view) {
   const holder = open.get(id);
-  if (!holder || holder.panel !== panel) return false;
+  if (!holder) return false;
   if (holder.view !== null && holder.view !== view) return false;
   holder.view = view;
   return true;
@@ -3219,21 +3055,21 @@ function releaseMessageEdit(id, view) {
   const holder = open.get(id);
   if (holder?.view === view) holder.view = null;
 }
-function openMessageEdit(id, view, panel, thread) {
+function openMessageEdit(id, view, thread) {
   for (const [other, holder] of [...open]) {
     if (other === id || holder.thread !== thread) continue;
     if (holder.view) holder.view.putEditAside();
     else if (!draftHasContent(rewriteContext(other))) open.delete(other);
   }
   const displaced2 = open.get(id)?.view;
-  open.set(id, { view, panel, thread });
+  open.set(id, { view, thread });
   if (displaced2 && displaced2 !== view) displaced2.closeEdit();
 }
 var keptRewrite = (id) => !open.has(id) && !sending.has(id) && draftHasContent(rewriteContext(id));
 var watchRewrite = (id, changed2) => watchDraft(rewriteContext(id), changed2);
 function openMessageEditIn(thread, id) {
   const message = [...thread?.querySelectorAll(".lf-msg") ?? []].find(
-    (node) => (node.dataset.mid ?? node.dataset.event) === id
+    (node) => node.dataset.event === id
   );
   message?.dispatchEvent(new CustomEvent(OPEN_MESSAGE_EDIT));
   return message?.querySelector(`:scope > .lf-msg-body > .lf-msg-editor ${TEXT_FIELD}`) ?? null;
@@ -3242,7 +3078,7 @@ function threadRewrites({
   thread,
   views: views3,
   send,
-  paint: paint2,
+  paint,
   box,
   home,
   opening = () => {
@@ -3260,7 +3096,7 @@ function threadRewrites({
   };
   return {
     edit: {
-      paint: paint2,
+      paint,
       send,
       // The rung above a rewrite is the thread's reply box, where ↑ came from, while it
       // is in view; a thread showing none, as a resolved one or a margin card not
@@ -3274,9 +3110,9 @@ function threadRewrites({
       previous: (id) => lastEditable(id),
       // A rewrite of message `id` opens in `view`. It starts from the words as they
       // stand, so opening one is acting in the thread (`openMessageEdit`).
-      opening: (id, view, panel) => {
+      opening: (id, view) => {
         opening(id);
-        openMessageEdit(id, view, panel, thread());
+        openMessageEdit(id, view, thread());
       },
       reveal: (message, caretLine) => revealEditor(message, caretLine)
     },
@@ -3300,7 +3136,7 @@ var MessageEditor = class {
   #reveal;
   #settling = null;
   #follow;
-  constructor(id, view, { wireInput, said, base: currentBase, send, land: land2, paint: paint2, previous, reveal }) {
+  constructor(id, view, { wireInput, said, base: currentBase, send, land: land2, paint, previous, reveal }) {
     const ctx = rewriteContext(id);
     let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
@@ -3338,7 +3174,7 @@ var MessageEditor = class {
       if (landing) land2();
       this.#stop();
       closeMessageEdit(id, { discard });
-      if (painting) paint2();
+      if (painting) paint();
       if (says) announce(says);
     };
     const close = () => leave(true, {
@@ -3347,7 +3183,7 @@ var MessageEditor = class {
     const putAside = () => {
       if (!unchanged()) return;
       leave(true, { landing: false, painting: false });
-      afterScript(paint2);
+      afterScript(paint);
     };
     this.#putAside = putAside;
     const sync = wireInput(this.input, {
@@ -3373,7 +3209,7 @@ var MessageEditor = class {
           sending.delete(id);
         }
         if (sent) forgetWritingPlace(ctx);
-        paint2();
+        paint();
       },
       rows: [
         {
@@ -3712,7 +3548,7 @@ var authoredMessage = (message) => {
   return prepared;
 };
 var FAILURE_LABEL = "Not answered";
-function messageReading(message, { panel, nativeAuthored = false, reactions, workflows, leaves = null }) {
+function messageReading(message, { nativeAuthored = false, reactions, workflows, leaves = null }) {
   const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? tokenEntry(message.token) : null;
   const kind = isReaction(message) ? "reaction" : message.suggestion ? "suggestion" : "prose";
@@ -3760,7 +3596,6 @@ function messageReading(message, { panel, nativeAuthored = false, reactions, wor
       glyph: token?.glyph ?? "",
       authored: message.body.kind === "authored"
     }),
-    panel,
     nativeAuthored,
     reactions
   });
@@ -3784,17 +3619,13 @@ var MessageView = class {
   present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     this.#model = model;
-    const panel = model.panel;
     if (!prior) {
       this.node.classList.add("lf-msg");
       this.node.dataset.message = model.key;
       this.#header.className = "lf-msg-head";
-      if (panel) this.node.tabIndex = -1;
-      else {
-        this.node.classList.add("lf-ui");
-        this.node.dataset.lfGen = "1";
-        this.node.dataset.lfOffer = "";
-      }
+      this.node.classList.add("lf-ui");
+      this.node.dataset.lfGen = "1";
+      this.node.dataset.lfOffer = "";
       this.node.addEventListener("dblclick", (event) => {
         if (
           /** @type {Partial<Element>} */
@@ -3809,7 +3640,7 @@ var MessageView = class {
       });
       this.node.addEventListener(OPEN_MESSAGE_EDIT, () => this.openEdit());
     }
-    const editing = model.editable && holdsMessageEdit(model.id, this, panel);
+    const editing = model.editable && holdsMessageEdit(model.id, this);
     if (editing && !this.#editor)
       this.#editor = new MessageEditor(model.id, this, {
         wireInput: this.#commands.reply.wireInput,
@@ -3836,7 +3667,7 @@ var MessageView = class {
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
-    keeps(this.node, panel ? "data-mid" : "data-event", model.id);
+    keeps(this.node, "data-event", model.id);
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
@@ -3933,7 +3764,7 @@ var MessageView = class {
     const model = this.#model;
     if (!model?.editable) return false;
     if (!this.#editor) {
-      this.#commands.edit.opening(model.id, this, model.panel);
+      this.#commands.edit.opening(model.id, this);
       this.#commands.edit.paint(this.node);
     }
     this.#editor?.enter();
@@ -3983,9 +3814,23 @@ var MessageView = class {
     this.#stopRead?.();
   }
 };
+function messageHolding(id) {
+  for (const { nodes, body } of authoredMessages.values())
+    for (const node of nodes) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      const element = (
+        /** @type {Element} */
+        node
+      );
+      const kept = element.id === id ? element : element.querySelector(`[id="${CSS.escape(id)}"]`);
+      if (kept) return { element: kept, ...body.document };
+    }
+  return null;
+}
+var addressableAt = (id) => elementById(id) ?? messageHolding(id)?.element ?? null;
 function coordinateLabel(anchor, about) {
   if (about === "design") {
-    const addressable2 = anchor?.section ? elementById(anchor.section) : null;
+    const addressable2 = anchor?.section ? addressableAt(anchor.section) : null;
     const name = addressable2 ? designName(addressable2) : anchor?.section || "the page";
     return anchor?.quote ? `${name} \xB7 \u201C${anchor.quote}\u201D` : name;
   }
@@ -3993,7 +3838,7 @@ function coordinateLabel(anchor, about) {
   if (datum) return anchor?.quote ? `${datum} \xB7 \u201C${anchor.quote}\u201D` : `\xA7 ${datum}`;
   if (anchor?.quote) return `\u201C${anchor.quote}\u201D`;
   if (!anchor?.section) return "";
-  const addressable = elementById(anchor.section);
+  const addressable = addressableAt(anchor.section);
   if (anchor.visual) {
     const part = visualPartLabel(addressable, anchor.visual) ?? anchor.visual;
     return `\xA7 ${addressable ? `${addressableWord(addressable)} \xB7 ${part}` : `${anchor.section} \xB7 ${part}`}`;
@@ -4012,12 +3857,10 @@ watchCommandScopes(() => [
 ]);
 var ELEMENTS = /* @__PURE__ */ Symbol("the scopes of the focused element");
 var PAGE = /* @__PURE__ */ Symbol("the page's own keys");
-var COVERING = /* @__PURE__ */ Symbol("the page's keys inside a covering auxiliary surface");
 var RUNGS = /* @__PURE__ */ Symbol("Escape's fallback ladder");
 var COMMAND_REFERENCE = "command.reference.open";
 var STACK = [
   "command reference",
-  "expanded shortcut bar",
   "page map",
   "go to",
   "response options",
@@ -4035,14 +3878,12 @@ var STACK = [
   "composer",
   "text entry",
   "thread",
-  "panel",
-  COVERING,
   "link",
   "disclosure",
   // The modes keep their own letters here and declare their Escape on the ladder,
   // because a mode is the stance the whole page is in and a surface opened while one
-  // holds is opened inside it: a send made in Design mode opens Threads, and the panel
-  // comes off first.
+  // holds is opened inside it: a view the floating panel opens in Design mode comes off
+  // first.
   "draw mode",
   "design mode",
   PAGE,
@@ -4054,14 +3895,8 @@ var RUNG_LADDER = [
   // the selection, or the target a click captured
   "margin options",
   // the margin entry cluster the user unfolded
-  "drawer",
-  // the drawer that holds the edge
   "floating panel",
   // the menu or view the floating panel opened above its row
-  "narrowing",
-  // the narrowing the user put on the thread list
-  "panel",
-  // the thread panel
   "draw mode",
   // the drawing surface over the page
   "design mode",
@@ -4079,8 +3914,6 @@ var PAGE_COMMANDS = [
   "page.search.repeat",
   "thread.walk",
   "queue.walk",
-  // Scrolling is available in the page and in a covering auxiliary surface, which reuses
-  // the rows marked `covering` while the modal floor suspends the rest of page scope.
   "page.move",
   "scroll.move",
   "reading.align.top",
@@ -4100,9 +3933,6 @@ var PAGE_COMMANDS = [
   "design.mode.enter",
   "annotations.toggle",
   "panel.floating.fold",
-  "chrome.switch",
-  // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the
-  // permanent More control instead of spending a hint slot on it.
   COMMAND_REFERENCE,
   // A real key the browser owns, and one gesture that is not a key at all. Neither says a
   // word for the line, so neither is ever promised as the next press.
@@ -4114,7 +3944,6 @@ var commands = /* @__PURE__ */ new Map();
 var rungs = /* @__PURE__ */ new Map();
 var resolved = null;
 var validated = false;
-var coveringSurface = null;
 var place = (where, name) => {
   if (!where.includes(name))
     throw new Error(`leaf: ${String(name)} has no place in the page's keyboard`);
@@ -4138,14 +3967,14 @@ function pageScope(name, declaration) {
     paintKeys();
   };
 }
-function pageCommand(row2) {
-  place(PAGE_COMMANDS, row2.id);
-  if (commands.has(row2.id)) throw new Error(`leaf: ${row2.id} is declared twice`);
-  commands.set(row2.id, row2);
+function pageCommand(row) {
+  place(PAGE_COMMANDS, row.id);
+  if (commands.has(row.id)) throw new Error(`leaf: ${row.id} is declared twice`);
+  commands.set(row.id, row);
   resolved = null;
   validated = false;
   paintKeys();
-  return row2;
+  return row;
 }
 function pageRung(name, reading) {
   place(RUNG_LADDER, name);
@@ -4180,9 +4009,6 @@ var BACK_OUT = {
   keys: ["Escape"],
   title: () => rung() ? titleOf(rung()) : "Back",
   description: () => rung() ? descriptionOf(rung()) : void 0,
-  line: () => rung() ? lineOf(rung()) : false,
-  lineWhen: () => word(rung()?.lineWhen) !== false,
-  promoteEscape: () => word(rung()?.promoteEscape) !== false,
   when: () => Boolean(rung()),
   run: () => rung().out()
 };
@@ -4190,24 +4016,15 @@ function assemble() {
   const rows = PAGE_COMMANDS.flatMap(
     (id) => commands.has(id) ? [commands.get(id)] : []
   );
-  const unanswered = rows.filter((row2) => !answersTouch(row2)).map((row2) => row2.id);
+  const unanswered = rows.filter((row) => !answersTouch(row)).map((row) => row.id);
   if (unanswered.length)
     throw new Error(
       `leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`
     );
-  const covering = rows.filter((row2) => row2.covering);
   return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
     if (name === RUNGS)
       return { root: () => rung()?.root ?? document, rows: [BACK_OUT] };
-    if (name === COVERING)
-      return {
-        title: "In the covering auxiliary surface",
-        root: coveringAuxiliarySurface,
-        when: () => Boolean(coveringAuxiliarySurface()),
-        at: () => Boolean(coveringAuxiliarySurface()),
-        rows: covering
-      };
     if (typeof name !== "string") return name;
     return scopes.get(name) ?? [];
   });
@@ -4240,10 +4057,6 @@ function touchPresses2() {
 var universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);
 var textEntryScope = () => scopes.get("text entry")?.[0];
 var allButCommandReference = (binding) => !bindings(universalCommandReference()).includes(binding);
-function registerCoveringAuxiliarySurface(read) {
-  coveringSurface = read;
-}
-var coveringAuxiliarySurface = () => coveringSurface();
 
 // runtime/composing/capture.js
 var selectionAnchor = (sel) => anchorForRange(pageRange(sel));
@@ -4267,7 +4080,6 @@ function createPassageSelection({ restore }) {
       description: "Restore the last selected passage",
       touch: "Restore selection",
       menu: "keys",
-      covering: true,
       when: () => previous !== null,
       run: async () => {
         const intent = retainUserIntent();
@@ -4311,9 +4123,9 @@ function snapOut(reading, at, back) {
     from.push(i);
     run += raw[i];
   }
-  const word2 = textUnits.segment(run).containing(boundary);
-  if (!word2 || word2.index >= boundary || !word2.isWordLike) return at;
-  return back ? from[word2.index] : from[word2.index + word2.segment.length - 1] + 1;
+  const word = textUnits.segment(run).containing(boundary);
+  if (!word || word.index >= boundary || !word.isWordLike) return at;
+  return back ? from[word.index] : from[word.index + word.segment.length - 1] + 1;
 }
 function snapSentence(reading, lo, hi) {
   const { raw, fences } = reading;
@@ -4453,7 +4265,7 @@ function walkPosition() {
   };
 }
 var STEPS = Object.freeze(["previous", "next", "first", "last"]);
-var capital = (word2) => word2[0].toUpperCase() + word2.slice(1);
+var capital = (word) => word[0].toUpperCase() + word.slice(1);
 function rowWalk({
   id,
   noun,
@@ -4472,12 +4284,12 @@ function rowWalk({
   });
   const land2 = (pick) => {
     const was = focused();
-    const row2 = pick(rows());
-    if (!row2) return;
-    focusDestination(row2, "move");
-    if (scroll) scrollIntoView(row2, { block: "nearest" });
+    const row = pick(rows());
+    if (!row) return;
+    focusDestination(row, "move");
+    if (scroll) scrollIntoView(row, { block: "nearest" });
     beginWalk(id, noun, position);
-    if (row2 !== was) landed?.(row2);
+    if (row !== was) landed?.(row);
   };
   return [
     {
@@ -4495,10 +4307,6 @@ function rowWalk({
       keys: ["Home", "End"],
       routes: [route("Home", home), route("End", end)],
       title: `${home} / ${end}`,
-      // Home and End answer as they do in any list, so the shortcut bar spends its
-      // slots on the walk and on what the list offers that no other list does; the
-      // command reference and `aria-keyshortcuts` still name them.
-      lineWhen: false,
       run: (binding) => land2((list) => binding === "Home" ? list[0] : list.at(-1))
     }
   ];
@@ -4632,12 +4440,6 @@ function dismissContext(context) {
   session.owner?.changed();
 }
 var dismissReply = (key) => dismissContext(replyContext(key));
-function cancelReplyDictation(surface) {
-  for (const instances of views2.values())
-    for (const composition of instances)
-      if (surface.contains(composition.controls.input))
-        composition.sync.cancelDictation();
-}
 document.addEventListener(
   "click",
   (event) => {
@@ -4661,27 +4463,26 @@ function handOver(target, owner) {
   return owner;
 }
 function carry(target, owner) {
-  const giver = owner.binding;
-  if (target === owner || owner.retired || !target.binding?.take || giver && (!giver.give || owner.row.checkVisibility()))
+  if (target === owner || owner.retired || !target.binding || owner.binding && owner.row.checkVisibility())
     return target;
   const session = compositions.get(owner.context);
   if (session && session.owner !== owner && session.owner !== target) return target;
   return handOver(target, owner);
 }
 var park = null;
-function parkRow(row2) {
+function parkRow(row) {
   if (!park) {
     park = el("div", "lf-reply-park");
     park.hidden = true;
   }
   if (!park.isConnected) move(chromeRoot, park, chromeForeground);
-  move(park, row2, null);
+  move(park, row, null);
 }
 function releaseReplies(surface) {
   for (const { owner } of compositions.values()) {
-    if (!owner?.binding?.give || !surface.contains(owner.row)) continue;
+    if (!owner?.binding || !surface.contains(owner.row)) continue;
     const shown = [...views2.get(owner.context)].find(
-      (view) => view !== owner && view.binding.take && view.controls.input.checkVisibility()
+      (view) => view !== owner && view.controls.input.checkVisibility()
     );
     if (shown) handOver(shown, owner);
     else {
@@ -4703,19 +4504,27 @@ function replyControlDestination(node) {
     return target ? carry(target, composition).controls[part] : null;
   };
 }
-var sendReply = (draftCtx, key, text, owns, actions) => sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
-function wireReply(key, row2, input, send, wireInput, { hint, accessibleName, busy }) {
-  row2.classList.add("lf-comment-box");
+function sendReply(draftCtx, key, text, owns, actions) {
+  let flight = null;
+  const sent = sendMessage(
+    draftCtx,
+    owns,
+    (attempt) => flight = actions.reply(key, text, { attempt })
+  );
+  return sent && { flight };
+}
+function wireReply(key, row, input, send, wireInput, { hint, accessibleName, busy }) {
+  row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
     context: draftCtx,
     key,
-    row: row2,
+    row,
     controls: { input, send },
     binding: null,
     changed: () => composition.binding?.onChange()
   };
-  row2[REPLY_COMPOSITION] = composition;
+  row[REPLY_COMPOSITION] = composition;
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
     hint,
@@ -4733,12 +4542,14 @@ function wireReply(key, row2, input, send, wireInput, { hint, accessibleName, bu
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
     // sent from, read before the send draws, around wherever the send left them
-    // standing. A view whose box stays for the next turn lands the send itself (`sent`).
+    // standing. A view whose box stays for the next turn lands the send itself (`sent`),
+    // told whether the log takes it.
     send: (_text, raw, owns) => {
       const { actions, landSent, sent } = composition.binding;
       const land2 = sendLanding(input);
-      if (!sendReply(draftCtx, key, raw, owns, actions)) return;
-      if (sent) return sent();
+      const reply = sendReply(draftCtx, key, raw, owns, actions);
+      if (!reply) return;
+      if (sent) return sent(reply.flight);
       landSent(closestAcross(input, THREAD));
       land2(focused());
     },
@@ -4761,10 +4572,8 @@ function wireReply(key, row2, input, send, wireInput, { hint, accessibleName, bu
   return composition;
 }
 function attach(composition, binding) {
-  const { context, row: row2, controls: controls3, sync } = composition;
+  const { context, row, controls: controls2, sync } = composition;
   composition.binding = binding;
-  controls3.input.lfRevealReply = binding.reveal ?? void 0;
-  binding.sizes?.observe(row2);
   let instances = views2.get(context);
   if (!instances) views2.set(context, instances = /* @__PURE__ */ new Set());
   instances.add(composition);
@@ -4773,7 +4582,7 @@ function attach(composition, binding) {
     composition.changed();
   };
   sync.load(loadDraft(context) ?? "");
-  const stopMirror = mirrorDraft(controls3.input, sync, context, {
+  const stopMirror = mirrorDraft(controls2.input, sync, context, {
     retained: true,
     mirrored: true,
     onChange: (value) => {
@@ -4782,13 +4591,11 @@ function attach(composition, binding) {
       composition.changed();
     }
   });
-  row2.addEventListener("focusin", begin);
+  row.addEventListener("focusin", begin);
   return ({ handingOn = false } = {}) => {
     if (!handingOn) sync.cancelDictation();
     stopMirror();
-    binding.sizes?.unobserve(row2);
-    delete controls3.input.lfRevealReply;
-    row2.removeEventListener("focusin", begin);
+    row.removeEventListener("focusin", begin);
     instances.delete(composition);
     if (!instances.size) views2.delete(context);
     composition.binding = null;
@@ -4815,49 +4622,44 @@ async function restoreReplyEditing(editing, land2) {
       compositions.delete(context);
   }
 }
-function createReplyView(key, commands2, {
+function createReplyView(key, commands2, redraw, {
   onChange = () => {
   },
   editLast = null,
-  reveal = null,
-  sizes = null,
-  redraw = null,
   hint = "Reply",
   accessibleName = "Reply",
   busy = () => false,
   sent = null
 } = {}) {
   const fresh = () => {
-    const row2 = offer("div", "lf-thread-reply");
+    const row = offer("div", "lf-thread-reply");
     const input = offer(TEXT_FIELD);
     input.name = "reply";
     const send = offer("button", "lf-btn lf-thread-send", "Send");
-    row2.append(input, send);
-    return wireReply(key, row2, input, send, commands2.wireInput, {
+    row.append(input, send);
+    return wireReply(key, row, input, send, commands2.wireInput, {
       hint,
       accessibleName,
       busy
     });
   };
   let composition = fresh();
-  const binding = { ...commands2, onChange, editLast, reveal, sizes, sent };
+  const binding = { ...commands2, onChange, editLast, sent };
   let detach = attach(composition, binding);
-  if (redraw) {
-    binding.give = () => {
-      detach({ handingOn: true });
-      composition = fresh();
-      detach = attach(composition, binding);
-      return redraw;
-    };
-    binding.take = (owner) => {
-      if (standingIn(composition.row)) focused().blur();
-      detach();
-      composition.retired = true;
-      composition = owner;
-      detach = attach(composition, binding);
-      redraw();
-    };
-  }
+  binding.give = () => {
+    detach({ handingOn: true });
+    composition = fresh();
+    detach = attach(composition, binding);
+    return redraw;
+  };
+  binding.take = (owner) => {
+    if (standingIn(composition.row)) focused().blur();
+    detach();
+    composition.retired = true;
+    composition = owner;
+    detach = attach(composition, binding);
+    redraw();
+  };
   return {
     get node() {
       return composition.row;
@@ -4871,7 +4673,7 @@ function createReplyView(key, commands2, {
     // document, `shown`, so the move keeps the user in the row (dom-move.js).
     claim(shown) {
       const owner = compositions.get(composition.context)?.owner;
-      if (binding.take && owner && owner !== composition && !owner.binding && !owner.retired && shown())
+      if (owner && owner !== composition && !owner.binding && !owner.retired && shown())
         binding.take(owner);
     },
     dispose: () => detach()
@@ -4879,12 +4681,8 @@ function createReplyView(key, commands2, {
 }
 
 // runtime/thread/focus.js
-var threadFocusStop = (thread) => thread.querySelector(":scope > summary:not([hidden])") ?? thread;
 function focusThread(thread, cause) {
-  focusDestination(threadFocusStop(thread), cause);
-}
-function forwardToThread(thread) {
-  forwardFocus(threadFocusStop(thread));
+  focusDestination(thread, cause);
 }
 var declaredParts = /* @__PURE__ */ new WeakMap();
 var declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
@@ -4912,19 +4710,14 @@ function threadPart(thread, name) {
 }
 var threadReplyInput = (thread) => {
   const input = thread && threadPart(thread, "reply");
-  return input && (shownBox(input).height || input.lfRevealReply) ? input : null;
+  return input && shownBox(input).height ? input : null;
 };
 function threadFocusDestination(thread, { part = "reply" } = {}) {
-  const summary = thread?.querySelector(":scope > summary");
-  return (part === "thread" ? threadFocusStop(thread) : null) ?? (summary && !thread.hasAttribute("open") ? summary : null) ?? threadReplyInput(thread) ?? threadFocusStop(thread);
-}
-function focusedThread() {
-  const active = focused();
-  return active?.matches?.(THREAD) ? active : null;
+  return (part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread;
 }
 function focusedThreadTarget() {
   const active = focused();
-  return active?.matches?.(".lf-thread-summary") ? active.closest(".lf-thread") : focusedThread();
+  return active?.matches?.(THREAD) ? active : null;
 }
 var heldThread = () => closestAcross(focused(), THREAD);
 var heldThreadId = () => drawnThreadId(heldThread());
@@ -5100,9 +4893,9 @@ function difference(was, now, { progressOpen = false } = {}) {
   const gone = [...before].filter(([at]) => !after.has(at)).map(([, each]) => each);
   const told = (list) => list.filter(({ trigger }) => !arrived.has(trigger)).length;
   news.summaries = told(added) || told(gone);
-  const folding2 = new Set([...added, ...gone].map(({ trigger }) => trigger));
+  const folding = new Set([...added, ...gone].map(({ trigger }) => trigger));
   for (const id of completed)
-    if (folding2.has(id)) {
+    if (folding.has(id)) {
       news.replies += 1;
       news.appended = true;
     }
@@ -5252,8 +5045,7 @@ onStanding((node, cause) => {
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
   const id = drawnThreadId(thread);
-  const title = thread && threadFocusStop(thread);
-  const arrived = id !== null && id !== standing && (cause === "move" || cause === "step" || cause === "press" && title !== thread && node === title);
+  const arrived = id !== null && id !== standing && (cause === "move" || cause === "step");
   standing = id;
   if (arrived) showHeld(id);
 });
@@ -5287,21 +5079,21 @@ var HeldNews = class {
   // news; one drawn before the log is read, or while the server is away, is no baseline
   // either. `row` says whether the seat draws a first-message row the user is not in, in
   // whose place a new thread's notice can stand.
-  hold(reading, { row: row2 }) {
-    const candidate = this.prepare(reading, { row: row2 });
+  hold(reading, { row }) {
+    const candidate = this.prepare(reading, { row });
     candidate.commit();
     return candidate.reading;
   }
   // Required presenters prepare before yielding to package layout. Only the
   // candidate actually painted becomes the baseline for the next comparison.
-  prepare(reading, { row: row2 }) {
+  prepare(reading, { row }) {
     const read = runtime.statePhase === "ready";
     if (!read || !readingIsContinuous()) this.#forget();
     const prior = read ? this.#shown : null;
     const keys2 = new Set(reading.threads.map(({ key }) => key));
     for (const key of this.#threads) if (!keys2.has(key)) this.#threads.delete(key);
     this.#keys = new Map(reading.threads.map(({ id, key }) => [id, key]));
-    if (prior) this.#arrive(prior, reading, row2);
+    if (prior) this.#arrive(prior, reading, row);
     const shown = this.#draw(prior, reading);
     const released = new Map(this.#released);
     if (this.#holding())
@@ -5318,14 +5110,14 @@ var HeldNews = class {
     };
   }
   // Which of the threads new to the seat it holds back.
-  #arrive(prior, reading, row2) {
+  #arrive(prior, reading, row) {
     const arrived = reading.threads.filter(({ key }) => !this.#known.has(key));
     if (arrived.some(({ key }) => gestured(key))) this.#threads.clear();
     else if (arrived.length) {
       const last = prior.threads.at(-1)?.key;
       const after = last ? this.#view(last)?.node : this.#seat;
       const seen = readingIsContinuous() && Boolean(after) && growthAfterIsSeen(after);
-      if (seen && (last || row2)) for (const { key } of arrived) this.#threads.add(key);
+      if (seen && (last || row)) for (const { key } of arrived) this.#threads.add(key);
       else this.#threads.clear();
     }
   }
@@ -5660,37 +5452,6 @@ async function landGesture({ landing, answer, pending }) {
     paintKeys();
   }
 }
-var folding = /* @__PURE__ */ new Map();
-function foldOut(node, repaintThread) {
-  const running = folding.get(node);
-  if (running && node.isConnected) return true;
-  folding.delete(node);
-  running?.played.cancel();
-  const played = foldBlock(node);
-  if (!played) return false;
-  const record = { played };
-  folding.set(node, record);
-  played.finished.then(
-    () => {
-      if (folding.get(node) !== record) return;
-      folding.delete(node);
-      repaintThread();
-    },
-    () => {
-    }
-  );
-  return true;
-}
-function finishFold(node) {
-  const record = folding.get(node);
-  folding.delete(node);
-  record?.played.cancel();
-}
-var hasFolding = (root) => [...folding.keys()].some((node) => node.isConnected && root.contains(node));
-var whenFolded = (root) => Promise.allSettled(
-  [...folding].filter(([node]) => root.contains(node)).map(([, { played }]) => played.finished)
-);
-var isFolding = (node) => folding.has(node);
 
 // runtime/thread/summary-ranges.js
 function summaryRanges(messages, summaries = []) {
@@ -5698,10 +5459,10 @@ function summaryRanges(messages, summaries = []) {
   const byStart = /* @__PURE__ */ new Map();
   const covered2 = /* @__PURE__ */ new Set();
   for (const summary of summaries) {
-    const visible2 = summary.covers.filter((id) => index.has(id));
-    if (!visible2.length) continue;
-    byStart.set(index.get(visible2[0]), summary);
-    for (const id of visible2) covered2.add(id);
+    const visible = summary.covers.filter((id) => index.has(id));
+    if (!visible.length) continue;
+    byStart.set(index.get(visible[0]), summary);
+    for (const id of visible) covered2.add(id);
   }
   const ranges = [];
   for (let at = 0; at < messages.length; at += 1) {
@@ -5761,22 +5522,6 @@ function withPendingProgress(ranges) {
     )
   );
 }
-function unreadBoundaries(ranges) {
-  const boundaries = /* @__PURE__ */ new Map();
-  let precedingUnread = false;
-  for (const range of ranges) {
-    if (range.kind === "summary" && !range.expanded) {
-      precedingUnread = false;
-      continue;
-    }
-    for (const message of range.kind === "message" ? [range.message] : range.messages) {
-      if (message.unread && !precedingUnread) boundaries.set(message.key, "new");
-      if (!message.unread && precedingUnread) boundaries.set(message.key, "end");
-      precedingUnread = Boolean(message.unread);
-    }
-  }
-  return boundaries;
-}
 
 // runtime/thread/reply-continuity.js
 var ReplyContinuity = class {
@@ -5791,19 +5536,19 @@ var ReplyContinuity = class {
   #writing = null;
   #measure = null;
   #sizes = sizeObserver((entries) => {
-    const writing2 = this.#writing;
-    if (!writing2 || !entries.some(
-      ({ target, borderBoxSize }) => target === writing2.input && atLayoutPrecision(borderBoxSize[0].inlineSize) !== writing2.width
+    const writing = this.#writing;
+    if (!writing || !entries.some(
+      ({ target, borderBoxSize }) => target === writing.input && atLayoutPrecision(borderBoxSize[0].inlineSize) !== writing.width
     ) || this.#measure != null)
       return;
     this.#measure = nextRender(() => {
       this.#measure = null;
-      if (this.#writing !== writing2) return;
+      if (this.#writing !== writing) return;
       if (!this.#visible()) return this.#releaseSpace();
-      writing2.width = atLayoutPrecision(
-        parseFloat(getComputedStyle(writing2.input).inlineSize)
+      writing.width = atLayoutPrecision(
+        parseFloat(getComputedStyle(writing.input).inlineSize)
       );
-      this.#allocateWriting(writing2.input, layoutPx(writing2.input.naturalBlockSize));
+      this.#allocateWriting(writing.input, layoutPx(writing.input.naturalBlockSize));
     });
   });
   gap = document.createElement("div");
@@ -5827,20 +5572,19 @@ var ReplyContinuity = class {
     );
   }
   #visible() {
-    return this.#owner.isConnected && (this.#owner.localName !== "details" || this.#owner.open) && this.#row?.isConnected && growthIsSeen(this.#row);
+    return this.#owner.isConnected && this.#row?.isConnected && growthIsSeen(this.#row);
   }
   // `writing` are the boxes the presentation opens, closes or changes the words of, as
   // rewrites do, whose own height changes the extent follows.
-  before(writing2 = []) {
+  before(writing = []) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     this.#presenting = [];
     if (!this.#visible()) return null;
-    this.#presenting = writing2.filter((node) => node.isConnected).map((node) => ({ node, height: node.getBoundingClientRect().height }));
-    const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
-    const extent = parseFloat(body.blockSize);
+    this.#presenting = writing.filter((node) => node.isConnected).map((node) => ({ node, height: node.getBoundingClientRect().height }));
+    const extent = parseFloat(getComputedStyle(this.#owner).blockSize);
     const place2 = offFlowSurfaceOf(this.#owner) ? null : placeKeeper(scrollerFor(this.#owner), {
       items: ".lf-reply-continuity",
-      identity: (node) => node.dataset.id,
+      identity: (node) => node.dataset.thread,
       preferred: () => this.#owner
     });
     return { extent, place: place2, held: place2?.take({ spans: false }) };
@@ -5849,8 +5593,7 @@ var ReplyContinuity = class {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
     this.#presenting = [];
-    if (!this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open)
-      return this.release();
+    if (!this.#row?.isConnected) return this.release();
     if (!this.#visible()) {
       reading?.place?.finish(reading.held);
       return this.#releaseSpace();
@@ -5858,7 +5601,7 @@ var ReplyContinuity = class {
     this.#retainWriting();
     if (reading != null) {
       const { extent, place: place2, held } = reading;
-      const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
+      const body = getComputedStyle(this.#owner);
       const written = presenting.filter(({ node }) => node.isConnected).reduce(
         (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
         0
@@ -5881,8 +5624,7 @@ var ReplyContinuity = class {
     if (!this.#visible()) return this.#releaseSpace();
     this.#departure?.();
     this.#departure = whenNone([this.#row], growthIsSeen, () => {
-      if (!this.#owner.isConnected || this.#owner.localName === "details" && !this.#owner.open)
-        this.release();
+      if (!this.#owner.isConnected) this.release();
       else this.#releaseSpace();
     });
   }
@@ -5986,8 +5728,8 @@ function workingMessage(thread, attention, messages) {
     (workflow) => STOPPED.has(workflow.condition?.kind) && workflow.detail
   );
   const todo = thread.todos.find((open2) => open2.running);
-  const [words, live2, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.running.text, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
-  if (!words || !pending.length && !live2 && !condition) return null;
+  const [words, live, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.running.text, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
+  if (!words || !pending.length && !live && !condition) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
   const work = running?.detail ? running : !running && !todo ? stopped : null;
   const progress = !work && (running || !todo && !stopped) ? pending.at(-1) : null;
@@ -6007,27 +5749,24 @@ function workingMessage(thread, attention, messages) {
     age: timestamp ? ago(timestamp) : null,
     words: words.trim().replace(/\.$/, ""),
     feedback,
-    live: live2,
+    live,
     condition
   });
 }
-function threadReading(thread, surface, commands2, options) {
-  const { visible: visible2 = true, kept = null, grow = false, search = null } = options;
-  const panel = surface === "panel";
+function threadReading(thread, surface, commands2) {
   const resolved2 = Boolean(thread.resolved);
   const settling = Boolean(thread.settling);
   const kind = resolved2 ? "unresolve" : "resolve";
-  const word2 = resolved2 ? "Reopen" : "Resolve";
-  const label = resolved2 ? word2 : "Resolve thread";
+  const word = resolved2 ? "Reopen" : "Resolve";
+  const label = resolved2 ? word : "Resolve thread";
   const attention = threadAttention(thread);
   const asking = thread.user_prompt?.message;
   const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) => message.id === asking ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
   const messages = turns(thread).map(
     (message) => messageReading(message, {
-      panel,
-      nativeAuthored: typeof commands2.nativeAuthored === "function" ? commands2.nativeAuthored(message) : Boolean(commands2.nativeAuthored ?? panel),
-      reactions: panel || surface === "outlet" ? message.reactions : null,
+      nativeAuthored: Boolean(commands2.nativeAuthored),
+      reactions: surface === "outlet" ? message.reactions : null,
       workflows: message.workflows,
       leaves: leaves(message)
     })
@@ -6048,18 +5787,6 @@ function threadReading(thread, surface, commands2, options) {
     id: thread.id,
     attempt: thread.root.attempt ?? null,
     surface,
-    visible: visible2,
-    // A card the panel keeps though its view no longer admits it, and why ("news" or
-    // "draft", thread-list-view.js, `keeping`). While the news that changed it would
-    // move what the user sees it waits behind the card's notice (held-news.js); once
-    // shown, the card keeps the shape it stood in until it goes, so showing it moves
-    // nothing: the room of its reply box, on which an open card's room rests, and the
-    // control row above its first message, where Reopen wears Resolve's face.
-    kept,
-    grow,
-    folding: false,
-    search,
-    quote: panel ? quoteReading(thread, commands2.anchors) : null,
     resolved: resolved2,
     attention,
     // A waiting thread's status is the stage of one message's workflow, which that
@@ -6067,14 +5794,13 @@ function threadReading(thread, surface, commands2, options) {
     // folded row, where no message shows; whose turn it is stays, since no message
     // says that.
     statusFolded: attention?.kind === "waiting" && attention.workflow !== null && messages.some((message) => message.workflow?.id === attention.workflow.id),
-    // Where a resolved thread stands already says it is resolved: under a panel card's
-    // Resolved status, or in a seat's Resolved disclosure (inline.js). Who resolved it is
-    // said only where it was the agent.
+    // Where a resolved thread stands already says it is resolved: in a seat's Resolved
+    // disclosure (inline.js). Who resolved it is said only where it was the agent.
     resolvedBy: thread.resolved?.author === "agent" ? `\u2713 Resolved by ${/** @type {{agent?: string}} */
     thread.resolved.agent}` : "",
     settlement: Object.freeze({
       kind,
-      word: word2,
+      word,
       label,
       pending: settling
     }),
@@ -6085,7 +5811,7 @@ function threadReading(thread, surface, commands2, options) {
     // The thread this reads, and the same reading of another state of it: the one a
     // seat holding news draws, the thread as it drew it (held-news.js).
     source: thread,
-    reread: (held) => threadReading(held, surface, commands2, options)
+    reread: (held) => threadReading(held, surface, commands2)
   });
 }
 function workingView(working) {
@@ -6098,74 +5824,7 @@ function workingView(working) {
     </div>
     <div class="lf-thread-working-words">${working.words}</div>`;
 }
-function navigationSummary(model, control) {
-  if (model.surface !== "panel") return nothing;
-  const pendingTitle = model.titlePending;
-  const title = model.summary.topic;
-  const latest = model.summary.latest;
-  const status = control ?? (model.resolved ? "Resolved" : model.attention?.label || "");
-  const draft = threadHoldsDraft(
-    model.key,
-    model.messages.map(({ id }) => id)
-  );
-  return html`<summary
-    class="lf-thread-summary"
-    data-lf-reflow="text"
-    title=${pendingTitle ? nothing : title}
-  >
-    <span class="lf-thread-topic" data-lf-pending-title=${pendingTitle ? "" : nothing}
-      >${pendingTitle ? "Generating title" : title}</span
-    >
-    <span class="lf-thread-meta">
-      ${draft ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>` : nothing}
-      ${status ? html`<span
-              class=${control && model.news ? "lf-thread-status lf-thread-notice lf-thread-notice-news" : "lf-thread-status"}
-              data-lf-settlement=${control ? "" : nothing}
-              data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
-              data-lf-folded=${model.statusFolded ? "" : nothing}
-              title=${model.attention?.secondary ? `${status} \xB7 ${model.attention.secondary}` : status}
-              >${status}</span
-            >` : nothing}
-      ${model.unreadCount ? html`<span
-              class="lf-thread-notice lf-thread-unread"
-              data-lf-folded
-              aria-label=${`${model.unreadCount} unread`}
-              >${model.unreadCount} unread</span
-            >` : nothing}
-    </span>
-    <span class="lf-thread-trailing">
-      ${latest ? html`<time
-              class="lf-thread-recency"
-              datetime=${latest}
-              title=${`Last message activity ${new Date(latest).toLocaleString()}`}
-              aria-label=${`Last message activity ${model.recency.long}`}
-              >${model.recency.short}</time
-            >` : nothing}
-    </span>
-  </summary>`;
-}
-function readBoundary() {
-  const node = document.createElement("div");
-  node.className = "lf-read-boundary";
-  node.setAttribute("role", "separator");
-  return node;
-}
-function paintBoundary(node, kind) {
-  keeps(node, "data-kind", kind);
-  keeps(
-    node,
-    "aria-label",
-    kind === "new" ? "New messages" : "End of this new section"
-  );
-}
 var nextViewId = 0;
-var replyRowSizes = sizeObserver((entries) => {
-  for (const { target, borderBoxSize } of entries)
-    target.parentElement?.style.setProperty(
-      "--lf-thread-reply-h",
-      `${borderBoxSize[0].blockSize}px`
-    );
-});
 var ThreadView = class {
   #commands;
   #messageCommands;
@@ -6194,32 +5853,17 @@ var ThreadView = class {
   #pendingCovers = /* @__PURE__ */ new Map();
   #pendingOpen = false;
   #checkpoints = /* @__PURE__ */ new Map();
-  #markers = /* @__PURE__ */ new Map();
   #expandedSummaries = /* @__PURE__ */ new Set();
-  #quoteExpanded = false;
   #marginControls = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
-  #titleNews = newsNotice(true);
-  #titleControl = null;
   #continuity = null;
-  #heldNews = null;
-  #replyReservation = null;
   #received = null;
   #headerSlot = null;
   #observedHeader = null;
-  #quoteNode = null;
-  #watchQuote = (node) => {
-    if (this.#quoteNode) this.#sizes.unobserve(this.#quoteNode);
-    this.#quoteNode = node;
-    if (node) this.#sizes.observe(node);
-  };
-  #sizes = sizeObserver(() => {
-    this.#retainHeaderSlot();
-    this.#measureQuote();
-  });
-  constructor(surface, commands2) {
+  #sizes = sizeObserver(() => this.#retainHeaderSlot());
+  constructor(commands2) {
     this.#commands = commands2;
     this.#rewrites = threadRewrites({
       thread: () => this.#model.key,
@@ -6227,11 +5871,7 @@ var ThreadView = class {
         ({ key }) => this.#messages.get(key) ?? []
       ),
       paint: () => this.repaint(),
-      send: (id, text, options) => this.#speak(
-        () => commands2.reply.actions.edit(this.#model.key, id, text, options),
-        options.attempt,
-        "reply"
-      ),
+      send: (id, text, options) => commands2.reply.actions.edit(this.#model.key, id, text, options),
       box: () => this.node.querySelector(SAY_BOX),
       home: () => this.node,
       // Opening a rewrite shows what the thread holds (held-news.js), and unfolds a
@@ -6249,37 +5889,18 @@ var ThreadView = class {
       reaction: { ...commands2.reaction, pressed: () => this.#showNews() },
       edit: this.#rewrites.edit
     };
-    this.node = document.createElement(surface === "panel" ? "details" : "div");
+    this.node = document.createElement("div");
     this.#continuity = new ReplyContinuity(this.node);
-    if (surface === "panel")
-      this.#heldNews = new HeldNews(
-        this.node,
-        () => this,
-        () => {
-          this.repaint();
-          commands2.repaintThread();
-        }
-      );
-    if (surface !== "panel") {
-      this.node.tabIndex = -1;
-      this.node.classList.add("lf-page-thread", "lf-ui");
-      this.node.dataset.lfRuntime = "";
-      this.node.dataset.lfGen = "1";
-      this.node.dataset.lfOffer = "";
-    }
+    this.node.tabIndex = -1;
+    this.node.classList.add("lf-page-thread", "lf-ui");
+    this.node.dataset.lfRuntime = "";
+    this.node.dataset.lfGen = "1";
+    this.node.dataset.lfOffer = "";
     this.#actions.className = "lf-thread-meta-actions";
     this.#transcript.className = "lf-thread-transcript";
     this.#working.className = "lf-thread-working";
     this.#working.dataset.lfAppendTail = "";
     this.#working.setAttribute("aria-live", "polite");
-    if (surface === "panel")
-      new MutationObserver(() => {
-        if (this.node.open) this.#model?.news?.open();
-        else this.#reply?.cancelDictation();
-      }).observe(this.node, { attributeFilter: ["open"] });
-    this.node.addEventListener("animationend", () => {
-      this.node.classList.toggle("grow", false);
-    });
     this.node.addEventListener("lf-reveal", (event) => {
       const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
       const id = message?.dataset.lfSummary;
@@ -6287,37 +5908,21 @@ var ThreadView = class {
       this.#expandedSummaries.add(id);
       this.repaint();
     });
-    if (surface === "panel") {
-      this.node.addEventListener("click", (event) => {
-        const target = (
-          /** @type {Element} */
-          event.target
-        );
-        if (target.closest(".lf-thread-summary")?.parentElement !== this.node) return;
-        event.preventDefault();
-        this.#commands.choose();
-      });
-    }
   }
-  setMarginControls(controls3) {
-    this.#marginControls = controls3;
+  setMarginControls(controls2) {
+    this.#marginControls = controls2;
   }
   get model() {
     return this.#model;
-  }
-  // The next reading draws the thread as it stands, whatever it holds (held-news.js).
-  releaseNews() {
-    this.#heldNews?.release();
   }
   // Local disclosure and draft changes repaint the complete received descriptor,
   // never feed a held presentation back into the news owner's input.
   repaint() {
     this.#paint(this.#received);
   }
-  // What holds the card folded away: its own closed disclosure, a panel card's, or the
-  // closed Resolved disclosure its seat gathers it in (inline.js).
+  // What holds the card folded away: the closed Resolved disclosure its seat gathers it
+  // in (inline.js).
   get #fold() {
-    if (this.node.localName === "details" && !this.node.open) return this.node;
     const group = this.node.parentElement;
     return group?.matches(".lf-resolved-threads:not([open])") ? group : null;
   }
@@ -6332,9 +5937,8 @@ var ThreadView = class {
   // node its transcript shows, which is the working message while one stands, and none
   // while the thread is folded. Progress behind the working message and originals
   // behind a closed checkpoint stand in the transcript unrendered, so the last message
-  // alone may have no box to grow after. A closed panel card draws news in a title row
-  // of one size, and a card folded in its seat's Resolved disclosure draws nothing at
-  // all.
+  // alone may have no box to grow after. A card folded in its seat's Resolved
+  // disclosure draws nothing at all.
   get #foot() {
     if (this.#fold) return null;
     return [...this.#transcript.children].findLast((node) => node.checkVisibility()) ?? null;
@@ -6391,15 +5995,13 @@ var ThreadView = class {
     } : null;
   }
   // HeldNews compares readings; this owner decides whether their changed regions
-  // would move visible words. An idle open panel card permits a suffix append to move
-  // its reply row and later cards. Existing-message changes and active compositions
+  // would move visible words. Existing-message changes and active compositions
   // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
   // absorb changes above it or settlement replacing the reply itself.
   newsMoves({ news, changed: changed2, folds, appendedAtEnd, footFold }) {
     const lands = news.settled ? this.#settlesAt?.() : null;
     if (lands && growthIsSeen(lands)) return true;
-    const fold2 = this.#fold;
-    if (fold2 && fold2 !== this.node) return false;
+    if (this.#fold) return false;
     const pinned = replyPinned(this.#reply?.node);
     const foot = footFold && !folds.messages.some((key) => standsOn(this.#messageNode(key)));
     if (this.#model?.surface === "margin") {
@@ -6410,44 +6012,41 @@ var ThreadView = class {
       const atEnd = (!news.appended || appendedAtEnd) && !news.summaries && [...changed2].every(
         (key) => key === last?.key && (last.provisional || follows)
       ) && (foot || !folds.messages.length && !folds.summaries.length);
-      const writing2 = writingIn(
+      const writing = writingIn(
         this.#reply?.node.querySelector(TEXT_FIELD),
         last?.author === "user" && last.pending
       );
       const turn = news.appended || news.progress > 0 || footFold;
-      return growthIsSeen(this.node) && (!atEnd || writing2 || this.#marginControls?.heldEdge(turn) === "foot");
+      return growthIsSeen(this.node) && (!atEnd || writing || this.#marginControls?.heldEdge(turn) === "foot");
     }
-    const idleFoot = this.#model?.surface === "panel" && this.node.open && !replyIsEditing(this.#model.key) && (appendedAtEnd || news.working && !news.appended) && !news.settled && !news.summaries && !changed2.size && (foot || !folds.messages.length && !folds.summaries.length);
-    const followed = pinned && !news.settled || idleFoot ? this.#foot : null;
+    const followed = pinned && !news.settled ? this.#foot : null;
     return [
       ...[...changed2].map((message) => this.#messageNode(message)),
       (news.appended || news.settled || news.working) && this.#foot
-    ].some((node) => node && node !== followed && growthAfterIsSeen(node)) || !(idleFoot && foot) && [
+    ].some((node) => node && node !== followed && growthAfterIsSeen(node)) || [
       ...folds.messages.map((message) => this.#messageNode(message)),
       ...folds.summaries.map((summary) => this.#summaryNode(summary))
     ].some((node) => node && growthIsSeen(node)) || Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow));
   }
   // What a card draws from beyond its reading: whether a reply to it is being written
-  // and whether it holds a draft, and whether it stands open.
+  // and whether it holds a draft.
   #outside(model) {
     return [
       replyIsEditing(model.key),
       threadHoldsDraft(
         model.key,
         model.messages.map(({ id }) => id)
-      ),
-      this.node.open
+      )
     ];
   }
   // Whether `model` is the reading this card last drew, outside inputs included, so a
-  // list pass that hands it over again need not draw it (thread-list-view.js). The
-  // reading is rebuilt on every pass, so it is compared by content; its `reread` is a
-  // fresh closure over the same reading each time.
+  // pass that hands it over again need not draw it. The reading is rebuilt on every
+  // pass, so it is compared by content; its `reread` is a fresh closure over the same
+  // reading each time.
   shows(model) {
     const prior = this.#received;
     if (!prior || !this.#drawnWith) return false;
-    if (prior.folding || this.#model?.folding || this.#model?.news || isFolding(this.node) || !(this.#heldNews?.settled ?? true))
-      return false;
+    if (this.#model?.news) return false;
     const { reread: _priorReread, ...was } = prior;
     const { reread: _reread, ...now } = model;
     const outside = this.#outside(model);
@@ -6459,29 +6058,10 @@ var ThreadView = class {
   }
   // The caller knows whether this is a publication or a local repaint. Only a
   // publication allocates passive space; disclosures and editors stay intrinsic.
-  #paint(model, { retaining = false, viewChanged = false } = {}, published = false) {
+  #paint(model, _options = {}, published = false) {
     this.#received = model;
     this.#drawnWith = this.#outside(model);
     const prior = this.#model;
-    if (model.surface === "panel") {
-      if (retaining || !model.resolved || model.visible) finishFold(this.node);
-      const folding2 = !retaining && model.resolved && (isFolding(this.node) || prior && !viewChanged && !prior.resolved && !prior.folding && prior.visible && !model.visible && foldOut(this.node, this.#commands.repaintThread));
-      if (folding2) {
-        this.retire();
-        model = Object.freeze({
-          ...prior,
-          id: model.id,
-          folding: true,
-          grow: false,
-          settlement: Object.freeze({ ...prior.settlement, pending: false })
-        });
-        if (standingIn(this.node)) focusDestination(this.#commands.listRoot, "return");
-      }
-    }
-    if (this.#heldNews)
-      model = Object.freeze(
-        this.#heldNews.hold({ threads: [model] }, { row: false }).threads[0]
-      );
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
     const rewritten2 = [...this.#messages.values()].filter((view) => view.editing).map(({ node }) => node);
     const bodyPlace = published ? this.#continuity?.before(rewritten2) : null;
@@ -6505,58 +6085,30 @@ var ThreadView = class {
           this.#expandedSummaries.add(summary.id);
       }
     }
-    if (model.quote?.words !== prior?.quote?.words) this.#quoteExpanded = false;
     this.#model = model;
     const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
-    if (reply || !model.kept) this.#replyReservation = null;
-    else if (!this.#replyReservation && this.#reply?.node.isConnected) {
-      const slot = offer("div", "lf-thread-reply");
-      slot.style.height = `${this.#reply.node.getBoundingClientRect().height}px`;
-      this.#replyReservation = slot;
-    }
-    const replySlot = reply || Boolean(this.#replyReservation);
-    const panel = model.surface === "panel";
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
-    const settlementPlace = marginControls ? "margin" : panel && model.resolved && !replySlot && !model.folding ? "title" : "head";
-    const headerSettlement = settlementPlace === "title";
-    const notice2 = headerSettlement ? this.#titleNews : this.#news;
+    const settlementPlace = marginControls ? "margin" : "head";
+    const notice2 = this.#news;
     if (model.news) notice2.set(model.news);
     const news = model.news ? notice2.node : nothing;
-    this.node.classList.toggle("lf-thread-compact", panel);
-    const hiding = !model.visible && !model.folding && !this.node.hidden;
-    if (hiding) this.retire();
-    keepsHidden(this.node, !model.visible && !model.folding);
-    this.node.classList.toggle("lf-going", model.folding);
-    this.node.classList.toggle("lf-thread", panel && !model.folding);
-    if (model.folding) this.node.classList.toggle("grow", false);
-    else if (!prior && model.grow) this.node.classList.toggle("grow", true);
-    this.node.toggleAttribute("inert", model.folding);
-    keeps(this.node, panel ? "data-id" : "data-thread", model.id);
+    keeps(this.node, "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);
     keeps(this.node, "data-attempt", model.attempt || null);
-    if (!panel) {
-      keeps(this.node, "role", "group");
-      keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
-    }
+    keeps(this.node, "role", "group");
+    keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = model.settlement ? this.#settlement(model, settlementPlace) : null;
-    const titleControl = headerSettlement ? model.news ? news : settlement : null;
-    const successor = model.news ? notice2.node : titleControl;
-    const handedOn = standing2 && standing2 !== successor && [this.#titleControl, this.#news.node, this.#titleNews.node].includes(standing2) ? successor : null;
-    this.#titleControl = titleControl;
-    let threadActions = null;
-    if (settlementPlace === "head" || settlementPlace === "margin") {
-      const actions = marginControls ? [
-        model.news ? notice2.node : null,
-        marginControls.nav,
-        settlement,
-        marginControls.close
-      ].filter(Boolean) : [settlement].filter(Boolean);
-      setChildren(this.#actions, actions);
-      threadActions = actions.length || model.news ? this.#actions : null;
-    }
+    const actions = marginControls ? [
+      model.news ? notice2.node : null,
+      marginControls.nav,
+      settlement,
+      marginControls.close
+    ].filter(Boolean) : [settlement].filter(Boolean);
+    setChildren(this.#actions, actions);
+    const threadActions = actions.length || model.news ? this.#actions : null;
     const summarized = summaryRanges(model.messages, model.summaries);
     const describedRanges = model.resolved ? summarized : withPendingProgress(summarized);
     const summaries = new Set(
@@ -6582,17 +6134,13 @@ var ThreadView = class {
     const rangeState = describedRanges.map((range) => {
       if (range.kind === "message") return range;
       const forced = Boolean(range.summary.protected?.length);
-      const searchMatch = range.messages.some(
-        (message) => model.search?.messages.includes(message.id)
-      );
       return {
         ...range,
-        expanded: forced || searchMatch || this.#expandedSummaries.has(range.summary.id),
-        forced: forced || searchMatch,
-        requiredText: searchMatch ? "Matching messages kept open" : "Messages kept open \xB7 current work"
+        expanded: forced || this.#expandedSummaries.has(range.summary.id),
+        forced,
+        requiredText: "Messages kept open \xB7 current work"
       };
     });
-    const boundaries = panel ? unreadBoundaries(rangeState) : /* @__PURE__ */ new Map();
     const pendingRanges = rangeState.filter((range) => range.summary?.pending);
     this.#pendingOpen = pendingRanges.some((range) => range.expanded);
     const progressByReply = /* @__PURE__ */ new Map();
@@ -6624,16 +6172,10 @@ var ThreadView = class {
       return { key: message.key, node: view.node };
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
-    const markers = /* @__PURE__ */ new Map();
     const placed2 = (key, summary) => {
       const node = messageNodes.get(key);
       keeps(node, "data-lf-summary", summary);
-      const kind = boundaries.get(key);
-      if (!kind) return [node];
-      const marker = this.#markers.get(key) ?? readBoundary();
-      paintBoundary(marker, kind);
-      markers.set(key, marker);
-      return [marker, node];
+      return [node];
     };
     const checkpoints = /* @__PURE__ */ new Map();
     const transcript = [];
@@ -6668,50 +6210,13 @@ var ThreadView = class {
       }
     ) : null;
     this.#checkpoints = checkpoints;
-    this.#markers = markers;
     keeps(
       this.#transcript,
       "data-lf-reflow",
-      panel || model.surface === "margin" ? "append" : null
+      model.surface === "margin" ? "append" : null
     );
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     const body = html`
-      ${model.quote ? html`<header class="lf-thread-head">
-              ${model.quote.localReading ? html`<button
-                      type="button"
-                      class="lf-thread-disclosure lf-quote-expand"
-                      aria-label="Full quote"
-                      hidden
-                      aria-expanded=${String(this.#quoteExpanded)}
-                      aria-controls=${`lf-quote-${this.#viewId}`}
-                      @click=${this.#toggleQuote}
-                    >
-                      Full quote
-                    </button>` : nothing}
-              <blockquote
-                ${model.quote.localReading ? ref(this.#watchQuote) : nothing}
-                id=${`lf-quote-${this.#viewId}`}
-                class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
-                data-expanded=${String(model.quote.localReading && this.#quoteExpanded)}
-                role=${model.quote.found ? "button" : nothing}
-                tabindex=${model.quote.found ? "0" : nothing}
-                title=${model.quote.title ?? nothing}
-                @click=${this.#quotePressed}
-                ${commandsOn("On a comment's quoted passage", [
-      {
-        id: "passage.return",
-        keys: PRESS,
-        description: "Return to the quoted passage on the page",
-        title: "return to the passage",
-        when: () => Boolean(model.quote.found),
-        run: this.#returnToQuote
-      }
-    ])}
-              >
-                <span class="lf-quote-label">${model.quote.label}</span>
-                ${model.quote.outdated ? html`<span class="lf-anchor-status">Earlier data</span>` : model.quote.changed ? html`<span class="lf-anchor-status">Changed</span>` : nothing}
-              </blockquote>
-            </header>` : nothing}
       ${this.#transcript}
       ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
@@ -6720,14 +6225,9 @@ var ThreadView = class {
     setChildLists(transcriptLists);
     render(
       html`
-        ${navigationSummary(
-        model,
-        !headerSettlement ? null : model.news ? model.news.label : settlement && (model.resolvedBy || "Resolved")
-      )}
-        ${titleControl ?? nothing}
         ${model.surface === "margin" ? body : html`<div class="lf-thread-content">${body}</div>`}
-        ${replySlot ? this.#continuity?.gap ?? nothing : nothing}
-        ${reply ? this.#reply.node : this.#replyReservation ?? nothing}
+        ${reply ? this.#continuity?.gap ?? nothing : nothing}
+        ${reply ? this.#reply.node : nothing}
       `,
       this.node
     );
@@ -6735,7 +6235,6 @@ var ThreadView = class {
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     this.#continuity?.after(bodyPlace);
-    this.#measureQuote();
     const toggleFor = (id) => this.node.querySelector(
       `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`
     );
@@ -6744,26 +6243,10 @@ var ThreadView = class {
       succeeded,
       ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)
     ].map(toggleFor).find(Boolean) ?? null : null;
-    const handOn = handedOn ?? toggleHandedOn;
     restoreFocus?.(
-      panel ? handOn && (() => (focusDestination(handOn, "return"), true)) : toggleHandedOn ? () => (focusDestination(toggleHandedOn, "return"), true) : () => this.#commands.landInThread(
-        this.node.querySelector(SAY_BOX) ?? this.node
-      )
+      toggleHandedOn ? () => (focusDestination(toggleHandedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)
     );
     return this.node;
-  }
-  // The same native layout that clips the preview decides whether there is
-  // anything to disclose. Read it synchronously after render, before the frame
-  // paints; resizes update it through this card's shared size observation.
-  #measureQuote() {
-    const quote = this.#quoteNode;
-    const control = quote?.previousElementSibling;
-    if (control?.classList.contains("lf-quote-expand"))
-      keeps(
-        control,
-        "hidden",
-        !this.#quoteExpanded && quote.scrollHeight <= quote.clientHeight ? "" : null
-      );
   }
   #releaseHeaderSlot() {
     if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
@@ -6784,12 +6267,12 @@ var ThreadView = class {
       return;
     }
     const content = this.node.querySelector(":scope > .lf-thread-content");
-    const controls3 = content?.querySelector(":scope > .lf-thread-controls");
+    const controls2 = content?.querySelector(":scope > .lf-thread-controls");
     const first = content?.querySelector(
       ":scope > .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint)"
     );
     const header = first?.querySelector(":scope > .lf-summary-checkpoint > .lf-summary-header") ?? first?.querySelector(":scope > .lf-msg-head");
-    if (!controls3 || !header) {
+    if (!controls2 || !header) {
       this.#releaseHeaderSlot();
       return;
     }
@@ -6855,14 +6338,14 @@ var ThreadView = class {
       box.left,
       ...this.#headerSlot.items.map(({ node }) => node.getBoundingClientRect().right)
     );
-    controls3.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
+    controls2.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (this.#model.news) {
       if (!this.#news.node.hasAttribute("data-lf-room"))
         this.#news.node.dataset.lfRoom = this.#model.news.label;
-      const line = controls3.getBoundingClientRect();
-      const shown = shownRect(controls3, /* @__PURE__ */ new Map());
+      const line = controls2.getBoundingClientRect();
+      const shown = shownRect(controls2, /* @__PURE__ */ new Map());
       if (shown)
-        controls3.style.setProperty(
+        controls2.style.setProperty(
           "--lf-thread-news-visible-end",
           layoutPx(Math.max(0, shown.right - line.left))
         );
@@ -6940,48 +6423,40 @@ var ThreadView = class {
       scrollThreadIntoView(this.node, toggle, "instant");
     }
   }
-  // The panel's resolved title keeps its state label as the reopening action.
-  // Other surfaces use Reopen or the completed check in Resolve's place.
+  // A thread shows Reopen or the completed check in Resolve's place.
   #settlement(model, place2) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
-    const header = place2 === "title";
     const icon = place2 === "head" || place2 === "margin" && !model.resolved;
-    const face2 = `${state.kind} ${place2}`;
-    let button = this.#settlements.get(face2);
+    const face = `${state.kind} ${place2}`;
+    let button = this.#settlements.get(face);
     if (!button) {
       button = offer(
         "button",
-        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${header ? "lf-thread-header-action lf-thread-action" : icon ? "lf-icon-action" : "lf-thread-action"}`
+        `lf-btn ${reopen ? "lf-reopen" : "lf-resolve"} ${icon ? "lf-icon-action" : "lf-thread-action"}`
       );
       button.type = "button";
-      this.#settlements.set(face2, button);
-      const word2 = reopen ? "Reopen" : "Resolve";
-      keys(button, `On a thread's ${word2} button`, [
+      this.#settlements.set(face, button);
+      const word = reopen ? "Reopen" : "Resolve";
+      keys(button, `On a thread's ${word} button`, [
         {
           id: reopen ? "thread.reopen" : "thread.resolve",
           keys: PRESS,
-          description: `${word2} it`,
-          title: word2.toLowerCase(),
+          description: `${word} it`,
+          title: word.toLowerCase(),
           control: button,
-          when: () => !this.#model.settlement?.pending && !this.#model.folding,
+          when: () => !this.#model.settlement?.pending,
           run: this.#settle
         }
       ]);
     }
-    keeps(button, "aria-busy", state.pending && !model.folding);
-    if (header) {
-      keeps(button, "aria-label", `${model.resolvedBy || "Resolved"} \xB7 Reopen thread`);
-      keeps(button, "title", `${model.resolvedBy || "Resolved"} \xB7 Reopen thread`);
-    } else if (icon) {
-      const label = model.folding ? "Resolved" : reopen && model.resolvedBy ? `${model.resolvedBy} \xB7 ${state.label}` : state.label;
+    keeps(button, "aria-busy", state.pending);
+    if (icon) {
+      const label = reopen && model.resolvedBy ? `${model.resolvedBy} \xB7 ${state.label}` : state.label;
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
     }
-    render(
-      header ? model.resolvedBy || "Resolved" : icon ? iconTemplate("check", "lf-action-icon") : state.label,
-      button
-    );
+    render(icon ? iconTemplate("check", "lf-action-icon") : state.label, button);
     return button;
   }
   // What the thread holds, shown by a press on one of its controls. Where showing it
@@ -6991,21 +6466,20 @@ var ThreadView = class {
     if (!this.#model?.news) return;
     const restoreFocus = holdFocus(this.node);
     this.#model.news.open();
-    restoreFocus?.(threadFocusStop(this.node));
+    restoreFocus?.(this.node);
   }
   // A press means what its control drew, and shows what the thread holds; where the
   // thread already stands as the press means, as one resolved elsewhere whose news
   // waits, it sends nothing (actions.js, `settle`).
   #settle = () => {
     const model = this.#model;
-    if (model.folding) return;
     this.#showNews();
     if (!model.resolved) dismissReply(model.key);
     void settleThread({
       parent: () => this.#model.id,
       key: model.key,
       resolved: model.resolved,
-      prepareLanding: model.surface === "panel" ? () => this.#prepareLanding(model.resolved) : model.surface === "margin" ? model.resolved ? null : this.#marginControls?.prepareLanding : this.#prepareInlineLanding,
+      prepareLanding: model.surface === "margin" ? model.resolved ? null : this.#marginControls?.prepareLanding : this.#prepareInlineLanding,
       ...this.#commands.settlement
     }).catch(() => {
     });
@@ -7027,136 +6501,20 @@ var ThreadView = class {
     };
     return { optimistic: () => land2(), reverse: land2 };
   };
-  // Local reading belongs to this retained card, not the event log. Its trigger
-  // stands above the growing quote so a press never moves its own target.
-  #toggleQuote = () => {
-    this.#quoteExpanded = !this.#quoteExpanded;
-    this.repaint();
-  };
-  // A pointer press that ended holding the quote's words took them rather than the trip.
-  #quotePressed = (event) => {
-    if (!pressIsKeyboardActivation(event) && reachedForWords(event.currentTarget))
-      return;
-    this.#returnToQuote();
-  };
-  #returnToQuote = () => {
-    const model = this.#model;
-    if (!model.quote?.anchored || !model.quote.found) return;
-    const travel = this.#commands.travel;
-    travel.scrollToThread(model.id, {
-      part: "reply"
-    });
-  };
   #createReply(model) {
-    const panel = model.surface === "panel";
     const replyChanged = () => {
       if (!this.#reply) return;
       this.#draftFrame ||= nextRender(() => {
         this.#draftFrame = 0;
         if (!this.#reply) return;
-        if (panel || this.#model.resolved) this.repaint();
+        if (this.#model.resolved) this.repaint();
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
-    const { actions } = this.#commands.reply;
-    const commands2 = {
-      ...this.#commands.reply,
-      actions: {
-        ...actions,
-        reply: (key, text, options) => this.#speak(
-          () => actions.reply(key, text, options),
-          options.attempt,
-          "thread"
-        )
-      }
-    };
-    return createReplyView(model.key, commands2, {
+    return createReplyView(model.key, this.#commands.reply, () => this.repaint(), {
       onChange: replyChanged,
-      editLast: this.#rewrites.editLast,
-      reveal: panel ? () => this.#commands.listRoot.revealNavigation(this.#model.id) : null,
-      sizes: panel ? replyRowSizes : null,
-      redraw: () => this.repaint()
+      editLast: this.#rewrites.editLast
     });
-  }
-  #prepareLanding(reopen) {
-    const { travel, listRoot } = this.#commands;
-    const walked = () => listRoot.walkRows().flatMap(({ thread }) => thread ?? []);
-    const mayLand = travel.retainPanelLanding(this.node);
-    const shownCard = () => !this.node.hidden && this.node.isConnected ? this.node : null;
-    let mayRestore = () => false;
-    if (!reopen) {
-      const at = walked().indexOf(this.node);
-      return {
-        optimistic: () => {
-          if (!mayLand()) return false;
-          const kept = walked();
-          const destination = kept[at] ?? kept[at - 1] ?? listRoot;
-          if (destination !== listRoot) {
-            listRoot.revealNavigation(destination.dataset.id);
-            focusThread(destination, "move");
-          } else focusDestination(destination, "move");
-          mayRestore = travel.retainPanelLanding(destination);
-          return true;
-        },
-        reverse: (may = mayRestore) => {
-          if (may() && mayLand.available()) {
-            const card = shownCard();
-            if (card) focusThread(card, "move");
-          }
-        }
-      };
-    }
-    return this.#goWithThread({ part: "reply", always: true });
-  }
-  // A turn of the user's own in a panel thread: `post` sends it and answers the send.
-  // Where the turn takes the thread out of the view the user wrote it in, as a reply
-  // under "Waiting on you" or a rewrite under Resolved does, the view widens to show
-  // it and the user goes with it, landing on `part`, and back if the log refuses
-  // it while they have not acted since.
-  #speak(post, attempt, part) {
-    const landing = this.#model.surface === "panel" ? this.#goWithThread({ part, always: false }) : null;
-    const answer = post();
-    if (landing && answer)
-      void landGesture({
-        landing,
-        answer,
-        pending: () => this.#commands.settlement.pendingEntries().some(({ event }) => event.attempt === attempt)
-      }).catch(() => {
-      });
-    return answer;
-  }
-  // Carrying the user with the thread into the view that holds it as it now stands:
-  // always, for a Reopen, or, for another turn, only where the view leaves it out.
-  #goWithThread({ part, always }) {
-    const { travel } = this.#commands;
-    const mayLand = travel.retainPanelLanding(this.node);
-    const shownCard = () => !this.node.hidden && this.node.isConnected ? this.node : null;
-    let mayRestore = mayLand;
-    const narrowing = travel.retainNarrowing();
-    const leftOut = () => this.node.hidden || this.#commands.listRoot.keepsForWords(this.#model.id);
-    return {
-      optimistic: async () => {
-        if (!mayLand()) return false;
-        if (!always && !leftOut()) return false;
-        const arriving = travel.showThread(this.#model.id, { part });
-        narrowing.replaced();
-        if (!await arriving) return false;
-        const destination = shownCard();
-        if (destination) mayRestore = travel.retainPanelLanding(destination);
-        return Boolean(destination);
-      },
-      // The view the turn widened goes back with the user, while Threads is open and
-      // they have not acted since (the user's decision, 2026-10-07): an undo's intent,
-      // or for a refusal the landing's own, governs the whole reversal, so a later input
-      // keeps both the view and the focus where the user took them.
-      reverse: async (may = null) => {
-        const acting = may ?? mayRestore;
-        if (!mayLand.available() || !acting()) return;
-        await narrowing.restore(
-          () => travel.showThread(this.#model.id, { part: "thread" })
-        );
-      }
-    };
   }
   commit() {
     const wanted = new Set(this.#model.messages.map((message) => message.key));
@@ -7185,9 +6543,7 @@ var ThreadView = class {
   }
   dispose() {
     this.#sizes.disconnect();
-    this.#quoteNode = null;
     this.#releaseHeaderSlot();
-    this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();
     this.#reply?.dispose();
@@ -7271,8 +6627,8 @@ var ThreadSeat = class {
       );
     const prior = this.#shown;
     const box = model.surface === "page" ? this.#response() : null;
-    const row2 = Boolean(box) && prior.response && !box.contains(standing2);
-    const shown = this.#held ? this.#held.hold(model, { row: row2 }) : model;
+    const row = Boolean(box) && prior.response && !box.contains(standing2);
+    const shown = this.#held ? this.#held.hold(model, { row }) : model;
     let foot = shown.response ? this.#response() : null;
     if (shown.news) {
       this.#notice ??= seatNotice();
@@ -7294,10 +6650,7 @@ var ThreadSeat = class {
     for (const descriptor of shown.threads) {
       let view = this.#views.get(descriptor.key);
       if (!view)
-        this.#views.set(
-          descriptor.key,
-          view = new ThreadView(descriptor.surface, this.#commands)
-        );
+        this.#views.set(descriptor.key, view = new ThreadView(this.#commands));
       view.setMarginControls(this.#marginControls);
       view.present(descriptor);
       if (descriptor.surface !== "margin" && descriptor.resolved && !descriptor.reply)
@@ -7388,7 +6741,7 @@ function seatFor(host, commands2, response = () => null, marginControls = null) 
 function seatReading(threads, surface, commands2, response) {
   return Object.freeze({
     threads: Object.freeze(
-      threads.map((thread) => threadReading(thread, surface, commands2, {}))
+      threads.map((thread) => threadReading(thread, surface, commands2))
     ),
     surface,
     response: Boolean(response)
@@ -7611,10 +6964,10 @@ function renderSurfaces(collection, placements, commands2) {
   return { completion, cancel, commit };
   async function prepare() {
     const plans = [];
-    const ordered2 = [...registrations.values()].sort(
+    const ordered = [...registrations.values()].sort(
       (a, b) => Number(a.kind === "page") - Number(b.kind === "page")
     );
-    for (const registration of ordered2) {
+    for (const registration of ordered) {
       const { render: render3, owner } = registration;
       if (registrations.get(owner) !== registration) continue;
       if (!owner.isConnected) {
@@ -7785,7 +7138,7 @@ function renderSurfaces(collection, placements, commands2) {
       }
   }
 }
-var claimed2 = (id) => claimedIds.has(id);
+var claimed = (id) => claimedIds.has(id);
 var heldOut = (id) => [...registrations.values()].some(({ held }) => held?.holds(id));
 function revealHeld(ids) {
   for (const registration of registrations.values()) {
@@ -7813,375 +7166,7 @@ function surfaceFocusTarget(id, { part = "reply" } = {}) {
   return null;
 }
 
-// runtime/keyboard/control-keys.js
-var stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
-var stepsIn = (scope, row2) => [...stepsBefore(scope), labelOf(row2)].filter(Boolean);
-var shortcutIn = (scope, row2) => stepsIn(scope, row2).join(" ");
-function commandShortcut(id) {
-  for (const scope of pageScopes())
-    for (const row2 of scope?.rows ?? [])
-      if (row2.id === id && bindings(row2).length) return shortcutIn(scope, row2);
-  return "";
-}
-function controlRows() {
-  const more = universalCommandReference();
-  const controls3 = /* @__PURE__ */ new Map();
-  for (const scope of pageScopes())
-    for (const row2 of scope?.rows ?? []) {
-      if (row2 === more) continue;
-      const control = word(row2.control);
-      if (!control) continue;
-      const active = live(row2) && bindings(row2).length > 0;
-      const prior = controls3.get(control);
-      if (!prior || !prior.active && active)
-        controls3.set(control, { scope, row: row2, active });
-    }
-  return controls3;
-}
-function controlShortcuts() {
-  const shortcuts = /* @__PURE__ */ new Map();
-  for (const [control, { scope, row: row2, active }] of controlRows())
-    if (active) shortcuts.set(control, stepsIn(scope, row2));
-  return shortcuts;
-}
-function paintCoreControls() {
-  for (const [control, { scope, row: row2, active }] of controlRows()) {
-    if (!("lfKeyTitle" in control.dataset)) control.dataset.lfKeyTitle = control.title;
-    keeps(
-      control,
-      "title",
-      control.dataset.lfKeyTitle + (active ? ` (${shortcutIn(scope, row2)})` : "")
-    );
-    if (buttonCommand(control)) continue;
-    keeps(
-      control,
-      "aria-keyshortcuts",
-      active && !scope.sequence ? ariaShortcuts([row2], false) : null
-    );
-  }
-}
-
-// runtime/banner-toolbar.js
-var EMPTY2 = Object.freeze([]);
-var BANNER_CONTROL_RANK = Object.freeze({
-  session: 10,
-  preview: 20,
-  layer: 30,
-  share: 35,
-  leaves: 40,
-  latest: 50,
-  map: 70,
-  // The page's commands reached by pointer here (touch-controls.js),
-  // among themselves in the shortcut line's order.
-  commands: 75,
-  blanket: 80,
-  versions: 90,
-  keyboard: 95,
-  approval: 100,
-  pageComment: 105,
-  // On me and Threads are the two doors to the one side panel, side by side.
-  queue: 107,
-  threads: 110,
-  // The next steps in the mode or picker the user stands in.
-  steps: 120,
-  commentSelection: 130
-});
-var bannerActions = el("div", "lf-banner-actions");
-var overflowMenu = el("div", "lf-ui lf-banner-menu");
-overflowMenu.id = "lf-banner-menu";
-overflowMenu.setAttribute("popover", "auto");
-overflowMenu.setAttribute("role", "group");
-overflowMenu.setAttribute("aria-label", "More page controls");
-var overflowBtn = el("button", "lf-btn lf-banner-more");
-overflowBtn.type = "button";
-overflowBtn.setAttribute("popovertarget", overflowMenu.id);
-overflowBtn.append(iconElement("more", "lf-action-icon"));
-var SEATS = ["row", "menu", "gesture"];
-var ROW_GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
-var bannerFace = () => getComputedStyle(document.documentElement).getPropertyValue("--lf-banner-face").trim();
-var face = bannerFace();
-var controls2 = /* @__PURE__ */ new Map();
-var sequence = 0;
-var row = EMPTY2;
-var menu = EMPTY2;
-var openSeats = null;
-var perFace = (entry) => typeof entry.seat !== "string";
-var seatOf = (entry) => perFace(entry) ? entry.seat[face] : entry.seat;
-var ordered = () => [...controls2.values()].sort(
-  (left, right) => left.rank - right.rank || left.sequence - right.sequence
-);
-var onOffer = (entry) => entry.present && (!entry.conditional || entry.offered);
-var nearestGesture = () => Math.max(
-  ...row.filter((entry) => seatOf(entry) === "gesture" && onOffer(entry)).map((e) => e.rank)
-);
-var visible = (entry) => {
-  if (!onOffer(entry)) return false;
-  if (seatOf(entry) === "row") return nearestGesture() === -Infinity;
-  return seatOf(entry) !== "gesture" || entry.rank === nearestGesture();
-};
-var currentMenuSeats = () => new Set(menu.filter(visible).map((entry) => entry.control));
-function paintDoor() {
-  const open2 = isNativeLayer(overflowMenu);
-  const news = [
-    ...new Set(
-      menu.filter((entry) => entry.urgent && visible(entry)).map((e) => e.urgent)
-    )
-  ];
-  const name = ["More page controls", ...news].join(", ");
-  keeps(overflowBtn, "aria-label", name);
-  keeps(overflowBtn, "title", name);
-  overflowBtn.toggleAttribute("data-lf-news", news.length > 0);
-  keepsHidden(overflowBtn, !open2 && !menu.some(visible));
-}
-function placeRuns() {
-  setChildLists([
-    [bannerActions, [...row.map((entry) => entry.control), overflowBtn]],
-    [overflowMenu, menu.map((entry) => entry.control)]
-  ]);
-  paintDoor();
-  for (const listener of rowListeners) listener();
-}
-var rowListeners = /* @__PURE__ */ new Set();
-var rowOf = (entry, shortcuts) => {
-  const read = (value) => typeof value === "function" ? value() : value;
-  return Object.freeze({
-    key: entry.key,
-    label: read(entry.row.label),
-    value: read(entry.row.value) ?? "",
-    shortcut: read(entry.row.shortcut) ?? shortcuts.get(entry.focusTarget) ?? EMPTY2,
-    group: entry.row.group,
-    copies: read(entry.row.copies) ?? "",
-    urgent: entry.urgent,
-    gesture: seatOf(entry) === "gesture",
-    disabled: entry.focusTarget.matches(":disabled, [aria-disabled='true']"),
-    press: entry.row.press ?? (() => entry.focusTarget.click())
-  });
-};
-var bannerRows = () => {
-  const shortcuts = controlShortcuts();
-  return ordered().filter(onOffer).map((entry) => rowOf(entry, shortcuts));
-};
-function watchBannerRows(listener) {
-  rowListeners.add(listener);
-  return () => rowListeners.delete(listener);
-}
-placeRuns();
-var opener = null;
-function holdOpener(node = deepFocus()) {
-  if (node === overflowBtn || overflowMenu.contains(node)) return;
-  opener = readPlace(node);
-}
-overflowBtn.addEventListener("pointerdown", () => holdOpener());
-onStanding((node, cause, left) => {
-  if (cause === "drop") return;
-  if (node === overflowBtn) {
-    if (left) holdOpener(left);
-  } else if (!overflowMenu.contains(node)) opener = null;
-});
-function bannerStanding() {
-  const at = deepFocus();
-  return at === overflowBtn || overflowMenu.contains(at) ? opener : null;
-}
-function restoreBannerStanding(held) {
-  opener = null;
-  if (held) returnPlace(held);
-  else releaseFocus();
-}
-function paintControl(entry) {
-  entry.control.classList.toggle("lf-news-shown", entry.conditional && entry.offered);
-  const held = openSeats !== null && seatOf(entry) === "menu";
-  const seated = held ? openSeats.has(entry.control) : visible(entry);
-  entry.control.style.display = seated ? "" : "none";
-  entry.control.style.visibility = seated && visible(entry) ? "" : "hidden";
-}
-function paint() {
-  const held = [...controls2.values()].find((entry) => focused() === entry.focusTarget);
-  placeRuns();
-  for (const entry of controls2.values()) paintControl(entry);
-  if (!held || focused() === held.focusTarget && !overflowMenu.contains(held.control))
-    return;
-  const door = bannerControlDoor(held.control);
-  const place2 = door === held.control ? held.focusTarget : door;
-  if (place2 && focused() !== place2) focusDestination(place2, "return");
-}
-var focusable = (entry) => visible(entry) && entry.focusTarget.tabIndex >= 0 && !entry.focusTarget.matches(":disabled, [aria-disabled='true']") && !entry.control.closest("[inert]") && entry.control.checkVisibility();
-overflowMenu.addEventListener("beforetoggle", (event) => {
-  openSeats = event.newState === "open" ? currentMenuSeats() : null;
-  paint();
-});
-overflowMenu.addEventListener("toggle", (event) => {
-  const open2 = event.newState === "open";
-  paintDoor();
-  const first = open2 && focused() === overflowBtn && menu.find(focusable);
-  if (first) {
-    focusDestination(first.focusTarget, "move");
-    scrollIntoView(first.focusTarget, { block: "nearest" });
-  }
-  if (!open2) opener = null;
-  repaint();
-});
-var offTheRow = (entry) => perFace(entry) && entry.seat.desk === "row";
-function seatControls() {
-  const run = ordered();
-  row = run.filter((entry) => seatOf(entry) !== "menu");
-  const behind = run.filter((entry) => seatOf(entry) === "menu");
-  menu = [...behind.filter(offTheRow), ...behind.filter((entry) => !offTheRow(entry))];
-}
-addEventListener("resize", () => {
-  const next = bannerFace();
-  if (next === face) return;
-  face = next;
-  seatControls();
-  if (openSeats !== null) openSeats = currentMenuSeats();
-  paint();
-});
-function replaceEntry2(prior, next) {
-  controls2.set(next.control, next);
-  row = row.map((entry) => entry === prior ? next : entry);
-  menu = menu.map((entry) => entry === prior ? next : entry);
-}
-function registerBannerControl({
-  key,
-  control,
-  focusTarget = control,
-  rank,
-  seat = "menu",
-  conditional = false,
-  present = true,
-  offered = !conditional,
-  urgent = null,
-  row: menuRow
-}) {
-  const seats2 = typeof seat === "string" ? [seat] : [seat?.desk, seat?.phone];
-  if (!key || !(control instanceof Element) || !Number.isFinite(rank) || !seats2.every((each) => SEATS.includes(each)))
-    throw new TypeError(
-      "A banner control needs a key, native control, numeric rank, and row, menu, or gesture seat, or one for each of desk and phone"
-    );
-  if (!menuRow?.label || !ROW_GROUPS.includes(menuRow.group))
-    throw new TypeError(
-      `Banner control ${key} needs a row: a label and one of the groups ${ROW_GROUPS.join(", ")}`
-    );
-  const byKey = [...controls2.values()].find((entry) => entry.key === key);
-  if (byKey && byKey.control !== control)
-    throw new TypeError(`Banner control key ${key} is already registered`);
-  const prior = controls2.get(control);
-  if (prior) return prior.control;
-  controls2.set(
-    control,
-    Object.freeze({
-      key,
-      control,
-      focusTarget,
-      rank,
-      sequence: sequence++,
-      seat,
-      conditional: Boolean(conditional),
-      present: Boolean(present),
-      offered: Boolean(offered),
-      urgent,
-      row: menuRow
-    })
-  );
-  seatControls();
-  paint();
-  return control;
-}
-function markBannerControl(control, urgent) {
-  const prior = controls2.get(control);
-  if (!prior) throw new TypeError("Banner control is not registered");
-  if (prior.urgent === urgent) return;
-  replaceEntry2(prior, Object.freeze({ ...prior, urgent }));
-  afterScript(paint);
-}
-var showBannerControl = (control, shown) => showBannerControls([[control, shown]]);
-function showBannerControls(changes) {
-  const moved2 = [];
-  for (const [control, shown] of changes) {
-    const prior = controls2.get(control);
-    if (!prior) throw new TypeError("Banner control is not registered");
-    if (prior.present === Boolean(shown)) continue;
-    moved2.push({
-      prior,
-      entry: Object.freeze({ ...prior, present: Boolean(shown) }),
-      heldFocus: focused() === prior.focusTarget,
-      wasInMenu: menu.includes(prior)
-    });
-  }
-  if (!moved2.length) return;
-  const loopFocus = row.find(
-    (candidate) => seatOf(candidate) !== "menu" && focused() === candidate.focusTarget
-  );
-  for (const { prior, entry } of moved2) replaceEntry2(prior, entry);
-  paint();
-  const removed = moved2.find(({ entry, heldFocus }) => heldFocus && !entry.present);
-  if (removed) focusAfterRemoval(removed.entry, removed.wasInMenu);
-  else if (loopFocus && !visible(loopFocus)) {
-    const step = moved2.find(({ entry }) => entry.present);
-    if (step) focusDestination(step.entry.focusTarget, "return");
-  }
-}
-function showNews(control, on) {
-  let entry = controls2.get(control);
-  if (!entry) throw new TypeError("Banner news control is not registered");
-  on = Boolean(on);
-  if (entry.conditional && entry.offered === on) return;
-  const standing2 = focused() === entry.focusTarget;
-  const wasInMenu = menu.includes(entry);
-  const prior = entry;
-  entry = Object.freeze({
-    ...entry,
-    conditional: true,
-    offered: on
-  });
-  replaceEntry2(prior, entry);
-  paint();
-  if (standing2 && !on) {
-    focusAfterRemoval(entry, wasInMenu);
-  }
-}
-function focusAfterRemoval(entry, wasInMenu) {
-  const run = wasInMenu ? menu : row;
-  const at = Math.max(
-    0,
-    run.findIndex((candidate) => candidate === entry)
-  );
-  const next = [...run.slice(at), ...run.slice(0, at).reverse()].find(focusable);
-  focusDestination(next?.focusTarget ?? overflowBtn, "return");
-}
-function revealMenuControl(control) {
-  if (!isNativeLayer(overflowMenu)) {
-    showNativeLayer(overflowMenu);
-    return;
-  }
-  const entry = menu.find(
-    (candidate) => candidate.control === control || candidate.control.contains(control)
-  );
-  if (entry && visible(entry) && !openSeats.has(entry.control)) {
-    openSeats = currentMenuSeats();
-    paint();
-  }
-}
-overflowMenu.addEventListener("lf-reveal", (event) => {
-  if (event.detail.mayReveal()) revealMenuControl(event.detail.target);
-});
-function bannerControlDoor(control = overflowBtn) {
-  if (drawn(control)) return control;
-  return (overflowMenu.contains(control) || bannerActions.contains(control)) && overflowBtn.checkVisibility() ? overflowBtn : null;
-}
-function returnToBannerControl(control) {
-  if (overflowMenu.contains(control)) {
-    if (!isNativeLayer(overflowMenu)) focusDestination(overflowBtn, "return");
-    revealMenuControl(control);
-  }
-  const destination = bannerControlDoor(control);
-  if (destination) focusDestination(destination, "return");
-}
-function dismissBannerControls() {
-  if (isNativeLayer(overflowMenu)) closeNativeLayer(overflowMenu);
-}
-
 export {
-  passOn,
   retainUserIntent,
   restrictUserIntent,
   focusedInView,
@@ -8217,12 +7202,6 @@ export {
   walkOrigin,
   stepFrom,
   heldItem,
-  readPlace,
-  pushEntry,
-  replaceEntry,
-  prepareEntry,
-  claimTraversals,
-  mountHistory,
   ensureSyntaxLanguage,
   syntax,
   synNodes,
@@ -8289,8 +7268,6 @@ export {
   drawnThreadId,
   SAYS_IN,
   SAY_BOX,
-  landingTarget,
-  latestTurn,
   showLatestTurn,
   keepThreadLanding,
   scrollThreadIntoView,
@@ -8317,6 +7294,7 @@ export {
   prepareAuthoredMessage,
   messageReading,
   MessageView,
+  messageHolding,
   anchorLabel,
   ELEMENTS,
   pageScope,
@@ -8327,8 +7305,6 @@ export {
   universalCommandReference,
   textEntryScope,
   allButCommandReference,
-  registerCoveringAuxiliarySurface,
-  coveringAuxiliarySurface,
   selectionAnchor,
   pageSelection,
   createPassageSelection,
@@ -8347,10 +7323,8 @@ export {
   threadIdNamed,
   replyDraftContext,
   holdReplyCompositions,
-  threadHoldsDraft,
   replyDraftsHold,
   dismissReply,
-  cancelReplyDictation,
   dismissReplyAt,
   releaseReplies,
   replyCompositionHasDraft,
@@ -8360,13 +7334,7 @@ export {
   restoreReplyEditing,
   createReplyView,
   settleThread,
-  finishFold,
-  hasFolding,
-  whenFolded,
-  isFolding,
-  threadFocusStop,
   focusThread,
-  forwardToThread,
   declareThreadParts,
   wholeThread,
   threadPart,
@@ -8383,13 +7351,13 @@ export {
   readingReturn,
   onReadingInterrupted,
   completeReadingReturn,
-  gesturedOn,
   newsNotice,
   showHeld,
   showHeldThread,
   HeldNews,
   HeldReading,
   heldGrowth,
+  quoteReading,
   threadReading,
   ThreadView,
   claimSeatReplies,
@@ -8404,25 +7372,8 @@ export {
   placePageThreads,
   releaseOutlets,
   renderSurfaces,
-  claimed2 as claimed,
+  claimed,
   heldOut,
   revealHeld,
-  surfaceFocusTarget,
-  commandShortcut,
-  paintCoreControls,
-  BANNER_CONTROL_RANK,
-  bannerActions,
-  overflowMenu,
-  bannerRows,
-  watchBannerRows,
-  bannerStanding,
-  restoreBannerStanding,
-  registerBannerControl,
-  markBannerControl,
-  showBannerControl,
-  showBannerControls,
-  showNews,
-  bannerControlDoor,
-  returnToBannerControl,
-  dismissBannerControls
+  surfaceFocusTarget
 };

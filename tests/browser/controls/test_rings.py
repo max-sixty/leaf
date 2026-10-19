@@ -179,14 +179,10 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
     assert focus["style"] != "none" and focus["width"] != "0px", focus
 
 
-def test_a_marked_element_draws_nothing_under_the_pointer_and_a_complete_row_contour(
-    browser, serve
-):
+def test_a_marked_element_draws_nothing_under_the_pointer(browser, serve):
     """An element's comment draws no contour at rest, nor while the pointer rests inside
     the element, which is where a reader's mouse sits. The hand still says a press opens
-    the thread. Its row in Threads raises one complete boundary that the element's own
-    children do not paint over, in a window wide enough that the open panel covers none
-    of it."""
+    the thread."""
     context = browser.new_context(
         viewport={"width": 1801, "height": 900},
         color_scheme="light",
@@ -206,7 +202,6 @@ def test_a_marked_element_draws_nothing_under_the_pointer_and_a_complete_row_con
         )
     page = open_page(browser, url, context=context)
     ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--mark-ink")))
-    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
     for ident in ("approach", "col-doing"):
         target = page.locator(f"#{ident}")
         expect(target).to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -223,20 +218,6 @@ def test_a_marked_element_draws_nothing_under_the_pointer_and_a_complete_row_con
         assert all(seen == {0} for seen in rest.values()), (
             f"the comment on #{ident} drew a contour under the pointer: {rest}"
         )
-
-        # The row in Threads raises it. Threads lists the page's threads in page order.
-        page.locator(".lf-threads-toggle").click()
-        page.locator(".lf-threads > .lf-thread").nth(
-            ("approach", "col-doing").index(ident)
-        ).locator(":scope > .lf-thread-summary").hover()
-        expect(page.locator(f'.lf-visual-mark[data-for="{ident}"]')).to_have_class(
-            re.compile(r"\blf-visual-mark-hover\b")
-        )
-        edges = mark_edges(page, ident, accent)
-        assert all(seen == {4} for seen in edges.values()), (
-            f"the contour its row in Threads raises on #{ident} was incomplete: {edges}"
-        )
-        page.locator(".lf-threads-toggle").click()
 
 
 # A page holding a paragraph and one control, for the readings below that plant the
@@ -501,12 +482,10 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     is excused on purpose — a control put where something stands over it is a fact about
     where it was put, not about its ring leaving its box.
     """
-    example = next(e for e in EXAMPLES if e.stem == "release-notes")
-    url = serve(example, comments=2)
-    page = open_page(browser, url)
+    page = open_page(browser, serve(RING_PROBE_PAGE))
     page.locator("body").click()
     # Reach the stop by keyboard before testing what can cover its ring.
-    page.locator(".lf-threads-toggle").focus()
+    page.locator("#ring-control").focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     assert standing_ring(page), "no ring is drawn, so nothing is covered"
@@ -539,12 +518,12 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     of cannot stand over the ring around it — but the hit test that answers this half
     samples the band outside the control's box, where whatever is beneath comes back.
 
-    The panel's edge grip is the shape that made that matter. It floats over the threads
-    at z-index 1, so its band crosses their own lines at every width and scroll position,
-    and the reading named whichever line it happened to land on: a two-pixel change to a
-    card's padding (#374) put a receipt under the coarse grip's foot and took
-    `test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll` down with
-    nothing about the page wrong.
+    The side panel's edge grip was the shape that made that matter: it floated over the
+    threads at z-index 1, so its band crossed their own lines at every width and scroll
+    position, and the reading named whichever line it happened to land on. A two-pixel
+    change to a card's padding (#374) put a receipt under the grip's foot and took a
+    resize test down with nothing about the page wrong. The plant keeps that shape: a
+    control at z-index 1 in a positioned holder.
 
     So: one neighbour under the grip's band and clear of its box, planted three times —
     where the grip paints across it, where a z-index of its own lifts it past the grip,
@@ -555,33 +534,34 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     put it over the ring, and the reading that reported it there would be inventing a
     cover the page does not paint.
     """
-    url = serve(LONG_PAGE, comments=6)
-    page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    edge = page.locator(".lf-thread-panel > .lf-edge")
-    edge.focus()
-    page.keyboard.press("Tab")
-    page.keyboard.press("Shift+Tab")
+    page = open_page(browser, serve(RING_PROBE_PAGE))
+    page.evaluate(
+        """() => {
+          document.getElementById('ring-holder').style.position = 'relative';
+          const control = document.getElementById('ring-control');
+          control.style.cssText = `position: relative; z-index: 1;
+            outline: var(--focus-ring); outline-offset: 2px;`;
+          control.focus();
+        }"""
+    )
     standing = standing_ring(page)
-    assert standing and ".lf-edge" in standing["rule"], (
-        f"the keyboard is not standing on the grip's own ring: {standing}"
+    assert standing and standing["covers"] == [], (
+        f"the control is reported covered before anything is put over it: {standing}"
     )
 
     # A band under the grip's right ring run and clear of its own box, inside a holder
-    # beside the grip in the panel: that run is within the panel's hit surface, whose
-    # enclosing auxiliary envelope takes no hits. The holder is what the reading can
-    # rank, and putting the band in the page leaves it with nothing to rank against.
-    # Neither paints anything the grip does not already stand in front of, until the band
-    # names the z-index that lifts it past.
+    # beside the grip. The holder is what the reading can rank, and putting the band
+    # in the page leaves it with nothing to rank against. Neither paints anything the
+    # grip does not already stand in front of, until the band names the z-index that
+    # lifts it past.
     plant = """({z, wrap, isolate = false}) => {
       document.querySelector('.lf-under-plant')?.remove();
-      const grip = document.querySelector('.lf-thread-panel > .lf-edge');
+      const grip = document.getElementById('ring-control');
       const cs = getComputedStyle(grip);
       const grow = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
       const b = grip.getBoundingClientRect();
       const mid = (Math.max(b.top - grow, 0) + Math.min(b.bottom + grow, innerHeight)) / 2;
-      const holder = document.querySelector('.lf-thread-panel')
+      const holder = document.getElementById('ring-holder')
         .appendChild(document.createElement('div'));
       holder.className = 'lf-under-plant';
       Object.assign(holder.style, {position: 'absolute', inset: '0'});
@@ -635,7 +615,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     for z in (1, 2):
         page.evaluate(plant, {"z": z, "wrap": True, "isolate": True})
         x, y = page.evaluate("""() => {
-          const grip = document.querySelector('.lf-thread-panel > .lf-edge');
+          const grip = document.getElementById('ring-control');
           const cs = getComputedStyle(grip);
           const b = grip.getBoundingClientRect();
           return [b.right + parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth) / 2,
@@ -783,9 +763,9 @@ def test_a_user_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
     assert page.evaluate(
         "() => matchMedia('(prefers-reduced-motion: reduce)').matches"
     ), "the context did not ask for reduced motion, so the guard under test is off"
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    control = page.locator(".lf-threads .lf-btn").first
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    control = page.locator(".lf-fp-thread").first
     control.focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")

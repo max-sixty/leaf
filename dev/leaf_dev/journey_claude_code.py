@@ -53,7 +53,7 @@ woken, and otherwise admission's nudge carries the next comment.
 
 A step with comments also prints whether the page nudged the session, and a step
 with an Escape whether it left the turn open, a watch running, and what the page's
-banner read. That is the reading that compares the two watchers. The session's
+status read. That is the reading that compares the two watchers. The session's
 screen at the end of each step and Claude Code's debug log join the run's evidence.
 It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
 does not run it.
@@ -245,7 +245,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     page, sent = place.page, []
 
     def activity() -> str:
-        """What the page's banner reads: its canonical activity's kind."""
+        """What the page's status reads: its canonical activity's kind."""
         served = run_leaf(ROOT, place.state, "page", "state", str(page), check=True)
         return json.loads(served.stdout)["activity"]["kind"]
 

@@ -9,12 +9,12 @@ only the working tree as it stands, and with one page and transition it takes un
 a minute, cheap enough to run during a change; the full A/B takes many. Each arm
 builds and serves the triage board and the corpus from this checkout's examples, and
 both arms' tabs stay open in one headless shell, taking turns within each run. Each
-run reloads the page, opens the Threads panel, and times five transitions
-(`TRANSITIONS`): a passage comment and a card move, each ended by a key, and an agent
-reply, status, and revision, each by the arm's `leaf`. The agent conversation has
-enough history to scroll, and the reply measurement follows its latest turn with the
-native pinned reply row, so arriving words can paint without moving a short thread's
-controls under the reader.
+run reloads the page, opens the floating panel's Threads view, and times five
+transitions (`TRANSITIONS`): a passage comment and a card move, each ended by a key,
+and an agent reply, status, and revision, each by the arm's `leaf`. The agent
+conversation has enough history to scroll, and the reply measurement follows its
+latest turn in the panel's view of the thread, with the caret in the panel's field,
+which is the thread's reply box.
 
 A gesture's clock starts at its input event's timestamp; an agent write's at the first
 modification of the file it writes, so the command's startup is left out. It stops at
@@ -58,7 +58,7 @@ from leaf_dev.arms import (
     run_leaf,
     serving,
 )
-from leaf_dev.browser import CLASSIC_CHROME, DESKTOP, headless_shell
+from leaf_dev.browser import DESKTOP, headless_shell
 
 OUT = ROOT / ".tmp" / "bench-latency"
 RUNS = 5
@@ -186,21 +186,27 @@ class Session:
         return [str(self.arm_dir / "bin" / "leaf"), *args]
 
     def open(self) -> None:
-        """Load a fresh document on the passage, with the Threads panel open.
+        """Load a fresh document on the passage, with the floating panel's Threads
+        view open.
 
         Through `about:blank`, since a load of the URL the tab already shows is only
         a scroll to its fragment."""
         self.page.goto("about:blank")
         self.page.goto(self.url, wait_until="commit")
         self.settle()
-        panel = (
-            "() => Boolean(document.querySelector('.lf-thread-panel')"
-            "?.checkVisibility())"
-        )
-        if not self.page.evaluate(panel):
-            self.page.locator(".lf-threads-toggle").click()
-            until(self.page, panel, "the Threads panel never opened")
+        self.threads()
         self.settle()
+
+    def threads(self) -> None:
+        """Open the floating panel's Threads view, listing every open thread."""
+        view = (
+            "() => Boolean(document.querySelector("
+            "'.lf-fp-view[data-view=threads]:not([data-leaving])')?.checkVisibility())"
+        )
+        if not self.page.evaluate(view):
+            self.page.locator(".lf-fp-threads").click()
+            until(self.page, view, "the Threads view never opened")
+        self.page.locator(".lf-fp-filters button", has_text="Open").click()
 
     def settle(self) -> None:
         """Wait until the page is quiet and has stayed quiet for SETTLE_MS."""
@@ -311,20 +317,48 @@ class Session:
         return lambda: first_write(self.page_dir / path, self.command(*args), env)
 
     def reply(self, run: int) -> dict:
-        """A reply while the user follows the scrollable agent conversation's tail."""
+        """The agent's answer to the user's turn, while the user follows the
+        scrollable conversation's tail in the floating panel's view of the thread.
+
+        The user asks first because the panel shows at once only news that answers
+        the user's last turn; any other reply waits behind New reply
+        (primary-reader.js, `answersAtOnce`). The agent answers as an agent does,
+        through the delivery `leaf wait` prints."""
         words = f"Bench reply {run + 1}."
-        thread = f'.lf-thread[data-id="{self.thread}"]'
-        message = f"{thread} .lf-msg"
-        opened = "selector => document.querySelector(selector)?.checkVisibility()"
-        if not self.page.evaluate(opened, message):
-            self.page.locator(f"{thread} .lf-thread-summary").click()
-            until(self.page, opened, "the agent thread never opened", message)
-        self.page.locator(f"{thread} .lf-thread-reply leaf-text").focus()
+        question = f"Bench question {run + 1}."
+        opened = (
+            "() => document.querySelector("
+            "'.lf-fp-view[data-view=thread]:not([data-leaving]) .lf-msg')"
+            "?.checkVisibility()"
+        )
+        if not self.page.evaluate(opened):
+            self.threads()
+            self.page.locator(f'.lf-fp-thread[data-key="{self.thread}"]').click()
+            until(self.page, opened, "the agent thread never opened")
+        # The panel's field is the open thread's reply box.
+        self.page.locator(".lf-fp-field leaf-text").focus()
+        self.page.keyboard.insert_text(question)
+        self.page.keyboard.press("ControlOrMeta+Enter")
+        until(
+            self.page,
+            "words => [...document.querySelectorAll("
+            "'.lf-fp-view[data-view=thread] .lf-msg.user')]"
+            ".some(node => node.textContent.includes(words) && node.checkVisibility())",
+            "the user's turn never showed",
+            question,
+        )
+        delivery = run_leaf(
+            self.arm_dir, self.state, "wait", str(self.page_dir), check=True
+        )
+        ref = next(
+            event["answer"]["ref"]
+            for batch in json.loads(delivery.stdout)["batches"]
+            for event in batch["events"]
+            if event.get("text") == question
+        )
         self.settle()
         act = self.written(
-            "events.jsonl",
-            *("thread", "reply", str(self.page_dir)),
-            *(self.thread, "--text", words),
+            "events.jsonl", "response", "reply", ref, "--done", "--text", words
         )
         return self.measure("reply", {"painted": ("message", words)}, act)
 
@@ -376,7 +410,6 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
             viewport={"width": DESKTOP[0], "height": DESKTOP[1]}
         )
         try:
-            context.add_init_script(CLASSIC_CHROME)
             context.add_init_script(path=PROBE)
             page = context.new_page()
             page.goto(address)  # The token sets the page cookie; later loads drop it.

@@ -40,12 +40,13 @@ from render_harness import (
     open_page,
     opened_tab,
     page_registry,
-    panel_settled,
     primed,
     resized,
     scroll_settled,
     select,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1174,12 +1175,10 @@ def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
     assert posted.returncode == 0, posted.stdout + posted.stderr
     assert not posted.stderr, "posting asks for no browser"
 
+    [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-thread-panel #t-bad .lf-error")).to_contain_text(
-        "Unexpected token"
-    )
+    view = open_panel_thread(page, root)
+    expect(view.locator("#t-bad .lf-error")).to_contain_text("Unexpected token")
     report = '<lf-chart id="t-bad"> failed: '
     consume_browser_errors(page, report)
     reported = wait_for(

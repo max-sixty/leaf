@@ -42,7 +42,6 @@ import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
-import { mapButton } from "../page-map-dialog.js";
 import {
   focusDestination,
   holdFocus,
@@ -50,6 +49,7 @@ import {
   onStanding,
   onUserInput,
   focused,
+  tabStops,
 } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { closeControl, el, offer } from "../widget-elements.js";
@@ -65,7 +65,6 @@ import { turns } from "../thread/model.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { iconElement } from "../icons.js";
 import { anchorLabel } from "../thread/messages.js";
-import { bannerControlDoor } from "../banner-toolbar.js";
 import { coarsePointer } from "../pointer.js";
 import {
   cardMeasure,
@@ -80,7 +79,8 @@ import { passageGeometry } from "../resolved-target.js";
 import { floatingPlacement, floatingUi } from "./floating.js";
 import { surfaceGrip } from "./surface-grip.js";
 import { placeKeeper } from "../user-place.js";
-import { under } from "../shadow.js";
+import { renderedOrder, renderedUnder, under } from "../shadow.js";
+import { keys } from "../keyboard/scopes.js";
 import { retainUserIntent } from "../user-intent.js";
 import { threadFocusDestination } from "../thread/focus.js";
 import { claimSeatReplies } from "../thread/inline.js";
@@ -97,7 +97,6 @@ export function createThreadPreview({
   renderMarginThread,
   placedAt,
   openPageThread,
-  panelIsOpen,
   scrollThreadIntoView,
   scrollToElement,
   onClose,
@@ -151,6 +150,77 @@ export function createThreadPreview({
     },
   });
   preview.append(carry.grip, previewList);
+  // The card follows the margin entry it hangs from (`session.control`) in the Tab
+  // order, as a popover follows its invoker: Tab on the entry enters the card, Shift+Tab
+  // from before the card's first stop returns to the entry, and Tab past the card's last
+  // stop, or Shift+Tab from the entry, goes on from the entry as though the card weren't
+  // there. The browser's own order doesn't: the card stands in the chrome after the
+  // page and just before the margin, so Shift+Tab out of it reached the page's last
+  // stop, which scrolled the page there and, standing away from the card's target,
+  // closed the card. To pass over the card, a row puts the user on the entry, or on the
+  // card's own box just before the margin, and leaves the browser to take the step from
+  // there, as the floating panel's menu does.
+  const opener = () =>
+    previewSession?.control?.checkVisibility() ? previewSession.control : null;
+  const onOpener = () => Boolean(opener()) && focused() === opener();
+  // The stops in `root` before (-1) or after (1) `at`, in the browser's order.
+  const stopsBeside = (root, at, side) =>
+    tabStops(root).filter(
+      (stop) =>
+        stop !== at &&
+        !renderedUnder(at, stop) &&
+        Math.sign(renderedOrder(stop, at)) === side,
+    );
+  const atCardEdge = (side) =>
+    Boolean(opener()) && stopsBeside(preview, focused(), side).length === 0;
+  keys(preview, null, [
+    {
+      id: "margin.card.back",
+      keys: ["Shift+Tab"],
+      title: "back to the margin entry",
+      description: "Leave the thread card for the margin entry it hangs from",
+      repeat: true,
+      runFromCommandReference: false,
+      when: () => atCardEdge(-1),
+      run: () => focusDestination(opener(), "step"),
+    },
+    {
+      id: "margin.card.onward",
+      keys: ["Tab"],
+      title: "on past the margin entry",
+      description: "Leave the thread card for the stop after the margin entry",
+      native: true,
+      repeat: true,
+      runFromCommandReference: false,
+      when: () => atCardEdge(1),
+      run: () => focusDestination(opener(), "return"),
+    },
+  ]);
+  // The entry's half, which the margin declares on its rows.
+  const openerKeys = [
+    {
+      id: "margin.card.enter",
+      keys: ["Tab"],
+      title: "into the thread card",
+      description: "Enter the thread card the margin entry opened",
+      repeat: true,
+      runFromCommandReference: false,
+      when: () => onOpener() && tabStops(preview).length > 0,
+      run: () => focusDestination(tabStops(preview)[0], "step"),
+    },
+    {
+      id: "margin.card.over",
+      keys: ["Shift+Tab"],
+      title: "back past the thread card",
+      description: "Go back from the margin entry to the stop before it",
+      native: true,
+      repeat: true,
+      runFromCommandReference: false,
+      when: () =>
+        onOpener() && under(stopsBeside(chromeRoot, opener(), -1).at(-1), preview),
+      run: () => focusDestination(preview, "return"),
+    },
+  ];
   // A press in the card changes what it shows from where the user pressed, so the
   // placement that change causes keeps the pressed spot still (`holding`'s `pressed`)
   // until the user's next input. The press, by pointer, touch or key, is read at the input
@@ -727,8 +797,7 @@ export function createThreadPreview({
           const thread = sourceItem(item).thread.id;
           const mayLand = retainUserIntent({
             source: focused(),
-            available: () => Boolean(target?.isConnected) && !panelIsOpen(),
-            fallback: bannerControlDoor(mapButton),
+            available: () => Boolean(target?.isConnected),
           });
           return {
             optimistic: () => {
@@ -889,6 +958,7 @@ export function createThreadPreview({
     close,
     focusThread,
     focusTarget,
+    openerKeys,
     thread: () => previewList.querySelector(".lf-page-thread"),
     accompanied: () =>
       previewSession && !previewSession.away

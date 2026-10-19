@@ -73,7 +73,7 @@
     "runtime/contribution-model.js": "ea08e8bc4ef0265702f9444a6edc31f91b59bddea3c6b6e49bf63c056f636d06",
     "runtime/contributions.js": "a84e11a7c2b6a0a91e5ed23217928aed11b8ae83fa67d185a029f77f0d9991c1",
     "runtime/control-selectors.js": "48cfd1180ac10a0e95dd14153ea83262a661005dfd83cc1ab00034a5e81f1d3d",
-    "runtime/copy-control.js": "a3bc5c4f1bd8deab861cd710811f1b9fecf97dbbf786557e549a687e4b654caa",
+    "runtime/copy-control.js": "4a1a635fa880e5a3c6885bf54e51f3d8c263cd11a12c92540845db37783752ba",
     "runtime/css-anchors.js": "8844ce7c9e566d8a69668babaeba9e4750c5ac94144c6dea1baeeeb2a219b8f8",
     "runtime/data.js": "faf04f9aeef9101f0889b5bc668e6de9b474c2a6d2a9f73b9f8d4b84a165a50e",
     "runtime/declared-words.js": "aeadffbb28eee53b1dbbc3a2aa434325ca0a26a6a31a4fb48fccd305d0430ccb",

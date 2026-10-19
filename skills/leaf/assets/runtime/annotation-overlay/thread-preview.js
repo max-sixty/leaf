@@ -17,9 +17,10 @@
    the card: it leaves with its target and comes back with it. A target hidden by the
    document withholds the card's native draft and focus until it is drawn again.
 
-   A selection holds its placement side, its width and one edge. The width is the one
-   the card first stood at, or was carried at, so a longer line arriving wraps inside it
-   rather than carrying the controls at its far edge; only a narrower room narrows it.
+   A selection holds its placement side, its width and one edge. The width is the
+   comment box's where Send opened the card, else the one the card first stood at, or
+   was carried at, so a longer line arriving wraps inside it rather than carrying the
+   controls at its far edge; only a narrower room narrows it.
    Reading and draft growth hold the top; a turn joining while drafting/sending holds
    the reply's foot, as does a card above its target; what a press in the card shows
    in its transcript keeps the pressed spot still, until the user's next input or a
@@ -596,9 +597,11 @@ export function createThreadPreview({
       place: null,
       stopRegion: null,
       side: commentPlacement(),
-      // The width the card stands at for this selection, in client pixels: the one it
-      // first stood at, or was carried at (`placeThreadPreview`).
-      width: null,
+      // The width the card stands at for this selection, in client pixels: the box's
+      // Send replaced, so the two are one rectangle, else the one it first stood at, or
+      // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
+      // comment's card 13px wider than its box.
+      width: origin?.box.width ?? null,
       region: null,
       // The user's latest press in the card, while it is their latest input (`holding`).
       pressed: null,

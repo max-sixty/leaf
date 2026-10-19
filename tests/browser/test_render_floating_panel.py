@@ -959,7 +959,7 @@ GROWTH = """() => {
   return {
     view: box(view).top,
     height: box(view).height,
-    cap: parseFloat(getComputedStyle(view).maxHeight),
+    cap: parseFloat(getComputedStyle(view.parentElement).maxHeight),
     bottom: box(view).bottom,
     field: box(document.querySelector('.lf-fp-field')).top,
     turn: turn && [box(turn).top - box(view).top - parseFloat(getComputedStyle(view).paddingTop),
@@ -2727,6 +2727,34 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     expect(expand).to_be_hidden()
     settled(page)
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
+
+
+def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
+    """A long draft and an open view share the window: the view takes what the field
+    leaves and scrolls inside it, so its head, where Close stands, stays in the window.
+    The two once stacked at their own full heights, the view's head above the window's
+    top."""
+    url = serve(LONG_PAGE)
+    for n in range(30):
+        panel_comment(serve.page_dir, f"Page comment {n}")
+    page = floating(browser, url)
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    view = page.locator(".lf-fp-view[data-view=threads]")
+    expect(view).to_be_visible()
+    field(page).click()
+    for n in range(40):
+        page.keyboard.type(f"Line {n} of a long draft")
+        page.keyboard.press("Shift+Enter")
+    page.locator(".lf-fp-head .lf-fp-expand").click()
+    settled(page)
+    head = page.locator(".lf-fp-head").bounding_box()
+    shown = view.bounding_box()
+    words = page.locator(".lf-fp-field").bounding_box()
+    assert head["y"] >= 0, head
+    assert shown["y"] + shown["height"] <= words["y"] + 0.5, (shown, words)
+    assert view.evaluate("v => v.scrollHeight > v.clientHeight")
 
 
 def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):

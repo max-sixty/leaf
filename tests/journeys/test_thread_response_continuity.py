@@ -542,7 +542,15 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "reply"
     ]
-    draft.focus()
+    if place == "panel":
+        # The refusal covers the words it gave back in the panel's field, which sends
+        # nothing until the user's first edit or press there brings them back.
+        cover = page.locator(".lf-fp-error-cover")
+        expect(cover).to_contain_text("refused before append")
+        cover.click()
+    else:
+        draft.focus()
+    expect(draft).to_be_focused()
     page.keyboard.press("Enter")
     holding(page, held, 1, "the refused reply's retry")
     assert held[0].request.post_data_json["attempt"] == attempt

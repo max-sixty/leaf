@@ -16,6 +16,7 @@ from render_harness import (
     available_commands,
     draft_control,
     example_media,
+    expect_error_waits_in_menu,
     holding,
     leaf_page,
     open_page,
@@ -286,9 +287,12 @@ def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser,
     holding(page, held, 1, "the pasted image")
     compose(page, "#p1")
     held.pop().continue_()
-    expect_panel_says(page, "Image not added")
     expect(box).not_to_have_attribute("aria-busy", "true")
     expect(page.locator(".lf-composer-media img")).to_have_count(0)
+    # The error is about the composer, which the panel's field does not speak for.
+    expect_error_waits_in_menu(
+        page, "Image not added — the comment moved before it finished uploading"
+    )
 
 
 def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
@@ -537,8 +541,9 @@ def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
         len(joined),
         len(joined),
     ]
-    expect_panel_says(
-        page, "Its box is gone, so its words moved to a comment on the page"
+    # The caret stands in the field, where nothing passing is said but to a listener.
+    expect(page.locator(".lf-live")).to_have_text(
+        "Its box is gone, so its words moved to a comment on the page"
     )
     assert stored_draft_text(page, "edit:editable") is None
     assert stored_draft_text(page, "general") == joined

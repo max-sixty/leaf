@@ -20,7 +20,7 @@ from render_harness import (
     EXAMPLES,
     consume_browser_errors,
     example_media,
-    expect_panel_says,
+    expect_error_waits_in_menu,
     holding,
     http_error_console,
     open_page,
@@ -375,7 +375,9 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
 
-    expect_panel_says(page, "Images can be added to comments, not options")
+    # The error is about the add field, which the panel's field does not speak for, so
+    # it waits in the leaf's menu, the leaf's dot saying there is one.
+    expect_error_waits_in_menu(page, "Images can be added to comments, not options")
     expect(form.locator(".lf-composer-media")).to_be_hidden()
     expect(form.locator(".lf-composer-media img")).to_have_count(0)
     assert field.evaluate("box => box.value") == ""

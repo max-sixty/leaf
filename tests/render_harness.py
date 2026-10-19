@@ -1785,6 +1785,21 @@ def expect_panel_says(page, words, *, says=True):
     )
 
 
+def expect_error_waits_in_menu(page, message):
+    """Expect the newest error to say exactly `message` from the leaf's menu, under
+    Errors, with the leaf's dot marking it unseen; the menu is put away again.
+
+    That is where an error waits that the panel's field cannot say (errors.js): one
+    about a box outside the panel, such as a passage's composer, or about nothing while
+    the field holds words."""
+    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
+    menu = panel_menu(page)
+    menu.locator('.lf-fp-item[data-row="errors"]').click()
+    expect(menu.locator(".lf-fp-error-words b").first).to_have_text(message)
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+
+
 # How many of the page's active Asks are answered, as "answered/total": the publisher's
 # own Ask reading, which the On panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.

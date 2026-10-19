@@ -270,8 +270,13 @@ def test_reply_admission_finishes_or_restores_its_native_session(
         expect(field).to_be_visible()
         expect(field).to_have_js_property("value", words)
         assert stored_draft_text(page, "reply:" + root) == words
+        # The refusal covers the words it gave back in the panel's field, which sends
+        # nothing until the user's first edit or press there brings them back.
+        cover = page.locator(".lf-fp-error-cover")
+        expect(cover).to_contain_text("Please retry.")
+        cover.click()
+        expect(field).to_be_focused()
         with sending(page, "the same reply after refusal"):
-            field.focus()
             page.keyboard.press("ControlOrMeta+Enter")
         reply = events_model.read_events(serve.page_dir)[-1]
         assert (reply["kind"], reply["parent"], reply["text"], reply["attempt"]) == (

@@ -21,6 +21,7 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     draft_key,
+    expect_error_waits_in_menu,
     holding,
     http_error_console,
     open_page,
@@ -260,9 +261,10 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
         )
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
-    # The box is back with the words, so the refusal names no address for them.
-    expect_panel_says(page, "Couldn't send — refused before append")
-    assert "Draft kept" not in page.evaluate(PANEL_SAYS)
+    # The box is back with the words, so the refusal names no address for them. It is
+    # about the passage's box, which the panel's field does not speak for, so it waits
+    # in the leaf's menu.
+    expect_error_waits_in_menu(page, "Couldn't send — refused before append")
     consume_browser_errors(page, http_error_console(400))
 
 
@@ -293,10 +295,9 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
                 "final": True,
             },
         )
-    expect_panel_says(
-        page,
-        "Couldn't send — refused before append. Draft kept — g i resumes writing",
-    )
+    # The field holds the later words, so it cannot say an error about nothing in
+    # particular: the refusal waits in the leaf's menu, its dot on the leaf.
+    expect(page.locator(".lf-fp-error-dot")).to_be_visible()
     expect(page.locator(".lf-fab-input")).not_to_be_visible()
 
     page.keyboard.press("Escape")
@@ -306,6 +307,10 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
     assert stored_draft_text(page, "general") == later
+    expect_error_waits_in_menu(
+        page,
+        "Couldn't send — refused before append. Draft kept — g i resumes writing",
+    )
     consume_browser_errors(page, http_error_console(400))
 
 
@@ -377,6 +382,13 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     page.keyboard.press("i")
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", parent)
+    # The refusal covers the words it gave back until the user's first edit or press
+    # there, and the field sends nothing meanwhile; a press brings them back.
+    cover = page.locator(".lf-fp-error-cover")
+    expect(cover).to_contain_text("Couldn't send — refused before append")
+    cover.click()
+    expect(cover).to_be_hidden()
+    expect(box).to_be_focused()
     text = parent
     if edited:
         page.keyboard.press("ControlOrMeta+End")

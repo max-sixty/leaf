@@ -275,10 +275,12 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
             },
         )
     # The refusal puts the thread's view away and gives the words back to the page
-    # comment, which says why.
+    # comment, which says why over them.
     expect(editor).to_have_js_property("value", words)
     assert stored_draft_text(page, "general") == words
-    expect(page.locator(".lf-fp-context")).to_contain_text("Couldn't send")
+    expect(page.locator(".lf-fp-error-cover")).to_have_text(
+        "Couldn't send — The cold comment was refused before append"
+    )
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)

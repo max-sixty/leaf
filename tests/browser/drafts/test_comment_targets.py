@@ -7,7 +7,7 @@ import pytest
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
-from render_cases_navigation import NOTED_PAGE, compose, go_to_address, pending_text
+from render_cases_navigation import compose, go_to_address, pending_text
 from render_harness import (
     LONG_PAGE,
     draft_control,

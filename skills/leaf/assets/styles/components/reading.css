@@ -290,16 +290,12 @@
 /* A capture's frame is a box-shadow outside the image (theme.css, `img`), and the table
    clips to its own edges because it scrolls its columns, so a capture in an outer
    column lost the frame's outer side: the hairline and shadow right of every capture in
-   the last column. A cell holding only an image keeps room on its outer side for the
-   frame's reach, the 8px blur of --raise-1. */
-:where(:root, .lf-thread-transcript)
-  tr
-  > td:first-child:has(> img:only-child, > a:only-child > img:only-child) {
+   the last column. An outer cell holding an image, alone, linked or in a figure, keeps
+   room on its outer side for the frame's reach, the 8px blur of --raise-1. */
+:where(:root, .lf-thread-transcript) tr > td:first-child:has(img) {
   padding-inline-start: 8px;
 }
-:where(:root, .lf-thread-transcript)
-  tr
-  > td:last-child:has(> img:only-child, > a:only-child > img:only-child) {
+:where(:root, .lf-thread-transcript) tr > td:last-child:has(img) {
   padding-inline-end: 8px;
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {

@@ -1730,14 +1730,16 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
 def test_a_capture_in_an_outer_column_keeps_its_frame(browser, serve, direction):
     """A table clips to its own edges, since it scrolls its columns, and an image's frame
     is a shadow outside the image reaching 8px. A capture in the first or last column,
-    linked or not, stands far enough inside the table's edge to keep that side of its
-    frame, in either direction."""
+    linked or captioned in a figure, stands far enough inside the table's edge to keep
+    that side of its frame, in either direction."""
     src = SHOT_SRC["before"]
     capture = f'<img src="{src}" width="300" height="150" alt="A capture.">'
     body = (
         "<h1>Captures</h1><p>A paragraph at the measure.</p>"
         f'<table id="captures"><tr><td>{capture}</td>'
-        f'<td><a href="{src}">{capture}</a></td></tr></table>'
+        f'<td><a href="{src}">{capture}</a></td>'
+        f"<td><figure>{capture}<figcaption>After.</figcaption></figure></td></tr>"
+        "</table>"
     )
     source = leaf_page("Captures", body).replace(
         '<html lang="en">', f'<html lang="en" dir="{direction}">', 1

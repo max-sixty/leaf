@@ -863,7 +863,7 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
 
 
 def test_draw_mode_captures_widget_controls(browser, serve):
-    """A page widget remains drawable; a Draw press never answers its ask."""
+    """A page widget remains drawable; a Draw press never answers its item."""
     page = open_page(
         browser,
         serve(

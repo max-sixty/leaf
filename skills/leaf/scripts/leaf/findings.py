@@ -272,7 +272,7 @@ def _empty_question(at: str, v: dict) -> str:
         f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
         for w in v["widgets"]
     )
-    return f"{_line(at, v)}: an enclosing lf-ask registers no item: " + (
+    return f"{_line(at, v)}: this enclosing widget registers no item: " + (
         widgets
         or "it holds no widget that declares x-awaits; a question with no widget is"
         " its words alone, with no heading"
@@ -870,7 +870,7 @@ _TEXT = {
     ),
     "empty-question": _empty_question,
     "untitled-question": lambda at, v: (
-        f"{_line(at, v)}: an enclosing lf-ask needs a heading to title its items,"
+        f"{_line(at, v)}: this enclosing widget needs a heading to title its items,"
         " leading its content alone or in an <hgroup> or <header>"
     ),
     "unknown-word": lambda at, v: (

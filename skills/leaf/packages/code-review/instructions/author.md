@@ -15,5 +15,5 @@ reads more easily than two unrelated diagrams.
 Use the `diagram` package for behavior or structure, and `diff` for the exact patch and
 its call-tree diff. Write the pull-request brief with native headings, tables and
 disclosures, naming the repository, reviewed revision, author, checks and source link.
-Bind evidence through a page-owned data adapter when it must refresh. Pose an item when
-the user owes a decision (`references/authoring-decisions.md`).
+Bind evidence through a page-owned data adapter when it must refresh. Put each decision
+the user owes on On me (`references/authoring-decisions.md`).

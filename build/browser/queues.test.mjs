@@ -101,13 +101,13 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
 
 test("words sent to a question leave it on the user until the log answers", () => {
   const { app } = adopted("queues on both sides");
-  const asked = published(app).on_user.find(
+  const question = published(app).on_user.find(
     (item) => item.kind === "widget" && item.item.source.tag === "lf-ask",
   );
   app.enqueue(
     {
       kind: "reply",
-      parent: asked.thread,
+      parent: question.thread,
       text: "Weekly.",
       revision: 1,
       attempt: "a4",
@@ -116,10 +116,10 @@ test("words sent to a question leave it on the user until the log answers", () =
   );
   // Whether the words answer the question is the server's reading; the send itself
   // is the agent's to answer at once.
-  assert.ok(published(app).on_user.some((item) => item.id === asked.id));
+  assert.ok(published(app).on_user.some((item) => item.id === question.id));
   assert.ok(published(app).on_agent.some((item) => item.id === "pending:a4"));
   app.refuse("a4");
-  assert.ok(published(app).on_user.some((item) => item.id === asked.id));
+  assert.ok(published(app).on_user.some((item) => item.id === question.id));
   assert.ok(!published(app).on_agent.some((item) => item.id === "pending:a4"));
 });
 

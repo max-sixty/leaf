@@ -1790,7 +1790,7 @@ def test_failed_primary_reader_restores_the_same_native_item_in_core(browser, se
     email = page.locator("lf-option#email")
     expect(email).to_be_visible()
     assert email.evaluate("node => node === nativeOption")
-    with sending(page, "answer the restored native Ask"):
+    with sending(page, "answer the restored native item"):
         email.click()
     expect(page.locator("#workspace .counts")).to_contain_text("Email")
 

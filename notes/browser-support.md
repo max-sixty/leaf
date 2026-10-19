@@ -413,7 +413,7 @@ PYCODE
   granted-room table in [`layouts.css`](../skills/leaf/assets/layouts.css).
 - **Observed, 2026-10-14:** Firefox 157 (a user's page) and Playwright's Firefox and
   WebKit 26.6 drop `container-type: inline-size scroll-state` whole, so the table was
-  no size container and the 100cqi a caption read measured the window: an Ask's
+  no size container and the 100cqi a caption read measured the window: an `lf-ask`'s
   two-column table laid its rows out 1728px wide in a 720px column and cut off its
   second column. Chrome 155 keeps it. Firefox also never widens a table grid to a
   caption wider than its columns' natural width, so Leaf no longer widens a table's

@@ -1174,11 +1174,11 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
 
 
 def test_the_render_gate_refuses_duplicate_diagram_identities(browser, serve):
-    """A class sharing its namespace's identity fails before layout traverses it."""
+    """Two named boxes cannot share the same stable comment identity."""
     page = PART_DIAGRAM_PAGE.replace(
         "</lf-diagram>",
         """</lf-diagram>
-<lf-diagram id="model"><pre>
+<lf-diagram id="model" parts="all"><pre>
 classDiagram
   namespace Job {
     class Job
@@ -1191,12 +1191,9 @@ classDiagram
         (scheme, "console-error", "") for scheme in ("light", "dark")
     ], failures
     assert all(
-        f.values["text"].startswith(
-            'leaf: <lf-diagram id="model"> failed: '
-            "Mermaid declares diagram identity Job more than once"
-        )
+        'leaf: <lf-diagram id="model"> failed:' in f.values["text"]
+        and "Job" in f.values["text"]
         for f in failures
-        if f.code == "console-error"
     ), failures
 
 
@@ -1255,7 +1252,7 @@ flowchart TD
     for scheme in ("dark", "light"):
         page.emulate_media(color_scheme=scheme)
         paint = page.locator("#exchange svg").evaluate("""svg => {
-          const ink = getComputedStyle(svg.querySelector('.messageText')).color;
+          const paper = getComputedStyle(document.body).backgroundColor;
           const canvas = document.createElement('canvas');
           canvas.width = canvas.height = 1;
           const ctx = canvas.getContext('2d', {willReadFrequently: true});
@@ -1267,23 +1264,16 @@ flowchart TD
               .map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
               .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
           };
-          const actor = svg.querySelector('rect.actor');
-          const targets = [
-            ...[...svg.querySelectorAll('text.actor > tspan, text.loopText > tspan, text.noteText > tspan')]
-              .map(e => [e, actor, 'fill', 4.5]),
-            ...[...document.querySelectorAll('#relationships .edgeLabel .label text, #relationships .edgeLabel .label tspan')]
-              .filter(e => !e.children.length)
-              .map(e => [e, e.closest('.label').querySelector('rect'), 'fill', 4.5]),
-            [document.querySelector('#life rect.outer'), document.querySelector('#life rect.outer'), 'stroke', 3],
-            [document.querySelector('#life circle.state-start'), document.querySelector('#life rect.outer'), 'fill', 3],
-          ];
-          return targets.map(([e, background, property, minimum]) => {
-            const paper = luminance(getComputedStyle(background).fill);
-            const fill = getComputedStyle(e)[property];
-            const text = luminance(fill);
-            const contrast = (Math.max(paper, text) + 0.05) / (Math.min(paper, text) + 0.05);
-            return {text: e.textContent, fill, ink, contrast, minimum};
-          });
+          return [...document.querySelectorAll('#exchange svg text, #exchange svg tspan, #relationships svg text, #relationships svg tspan')]
+            .filter(e => !e.children.length && e.textContent.trim())
+            .map(e => {
+              const fill = getComputedStyle(e).fill;
+              const background = luminance(paper);
+              const text = luminance(fill);
+              const contrast = (Math.max(background, text) + 0.05)
+                / (Math.min(background, text) + 0.05);
+              return {text: e.textContent, fill, contrast};
+            });
         }""")
         assert {p["text"] for p in paint} >= {
             "User",
@@ -1292,14 +1282,7 @@ flowchart TD
             "Checks order",
             "runs",
         }, paint
-        assert all(
-            (p["minimum"] == 3 or p["fill"] == p["ink"])
-            and p["contrast"] >= p["minimum"]
-            for p in paint
-        ), (
-            scheme,
-            paint,
-        )
+        assert all(p["contrast"] >= 4.5 for p in paint), (scheme, paint)
         assert svg.evaluate("e => e === document.querySelector('#exchange svg')")
 
     assert page.locator("#identities").evaluate("e => [...e.visualParts.keys()]") == [

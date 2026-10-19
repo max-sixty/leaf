@@ -82,13 +82,13 @@ When input arrives:
 
 1. If the delivery's `acknowledge` names a receipt command, run it first. If it is
    `null`, your harness has confirmed receipt.
-2. Post the progress line for each update that asks for work. Answer one that asks
-   for no work, such as a question, right away.
+2. Post the progress line for each update that asks for work. Answer a question you
+   can already settle at once; make any related page revision after replying.
 3. If it interrupted other work, start that item again, so the panel's status
    describes the work that continues.
 
-Reply once the revision passes `leaf page check`, the only check the main skill's
-"Check the page" step requires before a reply.
+Before replying about a page revision, run `leaf page check`, the only check the
+main skill's "Check the page" step requires for that reply.
 
 ## Status and handoff
 
@@ -123,13 +123,12 @@ complete it, even one that removes the widget.
 
 ## Long-running work
 
-New input reaches you only between your own operations, so a long foreground
-operation, such as a test suite or a subagent you wait on, leaves the user's comment
-unanswered until it finishes. For work longer than a few minutes, hand the reading,
-editing, and testing to background subagents or commands, and end your turn as your
-harness contract says. When a worker reports, put its result on the page, move what
-it finished out of the open work (`authoring-revisions.md`, "Keep the current page
-current"), and reply in the thread that asked, linking to it.
+Follow the parent and worker roles in the main skill's "Stay responsive" section.
+New input reaches you between your own operations, so leave workers running while
+you follow the harness's delivery loop. When a worker reports, review and integrate
+its result, put it on the page, move finished work out of the open work
+(`authoring-revisions.md`, "Keep the current page current"), and reply in the thread
+that asked, linking to the result.
 
 Workers return results to you and leave the page alone. The server, the watcher,
 acknowledgements, replies, starts, status, `index.html`, and stamps stay yours. The

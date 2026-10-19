@@ -630,8 +630,11 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
             leaf_page(
                 "Reference arrival",
                 '<h1>Review</h1><div style="height:1200px"></div>'
+                # The second press has to reach a page control clear of Comment's card.
+                '<button id="later">Later control</button>'
+                '<div style="height:180px"></div>'
                 '<button id="origin">Original control</button>'
-                '<button id="later">Later control</button><div style="height:1000px"></div>',
+                '<div style="height:1000px"></div>',
             )
         ),
     )

@@ -2229,7 +2229,7 @@ def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
           go.id = 'to-approval';
           go.textContent = 'To the approval';
           go.onclick = () => api.itemActions.open(
-            api.readItems().all.find((ask) => ask.source.kind === 'approval').id);
+            api.readItems().all.find((item) => item.source.kind === 'approval').id);
           go.style.cssText = 'position: fixed; top: 0; left: 0';
           document.body.append(go);
         }"""
@@ -2262,7 +2262,7 @@ def test_the_approval_is_arrived_at_in_sight_below_many_items(browser, serve):
           go.id = 'to-approval';
           go.textContent = 'To the approval';
           go.onclick = () => api.itemActions.open(
-            api.readItems().all.find((ask) => ask.source.kind === 'approval').id);
+            api.readItems().all.find((item) => item.source.kind === 'approval').id);
           go.style.cssText = 'position: fixed; top: 0; left: 0';
           document.body.append(go);
         }"""

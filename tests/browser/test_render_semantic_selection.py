@@ -22,6 +22,7 @@ from render_harness import (
     expect_panel_says,
     leaf_page,
     open_page,
+    panel_control,
     resized,
     sending,
     write,
@@ -507,26 +508,32 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     expect(hints).to_have_count(0)
 
 
-def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve):
-    """A declared picture part outranks its enclosing addressable element without changing what aim
-    means. Choosing its hint focuses the part-anchored composer."""
-    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
-    page.keyboard.press("s")
-    expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
-
-    start_code = page.evaluate(
-        """() => {
-          const part = document.querySelector('#flow [data-id="S"]')
-            .getBoundingClientRect();
-          return [...document.querySelectorAll('.lf-target-picker-hint')]
-            .sort((a, b) => {
-              const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
-              return Math.hypot(ar.left - part.left, ar.top - part.top)
-                   - Math.hypot(br.left - part.left, br.top - part.top);
-            })[0].dataset.lfHintCode;
-        }"""
-    )
-    page.keyboard.type(start_code)
+@pytest.mark.parametrize("route", ["keyboard", "touch"])
+def test_selection_opens_the_same_comment_field_on_a_declared_visual_part(
+    browser, serve, route
+):
+    """Keyboard hints and touch presses open a composer anchored to the named shape."""
+    context = browser.new_context(has_touch=route == "touch")
+    page = open_page(browser, serve(PART_DIAGRAM_PAGE), context=context)
+    if route == "touch":
+        panel_control(page, "command:target.picker.open", at="annotate").tap()
+        page.locator('#flow [data-id="S"]').tap()
+    else:
+        page.keyboard.press("s")
+        expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
+        start_code = page.evaluate(
+            """() => {
+              const part = document.querySelector('#flow [data-id="S"]')
+                .getBoundingClientRect();
+              return [...document.querySelectorAll('.lf-target-picker-hint')]
+                .sort((a, b) => {
+                  const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+                  return Math.hypot(ar.left - part.left, ar.top - part.top)
+                       - Math.hypot(br.left - part.left, br.top - part.top);
+                })[0].dataset.lfHintCode;
+            }"""
+        )
+        page.keyboard.type(start_code)
 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -537,6 +544,18 @@ def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-mark-el\b"))
     assert page.evaluate("() => getSelection().toString()") == ""
+    write(page.locator(".lf-fab-input"), "Explain this shape.")
+    with sending(page, "the selected shape comment"):
+        submit = page.locator(".lf-fab-bar .lf-compose-submit")
+        submit.tap() if route == "touch" else submit.click()
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert [comment["anchor"] for comment in comments] == [
+        {"section": "flow", "visual": "node:S"}
+    ]
 
 
 def test_slash_finds_page_text_without_a_target_kind(browser, serve):

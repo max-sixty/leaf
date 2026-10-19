@@ -480,6 +480,21 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     """
     page = open_page(browser, live_url(serve(TYPED_PARTS_PAGE)))
 
+    expected_parts = {
+        "life": {"Queued", "Working", "Fetch", "Build", "Done"},
+        "shape": {"RUNNER", "JOB"},
+        "path": {"A", "B"},
+        "exchange": {"User", "Server"},
+        "model": {"Job", "Runner"},
+    }
+    assert page.locator("lf-diagram[parts]").evaluate_all("""diagrams =>
+      Object.fromEntries(diagrams.map(diagram => [diagram.id,
+        [...diagram.visualParts.keys()].sort()]))
+    """) == {
+        diagram: sorted(f"node:{name}" for name in parts)
+        for diagram, parts in expected_parts.items()
+    }
+
     def aim(target, **press):
         target.click(modifiers=["Alt"], **press)
         open_compact_comment(page)
@@ -488,13 +503,8 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     aim(state)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Queued")
     write(page.locator(".lf-composer leaf-text"), "how long does it sit here")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
-    # The trip ends when the page has heard back what it sent, which is before it has
-    # drawn what came back. Applying the comment repaints this diagram's marks and hangs
-    # its note on the element, and that repaint takes an open response surface down with
-    # it — so an aim placed in the gap opens a composer the arriving comment then closes.
-    # The note is the projection landing, and every later aim is on a settled page.
+    with sending(page, "the state comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
     expect_comment_notes(page, "#life", 1)
 
     # A box inside the composite state, declared in its own right.
@@ -509,33 +519,34 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     entity = page.locator('#shape g[data-id="RUNNER"]')
     aim(entity)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · RUNNER")
-    page.keyboard.press("Escape")
+    write(page.locator(".lf-composer leaf-text"), "one runner or many")
+    with sending(page, "the entity comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_comment_notes(page, "#shape", 1)
 
     # A node's label is the words the box shows.
     aim(page.locator('#path g[data-id="A"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text(
         "§ diagram · Bold and plain"
     )
-    page.keyboard.press("Escape")
+    write(page.locator(".lf-composer leaf-text"), "explain this step")
+    with sending(page, "the flowchart comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_comment_notes(page, "#path", 1)
 
-    aim(page.locator('#exchange g[data-id="User"]'))
+    aim(page.locator('#exchange g[data-id="User"]:not(.pele-actor-footer)'))
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · User")
-    page.keyboard.press("Escape")
+    write(page.locator(".lf-composer leaf-text"), "who starts the exchange")
+    with sending(page, "the participant comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_comment_notes(page, "#exchange", 1)
 
     aim(page.locator('#model g[data-id="Job"]'))
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · Job")
-    page.keyboard.press("Escape")
-
-    aim(entity)
-    write(page.locator(".lf-composer leaf-text"), "one runner or many")
-    page.keyboard.press("ControlOrMeta+Enter")
-    round_trip(page)
-    # The same gap as above, read from the other side. The trip ends on what the page has
-    # sent, and a post the browser has not reported yet is not pending, so a trip taken on
-    # the heels of the press can end before this comment is in the wire at all — and the
-    # log read below then answers with the log as it stood before the gesture. This note is
-    # the second comment applied, which it cannot be before the log holds it.
-    expect_comment_notes(page, "#shape", 1)
+    write(page.locator(".lf-composer leaf-text"), "which job owns this")
+    with sending(page, "the class comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect_comment_notes(page, "#model", 1)
 
     posted = [
         event
@@ -545,6 +556,9 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     assert [event["anchor"] for event in posted] == [
         {"section": "life", "visual": "node:Queued"},
         {"section": "shape", "visual": "node:RUNNER"},
+        {"section": "path", "visual": "node:A"},
+        {"section": "exchange", "visual": "node:User"},
+        {"section": "model", "visual": "node:Job"},
     ]
     expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
     expect(entity).to_have_class(re.compile(r"\blf-mark-el\b"))
@@ -558,6 +572,20 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     wait_for_revision(page, 2)
     assert page.evaluate("() => !window.lfOldQueued.isConnected")
     expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
+
+    page.reload()
+    wait_until_ready(page)
+    for diagram, name in (
+        ("life", "Queued"),
+        ("shape", "RUNNER"),
+        ("path", "A"),
+        ("exchange", "User"),
+        ("model", "Job"),
+    ):
+        expect(
+            page.locator(f'#{diagram} g[data-id="{name}"]:not(.pele-actor-footer)')
+        ).to_have_class(re.compile(r"\blf-mark-el\b"))
+        expect_comment_notes(page, f"#{diagram}", 1)
 
 
 @pytest.mark.parametrize("reply", [False, True])

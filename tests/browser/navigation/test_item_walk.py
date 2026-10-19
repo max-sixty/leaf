@@ -402,7 +402,7 @@ def test_a_failed_item_reveal_does_not_register_an_arrival(browser, serve):
     page.keyboard.press("m")
     page.wait_for_function("window.itemRevealStarted === true")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    page.evaluate("() => { rejectItemReveal(new Error('ask reveal probe')); }")
+    page.evaluate("() => { rejectItemReveal(new Error('item reveal probe')); }")
     page.wait_for_function("window.itemRevealRejected === true")
     rendered(page)
     position = walk_position(page)
@@ -410,7 +410,7 @@ def test_a_failed_item_reveal_does_not_register_an_arrival(browser, serve):
     assert not position["boundary"]
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert [said(error) for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: ask reveal probe"
+        "leaf: Presentation failed: item reveal probe"
     ]
     round_trip(page)
 
@@ -489,7 +489,7 @@ def test_an_items_digits_are_drawn_whole(browser, serve):
     So the cell holds a place for it, and this asks the two questions that place
     answers — does any ancestor cut it, is it on anybody's words — in both forms,
     stepped through with the key that reaches them. Rows reserve a leading gutter;
-    titled cards share their trailing header-state slot with the same Ask-owned binding badge
+    titled cards share their trailing header-state slot with the same item-owned binding badge
     that temporarily replaces status.
 
     How far down the column it stands is each form's own answer, so each is asked for the
@@ -752,7 +752,7 @@ def test_the_item_walk_measures_from_chrome_only_where_the_chrome_holds_an_item(
     layer is chrome.
 
     The backward press follows a walk down to the first page item, but focus has since
-    moved into the reply's ask. That current focus supplies the step's origin."""
+    moved into the reply's item. That current focus supplies the step's origin."""
     url = serve(
         leaf_page(
             "asks over a panel",
@@ -795,7 +795,7 @@ def test_the_item_walk_measures_from_chrome_only_where_the_chrome_holds_an_item(
     expect(page.locator("#first-decision")).to_be_focused()
 
     # The reply's item is in the route. Walking off it and back down to the first must
-    # not leave a remembered origin that overrides a later focus on the reply's ask.
+    # not leave a remembered origin that overrides a later focus on the reply's item.
     page.keyboard.press("m")
     expect(page.locator("#second-decision")).to_be_focused()
     page.keyboard.press("m")

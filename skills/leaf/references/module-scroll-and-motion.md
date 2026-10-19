@@ -20,7 +20,7 @@ widget keys its rules for that case on `@container style(--lf-full-height: 1)`, 
 reads its parent, and fits what it shows to the height. It declares
 `--lf-holds-height: 1` on each part that scrolls within it, and sets
 `--lf-full-height: inherit` on each box that passes the height down, as a playground
-does to its panes. An Ask passes it to its answer, and page tabs to a tab that is one
+does to its panes. An `lf-ask` passes it to its answering widget, and page tabs to a tab that is one
 block. The property doesn't inherit, so a widget nested in a section, or in a tab of
 several blocks, is not told and grows with its content.
 

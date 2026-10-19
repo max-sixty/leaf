@@ -172,8 +172,8 @@ questions, to-dos, markup, anchor moves and failure receipts each need a reply o
 their own.
 
 Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
-`lf-options` or an `lf-ask`, waits on the user and keeps its thread "My turn" until
-they answer it. A thread you open asks nothing by itself either: to wait on the
+`lf-options` or an `lf-ask`, waits on the user and keeps its thread at "My turn to answer"
+until they answer it. A thread you open waits on nobody by itself: to wait on the
 user's answer, its markup holds an `lf-ask`.
 
 Correct a message you or an earlier agent wrote, without adding a turn:

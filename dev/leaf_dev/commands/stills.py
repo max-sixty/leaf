@@ -301,6 +301,20 @@ def call_tree(page: Page) -> None:
     widget.locator(".lf-call-root-location a").first.focus()
 
 
+def diagram_flow(page: Page) -> None:
+    """The unified-diff flow with its authored added and removed node colors."""
+    page.locator("#pr-flow-diagram").scroll_into_view_if_needed()
+
+
+def diagram_shape_comment(page: Page) -> None:
+    """A comment on one named diagram box, rather than the whole drawing."""
+    diagram_flow(page)
+    page.locator('#pr-flow-diagram g[data-id="Unified"]').click(modifiers=["Alt"])
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "§ diagram · + unified diff"
+    )
+
+
 def page_search(page: Page) -> None:
     """A focused page query and its match count inside the search frame."""
     page.keyboard.press("Tab")
@@ -502,7 +516,7 @@ def page_comment_long(page: Page) -> None:
 
 
 def option_long(page: Page) -> None:
-    """An Ask's added option, typed long enough to wrap beside its Add press."""
+    """An option list's added option, typed long enough to wrap beside its Add press."""
     field = page.locator(".lf-another leaf-text").first
     field.scroll_into_view_if_needed()
     field.click()
@@ -515,14 +529,14 @@ def option_long(page: Page) -> None:
 
 
 def options_in_pane(page: Page) -> None:
-    """An Ask's option list in a workspace pane, under the paragraphs it answers."""
+    """An option list in a workspace pane, under the paragraphs it answers."""
     page.get_by_text("Checkout p99 latency", exact=True).click()
     page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 
 def tally_after_an_answer(page: Page) -> None:
     """A queue's tally after Next on me and one answer: the count down by one, the
-    answered row's check above the open marks, and Next on me's second ask open."""
+    answered row's check above the open marks, and Next on me's second item open."""
     next_on_me = page.locator("#ar-left .lf-tally-next")
     next_on_me.click()
     page.locator("#ar-canary-consecutive").click()
@@ -577,7 +591,7 @@ def gallery_plans(page: Page) -> None:
 
 
 def gallery_ask_figure(page: Page) -> None:
-    """An Ask framing a chart, with its question at the window's top so the chart and
+    """An `lf-ask` enclosing a chart, with its question at the window's top so the chart and
     every option either share the window or run past it."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     settle(page)
@@ -806,7 +820,7 @@ def versions_menu(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open Ask, reached with `m`: its ring and its marker in view."""
+    """The next open item, an `lf-ask`, reached with `m`: its ring and its marker in view."""
     page.keyboard.press("m")
     page.locator("lf-ask").first.wait_for()
 
@@ -836,7 +850,7 @@ def contents_over_reading(page: Page) -> None:
 
 
 def widget_inline_hints(page: Page) -> None:
-    """A standalone command scope with an active inline hint, outside an Ask."""
+    """A standalone command scope with an active inline hint, outside an `lf-ask`."""
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
     page.keyboard.press("Tab")
     page.locator("#bg-local-shortcuts").focus()
@@ -1529,6 +1543,15 @@ STATES = (
     ),
     State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
     State("walkthrough-calls", "pr-walkthrough", call_tree, region="#pr-call-diagram"),
+    State("diagram-flow", "pr-walkthrough", diagram_flow, region="#pr-flow-diagram"),
+    State(
+        "diagram-flow-dark",
+        "pr-walkthrough",
+        diagram_flow,
+        scheme="dark",
+        region="#pr-flow-diagram",
+    ),
+    State("diagram-shape-comment", "pr-walkthrough", diagram_shape_comment),
     State(
         "walkthrough-calls-dark",
         "pr-walkthrough",

@@ -30,9 +30,10 @@ The steps, in order:
 - `release`: the journey's timed ask, sent while the session is idle, opens a turn
   that answers it (`journey.run_journey`);
 - `mid-turn`: a comment sent during a shell command is picked up in that turn;
+  its PostToolBatch context carries the exact input
+  before another model call, rather than waiting for Stop;
 - `ending`: a comment sent during a shell command wakes the watch, and one sent
-  once that turn has picked the first up is pending as the turn ends, with nothing
-  watching; the Stop hook hands it to that turn, which it keeps going;
+  after that pickup enters the same turn while no watch runs;
 - `escape`: Escape during a shell command ends the turn; a comment sent afterwards
   opens a turn that answers it;
 - `woken`: a comment sent during a shell command wakes the watch, and Escape ends
@@ -74,6 +75,7 @@ import psutil
 from leaf.delivery import DELIVERY_FORMAT, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.hook_transport import INLINE_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -327,6 +329,19 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
         ),
         f"mid-turn: the comment was not picked up in the user's turn {turn}",
     )
+    require(
+        any(
+            event["id"] == mid_turn
+            for record in native_records(cc.home, cc.session)
+            if (attachment := record.get("attachment", {})).get("hookEvent")
+            == "PostToolBatch"
+            for content in attachment["content"]
+            if content.startswith(INLINE_OPENING + "\n")
+            for batch in json.loads(content.split("\n")[1])["batches"]
+            for event in batch["events"]
+        ),
+        "mid-turn: PostToolBatch did not hand the exact input to the model",
+    )
     step("mid-turn", started, "mid-turn", before=before)
 
     started = time.monotonic()
@@ -341,7 +356,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
         "ending: `first` was not picked up",
     )
     # The watch woke for `first` and its handover is done, so nothing watches
-    # until this turn ends, and this one is pending as it does.
+    # until this turn ends. Its next tool boundary carries input arriving now.
     ending = user.comment("ending")
     cc.until(answered("first", "ending"), "ending: the comments were not answered")
     picked = [
@@ -350,7 +365,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     ]
     require(
         turn in picked,
-        "ending: the Stop hook did not keep the turn going for `ending`",
+        "ending: the running turn did not pick up `ending`",
     )
     step("ending", started, "first", "ending", before=before)
 
@@ -412,13 +427,17 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     user.passed("quit", started)
 
 
+def native_records(home: Path, session: str) -> list[dict]:
+    """The native session record, including hook context attachments."""
+    [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
 def transcript(home: Path, session: str) -> list[dict]:
     """The session's transcript so far, as tool and turn records stamped
     `received_at` with the time Claude Code wrote on each."""
-    [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
     records = []
-    for line in path.read_text().splitlines():
-        record = json.loads(line)
+    for record in native_records(home, session):
         if record.get("type") not in ("user", "assistant") or "message" not in record:
             continue
         content = record["message"]["content"]

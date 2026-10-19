@@ -821,7 +821,11 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
 def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
     """The SVG keeps Leaf's theme variables, so a scheme flip repaints it live."""
     page = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
-    node = page.locator("#flow svg .node rect").first
+    node = (
+        page.locator('#flow g[data-id="S"]')
+        .locator("rect, polygon, path, circle, ellipse")
+        .first
+    )
     expect(node).to_be_visible()
     fill = "el => getComputedStyle(el).fill"
     light = node.evaluate(fill)

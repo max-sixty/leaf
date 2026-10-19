@@ -1704,7 +1704,7 @@ function currentWidgetRelations(document, widgets, projection) {
 }
 function localQueues(served, threads, workflows, todos, items) {
   const record = new Map(items.all.map((item) => [item.id, item]));
-  const asked = new Map(items.all.map((item, at) => [item.id, at]));
+  const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
   const byThread = new Map(threads.map((thread) => [thread.id, thread]));
@@ -1779,7 +1779,7 @@ function localQueues(served, threads, workflows, todos, items) {
         (workflow) => workflow.next_actor === "user" && workflow.thread === null ? resend(workflow.id, workflow.subject, null) : []
       )
     ].toSorted(
-      (a, b2) => onUserRank(a) - onUserRank(b2) || (carriesItem2(a) && carriesItem2(b2) ? asked.get(a.id) - asked.get(b2.id) : 0)
+      (a, b2) => onUserRank(a) - onUserRank(b2) || (carriesItem2(a) && carriesItem2(b2) ? inventoryAt.get(a.id) - inventoryAt.get(b2.id) : 0)
     ),
     on_agent: [
       ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),

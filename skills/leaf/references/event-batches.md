@@ -88,4 +88,4 @@ to follow. Receipt commands refuse input that no longer belongs to this session.
 
 Write every answer still owed, then return to your harness's wait loop. Run
 `leaf status … waiting` once everything is answered and the next step is the
-user's; while you keep working, leave an item started instead.
+user's; while you keep working, leave the update or to-do started instead.

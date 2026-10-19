@@ -981,8 +981,8 @@ def test_an_item_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
-    An x-ask-context widget states its own arrival region: a heading, the context, then the
-    control. A suggestion can stand mid-sentence, so it can never satisfy "an item must
+    An enclosing widget (`x-awaits.encloses`) states its own arrival region: a heading, the
+    context, then the control. A suggestion can stand mid-sentence, so it can never satisfy "an item must
     name itself without context outside the item" and no region can be written round it.
     Arriving on the change alone put its own top edge at the window's head and took the
     sentence and the heading with it, leaving the user on the change with nothing on

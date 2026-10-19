@@ -107,91 +107,106 @@ def execute_scenario(
                 work / "stream.jsonl",
                 watch=(payload, state, page),
             ) as live:
-                preparing = True
-                started = None
-                setup_deadline = time.monotonic() + 300
-                for record in live.records(idle=0.1):
-                    if started is None and time.monotonic() >= setup_deadline:
-                        raise TimeoutError(
-                            "The scenario never reached its injection condition"
-                        )
-                    if not live.url:
-                        continue
-                    if workload and preparing:
-                        if record and record.get("type") == "result":
-                            live.send(workload["prompt"])
-                            preparing = False
-                        continue
-                    if started is None:
-                        ready = (
-                            (cwd / "suite_lab/operations.jsonl").exists()
-                            if workload
-                            else live.running or live.answered > 0
-                        )
-                        if not ready:
+                try:
+                    preparing = True
+                    started = None
+                    setup_deadline = time.monotonic() + 300
+                    for record in live.records(idle=0.1):
+                        if started is None and time.monotonic() >= setup_deadline:
+                            raise TimeoutError(
+                                "The scenario never reached its injection condition"
+                            )
+                        if not live.url:
                             continue
-                        started = time.monotonic()
-                        cutoff = datetime.now(UTC) + timedelta(
-                            seconds=DEFINITION["observation_seconds"]
-                        )
-                    elapsed = time.monotonic() - started
-                    if elapsed >= DEFINITION["observation_seconds"]:
-                        break
-                    if len(injections) == len(moves):
-                        continue
-                    move = moves[len(injections)]
-                    ready = (
-                        elapsed >= move["after_seconds"]
-                        if workload
-                        else (
-                            live.running
-                            if move["injection"] == "running"
-                            else not live.running
-                            and time.monotonic() - live.heard >= 3
-                            and (
-                                not injections
-                                or successful_replies(
-                                    read_events(page), injections[-1]["input_id"]
+                        if workload and preparing:
+                            if record and record.get("type") == "result":
+                                live.send(workload["prompt"])
+                                preparing = False
+                            continue
+                        if started is None:
+                            ready = (
+                                (cwd / "suite_lab/operations.jsonl").exists()
+                                if workload
+                                else live.running or live.answered > 0
+                            )
+                            if not ready:
+                                continue
+                            started = time.monotonic()
+                            cutoff = datetime.now(UTC) + timedelta(
+                                seconds=DEFINITION["observation_seconds"]
+                            )
+                        elapsed = time.monotonic() - started
+                        if elapsed >= DEFINITION["observation_seconds"]:
+                            break
+                        if len(injections) == len(moves):
+                            continue
+                        move = moves[len(injections)]
+                        ready = (
+                            elapsed >= move["after_seconds"]
+                            if workload
+                            else (
+                                live.running
+                                if move["injection"] == "running"
+                                else not live.running
+                                and time.monotonic() - live.heard >= 3
+                                and (
+                                    not injections
+                                    or successful_replies(
+                                        read_events(page), injections[-1]["input_id"]
+                                    )
                                 )
                             )
                         )
-                    )
-                    if not ready:
-                        continue
-                    client = PageClient(live.url)
-                    attempt = f"delivery-eval-{move['name']}"
-                    current = client.post(
-                        {
-                            "kind": "comment",
-                            "revision": client.state()["active"]["revision"],
-                            "attempt": attempt,
-                            "text": move["text"],
-                            **({"anchor": move["anchor"]} if "anchor" in move else {}),
+                        if not ready:
+                            continue
+                        client = PageClient(live.url)
+                        attempt = f"delivery-eval-{move['name']}"
+                        current = client.post(
+                            {
+                                "kind": "comment",
+                                "revision": client.state()["active"]["revision"],
+                                "attempt": attempt,
+                                "text": move["text"],
+                                **(
+                                    {"anchor": move["anchor"]}
+                                    if "anchor" in move
+                                    else {}
+                                ),
+                            }
+                        )
+                        event = next(
+                            e for e in current["events"] if e.get("attempt") == attempt
+                        )
+                        injection = {
+                            "name": move["name"],
+                            "input_id": event["id"],
+                            "turn_active": live.running,
                         }
-                    )
-                    event = next(
-                        e for e in current["events"] if e.get("attempt") == attempt
-                    )
-                    injection = {
-                        "name": move["name"],
-                        "input_id": event["id"],
-                        "turn_active": live.running,
-                    }
-                    injections.append(injection)
-                    live.note(
-                        {"type": "eval_post", **injection, "received_at": event["ts"]}
-                    )
+                        injections.append(injection)
+                        live.note(
+                            {
+                                "type": "eval_post",
+                                **injection,
+                                "received_at": event["ts"],
+                            }
+                        )
+                finally:
+                    cutoff = min(cutoff, datetime.now(UTC))
+                    shutil.copy(page / "index.html", work / "index.html")
+                    texts["page"] = (work / "index.html").read_text()
+                    if workload:
+                        shutil.copytree(cwd / "suite_lab", work / "task")
+                        diagnostics["task_snapshot_at"] = datetime.now(UTC).isoformat()
         except BaseException as error:
             diagnostics["error"] = f"{type(error).__name__}: {error}"
             raise
         finally:
             try:
-                cutoff = min(cutoff, datetime.now(UTC))
                 diagnostics["injections"] = injections
                 diagnostics["timings"] = capture_measurements(page, injections, cutoff)
                 checks["injected"] = len(injections) == len(moves) and all(
-                    row["turn_active"]
-                    == (workload is not None or move["injection"] == "running")
+                    workload is not None
+                    or row["turn_active"] == (move["injection"] == "running")
                     for row, move in zip(injections, moves, strict=False)
                 )
                 events = [
@@ -203,13 +218,10 @@ def execute_scenario(
                     replies = successful_replies(events, row["input_id"])
                     texts[row["name"]] = "\n\n".join(reply["text"] for reply in replies)
                     checks[f"replied-{row['name']}"] = bool(replies)
-                for name in ("index.html", "events.jsonl", "observations.jsonl"):
+                for name in ("events.jsonl", "observations.jsonl"):
                     if (page / name).exists():
                         shutil.copy(page / name, work / name)
-                texts["page"] = (work / "index.html").read_text()
                 if workload:
-                    shutil.copytree(cwd / "suite_lab", work / "task")
-                    diagnostics["task_snapshot_at"] = datetime.now(UTC).isoformat()
                     checked = subprocess.run(
                         [
                             "python3",

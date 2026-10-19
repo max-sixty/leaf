@@ -79,7 +79,6 @@ def browser_thread(
         if is_answer(event):
             first_answers.setdefault(event["responds"], event["id"])
     for thread_id, thread in threads.items():
-        prompt = work.prompts.get(thread_id)
         protected = set()
         if awaits_agent(thread):
             protected.add(turn_message(unanswered_agent_turn(thread)))
@@ -116,7 +115,6 @@ def browser_thread(
                     if message["id"] == thread["root"]["id"]
                 ),
                 "resolved": thread["resolved"] and _named(thread["resolved"]),
-                "user_prompt": prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
                 "summaries": summaries,
@@ -163,7 +161,6 @@ def browser_thread(
             "projection": browser_projection(
                 reading.projection, scope="thread", within={}, floors={}
             ),
-            "items": work.items,
             "threads": rendered_threads,
         },
         reading,

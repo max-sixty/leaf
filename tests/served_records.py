@@ -332,12 +332,12 @@ ITEM_PAGE = leaf_page(
 
 
 def _served_record_item() -> dict:
-    """One item as On me lists it (`served_state.queues`)."""
+    """One item's row as On me lists it (`served_state.queues`)."""
     state = served_reading(ITEM_PAGE, BOTH_SIDES)
     return next(
-        item
-        for item in state["browser"]["views"]["1"]["queues"]["on_user"]
-        if "item" in item
+        row
+        for row in state["browser"]["views"]["1"]["queues"]["on_user"]
+        if row["kind"] == "widget"
     )
 
 

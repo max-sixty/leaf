@@ -13,8 +13,10 @@ On me holds items, to-dos on the user and resends; On <agent> holds answers the 
 owes, work in hand on an update, and the agent's to-dos. A row names its kind, its
 subject, the list it stands on (`owner`), the thread it stands in, and whether the
 agent has it in hand now (`live`): a to-do a start holds, or an update the agent is at
-work on whose work has not gone quiet or stopped. A widget or approval row carries its
-item's canonical record (`item`), and a to-do row the fields a row draws.
+work on whose work has not gone quiet or stopped. A widget or approval row names its
+item by `id` and carries no copy of it: the view serves each item record once, in
+`items`, and the browser's publisher joins the row to its current record. A to-do row
+carries the fields a row draws.
 
 A row that leaves a list lands in that list's Done, which its `owner` names: On me's
 holds the items the user answered, here or elsewhere, or the agent withdrew, and the
@@ -48,8 +50,8 @@ def _todo_item(todo: dict) -> dict:
 
 
 def _record_item(item: dict) -> dict:
-    """One widget or approval item on the user's list, On me, by its source's kind; it
-    retains its canonical record."""
+    """One widget or approval item on the user's list, On me, by its source's kind. It
+    names the item by `id`; the record is the view's `items` entry."""
     source = item["source"]
     return {
         "kind": source["kind"],
@@ -59,12 +61,7 @@ def _record_item(item: dict) -> dict:
         if source["kind"] == "widget"
         else {"kind": "page"},
         "thread": item["thread"],
-        "title": item["prompt"]["text"],
-        "running": None,
         "live": False,
-        "agent": None,
-        "session": None,
-        "item": item,
     }
 
 

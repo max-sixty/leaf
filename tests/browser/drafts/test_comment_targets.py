@@ -195,7 +195,17 @@ def test_an_unsent_comment_stays_with_its_passage_when_another_is_selected(
 
     Each passage keeps its own durable draft: the newly selected passage starts empty,
     and returning to the original passage restores the words written about it."""
-    page = open_page(browser, serve(NOTED_PAGE))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Two passages",
+                # Both selections have to reach words clear of the open comment card.
+                '<h1>Noted</h1><p id="p1">The first passage under discussion.</p>'
+                '<p id="p2" style="margin-top:180px">A second passage.</p>',
+            )
+        ),
+    )
     field = page.locator(".lf-fab-input")
     original = "These words belong to the first passage."
 

@@ -150,7 +150,7 @@ import { draftOf, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
 import { settleThread } from "./thread/folding.js";
-import { queueItemKey, readQueues } from "./queue-api.js";
+import { queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { carriesItem, itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
@@ -1802,7 +1802,13 @@ export function createFloatingPanel({
   // The height each seated card first stood at, which it keeps while seated, so an
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
-  const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
+  // Exploration only: which candidate draws the plan (`?plan-sketch=a|b`).
+  const planSketch = new URLSearchParams(location.search).get("plan-sketch");
+  const QUEUE_TABS = Object.freeze(
+    planSketch === "b"
+      ? { you: "user", agent: "agent", plan: "agent" }
+      : { you: "user", agent: "agent" },
+  );
   // Turning to another list seats its items afresh.
   const chooseQueueTab = (tab) => {
     if (tab === queueTab) return false;
@@ -1824,6 +1830,7 @@ export function createFloatingPanel({
     return {
       you: reading.on_user,
       agent: reading.on_agent,
+      plan: [],
       done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab]),
     };
   };
@@ -1838,7 +1845,72 @@ export function createFloatingPanel({
     );
     return entry?.event ?? null;
   };
-  const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : "On me");
+  const tabLabel = (tab) =>
+    tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+
+  // ---------- the plan ----------
+  const PLAN_MARKS = Object.freeze({
+    done: "check",
+    working: "activity",
+    failed: "cross",
+    dropped: "subtract",
+  });
+  const planItemIds = (steps) =>
+    steps.flatMap((step) => [
+      ...(step.item ? [step.item.id] : []),
+      ...planItemIds(step.steps),
+    ]);
+  // Where an item stands in the plan: its goal, and its place among that goal's steps.
+  function planPlace(id) {
+    const plan = readPlan();
+    for (const goal of plan?.steps ?? []) {
+      const index = goal.steps.findIndex(
+        (step) => step.item?.id === id || planItemIds(step.steps).includes(id),
+      );
+      if (index >= 0) return `${goal.title} · step ${index + 1} of ${goal.steps.length}`;
+    }
+    return null;
+  }
+  function planStep(step) {
+    const mark = PLAN_MARKS[step.state];
+    return html`<li class="lf-fp-plan-step" data-state=${step.state}>
+      <span class="lf-fp-plan-mark"
+        >${mark ? iconTemplate(mark, "lf-action-icon") : nothing}</span
+      ><span class="lf-fp-plan-title">${step.title ?? ""}</span>${
+        step.owner === "user" && step.state === "open"
+          ? html`<button
+              type="button"
+              class="lf-fp-plan-tag"
+              @click=${() => {
+                if (chooseQueueTab("you")) paint();
+              }}
+            >
+              On me
+            </button>`
+          : step.state === "working" && step.since
+            ? html`<span class="lf-fp-plan-time">${shortAgo(step.since)}</span>`
+            : nothing
+      }${
+        step.running
+          ? html`<span class="lf-fp-plan-line">${step.running.text}</span>`
+          : nothing
+      }${
+        step.steps.length
+          ? html`<ol class="lf-fp-plan-steps">${step.steps.map(planStep)}</ol>`
+          : nothing
+      }
+    </li>`;
+  }
+  const planCards = () =>
+    (readPlan()?.steps ?? []).map(
+      (goal) => html`<section class="lf-fp-plan">
+        <h3 class="lf-fp-plan-goal">
+          <span>${goal.title ?? ""}</span
+          ><span class="lf-fp-plan-count">${goal.done} of ${goal.total}</span>
+        </h3>
+        <ol class="lf-fp-plan-steps">${goal.steps.map(planStep)}</ol>
+      </section>`,
+    );
 
   function onItemCard(item, list) {
     const record = carriesItem(item) ? item.item : null;
@@ -1960,6 +2032,7 @@ export function createFloatingPanel({
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
+    const place = planSketch && list === "you" ? planPlace(item.id) : null;
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
@@ -1967,7 +2040,7 @@ export function createFloatingPanel({
       ?data-approval=${approval}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${
+      ${place ? html`<p class="lf-fp-plan-place">${place}</p>` : nothing}${
         message
           ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
               <div
@@ -2004,7 +2077,15 @@ export function createFloatingPanel({
   }
 
   function onView() {
+    if (queueTab === "plan") return planCards();
     const lists = queueLists();
+    // Candidate A: the plan heads the agent's list, which keeps only what it leaves out.
+    const planned =
+      planSketch === "a" && queueTab === "agent" ? planItemIds(readPlan()?.steps ?? []) : [];
+    if (planned.length) {
+      lists.agent = lists.agent.filter((item) => !planned.includes(item.id));
+      lists.done = lists.done.filter((item) => !planned.includes(item.id));
+    }
     const all = [...lists.you, ...lists.agent, ...lists.done];
     const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
     const current = lists[queueTab].map(queueItemKey);
@@ -2018,10 +2099,12 @@ export function createFloatingPanel({
       lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
     const items = seated.map((key) => byKey.get(key));
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
-    return html`${
+    return html`${planned.length ? planCards() : nothing}${
       items.length
         ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item)))
-        : html`<p class="lf-fp-empty">
+        : planned.length
+          ? nothing
+          : html`<p class="lf-fp-empty">
             Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
           </p>`
     }${
@@ -2112,7 +2195,7 @@ export function createFloatingPanel({
         (tab) => {
           if (chooseQueueTab(tab)) paint();
         },
-        (tab) => lists[tab].length,
+        (tab) => (tab === "plan" ? null : lists[tab].length),
       );
     } else if (thread) {
       // Resolve and Reopen share one seat as wide as the wider of them, both drawn and

@@ -4879,6 +4879,7 @@ var undoSentence = (undoable) => {
 // runtime/queue-api.js
 var queueItemKey = (item) => JSON.stringify([item.kind, item.id]);
 var readQueues = readPart((root) => root.effective.queues);
+var readPlan = readPart((root) => root.effective.plan);
 function createQueueActions({ post: post2, arrive }) {
   return Object.freeze({
     open(key) {
@@ -8385,6 +8386,7 @@ export {
   sendReaction,
   queueItemKey,
   readQueues,
+  readPlan,
   beginRead,
   mountApplication,
   threadBox2 as threadBox,

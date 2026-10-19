@@ -7,7 +7,7 @@ the note once the chosen design lands and `events.md`'s Undo section states it.
 
 ## The question
 
-The user asked this in a comment on the ui-sweep decision page, on its Ask
+The user asked this in a comment on the ui-sweep decision page, on its `lf-ask`
 `ask-undo` ("How far back should z reach?"):
 
 > Vim's persistent undo is very nice, would be great to avoid arbitrary limits.
@@ -101,7 +101,7 @@ Ctrl-R" (newest + name + redo), "Show, then take, with redo", and "Changes panel
   thread open in the panel counts as in view. `z` then means something different
   after every scroll.
 - **Redo on `Z`.** See the next section.
-- **Changes panel.** A third tray beside Asks and Leaves, with its glossary entry
+- **Changes panel.** A third panel beside On me and Threads, with its glossary entry
   (`.claude/skills/developing-leaf/references/glossary.md`) and keyboard and touch
   routes. It is served the `history` reading on demand, which today reaches only a
   page placing `lf-activity`, filtered to the user's own gestures. That reading
@@ -154,7 +154,7 @@ order.
 
 ## The playground
 
-`playground.html` is one Leaf page: the tables above, an Ask whose
+`playground.html` is one Leaf page: the tables above, an `lf-ask` whose
 `lf-playground` (submit label "Build this undo") holds the controls `reach`
 (walk, newest, age, visit, confirm, here), `name`, `redo`, and `panel`, the
 presets, and an `<undo-sim>` preview. Its output is the instruction the user
@@ -163,7 +163,7 @@ asking for the build on this branch, an updated `events.md` Undo section and
 notice words, and a live preview of `review-a-plan`.
 
 `<undo-sim>` is a page-local custom element: a simulated review page three weeks
-in (an Ask, threads, and the user's newest move, resolving _Scope of the
+in (an `lf-ask`, threads, and the user's newest move, resolving _Scope of the
 migration_ 21 days ago below the fold), its event log, and a toolbar (Reload the
 page, Agent picks up your moves, A week passes, Start over). Its `fold(log)`
 withdraws by parity newest first, so an undo naming an undo is a redo, and reads

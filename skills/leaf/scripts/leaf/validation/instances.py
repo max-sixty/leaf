@@ -208,19 +208,20 @@ def unasked(rec: dict, entry: dict) -> dict:
     }
 
 
-def item_context_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """A context supplies a leading title and arrival region for nested items.
+def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
+    """An enclosing widget (`x-awaits.encloses`) supplies a leading title and
+    arrival region for the items inside it.
 
-    Context never owns item identity or registration. Any number of sources
-    can select it, and each source retains its independent answer and lifecycle.
-    A context framing widgets none of which asks shows a question the On me list
-    never counts and the user can't answer, so the error names what each framed
-    widget lacks to ask (`unasked`). A context framing no widget asks only if it
-    declares its own reply-answered item (`x-awaits.reply`), and then needs no
-    heading: its words are the question.
+    It never owns item identity or registration. Any number of sources can select
+    it, and each source retains its independent answer and lifecycle. An enclosing
+    widget whose widgets none ask shows a question the On me list never counts and
+    the user can't answer, so the error names what each enclosed widget lacks to
+    ask (`unasked`). One holding no widget asks only if it declares its own
+    reply-answered item (`x-awaits.reply`), and then needs no heading: its words
+    are the question.
     """
 
-    def context_of(rec):
+    def encloser_of(rec):
         return next(
             (
                 holder
@@ -235,7 +236,7 @@ def item_context_errors(document: SourceDocument, registry: dict) -> list[Findin
     framed = {id(region): [] for region in regions}
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
-        region = context_of(rec)
+        region = encloser_of(rec)
         if local_item_entry(entry) and region and not quoted_in(rec, registry):
             framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
@@ -250,7 +251,7 @@ def item_context_errors(document: SourceDocument, registry: dict) -> list[Findin
         # widget is missing, as when a revision drops the decision it framed.
         if not held and replied(registry[region["tag"]]) and not titled:
             continue
-        # A quoted context is a mention whose widgets ask nothing by design.
+        # A quoted enclosing widget is a mention whose widgets ask nothing by design.
         if not quoted_in(region, registry) and all(lacks for _, lacks in held):
             widgets = [
                 {
@@ -531,7 +532,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + item_context_errors(document, registry)
+        + enclosing_errors(document, registry)
         + declared_word_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
     )

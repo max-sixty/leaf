@@ -1692,8 +1692,8 @@ flowchart TD
                 <tr id="updates-notice-input">
                   <td>Input needed, 2 items waiting on me</td>
                   <td>
-                    A new item requests a decision on the page or in a thread, or an
-                    agent reply asks the user a question.
+                    A new item waits on the user: a decision or a question, on the page
+                    or in a thread.
                   </td>
                 </tr>
                 <tr id="updates-notice-failure">
@@ -1741,8 +1741,9 @@ flowchart TD
               version with this declaration offers an approval control in the banner.
               The version's sign-off is itself an item. Its approval control becomes
               available after every widget item on the page and in unresolved threads is
-              answered or withdrawn. Questions answered in words and widgets in resolved
-              threads do not block approval. Undo reopens the approval item.
+              answered or withdrawn, a question in an <code>lf-ask</code> included.
+              Widgets in resolved threads do not block approval. Undo reopens the
+              approval item.
             </p>
           </section>
 
@@ -3029,14 +3030,15 @@ flowchart TD
               thread panels, and the On panel. An item contains a request for user
               input, its answer, and its lifecycle; widgets own their typed answer
               values. The On panel lists what each side has to act on, in the user's own
-              voice. <em>On me</em> holds widget items, questions, stamped-version
-              sign-off, and to-dos the agent put on the user. <em>On Claude</em>, named
-              for the agent, holds unanswered updates and the agent's open to-dos. The
-              panel shows one list at a time, under a tab named for it, and folds what
-              left that list under it as Done: answered items under On me, sent replies
-              under On Claude. The banner's On me door, beside Threads, counts the
-              user's list, and the On Claude count after the status counts the agent's;
-              each opens the panel on its own list. Opening these controls preserves the
+              voice. <em>On me</em> holds widget items (an <code>lf-ask</code>'s
+              question among them), stamped-version sign-off, to-dos the agent put on
+              the user, and updates to send again. <em>On Claude</em>, named for the
+              agent, holds unanswered updates and the agent's open to-dos. The panel
+              shows one list at a time, under a tab named for it, and folds what left
+              that list under it as Done: answered items under On me, sent replies under
+              On Claude. The banner's On me door, beside Threads, counts the user's
+              list, and the On Claude count after the status counts the agent's; each
+              opens the panel on its own list. Opening these controls preserves the
               page's text wrapping and reading position.
             </p>
             <p id="chrome-bars">
@@ -4453,7 +4455,7 @@ flowchart LR
               what the server holds. The bottom bar gives the server's reason, and a
               refused comment's words return to the box they were typed in.
             </p>
-            <p id="browser-updates-asks">
+            <p id="browser-updates-items">
               Which widget items are open, answered or withdrawn depends on the whole
               log, so only the server computes it. Answering one changes its component,
               and the answer the On panel shows, at once. The item leaves the user's

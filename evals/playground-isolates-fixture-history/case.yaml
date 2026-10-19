@@ -48,7 +48,7 @@ assert:
       inline application/json script through data-sample-events. The script holds
       a comment command and a reply command linked to it by explicit id and parent,
       with kind and text fields, and the comment's anchor names content inside each
-      child template. Comparison controls and the implementation Ask stay outside
+      child template. Comparison controls and the implementation `lf-ask` stay outside
       the child templates. Fail if it relies on data-sample-threads, a companion
       JSONL or posting fixture events from JavaScript, or duplicates fixture anchor
       paragraphs outside the templates to attach fictional parent threads.

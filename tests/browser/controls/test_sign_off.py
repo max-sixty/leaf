@@ -110,12 +110,12 @@ def test_required_approval_is_an_item_until_approved(browser, serve, width):
     expect(on_me).to_be_attached()
     target = page.evaluate("""async () => {
       const {readItems, itemActions} = await window.__lfWidgetApi();
-      const ask = readItems().all.find(q => q.source.kind === 'approval');
-      const target = document.getElementById(ask.prompt.target);
-      await itemActions.open(ask.id);
+      const item = readItems().all.find(q => q.source.kind === 'approval');
+      const target = document.getElementById(item.prompt.target);
+      await itemActions.open(item.id);
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
-    assert target, "the public ask route did not reach its declared approval target"
+    assert target, "the public item route did not reach its declared approval target"
     page.keyboard.press("m")
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_visible()

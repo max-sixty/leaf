@@ -424,7 +424,7 @@ sidebar, with lifecycle hooks preferred over per-agent terminal-text matching.
 
 This is useful evidence for shared controls and attention across tasks. It does
 not supply a document, passage comments, or a reconciliation model for decisions
-against a rewritten page. Leaf's page activity and outstanding Asks have their
+against a rewritten page. Leaf's page activity and outstanding items have their
 own semantics; an agent's process state does not establish who owes a response.
 
 ## Declarative UI formats
@@ -454,7 +454,7 @@ Integration needs to preserve those semantics. Rendering a foreign spec inside
 a widget requires declarations for its visible text, anchors and actions;
 otherwise the embedded tree is opaque to Leaf's checks and log. Exporting Leaf's
 registry as a catalog likewise needs more than component props: state verbs,
-fold units, settlement, and Ask declarations are part of the vocabulary. Replacing
+fold units, settlement, and `x-awaits` declarations are part of the vocabulary. Replacing
 HTML with a protocol is a product change that needs evidence from authoring and
 revision tasks, not merely a schema mapping.
 

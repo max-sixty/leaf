@@ -4,7 +4,7 @@
 description: record-asks-hold-their-premise
 metadata:
   purpose:
-    "Asks: on a record page, an Ask about a finding holds the finding's claim and its distinguishing
+    "Asks: on a record page, an `lf-ask` about a finding holds the finding's claim and its distinguishing
     figure inside the lf-ask, and a tall live demo follows it."
   tags:
     - asks

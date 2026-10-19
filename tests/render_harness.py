@@ -1745,9 +1745,9 @@ _ITEMS_ANSWERED = """async () => {
   window.__lfItemsAnswered = () => {
     const application = readApplication();
     if (application.phase !== 'ready') return null;
-    const asks = application.effective.items;
-    const all = asks.all.filter(ask => ask.source.kind === "widget");
-    const unanswered = asks.unanswered.filter(ask => ask.source.kind === "widget");
+    const items = application.effective.items;
+    const all = items.all.filter(item => item.source.kind === "widget");
+    const unanswered = items.unanswered.filter(item => item.source.kind === "widget");
     return `${all.length - unanswered.length}/${all.length}`;
   };
 }"""

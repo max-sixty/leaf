@@ -270,8 +270,9 @@ def test_sample_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_item_context_frames_any_number_of_independent_sources(page_dir):
-    """Context supplies one title without imposing source count or identity."""
+def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
+    """An enclosing widget supplies one title without imposing source count or
+    identity."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
@@ -1289,7 +1290,6 @@ def test_an_agent_reply_asks_the_user_only_through_a_widget_in_its_markup(page_d
     assert answered.exit_code == 0, answered.output
     worded = reply("--text", "Which store?")
     assert worded.exit_code == 0, worded.output
-    assert reply("--text", "Which store?", "--ask").exit_code == 2
     asking = reply(
         "--text",
         "One question:",

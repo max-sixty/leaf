@@ -169,7 +169,7 @@ def test_response_reaction_controls_wait_for_history(browser, serve, route):
 def test_local_thread_keys_distinguish_local_matches_from_complete_history(
     browser, serve, command
 ):
-    """Enter can find a local send; waiting-on-user must include saved agent asks."""
+    """Enter can find a local send; waiting-on-user must include items saved in agent replies."""
     agent_note = {
         "id": "agent-question",
         "kind": "comment",

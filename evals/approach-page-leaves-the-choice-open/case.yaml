@@ -15,13 +15,13 @@ vars:
     > Both reviews reject the board-specific binding. What varies is who owns the\n> decision:\n> - A,\
     \ the picker: `lf-options` keeps the fact; the board card is a view that\n>   sends the picker's `choose`.\
     \ Smallest step, and the first reviewer's pick.\n>   Order within a column would need ownership to\
-    \ move later.\n> - B, the board: the card's column is the fact; the section's Ask is answered by\n\
-    >   another widget's action, which needs cross-owner Asks.\n> - C, the section: the section's `lf-ask`\
+    \ move later.\n> - B, the board: the card's column is the fact; the section's `lf-ask` is answered by\n\
+    >   another widget's action, which needs cross-owner items.\n> - C, the section: the section's `lf-ask`\
     \ carries `value` and `rank` fields,\n>   Next / Later / Drop are declared once as a scale, and the\
     \ picker and card are\n>   both views. One drop is one event. Needs a scale element, a `set` verb\
     \ and a\n>   view relation. The second reviewer's pick.\n> - D, a record set: data-only rows hold\
     \ the fields and everything else views\n>   them. Best when the user adds tasks; needs cross-owner\
-    \ Asks.\n>\n> Every approach needs the same generic view relation.\n> I'd take C: the fact belongs\
+    \ items.\n>\n> Every approach needs the same generic view relation.\n> I'd take C: the fact belongs\
     \ to the subject it is about. Under C two things\n> stay open: whether order within a column matters\
     \ on these pages yet, and\n> whether `lf-ask` carries the fields or a new `lf-item` element does.\n\
     >\n> \U0001F4CC Choose the shared-state design before building. I'd build C.\n\nThe user replied:\
@@ -38,7 +38,7 @@ assert:
       1. There is an `lf-ask` whose question is which approach (who owns the decision)
          to build, and its options include A, C and D at least.
       2. No `lf-ask` asks a question that presupposes C, such as whether `lf-ask` or a
-         new `lf-item` carries the fields, or how C's rank or scale should work. An Ask
+         new `lf-item` carries the fields, or how C's rank or scale should work. An `lf-ask`
          on whether order within a column matters passes only if the page presents it
          as an input to choosing the approach rather than as a detail of C. The page
          may mention C's open questions without asking them.

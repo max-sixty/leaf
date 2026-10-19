@@ -681,7 +681,7 @@ function localQueues(
   items: WireItems,
 ) {
   const record = new Map(items.all.map((item) => [item.id, item]));
-  const asked = new Map(items.all.map((item, at) => [item.id, at]));
+  const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
   const byThread = new Map(threads.map((thread) => [thread.id, thread]));
@@ -785,7 +785,9 @@ function localQueues(
     ].toSorted(
       (a, b) =>
         onUserRank(a) - onUserRank(b) ||
-        (carriesItem(a) && carriesItem(b) ? asked.get(a.id)! - asked.get(b.id)! : 0),
+        (carriesItem(a) && carriesItem(b)
+          ? inventoryAt.get(a.id)! - inventoryAt.get(b.id)!
+          : 0),
     ),
     on_agent: [
       ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),

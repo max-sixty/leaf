@@ -10,19 +10,19 @@ unresolved sends against the served lists (`build/browser/application.ts`,
 `localQueues`); it never selects them again.
 
 On me holds items, to-dos on the user and resends; On <agent> holds answers the agent
-owes, work in hand on an update, and the agent's to-dos. An item names its kind, its
+owes, work in hand on an update, and the agent's to-dos. A row names its kind, its
 subject, the list it stands on (`owner`), the thread it stands in, and whether the
 agent has it in hand now (`live`): a to-do a start holds, or an update the agent is at
-work on whose work has not gone quiet or stopped. A widget or approval item keeps its
-canonical record, and a to-do item the fields a row draws.
+work on whose work has not gone quiet or stopped. A widget or approval row carries its
+item's canonical record (`item`), and a to-do row the fields a row draws.
 
-An item that leaves a list lands in that list's Done, which its `owner` names: On me's
+A row that leaves a list lands in that list's Done, which its `owner` names: On me's
 holds the items the user answered, here or elsewhere, or the agent withdrew, and the
 to-dos the user ended; On <agent>'s holds the replies the agent sent, each the answer
-it listed for the input the reply responds to, and the to-dos it ended. Each done item adds how it
+it listed for the input the reply responds to, and the to-dos it ended. Each done row adds how it
 ended (`state`: `done`, or `dropped` for a withdrawn item, or a to-do's outcome), when
 (`ended`), and the outcome's detail, which for an item is its agent end's. Done is
-served newest first, and an item without a time goes last. An answer the agent owes
+served newest first, and a row without a time goes last. An answer the agent owes
 in markup settles when a version writes the action in, which is the item's Done, not a
 reply, so it lands in none.
 """

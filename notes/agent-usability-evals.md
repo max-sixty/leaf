@@ -347,7 +347,7 @@ more than the presence of a particular widget.
 Both Leaf document authors retired the user's Wednesday capacity request to Mei
 Tanaka's team after recording Redis as the store choice. Whether that assessment
 still matters for the unselected alternative is ambiguous; retiring it is not itself
-proof of an error. The ask-authoring reference now requires explicit accounting:
+proof of an error. The decisions reference (`authoring-decisions.md`) now requires explicit accounting:
 keep an unanswered request open or explain why changed circumstances make it
 unnecessary. An independent decision does not silently answer or retire it.
 
@@ -545,7 +545,7 @@ Two retained authoring clarifications describe existing contracts. `serving-page
 distinguishes offline reading and local page behavior from new recorded choices,
 Undo and threads, which need the live server, not necessarily an active agent.
 Both before/after comprehension probes chose the live route correctly. The Sign-off
-paragraph in `authoring-asks.md` states that later widget edits neither withdraw a
+paragraph in `authoring-decisions.md` states that later widget edits neither withdraw a
 version approval nor approve new wording: editable content must distinguish the
 approved wording from the current draft. No new approval primitive or automatic
 invalidation was introduced.

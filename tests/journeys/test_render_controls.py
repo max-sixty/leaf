@@ -562,6 +562,7 @@ RING_EXAMPLES = tuple(
 )
 
 
+# Every page the Tab walk visits, of which the ring cases sample a selection.
 RING_EXAMPLE_FILES = {
     example.stem: example
     for example in (
@@ -682,14 +683,17 @@ def seen_stop(page, seen=...):
     return seen["lost"]
 
 
-def _tab_stops_without_indication(page, stem):
+def _tab_walk(page, stem):
     """Walk the page's whole ordinary Tab order, Threads open, and name every stop
-    that shows nothing of where the keyboard is. The panel is closed again after."""
+    that shows nothing of where the keyboard is, and every ring a stop leaves cut or
+    covered (`ring_faults`). A ring that stays lit across stops, such as a decision's
+    for the control the user reached inside it, is named once. The panel is closed
+    again after."""
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
     page.evaluate(RELEASE_FOCUS)
-    failures = []
+    unindicated, faults, faulted = [], [], set()
     empty = 0
     for _ in range(400):
         page.keyboard.press("Tab")
@@ -703,13 +707,21 @@ def _tab_stops_without_indication(page, stem):
             continue
         empty = 0
         if lost:
-            failures.append(f"{stem}: {lost}")
+            unindicated.append(f"{stem}: {lost}")
+        drawn = [ring for ring in rings_drawn(page) if ring["who"] not in faulted]
+        # The runtime's answer to the scroll Tab made, such as a pinned reply row taking
+        # its place, can trail the landing, so a fault counts once the page is at rest.
+        if ring_faults(drawn, stem):
+            page_at_rest(page)
+            drawn = [ring for ring in rings_drawn(page) if ring["who"] not in faulted]
+        faulted.update(ring["who"] for ring in drawn if ring["cuts"] or ring["covers"])
+        faults += ring_faults(drawn, f"tabbing through {stem}")
     else:
         raise AssertionError(f"Tab order never came round in {stem}")
     page.get_by_role("button", name="Close threads", exact=True).click()
     panel_settled(page, open=False)
     page.evaluate(RELEASE_FOCUS)
-    return failures
+    return unindicated, faults
 
 
 # Every box the layer promises a press on, wherever it stands. Not a list of class names:
@@ -4423,8 +4435,8 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
 ):
     """Where the keyboard stands in each surface a key opens, the user sees its ring
     whole: not cut by a box that clips it, and not under a neighbour. And every stop
-    in each selected page's ordinary Tab order shows keyboard focus at all, read by
-    walking it once on arrival.
+    in every example's ordinary Tab order, the feature gallery's included, shows
+    keyboard focus with its rings whole, read by walking it once on arrival.
 
     `RING_CASES` walks the layer's surfaces by their real keys and stands on a sample in
     each; every ring drawn there is measured, not only the sample's. Which rings get a
@@ -4461,8 +4473,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
         "the ring cases name examples that no longer exist: "
         + ", ".join(sorted(missing))
     )
-    for name in RING_EXAMPLES:
-        example = RING_EXAMPLE_FILES[name]
+    for name, example in RING_EXAMPLE_FILES.items():
         # Serving the path lays in the example's shipped log and message widgets.
         # The chrome's page also carries a passage's thread, which the Page Map lists.
         anchored = [("triage-lede", "Migration 0041")] if name == RING_CHROME else ()
@@ -4478,7 +4489,12 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
-        unindicated += _tab_stops_without_indication(page, example.stem)
+        walked_unindicated, walked_faults = _tab_walk(page, example.stem)
+        unindicated += walked_unindicated
+        faults += walked_faults
+        if name not in RING_EXAMPLES:
+            page.close()
+            continue
         if name == "wt-merge":
             # The shipped steps now contain buttons, so the scrollable body needs no
             # stop of its own. Make this ring specimen prose-only; it still overflows
@@ -4671,6 +4687,12 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 assert found == expected, (
                     f"{selector or scope} {where} did not exhibit "
                     + ", ".join(sorted(expected - found))
+                    + "; the rings drawn: "
+                    + "; ".join(
+                        f"{ring['who']} (rule {ring['rule']!r}, here {ring['here']}, "
+                        f"sample {ring['sample']})"
+                        for ring in drawn
+                    )
                 )
             if posture:
                 for _ in range(3):

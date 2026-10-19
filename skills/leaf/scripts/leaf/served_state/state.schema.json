@@ -104,7 +104,7 @@
                 "properties": {
                   "contract": { "type": "string" },
                   "revision": { "type": "string" },
-                  "run": true,
+                  "run": { "type": "string" },
                   "updated": { "type": "string" },
                   "value": true,
                   "error": { "type": "string" }
@@ -183,7 +183,16 @@
             "checkout": { "type": "string" },
             "interaction": { "enum": ["user", "author"] },
             "started": { "type": "string" },
-            "input": { "type": "object" }
+            "input": {
+              "description": "The fixture publication the preview's watcher last applied.",
+              "type": "object",
+              "properties": {
+                "source": { "type": "string" },
+                "authored": { "type": "string" }
+              },
+              "required": ["source", "authored"],
+              "additionalProperties": false
+            }
           },
           "required": ["example", "checkout", "interaction", "started", "input"],
           "additionalProperties": false
@@ -381,7 +390,7 @@
         "turn": { "type": ["string", "null"] },
         "reply_to": { "type": ["string", "null"] },
         "responds": { "type": ["string", "null"] },
-        "settles": true,
+        "settles": { "type": ["boolean", "null"] },
         "attempt": { "type": "string" },
         "has_text": { "type": "boolean" }
       },
@@ -667,9 +676,19 @@
           ]
         },
         "anchor": { "$ref": "#/$defs/Anchor" },
-        "about": true,
+        "about": {
+          "anyOf": [
+            { "$ref": "leaf:event/comment#/properties/about" },
+            { "type": "null" }
+          ]
+        },
         "token": { "type": "string" },
-        "holds": true,
+        "holds": {
+          "anyOf": [
+            { "$ref": "leaf:event/comment#/properties/holds" },
+            { "type": "null" }
+          ]
+        },
         "drawing": { "type": "boolean" },
         "excerpt": { "type": ["string", "null"] },
         "widget": { "type": "string" },
@@ -933,13 +952,12 @@
                   { "type": "string" },
                   { "type": "string" }
                 ],
-                "items": false
+                "items": false,
+                "minItems": 3
               },
               "spec": {
                 "description": "The operation the event was admitted under, by the immutable registry of the revision that interpreted it, which may differ from the active document's. Browser folds read this rather than reinterpreting history through whichever registry the current DOM selected.",
-                "type": "object",
-                "properties": { "unit": { "type": "string" } },
-                "required": ["unit"]
+                "$ref": "#/$defs/Verb"
               },
               "value": true,
               "scope": { "enum": ["document", "thread"] },
@@ -1491,6 +1509,63 @@
     "Stage": {
       "description": "How far an update has reached the agent; `answered` is only ever a retained failed response.",
       "enum": ["sent", "queued", "picked_up", "working", "replying", "answered"]
+    },
+    "Verb": {
+      "description": "One x-state verb as the registry that interpreted the event declares it, which admission checks against `schema.STATE_SCHEMA`: the unit it changes, who writes it, and either its record, how its state reads in markup, or the schema of its detail, which stays open since a widget's registry owns it.",
+      "type": "object",
+      "properties": {
+        "unit": { "type": "string" },
+        "record": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "enum": ["attribute", "value"] },
+                "attr": { "type": "string" }
+              },
+              "required": ["kind", "attr"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": { "const": "position" },
+                "within": { "type": "string" }
+              },
+              "required": ["kind", "within"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": { "kind": { "const": "body" } },
+              "required": ["kind"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "writer": { "const": "agent" },
+        "creates": {
+          "type": "object",
+          "properties": {
+            "child": { "type": "string" },
+            "words": { "type": "string" }
+          },
+          "required": ["child", "words"],
+          "additionalProperties": false
+        },
+        "text": { "const": true },
+        "detail": { "type": "object" }
+      },
+      "required": ["unit"],
+      "additionalProperties": false,
+      "oneOf": [{ "required": ["record"] }, { "required": ["detail"] }]
+    },
+    "ViewAnswer": {
+      "description": "The answer `GET /api/view` gives (`served_state.service.PageStateService.page_browser_view`): one revision's browser reading at an exact log boundary, which version comparison folds.",
+      "type": "object",
+      "properties": { "browser": { "$ref": "#/$defs/Browser" } },
+      "required": ["browser"],
+      "additionalProperties": false
     }
   }
 }

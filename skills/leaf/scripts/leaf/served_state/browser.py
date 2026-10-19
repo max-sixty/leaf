@@ -222,11 +222,6 @@ def browser_state(
             "queues": queues(thread["threads"], workflows, todos, collection(items)),
             "approval_blocking": [item["id"] for item in approval_blocking(items)],
         }
-    activity = {
-        key: value
-        for key, value in work.activity.items()
-        if key not in {"workflows", "todos"}
-    }
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {
@@ -245,8 +240,6 @@ def browser_state(
         **page_history,
         "views": views,
         "approval_history": durable.approvals,
-        "activity": activity,
-        "workflows": workflows,
         "todos": todos,
         "plan": durable.plan,
         "receipts": [event for event in events if event.get("attempt")],

@@ -52,7 +52,15 @@ import type {
   ProjectionEntry,
   ContentVersion,
 } from "./domain.ts";
-import type { ServedState } from "./contract.js";
+import type {
+  ServedItem,
+  ServedQueueRow,
+  ServedState,
+  ServedSubject,
+  ServedTodo,
+  ServedView,
+  ServedWorkflow,
+} from "./contract.js";
 
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
@@ -173,23 +181,19 @@ type AuthoritativeState = ServedState & {
   active: NonNullable<ServedState["active"]>;
   browser: NonNullable<ServedState["browser"]>;
 };
-type ServerView = AuthoritativeState["browser"]["views"][string];
 /** A server view with its basis, the transport identity, left off. */
-type PageView = Omit<ServerView, "basis">;
-type WireProjection = ServerView["document"]["projection"];
-type ItemRecord = ServerView["document"]["items"]["all"][number];
+type PageView = Omit<ServedView, "basis">;
+type ItemRecord = ServedItem;
 interface WireItems {
   all: readonly ItemRecord[];
   user: readonly ItemRecord[];
   unanswered: readonly ItemRecord[];
 }
-type WireWorkflow = ServedState["workflows"][number];
-
 /** Published workflows include local sends, before the server can classify them: a
  * send has no stage the server knows yet, and a widget move no coordinate the server
  * has read. */
-export type Workflow = Omit<WireWorkflow, "stage" | "coordinate"> & {
-  stage: WireWorkflow["stage"] | "sending";
+export type Workflow = Omit<ServedWorkflow, "stage" | "coordinate"> & {
+  stage: ServedWorkflow["stage"] | "sending";
   coordinate: readonly (string | null)[] | null;
 };
 
@@ -198,16 +202,15 @@ export type Workflow = Omit<WireWorkflow, "stage" | "coordinate"> & {
 export type WireTodo = Omit<ServedTodo, "outcome"> & {
   outcome: ServedTodo["outcome"] | { ts: null; detail: null };
 };
-type ServedTodo = AuthoritativeState["browser"]["todos"][number];
 
 /** One item on On me or On <agent>, as `served_state.queues` serves it or this tab
  * places it: `owner` names the list. A widget or approval item keeps its record; a
  * to-do item the fields a row draws. */
 interface QueueItem {
-  kind: ServerView["queues"]["on_user"][number]["kind"];
+  kind: ServedQueueRow["kind"];
   id: string;
   owner: "user" | "agent";
-  subject: WireWorkflow["subject"];
+  subject: ServedSubject;
   thread: string | null;
   /** Whether the agent has it in hand now. */
   live: boolean;
@@ -1227,7 +1230,7 @@ export function createSemanticApplication({
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.
-    projectView(view: AuthoritativeState["browser"]["views"][string]) {
+    projectView(view: ServedView) {
       return foldProjection({
         ...normalizedProjection(view),
         pendingEntries: [],

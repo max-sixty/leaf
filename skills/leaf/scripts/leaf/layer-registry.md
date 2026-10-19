@@ -94,7 +94,8 @@ or an event drops, renames or changes the meaning of something the other side re
 or a field the page's runtime sends becomes required.
 Adding a field or kind the older code ignores needs no bump. The browser build holds
 the event records and the served state to this. It generates their types from `$events`
-and from `served_state/state.schema.json`, the served state's one declaration, and
+and from `served_state/state.schema.json`, the one declaration of the served state and
+of the `/api/view` answer, and
 keeps them as they last stood at the current number
 (`build/browser/protocol-contract.d.ts`). `protocol.test.ts` fails a change that drops
 a kind or a field at any depth, requires a new one, or narrows a value's type or

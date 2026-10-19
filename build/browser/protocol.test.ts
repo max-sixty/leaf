@@ -18,17 +18,23 @@ type Records<T> = T extends readonly (infer Item)[]
     ? T
     : never;
 // Each field, at any depth, that the vendored records name and the current ones lost.
-// `Depth` counts the records walked, so a record holding its own kind, such as a plan
-// step's steps, ends the walk past any depth the contract nests to.
-type Lost<Old, New, Depth extends unknown[] = []> = Depth["length"] extends 16
-  ? never
-  : Old extends unknown
-    ? {
+// `Walked` holds the vendored records the walk passed through, so a record that holds
+// its own kind, such as a plan step's steps, is walked once and the walk ends there.
+type Lost<Old, New, Walked extends unknown[] = []> = Old extends unknown
+  ? Among<Old, Walked> extends true
+    ? never
+    : {
         [K in Keys<Old>]: K extends Keys<New>
-          ? Lost<Records<Field<Old, K>>, Records<Field<New, K>>, [...Depth, K]>
+          ? Lost<Records<Field<Old, K>>, Records<Field<New, K>>, [...Walked, Old]>
           : K;
       }[Keys<Old>]
-    : never;
+  : never;
+// Whether `T` is exactly one of `Types`.
+type Among<T, Types extends unknown[]> = Types extends [infer First, ...infer Rest]
+  ? (<U>() => U extends T ? 1 : 2) extends <U>() => U extends First ? 1 : 2
+    ? true
+    : Among<T, Rest>
+  : false;
 // Each kind the vendored contract names, or a field of it the current one lost.
 type Dropped<Old, New> = {
   [Kind in keyof Old]: Kind extends keyof New ? Lost<Old[Kind], New[Kind]> : Kind;
@@ -49,3 +55,7 @@ const recordsStillRead: Takes<Current.Event, Vendored.Event> = true;
 // direction runs the other way, so the vendored state takes the current one.
 const stateKeepsItsFields: None<Lost<Vendored.ServedState, Current.ServedState>> = true;
 const stateStillRead: Takes<Vendored.ServedState, Current.ServedState> = true;
+const viewKeepsItsFields: None<
+  Lost<Vendored.ServedViewAnswer, Current.ServedViewAnswer>
+> = true;
+const viewStillRead: Takes<Vendored.ServedViewAnswer, Current.ServedViewAnswer> = true;

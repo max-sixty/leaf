@@ -29,18 +29,6 @@ class ServedPage(NamedTuple):
     data: dict
 
 
-def project_activity(
-    context: PageRead,
-    browser: dict | None,
-) -> dict:
-    """Project activity even before the page has an active document."""
-    if browser is not None:
-        return browser.pop("activity")
-    return {
-        key: value for key, value in context.work.activity.items() if key != "todos"
-    }
-
-
 def full_state(
     page_dir: Path,
     events: list,
@@ -65,16 +53,13 @@ def read_served_page(
     active = context.active
     projected = project_browser_state(context, view_revision)
     browser, reading = projected if projected is not None else (None, None)
-    activity = project_activity(context, browser)
+    work = context.work
     selected_registry = (
         context.revision(view_revision or active["revision"]).registry
         if active is not None
         else context.registry
     )
     identity = selected_registry["$layer"] if active is not None else context.layer
-    workflows = (
-        browser.pop("workflows") if browser is not None else activity.pop("workflows")
-    )
     state = {
         "layer": identity,
         "now": context.now,
@@ -93,8 +78,12 @@ def read_served_page(
         "data": browser_data_from(context.data, selected_registry),
         "files": context.bound_files(),
         **context.presence,
-        "activity": activity,
-        "workflows": workflows,
+        "activity": {
+            key: value
+            for key, value in work.activity.items()
+            if key not in {"workflows", "todos"}
+        },
+        "workflows": work.workflows,
         "browser": browser,
         "events": context.events,
         **({"preview": preview} if preview else {}),

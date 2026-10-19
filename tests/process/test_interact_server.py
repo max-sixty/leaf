@@ -1082,7 +1082,7 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
 
 
 def test_every_state_answer_holds_the_served_state_schema(server, page_dir):
-    """`/api/state` and the state an event's answer carries hold
+    """`/api/state`, the state an event's answer carries and `/api/view` hold
     `served_state/state.schema.json`: before the page has a revision, whose `active`
     and `browser` are null, and once it has one, with a neighbor beside it, a claim
     on it, a thread and a published version."""
@@ -1096,8 +1096,8 @@ def test_every_state_answer_holds_the_served_state_schema(server, page_dir):
     unrevised = json.loads(raw)
     assert unrevised["active"] is None and unrevised["browser"] is None
     assert unrevised["source_error"]
-    assert served_state_error(unrevised, answer=True) is None, served_state_error(
-        unrevised, answer=True
+    assert served_state_error(unrevised, "answer") is None, served_state_error(
+        unrevised, "answer"
     )
 
     index.write_text(source)
@@ -1115,9 +1115,17 @@ def test_every_state_answer_holds_the_served_state_schema(server, page_dir):
     served = json.loads(raw)
     assert served["others"] and served["browser"]["views"]
     for state in (answered, served):
-        assert served_state_error(state, answer=True) is None, served_state_error(
-            state, answer=True
+        assert served_state_error(state, "answer") is None, served_state_error(
+            state, "answer"
         )
+    latest = served["browser"]["basis"]["through_seq"]
+    status, raw = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
+    assert status == 200, raw
+    viewed = json.loads(raw)
+    assert set(viewed["browser"]["views"]) == {"1"}
+    assert served_state_error(viewed, "ViewAnswer") is None, served_state_error(
+        viewed, "ViewAnswer"
+    )
 
 
 def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, page_dir):

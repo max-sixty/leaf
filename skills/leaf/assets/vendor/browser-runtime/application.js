@@ -54,6 +54,14 @@ import { queueOffers } from "../../runtime/queues.js";
 
 
 
+
+
+
+
+
+
+
+
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
  *
@@ -173,11 +181,7 @@ function advance(
 
 
 
-
 /** A server view with its basis, the transport identity, left off. */
-
-
-
 
 
 
@@ -195,7 +199,6 @@ function advance(
 
 /** One to-do as the browser publishes it: as the server serves it, or ended by this
  * tab's Done, which the server has not dated yet. */
-
 
 
 
@@ -1227,7 +1230,7 @@ export function createSemanticApplication({
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.
-    projectView(view                                                ) {
+    projectView(view            ) {
       return foldProjection({
         ...normalizedProjection(view),
         pendingEntries: [],

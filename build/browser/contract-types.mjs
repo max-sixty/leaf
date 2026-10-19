@@ -142,7 +142,7 @@ function eventTypes(registry) {
 function servedTypes(schema) {
   const { $defs, ...state } = schema;
   const definitions = Object.entries($defs).map(
-    ([name, definition]) => `type Served${name} = ${typeOf(definition)};`,
+    ([name, definition]) => `export type Served${name} = ${typeOf(definition)};`,
   );
   return `${definitions.join("\n")}\nexport type ServedState = ${typeOf(state)};\n`;
 }

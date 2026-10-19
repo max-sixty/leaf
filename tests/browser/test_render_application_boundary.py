@@ -19,6 +19,8 @@ from render_cases_interaction import (
     live_url,
 )
 from render_harness import (
+    PANEL,
+    PANEL_THREAD,
     consume_browser_errors,
     expect_items_answered,
     holding,
@@ -27,16 +29,19 @@ from render_harness import (
     leaf_page,
     open_page,
     page_comment,
+    panel_control,
+    panel_menu,
     panel_settled,
     refuse,
     round_trip,
     said,
-    scroll_settled,
     sending,
     take_browser_errors,
     told,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 THREAD_READER = r"""
 import {keepsText, watchProjection, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
@@ -229,7 +234,10 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
     )
     write(page_comment(page), "Which job comes first?")
     with sending(page, "the timing question"):
-        page.locator(".lf-general .lf-compose-submit").click()
+        page.locator(".lf-fp-send").click()
+    # The send opens the new thread's view; put it away, so the reply arrives unseen.
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
     question = next(
         event
         for event in events_model.read_events(serve.page_dir)
@@ -267,8 +275,8 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
       document.querySelector('#timing-local').controller.present(held.promise);
     }""")
     with page.expect_response(lambda response: trace_has(response, "reply_visible")):
-        page.locator(".lf-threads-toggle").click()
-        expect(page.locator(".lf-thread .lf-msg.agent .lf-msg-text")).to_have_text(
+        view = open_panel_thread(page, question["id"])
+        expect(view.locator(".lf-msg.agent .lf-msg-text")).to_have_text(
             "The roof comes first."
         )
     assert page.evaluate("""async () => (await window.__lfCheckApi())
@@ -635,35 +643,29 @@ APPROVAL_PAGE = leaf_page(
 def test_approval_waits_for_a_reading_of_the_log(browser, serve):
     """An offline page that never read its log cannot say its items are answered.
 
-    The first state read is refused, so presentation releases the authored page under the
-    offline banner with no admitted reading. Nothing then says whether the authored item
+    The first state read is refused, so presentation releases the authored page under an
+    offline status with no admitted reading. Nothing then says whether the authored item
     still stands, and approval stays shut rather than reading that silence as every item
     answered."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route("**/api/state*", refuse)
     page.goto(serve(APPROVAL_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfPresented === '1'")
-    expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
-    approval = page.locator(".lf-signoff")
-    expect(approval).to_be_visible()
-    expect(approval).to_be_disabled()
-    expect(approval).to_have_attribute(
-        "title", "Approval waits until this page has read its current state"
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile("Server offline")
     )
+    # Versions, which holds the approval, waits for a reading of the log too.
+    versions = panel_menu(page).locator('.lf-fp-item[data-row="versions"]')
+    expect(versions).to_be_disabled()
 
 
-@pytest.mark.parametrize("expanded", [False, True])
-def test_admission_holds_approval_until_the_answer_is_in_the_log(
-    browser, serve, expanded
-):
+def test_admission_holds_approval_until_the_answer_is_in_the_log(browser, serve):
     """An answer the log has not taken in cannot open the irreversible approval.
 
     The pick is the user's at once — that is their own gesture drawn on their own
     widget. Which items still stand is the server's fold, so the count and the gate
     move when the state this POST returns is adopted, and not before."""
     page = open_page(browser, serve(APPROVAL_PAGE))
-    approval = page.locator(".lf-signoff")
-    expect(approval).to_be_disabled()
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -674,32 +676,22 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
         "aria-checked", "true"
     )
     expect_items_answered(page, "0/1")
-    expect(approval).to_be_disabled()
-    expect(approval).to_have_attribute(
+    # The leaf's menu holds the rows it opened with, so each reading is an opening.
+    expect(panel_control(page, "approval")).to_be_disabled()
+    expect(page.locator(".lf-fp-approval")).to_have_attribute(
         "title", "Answer every open widget before approving this work"
     )
-
-    if expanded:
-        page.keyboard.press("?")
-        expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
-            "data-lf-expanded", "true"
-        )
-    # Admission may repack contextual hints and More inside the same bottom band.
-    band = page.locator(".lf-shortcut-bar")
-    before = band.bounding_box()
-    assert before is not None
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
 
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect_items_answered(page, "1/1")
-    expect(approval).to_be_enabled()
-    expect(approval).to_have_attribute(
-        "title", "Approve this work; the page stays open for follow-up"
+    expect(panel_control(page, "approval")).to_be_enabled()
+    expect(page.locator(".lf-fp-approval")).not_to_have_attribute(
+        "title", re.compile(".")
     )
-
-    rendered(page)
-    assert band.bounding_box() == before
 
 
 PAGE_DECLARATION = {
@@ -1256,6 +1248,47 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
     rendered(page)
 
 
+def long_thread(page_dir, thread_id, text):
+    """A thread whose turns already fill the panel's thread view to its cap, ending on
+    the user's, so the answer the user waits for is drawn below the fold rather than
+    growing the view."""
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "id": thread_id,
+            "author": "user",
+            "revision": 1,
+            "text": text,
+        },
+    )
+    for turn in range(6):
+        for author in ("agent", "user"):
+            append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": author,
+                    "revision": 1,
+                    "parent": thread_id,
+                    "text": f"Turn {turn} from the {author}. " * 6,
+                },
+            )
+
+
+def arrived(page, thread_id):
+    """Wait until the page's thread reading holds `thread_id`, and return it. A page
+    whose presentation is held can't be `told`, which waits for it."""
+    page.evaluate(
+        "async () => { window.__lfThreadsApi = await window.__lfWidgetApi(); }"
+    )
+    page.wait_for_function(
+        "id => window.__lfThreadsApi.readThreads().threads.some((t) => t.id === id)",
+        arg=thread_id,
+    )
+    return thread_id
+
+
 def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     """The thread parent absorbs descendants without joining unrelated page work."""
     source = LIVE_V1.replace(
@@ -1301,16 +1334,9 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         }"""
     )
 
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "frozen-widget-question",
-            "author": "user",
-            "revision": 1,
-            "text": "Show the frozen widget.",
-        },
-    )
+    long_thread(serve.page_dir, "frozen-widget-question", "Show the frozen widget.")
+    # The panel's thread view is the reader that draws the reply's widget.
+    open_panel_thread(page, arrived(page, "frozen-widget-question"))
     append_carried_log_record(
         serve.page_dir,
         {
@@ -1336,7 +1362,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     page.wait_for_function(
         """() => {
           const pending = readLeafPresentation().pending;
-          return document.querySelector('#thread-local') &&
+          return document.querySelector('.lf-floating-panel #thread-local') &&
             pending.includes('thread') &&
             pending.includes('widget:thread-local:preparation') &&
             pending.includes('widget:page-local:preparation');
@@ -1352,7 +1378,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     page.evaluate("threadPreparation.release('thread')")
     page.wait_for_function("threadReady")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-    expect(page.locator("#thread-local")).to_have_attribute(
+    expect(page.locator(".lf-floating-panel #thread-local")).to_have_attribute(
         "data-rendered-choice", "chosen"
     )
     assert page.evaluate("allReady") is False
@@ -1376,16 +1402,10 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
           );
         }"""
     )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "failing-widget-question",
-            "author": "user",
-            "revision": 1,
-            "text": "Show another frozen widget.",
-        },
+    long_thread(
+        serve.page_dir, "failing-widget-question", "Show another frozen widget."
     )
+    open_panel_thread(page, arrived(page, "failing-widget-question"))
     append_carried_log_record(
         serve.page_dir,
         {
@@ -1398,14 +1418,14 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         },
     )
     page.wait_for_function(
-        """() => document.querySelector('#thread-failing') &&
+        """() => document.querySelector('.lf-floating-panel #thread-failing') &&
           readLeafPresentation().pending.includes('thread') &&
           readLeafPresentation().pending.includes(
             'widget:thread-failing:preparation'
           )""",
     )
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    threads = page.locator(".lf-fp-threads")
+    expect(threads).to_have_attribute("title", re.compile("^Threads, 2 open"))
     page.evaluate(
         "threadReady = false; "
         "whenLeafRegionsPresented(['thread'], () => true)"
@@ -1413,237 +1433,11 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
     )
     page.wait_for_function("threadReady")
-    expect(page.locator("#thread-failing")).to_have_count(1)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    expect(page.locator(".lf-floating-panel #thread-failing")).to_have_count(1)
+    expect(threads).to_have_attribute("title", re.compile("^Threads, 2 open"))
     assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
-
-
-@pytest.mark.parametrize("route", ["t", "Shift+T", "ArrowDown", "click"])
-def test_choosing_beside_a_withdrawn_notice_holds_the_chosen_card(
-    browser, serve, route
-):
-    """From a withdrawn thread's notice, `t`, `T`, an arrow or a press chooses the card
-    beside it, and releasing the notice's room moves none of what the user sees there."""
-    before = [f"before-{i}" for i in range(12)]
-    after = [f"after-{i}" for i in range(20)]
-    sections = [*before, "withdrawn", *after]
-    url = serve(
-        leaf_page(
-            "Withdrawn among threads",
-            "<h1>Review</h1>"
-            + "".join(f'<p id="{name}">Passage {name}.</p>' for name in sections),
-        )
-    )
-    for name in sections:
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "id": name,
-                "author": "user",
-                "revision": 1,
-                "anchor": {"section": name},
-                "text": f"Conversation {name}.",
-            },
-        )
-    page = open_page(browser, live_url(url))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    card = page.locator('.lf-threads > [data-id="withdrawn"]')
-    card.locator(".lf-thread-summary").scroll_into_view_if_needed()
-    card.locator(".lf-thread-summary").click()
-    rendered(page)
-    # Cards in view on both sides of the open one, and room scrolled past to take its
-    # release.
-    page.locator("leaf-thread-list").evaluate(
-        "(list, card) => { list.scrollTop += card.getBoundingClientRect().top"
-        " - list.getBoundingClientRect().top - 100; }",
-        card.element_handle(),
-    )
-    scroll_settled(page, "leaf-thread-list")
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "undo", "author": "user", "revision": 1, "undoes": "withdrawn"},
-    )
-    told(page)
-    notice = page.locator('[data-withdrawn="withdrawn"]')
-    expect(notice.locator("button")).to_be_focused()
-    chosen = page.locator(
-        f'.lf-threads > [data-id="{before[-1] if route == "Shift+T" else after[0]}"]'
-    )
-    top = chosen.evaluate("node => node.getBoundingClientRect().top")
-
-    if route == "click":
-        chosen.locator(".lf-thread-summary").click()
-    else:
-        page.keyboard.press(route)
-    rendered(page)
-    expect(notice).to_have_count(0)
-    expect(chosen).to_have_attribute("open", "")
-    expect(chosen.locator(".lf-thread-summary")).to_be_focused()
-    assert chosen.evaluate("node => node.getBoundingClientRect().top") == pytest.approx(
-        top, abs=0.5
-    )
-
-
-def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve):
-    """A placeholder has no identity inventory from which to retire a choice."""
-    url = serve(
-        leaf_page(
-            "Unavailable threads",
-            '<h1>Review</h1><p id="earlier">Earlier passage.</p>'
-            '<p id="later">Later passage.</p>',
-        )
-    )
-    for identity, section in [("earlier-thread", "earlier"), ("later-thread", "later")]:
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "id": identity,
-                "author": "user",
-                "revision": 1,
-                "anchor": {"section": section},
-                "text": f"Accepted conversation on {section}.",
-            },
-        )
-    page = open_page(browser, live_url(url))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    selected = page.locator('.lf-thread[data-id="later-thread"]')
-    expect(page.locator(".lf-thread").first).not_to_have_attribute(
-        "data-id", "later-thread"
-    )
-    selected.locator(".lf-thread-summary").click()
-    expect(selected).to_have_attribute("open", "")
-    general = page_comment(page)
-    # Exercise the presentation owner's real unavailable reading. Keep focus outside
-    # the list, so title restoration cannot conceal losing the selected conversation.
-    page.evaluate(
-        """async () => {
-          const list = document.querySelector('leaf-thread-list');
-          window.availableThreadReading = list.model;
-          const unavailable = {...list.model,
-            rows: [{kind: 'empty', key: 'unavailable',
-              text: 'Current threads temporarily unavailable.'}],
-            count: null,
-            pageSeats: new Map(),
-          };
-          await list.present(unavailable);
-          list.commit(unavailable);
-        }"""
-    )
-    expect(page.locator("leaf-thread-list")).to_contain_text(
-        "Current threads temporarily unavailable."
-    )
-    expect(selected).to_have_count(0)
-    expect(general).to_be_focused()
-    page.evaluate(
-        """async () => {
-          const list = document.querySelector('leaf-thread-list');
-          const available = window.availableThreadReading;
-          const partial = {...available,
-            rows: [available.rows.find(row => row.kind === 'thread'),
-              {kind: 'empty', key: 'unavailable', text: 'Threads unavailable.'}],
-            count: null,
-          };
-          await list.present(partial);
-          list.commit(partial);
-          await list.present(available);
-          list.commit(available);
-        }"""
-    )
-    expect(selected).to_have_attribute("open", "")
-    expect(general).to_be_focused()
-
-
-def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
-    """Readiness includes the real Lit paint, preserving the existing editor."""
-    url = serve(LIVE_V1)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "kept-thread",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep this draft and its exact card.",
-        },
-    )
-    page = open_page(browser, live_url(url))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator('.lf-thread[data-id="kept-thread"] .lf-thread-summary').click()
-    reply = page.locator('.lf-thread[data-id="kept-thread"] leaf-text')
-    write(reply, "half a thought")
-    reply.evaluate("input => input.setSelectionRange(4, 4)")
-    card = page.locator('.lf-thread[data-id="kept-thread"]').element_handle()
-
-    def assert_draft_retained():
-        assert card.evaluate("node => node.isConnected"), "the card was replaced"
-        expect(reply).to_be_focused()
-        expect(reply).to_have_js_property("value", "half a thought")
-        assert reply.evaluate(
-            "input => [input.selectionStart, input.selectionEnd]"
-        ) == [4, 4]
-
-    held_events = []
-    page.route("**/api/event", lambda route: held_events.append(route))
-    page.evaluate(
-        """async () => {
-          const application = await window.__lfWidgetApi();
-          const list = document.querySelector('leaf-thread-list');
-          const schedule = list.scheduleUpdate.bind(list);
-          const perform = list.performUpdate.bind(list);
-          let release;
-          const held = new Promise(resolve => { release = resolve; });
-          window.threadListReleased = false;
-          list.scheduleUpdate = () => {
-            window.threadListHeld = true;
-            return held.then(schedule);
-          };
-          list.performUpdate = (...args) => {
-            window.threadListHeld = true;
-            return window.threadListReleased ? perform(...args) : undefined;
-          };
-          window.releaseThreadList = () => {
-            window.threadListReleased = true;
-            release();
-          };
-          document.addEventListener('keydown', event => {
-            if (event.key === 'F9') window.releaseThreadList();
-          });
-          application.threadActions.create({
-            attempt: 'held-thread-list',
-            text: 'A second thread arrives.',
-          });
-        }"""
-    )
-    # The held owner was actually called. Read the same readiness door as page
-    # authors and the render gate, without naming its internal renderer tickets.
-    page.wait_for_function("() => window.threadListHeld === true")
-    assert (
-        page.evaluate(
-            "() => document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"
-        )
-        == "presented"
-    )
-    pending_card = page.locator('.lf-thread[data-attempt="held-thread-list"]')
-    expect(pending_card).to_have_count(0)
-    assert_draft_retained()
-
-    # The synthetic release needs an input edge to distinguish it from passive news.
-    page.keyboard.press("F9")
-    wait_until_ready(page, through="presented")
-    expect(pending_card).to_have_count(1)
-    assert_draft_retained()
-    holding(page, held_events, 1, "the comment made behind the held thread list")
-    held_events[0].continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
 
 
 THREAD_ACTIONS = r"""
@@ -1724,15 +1518,14 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
         compact = page.locator(".lf-margin-thread")
     else:
         compact = page.locator('#jobs .lf-page-thread[data-thread="native-thread"]')
-    panel = page.locator(".lf-thread-panel")
-    expect(panel).not_to_have_class(re.compile(r"\bopen\b"))
+    panel = page.locator(PANEL_THREAD)
+    expect(panel).to_have_count(0)
     button = compact.get_by_role("button", name="Open interactive reply")
     expect(button).to_be_visible()
     button.focus()
     button.press("Enter")
-    panel_settled(page)
-    expect(panel).to_have_class(re.compile(r"\bopen\b"))
-    message = panel.locator('.lf-msg[data-mid="native-message"]')
+    panel_settled(page, view="thread")
+    message = panel.locator('.lf-msg[data-message="native-message"]')
     expect(message).to_be_focused()
     email = message.locator("#native-email")
     expect(email).to_be_in_viewport()
@@ -1973,70 +1766,31 @@ def test_failed_primary_reader_restores_the_same_native_item_in_core(browser, se
     consume_browser_errors(
         page, "leaf: Presentation failed: Deliberate primary failure"
     )
-    assert page.evaluate(
-        "nativeOption.isConnected && nativeOption.closest('.lf-thread') !== null"
+    # The failed reader gives its place back to Leaf's own, so the floating panel opens
+    # the thread, the same native Ask in it, where the package's reader would have.
+    page.wait_for_function(
+        "() => !document.querySelector('#workspace').presentation.primary"
+    )
+    panel_control(page, "queue").click()
+    page.locator(PANEL).get_by_role("button", name="Show", exact=True).first.click()
+    panel_settled(page, view="thread")
+    in_panel = page.locator(PANEL_THREAD).locator("lf-option#email")
+    expect(in_panel).to_be_visible()
+    assert in_panel.evaluate("node => node === nativeOption")
+    # Drawing again, the package's reader takes the place, and the thread, back. The
+    # user has put the panel's view away first: a redraw is news, which may not carry
+    # what they are reading out of the panel into the page.
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    # Chrome reports no shift within 500ms of input, so the redraw lands after it.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
     )
     page.evaluate("document.querySelector('#workspace').presentation.update()")
     email = page.locator("lf-option#email")
     expect(email).to_be_visible()
     assert email.evaluate("node => node === nativeOption")
     with sending(page, "answer the restored native item"):
-        email.click()
-    expect(page.locator("#workspace .counts")).to_contain_text("Email")
-
-
-@pytest.mark.parametrize("fault", ["detached-outlet", "retained-list"])
-def test_primary_native_content_survives_sibling_preparation_faults(
-    browser, serve, fault
-):
-    page = open_page(browser, package_workspace(serve))
-    page.evaluate(
-        """fault => {
-      const workspace = document.querySelector('#workspace');
-      window.nativeOption = workspace.querySelector('#email');
-      const list = document.querySelector('leaf-thread-list');
-      const present = list.present.bind(list);
-      if (fault === 'retained-list') {
-        list.present = model => {
-          list.present = present;
-          throw new Error('Deliberate sibling failure');
-        };
-      } else {
-        let release;
-        const gate = new Promise(resolve => { release = resolve; });
-        window.releaseSibling = release;
-        list.present = model => {
-          list.present = present;
-          window.siblingWaiting = true;
-          return gate.then(() => present(model));
-        };
-      }
-      window.faultDelivery = workspace.presentation.update().catch(() => null);
-    }""",
-        fault,
-    )
-    if fault == "detached-outlet":
-        page.wait_for_function("window.siblingWaiting === true")
-        page.evaluate("""() => {
-          document.querySelector('#workspace').reader.firstElementChild.remove();
-          releaseSibling();
-        }""")
-    page.evaluate("faultDelivery")
-    consume_browser_errors(
-        page,
-        "leaf: Presentation failed: "
-        + (
-            "Deliberate sibling failure"
-            if fault == "retained-list"
-            else "A primary Thread outlet must remain inside its connected owner"
-        ),
-    )
-    assert page.evaluate("nativeOption.isConnected")
-    page.evaluate("document.querySelector('#workspace').presentation.update()")
-    email = page.locator("#workspace lf-option#email")
-    expect(email).to_be_visible()
-    assert email.evaluate("node => node === nativeOption")
-    with sending(page, "answer after sibling recovery"):
         email.click()
     expect(page.locator("#workspace .counts")).to_contain_text("Email")
 
@@ -2053,9 +1807,8 @@ def test_queue_item_arrival_selects_the_primary_reader(browser, serve):
     assert page.evaluate(
         "document.querySelector('#workspace').contains(document.querySelector('#email'))"
     )
-    assert page.evaluate(
-        "document.querySelector('leaf-thread-list').getBoundingClientRect().width === 0"
-    )
+    # The primary reader takes the Ask; the panel opens no view of its thread.
+    expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
 
 def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):

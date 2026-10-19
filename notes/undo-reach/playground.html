@@ -989,7 +989,7 @@
             if (!chips.length) {
               const dead = document.createElement("span");
               dead.className = "sim-dead";
-              dead.textContent = "The shortcut bar offers no undo here.";
+              dead.textContent = "Nothing offers undo here.";
               chips.push(dead);
             }
             const focusKey = this.#bar.contains(document.activeElement)
@@ -1160,7 +1160,7 @@
         const parts = [REACH[values.reach]];
         if (values.name)
           parts.push(
-            "Have the shortcut bar's z line and the notice name the gesture and its age rather than its kind alone, from words the server adds to each undo candidate.",
+            "Have Undo in the leaf's menu and the notice name the gesture and its age rather than its kind alone, from words the server adds to each undo candidate.",
           );
         if (values.redo)
           parts.push(
@@ -1263,8 +1263,8 @@
             <tr id="row-name">
               <td>Say what <kbd>z</kbd> takes</td>
               <td>
-                The shortcut bar and the notice name the gesture and its age, where
-                today they name only its kind
+                Undo in the leaf's menu and the notice name the gesture and its age,
+                where today they name only its kind
               </td>
               <td>Small</td>
             </tr>

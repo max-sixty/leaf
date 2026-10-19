@@ -6,7 +6,6 @@ import math
 import re
 import struct
 import zlib
-from types import SimpleNamespace
 from weakref import WeakKeyDictionary
 
 from axe_playwright_python.sync_playwright import Axe
@@ -18,14 +17,10 @@ from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
-from render_cases_interaction import (
-    ITEMS_PAGE,
-)
 from render_harness import (
     LONG_PAGE,
-    SHELL_BOX,
-    banner_control,
     leaf_page,
+    panel_settled,
 )
 
 CUSTOM_WIDGET_PAGE = leaf_page(
@@ -575,67 +570,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )
-# The two edges the user draws, and what a reading of either has to know: a page that
-# offers the region, the fixtures that page needs beside it, what puts it up, the
-# region's own selector, which side of the window it is held to, and the numbers the
-# runtime holds it to. Two records rather than two tests, because the whole claim of
-# `drawnEdge` is that the two are one piece of furniture reflected — a reading written
-# for the panel alone would go on passing on the day the drawer's edge stopped working,
-# and the drawer's edge exists precisely because the panel's did not have to be written
-# a second time. The right edge holds Threads and the On panel, one side panel at one width
-# (`ON_PANEL`); the left holds the Leaves drawer, which needs a neighbour to list.
-#
-# `html` is a call rather than the markup, because a parametrize list is read at import.
-# `squeeze` is the window that has no room for what the user chose and the width the
-# region stands at there, which is the window itself on either side.
-EDGES = [
-    SimpleNamespace(
-        name="comments",
-        html=lambda: LONG_PAGE,
-        comments=1,
-        fixtures=(),
-        stand=lambda page: page.locator(".lf-threads-toggle").click(),
-        region=".lf-thread-panel",
-        side="right",
-        store="lf-thread-panel-width",
-        wide=420,
-        squeeze=(500, 500),
-    ),
-    SimpleNamespace(
-        name="leaves",
-        html=lambda: LONG_PAGE,
-        comments=0,
-        fixtures=("other_leaf",),
-        stand=lambda page: banner_control(page, ".lf-others").click(),
-        region=".lf-others-panel",
-        side="left",
-        store="lf-drawer-slot-width",
-        wide=300,
-        squeeze=(400, 400),
-    ),
-]
-EDGE_IDS = [edge.name for edge in EDGES]
-# The On panel, which stands on the Threads panel's edge at its width.
-ON_PANEL = SimpleNamespace(
-    name="on",
-    html=lambda: ITEMS_PAGE,
-    comments=0,
-    fixtures=(),
-    stand=lambda page: banner_control(page, ".lf-queue").click(),
-    region=".lf-queue-panel",
-    side="right",
-    store="lf-thread-panel-width",
-    wide=420,
-)
-
-
-def edge_world(request, edge):
-    """Stand up what the edge's page needs beside it, such as a neighbour for Leaves."""
-    for name in edge.fixtures:
-        request.getfixturevalue(name)
-
-
-# One item, so a page offers the On panel.
+# One item, so a page has something On me.
 ONE_ITEM = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -654,77 +589,9 @@ def with_one_item(html):
 
 
 def toggle_queue(page, open=True):
-    """Open or close the On panel from its banner control and wait for it to stand."""
-    banner_control(page, ".lf-queue").click()
-    drawer = expect(page.locator(".lf-queue-panel"))
-    opened = re.compile(r"\bopen\b")
-    if open:
-        drawer.to_have_class(opened)
-    else:
-        drawer.not_to_have_class(opened)
-
-
-def edge_settled(page, edge):
-    """Wait for the region to stand, including its own arrival slide.
-
-    The page makes room for it in the same pass as the state change, so the page needs
-    no wait; the region's slide is the one motion left, and a geometry read during it is a
-    read of a box still under a presentation offset. It is finished rather than waited
-    out, because it is presentation over a layout the gesture already installed and
-    finishing is the only thing that terminates when a test is holding the clock still.
-    Polling, because the slide starts inside the gesture's own task and a finished fill
-    leaves `getAnimations` a turn later.
-    """
-    expect(page.locator(edge.region)).to_be_visible()
-    page.wait_for_function(
-        """(region) => {
-          const box = document.querySelector(region);
-          for (const move of box.getAnimations()) move.finish();
-          return box.getAnimations().length === 0;
-        }""",
-        arg=edge.region,
-    )
-
-
-def geometry(page, edge):
-    """What the edge reads back as, and what the page has left beside it.
-
-    The region stands over the page, so the page's edge is the window's whatever width
-    the user draws the region to.
-    """
-    return page.evaluate(
-        """([region, side, store]) => {
-            const box = document.querySelector(region).getBoundingClientRect();
-            const shell = """
-        + SHELL_BOX
-        + """;
-            return {
-                width: Math.round(box.width),
-                edge: Math.round(side === 'right' ? box.left : box.right),
-                page: Math.round(side === 'right' ? shell.right : shell.left),
-                chosen: localStorage.getItem(store),
-            };
-        }""",
-        [edge.region, edge.side, edge.store],
-    )
-
-
-def draw_edge(page, edge, by):
-    """Draw the region's edge `by` pixels wider, as a hand on it would.
-
-    Take hold at the grip's center, in whole pixels per `hold_selection`'s reason:
-    the browser may round a fractional press elsewhere. In steps, because one jump
-    from press to release is a drag with no `pointermove` between its ends, and the move
-    is the whole of what this gesture is made of. Wider is away from the side the region
-    is held to, which is the reading the runtime makes of the same gesture.
-    """
-    box = page.locator(f"{edge.region} .lf-edge").bounding_box()
-    x = math.floor(box["x"] + box["width"] / 2)
-    y = math.floor(box["y"] + box["height"] / 2)
-    page.mouse.move(x, y)
-    page.mouse.down()
-    page.mouse.move(x + (by if edge.side == "left" else -by), y, steps=8)
-    page.mouse.up()
+    """Open or close the panel's On me view from its mark and wait for it to stand."""
+    page.locator(".lf-fp-on-user").click()
+    panel_settled(page, open=open, view="queue" if open else None)
 
 
 # Enough code for the colors to differ from each other and from the block: a comment, a
@@ -844,13 +711,13 @@ NEIGHBOURHOOD = f"""(el, sel) => {{
           (cluster?.matches('.lf-playground-actions') || sameLine(n)));
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
-# The same capture, of the banner rather than of one control's line: every control the
-# chrome is showing, held by identity so the news can rewrite their words without
-# changing who they are.
-BANNER_WATCH = f"""(sel) => {{
+# The same capture, of the floating panel rather than of one control's line: every
+# control the chrome is showing, held by identity so the news can rewrite their words
+# without changing who they are.
+CHROME_WATCH = f"""(sel) => {{
   window.__lfRendered = {RENDERED};
-  window.__lfNeighbours = [...document.querySelector(".lf-banner").querySelectorAll(sel)]
-      .filter(window.__lfRendered);
+  window.__lfNeighbours = [...document.querySelector(".lf-floating-panel")
+      .querySelectorAll(sel)].filter(window.__lfRendered);
   return {{ names: window.__lfNeighbours.map({NAMED}), boxes: window.__lfBoxes() }};
 }}"""
 # One reading, named once, so the rendered-frame wait and the assertion cannot measure
@@ -887,24 +754,6 @@ def unfolded_button(control):
     return options.get_by_role(
         "button", name=control.get_attribute("aria-label"), exact=True
     )
-
-
-# The banner's controls in their one ranked order: fixed secondary menu seats followed
-# by the primary row. The door itself and controls the page has taken away are omitted.
-BANNER_ORDER = r"""() => {
-  const toolbar = document.querySelector('.lf-banner-actions');
-  const menu = document.querySelector('.lf-banner-menu');
-  const more = document.querySelector('.lf-banner-more');
-  return [...menu.children, ...toolbar.children]
-    .filter(control => control !== more &&
-            getComputedStyle(control).display !== 'none' &&
-            getComputedStyle(control).visibility !== 'hidden')
-    .map(control => (control.getAttribute('aria-label') || control.textContent).trim()
-      // The version's age ticks with the clock between two readings; the order does not.
-      .replace(/ · \S+ ago$/, '')
-      // The queue's population does not change the control's place in that order.
-      .replace(/^On me: \d+$/, 'On me'));
-}"""
 
 
 def page_at_rest(page):
@@ -1046,14 +895,6 @@ LEGEND_TRUE = """() => [...document.querySelectorAll('.lf-legend-box')].every(b 
   }
   if (r.top < 0 || r.bottom > innerHeight) return true;
   if (b.style.display === 'none') return false;
-  // The open thread panel stands over the right of the page, and a box is drawn for
-  // what the page shows of its item, which ends at the panel's edge.
-  const panel = document.querySelector('.lf-thread-panel');
-  if (panel?.open) {
-    const edge = panel.getBoundingClientRect().left;
-    r = { left: r.left, top: r.top, height: r.height,
-          width: Math.min(r.right, edge) - r.left };
-  }
   const bb = b.getBoundingClientRect();
   return Math.abs(bb.left + 1 - r.left) < 1.5 && Math.abs(bb.top + 1 - r.top) < 1.5
     && Math.abs(bb.width - 2 - r.width) < 1.5 && Math.abs(bb.height - 2 - r.height) < 1.5;
@@ -1295,29 +1136,6 @@ def mark_edges(page, ident, ink):
     }
 
 
-# Twenty-four things waiting, which is more than any shipped example asks and the point: the
-# room a list reserves at its foot is invisible until the list is longer than the drawer.
-MANY_ITEMS_PAGE = leaf_page(
-    "many decisions",
-    """
-<h1>Many decisions</h1>
-<p>A drawer long enough to scroll.</p>
-<lf-test-tasks id="plan">
-"""
-    + "\n".join(
-        f'<lf-test-task id="t-{i}" status="review" owner="wren">'
-        f"<strong>Waiting on me, item {i}</strong>"
-        f'<lf-ask id="t-{i}-decision"><h2>Decision {i}</h2>'
-        f'<lf-options id="t-{i}-choice" choose>'
-        f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'
-        f'<lf-option id="t-{i}-no"><strong>Request changes</strong></lf-option>'
-        f"</lf-options></lf-ask></lf-test-task>"
-        for i in range(24)
-    )
-    + """
-</lf-test-tasks>
-""",
-)
 # Native values and prose paths must remain readable in a narrow column.
 UNBREAKABLE_PAGE = leaf_page(
     "unbreakable",
@@ -1445,6 +1263,7 @@ UNDER_EMPTY_BOXES = r"""(el) => {
     const s = getComputedStyle(box);
     const seen = (colour) => !/^(transparent|rgba\(.*,\s*0\)|color\(.* \/ 0\))$/.test(colour);
     return seen(s.backgroundColor) || s.backgroundImage !== 'none' || s.boxShadow !== 'none'
+      || s.filter.includes('drop-shadow')
       || ['Top', 'Right', 'Bottom', 'Left'].some((side) =>
         parseFloat(s[`border${side}Width`]) > 0 && s[`border${side}Style`] !== 'none'
         && seen(s[`border${side}Color`]));
@@ -1577,42 +1396,9 @@ UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
     "</main>",
     "<lf-diagram id='d-broken'><pre>\nleaf-unsupported\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
 )
-# The thread list is reconciled, not rebuilt, and the tests below are its faces: a
-# send is a gesture and reveals what it made; an arrival is news and moves nothing; a
-# resolution moves a thread without remaking its neighbours; and all of it holds
-# because the nodes survive the poll instead of being replaced by lookalikes. The old
-# rebuild passed a lookalike test easily — same markup, fresh nodes — which is why
-# these pin identity (a probed element) and geometry (a held thread's own box), not
-# appearance.
-
-
-def in_threads_scrollport(page, selector):
-    """Whether the node is fully inside the panel list's scrollport — waited for,
-    because the reveal scrolls smoothly and only the arrival is the fact."""
-    page.wait_for_function(
-        """(sel) => {
-            const box = document.querySelector('.lf-threads');
-            const node = document.querySelector(sel);
-            if (!node) return false;
-            const b = box.getBoundingClientRect(), n = node.getBoundingClientRect();
-            return n.top >= b.top && n.bottom <= b.bottom;
-        }""",
-        arg=selector,
-    )
 
 
 RINGS_DRAWN = browser_function("focus_rings.js", "ringsDrawn", using="control_name.js")
-
-
-COVERED_TOP = """() => {
-  const el = document.activeElement;
-  const box = document.querySelector('.lf-threads');
-  if (!el || !box.contains(el)) return null;
-  const r = el.getBoundingClientRect();
-  const top = box.getBoundingClientRect().top + box.clientTop;
-  if (r.top >= top - 0.5) return null;
-  return `the list's top edge cuts it ${Math.round(top - r.top)}px in`;
-}"""
 
 
 # Which focus ring a box wears is which rule drew it, and the browser says so: the

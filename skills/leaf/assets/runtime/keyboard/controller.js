@@ -1,10 +1,9 @@
 /* Browser input lifecycle. The dispatcher resolves declarations; this owner applies
-   page policy around a real input (transient modes and the expanded shortcut bar), and
+   page policy around a real input (transient modes), and
    releases bootstrap's ordered keys as their declared input becomes available. */
 import { dispatchKey, keyReady } from "./dispatch.js";
 import { MODIFIER_KEYS } from "../control-selectors.js";
 import { quickShortcuts } from "./bindings.js";
-import { beforeShortcutCommand } from "./shortcut-bar.js";
 import { claimsEsc, paintKeys, watchCommandAvailability } from "./scopes.js";
 import { onStanding, takesLetters, typesText, focused } from "../focus.js";
 import { nextFrame } from "../rendering.js";
@@ -17,7 +16,7 @@ export function mountKeyboard({
   reactArmed,
   setReact,
 }) {
-  const run = (event) => dispatchKey(event, { beforeCommand: beforeShortcutCommand });
+  const run = (event) => dispatchKey(event);
   const press = (ev) => {
     if (ev.isComposing) return;
     if (run(ev)) return;

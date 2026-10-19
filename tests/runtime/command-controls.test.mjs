@@ -10,6 +10,7 @@ import {
   paintKeys,
   reflectFirstScopes,
   reflectKeys,
+  saying,
 } from "../../skills/leaf/assets/runtime/keyboard/scopes.js";
 import {
   activeRows,
@@ -26,14 +27,12 @@ import {
   dispatchKey,
   keyReady,
 } from "../../skills/leaf/assets/runtime/keyboard/dispatch.js";
-import { registerCoveringAuxiliarySurface } from "../../skills/leaf/assets/runtime/keyboard/register.js";
 import { applicationState } from "../../skills/leaf/assets/runtime/semantic-state.js";
 
 // Ordinary control tests begin with saved input available; startup tests withhold it.
 beforeEach(() => applicationState.setPhase("ready"));
 
 test("saved-reading commands retain their key until their input is known", async () => {
-  registerCoveringAuxiliarySurface(() => null);
   const { applicationState, readApplication } =
     await import("../../skills/leaf/assets/runtime/semantic-state.js");
   const phase = readApplication().phase;
@@ -104,7 +103,6 @@ test("unavailable alternatives stay off the command line until they are live", (
 });
 
 test("unread command input defers its key without promising a native action", () => {
-  registerCoveringAuxiliarySurface(() => null);
   const owner = document.createElement("section");
   const control = document.createElement("button");
   owner.append(control);
@@ -135,7 +133,7 @@ test("unread command input defers its key without promising a native action", ()
     assert.equal(commandAvailable(row), false);
     available = true;
     assert.equal(commandAvailable(row), true);
-    dispatchKey(press(), {});
+    dispatchKey(press());
     assert.equal(runs, 1);
   } finally {
     owner.remove();
@@ -143,7 +141,6 @@ test("unread command input defers its key without promising a native action", ()
 });
 
 test("a document-ready scope retains commands whose own input needs saved state", () => {
-  registerCoveringAuxiliarySurface(() => null);
   const owner = document.createElement("button");
   document.body.append(owner);
   const runs = [];
@@ -168,13 +165,13 @@ test("a document-ready scope retains commands whose own input needs saved state"
     applicationState.setPhase("waiting");
     assert.equal(commandReady(local), true);
     assert.equal(keyReady(press("a")), true);
-    dispatchKey(press("a"), {});
+    dispatchKey(press("a"));
     assert.equal(keyReady(press("w")), false);
-    dispatchKey(press("w"), {});
+    dispatchKey(press("w"));
     assert.deepEqual(runs, ["local"]);
     applicationState.setPhase("ready");
     assert.equal(keyReady(press("w")), true);
-    dispatchKey(press("w"), {});
+    dispatchKey(press("w"));
     assert.deepEqual(runs, ["local", "saved"]);
   } finally {
     owner.remove();
@@ -182,7 +179,6 @@ test("a document-ready scope retains commands whose own input needs saved state"
 });
 
 test("mixed routes and their context aliases retain each Decision's readiness", async () => {
-  registerCoveringAuxiliarySurface(() => null);
   const { applicationState } =
     await import("../../skills/leaf/assets/runtime/semantic-state.js");
   const phase = applicationState.read().phase;
@@ -223,13 +219,13 @@ test("mixed routes and their context aliases retain each Decision's readiness", 
     reflectFirstScopes();
     for (const key of ["x", "1"]) {
       assert.equal(keyReady(press(key)), false, key);
-      dispatchKey(press(key), {});
+      dispatchKey(press(key));
     }
     decision.click();
     assert.deepEqual(runs, []);
     for (const key of ["y", "2"]) {
       assert.equal(keyReady(press(key)), true, key);
-      dispatchKey(press(key), {});
+      dispatchKey(press(key));
     }
     assert.deepEqual(runs, ["y", "y"]);
     applicationState.setPhase("ready");
@@ -237,7 +233,7 @@ test("mixed routes and their context aliases retain each Decision's readiness", 
     reflectKeys();
     for (const key of ["x", "1"]) {
       assert.equal(keyReady(press(key)), true, key);
-      dispatchKey(press(key), {});
+      dispatchKey(press(key));
     }
     decision.click();
     assert.deepEqual(runs, ["y", "y", "x", "x", "x"]);
@@ -779,7 +775,6 @@ test("a margin entry refuses what its grammar and its owner cannot state", async
       id: "fixture.status",
       keys: ["x"],
       title: "Act from status",
-      line: "act from status",
       run: () => {},
     },
   ]);
@@ -1017,9 +1012,6 @@ test("a disappearing projected command refuses instead of becoming a generic act
 test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", async () => {
   const { createCommandHints } =
     await import("../../skills/leaf/assets/runtime/keyboard/command-hints.js");
-  const { registerCoveringAuxiliarySurface } =
-    await import("../../skills/leaf/assets/runtime/keyboard/register.js");
-  registerCoveringAuxiliarySurface(() => null);
   const owner = document.createElement("section");
   const control = document.createElement("button");
   const badge = document.createElement("kbd");
@@ -1411,4 +1403,15 @@ test("command aliases conflict by their canonical meaning while shifted Space st
       }),
       expected,
     );
+});
+
+test("an announced scope says each live row's key and title", () => {
+  // A row that once kept itself off the shortcut bar declared `line: false`, which the
+  // announcement read as its word; the title is the one word every surface says.
+  const rows = [
+    { id: "fixture.cancel", keys: ["Escape"], title: "cancel", line: false },
+    { id: "fixture.top", keys: ["g"], title: "top" },
+    { id: "fixture.off", keys: ["x"], title: "unavailable", when: () => false },
+  ];
+  assert.equal(saying(rows), "Escape cancel, g top");
 });

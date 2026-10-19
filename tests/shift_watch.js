@@ -37,9 +37,10 @@
 // scrollport by its measured suffix growth: new children, the existing ones retaining
 // their boxes, or, where none joins, its last child growing at its foot where that
 // child declares itself the growing tail (`data-lf-append-tail`), as a thread's
-// working message and a reply still streaming do. A scrollport that grows at its foot
-// by no more than that growth, as a floating card sized to its thread does, is
-// stationary for this: it keeps its other edges. One that declares it stands on its
+// working message and a reply still streaming do, or that tail giving way to the
+// children joining in its place, as the working message does to the answer. A
+// scrollport that grows at its foot by no more than that growth, as a floating card
+// sized to its thread does, is stationary for this: it keeps its other edges. One that declares it stands on its
 // foot (`data-lf-rises`), as the floating panel's thread view stands on its row, may
 // instead rise at its head by no more than that growth, carrying all it holds, and its
 // own head, up by its rise: the one case where news may carry controls (`appendGrowth`).
@@ -1635,26 +1636,55 @@
       // where none joins, the last old one grows at its foot where it declares itself
       // the region's growing tail (`data-lf-append-tail`), as a thread's working
       // message does, taking a longer step, and a streaming reply, taking more words.
+      // A tail may also give way to what it stood for, as the working message does to
+      // the answer: it leaves, the others keep their boxes, and what joins stands
+      // from where it stood. A child with no box, such as a thread's folded
+      // checkpoint, has nothing to keep, so another may take its place.
+      const tail = before.at(-1);
+      const tailBox = tail && read(tail, first);
+      const boxless = (node, at) => {
+        const box = read(node, at);
+        return box && box.bottom - box.top < 0.5;
+      };
+      const replaced =
+        Boolean(tailBox) &&
+        paintAt(tail, first)?.appendTail &&
+        !after.includes(tail) &&
+        after.length >= before.length &&
+        before
+          .slice(0, -1)
+          .every(
+            (child, i) =>
+              (readings.every((paint) => paint.appendChildren[i] === child) &&
+                stable(child)) ||
+              (boxless(child, first) && boxless(after[i], last)),
+          ) &&
+        after.slice(before.length - 1).every((child) => {
+          const box = read(child, last);
+          return box && box.top >= tailBox.top - 1;
+        });
       if (
         !before.length ||
-        after.length < before.length ||
-        !before.every(
-          (child, i) =>
-            readings.every((paint) => paint.appendChildren[i] === child) &&
-            (stable(child) ||
-              (after.length === before.length &&
-                i === before.length - 1 &&
-                // Read before the growth: a streaming reply that completes drops
-                // the mark in the render that adds its last words.
-                paintAt(child, first)?.appendTail &&
-                footGrowth(child, grown) &&
-                // The tail's own growth is the region's whole growth.
-                Math.abs(read(child, last).bottom - read(child, first).bottom - grown) <
-                  1)),
-        ) ||
-        // Where none joins, the growth is the tail's: the region's own box growing
-        // around unchanged children is no arrival.
-        (after.length === before.length && stable(before.at(-1))) ||
+        (!replaced &&
+          (after.length < before.length ||
+            !before.every(
+              (child, i) =>
+                readings.every((paint) => paint.appendChildren[i] === child) &&
+                (stable(child) ||
+                  (after.length === before.length &&
+                    i === before.length - 1 &&
+                    // Read before the growth: a streaming reply that completes drops
+                    // the mark in the render that adds its last words.
+                    paintAt(child, first)?.appendTail &&
+                    footGrowth(child, grown) &&
+                    // The tail's own growth is the region's whole growth.
+                    Math.abs(
+                      read(child, last).bottom - read(child, first).bottom - grown,
+                    ) < 1)),
+            ) ||
+            // Where none joins, the growth is the tail's: the region's own box growing
+            // around unchanged children is no arrival.
+            (after.length === before.length && stable(before.at(-1))))) ||
         !footGrowth(source, grown)
       )
         return [];
@@ -2213,6 +2243,16 @@
     };
   };
   const pendingMotion = [];
+  // Whether a frame's reading held `node`. A node that left the page keeps its last
+  // reading in the ledger, so a node that returns elsewhere, as a notice taken down
+  // and later shown again does, would otherwise read as carried from where it last
+  // stood; what returns is a new reading, which no motion compares.
+  const frameNodes = new WeakMap();
+  const readIn = (frame, node) => {
+    let held = frameNodes.get(frame.nodes);
+    if (!held) frameNodes.set(frame.nodes, (held = new Set(frame.nodes)));
+    return held.has(node);
+  };
   const protectedMotion = (around) => {
     const growth = appendGrowth(around);
     for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
@@ -2275,6 +2315,8 @@
             fromPaint.paintable &&
             toPaint.paintable &&
             (fromPaint.visible || toPaint.visible) &&
+            readIn(around[before], node) &&
+            readIn(around[after], node) &&
             !permittedAppend(node, previousRect, currentRect, around, growth) &&
             !permittedReflow({ node, previousRect, currentRect }, around)
           )

@@ -52,7 +52,7 @@ const claims = new Set();
 const places = new Map();
 
 // The user's working place, read once before something borrows it: leaving an entry, or
-// opening More (banner-toolbar.js), whose place-keeping commands hand it back. `focus` is
+// stepping into the floating panel, whose place-keeping commands hand it back. `focus` is
 // the node they stood on, when the reading comes after focus has left it. Plain endpoints
 // keep a removed passage from being silently retargeted by a live Range. pageRange
 // shares the declared-shadow reading used for commenting; the selection's direction also
@@ -77,12 +77,17 @@ export function readPlace(focus = deepFocus()) {
 
 // Put the user back in a place `readPlace` read. A live revision may have removed or
 // shortened what it named since, so a node no longer drawn is not returned to, and a
-// selection end past its node's current length is not restored.
+// selection end past its node's current length returns to what is left of that node,
+// its end.
 export function returnPlace(checkpoint) {
   const focus = checkpoint.focus?.deref();
   const place = checkpoint.place?.deref();
   const { caret } = checkpoint;
-  const ends = checkpoint.ends?.map(([ref, offset]) => [ref.deref(), offset]);
+  const ends = checkpoint.ends?.map(([ref, offset]) => {
+    const node = ref.deref();
+    const length = node?.nodeType === 3 ? node.length : node?.childNodes.length;
+    return [node, Math.min(offset, length ?? offset)];
+  });
   if (focus !== document.body && drawn(focus)) {
     focusDestination(focus, "return", { caret });
     // A field's caret is its whole selection, and clearing the document's would
@@ -98,12 +103,7 @@ export function returnPlace(checkpoint) {
   // Editing the passage can remove its saved endpoint. That checkpoint then has no
   // selection to restore, and the returned viewport supplies the next walk's origin.
   if (
-    ends?.every(
-      ([node, offset]) =>
-        node &&
-        drawn(node.nodeType === 1 ? node : upFrom(node)) &&
-        offset <= (node.nodeType === 3 ? node.length : node.childNodes.length),
-    )
+    ends?.every(([node]) => node && drawn(node.nodeType === 1 ? node : upFrom(node)))
   ) {
     selectEnds(...ends);
   }

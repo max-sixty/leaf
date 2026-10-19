@@ -57,7 +57,7 @@ from leaf_dev.arms import (
     install_codex_plugin,
     run_directory,
 )
-from leaf_dev.browser import CLASSIC_CHROME, headless_shell
+from leaf_dev.browser import headless_shell
 from leaf_dev.commands.site import asset_site, install_tree
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
@@ -496,7 +496,6 @@ def user_session(
 ) -> AgentSession | str:
     """One activated user session, or why this allocation cannot admit a turn."""
     context = browser.new_context()
-    context.add_init_script(CLASSIC_CHROME)
     page = context.new_page()
     failures = observe_startup(page)
     response = page.goto(url, wait_until="load", timeout=120_000)
@@ -745,7 +744,6 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     worker.stop(container)
     asleep = worker.containers()
     context = browser.new_context()
-    context.add_init_script(CLASSIC_CHROME)
     context.add_cookies(cookies)
     page = context.new_page()
     failures = observe_startup(page)
@@ -758,14 +756,12 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     await_presentation(page, url, failures)
     page.locator("#saved-state-recall").wait_for(state="visible")
     page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{seeded["comment"]}"]')
-    thread.wait_for(state="visible")
-    if thread.get_attribute("open") is None:
-        thread.locator(".lf-thread-summary").click()
-    thread.get_by_text("Saved before the container stopped.", exact=True).wait_for(
-        state="visible"
-    )
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    page.locator(f'.lf-fp-thread[data-key="{seeded["comment"]}"]').click()
+    page.locator(".lf-fp-view[data-view=thread]").get_by_text(
+        "Saved before the container stopped.", exact=True
+    ).wait_for(state="visible")
     state_response = answered(context.request.get(state_url), state_url)
     check(
         state_response.headers.get("leaf-state-source") == "durable",

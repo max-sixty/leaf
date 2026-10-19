@@ -6,20 +6,20 @@ from math import hypot
 
 import pytest
 from interact_support import append_carried_log_record
-from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
 from leaf_dev.commands import pins as pin_cases
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
-from render_cases_layout import banner_control
 from render_cases_widgets import RAIL_BAND_PAGE
 from render_harness import (
     EXAMPLES,
+    PANEL,
     RELEASE_FOCUS,
     leaf_page,
     margins_laid_out,
     open_page,
     pane_posture,
+    panel_control,
     regions_side_by_side,
     resized,
     write,
@@ -153,14 +153,8 @@ PIN_READING = """async (id) => {
 
 
 def pin_reading(page, target):
-    """Read target parts, allocated carrier and buttons within a bounded module load."""
-    handle = page.wait_for_function(
-        PIN_READING, arg=target, timeout=render_checks_model.SERVED_TIMEOUT_MS
-    )
-    try:
-        return handle.json_value()
-    finally:
-        handle.dispose()
+    """Read target parts, allocated carrier and buttons."""
+    return page.evaluate(PIN_READING, target)
 
 
 def pin_distance(carrier, parts):
@@ -495,9 +489,10 @@ def test_an_item_arrival_reveals_its_pin_while_annotations_are_hidden(browser, s
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
 
 
-def test_a_finger_hides_the_annotations_from_the_banner(browser, serve):
-    """A phone has no `o` to press, so the banner's More holds the same toggle: the pin
-    goes, no box of the page moves, and the control's word turns to the way back."""
+def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
+    """A phone has no `o` to press, so the leaf's menu holds the same toggle under
+    Annotate: the pin goes, no box of the page moves, and the row's word turns to the way
+    back."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -514,14 +509,18 @@ def test_a_finger_hides_the_annotations_from_the_banner(browser, serve):
     })"""
     before = page.evaluate(boxes)
 
-    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Hide annotations')").tap()
-    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+    toggle = panel_control(page, "command:annotations.toggle", at="annotate")
+    expect(toggle).to_contain_text("Hide annotations")
+    toggle.tap()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
     expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
     expect(pin).to_be_hidden()
     margins_laid_out(page)
     assert page.evaluate(boxes) == before, "hiding the annotations moved the page"
 
-    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Show annotations')").tap()
+    toggle = panel_control(page, "command:annotations.toggle", at="annotate")
+    expect(toggle).to_contain_text("Show annotations")
+    toggle.tap()
     expect(page.locator("html")).not_to_have_attribute(
         "data-lf-annotations", re.compile(".*")
     )

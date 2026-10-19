@@ -1,138 +1,41 @@
-/* Landing the user in a thread: which node a reveal shows, and where focus
-   goes.
-
-   `showThread` addresses a thread, reply or message with `part`; boolean `focus`
-   independently controls taking focus, and `scroll: false` leaves the list where it
-   stands. It clears a narrowing
-   that hides the destination and finishes an outgoing resolution fold before choosing
-   its lifecycle state. A thread reached in the complete panel opens in its reply box;
-   the compact margin view opens on its card and reveals that box only when the user
-   asks to reply. A resolved thread opens on its card. A message takes focus at its own
-   words so Tab reaches its controls. A thread too tall for its scrollport lands on its
-   latest message, the turn a user comes back to a conversation for: it starts at the
-   earliest complete content block that still leaves the thread's end and its reply
-   area visible, or at the latest message's head where that message alone overflows
-   the list. That puts the first visible content on a clean boundary instead of leaving
-   an arbitrary partial message line below the pinned heading. The transient arrival
-   flash belongs to the revealed target — short card, reply area, message, or
-   oversized editor — rather than to a long card spanning beyond the scrollport. The
-   explicit `t`/`T` walk remains on a thread's native title in the panel and on the
-   card root inline, and a title arriving by key lands a thread too tall for the list
-   as a direct arrival does; Enter and Space choose a closed panel thread, and Enter on
-   an open one's title writes a reply. An accepted anchored comment
-   continues in the open Threads panel, widening a filter that would hide it. A landing
-   waits for the render in flight and for a resolution fold to end, since both move what
-   it would measure. Where a thread lands in its scroller is `reply-landing.js`'s.
-   With `focus: false`, native editing continuation owns only the presented row: a
-   newer Tab can keep its caret while superseding the old focus and scroll intent.
+/* Landing the user in a thread: which box a reply lands in, and where focus goes
+   coming back out of one.
 
    `backFromBox` and `standingThread` climb the same thread relation, so
    “comment on the thread” going in and “back to thread” coming out name one element. It
    answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way
-   out is the thread it belongs to whichever of them put the user in it, and the
-   panel's own find box hands back to the Threads list. A page-owned first-message seat
-   has no standing place of its own; a widget control that explicitly enters its box
-   supplies the caller-owned return target through `landInThread`. Sending from a
-   conversation's own box leaves focus on its card or title (`landSent`); the floating
-   panel's field, which stands for the thread open above it, keeps focus for the next
-   turn. Returning to the page is a separate navigation gesture. */
-import {
-  alreadyShown,
-  fitsWhole,
-  landingRoom,
-  scrollIntoView,
-} from "../landing-scroll.js";
-import { landingBand, shownBox } from "../geometry.js";
+   out is the thread it belongs to whichever of them put the user in it. A page-owned
+   first-message seat has no standing place of its own; a widget control that explicitly
+   enters its box supplies the caller-owned return target through `landInThread`.
+   Sending from a conversation's own box leaves focus on its card (`landSent`); the
+   floating panel's field, which stands for the thread open above it, keeps focus for
+   the next turn. Returning to the page is a separate navigation gesture. */
+import { alreadyShown, fitsWhole, scrollIntoView } from "../landing-scroll.js";
 import {
   focusDestination,
   focused,
-  onPress,
-  onStanding,
-  pressing,
   takesLetters,
   whenLeft,
   deepFocus,
-  standingIn,
 } from "../focus.js";
-import { under } from "../shadow.js";
-import { scrollBehavior } from "../motion.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { closestAcross } from "../passages.js";
-import { reachedForWords, reveal } from "../widget-elements.js";
-import { finishFold, hasFolding, whenFolded } from "./folding.js";
-import { whenDocumentPresented } from "../semantic-state.js";
-import { bindQueuedWork } from "../queued-work.js";
 import { SAYS_IN, THREAD } from "./selectors.js";
-import { retainUserIntent } from "../user-intent.js";
-import { nextRender } from "../rendering.js";
 import { pageScope } from "../keyboard/register.js";
 import { TEXT_ENTRY } from "../keyboard/text-entry.js";
 import { dismissReplyAt, replyDraftContext } from "./replies.js";
-import { threadIdNamed, threadList } from "./state.js";
-import { showHeld } from "./held-news.js";
+import { threadList } from "./state.js";
 import {
   focusedThreadTarget,
   focusThread,
-  threadFocusStop,
   heldThread,
   threadReplyInput,
-  threadFocusDestination,
   threadPart,
   wholeThread,
 } from "./focus.js";
-import { landingTarget, latestTurn, scrollThreadIntoView } from "./reply-landing.js";
 
 export { scrollThreadIntoView } from "./reply-landing.js";
 const threadReturns = new WeakMap();
-
-// Start a long direct arrival on the earliest complete content block that still leaves
-// its reply target in the list's landable band: the reply area, or the thread's end
-// where the target is the thread itself, since a reply row pinned at the list's foot
-// stands over that end. Native nearest-edge scrolling guarantees the target is visible,
-// but it can put the sticky title through the middle of a text line. The thread
-// header and message bodies expose complete block boundaries; use those rather than
-// attempting to infer line boxes from prose. Landing the thread's end never starts
-// below the latest turn's head, a message or the summary standing for earlier ones: a
-// turn taller than the list is read from its head, with the pinned reply row still
-// standing at the foot. A block landed at the start stands clear of the title pinned
-// over it (chrome.css), so the run it promises is measured in the room a landing leaves
-// below that (landing-scroll.js, `landingRoom`).
-const threadLandingStart = (held, target, threadsBox) => {
-  if (!landingBand(threadsBox)) return null;
-  const targetBox = shownBox(target);
-  const last = target === held ? targetBox.bottom : targetBox.top;
-  const transcript = held.querySelector(".lf-thread-transcript");
-  const latest = target === held && transcript ? latestTurn(transcript) : null;
-  const candidates = [
-    ...held.querySelectorAll(
-      ":scope > *, :scope > .lf-thread-content > *, " +
-        ".lf-thread-transcript .lf-msg .lf-msg-body > *, " +
-        ".lf-thread-transcript .lf-msg .lf-msg-text > *",
-    ),
-    target,
-    ...(latest ? [latest] : []),
-  ]
-    .filter((node) => node !== held)
-    .map((node) => ({ node, box: shownBox(node) }))
-    .filter(
-      ({ node, box }) =>
-        node === target ||
-        node === latest ||
-        (getComputedStyle(node).display !== "contents" &&
-          box.height > 0 &&
-          box.top <= last &&
-          targetBox.bottom - box.top <= landingRoom(node, target).height),
-    )
-    .sort((a, b) => a.box.top - b.box.top);
-  return candidates[0]?.node ?? null;
-};
-
-// A long thread arrived at in the list lands on its latest message, from the clean start
-// `threadLandingStart` picks, or with its end at the list's foot where none is needed.
-const landLatest = (thread, threadsBox, behavior = scrollBehavior()) => {
-  const start = threadLandingStart(thread, thread, threadsBox);
-  scrollIntoView(start ?? thread, { behavior, block: start ? "start" : "end" });
-};
 
 export function threadInput(node) {
   const held = node && closestAcross(node, SAYS_IN);
@@ -149,10 +52,8 @@ export const standingThread = () => {
 };
 const backFromThread = (box) => threadReturns.get(box) ?? null;
 
-// Where a box hands the user back, however they reached it. This once asked only for
-// `.lf-thread` and the panel, so the two boxes outside the chrome — a thread seated
-// on the page, and each thread on that seat — had no relation to return through. The climb
-// is `heldThreadOrSeat`'s, the same relation contextual `c` uses when it names a thread.
+// Where a box hands the user back, however they reached it. The climb is
+// `heldThreadOrSeat`'s, the same relation contextual `c` uses when it names a thread.
 //
 // A seat holding no thread yet has no standing place of its own. A widget control that
 // explicitly sends the user into that box can supply its own return through
@@ -169,9 +70,8 @@ function backFromBox() {
   return route?.target?.isConnected ? route : null;
 }
 // Whether the box the user is typing in has somewhere to hand them back: the
-// thread it belongs to, or the panel's list from the panel's own find box.
-const boxHandsBack = () =>
-  Boolean(backFromBox()) || Boolean(focused(document)?.closest?.(".lf-thread-panel"));
+// thread it belongs to.
+const boxHandsBack = () => Boolean(backFromBox());
 // The box, or the reply's composition row around it, which takes its Send control too.
 const inBox = () => takesLetters(focused()) || replyDraftContext(focused()) !== null;
 // Whether Escape here leaves a box for the place it hands back to. The page's let-go
@@ -183,9 +83,8 @@ export const leavesBox = () => inBox() && boxHandsBack();
 // deletion, caret movement, Home/End, and page movement, including their modified forms.
 // Escape leaves the reply's whole composition row, including its Send control, through
 // this declared command, after any nearer interaction has had its own Escape. It is
-// the way back out — to
-// the thread a reply belongs to, so Esc then Enter round-trips, or to the list, so t/T walk
-// on from where the backing-out started. Drafts are kept at every rung.
+// the way back out to the thread a reply belongs to, so Esc then Enter round-trips.
+// Drafts are kept at every rung.
 //
 // A control the user is standing on rather than writing in keeps that rung without this
 // scope carrying a second branch for it: the scope claims the keys a box takes and leaves
@@ -200,19 +99,16 @@ pageScope("text entry", {
       id: "text.leave",
       keys: ["Escape"],
       description: "Leave the box, keeping what is typed",
-      title: () => backFromBox()?.line ?? "back to list",
-      // The thread the box belongs to, or the panel's list from its own find box. A
-      // page text box that is neither leaves the row dead and the page's rung in place,
-      // which is the honest answer: nothing there to go back to.
+      title: () => backFromBox()?.line ?? "back",
+      // The thread the box belongs to. A page text box that is not in one leaves the
+      // row dead and the page's rung in place, which is the honest answer: nothing
+      // there to go back to.
       when: leavesBox,
       run: () => {
         const back = backFromBox();
         dismissReplyAt(focused());
-        const panelList = focused(document)
-          ?.closest?.(".lf-thread-panel")
-          ?.querySelector(".lf-threads");
         /** @type {HTMLElement | null} */ (deepFocus())?.blur();
-        const target = back?.target ?? panelList;
+        const target = back?.target;
         if (!target) return;
         if (!target.matches?.(THREAD)) {
           focusDestination(target, "return");
@@ -228,10 +124,9 @@ pageScope("text entry", {
 // Coming back out of a thread's box onto the thread, by Escape or by a send, is no
 // arrival. A thread too tall to show whole and already shown stands around the box, and
 // landing its title would take the user away from the turn they were answering, so it
-// is a `return` the list leaves where it is. One that fits, or one the user has
-// scrolled out of view since, is a `move`, which the list lands in view (`onStanding`
-// below) as local scrolling reveals its title. Local scrolling leaves one the user
-// already sees where it is: the box they left stands beside the gesture, and a landing
+// is a `return` that leaves it where it is. One that fits, or one the user has
+// scrolled out of view since, is a `move`, brought into view. One the user already
+// sees stays where it is: the box they left stands beside the gesture, and a landing
 // would carry it by the room the thread's focus ring asks at its foot.
 function standOnThread(thread) {
   const shown = alreadyShown(thread);
@@ -240,7 +135,7 @@ function standOnThread(thread) {
     return;
   }
   focusThread(thread, "move");
-  if (!shown) scrollIntoView(threadFocusStop(thread), { block: "nearest" });
+  if (!shown) scrollIntoView(thread, { block: "nearest" });
 }
 
 // A thread's own keys, live wherever the user stands in one: the card, the message a
@@ -249,12 +144,8 @@ function standOnThread(thread) {
 // Enter replies or reopens only from the card, where no control inside has an Enter of its
 // own to lose. The reopen button tells the two states apart; absent a thread, the reference
 // describes the open state users first meet.
-// The thread whose card the user stands on: an inline card root, or a panel thread's
-// title once it is open. A closed title keeps Enter for itself, to open the thread.
-const cardThread = () => {
-  const thread = focusedThreadTarget();
-  return thread?.localName === "details" && !thread.open ? null : thread;
-};
+// The thread whose card the user stands on.
+const cardThread = () => focusedThreadTarget();
 // Settlement belongs to the thread, wherever its view places that control.
 const resolutionControl = (thread) =>
   thread ? threadPart(thread, "settlement") : null;
@@ -271,306 +162,11 @@ function prepareLanding({ held = null, box, route = null }) {
   return { held, box };
 }
 
-export const retainPanelLanding = (source, panelIsOpen, threadsBox) =>
-  retainUserIntent({ source, available: panelIsOpen, fallback: threadsBox });
-
-// Landing belongs to the list, not to whatever moved the focus. The list already says
-// which of its own edges cannot be stood on — `scroll-padding`, room for the focused
-// card's edge — and every route that could reach a thread was scrolling it into that
-// band for itself, so a route that did not scroll got nothing. A press does not: the
-// browser focuses the card under the pointer and scrolls nothing, so a list nudged a
-// dozen pixels leaves its first card two pixels past the top edge, which hides its top
-// border and leaves the current card's quiet edge-and-surface cue incomplete.
-// The routes that resolve a thread rather than press one — a page mark's comment note,
-// the thread a resolve or a reopen hands the user on to — landed only by chance of
-// having remembered the line.
-//
-// Thread focus is the shared arrival, so the landing hangs off it. Reply entry is
-// different: `landIn` reveals only the writing area and leaves a visible box where
-// the reader put it. The list does not turn that focus handoff into thread navigation.
-// This distinction also holds for a pointer and for an editor inside a message:
-// writing controls own their caret reveal, rather than landing the containing thread.
-// Explicit movement still belongs to `stepThread` at a walk's boundary (no focus
-// change), `showThread` for a deliberate arrival, and `placeThreadEdge` for an edge
-// placement. Those landings clear the list's band with the least movement.
-//
-// A press is the user's hand, and it may be the start of a drag across the comment's
-// own words. Focus lands on the way down, so scrolling there takes the words out from
-// under the pointer and the selection runs on past where they stopped — measured at
-// three times the run the user drew. A press therefore holds its landing until the
-// hand comes up, and gives it up altogether where the press was a drag for the
-// thread's own words: the question `offer` already asks of a click, read the same way,
-// since the selection's focus end is the character the button came up on.
-//
-// The hand comes up before the press's click, which is where a deliberate placement
-// begins — a quote jumping to its passage, a travel centring a widget in a reply. So
-// the order holds without a word between them: the landing is a correction under the
-// gesture, and whatever the gesture then asks for is later and wins.
-//
-// What the press lands is where it left the user, which is not the same question as
-// which thread the focus moved to. A press on the thread the user is already in
-// moves no focus and so was heard as nothing at all — and that is the user's own
-// gesture: they are standing in a comment, the list carries a little, and they press
-// the card to bring it back. Asking the completed gesture instead of the focus event
-// costs a variable rather than buying one, and the walk's own end-of-clamp press is
-// the same shape one scope out.
-const standing = () => closestAcross(focused(), ".lf-thread");
-const land = (thread, behavior, threadsBox, arriving = false) => {
-  if (!thread || !threadsBox.contains(thread)) return;
-  if (takesLetters(focused())) return;
-  const place = () => {
-    if (takesLetters(focused())) return;
-    if (arriving && !fitsWhole(thread)) landLatest(thread, threadsBox, behavior);
-    else scrollThreadIntoView(thread, focused(), behavior);
-  };
-  // A title arrival opens disclosure and draws its held news in that operation.
-  // Wait for the resulting presentation proof before measuring its latest turn.
-  // Capture the landing now: later geometry reads own no new user intent, and a newer
-  // gesture can supersede this arrival while presentation waits.
-  // A fold still holds the room it is giving back, so a landing measured now aims past
-  // where the thread will stand, and the fold's place hold then writes over a smooth one:
-  // resolving a long thread left the next one's title above the list. Land once the fold
-  // has ended and its removal painted, if the user is still standing there and has
-  // made no newer gesture.
-  if (arriving || hasFolding(threadsBox)) {
-    const mayLand = retainUserIntent({
-      source: thread,
-      available: () => thread.isConnected,
-    });
-    const finish = bindQueuedWork(() => {
-      if (mayLand() && standing() === thread) place();
-    });
-    void whenFolded(threadsBox)
-      .then(whenDocumentPresented)
-      .catch(() => {})
-      .then(finish);
-    return;
-  }
-  place();
-};
-// A key arriving on a thread's title is an arrival at the thread, so one too tall to
-// show whole lands on its latest message, as a direct arrival does.
-const arrivingAtTitle = () => Boolean(focused()?.matches?.(".lf-thread-summary"));
-// A walk's press at either end moves no focus, so it lands its thread itself.
-export const landWalkedThread = (thread, threadsBox) =>
-  land(thread, undefined, threadsBox, arrivingAtTitle());
-// A press in the list owns the provisional landing until that same gesture ends
-// (focus.js, `onPress`). A cancellation means the browser took it for something else —
-// commonly a touch scroll — so release the hold without undoing the gesture by landing
-// the thread. Mounted from leaf.js.
-export function wireThreadLanding(threadsBox) {
-  const pressedHere = () => pressing()?.path.includes(threadsBox) ?? false;
-  let visibleTitle = null;
-  // A title always fits, so it is shown when it lies whole in the band. Read on every
-  // scroll, this takes the band alone rather than `alreadyShown`'s walk of every clip.
-  const readVisibleTitle = () => {
-    const title = focused();
-    const band = landingBand(threadsBox);
-    const box = title && shownBox(title);
-    visibleTitle =
-      title?.matches?.(".lf-thread-summary") &&
-      threadsBox.contains(title) &&
-      band &&
-      box.top >= band.top - 1 &&
-      box.bottom <= band.bottom + 1
-        ? title
-        : null;
-  };
-  threadsBox.addEventListener("scroll", readVisibleTitle);
-  // A width change reflows the cards and changes the list's landing band. Native
-  // scroll anchoring keeps a pixel offset, which can leave the focused title under
-  // the panel's heading even though it remained visible before the resize. A newer
-  // input owns its chosen place even while that title retains native focus.
-  addEventListener("resize", () => {
-    const title = visibleTitle;
-    const mayLand = retainUserIntent({ source: title });
-    nextRender(() => {
-      const thread = standing();
-      if (
-        title &&
-        mayLand() &&
-        focused() === title &&
-        thread &&
-        threadsBox.contains(thread)
-      )
-        scrollThreadIntoView(thread, title, "instant");
-      readVisibleTitle();
-    });
-  });
-  onPress((start, path) => {
-    if (!path.includes(threadsBox)) return null;
-    const pressedThread = start.target.closest?.(".lf-thread") ?? null;
-    return (end, completed) => {
-      if (!completed) return;
-      const thread = standing() ?? pressedThread;
-      if (thread && !reachedForWords(thread)) {
-        if (standing() !== thread) focusThread(thread, "move");
-        // The press's click may reflow the list and takes its hold from this geometry.
-        land(thread, "instant", threadsBox);
-      }
-    };
-  });
-  // A press held in the list lands when the hand comes up (`finishPress`), and a return
-  // puts the user back in a place the list already showed them: neither lands here.
-  onStanding((node, cause) => {
-    if (!node || !under(node, threadsBox)) return;
-    nextRender(readVisibleTitle);
-    if (pressedHere() || cause === "return") return;
-    const thread = standing();
-    // Native focus and reply entry reveal their own writing area. Re-landing the
-    // thread here would turn that focus move into a second navigation gesture.
-    if (thread) land(thread, undefined, threadsBox, arrivingAtTitle());
-  });
-}
-
-// Shown, not merely present: a card the narrowing hid keeps its node (thread-list.js),
-// and a destination in one is as unreachable as a destination with no node at all.
-const listNode = (id, threadsBox, preferMessage = false) => {
-  const threadId = threadIdNamed(id);
-  const message = `.lf-msg[data-mid="${CSS.escape(id)}"]`;
-  const thread = `.lf-thread[data-id="${CSS.escape(threadId)}"]`;
-  const node =
-    preferMessage || id !== threadId
-      ? (threadsBox.querySelector(message) ?? threadsBox.querySelector(thread))
-      : (threadsBox.querySelector(thread) ?? threadsBox.querySelector(message));
-  return node?.closest(".lf-thread[hidden]") ? null : node;
-};
-
-// Direct navigation reveals what was requested, including a message's interactive
-// controls or a resolved thread. A thread arrives ready for a reply; a message keeps
-// focus at its own words so Tab reaches its controls.
-async function showThreadNow(
-  id,
-  part,
-  focus,
-  flash,
-  revealThread,
-  threadsBox,
-  mayArrive,
-  scroll,
-) {
-  // A native continuation owns its presented row even after Tab moves standing.
-  // The original gesture still gates focus, scrolling, and any later reveal action.
-  const mayPresent = () => (focus === false ? mayArrive.available() : mayArrive());
-  // Bind the actual narrowing reveal before any asynchronous arrival work; its
-  // user-intent lease is checked when that deferred invocation runs.
-  const revealDestination = bindQueuedWork(() => {
-    const node = listNode(id, threadsBox, part === "message");
-    const going = node?.closest(".lf-going");
-    // A card the view keeps only for the user's own words on their way is drawn but out
-    // of the view, so arriving at it chooses the view that holds it, as for one hidden.
-    // A card held for news stands where it stood until the user changes the view.
-    if (node && !going && !threadsBox.keepsForWords(id)) return { node };
-    if (!mayArrive()) return null;
-    if (going) finishFold(going);
-    const ready = revealThread(threadIdNamed(id));
-    return ready ? { ready } : null;
-  });
-  // A direct arrival owns the target's one transition cue. Remove a retained arrival
-  // animation before an asynchronous reveal gives the browser a frame to start it.
-  threadsBox
-    .querySelector(
-      `.lf-thread[data-id="${CSS.escape(threadIdNamed(id))}"], .lf-msg[data-mid="${CSS.escape(id)}"]`,
-    )
-    ?.classList.toggle("grow", false);
-  threadsBox.revealNavigation(threadIdNamed(id));
-  const destination = revealDestination();
-  if (!destination) return null;
-  let node = destination.node;
-  if (destination.ready) {
-    await destination.ready;
-    if (!mayPresent()) return null;
-    node = listNode(id, threadsBox, part === "message");
-  }
-  if (mayArrive()) threadsBox.revealNavigation(threadIdNamed(id));
-  node = listNode(id, threadsBox, part === "message");
-  if (!node || !mayPresent()) return null;
-  if (node.closest(".lf-summary-originals[hidden]")) {
-    if (!mayArrive()) return null;
-    await reveal(node, mayArrive).ready;
-    if (!mayPresent()) return null;
-  }
-  // A render still in flight holds the list's place as it finishes, and that write
-  // cancels a smooth landing already under way: a thread sent from the panel's foot was
-  // left below it. Land on the list the render leaves.
-  await whenDocumentPresented().catch(() => {});
-  node = listNode(id, threadsBox, part === "message");
-  if (!node || !mayPresent()) return null;
-  const thread = node.closest(".lf-thread");
-  if (focus) {
-    const destination =
-      node === thread ? threadFocusDestination(thread, { part }) : node;
-    mayArrive.handoff(() => {
-      if (destination === thread) focusThread(thread, "move");
-      else focusDestination(destination, "move");
-    });
-  }
-  const directThread = node === thread && standingIn(thread);
-  // A direct arrival aims at the reply area wherever the user stands in the thread; a
-  // long thread whose reply row is pinned aims at the thread's end, which the row
-  // stands over.
-  const aim = directThread
-    ? landingTarget(thread, threadReplyInput(thread) ?? focused())
-    : { node };
-  const target = aim.node ?? thread;
-  const long = directThread && (target !== thread || aim.block === "end");
-  const start = long ? threadLandingStart(thread, target, threadsBox) : null;
-  if (scroll && mayArrive())
-    scrollIntoView(start ?? target, {
-      behavior: scrollBehavior(),
-      // A long thread begins at the clean content boundary chosen above. A short card
-      // is context in full; a requested message keeps the least-moving direct route.
-      block: start
-        ? "start"
-        : long
-          ? (aim.block ?? "start")
-          : target === thread
-            ? "center"
-            : "nearest",
-    });
-  const revealed =
-    (aim.block === "end" && thread.querySelector(":scope > .lf-thread-reply")) ||
-    target;
-  revealed.classList.toggle("grow", false);
-  if (flash && mayArrive()) {
-    revealed.classList.toggle("flash", true);
-    setTimeout(() => revealed.classList.toggle("flash", false), 1300);
-  }
-  return focus ? focused() : node;
-}
-
-// The open panel's side of standing at a target: the list's one expanded thread becomes
-// the thread about where the user stands, as the margin card does with the panel shut.
-// It accompanies rather than arrives, so it takes no focus, draws no flash, widens no
-// narrowing that hides the thread, and moves the list only as far as shows it. `ids` are
-// the target's threads: one of them already expanded is where the user is on that
-// target, perhaps mid-reply, so it stays, and so does the list while that thread is
-// already shown; otherwise the first the list shows expands, and lands whole where it
-// fits and from its start where it does not.
-const listedThreads = (ids, threadsBox) =>
-  ids
-    .map((id) => listNode(id, threadsBox))
-    .filter((node) => node?.matches(".lf-thread") && !node.closest(".lf-going"));
-const accompaniedThread = (ids, threadsBox) =>
-  listedThreads(ids, threadsBox).find((node) => node.open) ?? null;
-function accompanyThread(ids, threadsBox) {
-  const expanded = accompaniedThread(ids, threadsBox);
-  const thread = expanded ?? listedThreads(ids, threadsBox)[0];
-  if (!thread) return;
-  threadsBox.revealNavigation(thread.dataset.id);
-  if (expanded && alreadyShown(thread)) return;
-  scrollIntoView(thread, {
-    behavior: scrollBehavior(),
-    block: fitsWhole(thread) ? "nearest" : "start",
-  });
-}
-
-export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
+export function createThreadLanding() {
   const landIn = (destination) => {
     const prepared = prepareLanding(destination);
     if (!prepared) return false;
     const { box } = prepared;
-    box.lfRevealReply?.();
     // Entering a reply is a focus move, not a trip to its thread or passage.
     // Reveal only the writing area: a box already shown (landing-scroll.js,
     // `alreadyShown`) leaves every scroller where the reader put it, including the
@@ -588,54 +184,7 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
   // Sending ends text entry while keeping the user in the conversation. Every surface
   // uses its thread's focus stop; leaving the card belongs to navigation, not Send.
   const landSent = standOnThread;
-  const showThread = (
-    id,
-    {
-      part = "reply",
-      focus = true,
-      flash = true,
-      scroll = true,
-      intent = retainUserIntent({
-        source: focused(),
-        available: () => threadsBox.isConnected,
-        fallback: threadsBox,
-      }),
-    } = {},
-  ) => {
-    if (!intent.handoff(() => setPanel(true))) return Promise.resolve(null);
-    // A message a held turn carries has no node to land on until its thread shows what
-    // it holds (held-news.js).
-    if (
-      part === "message" &&
-      !threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(id)}"]`)
-    )
-      showHeld(id);
-    const ready = showThreadNow(
-      id,
-      part,
-      focus,
-      flash,
-      revealThread,
-      threadsBox,
-      intent,
-      scroll,
-    );
-    // Pointer and keyboard routes deliberately discard this ticket. The thread
-    // coordinator reports its one failure; the landing result keeps that rejection out
-    // of both discarded event-handler promises and callers that continue a delivery.
-    return ready.then(
-      (arrived) => arrived,
-      () => null,
-    );
-  };
-  return {
-    landIn,
-    landInThread,
-    landSent,
-    showThread,
-    accompaniedThread: (ids) => accompaniedThread(ids, threadsBox),
-    accompanyThread: (ids) => accompanyThread(ids, threadsBox),
-  };
+  return { landIn, landInThread, landSent };
 }
 
 /** Declare a thread's own keys against the landing the page is using.
@@ -644,7 +193,7 @@ export function createThreadLanding({ setPanel, revealThread, threadsBox }) {
  * landing owner — one a test builds to hold a reveal open — is another way of landing,
  * not another set of keys, and declaring from the constructor would let it quietly take
  * the page's. */
-export function declareThreadKeys(landIn, narrowing) {
+export function declareThreadKeys(landIn) {
   pageScope("thread", {
     title: "In a thread",
     root: focused,
@@ -660,9 +209,6 @@ export function declareThreadKeys(landIn, narrowing) {
             : "Write a reply",
         title: () =>
           resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
-        // A panel title's bar keeps its room for resolution; the reply box under it
-        // already names its key, and the reference lists this row.
-        lineWhen: () => !focused()?.matches?.(".lf-thread-summary"),
         when: () =>
           Boolean(threadInput(cardThread())) ||
           resolutionControl(cardThread())?.matches(
@@ -688,8 +234,6 @@ export function declareThreadKeys(landIn, narrowing) {
             : "Resolve it",
         title: () =>
           resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",
-        // Search keeps its next/previous hints; resolution remains in the reference.
-        lineWhen: () => !narrowing.threadSearchActive(),
         when: () =>
           resolutionControl(heldThread())?.matches(
             ':not(:disabled, [aria-disabled="true"])',

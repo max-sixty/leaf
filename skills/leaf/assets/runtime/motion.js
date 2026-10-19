@@ -1,4 +1,4 @@
-// Arrival is not a gesture. Restored panel, drawer, drawn-width, design-mode, widget, and
+// Arrival is not a gesture. Restored design-mode, widget, and
 // reading-position state appears at rest. `motion` plays nothing before
 // `data-lf-presented`, and theme transitions use the same presentation stamp.
 //
@@ -14,7 +14,6 @@
 // final layout. A widget whose drag moves its own nodes defers its correction.
 
 import { pagePresented } from "./page-paint.js";
-import { LEAVING, announceRoom } from "./geometry.js";
 
 // The theme's reduced-motion guard covers CSS animation and transitions; motion
 // driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
@@ -138,52 +137,4 @@ export function foldBlock(el) {
     ],
     foldDuration(),
   );
-}
-
-// An edge-held auxiliary surface slides in from the edge it is held to, the drawers from the
-// left and the thread panel from the right, and a drawer slides back out to it. It stands over the page, so the
-// slide moves only the surface. Out is quicker than in, since a surface going away is
-// nothing the user has to follow. A new slide replaces one still running on the same
-// surface and starts from where that one had carried it, so a reopen mid-exit comes
-// straight back rather than finishing the exit first; the replaced slide's `finished`
-// rejects, which is how its caller knows not to hide. A surface sliding out is already
-// gone to the user, so for the length of the exit it is inert, taking no press or focus,
-// and marked `LEAVING`, so no reading of what the page shows counts it as covering
-// anything (geometry.js).
-// A slide moves what the surface shows without a scroll, resize or change of size, so
-// its end is announced to readers of what is on screen (geometry.js, `watchRoom`).
-const SLIDE_IN_MS = 200;
-const SLIDE_OUT_MS = 160;
-const slides = new WeakMap();
-export function slide(el, side, direction) {
-  const running = slides.get(el);
-  const at = running && { transform: getComputedStyle(el).transform };
-  running?.cancel();
-  const away = { transform: `translateX(${side === "left" ? "-100%" : "100%"})` };
-  const home = { transform: "translateX(0)" };
-  const played =
-    direction === "in"
-      ? motion(el, [at ?? away, home], SLIDE_IN_MS)
-      : motion(el, [at ?? home, away], SLIDE_OUT_MS);
-  // Only an exit that plays leaves: one the user's motion preference skips is over as
-  // it starts, and marking it for no time at all would write both marks and take them
-  // back in one task.
-  const leaving = Boolean(played) && direction === "out";
-  el.toggleAttribute(LEAVING, leaving);
-  el.toggleAttribute("inert", leaving);
-  if (!played) {
-    slides.delete(el);
-    return null;
-  }
-  slides.set(el, played);
-  played.finished.then(
-    () => {
-      slides.delete(el);
-      el.removeAttribute(LEAVING);
-      el.toggleAttribute("inert", false);
-      announceRoom(el);
-    },
-    () => {},
-  );
-  return played;
 }

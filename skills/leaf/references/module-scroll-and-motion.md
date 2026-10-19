@@ -189,15 +189,14 @@ own background.
 
 ## Notices and spoken words
 
-`notice(message)` shows a moment's news in Leaf's status line and announces it to screen
+`notice(message)` shows a moment's news in Leaf's panel and announces it to screen
 readers, such as confirming a gesture the widget recorded. News not caused by the user
 passes `{background: true}` and waits behind what the user just did; `{announce: false}`
 only shows it. `announce(message)` only announces, for words already on screen.
 
 `raiseError(message)` tells the user a gesture failed, such as a value the server
-refused. Under the Leaf panel they see it until they have dealt with it; under the
-banner it shows as a notice. It returns a handle whose `clear()` takes the error down
-once it no longer holds. Use it for failures only, never for news.
+refused. The Leaf panel shows it until they have dealt with it. It returns a handle
+whose `clear()` takes the error down once it no longer holds. Use it for failures only, never for news.
 
 `quietWord(element, word)` gives an element words screen readers say after its leading
 `<strong>` title but the screen doesn't show; pass the whole quiet word each time, or an

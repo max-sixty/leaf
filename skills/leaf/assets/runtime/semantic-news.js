@@ -5,8 +5,8 @@
    which source versions were observed, not a second account of what the page
    currently means.
 
-   New agent content is the server's `unread` reading, the same one the Threads panel
-   and banner paint: a version is news the first time this tab sees it unread, and
+   New agent content is the server's `unread` reading, the same one the floating panel
+   paints: a version is news the first time this tab sees it unread, and
    never once the user has taken it in, here or in another tab. What the user has
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
@@ -17,7 +17,7 @@ import { moved } from "./thread/model.js";
 const identity = (record) => record.attempt ?? record.id;
 
 // News reads the shown revision's view: the one the page just presented, whose On me list
-// the drawer and banner count paint. While an activation waits (a gesture defers it, or
+// the floating panel counts. While an activation waits (a gesture defers it, or
 // the document is a pinned version), an item the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
 export function semanticNewsReading(root) {

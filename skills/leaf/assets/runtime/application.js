@@ -35,6 +35,7 @@ import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { createQueueActions } from "./queue-api.js";
 import { createPrimaryReader } from "./thread/primary-reader.js";
+import { nextRender } from "./rendering.js";
 import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
@@ -96,7 +97,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "items", "queue"],
+        ["projection:chrome", "thread", "items"],
         stillCurrent,
       ),
     ]);
@@ -190,7 +191,6 @@ export function mountApplication(dependencies) {
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,
-    firstUnreadBtn: dependencies.firstUnreadBtn,
   });
 
   const threadActions = createThreadActions({
@@ -227,19 +227,6 @@ export function mountApplication(dependencies) {
     read,
     openThread: openPageThread,
     landInThread: dependencies.landInThread,
-  };
-  const cardView = {
-    reply: replyView,
-    settlement: settlementView,
-    reaction: reactionView,
-    read,
-    openThread: inlineView.openThread,
-    anchors: {
-      placedAt: dependencies.anchorPlacement.placedAt,
-    },
-    travel: {
-      scrollToThread: dependencies.anchorTravel.scrollToThread,
-    },
   };
   const surfaceView = {
     ...inlineView,
@@ -310,10 +297,6 @@ export function mountApplication(dependencies) {
     refreshInventory: refreshAnnotationInventory,
     renderAnnotations,
     openPageThread,
-    panelIsOpen: dependencies.panelIsOpen,
-    panel: dependencies.panel,
-    accompaniedThread: dependencies.accompaniedThread,
-    accompanyThread: dependencies.accompanyThread,
     designModeActive: dependencies.annotationCommands.designModeActive,
     pointerModeActive: dependencies.annotationCommands.pointerModeActive,
     leavePageMap: dependencies.annotationCommands.leavePageMap,
@@ -328,8 +311,6 @@ export function mountApplication(dependencies) {
   const threadDestinations = createThreadDestinations({
     threadIdsAt: annotations.threadIdsAt,
     placedAt: dependencies.anchorPlacement.placedAt,
-    panelIsOpen: dependencies.panelIsOpen,
-    showThread: dependencies.showThread,
     scrollToThread: dependencies.anchorTravel.scrollToThread,
     arrive: dependencies.anchorTravel.arrive,
     prepareTrip: dependencies.anchorTravel.prepareTrip,
@@ -350,7 +331,7 @@ export function mountApplication(dependencies) {
     renderAnnotations,
     renderSurfaces,
     // Where a thread stands now, put up for a user carried there from a box a surface
-    // stopped drawing: the surface drawing it, its margin card, or the panel.
+    // stopped drawing: the surface drawing it, its margin card, or the floating panel.
     openThread: (id, options) =>
       threadDestinations.openPageThread(id, { ...options, travel: false }),
     // A native Tab visit outside a displaced row retains editing without taking focus.
@@ -367,22 +348,6 @@ export function mountApplication(dependencies) {
     threadAt: (node) => overlay?.entryThread(node) ?? null,
     read,
   });
-  const registerThreadPanel = ({ controller, threadsBox, view }) =>
-    threadPresenter.registerPanel({
-      controller,
-      threadsBox,
-      view: {
-        ...view,
-        card: {
-          ...cardView,
-          nativeAuthored: (message) => !threadPresenter.primaryOwnsMessage(message),
-          travel: { ...cardView.travel, ...view.travel },
-        },
-        placedAt: dependencies.anchorPlacement.placedAt,
-        repaintThread: refreshThread,
-      },
-    });
-
   const accountPending = (receipts) => {
     ledger.present(receipts);
     releasePendingSafely("receipt presentation");
@@ -500,13 +465,17 @@ export function mountApplication(dependencies) {
   // registration, as that reader may ask it to present.
   // A presentation that makes room for the agent's answer to the user's last turn
   // itself says so (`answersAtOnce`), and its reader draws that answer at once.
-  const attachPresentation = (owner, { render, reveal, answersAtOnce = false }) => {
+  const attachPresentation = (
+    owner,
+    { render, reveal, answersAtOnce = false },
+    onFailure = undefined,
+  ) => {
     const reader = createPrimaryReader(
       owner,
       render,
       inlineView,
       () => threadPresenter.present(),
-      { answersAtOnce },
+      { answersAtOnce, onFailure },
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;
@@ -531,6 +500,41 @@ export function mountApplication(dependencies) {
     if (yielding && !yielding.attached)
       yielding.attached = attachPresentation(yielding.owner, yielding.spec);
   };
+  // A package's reader takes the place from the chrome's.
+  const takePlace = (entry) => {
+    const displaced = yielding?.attached;
+    const handOff = displaced ? yielding.spec.yielded() : null;
+    if (displaced) {
+      displaced.detach();
+      yielding.attached = null;
+    }
+    try {
+      entry.attached = attachPresentation(entry.owner, entry.spec, () =>
+        nextRender(() => fallBack(entry)),
+      );
+    } catch (error) {
+      if (displaced) restoreYielding();
+      throw error;
+    }
+    authored = entry;
+    if (handOff)
+      queueMicrotask(() => {
+        if (authored === entry) handOff();
+      });
+  };
+  // A package's reader whose pass failed holds nothing: its threads, and the asks in
+  // them, would stand in no surface the user can reach, and opening one would ask the
+  // failed reader again. So it gives the place back to the chrome's, whose floating
+  // panel draws them, until the package asks to draw again (`update`), when it takes
+  // the place, and the thread open in the panel, back. It gives way on the next frame,
+  // once the failed pass has rejected the `update` that asked for it, unless a later
+  // pass of its own has painted by then.
+  const fallBack = (entry) => {
+    if (authored !== entry || !entry.attached?.reader.failed) return;
+    entry.attached.detach();
+    entry.attached = null;
+    restoreYielding();
+  };
   const presentThreads = (owner, spec, yields) => {
     const entry = { owner, spec, attached: null };
     if (yields) {
@@ -539,31 +543,14 @@ export function mountApplication(dependencies) {
       yielding = entry;
       // A package's reader registered first keeps the place.
       if (!authored) entry.attached = attachPresentation(owner, spec);
-    } else {
-      const displaced = yielding?.attached;
-      const handOff = displaced ? yielding.spec.yielded() : null;
-      if (displaced) {
-        displaced.detach();
-        yielding.attached = null;
-      }
-      try {
-        entry.attached = attachPresentation(owner, spec);
-      } catch (error) {
-        if (displaced) restoreYielding();
-        throw error;
-      }
-      authored = entry;
-      if (handOff)
-        queueMicrotask(() => {
-          if (authored === entry) handOff();
-        });
-    }
+    } else takePlace(entry);
     let active = true;
     return Object.freeze({
       get primary() {
         return Boolean(entry.attached);
       },
       update: ({ release = false } = {}) => {
+        if (active && authored === entry && !entry.attached) takePlace(entry);
         if (release) entry.attached?.reader.release();
         return threadPresenter.present();
       },
@@ -594,7 +581,6 @@ export function mountApplication(dependencies) {
     overlay,
     threadDestinations,
     read,
-    mountThread: threadPresenter.mount,
     mountRead: read.mount,
     registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, false),
     registerChromeThreadPresentation: (owner, spec) =>
@@ -608,7 +594,6 @@ export function mountApplication(dependencies) {
     watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
-    registerThreadPanel,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
@@ -639,9 +624,6 @@ export const dispatchWidget = commandDispatch.dispatchWidget;
 export const invalidateDom = (...args) => app().invalidateDom(...args);
 export const landInThread = (...args) => app().landInThread(...args);
 export const navigateToDatum = (...args) => app().navigateToDatum(...args);
-// The one route to a thread by its root id: the thread's inline destination while
-// it has one, Threads otherwise, the same choice a mark and t/T make.
-export const openThread = (...args) => app().threadDestinations.openPageThread(...args);
 export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);

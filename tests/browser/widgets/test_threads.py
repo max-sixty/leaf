@@ -421,6 +421,31 @@ def thread_on_a_sent_widget(serve):
     return url
 
 
+def test_a_detached_thread_on_a_widget_an_agent_sent_stays_detached(browser, serve):
+    """An anchor captured detached names no passage the user selected, so finding the
+    widget its section names in a message identifies nothing: the thread still reads as
+    detached, with no In its message to offer."""
+    url = thread_on_a_sent_widget(serve)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-lost",
+            "author": "user",
+            "revision": 1,
+            "text": "This bit, whatever it was.",
+            "anchor": {"section": "ps-decision-region", "detached": True},
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    thread = open_panel_thread(page, "c-lost")
+    expect(thread.locator(".lf-fp-quote")).to_have_class(re.compile(r"\bdetached\b"))
+    expect(
+        page.locator(".lf-fp-aux").get_by_role("button", name="In its message")
+    ).to_have_count(0)
+
+
 def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, serve):
     """A question the agent asked is not one of the runtime's own buttons.
 

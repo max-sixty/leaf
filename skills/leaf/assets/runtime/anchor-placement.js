@@ -18,9 +18,12 @@ import { placePoints } from "./pointed-place.js";
 import { threadKey, threadNames } from "./thread/model.js";
 import { messageHolding } from "./thread/messages.js";
 
-// The message of these threads that keeps the element an anchor names, if any.
+// The message of these threads that keeps the element an anchor names, if any. An anchor
+// captured detached names no passage the user selected, so finding its element's message
+// identifies nothing and it stays detached.
 function heldIn(anchor, threads) {
-  const held = anchor.section ? messageHolding(anchor.section) : null;
+  const held =
+    anchor.section && !anchor.detached ? messageHolding(anchor.section) : null;
   return held &&
     threads.some((thread) => thread.msgs.some(({ id }) => id === held.message))
     ? held

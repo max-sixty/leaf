@@ -4806,7 +4806,7 @@ function createStandingTarget({ isItemControl, standingIn: standingIn2 }) {
 
 // runtime/anchor-placement.js
 function heldIn(anchor, threads) {
-  const held = anchor.section ? messageHolding(anchor.section) : null;
+  const held = anchor.section && !anchor.detached ? messageHolding(anchor.section) : null;
   return held && threads.some((thread) => thread.msgs.some(({ id }) => id === held.message)) ? held : null;
 }
 function createAnchorPlacement() {

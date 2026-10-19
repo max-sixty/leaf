@@ -55,12 +55,6 @@ const descriptor = {
   quoted: false,
 };
 const empty = () => ({ entries: [], actions: [], reports: [], desired: [] });
-// The item reading `served_state` sends, in its own wire spelling.
-const noItems = () => ({
-  all: [],
-  user: [],
-  unanswered: [],
-});
 const wireItem = (
   target,
   tag,
@@ -120,7 +114,8 @@ const state = (taken, events = []) => ({
     views: {
       1: {
         basis: { revision: 1, through_seq: events.length },
-        thread: { threads: [], projection: empty(), items: noItems() },
+        thread: { threads: [], projection: empty() },
+        items: [],
         coverage: [],
         undo: [],
         reports: [],
@@ -128,7 +123,6 @@ const state = (taken, events = []) => ({
         queues: { on_user: [], on_agent: [], done: [] },
         approval_blocking: [],
         document: {
-          items: noItems(),
           projection: {
             entries: events.map((event) => ({
               event: {
@@ -286,12 +280,8 @@ test("one synchronous immutable reading combines authored, accepted, and later p
 test("the public Thread collection contains conversations while approvals stay page-wide", () => {
   const app = capture();
   const reading = state(1);
-  const item = servedReading("approval").browser.views["1"].document.items.all[0];
-  reading.browser.views[1].document.items = {
-    all: [item],
-    user: [item],
-    unanswered: [item],
-  };
+  const item = servedReading("approval").browser.views["1"].items[0];
+  reading.browser.views[1].items = [item];
   app.adopt(reading);
 
   const effective = app.read().effective;
@@ -802,11 +792,7 @@ test("semantic epochs include visible revision facts but not transport metadata"
   const app = setup();
   const asked = state(2);
   const choice = wireItem("choice", "lf-choice");
-  asked.browser.views[1].document.items = {
-    all: [choice],
-    user: [choice],
-    unanswered: [choice],
-  };
+  asked.browser.views[1].items = [choice];
   const before = app.read().semanticEpoch;
   app.adopt(asked);
   assert.ok(app.read().semanticEpoch > before);
@@ -1234,7 +1220,6 @@ for (const resolved of [null, { author: "user" }]) {
     accepted.browser.views[1].thread.threads = [
       servedThread([root], {
         resolved,
-        user_prompt: resolved ? null : { message: root.id, version: root.id },
         attention: resolved
           ? null
           : { kind: "needs_user", reason: "widget", workflow: null },
@@ -1313,11 +1298,7 @@ test("a pending gesture leaves items and On me as served until the log answers",
     status: "answered",
     next_actor: null,
   };
-  accepted.browser.views[1].thread.items = {
-    all: [answered],
-    user: [],
-    unanswered: [],
-  };
+  accepted.browser.views[1].items = [answered];
   const done = {
     ...servedRecordItem(answered, { subject: { kind: "thread", id: item.id } }),
     state: "done",
@@ -1340,11 +1321,7 @@ test("a pending gesture leaves items and On me as served until the log answers",
   const reopened = { ...answered, answer: null, status: "open", next_actor: "user" };
   const undo = { kind: "undo", id: "e-undo", undoes: kept.id, attempt: "take-back" };
   const answeredUndo = state(3, [kept, undo]);
-  answeredUndo.browser.views[1].thread.items = {
-    all: [reopened],
-    user: [reopened],
-    unanswered: [reopened],
-  };
+  answeredUndo.browser.views[1].items = [reopened];
   answeredUndo.browser.views[1].queues = itemQueues([reopened]);
   answeredUndo.browser.views[1].thread.threads = [
     servedThread([item], {
@@ -1371,23 +1348,12 @@ test("the publisher carries the server's item reading, page items before thread 
 
   const read = state(2);
   const page = wireItem("question", "lf-ask", "choice", "lf-choice");
-  const frozen = wireItem(
-    "frozen-ask",
-    "lf-ask",
-    "frozen-choice",
-    "lf-choice",
-    "root-1",
-  );
-  read.browser.views[1].document.items = {
-    all: [page],
-    user: [page],
-    unanswered: [page],
+  const frozen = {
+    ...wireItem("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", "root-1"),
+    status: "withdrawn",
+    next_actor: null,
   };
-  read.browser.views[1].thread.items = {
-    all: [frozen],
-    user: [],
-    unanswered: [],
-  };
+  read.browser.views[1].items = [page, frozen];
   app.adopt(read);
 
   const record = page;
@@ -1657,11 +1623,7 @@ test("An item contains the local typed answer while completion waits for admissi
   const app = capture([[declared.id, declared]]);
   const reading = state(2);
   const item = wireItem("choice-context", "lf-context", "choice", "lf-choice");
-  reading.browser.views[1].document.items = {
-    all: [item],
-    user: [item],
-    unanswered: [item],
-  };
+  reading.browser.views[1].items = [item];
   reading.browser.views[1].queues = itemQueues([item]);
   app.adopt(reading);
   assert.equal(app.read().effective.items.all[0].answer, null);
@@ -1712,11 +1674,7 @@ test("empty completed answer and wrapper changes preserve item identity", () => 
     next_actor: null,
     answer: { value: [], event: null },
   };
-  reading.browser.views[1].document.items = {
-    all: [item],
-    user: [],
-    unanswered: [],
-  };
+  reading.browser.views[1].items = [item];
   reading.browser.views[1].queues = itemQueues([item]);
   app.adopt(reading);
   assert.deepEqual(app.read().effective.items.all[0].answer.value, []);
@@ -1724,7 +1682,7 @@ test("empty completed answer and wrapper changes preserve item identity", () => 
   assert.equal(app.read().effective.queues.done[0].kind, "widget");
   const wrapped = structuredClone(reading);
   wrapped.taken = 3;
-  wrapped.browser.views[1].document.items.all[0].prompt.target = "new-context";
+  wrapped.browser.views[1].items[0].prompt.target = "new-context";
   app.adopt(wrapped);
   assert.equal(app.read().effective.items.all[0].id, "widget:choice");
   assert.equal(app.read().effective.items.all[0].prompt.target, "new-context");
@@ -1780,11 +1738,7 @@ test("pending undo removes completed empty item values and refusal restores them
       next_actor: null,
       answer: { value, event: accepted },
     };
-    reading.browser.views[1].document.items = {
-      all: [item],
-      user: [],
-      unanswered: [],
-    };
+    reading.browser.views[1].items = [item];
     reading.browser.views[1].queues = itemQueues([item]);
     app.adopt(reading);
     assert.deepEqual(app.read().effective.items.all[0].answer.value, value);
@@ -1819,18 +1773,14 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     },
   };
   const reading = state(2, [accepted]);
-  reading.browser.views[1].document.items = {
-    all: [
-      {
-        ...wireItem("choice", "lf-choice"),
-        status: "answered",
-        next_actor: null,
-        answer: { value: { outcome: "accept" }, event: accepted },
-      },
-    ],
-    user: [],
-    unanswered: [],
-  };
+  reading.browser.views[1].items = [
+    {
+      ...wireItem("choice", "lf-choice"),
+      status: "answered",
+      next_actor: null,
+      answer: { value: { outcome: "accept" }, event: accepted },
+    },
+  ];
   app.adopt(reading);
   app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-earlier" }, "now");
   assert.equal(app.read().effective.items.all[0].answer, null);
@@ -1853,11 +1803,7 @@ test("pending undo removes a custom item answer before authoritative completion 
     next_actor: null,
     answer: { value: { outcome: "accept" }, event: accepted },
   };
-  reading.browser.views[1].document.items = {
-    all: [item],
-    user: [],
-    unanswered: [],
-  };
+  reading.browser.views[1].items = [item];
   reading.browser.views[1].queues = itemQueues([item]);
   app.adopt(reading);
   assert.deepEqual(app.read().effective.items.all[0].answer.value, {

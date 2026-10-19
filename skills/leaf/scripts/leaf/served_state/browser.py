@@ -71,7 +71,6 @@ def _thread_attention(
             "kind": "waiting",
             "reason": "todo",
             "workflow": None,
-            # The line of the start running on it, while one holds it.
             "todo": {
                 "id": todo["id"],
                 "title": todo["title"],
@@ -202,14 +201,14 @@ def browser_state(
             ),
             active.get("activated_at") if active_revision == revision else None,
         )
-        document = browser_document(reading, revision)
-        # The view's items are its own document's beside its frozen thread's, so it
-        # carries the lists they add up to and the items approving it waits on.
-        items = document["items"]["all"] + thread["items"]["all"]
+        # The view's items are its own document's beside its frozen thread's, served
+        # once: a list row and the approval gate name an item by its id.
+        items = reading.items["all"] + viewed.items["all"]
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
-            "document": document,
+            "document": browser_document(reading, revision),
             "thread": thread,
+            "items": items,
             "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(
                 events,
@@ -223,11 +222,6 @@ def browser_state(
             "queues": queues(thread["threads"], workflows, todos, collection(items)),
             "approval_blocking": [item["id"] for item in approval_blocking(items)],
         }
-    activity = {
-        key: value
-        for key, value in work.activity.items()
-        if key not in {"workflows", "todos"}
-    }
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {
@@ -245,21 +239,10 @@ def browser_state(
         "basis": {"through_seq": through_seq},
         **page_history,
         "views": views,
-        # Approvals in force across every stamp, for Threads' event timeline.
-        # Current-version approval state lives only in its item.
         "approval_history": durable.approvals,
-        "activity": activity,
-        "workflows": workflows,
-        # Every to-do, open and ended, the one record the browser reads each from
-        # (`work_reading.WorkReading.page_todos`).
         "todos": todos,
-        # The agent's outline of the work, its steps naming to-dos and items by id
-        # (`plans.plan_reading`), or None.
         "plan": durable.plan,
         "receipts": [event for event in events if event.get("attempt")],
-        # Every thread whose history each logged event changes
-        # (`thread_context.thread_memberships`), which the browser reads for the
-        # gesture an unsent undo takes back or an unsent action replaces.
         "thread_memberships": {
             identity: threads
             for identity, threads in thread_memberships(

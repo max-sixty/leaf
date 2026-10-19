@@ -5760,9 +5760,11 @@ function threadReading(thread, surface, commands2) {
   const word = resolved2 ? "Reopen" : "Resolve";
   const label = resolved2 ? word : "Resolve thread";
   const attention = threadAttention(thread);
-  const asking = thread.user_prompt?.message;
+  const asking = new Set(
+    thread.items.filter((item) => item.next_actor === "user" && answeredInWords(item)).map((item) => item.message)
+  );
   const openTodos = new Set(thread.todos.map(({ id }) => id));
-  const leaves = (message) => message.id === asking ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
+  const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
   const messages = turns(thread).map(
     (message) => messageReading(message, {
       nativeAuthored: Boolean(commands2.nativeAuthored),

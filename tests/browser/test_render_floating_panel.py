@@ -959,7 +959,7 @@ GROWTH = """() => {
   return {
     view: box(view).top,
     height: box(view).height,
-    cap: parseFloat(getComputedStyle(view).maxHeight),
+    cap: parseFloat(getComputedStyle(view.parentElement).maxHeight),
     bottom: box(view).bottom,
     field: box(document.querySelector('.lf-fp-field')).top,
     turn: turn && [box(turn).top - box(view).top - parseFloat(getComputedStyle(view).paddingTop),
@@ -2729,6 +2729,34 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
 
 
+def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
+    """A long draft and an open view share the window: the view takes what the field
+    leaves and scrolls inside it, so its head, where Close stands, stays in the window.
+    The two once stacked at their own full heights, the view's head above the window's
+    top."""
+    url = serve(LONG_PAGE)
+    for n in range(30):
+        panel_comment(serve.page_dir, f"Page comment {n}")
+    page = floating(browser, url)
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    view = page.locator(".lf-fp-view[data-view=threads]")
+    expect(view).to_be_visible()
+    field(page).click()
+    for n in range(40):
+        page.keyboard.type(f"Line {n} of a long draft")
+        page.keyboard.press("Shift+Enter")
+    page.locator(".lf-fp-head .lf-fp-expand").click()
+    settled(page)
+    head = page.locator(".lf-fp-head").bounding_box()
+    shown = view.bounding_box()
+    words = page.locator(".lf-fp-field").bounding_box()
+    assert head["y"] >= 0, head
+    assert shown["y"] + shown["height"] <= words["y"] + 0.5, (shown, words)
+    assert view.evaluate("v => v.scrollHeight > v.clientHeight")
+
+
 def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
     """Each mark keeps its count's room whether or not it has a number, under a finger
     as under a mouse, so a question arriving in a reply puts On me's count in that room
@@ -3065,12 +3093,14 @@ def test_a_sample_shows_its_threads_in_its_panel(browser, serve):
     expect(child.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
 
 
-def test_an_image_pasted_in_the_page_s_field_stands_over_its_words(browser, serve):
-    """An image pasted into the page's field stands on a line of its own above the
-    words, as it does over a thread's reply, leaving the field its width; its thumbnail
-    is the paste's result, so no notice says it was added."""
+def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serve):
+    """An image pasted into the page's field hangs just over the panel's top edge,
+    outside its box, so attaching grows the panel by nothing and leaves the field its
+    width; its thumbnail is the paste's result, so no notice says it was added."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
+    card = page.locator(".lf-fp-card")
+    before = card.bounding_box()
     field(page).evaluate(
         """(box, encoded) => {
           const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
@@ -3085,9 +3115,11 @@ def test_an_image_pasted_in_the_page_s_field_stands_over_its_words(browser, serv
     shelf = page.locator(".lf-fp-box .lf-composer-media-item")
     expect(shelf).to_have_count(1)
     expect(field(page)).not_to_have_attribute("aria-busy", "true")
-    words = field(page).bounding_box()
-    assert words["width"] > 300, words
-    assert shelf.bounding_box()["y"] + shelf.bounding_box()["height"] <= words["y"]
+    assert card.bounding_box() == before
+    assert field(page).bounding_box()["width"] > 300
+    tile = shelf.bounding_box()
+    assert tile["y"] + tile["height"] <= before["y"], (tile, before)
+    assert tile["x"] >= field(page).bounding_box()["x"] - 1, tile
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
 
 

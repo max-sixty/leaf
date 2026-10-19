@@ -5,11 +5,12 @@ the answer. Recommending an answer doesn't make the decision. `conversation-loop
 "The On lists", covers everything the user is asked for, including questions in the
 conversation and actions outside the page.
 
-The user answers each item on On me from what is on screen when they reach it, often by
-pressing `m`. Keep the question, a short premise and the evidence next to the answering
-control. When that material sits outside the answering widget, frame it with an
-`lf-ask`: a question heading, its context and evidence, and one answering widget.
-Backing detail goes after the `lf-ask`.
+Make each decision understandable and answerable where On me takes the user, without
+reading earlier content. Pressing `m` brings that decision to the top of the window,
+leaving preceding prose out of view. Put the question, the current
+state, the evidence that bears on the answer and the answering control inside the
+answering widget or an enclosing `lf-ask`. Compose the explanation there first;
+backing detail goes after it.
 
 On a quick-answer page, open with the decision and put its backing in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
@@ -51,9 +52,13 @@ accept them together if it says for each why it is clear-cut; contested proposal
 their own decisions. Use one `lf-options` with `multiple` only when the answers depend
 on each other, such as a limit on how many.
 
-Each option shows, inside the decision, what choosing it would give the user, drawn the
-way `page-authoring.md`, "Show the subject", shows that kind of thing. This holds on
-plans and work-item lists too:
+State what choosing each option does to the subject in its label or title, including
+the choice to keep today's behavior: “Generate shared types” or “Keep handwritten
+types”. Accepting or rejecting your advice is the gesture; name the result it records.
+A compact label can be the whole option. Add words for a
+consequence or tradeoff the decision has not yet shown. Show the result inside the
+decision, following `page-authoring.md`, "Show the subject". This holds on plans and
+work-item lists too:
 
 - For an interface or behavior choice, make the interaction work inside each option so
   the user can try every alternative.
@@ -71,7 +76,7 @@ plans and work-item lists too:
 
 Vary only the treatment in question, and show today's version, or no change, beside them
 as a neutral baseline. Put longer rationale in a disclosure after the decision. The
-`lf-ask`, `lf-options` and `lf-option` entries say how to word the question and options.
+`lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
 
 When the page exists for the user to choose among approaches, organize it around that
 choice. The title and headings name the question and what the alternatives differ on,

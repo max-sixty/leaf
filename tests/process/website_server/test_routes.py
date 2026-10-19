@@ -446,13 +446,9 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
             "revision": revision,
             "through_seq": state["events"][-1]["seq"] if state["events"] else 0,
         }
-        # The comparison base carries its own item reading, because the browser reads
+        # The comparison base carries its own item records, because the browser reads
         # which items a revision holds rather than folding the declarations again.
-        assert set(view["browser"]["views"][str(revision)]["document"]["items"]) == {
-            "all",
-            "user",
-            "unanswered",
-        }
+        assert isinstance(view["browser"]["views"][str(revision)]["items"], list)
 
         posted = {
             "kind": "comment",

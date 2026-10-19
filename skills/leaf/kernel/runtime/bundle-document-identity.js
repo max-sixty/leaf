@@ -820,7 +820,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/9`;
+var recordFormat = (kind) => `leaf-${kind}/10`;
 
 // runtime/composing/text-field.js
 import {
@@ -7058,7 +7058,7 @@ function semanticNewsReading(root) {
   if (!view) throw new Error("The shown page has no browser reading");
   const state = root.authoritative;
   return {
-    page: view.document,
+    items: view.items,
     thread: view.thread,
     workflows: state.workflows,
     activity: state.activity
@@ -7073,18 +7073,12 @@ function unreadContent(threadView) {
     }))
   ).filter(({ message }) => !message.failure).sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
-function userObligations(page, threadView) {
+function userObligations(items) {
   const held = /* @__PURE__ */ new Map();
-  for (const item of page.items.user)
-    held.set(JSON.stringify(["page", item.id]), {
-      source: item.id,
-      thread: null
-    });
-  for (const item of threadView.items.user) {
-    held.set(JSON.stringify(["thread", item.thread, item.id]), {
-      source: item.id,
-      thread: item.thread
-    });
+  for (const item of items) {
+    if (item.next_actor !== "user") continue;
+    const key = item.thread === null ? ["page", item.id] : ["thread", item.thread, item.id];
+    held.set(JSON.stringify(key), { source: item.id, thread: item.thread });
   }
   return held;
 }
@@ -7110,7 +7104,7 @@ function responseFailures(workflows) {
 var agentAvailable = (activity) => activity.held && ["listening", "working"].includes(activity.kind);
 function observeSemanticNews(prior, reading) {
   const content = unreadContent(reading.thread);
-  const obligations = userObligations(reading.page, reading.thread);
+  const obligations = userObligations(reading.items);
   const failures = responseFailures(reading.workflows);
   const available = agentAvailable(reading.activity);
   const first = prior === null;
@@ -7169,7 +7163,7 @@ function observeSemanticNews(prior, reading) {
 }
 function currentSemanticNews(news, reading, observed) {
   const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
-  const obligations = userObligations(reading.page, reading.thread);
+  const obligations = userObligations(reading.items);
   const failures = responseFailures(reading.workflows);
   return news.flatMap((item) => {
     switch (item.kind) {
@@ -7984,7 +7978,8 @@ function queueTitle(item) {
   const thread = readThreads().threads.find((thread2) => thread2.id === item.thread);
   const own = elementById(item.subject.id);
   const topic = thread ? threadName(thread) : "";
-  if (item.title) return item.title;
+  const title = item.title ?? item.item?.prompt.text;
+  if (title) return title;
   if (item.kind === "work" && item.detail) return item.detail;
   const sent = item.answer?.message && thread?.msgs.find((message) => message.id === item.answer.message);
   if (sent) return sent.body.text.trim() || topic;

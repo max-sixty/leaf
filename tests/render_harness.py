@@ -1418,7 +1418,10 @@ def watched(page, *, java_script_enabled=True):
         + "\n"
         + document_port_binding_source()
     )
-    if _TEST is None or watches_shifts(_TEST):
+    # The watch reads the Layout Instability API, which only Chromium implements.
+    if page.context.browser.browser_type.name == "chromium" and (
+        _TEST is None or watches_shifts(_TEST)
+    ):
         page.add_init_script(script=shift_watch_source())
     # Diagnostics join the captured graph through its compiled public entries. Tests
     # cannot name a private source path or load a second runtime from the mutable layer.

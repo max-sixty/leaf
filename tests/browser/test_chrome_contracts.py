@@ -2,6 +2,7 @@
 
 import io
 import json
+from types import SimpleNamespace
 from urllib.parse import urljoin
 
 import pytest
@@ -80,6 +81,9 @@ def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve
 
 class _ProblemPage:
     url = "https://leaf.test/example"
+    context = SimpleNamespace(
+        browser=SimpleNamespace(browser_type=SimpleNamespace(name="chromium"))
+    )
 
     def add_init_script(self, **_):
         pass

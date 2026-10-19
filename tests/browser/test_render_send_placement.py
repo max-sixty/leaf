@@ -1076,23 +1076,41 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
 
 
 @pytest.mark.parametrize(
-    "size,at,long,touch,again,options",
+    "size,at,long,touch,again,options,engine",
     [
-        ((1440, 900), 0.4, False, False, False, False),
-        ((900, 600), 0.75, False, False, False, False),
-        ((390, 844), 0.12, False, False, False, False),
-        ((900, 600), 0.4, True, False, False, False),
-        ((900, 600), 0.4, "scrolled", False, False, False),
-        ((1440, 900), 0.4, "paragraphs", False, False, False),
-        ((1440, 900), 0.4, False, False, True, False),
-        ((390, 844), 0.4, "passage", True, False, False),
+        ((1440, 900), 0.4, False, False, False, False, "browser"),
+        ((900, 600), 0.75, False, False, False, False, "browser"),
+        ((390, 844), 0.12, False, False, False, False, "browser"),
+        ((900, 600), 0.4, True, False, False, False, "browser"),
+        ((900, 600), 0.4, "scrolled", False, False, False, "browser"),
+        ((1440, 900), 0.4, "paragraphs", False, False, False, "browser"),
+        ((1440, 900), 0.4, False, False, True, False, "browser"),
+        ((390, 844), 0.4, "passage", True, False, False, "browser"),
+        # Firefox sized this one-line comment's card 13px wider than its box.
         pytest.param(
-            (900, 600), 0.75, False, False, False, True, id="above-with-options"
+            (1728, 999),
+            0.4,
+            "line",
+            False,
+            False,
+            False,
+            "firefox_browser",
+            id="line-firefox",
+        ),
+        pytest.param(
+            (900, 600),
+            0.75,
+            False,
+            False,
+            False,
+            True,
+            "browser",
+            id="above-with-options",
         ),
     ],
 )
 def test_send_grows_thread_around_the_words(
-    browser, serve, size, at, long, touch, again, options
+    request, serve, size, at, long, touch, again, options, engine
 ):
     """The box being written is drawn as the card it becomes, and Send swaps one for
     the other in that rectangle, so the draft's words stand where they were typed through
@@ -1100,6 +1118,7 @@ def test_send_grows_thread_around_the_words(
     and the card stands its words as far above its end as the box did. Read inside the
     editor solely to measure its actual glyphs, without changing its closed-root
     behavior."""
+    browser = request.getfixturevalue(engine)
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
@@ -1131,6 +1150,8 @@ def test_send_grows_thread_around_the_words(
     )
     if long == "paragraphs":
         text = "First paragraph.\n\nSecond paragraph."
+    if long == "line":
+        text = "Show it in the text box, then move it to the errors list."
     page.keyboard.insert_text(text)
     rendered(page)
     if long == "scrolled":

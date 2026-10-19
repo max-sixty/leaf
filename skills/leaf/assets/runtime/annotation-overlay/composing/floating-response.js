@@ -125,7 +125,6 @@ export function createFloatingResponsePlacement({
         width * scaleX,
         height * scaleY,
       ).toJSON(),
-      width,
       placement: fabPlacement.capture(),
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).

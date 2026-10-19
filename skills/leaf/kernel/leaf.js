@@ -6209,10 +6209,19 @@ function createFloatingPanel({
         hint: () => saying2(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         busy: () => !errorCover.hidden,
-        sent: () => {
+        sent: (flight) => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
           waiting = null;
           queueMicrotask(paint);
+          const route = trail.at(-1);
+          void Promise.resolve(flight).then((ok) => {
+            const view = openView();
+            if (ok || trail.at(-1) !== route || !view || stoodAt === null) return;
+            const height = view.offsetHeight + view.getBoundingClientRect().top - stoodAt;
+            if (!holdThread(height)) return;
+            spare = true;
+            paint();
+          });
         }
       });
     return replyOptions.get(key);
@@ -6460,7 +6469,9 @@ function createFloatingPanel({
   const fit = sizeObserver(() => {
     landReader();
     fitAnswer();
-    stood = openView()?.offsetHeight ?? null;
+    const view = openView();
+    stood = view?.offsetHeight ?? null;
+    stoodAt = view?.getBoundingClientRect().top ?? null;
   });
   const follow = sizeObserver(() => {
     readCorner();
@@ -6474,7 +6485,9 @@ function createFloatingPanel({
   let onPageSeat = false;
   const unplaced = /* @__PURE__ */ new Set();
   let stood = null;
+  let stoodAt = null;
   let rewriting = false;
+  let spare = false;
   const holdThread = (height) => {
     const top = trail.at(-1);
     if (top?.view !== "thread" || rooms.has(routeKey(top)) || height === null)
@@ -6623,6 +6636,7 @@ function createFloatingPanel({
     if (changed) {
       rooms.clear();
       rewriting = false;
+      spare = false;
       quoteExpanded = false;
       waiting = null;
       placed = null;
@@ -7579,6 +7593,11 @@ function createFloatingPanel({
     );
     if (!view || (outletOf()?.childElementCount ?? 0) <= landAtEnd.after) return;
     landAtEnd = null;
+    if (spare) {
+      spare = false;
+      rooms.delete(routeKey(top));
+      paint();
+    }
     scrollToEnd(view);
   }
   function paintNow() {

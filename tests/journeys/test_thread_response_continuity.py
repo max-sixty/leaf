@@ -516,6 +516,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
 
     pending = pose()
     assert 0 < pending["action"]["top"] < pending["action"]["bottom"] < 900
+    # The refusal arrives as news, past the browser's window for the user's last
+    # input, so the shift watch reads whatever it moves as moved without input.
+    page.wait_for_timeout(600)
     held.pop().fulfill(
         status=400,
         json={

@@ -257,9 +257,17 @@ export function replyControlDestination(node) {
 // A thread's reply draft has several views, and sending claims its exact generation.
 // A second view pressing Send afterwards reads the generation as
 // spent and refuses on its own — in this tab and in any other showing the page, which is
-// further than a hold kept in this document's memory reached.
-const sendReply = (draftCtx, key, text, owns, actions) =>
-  sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
+// further than a hold kept in this document's memory reached. A send returns its
+// flight, which says whether the log took it; nothing when nothing was sent.
+function sendReply(draftCtx, key, text, owns, actions) {
+  let flight = null;
+  const sent = sendMessage(
+    draftCtx,
+    owns,
+    (attempt) => (flight = actions.reply(key, text, { attempt })),
+  );
+  return sent && { flight };
+}
 
 // One reply row: its native editor, wired once to the thread's draft, send, and typing
 // continuation. `key` is the thread's `threadKey`, which names its draft; `parent` reads
@@ -296,12 +304,14 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
     // sent from, read before the send draws, around wherever the send left them
-    // standing. A view whose box stays for the next turn lands the send itself (`sent`).
+    // standing. A view whose box stays for the next turn lands the send itself (`sent`),
+    // told whether the log takes it.
     send: (_text, raw, owns) => {
       const { actions, landSent, sent } = composition.binding;
       const land = sendLanding(input);
-      if (!sendReply(draftCtx, key, raw, owns, actions)) return;
-      if (sent) return sent();
+      const reply = sendReply(draftCtx, key, raw, owns, actions);
+      if (!reply) return;
+      if (sent) return sent(reply.flight);
       landSent(closestAcross(input, THREAD));
       land(focused());
     },

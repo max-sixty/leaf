@@ -4504,7 +4504,15 @@ function replyControlDestination(node) {
     return target ? carry(target, composition).controls[part] : null;
   };
 }
-var sendReply = (draftCtx, key, text, owns, actions) => sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
+function sendReply(draftCtx, key, text, owns, actions) {
+  let flight = null;
+  const sent = sendMessage(
+    draftCtx,
+    owns,
+    (attempt) => flight = actions.reply(key, text, { attempt })
+  );
+  return sent && { flight };
+}
 function wireReply(key, row, input, send, wireInput, { hint, accessibleName, busy }) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
@@ -4534,12 +4542,14 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName, bus
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
     // sent from, read before the send draws, around wherever the send left them
-    // standing. A view whose box stays for the next turn lands the send itself (`sent`).
+    // standing. A view whose box stays for the next turn lands the send itself (`sent`),
+    // told whether the log takes it.
     send: (_text, raw, owns) => {
       const { actions, landSent, sent } = composition.binding;
       const land2 = sendLanding(input);
-      if (!sendReply(draftCtx, key, raw, owns, actions)) return;
-      if (sent) return sent();
+      const reply = sendReply(draftCtx, key, raw, owns, actions);
+      if (!reply) return;
+      if (sent) return sent(reply.flight);
       landSent(closestAcross(input, THREAD));
       land2(focused());
     },

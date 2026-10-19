@@ -687,8 +687,8 @@ def _tab_walk(page, stem):
     """Walk the page's whole ordinary Tab order, Threads open, and name every stop
     that shows nothing of where the keyboard is, and every ring a stop leaves cut or
     covered (`ring_faults`). A ring that stays lit across stops, such as a decision's
-    for the control the user reached inside it, is named once. The panel is closed
-    again after."""
+    for the control the user reached inside it, is named once. A stop the panel stands
+    over closes it, and the walk goes on without it; a panel still open is closed after."""
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
@@ -718,7 +718,8 @@ def _tab_walk(page, stem):
         faults += ring_faults(drawn, f"tabbing through {stem}")
     else:
         raise AssertionError(f"Tab order never came round in {stem}")
-    page.get_by_role("button", name="Close threads", exact=True).click()
+    if page.locator(".lf-thread-panel.open").count():
+        page.get_by_role("button", name="Close threads", exact=True).click()
     panel_settled(page, open=False)
     page.evaluate(RELEASE_FOCUS)
     return unindicated, faults
@@ -4081,6 +4082,47 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body"), (
         "closing the auxiliary surface left its keyboard return frame live"
     )
+
+
+def test_a_tab_onto_a_stop_under_threads_beside_the_page_closes_it(browser, serve):
+    """Threads stands over the page's right side and leaves the rest live. Tab is a trip
+    the keyboard makes, so a stop the panel stands over closes it, as travel does, and
+    the user sees the ring they followed. A Tab onto a stop beside the panel, or among
+    the panel's own controls, keeps it open."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "beside threads",
+                '<p><a href="#near" id="near">Beside the panel</a></p>'
+                '<p style="text-align: right"><a href="#far" id="far">Under it</a></p>',
+            )
+        ),
+    )
+    resized(page, 1200, 900)
+    panel = page.locator(".lf-thread-panel")
+    opened = re.compile(r"\bopen\b")
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    assert page.evaluate(
+        """() => {
+          const [far, near] = ['#far', '#near'].map(
+            sel => document.querySelector(sel).getBoundingClientRect());
+          const over = document.querySelector('.lf-thread-panel').getBoundingClientRect();
+          return far.left >= over.left && near.right < over.left;
+        }"""
+    ), "the fixture no longer stands one link beside the panel and one under it"
+
+    panel.get_by_role("searchbox", name="Find in threads").focus()
+    page.keyboard.press("Tab")
+    expect(panel).to_have_class(opened)
+
+    page.locator("#near").focus()
+    expect(panel).to_have_class(opened)
+    page.keyboard.press("Tab")
+    expect(page.locator("#far")).to_be_focused()
+    expect(panel).not_to_have_class(opened)
+    expect(page.locator("#far")).to_be_in_viewport()
 
 
 def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(

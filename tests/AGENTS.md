@@ -29,8 +29,8 @@ Each helper's docstring owns its contract, and code cites sections here by headi
 Message delivery has one shared journey in `leaf_dev.thread_journey`;
 `leaf_dev.commands.thread_snapshots` owns the thread appearance gate built on it.
 
-Linux browser tests use `tests/fonts.conf` and the `fonts-dejavu` package, which must be
-installed before `wt setup`; macOS uses its native fonts.
+Linux browser tests use `tests/fonts.conf` and the `fonts-dejavu` package installed
+by `wt setup`; macOS uses its native fonts.
 
 ## A failure is evidence about the test too
 
@@ -48,10 +48,11 @@ arrangements, not probabilities**), and fix that cause.
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22.18 or newer, and the pnpm
 version `package.json` pins. `wt setup` installs the browsers, their Linux
-dependencies, the example assets and the Node dependencies; `uv run` syncs Python.
-Worktrunk starts setup in the background when it creates a worktree; run `wt setup`
-before testing to wait for it and see failures. A plain clone starts it with
-`wt hook post-start project:setup`.
+libraries and fonts, the example assets and the Node dependencies; `uv run` syncs
+Python. Worktrunk starts setup in the background when it creates a worktree; run
+`wt setup` before testing to wait for it and see failures. A plain clone starts
+it with `wt setup` too. CI and Tend install the host tools and run the same alias
+through `.github/actions/setup/action.yaml` before tests or the agent start.
 
 ```sh
 wt setup

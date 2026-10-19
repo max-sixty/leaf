@@ -602,7 +602,6 @@ HEAD_SEATS = """() => {
   return {
     back: seat('.lf-fp-back'),
     start: seat('.lf-fp-title')[0],
-    where: seat('.lf-fp-where'),
     on: seat('.lf-fp-quiet'),
     settle: seat('.lf-fp-settle'),
     close: seat('.lf-fp-close'),
@@ -613,8 +612,7 @@ HEAD_SEATS = """() => {
 def test_news_in_an_open_thread_moves_nothing_at_its_head(browser, serve):
     """A thread's head holds each control where it stood while the thread changes under
     it. Retitled long or short, the title gives or takes room at its own end, and Back,
-    where the thread stands among the open ones, On the page, Resolve and Close stay
-    put; detached by a revision, On the page leaves its seat empty; resolved by the
+    On the page, Resolve and Close stay put; detached by a revision, On the page leaves its seat empty; resolved by the
     agent, the thread's Reopen takes Resolve's seat."""
     url = serve(LONG_PAGE, comments=3, anchored=[("p3", "Paragraph 3.")])
     root = events_model.read_events(serve.page_dir)[-1]["id"]
@@ -663,8 +661,7 @@ def test_news_in_an_open_thread_moves_nothing_at_its_head(browser, serve):
     agent({"kind": "resolve", "parent": root})
     expect(page.locator(".lf-fp-head .lf-reopen")).to_be_visible()
     settled(page)
-    # A resolved thread stands nowhere among the open ones, so only its count goes.
-    assert {**page.evaluate(HEAD_SEATS), "where": seats["where"]} == seats
+    assert page.evaluate(HEAD_SEATS) == seats
 
 
 # What news arriving must leave where it stood: the open thread's message, read word
@@ -685,7 +682,7 @@ HELD_READING = """() => {
 
 def test_held_news_reads_whole_on_the_thread_s_head_line(browser, serve):
     """News arriving while the user writes in an open thread waits behind a notice on the
-    view's head line, before where the thread stands among the open ones. It reads
+    view's head line. It reads
     whole, the title shortening to give it room, and nothing else at the head or in the
     messages moves; no message head carries it. Pressing it shows what was held."""
     url = serve(LONG_PAGE)

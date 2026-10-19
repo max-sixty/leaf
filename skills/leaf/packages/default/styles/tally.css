@@ -46,9 +46,12 @@
   color: var(--ok-ink);
 }
 /* Next on me stands in a header row beside the chips at their type size, as tall as
- * the layer's aim floor, so the row keeps the height its title gives it. */
+ * the layer's aim floor, so the row keeps the height its title gives it. A chip after
+ * it paints over whatever of its focus ring reaches the chip, and a space between the
+ * two is narrower than the ring, so it keeps the ring's room after it. */
 :scope:is(lf-tally) .lf-tally-next {
   font-size: var(--t-6);
   padding-block: 0;
   min-height: var(--aim-floor);
+  margin-inline-end: var(--focus-ring-room);
 }

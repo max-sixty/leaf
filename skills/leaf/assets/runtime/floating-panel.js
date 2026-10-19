@@ -1679,11 +1679,10 @@ export function createFloatingPanel({
   // than in the outlet. A thread anchored to a passage stays the page's: its card opens
   // beside the words it is about.
   let presentation = null;
-  // The thread's held news is a fact about the thread, so it reads in the head with the
-  // others, its title and where it stands among the open ones, before the latter, whole,
-  // and pressing it shows what was held. The title gives it the room it takes, so news
-  // arriving moves nothing else in the head or the messages below (floating-panel.css,
-  // `.lf-fp-facts`). The user chose this on 16 October over the notice at the end of the
+  // The thread's held news is a fact about the thread, so it reads in the head after
+  // its title, whole, and pressing it shows what was held. The title gives it the room
+  // it takes, so news arriving moves nothing else in the head or the messages below
+  // (floating-panel.css, `.lf-fp-facts`). The user chose this on 16 October over the notice at the end of the
   // first message's head, cut to 5rem there ("2 new rep…"), and over the news joining
   // New reply at the view's foot. Each thread's head draws an outlet of its own, so the
   // notice of the thread the user leaves goes with its head rather than standing in the
@@ -2161,8 +2160,6 @@ export function createFloatingPanel({
           ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
         </button>`;
     }
-    const openThreads = threads().filter((candidate) => !candidate.resolved);
-    const at = thread ? openThreads.indexOf(thread) : -1;
     // On's name is its selected tab's, which the tabs beside it already show, so the
     // heading names the view to assistive tech alone.
     const titleClass = top.view === "queue" ? "lf-fp-title lf-quiet" : "lf-fp-title";
@@ -2198,13 +2195,7 @@ export function createFloatingPanel({
                     >${keyedBy(
                       thread.key,
                       html`<span class="lf-fp-news-outlet"></span>`,
-                    )}${
-                      at >= 0
-                        ? html`<span class="lf-fp-where"
-                            >${at + 1} of ${openThreads.length}</span
-                          >`
-                        : nothing
-                    }</span
+                    )}</span
                   >`
                 : nothing
             }`;

@@ -176,8 +176,8 @@ def banner_more(page: Page) -> None:
 
 def floating_thread(page: Page) -> None:
     """The floating panel (`lf-chrome`) with a thread opened from Threads: its head
-    names the way back, the thread's title and where it stands among the open ones,
-    beside On the page, Resolve and Close."""
+    names the way back and the thread's title, beside On the page, Resolve and
+    Close."""
     page.evaluate("localStorage.setItem('lf-chrome', 'floating')")
     load(page, page.url)
     page.locator(".lf-fp-threads").click()

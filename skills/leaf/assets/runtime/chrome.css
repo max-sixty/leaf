@@ -591,8 +591,7 @@
     background: none;
     color: var(--ink);
   }
-  .lf-fp-sep,
-  .lf-fp-where {
+  .lf-fp-sep {
     flex: none;
     color: var(--lf-fp-muted);
   }
@@ -613,10 +612,6 @@
     padding-block: var(--lf-fp-news-reach);
     margin-block: calc(-1 * var(--lf-fp-news-reach));
     font-size: 12px;
-  }
-  .lf-fp-where {
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
   }
   .lf-fp-aux {
     flex: none;

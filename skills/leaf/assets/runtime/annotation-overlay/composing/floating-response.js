@@ -96,17 +96,7 @@ export function createFloatingResponsePlacement({
   // passage, and its card opens there on Send.
   const carry = surfaceGrip({
     surface: fabBar,
-    // Held in as placement holds it, its unpainted reserve free to stand past the edge.
-    bounds: () => {
-      const { top, right, bottom, left } = floatBoundary(fabRegion);
-      const past = fabPlacement.overhang(frameReserve());
-      return {
-        top: top - (past.top ?? 0),
-        right,
-        bottom: bottom + (past.bottom ?? 0),
-        left,
-      };
-    },
+    bounds: () => floatBoundary(fabRegion),
     dropped(box) {
       if (!response.anchor || !response.floating) return;
       if (box && response.open)
@@ -154,7 +144,7 @@ export function createFloatingResponsePlacement({
   };
   // Where the frame's native rows end. Used grid tracks exclude transformed descendant
   // paint. Withholding requires only the current controls to fit, so they may borrow the
-  // transparent footer reserved for the future card when space is short.
+  // footer reserved for the future card when space is short.
   const nativeRowEnd = () => {
     const style = getComputedStyle(fabBar);
     const rows = style.gridTemplateRows.split(" ").map(parseFloat);
@@ -163,17 +153,6 @@ export function createFloatingResponsePlacement({
         parseFloat(style.rowGap) * (rows.length - 1) +
         parseFloat(style.paddingTop),
     );
-  };
-  // The frame's transparent head and foot, which hold the card's head row and reply
-  // row for Send (annotation-chrome.css), in client pixels. Placement lets the one the
-  // box grows toward stand past the boundary (comment-placement.js, `overhang`).
-  const frameReserve = () => {
-    const style = getComputedStyle(fabBar);
-    const scale = fabBar.getBoundingClientRect().height / parseFloat(style.height) || 1;
-    return {
-      top: parseFloat(style.paddingTop) * scale,
-      bottom: parseFloat(style.paddingBottom) * scale,
-    };
   };
   const fabFits = () => {
     const boundary = floatBoundary();
@@ -421,16 +400,17 @@ export function createFloatingResponsePlacement({
           layoutPx(Math.max(0, boundary.width / scale)),
         );
     };
-    // The frame may grow to the whole boundary on any side, and past it by the reserve
-    // allowed to overhang (`room`), past the room its held edge leaves, since shift
-    // slides it inside. Native tracks reserve the furniture and give the editor what
-    // remains. Typing never scrolls the page to make room. The box grows from the edge
-    // that holds it until its painted field meets the window's edge, then slides inside
-    // the window, over its passage if it must, and once it fills the window scrolls its
-    // own words.
-    const setHeight = (room, scale) => {
+    // The frame may grow to the whole boundary on any side, past the room its held edge
+    // leaves, since shift slides it inside. Native tracks reserve the furniture and give
+    // the editor what remains. Typing never scrolls the page to make room. The box grows
+    // from the edge that holds it, then slides inside the window, over its passage if it
+    // must, and once it fills the window scrolls its own words.
+    const setHeight = (scale) => {
       if (!response.open) return;
-      fabBar.style.setProperty("--lf-float-h", layoutPx(Math.max(0, room / scale)));
+      fabBar.style.setProperty(
+        "--lf-float-h",
+        layoutPx(Math.max(0, boundary.height / scale)),
+      );
     };
     fabPlacement.choose({
       clear: place.clear,
@@ -441,9 +421,6 @@ export function createFloatingResponsePlacement({
       scroller: place.scroller,
       coarse: coarsePointer.matches,
     });
-    const reserve = frameReserve();
-    const overhang = fabPlacement.overhang(reserve);
-    const room = boundary.height + (overhang.top ?? 0) + (overhang.bottom ?? 0);
 
     const epoch = fabPosition.begin();
     const stillCurrent = () =>
@@ -463,22 +440,15 @@ export function createFloatingResponsePlacement({
           column: place.column,
           margin: place.margin,
           boundary,
-          reserve,
           fit({ width, scale }) {
             if (!stillCurrent()) return;
             setWidth(width, scale.x);
-            setHeight(room, scale.y);
+            setHeight(scale.y);
             const frame = fabBar.getBoundingClientRect();
-            // The controls must fit what the frame keeps inside the boundary: below a
-            // head that may stand past its top, or above a foot that may stand past
-            // its bottom.
-            const rows = (nativeRowEnd() * frame.height) / fabBar.offsetHeight;
             if (
               Math.ceil(frame.width) > Math.ceil(boundary.width) ||
-              Math.ceil(frame.height) > Math.ceil(room) ||
-              (response.open &&
-                (nativeRowEnd() > fabBar.clientHeight ||
-                  Math.ceil(rows - (overhang.top ?? 0)) > Math.ceil(boundary.height)))
+              Math.ceil(frame.height) > Math.ceil(boundary.height) ||
+              (response.open && nativeRowEnd() > fabBar.clientHeight)
             )
               withholdFab();
           },

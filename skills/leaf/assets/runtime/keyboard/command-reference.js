@@ -207,7 +207,7 @@ function declaredStack(origin) {
   }));
 }
 
-let commandRoutesAtOpen = new Map();
+let commandRoutesAtOpen = { on: new Map(), off: new Map() };
 let commandReferenceIsOpen = false;
 let commandReferenceInvoke = null;
 
@@ -315,7 +315,9 @@ function captureCommandReferenceCatalog() {
     .filter(({ rows }) => rows.length);
 
   const available = (rowInfo, route) => {
-    const routes = commandRoutesAtOpen.get(rowInfo.row) ?? new Set();
+    const routes =
+      commandRoutesAtOpen[quickShortcuts() ? "on" : "off"].get(rowInfo.row) ??
+      new Set();
     const alternatives = route ? [route.binding] : rowInfo.rowBindings;
     return rowInfo.declared.length === 0
       ? routes.has(undefined)
@@ -867,7 +869,10 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     // so that user reads as standing on `body` here too.
     openLayer(commandReferenceDialog);
     commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
-    commandRoutesAtOpen = availableCommandRoutes({ commands: true });
+    commandRoutesAtOpen = {
+      on: availableCommandRoutes({ commands: true, quick: true }),
+      off: availableCommandRoutes({ commands: true, quick: false }),
+    };
   }
   commandReferenceIsOpen = open;
   if (fresh) {

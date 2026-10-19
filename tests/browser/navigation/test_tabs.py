@@ -308,7 +308,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
     resized(page, 390, 900)
     page.evaluate("scrollTo(0, 0)")
-    expect(page.locator("#bg-sidebar")).to_be_hidden()
+    expect(page.locator("lf-tab:not([hidden]) aside.sidebar")).to_be_hidden()
     # A phone drops the contents spine out of the flow rather than stacking it above
     # the reading, so the page's first section still opens within the first screen;
     # left in the flow it lands a screen below the fold. Which section that is belongs

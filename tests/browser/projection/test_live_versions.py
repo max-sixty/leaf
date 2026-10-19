@@ -20,6 +20,7 @@ from render_cases_interaction import (
 from render_harness import (
     PANEL,
     RELEASE_FOCUS,
+    expect_panel_says,
     holding,
     is_problem,
     leaf_page,
@@ -261,10 +262,9 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     (serve.page_dir / "index.html").write_text(LIVE_V2.replace("</main>", ""))
     told(live)
     told(pinned)
-    expect(live.locator(".lf-fp-row-notice")).to_contain_text("Latest edit not shown")
-    expect(pinned.locator(".lf-fp-row-notice")).not_to_contain_text(
-        "Latest edit not shown"
-    )
+    # The failed save is a held error, which the empty field says in its status's place.
+    expect_panel_says(live, "Latest edit not shown")
+    expect_panel_says(pinned, "Latest edit not shown", says=False)
     expect(live).to_have_title("Live first")
 
     (serve.page_dir / "index.html").write_text(LIVE_V2)
@@ -272,6 +272,7 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     told(pinned)
 
     expect(live).to_have_title("Live second")
+    expect_panel_says(live, "Latest edit not shown", says=False)
     expect(panel_control(live, "versions").locator(".lf-fp-value")).to_have_text(
         "Draft"
     )

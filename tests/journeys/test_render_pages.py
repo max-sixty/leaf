@@ -846,7 +846,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
 def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, serve):
     """The sidebar is a page-level margin resident rather than a narrower prose column.
 
-    On a roomy page a contents map stands in the left margin, fixed below the banner, and
+    On a roomy page a contents map stands in the left margin, fixed at the window's top, and
     rests as its spine: it claims nothing, so the column keeps the page's axis, and its
     labels reveal over the page without moving anything. The spine states the room it
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
@@ -1039,8 +1039,9 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "at => document.scrollingElement.scrollTop >= at - 1", arg=parked["at"]
     )
     stuck = sidebar.evaluate("node => node.getBoundingClientRect().top")
-    assert 64 <= stuck <= 68, (
-        f"the sidebar stuck at {stuck:.0f}px, not below the banner"
+    # No chrome stands at the window's head, so the box sticks its own gap below it.
+    assert 22 <= stuck <= 26, (
+        f"the sidebar stuck at {stuck:.0f}px, not its gap below the window's top"
     )
 
     page.close()

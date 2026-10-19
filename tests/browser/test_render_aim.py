@@ -3301,11 +3301,11 @@ def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, se
 
 
 def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, serve):
-    """The authored Mermaid id, rather than its generated SVG id, is the anchor.
+    """The authored node id, rather than its generated SVG id, is the anchor.
 
     A named node outlines only its current SVG group, while the diagram holds the
-    accessible note and the panel place. Reloading makes Mermaid generate the SVG again and proves the
-    stable token resolves to that new box.
+    accessible note and the panel place. A source revision rebuilds the SVG and the
+    stable token resolves to the new box.
     """
     page = open_page(browser, live_url(serve(PART_DIAGRAM_PAGE)))
     diagram = page.locator("#flow")
@@ -3387,7 +3387,7 @@ sequenceDiagram
     )
     page = open_page(browser, serve(sequence))
 
-    actor = page.locator('#exchange g[data-id="A"]')
+    actor = page.locator('#exchange g[data-id="A"]:not(.pele-actor-footer)')
     actor.click(modifiers=["Alt"])
     open_compact_comment(page)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · User")

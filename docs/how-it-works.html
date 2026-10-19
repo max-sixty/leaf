@@ -8,41 +8,41 @@
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
-      #turn-end-check .node.goes rect {
+      #turn-end-check .pele-node.goes rect {
         fill: var(--warn-tint);
         stroke: var(--warn);
       }
-      #turn-end-check .node.goes :is(text, tspan) {
+      #turn-end-check .pele-node.goes :is(text, tspan) {
         fill: var(--warn-ink);
       }
-      #turn-end-check .node.ends rect,
-      #progress-diagram .node.leaf rect,
-      #data-flow .node.computed rect,
-      #ontology-graph .node.computed rect,
-      #surface-flow .node.computed rect {
+      #turn-end-check .pele-node.ends rect,
+      #progress-diagram .pele-node.leaf rect,
+      #data-flow .pele-node.computed rect,
+      #ontology-graph .pele-node.computed rect,
+      #surface-flow .pele-node.computed rect {
         fill: var(--ok-tint);
         stroke: var(--ok);
       }
-      #turn-end-check .node.ends :is(text, tspan),
-      #progress-diagram .node.leaf :is(text, tspan),
-      #data-flow .node.computed :is(text, tspan),
-      #ontology-graph .node.computed :is(text, tspan),
-      #surface-flow .node.computed :is(text, tspan) {
+      #turn-end-check .pele-node.ends :is(text, tspan),
+      #progress-diagram .pele-node.leaf :is(text, tspan),
+      #data-flow .pele-node.computed :is(text, tspan),
+      #ontology-graph .pele-node.computed :is(text, tspan),
+      #surface-flow .pele-node.computed :is(text, tspan) {
         fill: var(--ok-ink);
       }
 
-      #arch .node.dim :is(rect, path, polygon, circle) {
+      #arch .pele-node.dim :is(rect, path, polygon, circle) {
         fill: var(--paper);
         stroke: var(--rule);
       }
-      #arch .node.dim :is(text, tspan) {
+      #arch .pele-node.dim :is(text, tspan) {
         fill: var(--muted);
       }
-      #browser-flow .node.computed rect {
+      #browser-flow .pele-node.computed rect {
         fill: var(--ok-tint);
         stroke: var(--ok);
       }
-      #browser-flow .node.computed :is(text, tspan) {
+      #browser-flow .pele-node.computed :is(text, tspan) {
         fill: var(--ok-ink);
       }
 
@@ -339,7 +339,7 @@
               drags back to the server.
             </p>
 
-            <lf-diagram id="arch" data-height="839" parts="all">
+            <lf-diagram id="arch" data-height="612" parts="all">
               <pre>
 flowchart TD
   accTitle: Harness, Leaf and browser
@@ -796,7 +796,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                   hook hands into the turn. An update that needs no answer waits for the
                   next turn.
                 </p>
-                <lf-diagram id="turn-end-check" data-height="989" parts="all">
+                <lf-diagram id="turn-end-check" data-height="834" parts="all">
                   <pre>
     flowchart TD
       accTitle: Checks before an agent turn ends
@@ -1360,7 +1360,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
               shows where each one appears; starting work puts its line in the banner
               and beside the update or to-do being handled.
             </p>
-            <lf-diagram id="progress-diagram" parts="all">
+            <lf-diagram id="progress-diagram" parts="all" data-height="754">
               <pre>
 flowchart LR
   accTitle: Agent commands and visible outcomes
@@ -1560,7 +1560,7 @@ flowchart LR
                 its start before Leaf reports that the work stopped.
               </li>
             </ul>
-            <lf-diagram id="updates-decision" parts="all">
+            <lf-diagram id="updates-decision" parts="all" data-height="636">
               <pre>
 flowchart TD
   accTitle: How Leaf describes agent activity
@@ -4022,7 +4022,7 @@ flowchart TD
               workflow and to-do names the thread it stands in, and the lists add up the
               same items, to-dos and workflows across the page.
             </p>
-            <lf-diagram id="ontology-graph" parts="all">
+            <lf-diagram id="ontology-graph" parts="all" data-height="691">
               <pre>
 flowchart TD
   accTitle: How threads, messages, updates, workflows, items and to-dos relate
@@ -4066,7 +4066,7 @@ flowchart TD
               revisions, an append-only event log, and JSON files containing the latest
               external values.
             </p>
-            <lf-diagram id="data-flow" parts="all">
+            <lf-diagram id="data-flow" parts="all" data-height="717">
               <pre>
 flowchart TD
   accTitle: Page files, event log and external data produce current state
@@ -4183,7 +4183,7 @@ flowchart TD
               to the log (<code>POST /api/event</code>), so its result shows before the
               log answers.
             </p>
-            <lf-diagram id="surface-flow" parts="all">
+            <lf-diagram id="surface-flow" parts="all" data-height="596">
               <pre>
 flowchart TD
   accTitle: Data flow from the page directory to each surface
@@ -4352,7 +4352,7 @@ flowchart TD
               gives each component its initial state; the latest state the server sent;
               and the user's updates the server hasn't answered yet.
             </p>
-            <lf-diagram id="browser-flow" data-height="387" parts="all">
+            <lf-diagram id="browser-flow" data-height="285" parts="all">
               <pre>
 flowchart LR
   accTitle: Browser runtime inputs

@@ -53,7 +53,7 @@ The optional bundled packages are:
 | Package         | Adds                                                                                               |
 | --------------- | -------------------------------------------------------------------------------------------------- |
 | `code-review`   | Instructions for writing a review; select it with the evidence packages the page needs.            |
-| `diagram`       | `lf-diagram` and its Mermaid renderer.                                                             |
+| `diagram`       | `lf-diagram`, rendering Mermaid syntax with Pele.                                                  |
 | `diff`          | `lf-diff` (`unified-diff` data) and `lf-call-diff` (`calldiff` JSON), linked to exact patch lines. |
 | `file-editor`   | `lf-file-editor`, a CodeMirror editor for a bound local text file.                                 |
 | `playground`    | Controls with shared state, preview and output, and typed submission of the configuration.         |

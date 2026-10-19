@@ -5,7 +5,7 @@
  * `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
  * `page init` copies them into a page directory and a user's browser runs them. A
  * vendored library is payload of the package whose widget draws with it, not of the
- * layer: Mermaid and Pierre reach a page only when it selects `diagram` or `diff`.
+ * layer: Pele and Pierre reach a page only when it selects `diagram` or `diff`.
  *
  * Each row of `bundles` bundles only what its consumer needs, from the installed
  * packages and the registry's declarations; a directory under `build/` named after a
@@ -351,18 +351,32 @@ const bundles = {
       ),
   }),
 
-  // Bundle the canonical Mermaid parser and renderers for offline use. Upstream loads
-  // its diagram families with dynamic imports; statically including them keeps the
-  // bundle self-contained in an export, and the widget still imports this optional
-  // package only when it draws a diagram.
-  mermaid: () => ({
-    out: `${packageVendor("diagram")}/mermaid.esm.js`,
-    entry: 'export { default } from "mermaid";\n',
+  // Pele owns Mermaid parsing and rendering. Keep every diagram family in one
+  // optional module, so offline exports share the browser's complete vocabulary
+  // without fetching per-family chunks. The widget imports it only when it draws.
+  pele: () => ({
+    out: `${packageVendor("diagram")}/pele.esm.js`,
+    entry: 'export { parse, render } from "pele";\n',
+    adapt: [
+      {
+        file: /pele\/dist\/pele\.js$/,
+        // Pele 1.6.0 consumes every HTML-looking label tag, discarding unsupported
+        // tags such as a literal <img> code sample. Consume only the formatting
+        // tags its tokenizer recognizes; other characters stay in its text buffer
+        // and the SVG builder escapes them. Breaks are handled before this scan.
+        edit: (source) =>
+          seam(
+            source,
+            "h&&(l(),o=m?o&~h|r&h:o|h),i+=p[0].length;continue",
+            "if(h){l();o=m?o&~h|r&h:o|h;i+=p[0].length;continue}",
+            "Pele literal unsupported label tags",
+          ),
+      },
+    ],
     platform: "browser",
     target: "chrome105",
-    supported: { "dynamic-import": false },
     banner: {
-      js: `/*! mermaid ${version("mermaid")} — MIT — licenses: mermaid.LICENSES.txt */`,
+      js: `/*! pele ${version("pele")} — MIT — licenses: pele.LICENSES.txt */`,
     },
   }),
 

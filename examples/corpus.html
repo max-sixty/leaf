@@ -906,18 +906,18 @@
         color: var(--danger-ink);
       }
 
-      #pr-flow-diagram .node.removed rect {
+      #pr-flow-diagram .pele-node.removed rect {
         fill: var(--del-tint);
         stroke: var(--danger);
       }
-      #pr-flow-diagram .node.removed text {
+      #pr-flow-diagram .pele-node.removed text {
         fill: var(--danger-ink);
       }
-      #pr-flow-diagram .node.added rect {
+      #pr-flow-diagram .pele-node.added rect {
         fill: var(--ok-tint);
         stroke: var(--ok);
       }
-      #pr-flow-diagram .node.added text {
+      #pr-flow-diagram .pele-node.added text {
         fill: var(--ok-ink);
       }
 
@@ -2110,11 +2110,11 @@
     </script>
 <!-- security-boundary.html authored styles -->
 <style>
-      #security-before-flow .node.danger rect {
+      #security-before-flow .pele-node.danger rect {
         fill: var(--danger-tint);
         stroke: var(--danger);
       }
-      #security-before-flow .node.danger text {
+      #security-before-flow .pele-node.danger text {
         fill: var(--danger-ink);
       }
 </style>
@@ -4874,7 +4874,7 @@ max-sixty/worktrunk #3865
                 <span>unchanged boundary</span>
                 <span class="pr-added">+ new path</span>
               </p>
-              <lf-diagram id="pr-flow-diagram" data-height="541" parts="all">
+              <lf-diagram id="pr-flow-diagram" data-height="548" parts="all">
                 <pre>
 flowchart TB
   accTitle: Unified diff preparation
@@ -6282,7 +6282,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
           one known consumer while Git, PATH entries, language startup files, action
           manifests, and setup-generated shims remained open paths into runner work.
         </p>
-        <lf-diagram id="security-before-flow" data-height="117" parts="all">
+        <lf-diagram id="security-before-flow" data-height="61" parts="all">
           <pre>
 flowchart LR
   accTitle: Shared checkout crosses the sandbox boundary
@@ -6425,7 +6425,7 @@ flowchart LR
 
         <section id="security-states">
           <h2 id="security-states-heading">Sandbox execution and cleanup</h2>
-          <lf-diagram id="security-proposed-states" parts="all">
+          <lf-diagram id="security-proposed-states" parts="all" data-height="1172">
             <pre>
 stateDiagram-v2
   accTitle: Sandbox execution and cleanup states

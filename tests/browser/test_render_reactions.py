@@ -1988,7 +1988,7 @@ def test_dragging_a_diagram_label_keeps_the_passage_and_plain_click_dismisses_it
     )
 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
-    # Mermaid may wrap the label across lines. The drag targets one visual line,
+    # The renderer may wrap the label across lines. The drag targets one visual line,
     # so the browser's native selection is the passage this gesture must keep.
     selected = " ".join(page.evaluate("() => getSelection().toString()").split())
     assert selected

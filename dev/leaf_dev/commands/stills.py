@@ -276,6 +276,20 @@ def call_tree(page: Page) -> None:
     widget.locator(".lf-call-root-location a").first.focus()
 
 
+def diagram_flow(page: Page) -> None:
+    """The unified-diff flow with its authored added and removed node colors."""
+    page.locator("#pr-flow-diagram").scroll_into_view_if_needed()
+
+
+def diagram_shape_comment(page: Page) -> None:
+    """A comment on one named diagram box, rather than the whole drawing."""
+    diagram_flow(page)
+    page.locator('#pr-flow-diagram g[data-id="Unified"]').click(modifiers=["Alt"])
+    expect(page.locator("#lf-composer-quote")).to_have_text(
+        "§ diagram · + unified diff"
+    )
+
+
 def page_search(page: Page) -> None:
     """A focused page query and its match count inside the search frame."""
     page.keyboard.press("Tab")
@@ -1527,6 +1541,15 @@ STATES = (
     ),
     State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
     State("walkthrough-calls", "pr-walkthrough", call_tree, region="#pr-call-diagram"),
+    State("diagram-flow", "pr-walkthrough", diagram_flow, region="#pr-flow-diagram"),
+    State(
+        "diagram-flow-dark",
+        "pr-walkthrough",
+        diagram_flow,
+        scheme="dark",
+        region="#pr-flow-diagram",
+    ),
+    State("diagram-shape-comment", "pr-walkthrough", diagram_shape_comment),
     State(
         "walkthrough-calls-dark",
         "pr-walkthrough",

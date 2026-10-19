@@ -705,7 +705,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     )
     assert 14 <= lens_before["height"] < nav_box["height"]
 
-    # A Mermaid render, image load, disclosure, or other late block can change the
+    # A diagram render, image load, disclosure, or other late block can change the
     # document after upgrade. Growing one such block must move the later sections in
     # the map without changing the rail's own box.
     move_before = markers[4]["y"]

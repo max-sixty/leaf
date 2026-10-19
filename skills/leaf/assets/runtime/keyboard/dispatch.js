@@ -80,7 +80,8 @@
 import {
   answers,
   bindings,
-  bindingEnabled,
+  bindingEnabledFor,
+  quickShortcuts,
   declaredBindings,
   allBindings,
   lineOf,
@@ -295,7 +296,7 @@ const runsElsewhere = (row, scope, control) => {
   if (controls.includes(control)) return false;
   return ownsLeafInvocation(row) || controls.some((each) => each != null);
 };
-export const shadow = () => {
+export const shadow = (quick = quickShortcuts()) => {
   const claims = [];
   let activation = null;
   return {
@@ -311,7 +312,11 @@ export const shadow = () => {
       const owned = scope.el
         ? scope.rows
             .filter(ownsLeafInvocation)
-            .flatMap(bindings)
+            .flatMap((row) =>
+              declaredBindings(row).filter((binding) =>
+                bindingEnabledFor(binding, quick),
+              ),
+            )
             .filter((binding) => binding !== "Escape" && !activation?.claims(binding))
         : [];
       if (owned.length) claims.push((binding) => owned.includes(binding));
@@ -495,9 +500,16 @@ export function dispatchKey(ev, { beforeCommand }) {
 // shadowing as a key press.
 // A deliberately disabled shortcut leaves its command unbound and executable;
 // nearer key claims still constrain every shortcut that remains enabled.
-const reachableBindings = (row, scope, nearer, unclaimedEscape, commands) =>
+const reachableBindings = (
+  row,
+  scope,
+  nearer,
+  unclaimedEscape,
+  commands,
+  quick = quickShortcuts(),
+) =>
   (commands ? declaredBindings(row) : bindings(row)).filter((binding) =>
-    commands && !bindingEnabled(binding)
+    commands && !bindingEnabledFor(binding, quick)
       ? true
       : binding === "Escape"
         ? unclaimedEscape.has(scopeIdentity(scope))
@@ -542,10 +554,13 @@ export function activeCommandLabel(ids) {
 // intrinsic key and an item alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
-export function availableCommandRoutes({ commands = false } = {}) {
+export function availableCommandRoutes({
+  commands = false,
+  quick = quickShortcuts(),
+} = {}) {
   const routes = new Map();
   const unclaimedEscape = unclaimedScopes("Escape");
-  const nearer = shadow();
+  const nearer = shadow(quick);
   for (const scope of stack()) {
     for (const row of scope.rows) {
       if (!live(row)) continue;
@@ -555,6 +570,7 @@ export function availableCommandRoutes({ commands = false } = {}) {
         nearer,
         unclaimedEscape,
         commands,
+        quick,
       );
       for (const binding of allBindings(row).length ? reachable : [undefined]) {
         for (const command of commandEntries(row, [binding])) {

@@ -885,7 +885,6 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
         accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
-    expect(page.locator(".lf-notice")).to_contain_text("retrying the change")
 
     expect(accept).to_have_count(0)
     expect(

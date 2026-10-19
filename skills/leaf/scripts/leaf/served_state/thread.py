@@ -68,7 +68,7 @@ def browser_thread(
     workflow says the agent is replying, and an empty message would only reserve a
     bubble with nothing in it."""
     events, threads = work.events, work.threads
-    reading, widget_asks = work.thread, work.widget_asks
+    reading, widget_items = work.thread, work.widget_items
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
@@ -83,13 +83,13 @@ def browser_thread(
         protected = set()
         if awaits_agent(thread):
             protected.add(turn_message(unanswered_agent_turn(thread)))
-        ask_sources = {
-            ask["source"]["id"]
-            for ask in widget_asks["unanswered"]
-            if ask["thread"] == thread_id
+        item_sources = {
+            item["source"]["id"]
+            for item in widget_items["unanswered"]
+            if item["thread"] == thread_id
         }
         for message_id, fragment in reading.structure.fragments.items():
-            if ask_sources.intersection(fragment.by_id):
+            if item_sources.intersection(fragment.by_id):
                 protected.add(message_id)
         summaries = summaries_for[thread_id]
         for summary in summaries:
@@ -163,7 +163,7 @@ def browser_thread(
             "projection": browser_projection(
                 reading.projection, scope="thread", within={}, floors={}
             ),
-            "asks": work.asks,
+            "items": work.items,
             "threads": rendered_threads,
         },
         reading,

@@ -127,7 +127,7 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
         )
 
 
-def test_a_drag_across_an_ask_in_a_reply_is_not_a_passage_of_the_page(browser, serve):
+def test_a_drag_across_an_item_in_a_reply_is_not_a_passage_of_the_page(browser, serve):
     """A selection made in the panel is not the page's words, whatever it looks like.
 
     `leaf thread open --section` refuses to anchor on a widget an agent sent, and it is the

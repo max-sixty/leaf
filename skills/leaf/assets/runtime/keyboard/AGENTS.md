@@ -63,7 +63,7 @@ innermost step as one `navigation.back` command.
   open thread's title if a change removed theirs. A `holdFocus` restore that runs after
   the selection moved is the one case that leaves focus on a closed title
   (`thread/thread-list-view.js`).
-- A selected destination (a thread, an ask, a heading) steps back to the document
+- A selected destination (a thread, an item, a heading) steps back to the document
   through `letGo` (`focus.js`), landing on the visible block rather than on the control
   that opened it. Page Map returns focus to whatever opened it.
 
@@ -76,10 +76,10 @@ reopens it.
 
 Page scope holds commands about the page; a surface's scope holds commands about its
 contents. A page-level letter must be useful on every page; any other control is
-reachable by Tab, native activation, ask digits or Go-to hints. `PAGE_COMMANDS` lists
+reachable by Tab, native activation, item digits or Go-to hints. `PAGE_COMMANDS` lists
 the page commands in shortcut-bar order. A lowercase letter steps a walk forward and
 Shift steps it back, wrapping at either end. A surface may reuse a page key for the same
-intent with a nearer destination. While the user is on an ask, or its margin or thread
+intent with a nearer destination. While the user is on an item, or its margin or thread
 representative, core forwards only the widget's declared `contextKeys`; widgets assign their own `1`–`9`.
 
 ## Touch routes

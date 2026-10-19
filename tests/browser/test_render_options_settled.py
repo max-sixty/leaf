@@ -7,8 +7,8 @@ from interact_support import append_carried_log_record
 from leaf import render_checks as render_checks_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASK_SHAPES_PAGE,
-    SETTLED_ASK_PAGE,
+    ITEM_SHAPES_PAGE,
+    SETTLED_ITEM_PAGE,
     live_url,
 )
 from render_cases_navigation import (
@@ -33,7 +33,7 @@ from render_harness import (
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):
+def test_a_reconnected_settled_item_restores_its_diff_watcher(browser, serve):
     """Tabs and settled answers count the comparison, including after reconnection."""
     first = SETTLED_PAGE.replace(
         '<lf-ask id="transport-decision">',
@@ -254,14 +254,14 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     )
 
 
-def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, serve):
+def test_a_settled_item_reconciles_added_options_into_its_disclosure(browser, serve):
     """A replayed option stays inside the settled disclosure it belongs to.
 
     The disclosure's count and controls describe the complete current option set,
     including options reconstructed from their `add` in force, and follow the undo
     that takes that `add` back.
     """
-    page = open_page(browser, serve(SETTLED_ASK_PAGE))
+    page = open_page(browser, serve(SETTLED_ITEM_PAGE))
     group = page.locator("#jobs")
     row = group.locator(":scope > .lf-settled")
 
@@ -322,9 +322,9 @@ def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
     assert page.locator("#opt-strict").evaluate(after) == "none"
 
 
-def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
+def test_a_settled_item_keeps_its_heading_above_the_answer(browser, serve):
     """A settled answer still follows the authored question, on-page and in a reply."""
-    url = serve(ASK_SHAPES_PAGE)
+    url = serve(ITEM_SHAPES_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -348,9 +348,9 @@ def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
     ).click()
 
     top = "el => el.getBoundingClientRect().top"
-    for ask, group in (("done-decision", "done"), ("th-done-decision", "th-done")):
+    for item, group in (("done-decision", "done"), ("th-done-decision", "th-done")):
         expect(page.locator(f"#{group} .lf-settled")).to_have_count(1)
-        question = page.locator(f"#{ask} > :is(h1, h2, h3, h4, h5, h6)").evaluate(top)
+        question = page.locator(f"#{item} > :is(h1, h2, h3, h4, h5, h6)").evaluate(top)
         summary = page.locator(f"#{group} .lf-settled").evaluate(top)
         assert question < summary, (
             f"#{group}'s question is drawn at {question:.0f} and its answer at "

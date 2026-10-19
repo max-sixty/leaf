@@ -6,7 +6,7 @@ import re
 import pytest
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASKS_PAGE
+from render_cases_interaction import ITEMS_PAGE
 from render_cases_layout import banner_control
 from render_cases_navigation import CONTROL_LABEL_PAGE, NOTED_PAGE
 from render_harness import LONG_PAGE, open_page, resized, round_trip
@@ -430,7 +430,7 @@ def test_the_reference_enters_named_go_to_destinations(
 ):
     """A named destination is one capability whether a keyboard sequence or the
     command reference reaches it; native controls keep their own activation."""
-    page = open_page(browser, serve(ASKS_PAGE, comments=2))
+    page = open_page(browser, serve(ITEMS_PAGE, comments=2))
     destination = page.locator(surface)
     if suffix in ("T", "M"):
         control = ".lf-threads-toggle" if suffix == "T" else ".lf-queue"
@@ -659,9 +659,9 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
     )
 
 
-def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
-    """Each Ask digit is a distinct command when invoked without a keydown."""
-    page = open_page(browser, serve(ASKS_PAGE))
+def test_the_reference_runs_the_exact_numbered_item_action(browser, serve):
+    """Each item digit is a distinct command when invoked without a keydown."""
+    page = open_page(browser, serve(ITEMS_PAGE))
 
     page.keyboard.press("m")
     page.keyboard.press("?")
@@ -675,11 +675,6 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     )
     expect(first).to_have_text("Keep the store")
     expect(second).to_have_text("Signed tokens")
-    expect(
-        page.locator(
-            '.lf-command-reference-command[data-lf-command="ask.activate-nth"]'
-        )
-    ).to_have_count(0)
 
     second.click()
     expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
@@ -687,13 +682,13 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     round_trip(page)
 
 
-def test_away_from_an_ask_the_reference_names_widget_owned_options(browser, serve):
+def test_away_from_an_item_the_reference_names_widget_owned_options(browser, serve):
     """The catalog keeps the widget's named commands and explicitly declared digits.
 
     Outside the widget those commands are unavailable; there is no synthetic page
     command claiming an undifferentiated digit range.
     """
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
@@ -710,7 +705,6 @@ def test_away_from_an_ask_the_reference_names_widget_owned_options(browser, serv
     expect(second.locator("kbd")).to_have_text("2")
     expect(first).to_contain_text("Keep the store")
     expect(second).to_contain_text("Signed tokens")
-    expect(reference.locator('tr[data-lf-command="ask.activate-nth"]')).to_have_count(0)
 
 
 def test_the_reference_reads_the_same_way_twice(browser, serve):

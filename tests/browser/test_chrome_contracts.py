@@ -22,7 +22,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     toggle_queue,
     token_colour,
-    with_one_ask,
+    with_one_item,
 )
 from render_cases_navigation import _publish
 from render_harness import (
@@ -687,7 +687,7 @@ def test_the_version_being_read_spans_the_versions_menu(browser, serve):
 
 
 def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, serve):
-    """Approval waits until every Ask is answered, and the control says so to whoever
+    """Approval waits until every item is answered, and the control says so to whoever
     reaches it. Natively disabled, it held its reason in `title` alone: Tab skipped it,
     so a keyboard user never learned why, and a finger never sees a title. It stays in
     the tab order, refused by `aria-disabled` and described by its reason, and a press
@@ -1360,7 +1360,7 @@ WIDE_PAGE = leaf_page(
 SURFACE_PAGES = {
     "threads-column": ("threads", lambda: LONG_PAGE),
     "threads-wide-page": ("threads", lambda: WIDE_PAGE),
-    "queue": ("queue", lambda: with_one_ask(LONG_PAGE)),
+    "queue": ("queue", lambda: with_one_item(LONG_PAGE)),
 }
 
 

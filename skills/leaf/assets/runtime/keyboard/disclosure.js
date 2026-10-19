@@ -3,7 +3,7 @@
    A disclosure adds ← and →, which no browser answers, so its row runs the press itself —
    through the element's own click, so keyboard and pointer stay one behaviour. They sit
    on the row that already carries Enter and Space rather than a row of their own, because
-   two rows changing one thing spend both of the shortcut bar's hints saying one word twice.
+   two rows changing one thing spend two hints saying one word twice.
 
    Only the direction that changes something is bound: → over a shut section, ← over an
    open one, mirrored in right-to-left text, where the marker points left; and both where
@@ -47,9 +47,9 @@ import { inChrome } from "../passages.js";
 // them, so it is the one place both surfaces are kept together, rather than a repaint each
 // DISCLOSE row has to remember for itself.
 // A write that says what the attribute already said is not a disclosure changing, and
-// taking it for one closes a loop: renderShortcutBar paints `aria-expanded` on the shortcut bar's
-// More control, so every paint scheduled the next one and the page repainted for
-// as long as it was open. Reading the old value is what tells the two apart. A real
+// taking it for one closes a loop: a key paint that writes `aria-expanded` on a
+// control would schedule the next paint with every paint, and the page would repaint
+// for as long as the disclosure stood open. Reading the old value is what tells the two apart. A real
 // toggle still arrives, including one that lands back where it started, because the
 // record for its return leg carries the other value.
 const disclosureWatch = new MutationObserver((records) => {

@@ -206,9 +206,11 @@ it arrived. A control that calls it should prevent `mousedown`'s default so focu
 put and a second press steps on. Items have no answer API; answer through the widget's
 own command.
 
-`readQueues()` returns the `{phase, on_user, on_agent, done}` lists the On panel shows.
+`readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
+under On me and On <agent>.
 Each row has a `kind` (`widget` or `approval` for an item, which it carries as `item`;
-`todo`; `answer` for the agent's sent replies; and others) and an `owner`, `user` or
+`todo`; `resend` for an update the user must send again; `answer` for a reply the
+agent owes or sent; and others) and an `owner`, `user` or
 `agent`. Rows not done carry `offers: {open, done}`. `queueItemKey(row)` names a row
 across moves between lists, and `queueTitle(row)` gives its title.
 `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do the agent

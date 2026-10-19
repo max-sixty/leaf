@@ -1,6 +1,4 @@
 import {
-  LEAVING,
-  announceRoom,
   pagePresented
 } from "./bundle-page-paint.js";
 
@@ -72,36 +70,6 @@ function foldBlock(el) {
     foldDuration()
   );
 }
-var SLIDE_IN_MS = 200;
-var SLIDE_OUT_MS = 160;
-var slides = /* @__PURE__ */ new WeakMap();
-function slide(el, side, direction) {
-  const running = slides.get(el);
-  const at = running && { transform: getComputedStyle(el).transform };
-  running?.cancel();
-  const away = { transform: `translateX(${side === "left" ? "-100%" : "100%"})` };
-  const home = { transform: "translateX(0)" };
-  const played = direction === "in" ? motion(el, [at ?? away, home], SLIDE_IN_MS) : motion(el, [at ?? home, away], SLIDE_OUT_MS);
-  const leaving = Boolean(played) && direction === "out";
-  el.toggleAttribute(LEAVING, leaving);
-  el.toggleAttribute("inert", leaving);
-  if (!played) {
-    slides.delete(el);
-    return null;
-  }
-  slides.set(el, played);
-  played.finished.then(
-    () => {
-      slides.delete(el);
-      el.removeAttribute(LEAVING);
-      el.toggleAttribute("inert", false);
-      announceRoom(el);
-    },
-    () => {
-    }
-  );
-  return played;
-}
 
 export {
   reducedMotion,
@@ -112,6 +80,5 @@ export {
   agentArrivalDuration,
   backgroundFlash,
   foldDuration,
-  foldBlock,
-  slide
+  foldBlock
 };

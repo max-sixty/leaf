@@ -116,7 +116,7 @@ customElements.define(
   "lf-tabs",
   class extends HTMLElement {
     #buttons = new Map(); // panel → its strip button
-    #stopAsks = null;
+    #stopItems = null;
     #active = null;
     #root = false;
     #contextObserver = null;
@@ -167,7 +167,7 @@ customElements.define(
         this.#replaceLocation(this.#active);
       }
       // The Δ count follows the version diff; the runtime announces each toggle.
-      this.#listenForAsks();
+      this.#listenForItems();
       watchComparison(this, () => this.#marks());
       whileConnected(this, (signal) => {
         this.#watchRootContext();
@@ -428,9 +428,9 @@ customElements.define(
     }
 
     // A side list's answers follow the page's item reading.
-    #listenForAsks() {
-      if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
-      this.#stopAsks = watchProjection(this, () => this.#marks());
+    #listenForItems() {
+      if (!this.#side || !this.#buttons.size || this.#stopItems) return;
+      this.#stopItems = watchProjection(this, () => this.#marks());
     }
 
     #activate(active, reason) {

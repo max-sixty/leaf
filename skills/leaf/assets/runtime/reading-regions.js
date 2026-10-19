@@ -24,7 +24,7 @@
    geometry exists. A viewport height change shifts every shown region, including
    flowing bodies whose own size stays the same while their visible band shrinks. The
    page is watched the same way and shifts with no region: its width, and the top of its
-   landing band, which the banner moves when the window's width gives it another row.
+   landing band, which the chrome moves when the window's width gives it another row.
    Continuity owners record the user's place continuously and restore it on a shift;
    this module stores no landmarks or scroll offsets. `preserveReadingRegions` brackets
    a composition change with the same

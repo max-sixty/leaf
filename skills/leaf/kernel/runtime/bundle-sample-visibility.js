@@ -233,6 +233,7 @@ function keepsText(node, text) {
 }
 var atLayoutPrecision = (length) => Math.round(length * 64) / 64;
 var layoutPx = (length) => `${atLayoutPrecision(length)}px`;
+var roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
 
 // runtime/control-selectors.js
 var TEXT_FIELD = "leaf-text";
@@ -374,13 +375,6 @@ function focusDestination(destination, cause2, { caret = null, ...unknown } = {}
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
-function forwardFocus(destination) {
-  if (!canPlaceFocus()) return;
-  placed(
-    placing ?? cause(destination),
-    () => destination.focus({ preventScroll: true })
-  );
-}
 var placing = null;
 var placed = (cause2, move2) => {
   const was = placing;
@@ -516,6 +510,7 @@ function paintFocus(node) {
 }
 var refreshFocusPaint = () => {
   const node = paintDestination?.deref();
+  if (node?.isConnected && node !== deepFocus() && node !== heldByLabel()) return;
   if (node?.isConnected) watchStandingAround(node);
   paintFocus(node?.isConnected ? node : null);
 };
@@ -1012,13 +1007,6 @@ var readingBlock = () => null;
 function declareReading(read2) {
   readingBlock = read2;
 }
-var coveringSurface = () => null;
-var coveringLanding = () => null;
-function declareCovering({ surface, landing }) {
-  coveringSurface = surface;
-  coveringLanding = landing;
-}
-var coveringFocus = () => coveringLanding();
 function releaseFocus() {
   focusDestination(document.body, "move");
   document.body.blur();
@@ -1036,12 +1024,6 @@ function release() {
 }
 function letGo() {
   letGoes++;
-  const covering = coveringSurface();
-  if (covering) {
-    if (!covering.contains(document.activeElement))
-      focusDestination(coveringFocus(), "move");
-    return;
-  }
   const block = readingBlock();
   if (!block?.isConnected) {
     releaseFocus();
@@ -1112,6 +1094,7 @@ export {
   keepsText,
   atLayoutPrecision,
   layoutPx,
+  roomPx,
   TEXT_FIELD,
   MODIFIER_KEYS,
   CARET_KEYS,
@@ -1135,7 +1118,6 @@ export {
   tabStops,
   canPlaceFocus,
   focusDestination,
-  forwardFocus,
   wearsLentStop,
   whenLeft,
   readCaret,
@@ -1167,8 +1149,6 @@ export {
   takesLetters,
   controlNavigationKeys,
   declareReading,
-  declareCovering,
-  coveringFocus,
   releaseFocus,
   declareRelease,
   release,

@@ -1,6 +1,7 @@
 import {
   LeafEditorView,
   answerWords,
+  claimTraversals,
   comparisonChanges,
   consumeAnnotations,
   currentProjection,
@@ -14,11 +15,13 @@ import {
   navigateToDatum,
   placePageThreads,
   projectData,
+  pushEntry,
   queueActions,
   queueItemKey,
   queueTitle,
   readQueues,
   registerThreadPresentation,
+  replaceEntry,
   stagesOnly,
   threadActions,
   threadBox,
@@ -48,7 +51,6 @@ import {
   answeredInWords,
   beginWalk,
   capturePlace,
-  claimTraversals,
   clearDraft,
   copyBlock,
   ensureSyntaxLanguage,
@@ -68,13 +70,11 @@ import {
   openingView,
   paintMarkdown,
   placeKeeper,
-  pushEntry,
   quietWord,
   readItems,
   readThreads,
   releaseOutlets,
   renderMarkdown,
-  replaceEntry,
   restorePlace,
   retainUserIntent,
   rowWalk,
@@ -90,9 +90,6 @@ import {
   tokenLines,
   watchDraft
 } from "./bundle-user-intent.js";
-import {
-  raiseError
-} from "./bundle-errors.js";
 import {
   aborted,
   bodyText,
@@ -180,6 +177,7 @@ import {
   LayerRefused,
   PAGE_PAINT_ATTRIBUTE,
   PRESS,
+  PRESSABLE,
   announce,
   closeNativeLayer,
   commandScope,
@@ -207,6 +205,7 @@ import {
   paintKeysWithin,
   plainPress,
   pressIsKeyboardActivation,
+  raiseError,
   reachedForWords,
   registry,
   relabel,
@@ -1630,6 +1629,7 @@ export {
   PAGE_INTERFACE,
   PRESENTATION,
   PRESS,
+  PRESSABLE,
   TEXT_BOX,
   TEXT_FIELD,
   aborted,

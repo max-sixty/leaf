@@ -19,7 +19,7 @@ file there would count as activity on the page.
 
 A screen is the window as the reader sees it, fixed chrome included, scrolled by most
 of a window at a time, because the document is the page's scroller and a full-page
-capture would draw the banner and bottom bar in the wrong places."""
+capture would draw the floating panel in the wrong place."""
 
 import shutil
 import tempfile
@@ -67,13 +67,13 @@ def _down_the_page(page, into: Path, stem: str) -> tuple[list[Path], int]:
 
 
 # Where a press of `m` left the user: the item they stand in, as the runtime marks it
-# (the outermost element wearing its ring, outside the On panel, which mirrors the
+# (the outermost element wearing its ring, outside the panel's On view, which mirrors the
 # same reading); else the thread holding focus; else the page widget holding it, where
 # the walk puts the user on an update handed back to them. Those are the walk's other
 # kinds of stop (queue-walk.js), which the screens pass, so each is read only to step
 # past it.
 STANDING_ITEM = """() => {
-  const item = [...document.querySelectorAll('[data-lf-item]:not(.lf-queue-row)')]
+  const item = [...document.querySelectorAll('[data-lf-item]')]
     .find((el) => !el.parentElement?.closest('[data-lf-item]'))?.id;
   if (item) return {item: true, id: item};
   let held = document.activeElement;
@@ -89,7 +89,7 @@ STANDING_ITEM = """() => {
 
 def _items_in_turn(page, into: Path) -> tuple[list[Path], bool]:
     """The window at each open item `m` reaches from the top, as far as MOST_SCREENS,
-    and whether the walk goes on past them. Which ask a press reached is the runtime's
+    and whether the walk goes on past them. Which item a press reached is the runtime's
     own mark, so the walk covers whatever `m` does, a suggestion as much as an
     `lf-ask`. The walk stops at its last item rather than wrapping, so a press that
     reaches an item it has already stood on has reached the end."""

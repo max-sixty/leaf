@@ -20,7 +20,7 @@
 
    Every widget arrival shares the same retained-intent travel. Frozen thread sources
    are materialized at their exact owning message through the thread owner. A page
-   source arrives below the banner, at its declared context region or the nearest
+   source arrives at the window's head, at its declared context region or the nearest
    fitting heading/text block supplied by its document. A destination already readable
    on every clipped edge keeps its scroll position. DOM measurements and renderer
    nodes never enter the item record.
@@ -29,15 +29,14 @@
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
-import { landingRoom, scrollIntoView } from "../landing-scroll.js";
+import { landingRoom } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
-import { createItemBannerControls } from "./banner-controls.js";
+import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
 import { closestAcross, inChrome, showsWords } from "../passages.js";
 import { TEXT_BLOCK } from "../passage-facts.js";
 import { scrollerFor } from "../reading-regions.js";
 import { keeps } from "../keeps.js";
-import { queueList } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
 import { itemEntry, readItems } from "./model.js";
 import { walkPositionLabel } from "../walk-position.js";
@@ -51,17 +50,11 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { scrollBehavior } from "../motion.js";
 import { ITEM_CONTROL } from "./view-elements.js";
 import { itemWord, ownedItemControl } from "./answer.js";
-import { rowAt } from "../queue-list.js";
 import { itemHolding, placeOf, sideOf } from "../standing-target.js";
 import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
-import {
-  applicationPresenter,
-  failSoftAfterRetention,
-  PRESENTATION_ORDER,
-  PresentationRetentionError,
-} from "../semantic-state.js";
+import { applicationPresenter, PRESENTATION_ORDER } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
 import { itemPlace } from "./place.js";
@@ -77,7 +70,6 @@ export function createItemView({
   repaint,
 }) {
   const itemNode = (item) => itemPlace(item).node;
-  const itemRow = (item) => (item ? rowAt(queueList, item.id) : null);
   const sourceNode = (item) => itemPlace(item).source;
   const hasItem = (items, candidate) =>
     Boolean(candidate && items.some((item) => item.id === candidate.id));
@@ -116,7 +108,7 @@ export function createItemView({
   const presentedActionControl = (control) => presentedControl?.(control) ?? control;
   const answeringAll = new Set();
   const bulkAnswers = new Map();
-  const bannerControls = createItemBannerControls(async (outcome) => {
+  async function answerAll(outcome) {
     if (answeringAll.has(outcome)) return;
     answeringAll.add(outcome);
     void syncItems();
@@ -135,82 +127,48 @@ export function createItemView({
       answeringAll.delete(outcome);
       void syncItems();
     }
-  });
-  const itemsRenderer = Object.freeze({ banner: bannerControls });
+  }
   let mounted = false;
+  // The page's standing paint (repaint.js) reads the asks: which one the user stands at,
+  // and which keys each answers. A publication that changes them repaints it.
   const presenter = applicationPresenter({
     region: "items",
-    renderer: itemsRenderer,
     order: PRESENTATION_ORDER.items,
     reading: () => (mounted ? true : null),
-    failSoft: failSoftAfterRetention(itemsRenderer),
-    paint: (owed, current) => paintItems(current),
+    paint: () => {
+      readItems();
+      repaint();
+    },
   });
 
   // One blanket answer per outcome a widget declares one for (x-awaits.all), each
   // deciding its items one at a time so the log records what was consented to rather than
   // one blanket yes — accepting the rest after rejecting one stays honest. The widget's
   // module exposes a method named for its deciding verb that takes the outcome; the
-  // label is built from the outcome's word.
+  // label is built from the outcome's word. Each is a row of the page's controls,
+  // offered while an ask it would take is open.
   //
   // Built from the items each reading carries rather than written out above, so the second
   // widget to declare one gets its control by declaring it, and a widget in a frozen
-  // message declares it under its own publication. Until the first state answer there
-  // are no items, so there is no control yet. Each takes its place in the row rather
-  // than a box of its own: a control with no siblings is a control the press sweep walks
-  // past, and one that only ever appears at upgrade spends the spacer's slack, not the
-  // room of anything to its right.
+  // message declares it under its own publication. Which outcomes exist is what the
+  // items' own declarations answer, so core names none.
   function buildBulkAnswers() {
     for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
       const outcome = registry[tag]["x-awaits"].all;
       if (bulkAnswers.has(outcome)) continue;
       const label = outcome[0].toUpperCase() + outcome.slice(1);
-      bannerControls.registerBulk(outcome, label);
       bulkAnswers.set(outcome, label);
-    }
-  }
-
-  // Each blanket answer with the items it would take, from the list above. The banner
-  // writes its controls and counts from this one reading, without naming an outcome in
-  // core; which outcomes exist is what the items' own declarations answer.
-  function blanketAnswers(items) {
-    return [...bulkAnswers].map(([outcome, label]) => {
-      const n = items.filter((item) => itemEntry(item)?.all === outcome).length;
-      return Object.freeze({
-        busy: answeringAll.has(outcome),
-        offered: Boolean(n),
-        text: `${label} all (${n})`,
-        title: `${label} every one still waiting on me`,
-        outcome,
+      const waiting = () =>
+        readItems().user.filter((item) => itemEntry(item)?.all === outcome).length;
+      registerPageControl({
+        key: `blanket:${outcome}`,
+        rank: PAGE_CONTROL_RANK.blanket,
+        label: () => `${label} all (${waiting()})`,
+        offered: () => waiting() > 0,
+        disabled: () => answeringAll.has(outcome),
+        group: "page",
+        press: () => void answerAll(outcome),
       });
-    });
-  }
-  // The banner's reading of that one list. A publication that changes it refreshes it,
-  // and a publication is where the server's item reading changes, so a send moves
-  // these counts once the state its POST returns has been adopted.
-  async function paintItems(current) {
-    const bannerModel = Object.freeze({
-      bulk: Object.freeze(blanketAnswers(readItems().user)),
-    });
-    repaint();
-    try {
-      const bannerPaint = await bannerControls.present(bannerModel);
-      if (!current()) return [];
-      bannerControls.commit();
-      return [bannerPaint];
-    } catch (error) {
-      // A current paint owns the same faces now. It will either commit or restore them;
-      // an obsolete attempt must not roll its predecessor over the newer reading.
-      if (!current()) return [];
-      try {
-        await bannerControls.retainCommitted();
-      } catch (retaining) {
-        throw new PresentationRetentionError(
-          [error, retaining],
-          "Item presentation and retention failed",
-        );
-      }
-      throw error;
     }
   }
   // A publication that changes the items opens the region's ticket synchronously, before
@@ -248,7 +206,7 @@ export function createItemView({
   // their focus rested on — a second thread on the child rather than the next line of their
   // own. The agent's reply put both back. Nothing the user did moved either. An
   // answered item leaves both worklists but stays in the active inventory: the
-  // On panel's Done rows can return the user to it, and standing there restores
+  // On me's Done rows can return the user to it, and standing there restores
   // the same numeric action route so they can revise the recorded answer.
   function standingItem(held = focused()) {
     if (!held || held === document.body) return null;
@@ -333,7 +291,7 @@ export function createItemView({
   // same place was marked or not by how the user had reached it.
   //
   // Pointer and keyboard arrivals share this location reading, as they share the
-  // focused control's ring. A On panel row's press lands the focus by script
+  // focused control's ring. An On me row's press lands the focus by script
   // after a click, and the item it brought the user to must show where they are.
   //
   // The item wears it, and so does every box it shows through (shownParts): the item is
@@ -345,7 +303,7 @@ export function createItemView({
   // item itself, and the fallback answers the wrapper any page can still style boxless
   // in a line, the same way the thread's mark does (paintAnchors).
   //
-  // The On panel's row for the item is a second surface showing this one fact, so it
+  // On me's row for the item is a second surface showing this one fact, so it
   // is painted from this one reading rather than from a mark the panel keeps for itself —
   // and the ring is the chrome's as much as the page's (the [data-lf-item] rule in the
   // stylesheet is written against the attribute, not against the page), so wearing the
@@ -353,10 +311,7 @@ export function createItemView({
   function markHere() {
     const record = standingItem();
     const here = itemNode(record);
-    const row = itemRow(record);
-    const wearing = new Set(
-      here ? [here, ...shownParts(here), ...(row ? [row] : [])] : [],
-    );
+    const wearing = new Set(here ? [here, ...shownParts(here)] : []);
     for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.item}]`))
       if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.item);
     for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.item, "1");
@@ -400,7 +355,7 @@ export function createItemView({
   // place that cannot misfire, because it holds a lent tab stop rather than a decision:
   // the widget's context routes are live there and Space decides nothing.
   //
-  // Chrome is excluded because it has nothing to restore: a On panel row and a
+  // Chrome is excluded because it has nothing to restore: an On me row and a
   // margin entry for the same item are keyed by that id already, so a patch hands each of
   // them back as the same element, still holding the focus the user put on it.
   function captureStanding() {
@@ -431,7 +386,7 @@ export function createItemView({
   // an edit to a phrase, and what explains it is the sentence it stands in and the heading
   // over that — so it can never satisfy "a question must name itself without context outside
   // the question", and no enclosing widget can be written round it. Landing on the change alone put
-  // its own top edge under the banner and took that sentence with it: the user arrived
+  // its own top edge under the window's head and took that sentence with it: the user arrived
   // at ✓ Accept with nothing on screen saying what they were accepting. So where the
   // author has not declared a region, the document supplies one in the shape a declared
   // region has.
@@ -454,15 +409,15 @@ export function createItemView({
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
     // paragraph before the change fits every time, and the press then scrolls the page up
-    // by the banner's clearance instead of travelling to the item.
+    // by the head room's clearance instead of travelling to the item.
     // A region also has to begin at or above the change: it is the run-up to it, and one
     // starting below would be a region the change is not in. Document order alone does
     // not promise that — a preceding block can be painted lower — and the span such a
     // region measures is negative, which fits every screen there is.
     // The screen the user can use is the room a landing at the region's start leaves
     // for the run down to the item's foot (landing-scroll.js, `landingRoom`): clear
-    // of the banner over its top and the bottom bar over its bottom, so an item's foot
-    // that fits is one the user can read rather than one under the shortcut bar.
+    // of the window's head over its top and the floating panel's room over its bottom,
+    // so an item's foot that fits is one the user can read rather than one under the panel.
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
@@ -533,10 +488,10 @@ export function createItemView({
   //
   // Whether the item itself is readable is travel's question (`readable`), asked of
   // every edge through whatever clips it or stands over it — an item half cut off by a
-  // board's own scroller, or reaching under the thread panel, is not in front of the
+  // board's own scroller, or reaching under the floating panel, is not in front of the
   // user for having a box inside the window. This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
-  // clear of the banner too.
+  // clear of the window's head too.
   function framed(record, region, item, box, readable) {
     return (
       readable(item) &&
@@ -548,7 +503,7 @@ export function createItemView({
   }
 
   // Standing on one item: what m and Shift+m do once the queue walk has decided on an item
-  // (queue-walk.js), what a On panel row does, and what a Page Map entry does having
+  // (queue-walk.js), what an On me row does, and what a Page Map entry does having
   // been told outright. One
   // function because it is one act — a second would be a second answer to "how do I put
   // the user on an item", and the two would drift the first time either the reveal or the
@@ -567,12 +522,11 @@ export function createItemView({
       ? await materializeItem(next, mayArrive)
       : reachItem(next);
     if (!mayArrive() || !target) return false;
-    // A page item starts below the banner so its context comes before its control, and
+    // A page item starts at the window's head so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the region an author declared,
     // or the one the document supplies for a change that cannot declare one. Whether this
     // press moves the page is `framed`'s answer, and travel's departure owns what follows
-    // from it: clearing a surface that hides the item (a covering drawer, or the thread
-    // panel standing over it), and whether the press is a departure. It runs before the
+    // from it: clearing a surface that hides the item, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
     // Capture the outgoing place before reveal can reshape it; only a successful
     // arrival commits the departure. A thread item is
@@ -599,7 +553,6 @@ export function createItemView({
     const moving = Boolean(
       initial.box &&
       departure.plan(initial.target, {
-        required: [initial.source],
         there: (readable) =>
           framed(next, initial.region, initial.target, initial.box, readable),
       }),
@@ -629,15 +582,9 @@ export function createItemView({
               : [],
         };
       },
-      {
-        intent: mayArrive,
-        departure,
-        keep: true,
-      },
+      { intent: mayArrive, departure },
     );
-    if (!arrived) return false;
-    scrollIntoView(itemRow(next), { block: "nearest" });
-    return true;
+    return arrived;
   }
 
   function arriveAtRecord(next) {

@@ -14,7 +14,11 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path):
     cases = module.catalog()
     assert cases
     config = module.prepare(
-        ["todo-outlasts-the-turn", "configuration"],
+        [
+            "todo-outlasts-the-turn",
+            "configuration",
+            "parent-keeps-leaf-responsive/during-work",
+        ],
         {"candidate": tmp_path / "arm"},
         tmp_path / "scratch",
         ("claude-code",),
@@ -26,6 +30,7 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path):
     assert {test["metadata"]["case"] for test in config["tests"]} == {
         "todo-outlasts-the-turn",
         "configuration",
+        "parent-keeps-leaf-responsive/during-work",
     }
 
 

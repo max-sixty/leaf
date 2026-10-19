@@ -5,9 +5,9 @@ Read with [module-authoring.md](module-authoring.md), which holds what every beh
 ## Commands and keyboard routes
 
 A widget declares each command once, at upgrade, with
-`commands(element, title, rows, options)`. The key handler, shortcut bar, command
-reference, `aria-keyshortcuts` and inline hints all read that one declaration. `options`
-is the scope's `when`, alone or as `{when}`.
+`commands(element, title, rows, options)`. The key handler, command reference,
+`aria-keyshortcuts`, announcements and inline hints all read that one declaration.
+`options` is the scope's `when`, alone or as `{when}`.
 
 For controls Leaf draws, such as margin entries, build the scope as a value with
 `commandScope(title, rows, options)` and put it on the entry's `scope`
@@ -42,8 +42,7 @@ Leaf checks each row as it is registered and throws for a malformed one.
 
 A row's `id` is a stable, lowercase dotted name such as `draft.save`; keep it when keys
 or words change. `title` names the command, `description` adds detail for the command
-reference, `line` gives the shortcut bar a shorter word (`false` keeps the row off the
-bar), and `label` replaces the keycap. `title` may be a function where state changes it.
+reference, and `label` replaces the keycap. `title` may be a function where state changes it.
 
 `keys` lists bindings in canonical spelling, such as `"a"`, `"Shift+a"` or
 `"Mod+Enter"`, or is a function returning them. `repeat: true` also runs on a held key's

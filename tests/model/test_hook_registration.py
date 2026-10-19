@@ -17,11 +17,11 @@ from interact_support import (
     PLUGIN_ROOT,
     STATED_TIMEOUT,
     append_carried_log_record,
-    continued,
     record_claim,
     serving,
     wait_for,
 )
+from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
@@ -104,7 +104,11 @@ def test_every_carrying_hook_has_time_to_confirm_what_it_hands_over():
     and the receipt after the clock stops."""
     floor = 2 * hook_transport_model.CONFIRM_WITHIN
     for harness in REGISTRATIONS:
-        for event in ("UserPromptSubmit", "Stop"):
+        for event in (
+            "UserPromptSubmit",
+            "Stop",
+            *(["PostToolBatch"] if harness == "claude-code" else []),
+        ):
             [hook] = [
                 hook
                 for registration in _registrations(harness)[event]
@@ -216,7 +220,8 @@ def test_cancelling_the_background_registration_never_wakes_the_session(
     assert (watching.returncode, out, err) == (0, "", "")
 
 
-def test_the_registered_hook_delivers_or_says_nothing(claimed):
+@pytest.mark.parametrize("event", ["PostToolBatch", "Stop"])
+def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
     """The harness command calls Leaf's launcher, and Leaf answers under uv.
 
     Exercise the exact registration, stdin, environment selection and returned
@@ -225,7 +230,7 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed):
 
     def run(payload, env=None):
         return subprocess.run(
-            ["/bin/sh", "-c", _registered_hook_command("claude-code", "Stop")],
+            ["/bin/sh", "-c", _registered_hook_command("claude-code", event)],
             input=payload,
             env=(env or os.environ) | {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_ROOT)},
             capture_output=True,
@@ -237,15 +242,33 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed):
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "hi"}
     )
-    stop = json.dumps({"hook_event_name": "Stop", "session_id": "s1"})
-    answered = run(stop)
+    payload = json.dumps({"hook_event_name": event, "session_id": "s1"})
+    turn = service_model.page_claim(claimed)["turn"]
+    if event == "PostToolBatch":
+        worker = run(
+            json.dumps(
+                {"hook_event_name": event, "session_id": "s1", "agent_id": "worker"}
+            )
+        )
+        assert (worker.returncode, worker.stdout, worker.stderr) == (0, "", "")
+        assert events_model.read_cursor(claimed) == 0
+    answered = run(payload)
     assert answered.returncode == 0, answered.stderr
     assert answered.stdout, "nothing came back: the CLI never answered under uv"
-    [batch] = json.loads(continued(answered.stdout).split("\n")[1])["batches"]
+    output = json.loads(answered.stdout)
+    assert output["hookSpecificOutput"]["hookEventName"] == event
+    context = output["hookSpecificOutput"]["additionalContext"]
+    [batch] = json.loads(context.split("\n")[1])["batches"]
     assert [event["text"] for event in batch["events"]] == ["hi"]
+    if event == "PostToolBatch":
+        assert service_model.page_claim(claimed)["turn"] == turn
+        assert service_model.page_claim(claimed)["turn_closed"] is None
+        # The next tool boundary adds no repeated response-debt reminders.
+        again = run(payload)
+        assert (again.returncode, again.stdout, again.stderr) == (0, "", "")
 
     # The library answers an unowned session silently under uv as well.
-    stranger = run(json.dumps({"hook_event_name": "Stop", "session_id": "s2"}))
+    stranger = run(json.dumps({"hook_event_name": event, "session_id": "s2"}))
     assert (stranger.returncode, stranger.stdout, stranger.stderr) == (0, "", "")
 
 
@@ -280,6 +303,7 @@ def test_registered_hook_failures_remain_nonblocking_and_visible(harness, tmp_pa
     "harness,event,watch",
     [
         ("claude-code", "SessionStart", False),
+        ("claude-code", "PostToolBatch", False),
         ("claude-code", "Stop", False),
         ("claude-code", "Stop", True),
         ("claude-code", "UserPromptSubmit", False),

@@ -41,9 +41,14 @@ export function createPrimaryReader(
   render,
   commands,
   update,
-  { answersAtOnce = false } = {},
+  { answersAtOnce = false, onFailure = () => {} } = {},
 ) {
   let active = true;
+  // Whether the presentation's own part of the current pass failed: its render, the
+  // outlets it named, or their paint. The pass that fails cancels the reader, which
+  // then says so (`onFailure`), and reads as `failed` until a later pass paints.
+  let failing = false;
+  let failed = false;
   let generation = 0;
   let pending = null;
   let selected = [];
@@ -144,6 +149,7 @@ export function createPrimaryReader(
   };
   function prepare(collection, cancelled) {
     const current = ++generation;
+    failing = false;
     pending?.abort();
     const abort = new AbortController();
     pending = abort;
@@ -151,7 +157,7 @@ export function createPrimaryReader(
     const candidate = held.prepare(
       {
         threads: collection.threads.map((thread) =>
-          threadReading(thread, "outlet", { ...commands, nativeAuthored: true }, {}),
+          threadReading(thread, "outlet", { ...commands, nativeAuthored: true }),
         ),
       },
       { row: false },
@@ -200,9 +206,16 @@ export function createPrimaryReader(
             nativeMessages.add(message.id);
       return {
         paint: async () => {
-          await paint(current);
-          if (active && current === generation && !abort.signal.aborted)
+          try {
+            await paint(current);
+          } catch (error) {
+            failing ||= current === generation;
+            throw error;
+          }
+          if (active && current === generation && !abort.signal.aborted) {
             candidate.commit();
+            failed = false;
+          }
         },
         current: () => active && current === generation && !abort.signal.aborted,
       };
@@ -222,12 +235,17 @@ export function createPrimaryReader(
       if (rendering?.then)
         return Promise.race([rendering, aborted(abort.signal)])
           .then(finish)
+          .catch((error) => {
+            failing ||= !abort.signal.aborted;
+            throw error;
+          })
           .finally(() => {
             accepting = false;
           });
       return finish();
     } catch (error) {
       accepting = false;
+      failing = true;
       throw error;
     }
   }
@@ -259,7 +277,7 @@ export function createPrimaryReader(
       let view = views.get(item.identity);
       if (!view) {
         if (item.kind === "thread")
-          view = new ThreadView("outlet", { ...commands, nativeAuthored: true });
+          view = new ThreadView({ ...commands, nativeAuthored: true });
         else if (item.kind === "news") {
           const notice = newsNotice();
           view = { node: notice.node, notice, dispose() {} };
@@ -272,8 +290,14 @@ export function createPrimaryReader(
           node.dataset.lfGen = "1";
           node.dataset.lfOffer = "";
           if (item.kind === "message") {
+            // A press on a reply's reactions is the user acting in this thread, so
+            // what the reader holds of it shows with it, as in a card (thread-card.js).
             const message = new MessageView({
               ...commands,
+              reaction: {
+                ...commands.reaction,
+                pressed: () => shown.get(item.key)?.news?.open(),
+              },
               edit: rewritesOf(item.key).edit,
             });
             message.node.classList.add("lf-primary-message");
@@ -299,7 +323,15 @@ export function createPrimaryReader(
             // What the box reads, when it holds its sends and how a send lands are the
             // presentation's (replies.js, `createReplyView`), given with its nomination.
             const { hint, accessibleName, busy, sent } = item.options;
-            const reply = createReplyView(item.key, commands.reply, {
+            // The part draws whichever row the view holds: its own, or the session's
+            // row it takes from a view that can draw the thread no more, the user
+            // still in it (replies.js, `carry`).
+            const redraw = () => {
+              for (const row of node.querySelectorAll(":scope > .lf-thread-reply"))
+                if (row !== reply.node) row.remove();
+              move(node, reply.node, node.firstChild);
+            };
+            const reply = createReplyView(item.key, commands.reply, redraw, {
               onChange: () => {
                 if (joined) void update().catch(() => {});
               },
@@ -342,7 +374,6 @@ export function createPrimaryReader(
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {
-            panel: false,
             nativeAuthored: true,
             reactions: message.reactions,
             workflows: message.workflows,
@@ -393,6 +424,10 @@ export function createPrimaryReader(
       destinations.set(item.key, parts);
     }
     for (const [parent, nodes] of children) orderChildren(parent, nodes);
+    // A reply part standing in the document takes the row being written in its thread
+    // that no view holds (replies.js, `claim`).
+    for (const view of views.values())
+      view.reply?.claim(() => view.node.isConnected && !view.node.hidden);
     const widgets = [...readApplication().document.descriptors.values()]
       .filter(
         (descriptor) =>
@@ -433,6 +468,14 @@ export function createPrimaryReader(
       pending?.abort();
       clear();
       held.release();
+      if (failing) {
+        failing = false;
+        failed = true;
+        onFailure();
+      }
+    },
+    get failed() {
+      return failed;
     },
     unregister() {
       active = false;

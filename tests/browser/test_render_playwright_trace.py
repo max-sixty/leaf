@@ -9,6 +9,7 @@ from leaf import data as data_model
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
+from render_cases_layout import ring_faults, standing_ring
 from render_harness import (
     at_rest,
     consume_browser_errors,
@@ -1212,6 +1213,12 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
     widget.get_by_role("button", name="Actual size", exact=True).click()
     canvas = widget.locator(".lf-trace-canvas").filter(visible=True)
     canvas.focus()
+    # Leave window above the capture, where the marker goes once panned out of it;
+    # focusing the canvas scrolls it to the window's top.
+    user.evaluate(
+        "() => scrollBy(0, document.querySelector('lf-trace .lf-trace-image-viewport')"
+        ".getBoundingClientRect().top - 160)"
+    )
     for _ in range(20):
         canvas.press("ArrowUp")
         if point.evaluate("""node => {
@@ -1227,10 +1234,12 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
       return r.bottom < host.top && y >= 0 && y < innerHeight
         && document.elementFromPoint(x, y) !== node;
     }""")
-    assert canvas.evaluate("""node => {
-      const style = getComputedStyle(node);
-      return node.matches(':focus-visible') && parseFloat(style.outlineOffset) < 0;
-    }""")
+    expect(canvas).to_be_focused()
+    ring = standing_ring(user)
+    assert ring, "the canvas has no focus ring"
+    assert not (faults := ring_faults([ring], "the panned trace canvas")), "\n".join(
+        faults
+    )
 
 
 def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, serve):

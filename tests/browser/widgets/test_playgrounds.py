@@ -19,7 +19,6 @@ from render_harness import (
     leaf_page,
     nudge,
     open_page,
-    panel_settled,
     post_event,
     resized,
     round_trip,
@@ -31,6 +30,7 @@ from render_harness import (
     write,
 )
 
+from browser.threads import open_panel_thread
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
@@ -656,27 +656,12 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()
-    shortcut_box = page.locator("#lf-shortcut-bar").bounding_box()
+    panel_box = page.locator(".lf-fp-row").bounding_box()
     assert (
         action_box["y"] + action_box["height"]
         <= playground_box["y"] + playground_box["height"] + 1
     )
-    assert action_box["y"] + action_box["height"] <= shortcut_box["y"] + 1
-
-    # Beside Threads, the notification wraps beyond the preview's minimum height.
-    # The preview must grow around its content rather than clip it.
-    resized(page, 1280, 720)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    assert page.evaluate(reading)["postures"] == ["bounded", "bounded", "bounded"]
-    notification_box = page.locator(
-        ".notification-demo-card-banner"
-    ).first.bounding_box()
-    preview_box = page.locator("#notification-preview").bounding_box()
-    assert notification_box["y"] + notification_box["height"] <= (
-        preview_box["y"] + preview_box["height"]
-    )
-    page.locator(".lf-threads-toggle").click()
+    assert action_box["y"] + action_box["height"] <= panel_box["y"] + 1
 
     for width, height in [(1100, 300), (700, 500), (500, 900)]:
         resized(page, width, height)
@@ -780,9 +765,9 @@ def test_built_code_reader_design_comment_keeps_its_identity_after_revision(
     expect(page.locator("#target-reader-heading")).to_have_text(
         "Revised reader treatment"
     )
-    card = page.locator(f'.lf-thread[data-id="{event["id"]}"]')
-    expect(card.locator(".lf-quote")).to_contain_text("target-reader-heading")
-    expect(card.locator(".lf-quote")).not_to_have_class(re.compile(r"detached"))
+    quote = open_panel_thread(page, event["id"]).locator(".lf-fp-quote")
+    expect(quote).to_contain_text("target-reader-heading")
+    expect(quote).not_to_have_class(re.compile(r"detached"))
 
 
 def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(

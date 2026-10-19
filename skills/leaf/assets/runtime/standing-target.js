@@ -5,11 +5,10 @@
    answered or not, wherever it is drawn: an item frozen into a reply is where a user
    working it is, never the page item its thread is about. A presentation can stand at the
    source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
-   cluster controls, the thread card, and a thread in the Threads panel; the On panel
-   for its rows; the details shelf for the elements that name its notes. A side's answer
+   cluster controls and the thread card; the details shelf for the elements that name its notes. A side's answer
    drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
    stands only where an item holds it. Chrome no side
-   claims — the banner, a drawer's own controls, the panel's list — stands nowhere, and a
+   claims — the floating panel's own controls — stands nowhere, and a
    press made from it means the page whole.
 
    Each feature takes what it needs from that place by its own rule: the item view the

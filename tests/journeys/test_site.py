@@ -47,14 +47,11 @@ from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import authored_markup, source_packages
 from PIL import Image
 from playwright.sync_api import expect
-from render_cases_layout import banner_control
-
-# The suite's own page primitives, so a navigation here waits on what every other
-# navigation waits on. tests/AGENTS.md, "Waits".
 from render_harness import (
+    PANEL_THREAD,
+    compare_with,
     consume_browser_errors,
     displayed,
-    expect_banner_control_offered,
     expect_items_answered,
     holding,
     http_error_console,
@@ -62,6 +59,8 @@ from render_harness import (
     navigate,
     open_page,
     page_comment,
+    panel_menu,
+    panel_settled,
     root_overflow,
     select,
     sending,
@@ -69,11 +68,21 @@ from render_harness import (
     write,
 )
 
+# The suite's own page primitives, so a navigation here waits on what every other
+# navigation waits on. tests/AGENTS.md, "Waits".
+from journeys import expect_showing
+
 ROOT = Path(__file__).parents[2]
 DOCS = ROOT / "docs"
 EXAMPLES = ROOT / "examples"
 FEATURE_GALLERY = EXAMPLES / "developer" / "feature-gallery.html"
 DEVELOPER_PAGES = tuple(sorted((EXAMPLES / "developer").glob("*.html")))
+
+
+def open_count(page):
+    """How many open threads the panel's Threads mark counts."""
+    label = page.locator(".lf-fp-threads").get_attribute("aria-label")
+    return int(re.match(r"Threads, (\d+) open", label).group(1))
 
 
 # The theme's paper, light and dark, as the browser reports a background.
@@ -327,7 +336,7 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
     normal = open_page(browser, serve(source))
     published = open_page(browser, f"{hosted}/examples/wt-merge/")
     layout = """() => Object.fromEntries(
-      ['.lf-banner', 'body > main', 'body > main h1', '#lede', 'lf-merge-film']
+      ['.lf-floating-panel', 'body > main', 'body > main h1', '#lede', 'lf-merge-film']
         .map(selector => {
           const node = document.querySelector(selector);
           const box = node.getBoundingClientRect();
@@ -641,7 +650,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         for version, revision in sorted(mappings.items())
     ]
     page = open_page(browser, url)
-    expect(page.locator(".lf-version")).to_have_text("Showing v2")
+    expect_showing(page, 2)
     current = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert current["active"]["revision"] == mappings[2]
     assert current["active"]["version"] == 2
@@ -651,19 +660,19 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     assert current["active"]["label"] == "v2"
     assert current["versions"] == versions
 
-    banner_control(page, ".lf-version").click()
-    expect(page.locator(".lf-version-row")).to_have_count(2)
-    page.locator('.lf-version-diff[data-lf-version="1"]').click()
+    expect(panel_menu(page, "versions").locator(".lf-fp-version")).to_have_count(2)
+    compare_with(page, 1)
     expect(page.locator("main .lf-ins-block")).to_have_count(5)
 
-    banner_control(page, ".lf-version").click()
-    page.locator('.lf-version-row[data-lf-version="1"]').click()
+    panel_menu(page, "versions").locator(
+        ".lf-fp-version:not([data-current]) > .lf-fp-item"
+    ).click()
     page.wait_for_url(
         re.compile(r"/examples/log-retention/versions/v1\.html(?:\?pin=)?$")
     )
     wait_until_ready(page)
 
-    expect(page.locator(".lf-version")).to_have_text("Showing v1")
+    expect_showing(page, 1)
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
     markup = page.evaluate(
         "() => fetch('../versions/v1.html').then(response => response.text())"
@@ -687,7 +696,7 @@ def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
     write(page_comment(page), "Kept across addresses")
 
     opened(page, f"{url}versions/v1.html")
-    expect(page.locator(".lf-version")).to_have_text("Showing v1")
+    expect_showing(page, 1)
     expect(page_comment(page)).to_have_js_property("value", "Kept across addresses")
 
 
@@ -847,7 +856,7 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
     notice = page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(notice).to_have_count(0)
-    expect(page.locator("#lf-banner .lf-threads-toggle")).to_be_visible()
+    expect(page.locator(".lf-fp-threads")).to_be_visible()
 
     # The probe stops with it: a page that started has nothing left to ask the source.
     before = sum("registry.json" in probe for probe in probes)
@@ -1340,12 +1349,9 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             _, url = served_example(source.stem)
             opened(page, url)
         newest = len(example_versions(source))
-        expect(page.locator(".lf-banner-menu > .lf-version")).to_have_text(
-            f"Showing v{newest}"
-        )
-        expect(page.locator(".lf-status-text")).to_have_text(
-            "This is an example on the Leaf website. Agent replies and "
-            "revises this private copy. Other examples Install Leaf"
+        expect_showing(page, newest)
+        expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+            "aria-label", "Page menu · Agent revises your private copy"
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
@@ -1460,17 +1466,19 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     backend answers the exact projection path the runtime asks for."""
     page_dir, url = served_example("triage-board")
     page = open_page(browser, url)
-    expect(page.locator(".lf-banner .lf-status-text")).to_have_text(
+    state_head = panel_menu(page).locator(".lf-fp-state")
+    expect(state_head).to_contain_text(
         "This is an example on the Leaf website. Agent replies and revises "
-        "this private copy. Other examples Install Leaf"
+        "this private copy."
     )
-    assert page.locator(".lf-banner .lf-status-text a").evaluate_all(
+    assert state_head.locator("a").evaluate_all(
         "links => links.map(link => link.getAttribute('href'))"
     ) == ["/examples/", "/#install"]
+    page.locator(".lf-fp-leaf").click()
     expect(page.locator(".sitenote")).to_have_count(0)
-    assert page.locator(".lf-banner .lf-dot").evaluate("dot => [...dot.classList]") == [
-        "lf-dot"
-    ]
+    assert page.locator(".lf-fp-leaf .lf-dot").evaluate(
+        "dot => [...dot.classList]"
+    ) == ["lf-dot"]
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",
@@ -1524,20 +1532,24 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     opened = sum(not thread["resolved"] for thread in threads)
     resolved = len(threads) - opened
     assert opened and resolved, "the shipped seed must cover both thread states"
-    expect(page.locator(".lf-threads-toggle")).to_have_text(f"Threads: {opened}")
-    page.locator(".lf-threads-toggle").click()
-    expect(
-        page.locator('.lf-thread-panel [data-filter-value="resolved"]')
-    ).to_have_text(f"Resolved ({resolved})")
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "aria-label", re.compile(rf"^Threads, {opened} open")
+    )
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    page.locator(".lf-fp-filters button", has_text="Resolved").click()
+    expect(page.locator(".lf-fp-thread")).to_have_count(resolved)
+    page.locator(".lf-fp-filters button", has_text="Open").click()
     # Named rather than taken first: the assertion follows the shipped objection,
     # independent of where a later seed might place another thread.
-    thread = page.locator(".lf-thread-panel .lf-thread").filter(
+    row = page.locator(".lf-fp-thread").filter(
         has_text="One reconnect in forty is worse"
     )
-    expect(thread).to_have_count(1)
-    thread.locator(".lf-thread-summary").click()
-    expect(thread.locator("blockquote")).to_have_text("“One reconnect in about 40”")
-    assert page.locator(".lf-thread-panel .lf-quote.detached").count() == 0, (
+    expect(row).to_have_count(1)
+    row.click()
+    thread = page.locator(PANEL_THREAD)
+    expect(thread.locator(".lf-fp-quote")).to_have_text("“One reconnect in about 40”")
+    assert thread.locator(".lf-fp-quote.detached").count() == 0, (
         "the shipped anchor found nothing on the page it was captured from"
     )
     # Painted, not merely resolved: the mark is what puts the user at the passage.
@@ -1575,7 +1587,7 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
     ).to_have_text("running")
     # The inventory includes request Decisions beside state items.
     expect_items_answered(page, "0/5")
-    expect_banner_control_offered(page.locator(".lf-queue"))
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
@@ -1585,7 +1597,7 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # What the page opens with, since an example that ships a log opens with
     # threads already counted. The claim here is that the user's own comment
     # adds one, which is a claim about the gesture rather than about the corpus.
-    opened_with = page.locator(".lf-thread-panel .lf-thread").count()
+    opened_with = open_count(page)
     box = page.locator("#triage-lede").bounding_box()
     select(
         page,
@@ -1605,22 +1617,27 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # an example that ships a log opens with threads already in the panel, and
     # theirs would be first. triage-board ships none today, so `.first` was
     # right by accident and would stop being on the day it does.
-    thread = page.locator(
-        ".lf-thread-panel .lf-thread", has_text="Can the migration fix ship first?"
+    def written():
+        page.locator(".lf-fp-threads").click()
+        panel_settled(page, view="threads")
+        page.locator(".lf-fp-filters button", has_text="Open").click()
+        page.locator(".lf-fp-thread").filter(
+            has_text="Can the migration fix ship first?"
+        ).click()
+        return page.locator(PANEL_THREAD)
+
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "aria-label", re.compile(rf"^Threads, {opened_with + 1} open")
     )
+    thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
-    expect(thread.locator("blockquote")).to_contain_text(selected)
-    expect(page.locator(".lf-threads-toggle")).to_have_text(
-        f"Threads: {opened_with + 1}"
-    )
+    expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
     expect(thread.locator(".lf-msg.agent")).to_have_count(0)
     page.reload(wait_until="load")
     wait_until_ready(page)
-    thread = page.locator(
-        ".lf-thread-panel .lf-thread", has_text="Can the migration fix ship first?"
-    )
+    thread = written()
     expect(thread).to_contain_text("Can the migration fix ship first?")
-    expect(thread.locator("blockquote")).to_contain_text(selected)
+    expect(thread.locator(".lf-fp-quote")).to_contain_text(selected.strip()[:40])
     expect(thread.locator(".lf-msg.agent")).to_have_count(0)
 
 
@@ -1628,9 +1645,9 @@ def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
-    decisions = page.locator(".lf-queue")
+    decisions = page.locator(".lf-fp-on-user")
     expect_items_answered(page, "0/1")
-    expect_banner_control_offered(decisions)
+    expect(decisions).to_be_visible()
     chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()
@@ -1648,10 +1665,12 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
     write(page_comment(page), "Where does this go?")
-    page.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
+    page.locator(".lf-fp-field .lf-compose-submit").click()
     # One, and typed: this example ships no log, so the count is the comment
     # just written and nothing else.
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "aria-label", re.compile("^Threads, 1 open")
+    )
     # The page's own scroller (the runtime's `pageScroller`), moved the way a
     # user moves it far enough down that the landmark is worth restoring.
     page.evaluate(
@@ -1671,7 +1690,9 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     )
     _, plain_url = served_example(plain)
     opened(page, plain_url)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "aria-label", re.compile("^Threads, 0 open")
+    )
     assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
         "the second example opened at the offset left on the first"
     )

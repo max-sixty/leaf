@@ -2186,7 +2186,7 @@
       :scope:is(lf-toc) {
         position: fixed;
         left: calc(var(--lf-shell-left, 0px) + var(--sp-4));
-        top: var(--lf-banner-h, 0px);
+        top: var(--lf-head-room, 0px);
         z-index: 4;
         width: var(--sp-4);
         box-sizing: border-box;

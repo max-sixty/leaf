@@ -16,7 +16,6 @@ import {
   controlNavigationKeys,
   focused,
   handBack,
-  holdFocus,
   isNativeLayer,
   keeps,
   keepsText,
@@ -620,7 +619,6 @@ var titleOf = (row) => {
   return title;
 };
 var descriptionOf = (row) => word(row.description) ?? "";
-var lineOf = (row) => word(row.line) ?? titleOf(row);
 var allBindings = (row) => [
   .../* @__PURE__ */ new Set([
     ...declaredBindings(row),
@@ -1081,7 +1079,7 @@ function requestFrame() {
     p.paintStanding?.();
     p.paintSelectedMarginEntries?.();
     p.paintTouchControls?.();
-    p.renderShortcutBar?.();
+    p.paintStatusContext?.();
     p.syncLayout?.();
     if (shiftPage) p.pageShifted?.();
     p.paintInputs?.();
@@ -1325,9 +1323,6 @@ function contextRows(declarations) {
           id: row.id,
           title: () => titleOf(row),
           description: () => descriptionOf(row),
-          get line() {
-            return row.line;
-          },
           get keys() {
             return this.routes.map(({ binding }) => binding);
           },
@@ -1354,7 +1349,6 @@ function contextRows(declarations) {
                     binding,
                     title: () => titleOf(contribution),
                     description: () => descriptionOf(contribution),
-                    line: contribution.line,
                     control: contribution.control ?? row.control,
                     bindingBadge: contribution.bindingBadge !== void 0 ? contribution.bindingBadge : row.bindingBadge,
                     intrinsicBindings: contribution === row ? declaredBindings(row) : contribution.binding ? [contribution.binding] : []
@@ -1715,7 +1709,7 @@ var paintKeysWithin = (root2) => {
   }
   repaint();
 };
-var saying = (rows) => activeRows(rows, "an announced scope").map((row) => `${spoken(row)} ${lineOf(row)}`).join(", ");
+var saying = (rows) => activeRows(rows, "an announced scope").map((row) => `${spoken(row)} ${titleOf(row)}`).join(", ");
 var spoken = (row) => {
   const active = bindings(row);
   if (active.some((binding) => parsed(binding).mods.length))
@@ -1900,21 +1894,6 @@ function nativeModalAdmits(node) {
     return !modal || renderedUnder(node, modal);
   }
   return [...owner.querySelectorAll("dialog")].filter((dialog) => nativeLayerKind(dialog) === "modal").every((modal) => renderedUnder(node, modal));
-}
-function transitionNativeAncestor(root2, transition) {
-  const descendants = nativeLayers().filter(
-    (layer) => layer.root !== root2 && renderedUnder(layer.root, root2)
-  );
-  const held = holdFocus(root2);
-  closeLayer(
-    () => {
-      for (const layer of descendants.toReversed()) closeNativeLayer(layer.root);
-      transition();
-      for (const layer of descendants)
-        showNativeLayer(layer.root, { source: layer.source });
-    },
-    () => held?.()
-  );
 }
 function dismissPopoversOutside(root2) {
   for (const entry of nativeLayers().toReversed())
@@ -2188,23 +2167,16 @@ function watchScrollEnds(listener) {
 
 // runtime/geometry.js
 var shellRight = () => document.body.getBoundingClientRect().right;
-var banner = null;
 var windowChrome = /* @__PURE__ */ new Map();
 var chromeSizes = sizeObserver(() => announceRoom(document));
 var watchChrome = (element) => chromeSizes.observe(element, { box: "border-box" });
-var declareBanner = (element) => {
-  banner = element;
-  watchChrome(element);
-};
 var declareWindowChrome = (boxes, elements) => {
   windowChrome.set(boxes, elements);
   elements.forEach(watchChrome);
 };
-var inBanner = (node) => Boolean(node && banner) && under(node, banner);
 var standsIn = (node, elements) => Boolean(node) && elements.some((element) => under(node, element));
-var inWindowChrome = (node) => inBanner(node) || [...windowChrome.values()].some((elements) => standsIn(node, elements));
+var inWindowChrome = (node) => [...windowChrome.values()].some((elements) => standsIn(node, elements));
 var windowChromeBoxes = (item = null) => [...windowChrome].filter(([, elements]) => !standsIn(item, elements)).flatMap(([boxes]) => boxes());
-var bannerFoot = () => banner?.getBoundingClientRect().bottom ?? 0;
 var layoutWindow = (doc = document) => ({
   left: 0,
   top: 0,
@@ -2221,8 +2193,7 @@ function shownWindow({
   const { offsetLeft, offsetTop, width, height } = viewport === "visual" ? window.visualViewport : { offsetLeft: 0, offsetTop: 0, width: layout.right, height: layout.bottom };
   const left = Math.max(offsetLeft, within?.left ?? -Infinity) + gap;
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
-  const head = inBanner(item) ? -Infinity : bannerFoot();
-  let top = Math.max(offsetTop, head, within?.top ?? -Infinity);
+  let top = Math.max(offsetTop, within?.top ?? -Infinity);
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
   const middle = offsetTop + height / 2;
   for (const box of windowChromeBoxes(item)) {
@@ -2590,8 +2561,7 @@ function clipWalk(item, clips, held) {
   return { cuts, fixed: escaped && !containing };
 }
 var occluders = /* @__PURE__ */ new Set();
-var LEAVING = "data-lf-leaving";
-var standsNow = (surface) => !surface.hasAttribute(LEAVING) && surface.checkVisibility();
+var standsNow = (surface) => surface.checkVisibility();
 function restingBox(surface) {
   let left = 0, top = 0;
   for (let at = surface; at; at = at.offsetParent) {
@@ -3068,6 +3038,74 @@ function setNoticeContext(active) {
   }
 }
 
+// runtime/errors.js
+var KEPT = 20;
+var raised = 0;
+var unsaid = [];
+var errors = Object.freeze([]);
+var presenters = /* @__PURE__ */ new Set();
+var publish = (next) => {
+  errors = Object.freeze(next.slice(0, KEPT));
+  for (const present of presenters) present();
+};
+var errorsReading = () => errors;
+function registerErrorPresentation(present) {
+  presenters.add(present);
+}
+function raiseError(message, { subject = null, announce: speak = true } = {}) {
+  return raise(message, subject, speak, null);
+}
+function raise(message, subject, speak, replaced) {
+  const id = ++raised;
+  if (speak && !unsaid.length)
+    queueMicrotask(() => {
+      announce(unsaid.map((said) => said.replace(/\.$/, "")).join(". "));
+      unsaid = [];
+    });
+  if (speak) unsaid.push(message);
+  publish([
+    Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
+    ...errors.filter((entry) => entry.id !== replaced)
+  ]);
+  return Object.freeze({ id, clear: () => dismissError(id) });
+}
+function passErrors(ids) {
+  if (errors.some((entry) => ids.includes(entry.id) && !entry.passed))
+    publish(
+      errors.map(
+        (entry) => ids.includes(entry.id) && !entry.passed ? Object.freeze({ ...entry, passed: true }) : entry
+      )
+    );
+}
+function seeErrors() {
+  if (errors.some((entry) => !entry.seen))
+    publish(
+      errors.map(
+        (entry) => entry.seen ? entry : Object.freeze({ ...entry, seen: true })
+      )
+    );
+}
+function dismissError(id) {
+  if (errors.some((entry) => entry.id === id))
+    publish(errors.filter((entry) => entry.id !== id));
+}
+function holdingError({ announce: speak = true } = {}) {
+  let held = null;
+  let said = null;
+  return (message) => {
+    if (message === said) return;
+    if (message) held = raise(message, null, speak, held?.id ?? null);
+    else {
+      held?.clear();
+      held = null;
+    }
+    said = message;
+  };
+}
+function dismissErrors() {
+  if (errors.length) publish([]);
+}
+
 // runtime/layer-client.js
 import { layerGeneration } from "/runtime/layer-generation.js";
 var { layer: documentLayer, release, probe } = DELIVERY;
@@ -3102,7 +3140,7 @@ function reloadNow(message) {
   location.reload();
 }
 var asking = false;
-var saidWaiting = false;
+var holdWaiting = holdingError();
 function reloadDelivery(message) {
   if (layerReloading || asking) return;
   asking = true;
@@ -3111,9 +3149,7 @@ function reloadDelivery(message) {
       const moved = await sourceMovedOn();
       if (moved === void 0) return;
       if (!moved) {
-        if (saidWaiting) return;
-        saidWaiting = true;
-        notice("Waiting for the server to finish updating.");
+        holdWaiting("Waiting for the server to finish updating.");
         return;
       }
       reloadNow(message);
@@ -3176,6 +3212,7 @@ function admitResponse(response) {
     reloadDelivery("Leaf has been updated \u2014 reloading this page.");
     return false;
   }
+  holdWaiting(null);
   return true;
 }
 var sessionMode = release ? "unknown" : "active";
@@ -3346,7 +3383,6 @@ export {
   contextBindings,
   titleOf,
   descriptionOf,
-  lineOf,
   allBindings,
   commandRoutes,
   commandBinding,
@@ -3369,7 +3405,6 @@ export {
   live,
   touchPresses,
   answersTouch,
-  activeRows,
   decisionControls,
   ariaShortcuts,
   answers,
@@ -3429,7 +3464,6 @@ export {
   watchLayers,
   nativeLayers,
   nativeModalAdmits,
-  transitionNativeAncestor,
   dismissPopoversOutside,
   overlaps,
   overlapsAcross,
@@ -3450,11 +3484,9 @@ export {
   scrolling,
   watchScrollEnds,
   shellRight,
-  declareBanner,
   declareWindowChrome,
   inWindowChrome,
   windowChromeBoxes,
-  bannerFoot,
   layoutWindow,
   shownWindow,
   shownBand,
@@ -3476,7 +3508,6 @@ export {
   seenRect,
   presented,
   frameView,
-  announceRoom,
   watchRoom,
   growthIsSeen,
   growthAfterIsSeen,
@@ -3486,12 +3517,9 @@ export {
   nearObserver,
   nearWindow,
   clippedContents,
-  LEAVING,
   declareOccluder,
   rightCover,
-  clipsPast,
   clipsPastSurfaces,
-  hides,
   underOccluder,
   placeHolder,
   placeBox,
@@ -3520,12 +3548,19 @@ export {
   motionPreview,
   liveEl,
   noticeReading,
-  noticeVisible,
   registerNoticePresentation,
   announce,
   notice,
   holdStatus,
   setNoticeContext,
+  errorsReading,
+  registerErrorPresentation,
+  raiseError,
+  passErrors,
+  seeErrors,
+  dismissError,
+  holdingError,
+  dismissErrors,
   layerHeaders,
   dataHeaders,
   completeData,

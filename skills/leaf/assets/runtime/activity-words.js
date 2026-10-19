@@ -1,9 +1,9 @@
-/* What each seat says about a page's served activity: the banner's status sentence and
-   its disclosure, and the leaves drawer's row. Both are worded here from the one
+/* What each seat says about a page's served activity: the page's status sentence and
+   what its explanation adds, and a row of All pages. Both are worded here from the one
    `activity` reading the server sends, and from the page's queues, so a fact the seats
-   share changes in one place. Nothing here reads or writes the document; banner.js and
-   live-leaves.js paint what these return, and `tests/runtime/activity-words.test.mjs`
-   holds each sentence. */
+   share changes in one place. Nothing here reads or writes the document; page-status.js
+   and live-leaves.js read what these return, the floating panel draws it, and
+   `tests/runtime/activity-words.test.mjs` holds each sentence. */
 import { JUST_NOW, ago } from "./presence.js";
 import { itemNoun } from "./queues.js";
 
@@ -36,7 +36,7 @@ const phrased = (counts, kinds) =>
   kinds
     .filter((kind) => counts[kind])
     .map((kind) => `${countResponses(counts[kind])} ${COUNT_PHRASES[kind]}`);
-// What the banner and the leaves drawer both read off one page's server-owned `activity`
+// What the status and an All pages row both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
 //
@@ -60,7 +60,7 @@ export function activityFacts({ activity }) {
   });
 }
 
-// ---------- the banner ----------
+// ---------- the page's status ----------
 
 // Words following a status sentence: a step the transport watched after a middle dot,
 // anything else as a sentence of its own. With nothing before them they stand alone.
@@ -216,15 +216,16 @@ function statusWords({
 // adopted, and `reach` how the latest read was answered (the publication's `reach`):
 // with that reading, with nothing (`unreachable`, or `refused` where the server refused
 // this tab's key rather than going away), or with a reading the page could not apply
-// (`broken`). The answer is the banner's reading before the queues join it
+// (`broken`). The answer is the status's reading before the queues join it
 // (`statusModel`): its `kind`, the dot's `tone`, the row's `summary`, the disclosure's
 // `explanation`, what that explanation `adds` to the summary for a seat that shows both
 // (the floating panel's menu), whether it `asks` the user to act, such as to nudge the
 // agent, answer what it declared it waits for, approve in its own session, or reload,
 // which a seat can draw louder than a status that only reports, and the
 // `actionableWork` whose change is announced. Each reading the user acts on differently
-// has its own `kind`, since a change of kind is what the banner announces: a server that
-// went away and then starts refusing this tab's key asks something new of the user.
+// has its own `kind`, since a change of kind is what the status announces
+// (page-status.js): a server that went away and then starts refusing this tab's key
+// asks something new of the user.
 export function pageStatus(state, { reach = "reached" } = {}) {
   if (reach === "broken")
     return {
@@ -324,21 +325,12 @@ export function pageStatus(state, { reach = "reached" } = {}) {
   };
 }
 
-// The page's two queues (`served_state.queues`) are told apart in the banner by where
-// they stand. What waits on the user, which `m` walks, is the On me door beside
-// Threads (queue-panel.js paints its count), and on a phone's one row it waits in More.
-// What waits on the agent, On <agent>, stands beside the status, apart from the sentence,
-// as the banner's whole account of the agent's side, with the disclosure naming both
-// sides' kinds and each open to-do's title. The agent's count is a page fact, like the
-// Threads count, and stands apart from the sentence so the agent's words changing never
-// carries it. On one row it ends the status's room, which gives up its words to the
-// ellipsis first; where the banner takes two rows, the sentence has the first to itself
-// and the count leads the second, ahead of the controls, and a phone's one row leaves it
-// to the disclosure (chrome.css). Its box is reserved for the count it usually reaches,
-// as the Threads control is for "Threads: 999", and only grows, so a count changing
-// moves none of its words.
+// The page's two queues (`served_state.queues`), as the status's explanation names
+// them: each side's kinds and each open to-do's title. The floating panel counts what
+// waits on the user on its On me mark. What a widget registered is counted as what is
+// left to answer, since only a row or the walk names it by its widget (`itemWord`).
 const QUEUE_WORDS = Object.freeze({
-  widget: ["item", "items"],
+  widget: ["to answer", "to answer"],
   approval: ["approval", "approvals"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
@@ -360,24 +352,15 @@ function queueKinds(items) {
   });
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
-  // The count stands in the banner's row, whose room theme.css states before the name is
-  // known, so a long name is cut there; the explanation keeps it whole.
-  const short = agent.length > 12 ? `${agent.slice(0, 11)}…` : agent;
   const named = (items, whom) =>
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
-  return {
-    summary: onAgent.length ? `On ${short}: ${onAgent.length}` : "",
-    explanation: [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" "),
-    // The widest the count usually reaches, under a hundred, which its box holds;
-    // a count past it is cut (banner-status-view.js).
-    widest: `On ${short}: 99`,
-  };
+  return [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" ");
 }
 const WITHOUT_QUEUES = new Set(["broken", "refused", "unreachable", "publication"]);
 
-// What the banner shows for a status (`pageStatus`, or a reading of startup's own),
-// beside the page's `queues` (`readQueues`) and the `agent` they wait on: the dot's
-// `tone`, the row's `summary` and the agent's count, the disclosure's `explanation` and
+// What the chrome shows for a status (`pageStatus`, or a reading of startup's own),
+// beside the page's `queues` (`readQueues`) and the `agent` they wait on: the leaf's
+// `tone`, the row's `summary`, the `explanation` and
 // what it `adds` to the summary, whether the status `asks` the user to act, and a
 // publication's introduction and links, which
 // remain an ordinary reading row rather than children of the status disclosure button.
@@ -386,12 +369,10 @@ export function statusModel(status, queues, agent) {
   let { explanation, adds } = status;
   let explanationParts = [...(status.explanationParts ?? textParts(explanation))];
   let addsParts = [...(status.addsParts ?? textParts(adds))];
-  const counted = WITHOUT_QUEUES.has(kind)
-    ? { summary: "", explanation: "", widest: "" }
-    : queueWords(queues, agent);
-  if (counted.explanation) {
-    appendWords(explanationParts, counted.explanation);
-    appendWords(addsParts, counted.explanation);
+  const counted = WITHOUT_QUEUES.has(kind) ? "" : queueWords(queues, agent);
+  if (counted) {
+    appendWords(explanationParts, counted);
+    appendWords(addsParts, counted);
     explanation = textOf(explanationParts);
     adds = textOf(addsParts);
   }
@@ -418,15 +399,13 @@ export function statusModel(status, queues, agent) {
     explanationParts,
     addsParts,
     asks,
-    queues: counted.summary,
-    queuesWidest: counted.widest,
     explanation,
     adds,
     publication: publicationModel,
   });
 }
 
-// ---------- the leaves drawer ----------
+// ---------- a row of All pages ----------
 
 // A row's whole account of a page: the dot's tone and one line of words, from an
 // canonical activity computed by each serving page. The wording is the seat's.
@@ -439,7 +418,7 @@ export function leafRow(entry) {
   // on: three pages waiting rendered as three identical rows, and which to go to
   // first is the whole question the panel was opened to answer.
   const stated = (word) => word + (detail ? " — " + detail : "");
-  // The banner's two silences, dated the same way and worded for a row.
+  // The status's two silences, dated the same way and worded for a row.
   const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
   const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
   const primary =

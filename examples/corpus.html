@@ -404,612 +404,6 @@
         },
       );
     </script>
-<!-- data-explorer.html authored styles -->
-<style>
-      release-query-explorer {
-        display: grid;
-        gap: var(--sp-3);
-        min-width: 0;
-      }
-
-      .query-toolbar,
-      .query-row,
-      .query-row-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--sp-2);
-        align-items: center;
-      }
-
-      .query-toolbar {
-        justify-content: space-between;
-      }
-
-      .query-row {
-        --lf-block-frame: 1;
-        padding: var(--sp-2);
-        border: 1px solid var(--border-2);
-        border-radius: var(--r-sm);
-        background: var(--card);
-      }
-
-      .query-row > label {
-        display: grid;
-        gap: var(--sp-1);
-        min-width: 8rem;
-        color: var(--ink-2);
-        font: 600 var(--t-6) / 1.2 var(--sans);
-      }
-
-      .query-row-actions {
-        margin-inline-start: auto;
-      }
-
-      .query-result-count {
-        margin: 0;
-        color: var(--ink-2);
-        font: 650 var(--t-5) / 1.3 var(--sans);
-      }
-
-      /* A table on the stage takes the stage's width; its frame scrolls it when the
-         stage is narrower than its columns. */
-      .query-results {
-        display: table;
-        table-layout: fixed;
-        width: 100%;
-        min-width: 30rem;
-      }
-
-      .query-table-frame {
-        min-width: 0;
-        overflow-x: auto;
-        padding-bottom: 15px;
-        --lf-block-frame: 1;
-      }
-
-      @media (max-width: 42rem) {
-        .query-row > label,
-        .query-row-actions {
-          flex: 1 1 100%;
-          margin-inline-start: 0;
-        }
-      }
-</style>
-<!-- data-explorer.html authored script -->
-<script type="module">
-      import {
-        PAGE_INTERFACE,
-        keepsText,
-        layoutChanged,
-        offer,
-        once,
-        setChildren,
-        whileConnected,
-      } from "/runtime/widget-api.js";
-
-      const RELEASES = [
-        { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
-        { service: "Catalog", region: "europe", risk: 31, owner: "discovery" },
-        { service: "Ledger", region: "americas", risk: 84, owner: "payments" },
-        { service: "Search", region: "asia", risk: 46, owner: "discovery" },
-        { service: "Fraud", region: "europe", risk: 91, owner: "risk" },
-        { service: "Identity", region: "americas", risk: 38, owner: "platform" },
-      ];
-      const DEFAULT_FILTERS = {
-        rows: [
-          { id: "filter-1", field: "region", operator: "is", value: "europe" },
-          { id: "filter-2", field: "risk", operator: "above", value: "40" },
-        ],
-        order: ["filter-1", "filter-2"],
-      };
-
-      function matches(release, row) {
-        const actual = release[row.field];
-        if (row.operator === "above") return Number(actual) > Number(row.value);
-        if (row.operator === "contains")
-          return String(actual).toLowerCase().includes(row.value.toLowerCase());
-        return String(actual).toLowerCase() === row.value.toLowerCase();
-      }
-
-      function labelledSelect(name, label, values, selected, changed) {
-        const wrapper = document.createElement("label");
-        wrapper.append(document.createTextNode(label));
-        const select = offer("select", "");
-        select.name = name;
-        for (const [value, words] of values) {
-          const option = document.createElement("option");
-          option.value = value;
-          option.textContent = words;
-          option.selected = value === selected;
-          select.append(option);
-        }
-        select.addEventListener("change", () => changed(select.value));
-        wrapper.append(select);
-        return wrapper;
-      }
-
-      customElements.define(
-        "release-query-explorer",
-        class extends HTMLElement {
-          #playground = null;
-          #filters = null;
-          #rows = null;
-          #results = null;
-          #count = null;
-          #rowEls = new Map();
-          #listed = "";
-
-          connectedCallback() {
-            if (!once(this)) return;
-            this.#build();
-            whileConnected(this, (signal) => this.#connect(signal));
-          }
-
-          #build() {
-            const toolbar = document.createElement("div");
-            toolbar.className = "query-toolbar";
-            toolbar.append(
-              document.createTextNode("Releases must match every filter."),
-            );
-            const add = offer("button", "lf-btn query-add", "Add filter");
-            add.addEventListener("click", () => {
-              const state = this.#filters.get();
-              const next =
-                Math.max(
-                  0,
-                  ...state.rows.map((row) => Number(row.id.split("-").at(-1))),
-                ) + 1;
-              const id = `filter-${next}`;
-              this.#filters.set({
-                rows: [
-                  ...state.rows,
-                  { id, field: "owner", operator: "is", value: "platform" },
-                ],
-                order: [...state.order, id],
-              });
-              queueMicrotask(() =>
-                this.querySelector(`[data-filter-id="${id}"] input`)?.focus(),
-              );
-            });
-            toolbar.append(add);
-            this.#rows = document.createElement("div");
-            this.#rows.className = "query-rows";
-            this.#count = document.createElement("p");
-            this.#count.className = "query-result-count";
-            this.#count.setAttribute("aria-live", "polite");
-            this.#results = document.createElement("tbody");
-            const table = document.createElement("table");
-            table.className = "query-results";
-            table.innerHTML =
-              "<thead><tr><th>Service</th><th>Region</th><th class='num'>Risk</th><th>Owner</th></tr></thead>";
-            table.append(this.#results);
-            const tableFrame = document.createElement("div");
-            tableFrame.className = "query-table-frame";
-            tableFrame.append(table);
-            this.append(toolbar, this.#rows, this.#count, tableFrame);
-          }
-
-          #connect(signal) {
-            let unsubscribe;
-            const initialize = () => {
-              if (signal.aborted || unsubscribe) return;
-              if (!this.#filters) this.#initialize();
-              unsubscribe = this.#playground.subscribe(() => this.#render());
-            };
-            document.addEventListener(
-              PAGE_INTERFACE,
-              (event) => event.detail.present(Promise.resolve().then(initialize)),
-              { signal },
-            );
-            if (this.#filters) initialize();
-            return () => unsubscribe?.();
-          }
-
-          #initialize() {
-            this.#playground = this.closest("lf-playground");
-            this.#filters = this.#playground.registerContributor(
-              "filters",
-              DEFAULT_FILTERS,
-            );
-            this.#playground.registerInstructionProvider((values) => {
-              const rows = values.filters.order.map((id) =>
-                values.filters.rows.find((row) => row.id === id),
-              );
-              const conditions = rows
-                .map((row) => `${row.field} ${row.operator} ${row.value}`)
-                .join(" and ");
-              const filterTask = conditions
-                ? `Require ${conditions}`
-                : "Apply no filters";
-              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
-            });
-          }
-
-          #update(id, field, value) {
-            const state = this.#filters.get();
-            this.#filters.set({
-              ...state,
-              rows: state.rows.map((row) =>
-                row.id === id ? { ...row, [field]: value } : row,
-              ),
-            });
-          }
-
-          #move(id, offset) {
-            const state = this.#filters.get();
-            const from = state.order.indexOf(id);
-            const to = from + offset;
-            if (to < 0 || to >= state.order.length) return;
-            const order = [...state.order];
-            [order[from], order[to]] = [order[to], order[from]];
-            this.#filters.set({ ...state, order });
-          }
-
-          #remove(id) {
-            const state = this.#filters.get();
-            const index = state.order.indexOf(id);
-            this.#filters.set({
-              rows: state.rows.filter((row) => row.id !== id),
-              order: state.order.filter((rowId) => rowId !== id),
-            });
-            queueMicrotask(() => {
-              const rows = this.querySelectorAll(".query-row");
-              const next = rows[Math.min(index, rows.length - 1)];
-              (
-                next?.querySelector("input") ?? this.querySelector(".query-add")
-              ).focus();
-            });
-          }
-
-          // Each filter keeps its row across renders, so the value being typed keeps its
-          // caret, and a render writes only what moved: a label, an end of the list, or
-          // the order.
-          #row(row) {
-            const known = this.#rowEls.get(row.id);
-            if (known) return known;
-            const { id } = row;
-            const element = document.createElement("div");
-            element.className = "query-row";
-            element.dataset.filterId = id;
-            const field = labelledSelect(
-              `${id}-field`,
-              "Field",
-              [
-                ["region", "Region"],
-                ["risk", "Risk"],
-                ["owner", "Owner"],
-              ],
-              row.field,
-              (value) => this.#update(id, "field", value),
-            );
-            const operator = labelledSelect(
-              `${id}-operator`,
-              "Operator",
-              [
-                ["is", "is"],
-                ["above", "is above"],
-                ["contains", "contains"],
-              ],
-              row.operator,
-              (value) => this.#update(id, "operator", value),
-            );
-            const valueLabel = document.createElement("label");
-            valueLabel.append(document.createTextNode("Value"));
-            const input = offer("input", "", undefined, "text");
-            input.name = `${id}-value`;
-            input.value = row.value;
-            input.addEventListener("input", () =>
-              this.#update(id, "value", input.value),
-            );
-            valueLabel.append(input);
-            const actions = document.createElement("div");
-            actions.className = "query-row-actions";
-            const up = offer("button", "lf-btn small");
-            const down = offer("button", "lf-btn small");
-            const remove = offer("button", "lf-btn small");
-            up.addEventListener("click", () => this.#move(id, -1));
-            down.addEventListener("click", () => this.#move(id, 1));
-            remove.addEventListener("click", () => this.#remove(id));
-            actions.append(up, down, remove);
-            element.append(field, operator, valueLabel, actions);
-            const made = {
-              element,
-              field: field.querySelector("select"),
-              operator: operator.querySelector("select"),
-              input,
-              up,
-              down,
-              remove,
-            };
-            this.#rowEls.set(id, made);
-            return made;
-          }
-
-          #render() {
-            const state = this.#filters.get();
-            const byId = new Map(state.rows.map((row) => [row.id, row]));
-            const last = state.order.length - 1;
-            const shown = state.order.map((id, index) => {
-              const row = byId.get(id);
-              const made = this.#row(row);
-              if (made.field.value !== row.field) made.field.value = row.field;
-              if (made.operator.value !== row.operator)
-                made.operator.value = row.operator;
-              if (made.input.value !== row.value) made.input.value = row.value;
-              keepsText(made.up, `Move filter ${index + 1} up`);
-              keepsText(made.down, `Move filter ${index + 1} down`);
-              keepsText(made.remove, `Remove filter ${index + 1}`);
-              made.up.toggleAttribute("disabled", index === 0);
-              made.down.toggleAttribute("disabled", index === last);
-              return made.element;
-            });
-            for (const id of this.#rowEls.keys())
-              if (!byId.has(id)) this.#rowEls.delete(id);
-            setChildren(this.#rows, shown);
-            const values = this.#playground.values;
-            const filtered = RELEASES.filter((release) =>
-              state.order.every((id) => matches(release, byId.get(id))),
-            ).slice(0, values.limit);
-            const listed = JSON.stringify(filtered);
-            if (listed !== this.#listed) {
-              this.#listed = listed;
-              this.#results.replaceChildren(
-                ...filtered.map((release) => {
-                  const row = document.createElement("tr");
-                  for (const value of Object.values(release)) {
-                    const cell = document.createElement("td");
-                    cell.textContent = value;
-                    if (typeof value === "number") cell.className = "num";
-                    row.append(cell);
-                  }
-                  return row;
-                }),
-              );
-            }
-            keepsText(
-              this.#count,
-              `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
-            );
-            layoutChanged(this);
-          }
-        },
-      );
-    </script>
-<!-- code-comparison.html authored styles -->
-<style data-controls="">
-      code-reader-comparison {
-        display: grid;
-        gap: var(--sp-3);
-        min-width: 0;
-        container-type: inline-size;
-      }
-
-      /* This stylesheet explicitly styles the controls this module builds. */
-      code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--sp-2);
-        align-items: center;
-      }
-
-      .code-comparison-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        align-items: start;
-        gap: var(--sp-3);
-        min-width: 0;
-      }
-
-      /* A candidate stands on the playground's stage as the built reader alone: its
-         lf-code is the one surface, and the frame is drawn only on the chosen one. */
-      .code-candidate {
-        --lf-block-frame: 1;
-        box-sizing: border-box;
-        min-width: 0;
-        padding: var(--sp-2);
-        border: 1px solid transparent;
-        border-radius: var(--r);
-      }
-
-      .code-candidate[data-candidate] {
-        max-width: 100%;
-      }
-
-      .code-candidate-title,
-      .reader-treatment-title {
-        margin: 0 0 var(--sp-1);
-        font: 650 var(--t-5) / 1.3 var(--sans);
-      }
-
-      #code-comparison-playground[data-playground-chosen="A"]
-        .code-candidate[data-candidate="A"],
-      #code-comparison-playground[data-playground-chosen="B"]
-        .code-candidate[data-candidate="B"] {
-        border-color: var(--accent);
-        box-shadow: inset 0 0 0 1px var(--accent);
-      }
-
-      .code-candidate lf-code {
-        --lf-block-frame: 1;
-        box-sizing: border-box;
-        width: 100%;
-        max-width: 100%;
-      }
-
-      .code-candidate[data-density="compact"] lf-code pre {
-        line-height: 1.25;
-      }
-
-      .code-candidate[data-density="comfortable"] lf-code pre {
-        line-height: 1.65;
-      }
-
-      /* The built reader wraps a line longer than its block. A scrolled candidate gives
-         each line its source's width back, so the block scrolls instead. */
-      .code-candidate[data-wrap="false"] .lf-code-line {
-        width: max-content;
-        min-width: 100%;
-        box-sizing: border-box;
-        white-space: pre;
-      }
-
-      .code-measurement {
-        margin: 0 0 var(--sp-2);
-        color: var(--ink-2);
-        font: var(--t-6) / 1.3 var(--sans);
-      }
-
-      /* Side by side while the stage gives each candidate room to read. */
-      @container (max-width: 40rem) {
-        .code-comparison-grid {
-          grid-template-columns: minmax(0, 1fr);
-        }
-      }
-</style>
-<!-- code-comparison.html authored script -->
-<script type="module">
-      import {
-        PAGE_INTERFACE,
-        frameFor,
-        keeps,
-        keepsText,
-        layoutChanged,
-        offer,
-        once,
-        sizeObserver,
-        whileConnected,
-      } from "/runtime/widget-api.js";
-
-      const DEFAULT_COMPARISON = {
-        candidateA: { density: "compact", wrap: false },
-        candidateB: { density: "comfortable", wrap: true },
-      };
-
-      customElements.define(
-        "code-reader-comparison",
-        class extends HTMLElement {
-          #playground = null;
-          #comparison = null;
-          #readerLayout = (event) => {
-            if (event.target.matches("lf-code")) this.#scheduleMeasurement();
-          };
-
-          connectedCallback() {
-            if (!once(this)) return;
-            this.#build();
-            whileConnected(this, (signal) => this.#connect(signal));
-          }
-
-          #button(label, run) {
-            const button = offer("button", "lf-btn small", label);
-            button.addEventListener("click", run);
-            return button;
-          }
-
-          #build() {
-            const toolbar = offer("div", "code-comparison-toolbar");
-            toolbar.setAttribute("aria-label", "Candidate-specific controls");
-            toolbar.append(
-              this.#button("Toggle A density", () => this.#toggleDensity("candidateA")),
-              this.#button("Toggle B density", () => this.#toggleDensity("candidateB")),
-              this.#button("Copy A to B", () => this.#copy("candidateA", "candidateB")),
-              this.#button("Copy B to A", () => this.#copy("candidateB", "candidateA")),
-            );
-            this.prepend(toolbar);
-          }
-
-          #connect(signal) {
-            let unsubscribe;
-            const initialize = () => {
-              if (signal.aborted || unsubscribe) return;
-              if (!this.#comparison) this.#initialize();
-              unsubscribe = this.#playground.subscribe(() => this.#render());
-            };
-            document.addEventListener(
-              PAGE_INTERFACE,
-              (event) => event.detail.present(Promise.resolve().then(initialize)),
-              { signal },
-            );
-            if (this.#comparison) initialize();
-            this.addEventListener("lf-layout", this.#readerLayout, { signal });
-            const watching = sizeObserver(this.#scheduleMeasurement);
-            signal.addEventListener("abort", () => watching.disconnect());
-            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
-              watching.observe(reader);
-            }
-            return () => unsubscribe?.();
-          }
-
-          #initialize() {
-            this.#playground = this.closest("lf-playground");
-            this.#comparison = this.#playground.registerContributor(
-              "comparison",
-              DEFAULT_COMPARISON,
-            );
-            this.#playground.registerInstructionProvider((values) => {
-              const chosen =
-                values.comparison[values.chosen === "A" ? "candidateA" : "candidateB"];
-              const wrapping = chosen.wrap
-                ? "wrap long lines"
-                : "keep horizontal scrolling";
-              return `Update the built Leaf code reader in skills/leaf/packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
-            });
-          }
-
-          #toggleDensity(candidate) {
-            const state = this.#comparison.get();
-            this.#comparison.set({
-              ...state,
-              [candidate]: {
-                ...state[candidate],
-                density:
-                  state[candidate].density === "compact" ? "comfortable" : "compact",
-              },
-            });
-          }
-
-          #copy(from, to) {
-            const state = this.#comparison.get();
-            this.#comparison.set({ ...state, [to]: state[from] });
-          }
-
-          #render() {
-            const state = this.#comparison.get();
-            const values = this.#playground.values;
-            for (const [name, key] of [
-              ["A", "candidateA"],
-              ["B", "candidateB"],
-            ]) {
-              const candidate = this.querySelector(`[data-candidate="${name}"]`);
-              const setting = state[key];
-              keeps(candidate, "data-density", setting.density);
-              keeps(candidate, "data-wrap", setting.wrap);
-              candidate.style.width = `${values.width}px`;
-              keepsText(
-                candidate.querySelector(".code-candidate-title"),
-                `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`,
-              );
-            }
-            this.#scheduleMeasurement();
-          }
-
-          // Reader rendering and box changes invalidate the same derived reading.
-          #scheduleMeasurement = frameFor(this, () => {
-            for (const name of ["A", "B"]) {
-              const candidate = this.querySelector(`[data-candidate="${name}"]`);
-              const pre = candidate.querySelector("lf-code pre");
-              const measurement = candidate.querySelector(".code-measurement");
-              if (!pre || !measurement) continue;
-              keepsText(
-                measurement,
-                `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
-              );
-            }
-            layoutChanged(this);
-          });
-        },
-      );
-    </script>
 <!-- alert-thresholds.html authored styles -->
 <style>
       /* The stage holds the totals and one pair per alert: its evidence, and beside it
@@ -1512,18 +906,18 @@
         color: var(--danger-ink);
       }
 
-      #pr-flow-diagram .node.removed rect {
+      #pr-flow-diagram .pele-node.removed rect {
         fill: var(--del-tint);
         stroke: var(--danger);
       }
-      #pr-flow-diagram .node.removed text {
+      #pr-flow-diagram .pele-node.removed text {
         fill: var(--danger-ink);
       }
-      #pr-flow-diagram .node.added rect {
+      #pr-flow-diagram .pele-node.added rect {
         fill: var(--ok-tint);
         stroke: var(--ok);
       }
-      #pr-flow-diagram .node.added text {
+      #pr-flow-diagram .pele-node.added text {
         fill: var(--ok-ink);
       }
 
@@ -2104,19 +1498,625 @@
       });
       followLine();
     </script>
-<!-- security-boundary.html authored styles -->
-<style>
-      #security-before-flow .node.danger rect {
-        fill: var(--danger-tint);
-        stroke: var(--danger);
+<!-- code-comparison.html authored styles -->
+<style data-controls="">
+      code-reader-comparison {
+        display: grid;
+        gap: var(--sp-3);
+        min-width: 0;
+        container-type: inline-size;
       }
-      #security-before-flow .node.danger text {
-        fill: var(--danger-ink);
+
+      /* This stylesheet explicitly styles the controls this module builds. */
+      code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        align-items: center;
+      }
+
+      .code-comparison-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+        gap: var(--sp-3);
+        min-width: 0;
+      }
+
+      /* A candidate stands on the playground's stage as the built reader alone: its
+         lf-code is the one surface, and the frame is drawn only on the chosen one. */
+      .code-candidate {
+        --lf-block-frame: 1;
+        box-sizing: border-box;
+        min-width: 0;
+        padding: var(--sp-2);
+        border: 1px solid transparent;
+        border-radius: var(--r);
+      }
+
+      .code-candidate[data-candidate] {
+        max-width: 100%;
+      }
+
+      .code-candidate-title,
+      .reader-treatment-title {
+        margin: 0 0 var(--sp-1);
+        font: 650 var(--t-5) / 1.3 var(--sans);
+      }
+
+      #code-comparison-playground[data-playground-chosen="A"]
+        .code-candidate[data-candidate="A"],
+      #code-comparison-playground[data-playground-chosen="B"]
+        .code-candidate[data-candidate="B"] {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+
+      .code-candidate lf-code {
+        --lf-block-frame: 1;
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .code-candidate[data-density="compact"] lf-code pre {
+        line-height: 1.25;
+      }
+
+      .code-candidate[data-density="comfortable"] lf-code pre {
+        line-height: 1.65;
+      }
+
+      /* The built reader wraps a line longer than its block. A scrolled candidate gives
+         each line its source's width back, so the block scrolls instead. */
+      .code-candidate[data-wrap="false"] .lf-code-line {
+        width: max-content;
+        min-width: 100%;
+        box-sizing: border-box;
+        white-space: pre;
+      }
+
+      .code-measurement {
+        margin: 0 0 var(--sp-2);
+        color: var(--ink-2);
+        font: var(--t-6) / 1.3 var(--sans);
+      }
+
+      /* Side by side while the stage gives each candidate room to read. */
+      @container (max-width: 40rem) {
+        .code-comparison-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
 </style>
+<!-- code-comparison.html authored script -->
+<script type="module">
+      import {
+        PAGE_INTERFACE,
+        frameFor,
+        keeps,
+        keepsText,
+        layoutChanged,
+        offer,
+        once,
+        sizeObserver,
+        whileConnected,
+      } from "/runtime/widget-api.js";
+
+      const DEFAULT_COMPARISON = {
+        candidateA: { density: "compact", wrap: false },
+        candidateB: { density: "comfortable", wrap: true },
+      };
+
+      customElements.define(
+        "code-reader-comparison",
+        class extends HTMLElement {
+          #playground = null;
+          #comparison = null;
+          #readerLayout = (event) => {
+            if (event.target.matches("lf-code")) this.#scheduleMeasurement();
+          };
+
+          connectedCallback() {
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => this.#connect(signal));
+          }
+
+          #button(label, run) {
+            const button = offer("button", "lf-btn small", label);
+            button.addEventListener("click", run);
+            return button;
+          }
+
+          #build() {
+            const toolbar = offer("div", "code-comparison-toolbar");
+            toolbar.setAttribute("aria-label", "Candidate-specific controls");
+            toolbar.append(
+              this.#button("Toggle A density", () => this.#toggleDensity("candidateA")),
+              this.#button("Toggle B density", () => this.#toggleDensity("candidateB")),
+              this.#button("Copy A to B", () => this.#copy("candidateA", "candidateB")),
+              this.#button("Copy B to A", () => this.#copy("candidateB", "candidateA")),
+            );
+            this.prepend(toolbar);
+          }
+
+          #connect(signal) {
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              if (!this.#comparison) this.#initialize();
+              unsubscribe = this.#playground.subscribe(() => this.#render());
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
+              { signal },
+            );
+            if (this.#comparison) initialize();
+            this.addEventListener("lf-layout", this.#readerLayout, { signal });
+            const watching = sizeObserver(this.#scheduleMeasurement);
+            signal.addEventListener("abort", () => watching.disconnect());
+            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
+              watching.observe(reader);
+            }
+            return () => unsubscribe?.();
+          }
+
+          #initialize() {
+            this.#playground = this.closest("lf-playground");
+            this.#comparison = this.#playground.registerContributor(
+              "comparison",
+              DEFAULT_COMPARISON,
+            );
+            this.#playground.registerInstructionProvider((values) => {
+              const chosen =
+                values.comparison[values.chosen === "A" ? "candidateA" : "candidateB"];
+              const wrapping = chosen.wrap
+                ? "wrap long lines"
+                : "keep horizontal scrolling";
+              return `Update the built Leaf code reader in skills/leaf/packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
+            });
+          }
+
+          #toggleDensity(candidate) {
+            const state = this.#comparison.get();
+            this.#comparison.set({
+              ...state,
+              [candidate]: {
+                ...state[candidate],
+                density:
+                  state[candidate].density === "compact" ? "comfortable" : "compact",
+              },
+            });
+          }
+
+          #copy(from, to) {
+            const state = this.#comparison.get();
+            this.#comparison.set({ ...state, [to]: state[from] });
+          }
+
+          #render() {
+            const state = this.#comparison.get();
+            const values = this.#playground.values;
+            for (const [name, key] of [
+              ["A", "candidateA"],
+              ["B", "candidateB"],
+            ]) {
+              const candidate = this.querySelector(`[data-candidate="${name}"]`);
+              const setting = state[key];
+              keeps(candidate, "data-density", setting.density);
+              keeps(candidate, "data-wrap", setting.wrap);
+              candidate.style.width = `${values.width}px`;
+              keepsText(
+                candidate.querySelector(".code-candidate-title"),
+                `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`,
+              );
+            }
+            this.#scheduleMeasurement();
+          }
+
+          // Reader rendering and box changes invalidate the same derived reading.
+          #scheduleMeasurement = frameFor(this, () => {
+            for (const name of ["A", "B"]) {
+              const candidate = this.querySelector(`[data-candidate="${name}"]`);
+              const pre = candidate.querySelector("lf-code pre");
+              const measurement = candidate.querySelector(".code-measurement");
+              if (!pre || !measurement) continue;
+              keepsText(
+                measurement,
+                `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
+              );
+            }
+            layoutChanged(this);
+          });
+        },
+      );
+    </script>
 <!-- command-hub.html authored styles -->
 <style>
       @import url("/page/theme.css");
+</style>
+<!-- data-explorer.html authored styles -->
+<style>
+      release-query-explorer {
+        display: grid;
+        gap: var(--sp-3);
+        min-width: 0;
+      }
+
+      .query-toolbar,
+      .query-row,
+      .query-row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        align-items: center;
+      }
+
+      .query-toolbar {
+        justify-content: space-between;
+      }
+
+      .query-row {
+        --lf-block-frame: 1;
+        padding: var(--sp-2);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r-sm);
+        background: var(--card);
+      }
+
+      .query-row > label {
+        display: grid;
+        gap: var(--sp-1);
+        min-width: 8rem;
+        color: var(--ink-2);
+        font: 600 var(--t-6) / 1.2 var(--sans);
+      }
+
+      .query-row-actions {
+        margin-inline-start: auto;
+      }
+
+      .query-result-count {
+        margin: 0;
+        color: var(--ink-2);
+        font: 650 var(--t-5) / 1.3 var(--sans);
+      }
+
+      /* A table on the stage takes the stage's width; its frame scrolls it when the
+         stage is narrower than its columns. */
+      .query-results {
+        display: table;
+        table-layout: fixed;
+        width: 100%;
+        min-width: 30rem;
+      }
+
+      .query-table-frame {
+        min-width: 0;
+        overflow-x: auto;
+        padding-bottom: 15px;
+        --lf-block-frame: 1;
+      }
+
+      @media (max-width: 42rem) {
+        .query-row > label,
+        .query-row-actions {
+          flex: 1 1 100%;
+          margin-inline-start: 0;
+        }
+      }
+</style>
+<!-- data-explorer.html authored script -->
+<script type="module">
+      import {
+        PAGE_INTERFACE,
+        keepsText,
+        layoutChanged,
+        offer,
+        once,
+        setChildren,
+        whileConnected,
+      } from "/runtime/widget-api.js";
+
+      const RELEASES = [
+        { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
+        { service: "Catalog", region: "europe", risk: 31, owner: "discovery" },
+        { service: "Ledger", region: "americas", risk: 84, owner: "payments" },
+        { service: "Search", region: "asia", risk: 46, owner: "discovery" },
+        { service: "Fraud", region: "europe", risk: 91, owner: "risk" },
+        { service: "Identity", region: "americas", risk: 38, owner: "platform" },
+      ];
+      const DEFAULT_FILTERS = {
+        rows: [
+          { id: "filter-1", field: "region", operator: "is", value: "europe" },
+          { id: "filter-2", field: "risk", operator: "above", value: "40" },
+        ],
+        order: ["filter-1", "filter-2"],
+      };
+
+      function matches(release, row) {
+        const actual = release[row.field];
+        if (row.operator === "above") return Number(actual) > Number(row.value);
+        if (row.operator === "contains")
+          return String(actual).toLowerCase().includes(row.value.toLowerCase());
+        return String(actual).toLowerCase() === row.value.toLowerCase();
+      }
+
+      function labelledSelect(name, label, values, selected, changed) {
+        const wrapper = document.createElement("label");
+        wrapper.append(document.createTextNode(label));
+        const select = offer("select", "");
+        select.name = name;
+        for (const [value, words] of values) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = words;
+          option.selected = value === selected;
+          select.append(option);
+        }
+        select.addEventListener("change", () => changed(select.value));
+        wrapper.append(select);
+        return wrapper;
+      }
+
+      customElements.define(
+        "release-query-explorer",
+        class extends HTMLElement {
+          #playground = null;
+          #filters = null;
+          #rows = null;
+          #results = null;
+          #count = null;
+          #rowEls = new Map();
+          #listed = "";
+
+          connectedCallback() {
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => this.#connect(signal));
+          }
+
+          #build() {
+            const toolbar = document.createElement("div");
+            toolbar.className = "query-toolbar";
+            toolbar.append(
+              document.createTextNode("Releases must match every filter."),
+            );
+            const add = offer("button", "lf-btn query-add", "Add filter");
+            add.addEventListener("click", () => {
+              const state = this.#filters.get();
+              const next =
+                Math.max(
+                  0,
+                  ...state.rows.map((row) => Number(row.id.split("-").at(-1))),
+                ) + 1;
+              const id = `filter-${next}`;
+              this.#filters.set({
+                rows: [
+                  ...state.rows,
+                  { id, field: "owner", operator: "is", value: "platform" },
+                ],
+                order: [...state.order, id],
+              });
+              queueMicrotask(() =>
+                this.querySelector(`[data-filter-id="${id}"] input`)?.focus(),
+              );
+            });
+            toolbar.append(add);
+            this.#rows = document.createElement("div");
+            this.#rows.className = "query-rows";
+            this.#count = document.createElement("p");
+            this.#count.className = "query-result-count";
+            this.#count.setAttribute("aria-live", "polite");
+            this.#results = document.createElement("tbody");
+            const table = document.createElement("table");
+            table.className = "query-results";
+            table.innerHTML =
+              "<thead><tr><th>Service</th><th>Region</th><th class='num'>Risk</th><th>Owner</th></tr></thead>";
+            table.append(this.#results);
+            const tableFrame = document.createElement("div");
+            tableFrame.className = "query-table-frame";
+            tableFrame.append(table);
+            this.append(toolbar, this.#rows, this.#count, tableFrame);
+          }
+
+          #connect(signal) {
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              if (!this.#filters) this.#initialize();
+              unsubscribe = this.#playground.subscribe(() => this.#render());
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
+              { signal },
+            );
+            if (this.#filters) initialize();
+            return () => unsubscribe?.();
+          }
+
+          #initialize() {
+            this.#playground = this.closest("lf-playground");
+            this.#filters = this.#playground.registerContributor(
+              "filters",
+              DEFAULT_FILTERS,
+            );
+            this.#playground.registerInstructionProvider((values) => {
+              const rows = values.filters.order.map((id) =>
+                values.filters.rows.find((row) => row.id === id),
+              );
+              const conditions = rows
+                .map((row) => `${row.field} ${row.operator} ${row.value}`)
+                .join(" and ");
+              const filterTask = conditions
+                ? `Require ${conditions}`
+                : "Apply no filters";
+              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
+            });
+          }
+
+          #update(id, field, value) {
+            const state = this.#filters.get();
+            this.#filters.set({
+              ...state,
+              rows: state.rows.map((row) =>
+                row.id === id ? { ...row, [field]: value } : row,
+              ),
+            });
+          }
+
+          #move(id, offset) {
+            const state = this.#filters.get();
+            const from = state.order.indexOf(id);
+            const to = from + offset;
+            if (to < 0 || to >= state.order.length) return;
+            const order = [...state.order];
+            [order[from], order[to]] = [order[to], order[from]];
+            this.#filters.set({ ...state, order });
+          }
+
+          #remove(id) {
+            const state = this.#filters.get();
+            const index = state.order.indexOf(id);
+            this.#filters.set({
+              rows: state.rows.filter((row) => row.id !== id),
+              order: state.order.filter((rowId) => rowId !== id),
+            });
+            queueMicrotask(() => {
+              const rows = this.querySelectorAll(".query-row");
+              const next = rows[Math.min(index, rows.length - 1)];
+              (
+                next?.querySelector("input") ?? this.querySelector(".query-add")
+              ).focus();
+            });
+          }
+
+          // Each filter keeps its row across renders, so the value being typed keeps its
+          // caret, and a render writes only what moved: a label, an end of the list, or
+          // the order.
+          #row(row) {
+            const known = this.#rowEls.get(row.id);
+            if (known) return known;
+            const { id } = row;
+            const element = document.createElement("div");
+            element.className = "query-row";
+            element.dataset.filterId = id;
+            const field = labelledSelect(
+              `${id}-field`,
+              "Field",
+              [
+                ["region", "Region"],
+                ["risk", "Risk"],
+                ["owner", "Owner"],
+              ],
+              row.field,
+              (value) => this.#update(id, "field", value),
+            );
+            const operator = labelledSelect(
+              `${id}-operator`,
+              "Operator",
+              [
+                ["is", "is"],
+                ["above", "is above"],
+                ["contains", "contains"],
+              ],
+              row.operator,
+              (value) => this.#update(id, "operator", value),
+            );
+            const valueLabel = document.createElement("label");
+            valueLabel.append(document.createTextNode("Value"));
+            const input = offer("input", "", undefined, "text");
+            input.name = `${id}-value`;
+            input.value = row.value;
+            input.addEventListener("input", () =>
+              this.#update(id, "value", input.value),
+            );
+            valueLabel.append(input);
+            const actions = document.createElement("div");
+            actions.className = "query-row-actions";
+            const up = offer("button", "lf-btn small");
+            const down = offer("button", "lf-btn small");
+            const remove = offer("button", "lf-btn small");
+            up.addEventListener("click", () => this.#move(id, -1));
+            down.addEventListener("click", () => this.#move(id, 1));
+            remove.addEventListener("click", () => this.#remove(id));
+            actions.append(up, down, remove);
+            element.append(field, operator, valueLabel, actions);
+            const made = {
+              element,
+              field: field.querySelector("select"),
+              operator: operator.querySelector("select"),
+              input,
+              up,
+              down,
+              remove,
+            };
+            this.#rowEls.set(id, made);
+            return made;
+          }
+
+          #render() {
+            const state = this.#filters.get();
+            const byId = new Map(state.rows.map((row) => [row.id, row]));
+            const last = state.order.length - 1;
+            const shown = state.order.map((id, index) => {
+              const row = byId.get(id);
+              const made = this.#row(row);
+              if (made.field.value !== row.field) made.field.value = row.field;
+              if (made.operator.value !== row.operator)
+                made.operator.value = row.operator;
+              if (made.input.value !== row.value) made.input.value = row.value;
+              keepsText(made.up, `Move filter ${index + 1} up`);
+              keepsText(made.down, `Move filter ${index + 1} down`);
+              keepsText(made.remove, `Remove filter ${index + 1}`);
+              made.up.toggleAttribute("disabled", index === 0);
+              made.down.toggleAttribute("disabled", index === last);
+              return made.element;
+            });
+            for (const id of this.#rowEls.keys())
+              if (!byId.has(id)) this.#rowEls.delete(id);
+            setChildren(this.#rows, shown);
+            const values = this.#playground.values;
+            const filtered = RELEASES.filter((release) =>
+              state.order.every((id) => matches(release, byId.get(id))),
+            ).slice(0, values.limit);
+            const listed = JSON.stringify(filtered);
+            if (listed !== this.#listed) {
+              this.#listed = listed;
+              this.#results.replaceChildren(
+                ...filtered.map((release) => {
+                  const row = document.createElement("tr");
+                  for (const value of Object.values(release)) {
+                    const cell = document.createElement("td");
+                    cell.textContent = value;
+                    if (typeof value === "number") cell.className = "num";
+                    row.append(cell);
+                  }
+                  return row;
+                }),
+              );
+            }
+            keepsText(
+              this.#count,
+              `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
+            );
+            layoutChanged(this);
+          }
+        },
+      );
+    </script>
+<!-- security-boundary.html authored styles -->
+<style>
+      #security-before-flow .pele-node.danger rect {
+        fill: var(--danger-tint);
+        stroke: var(--danger);
+      }
+      #security-before-flow .pele-node.danger text {
+        fill: var(--danger-ink);
+      }
 </style>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
@@ -2485,11 +2485,7 @@
           summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
           progress: "bg-progress-question",
         }[view];
-        void sample.showThread(thread, {
-          surface: "panel",
-          status: view === "resolved" ? "resolved" : "open",
-          waiting: view === "you" ? "user" : "all",
-        });
+        void sample.showThread(thread, { surface: "panel" });
       }
 
       for (const button of document.querySelectorAll("#bg-panel-presets button")) {
@@ -2515,7 +2511,7 @@ catalog.</p>
 <section id="corpus-sources">
 <lf-tabs id="corpus">
 
-<lf-tab id="corpus-review-a-plan" label="Plan review">
+<lf-tab id="corpus-review-a-plan" label="Review a plan: sandbox Tend’s agents">
 <header id="plan-top">
         <p class="eyebrow">Tend · sandboxing · implementation plan</p>
         <h1>Move Tend’s agent runs into one sandbox</h1>
@@ -2721,7 +2717,7 @@ catalog.</p>
       </section>
 </lf-tab>
 
-<lf-tab id="corpus-triage-board" label="Triage">
+<lf-tab id="corpus-triage-board" label="Release triage">
 <header>
         <p class="eyebrow">triage · v2.4 release · cut Thursday</p>
         <h1>Release triage</h1>
@@ -2804,7 +2800,7 @@ catalog.</p>
       </aside>
 </lf-tab>
 
-<lf-tab id="corpus-ideas-to-implement" label="Ideas">
+<lf-tab id="corpus-ideas-to-implement" label="Choose ideas to implement">
 <h1>Ideas to implement</h1>
       <p class="lede" id="ideas-premise">
         Select the ideas to build this round and leave the others unchecked. Each can
@@ -2847,7 +2843,7 @@ catalog.</p>
       </lf-ask>
 </lf-tab>
 
-<lf-tab id="corpus-release-notes" label="Notes">
+<lf-tab id="corpus-release-notes" label="Release 3.2 notes for review">
 <h1>Review the 3.2 release packet</h1>
       <p class="lede" id="rn-lede">
         Review four notes for users and operators. Edit any draft that needs different
@@ -2922,7 +2918,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
       </section>
 </lf-tab>
 
-<lf-tab id="corpus-log-retention" label="Retention">
+<lf-tab id="corpus-log-retention" label="Most raw request logs: 45 days, failures: 120">
 <h1 id="ret-title">Keep most raw request logs for 45 days</h1>
       <p class="lede" id="ret-lede">
         Ordinary raw logs fall from 400 days to 45; 5xx logs keep 120 days. Aggregates
@@ -2983,7 +2979,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
       </section>
 </lf-tab>
 
-<lf-tab id="corpus-ship-review" label="Ship review">
+<lf-tab id="corpus-ship-review" label="Finish the iOS ship review">
 <h1>Finish the ship review</h1>
       <p class="lede" id="off-lede">
         The resend is accepted for the first patch: it recovered all 500 forced stalls,
@@ -3055,7 +3051,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
       </dl>
 </lf-tab>
 
-<lf-tab id="corpus-heat-loss" label="Heat">
+<lf-tab id="corpus-heat-loss" label="Choose the next heat-loss fix">
 <h1>Book the loft hatch first</h1>
       <p class="lede" id="heat-lede">
         The survey estimates 265 W of heat loss through the hatch, slightly more than
@@ -3170,7 +3166,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
       </section>
 </lf-tab>
 
-<lf-tab id="corpus-notification-playground" label="Notification">
+<lf-tab id="corpus-notification-playground" label="Stress-test a deployment notification">
 <lf-ask id="notification-ask">
         <h1>Stress-test the deployment notification</h1>
         <lf-playground
@@ -3294,172 +3290,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
       </lf-ask>
 </lf-tab>
 
-<lf-tab id="corpus-data-explorer" label="Data explorer">
-<header><h1>Shape a release query</h1></header>
-      <lf-ask id="release-query-ask">
-        <h2>Which release query should the agent build?</h2>
-        <lf-playground
-          id="release-query-playground"
-          submit-label="Build query"
-          data-width="available"
-        >
-          <lf-playground-control
-            name="limit"
-            label="Maximum results"
-            kind="range"
-            value="4"
-            min="1"
-            max="6"
-            step="1"
-          ></lf-playground-control>
-          <lf-playground-preset label="Up to 4 results">
-            <lf-playground-setting for="limit" value="4"></lf-playground-setting>
-          </lf-playground-preset>
-          <lf-playground-preset label="Up to 6 results">
-            <lf-playground-setting for="limit" value="6"></lf-playground-setting>
-          </lf-playground-preset>
-          <lf-playground-preview id="release-query-preview">
-            <release-query-explorer
-              id="release-query-explorer"
-            ></release-query-explorer>
-          </lf-playground-preview>
-          <lf-playground-output id="release-query-instruction">
-            Implement the default release query in <code>release-report.sql</code> and
-            show the query plus its result-table test.
-          </lf-playground-output>
-        </lf-playground>
-      </lf-ask>
-</lf-tab>
-
-<lf-tab id="corpus-code-comparison" label="Code comparison">
-<header><h1>Choose a code reader treatment</h1></header>
-      <lf-tabs id="code-comparison-views">
-        <lf-tab id="code-comparison-choose" label="Compare">
-          <div class="layout-workspace density-working" id="code-comparison-compare">
-          <lf-ask id="code-comparison-ask">
-            <h2>Which code-reader treatment should the agent keep?</h2>
-            <lf-playground
-              id="code-comparison-playground"
-              submit-label="Apply treatment"
-              data-width="available"
-            >
-              <lf-playground-control
-                name="width"
-                label="Comparison viewport"
-                kind="range"
-                value="420"
-                min="280"
-                max="520"
-                step="20"
-                unit="px"
-              ></lf-playground-control>
-              <lf-playground-control
-                name="chosen"
-                label="Treatment"
-                kind="choice"
-                value="A"
-              >
-                <lf-playground-choice value="A" label="A"></lf-playground-choice>
-                <lf-playground-choice value="B" label="B"></lf-playground-choice>
-              </lf-playground-control>
-              <lf-playground-preset label="A at 420px">
-                <lf-playground-setting for="width" value="420"></lf-playground-setting>
-                <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
-              </lf-playground-preset>
-              <lf-playground-preset label="B at 320px">
-                <lf-playground-setting for="width" value="320"></lf-playground-setting>
-                <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
-              </lf-playground-preset>
-              <lf-playground-preview id="code-comparison-preview">
-                <code-reader-comparison id="code-reader-comparison">
-                  <div class="code-comparison-grid">
-                    <section
-                      class="code-candidate"
-                      data-candidate="A"
-                      id="compact-code-candidate"
-                    >
-                      <h3 class="code-candidate-title">A · compact · scroll</h3>
-                      <p class="code-measurement" aria-live="polite">Measuring…</p>
-                      <lf-code id="compact-built-code" language="javascript" hi="2-4">
-                        <pre>
-export function releaseLabel(service, checks) {
-  const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
-  const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
-  return `${service} (${state}): ${detail}`;
-}
-
-export function releaseLabels(releases) {
-  return releases
-    .filter((release) => release.checks.total > 0)
-    .map((release) => releaseLabel(release.service, release.checks));
-}</pre>
-                      </lf-code>
-                    </section>
-                    <section
-                      class="code-candidate"
-                      data-candidate="B"
-                      id="wrapped-code-candidate"
-                    >
-                      <h3 class="code-candidate-title">B · comfortable · wrap</h3>
-                      <p class="code-measurement" aria-live="polite">Measuring…</p>
-                      <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
-                        <pre>
-export function releaseLabel(service, checks) {
-  const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
-  const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
-  return `${service} (${state}): ${detail}`;
-}
-
-export function releaseLabels(releases) {
-  return releases
-    .filter((release) => release.checks.total > 0)
-    .map((release) => releaseLabel(release.service, release.checks));
-}</pre>
-                      </lf-code>
-                    </section>
-                  </div>
-                </code-reader-comparison>
-              </lf-playground-preview>
-              <lf-playground-output id="code-comparison-instruction">
-                Update the built Leaf code reader and show the focused browser
-                measurement test.
-              </lf-playground-output>
-            </lf-playground>
-          </lf-ask>
-          </div>
-        </lf-tab>
-        <lf-tab id="code-comparison-comment" label="Comment on the reader">
-          <article class="layout-column" id="code-comparison-reading">
-          <section id="code-reader-feedback">
-            <h2>Point at the reader element you want changed</h2>
-            <p id="code-reader-feedback-guide">
-              Turn on Design mode with <kbd>l</kbd> or the More menu, then press the
-              heading or code reader below. For a keyboard choice, press <kbd>s</kbd>,
-              browse targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your
-              comment stays beside that element as its treatment changes. Describe a
-              shared change in the comment when both readers should inherit it.
-            </p>
-            <section
-              id="target-reader-artifact"
-              class="code-candidate"
-              data-width="available"
-            >
-              <h3 id="target-reader-heading" class="reader-treatment-title">
-                Reader sample
-              </h3>
-              <lf-code id="target-built-code" language="javascript" hi="2">
-                <pre>
-export const summarize = checks =>
-  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
-              </lf-code>
-            </section>
-          </section>
-          </article>
-        </lf-tab>
-      </lf-tabs>
-</lf-tab>
-
-<lf-tab id="corpus-alert-thresholds" label="Thresholds">
+<lf-tab id="corpus-alert-thresholds" label="Tune payments-api alert thresholds">
 <h1 id="alert-title">Tune payments-api's alert thresholds</h1>
       <p class="lede" id="alert-lede">
         On-call asked for at most 10 pages a month, every page a real incident, and a
@@ -4069,7 +3900,7 @@ export const summarize = checks =>
       </lf-ask>
 </lf-tab>
 
-<lf-tab id="corpus-live-progress" label="Live">
+<lf-tab id="corpus-live-progress" label="Release page: checkout v2 canary">
 <header>
         <p class="eyebrow">release · production · checkout-v2</p>
         <h1>Checkout v2 release</h1>
@@ -4317,7 +4148,7 @@ export const summarize = checks =>
       </aside>
 </lf-tab>
 
-<lf-tab id="corpus-alert-review" label="Alerts">
+<lf-tab id="corpus-alert-review" label="Weekly alert review: payments on-call">
 <header>
         <h1>Which alerts should still page?</h1>
         <p id="ar-legend">
@@ -4849,7 +4680,7 @@ export const summarize = checks =>
       </footer>
 </lf-tab>
 
-<lf-tab id="corpus-pr-walkthrough" label="PR">
+<lf-tab id="corpus-pr-walkthrough" label="PR walkthrough: Worktrunk unified diff">
 <header>
         <p class="eyebrow">pull request review · captured revision</p>
         <h1>Unified diff in the switch picker</h1>
@@ -5040,7 +4871,7 @@ max-sixty/worktrunk #3865
                 <span>unchanged boundary</span>
                 <span class="pr-added">+ new path</span>
               </p>
-              <lf-diagram id="pr-flow-diagram" data-height="541" parts="all">
+              <lf-diagram id="pr-flow-diagram" data-height="548" parts="all">
                 <pre>
 flowchart TB
   accTitle: Unified diff preparation
@@ -5398,7 +5229,7 @@ index b856171b57..cfa4f0448e 100644
       </div>
 </lf-tab>
 
-<lf-tab id="corpus-review-a-fix" label="Fix recordings">
+<lf-tab id="corpus-review-a-fix" label="Check a fix against its recordings">
 <h1 id="fix-title">A comment now survives opening its screenshot</h1>
       <p class="lede" id="fix-lede">
         Pressing Escape on a screenshot's preview used to close the page comment it was
@@ -5492,7 +5323,7 @@ index b856171b57..cfa4f0448e 100644
       </details>
 </lf-tab>
 
-<lf-tab id="corpus-wt-merge" label="Merge film">
+<lf-tab id="corpus-wt-merge" label="Explain how wt merge works">
 <header>
         <h1>Explain how <code>wt merge</code> works</h1>
       </header>
@@ -5617,7 +5448,7 @@ index b856171b57..cfa4f0448e 100644
       </div>
 </lf-tab>
 
-<lf-tab id="corpus-rust-sort" label="Sort film">
+<lf-tab id="corpus-rust-sort" label="Explain Rust&#x27;s 2016 merge sort">
 <header>
         <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
       </header>
@@ -5893,7 +5724,530 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
       </div>
 </lf-tab>
 
-<lf-tab id="corpus-security-boundary" label="Security">
+<lf-tab id="corpus-code-comparison" label="Choose a code reader treatment">
+<header><h1>Choose a code reader treatment</h1></header>
+      <lf-tabs id="code-comparison-views">
+        <lf-tab id="code-comparison-choose" label="Compare">
+          <div class="layout-workspace density-working" id="code-comparison-compare">
+          <lf-ask id="code-comparison-ask">
+            <h2>Which code-reader treatment should the agent keep?</h2>
+            <lf-playground
+              id="code-comparison-playground"
+              submit-label="Apply treatment"
+              data-width="available"
+            >
+              <lf-playground-control
+                name="width"
+                label="Comparison viewport"
+                kind="range"
+                value="420"
+                min="280"
+                max="520"
+                step="20"
+                unit="px"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="chosen"
+                label="Treatment"
+                kind="choice"
+                value="A"
+              >
+                <lf-playground-choice value="A" label="A"></lf-playground-choice>
+                <lf-playground-choice value="B" label="B"></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-preset label="A at 420px">
+                <lf-playground-setting for="width" value="420"></lf-playground-setting>
+                <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="B at 320px">
+                <lf-playground-setting for="width" value="320"></lf-playground-setting>
+                <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preview id="code-comparison-preview">
+                <code-reader-comparison id="code-reader-comparison">
+                  <div class="code-comparison-grid">
+                    <section
+                      class="code-candidate"
+                      data-candidate="A"
+                      id="compact-code-candidate"
+                    >
+                      <h3 class="code-candidate-title">A · compact · scroll</h3>
+                      <p class="code-measurement" aria-live="polite">Measuring…</p>
+                      <lf-code id="compact-built-code" language="javascript" hi="2-4">
+                        <pre>
+export function releaseLabel(service, checks) {
+  const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
+  const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
+  return `${service} (${state}): ${detail}`;
+}
+
+export function releaseLabels(releases) {
+  return releases
+    .filter((release) => release.checks.total > 0)
+    .map((release) => releaseLabel(release.service, release.checks));
+}</pre>
+                      </lf-code>
+                    </section>
+                    <section
+                      class="code-candidate"
+                      data-candidate="B"
+                      id="wrapped-code-candidate"
+                    >
+                      <h3 class="code-candidate-title">B · comfortable · wrap</h3>
+                      <p class="code-measurement" aria-live="polite">Measuring…</p>
+                      <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
+                        <pre>
+export function releaseLabel(service, checks) {
+  const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
+  const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
+  return `${service} (${state}): ${detail}`;
+}
+
+export function releaseLabels(releases) {
+  return releases
+    .filter((release) => release.checks.total > 0)
+    .map((release) => releaseLabel(release.service, release.checks));
+}</pre>
+                      </lf-code>
+                    </section>
+                  </div>
+                </code-reader-comparison>
+              </lf-playground-preview>
+              <lf-playground-output id="code-comparison-instruction">
+                Update the built Leaf code reader and show the focused browser
+                measurement test.
+              </lf-playground-output>
+            </lf-playground>
+          </lf-ask>
+          </div>
+        </lf-tab>
+        <lf-tab id="code-comparison-comment" label="Comment on the reader">
+          <article class="layout-column" id="code-comparison-reading">
+          <section id="code-reader-feedback">
+            <h2>Point at the reader element you want changed</h2>
+            <p id="code-reader-feedback-guide">
+              Turn on Design mode with <kbd>l</kbd> or Annotations in the leaf's menu,
+              then press the heading or code reader below. For a keyboard choice, press
+              <kbd>s</kbd>, browse targets with <kbd>Tab</kbd>, and choose with
+              <kbd>Enter</kbd>. Your comment stays beside that element as its treatment
+              changes. Describe a shared change in the comment when both readers should
+              inherit it.
+            </p>
+            <section
+              id="target-reader-artifact"
+              class="code-candidate"
+              data-width="available"
+            >
+              <h3 id="target-reader-heading" class="reader-treatment-title">
+                Reader sample
+              </h3>
+              <lf-code id="target-built-code" language="javascript" hi="2">
+                <pre>
+export const summarize = checks =>
+  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
+              </lf-code>
+            </section>
+          </section>
+          </article>
+        </lf-tab>
+      </lf-tabs>
+</lf-tab>
+
+<lf-tab id="corpus-command-hub" label="Command hub: Atlas importer rewrite">
+<header>
+        <p class="eyebrow">command hub · importer rewrite</p>
+        <h1>Atlas importer rewrite</h1>
+        <p class="lede" id="hub-lede">
+          Get the new importer through one shadow week with no unexplained variance. The
+          tree lists goals of the importer rewrite. The lead is assigned to the whole
+          rewrite, an area owner to one branch, and a specialist to a single task. Open
+          a worker to inspect its latest report and worktree, answer beside the goal
+          that stopped, and use
+          <em>Send &amp; pause</em>
+          when the thread itself should keep new workers away until you resolve it.
+        </p>
+      </header>
+
+      <section class="panel" id="hub-tree">
+        <h2>Plan</h2>
+        <lf-atlas-plan
+          id="hub-plan"
+          label="One clean shadow week"
+          phase="week 3 of 6"
+          overview="hub-readings"
+        >
+          <lf-atlas-worker id="atlas-lead" state="working"
+            ><details>
+              <summary>
+                <strong>atlas-lead</strong
+                ><span class="atlas-worker-state" role="status"></span>
+              </summary>
+              <div class="atlas-worker-body">
+                <p class="atlas-worker-report"></p>
+                Coordinates the whole rewrite by routing decisions, monitoring progress,
+                and choosing which tasks to focus on.
+              </div>
+            </details></lf-atlas-worker
+          >
+          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
+            <strong>Groundwork</strong>
+            <lf-atlas-task id="ground-corpus" status="done">
+              <strong>Snapshot the import corpus</strong> Nine months pinned by content
+              hash.
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-harness" status="done">
+              <strong>Build the replay harness</strong> Old and new importer over the
+              same corpus.
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-schema" status="done">
+              <strong>Map the legacy schema</strong> Every downstream field has an
+              owner.
+            </lf-atlas-task>
+          </lf-atlas-task>
+
+          <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
+            <strong>Replace the XML parser</strong>
+            Two workers own separate worktrees; open each worker to inspect its
+            evidence. The stalled deduplication task appears under this goal.
+            <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
+              ><details>
+                <summary>
+                  <strong>w-1</strong
+                  ><span class="atlas-worker-state" role="status"></span>
+                </summary>
+                <div class="atlas-worker-body">
+                  <p class="atlas-worker-report"></p>
+                  Parser area owner; focused now on declarations and entity boundaries,
+                  but responsible for this whole branch of the plan.
+                  <lf-atlas-tree id="tree-w-1" source="atlas-worktrees"></lf-atlas-tree>
+                </div></details
+            ></lf-atlas-worker>
+            <lf-atlas-task id="parser-declarations" status="active">
+              <strong>Declarations and entities</strong> Three new corpus cases remain.
+              <lf-atlas-task id="parser-stream" status="done">
+                <strong>Streaming core</strong> Constant memory over the full corpus.
+              </lf-atlas-task>
+              <lf-atlas-task id="parser-cdata" status="active">
+                <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
+                <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
+                  ><details>
+                    <summary>
+                      <strong>w-2</strong
+                      ><span class="atlas-worker-state" role="status"></span>
+                    </summary>
+                    <div class="atlas-worker-body">
+                      <p class="atlas-worker-report"></p>
+                      CDATA specialist: escaped-markup corpus cases.
+                      <lf-atlas-tree
+                        id="tree-w-2"
+                        source="atlas-worktrees"
+                      ></lf-atlas-tree>
+                    </div></details
+                ></lf-atlas-worker>
+              </lf-atlas-task>
+            </lf-atlas-task>
+            <lf-atlas-task
+              id="parser-dedupe"
+              status="blocked"
+              stopped-at="2026-08-21T08:12:00-07:00"
+            >
+              <strong>Deduplicate the corpus snapshot</strong> Three hours of worker
+              activity produced no commit. Last worktree:
+              <a href="#tree-w-5">atlas/dedupe-attempt</a>.
+              <lf-atlas-worker id="w-5" state="reaped" on="parser-dedupe"
+                ><details>
+                  <summary>
+                    <strong>w-5</strong
+                    ><span class="atlas-worker-state" role="status"></span>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Dedupe specialist, reaped after three hours without a commit; its
+                    branch and evidence remain inspectable.
+                    <lf-atlas-tree
+                      id="tree-w-5"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
+              <lf-ask id="decision-dedupe-region">
+                <h3>What should the host do with the stalled work?</h3>
+                <lf-options id="decision-dedupe" choose>
+                  <lf-option id="dedupe-restart">
+                    <strong>Restart with a fresh worker</strong> Preserve tree-w-5
+                    (atlas/dedupe-attempt), its commits, and comments; reap w-5 and
+                    start a new worker on it.
+                    <em
+                      >My take: keep the durable work and replace the stalled
+                      process.</em
+                    >
+                  </lf-option>
+                  <lf-option id="dedupe-park">
+                    <strong>Park it for tomorrow</strong> Keep tree-w-5
+                    (atlas/dedupe-attempt) and take the goal out of today's plan.
+                  </lf-option>
+                  <lf-option id="dedupe-drop">
+                    <strong>Drop it</strong> Archive tree-w-5 (atlas/dedupe-attempt);
+                    corpus storage stays at 40 GB for this rewrite.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </lf-atlas-task>
+            <lf-atlas-task
+              id="parser-zero"
+              status="active"
+              stopped-at="2026-08-21T08:46:00-07:00"
+            >
+              <strong>Choose the zero-row behavior</strong> This policy is consequential
+              enough to wait for an explicit choice.
+              <lf-ask id="decision-zero-region">
+                <h3>What should happen when a nightly imports zero rows?</h3>
+                <lf-options id="decision-zero" choose>
+                  <lf-option id="zero-alert" for="parser-zero">
+                    <strong>Fail and page</strong> Preserve the export and stop the
+                    downstream publish.
+                    <em>My take: zero rows is a failure until proved otherwise.</em>
+                  </lf-option>
+                  <lf-option id="zero-warn" for="parser-zero">
+                    <strong>Warn and continue</strong> Record the empty import but
+                    publish no data.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </lf-atlas-task>
+          </lf-atlas-task>
+
+          <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
+            <strong>Reconcile schema and ledger</strong> The schema decision blocks the
+            backfill, ledger fixture, and nightly variance report.
+            <lf-atlas-task
+              id="schema-choice"
+              status="review"
+              stopped-at="2026-08-21T07:20:00-07:00"
+            >
+              <strong>Choose the additive schema</strong> Both columns are nullable; the
+              migration and reverse path are green.
+              <lf-atlas-worker id="w-8" state="waiting" on="schema-choice"
+                ><details>
+                  <summary>
+                    <strong>w-8</strong
+                    ><span class="atlas-worker-state" role="status"></span>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Schema-choice specialist: migration and reconciliation evidence.
+                    <lf-atlas-tree
+                      id="tree-w-8"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
+              <lf-ask id="decision-schema-region">
+                <h3>What should the host do with the schema branch?</h3>
+                <lf-options id="decision-schema" choose>
+                  <lf-option id="schema-land">
+                    <strong>Land it now</strong> Merge tree-w-8 (atlas/schema) from w-8.
+                    Tests are green, it unblocks the dependent work, and shadow reads
+                    begin before anything depends on it.
+                    <em>My take: land while the evidence is current.</em>
+                  </lf-option>
+                  <lf-option id="schema-hold">
+                    <strong>Hold for the backfill</strong> Keep tree-w-8 (atlas/schema)
+                    unmerged, leave the dependent work idle, and take one larger review
+                    tomorrow.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </lf-atlas-task>
+            <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
+              <strong>Backfill reconciliation fields</strong>
+            </lf-atlas-task>
+            <lf-atlas-task
+              id="ledger-fixture"
+              status="active"
+              needs="schema-choice"
+              stopped-at="2026-08-21T09:04:00-07:00"
+            >
+              <strong>Bring one replica-only ledger fixture</strong> Run the command
+              below, paste its CSV output into the draft, and remove
+              <code>customer_name</code> and <code>billing_email</code> before saving.
+              Saving the draft tells the orchestrator that w-8 can resume.
+              <lf-ask id="decision-ledger-fixture-region">
+                <h3>Which replica-only ledger fixture should the worker use?</h3>
+                <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
+    where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
+                <lf-draft id="ledger-cargo" needed>
+                  <pre>
+Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
+                </lf-draft>
+              </lf-ask>
+            </lf-atlas-task>
+            <lf-atlas-task
+              id="ledger-variance"
+              status="planned"
+              needs="schema-choice ledger-fixture"
+            >
+              <strong>Nightly variance report</strong> Waiting for the schema decision
+              and ledger fixture.
+            </lf-atlas-task>
+          </lf-atlas-task>
+
+          <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
+            <strong>Publish the parser contract</strong> Review the public API branch. A
+            line comment goes to a new evidence worker and stays attached to the source
+            line.
+            <lf-atlas-task
+              id="api-shape"
+              status="review"
+              stopped-at="2026-08-21T10:35:00-07:00"
+            >
+              <strong>Review the public result type</strong>
+              <lf-atlas-worker id="w-3" state="waiting" on="api-shape"
+                ><details>
+                  <summary>
+                    <strong>w-3</strong
+                    ><span class="atlas-worker-state" role="status"></span>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Public-contract specialist: result types and compatibility tests.
+                    <lf-atlas-tree
+                      id="tree-w-3"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
+              <lf-ask id="decision-api-region">
+                <h3>What should the host do with atlas/public-api?</h3>
+                <lf-options id="decision-api" choose>
+                  <lf-option id="api-land">
+                    <strong>Land</strong> Merge tree-w-3 (atlas/public-api) from w-3.
+                    The compatibility suite is green.
+                    <em>My take: the public contract is ready.</em>
+                  </lf-option>
+                  <lf-option id="api-revise">
+                    <strong>Request changes</strong> Restate this card and start a fresh
+                    revision worker on tree-w-3; the request remains in the record.
+                  </lf-option>
+                  <lf-option id="api-land-as-is">
+                    <strong>Land as-is — discard revision</strong> Merge tree-w-3
+                    (atlas/public-api) over an open change request and reap its reviser.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </lf-atlas-task>
+            <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
+              <strong>Map structured failures</strong>
+            </lf-atlas-task>
+            <lf-atlas-task id="api-sdk" status="planned" needs="api-shape">
+              <strong>Regenerate the SDK fixture</strong>
+            </lf-atlas-task>
+          </lf-atlas-task>
+
+          <lf-atlas-task id="goal-docs" status="done" when="week 3">
+            <strong>Document the operator path</strong>
+            <lf-atlas-task id="docs-runbook" status="done">
+              <strong>Write the replica runbook</strong>
+            </lf-atlas-task>
+            <lf-atlas-task id="docs-rollback" status="done">
+              <strong>Write rollback and evidence capture</strong>
+            </lf-atlas-task>
+          </lf-atlas-task>
+
+          <lf-atlas-task
+            id="goal-cutover"
+            status="planned"
+            when="weeks 5–6"
+            tags="downstream"
+            talk
+            needs="goal-schema goal-api"
+          >
+            <strong>Cut over the nightly</strong> This goal is visibly downstream of
+            both schema and ledger evidence.
+            <lf-atlas-task
+              id="cutover-shadow"
+              status="planned"
+              needs="ledger-variance api-shape"
+            >
+              <strong>Shadow both importers for one week</strong>
+            </lf-atlas-task>
+            <lf-atlas-task id="cutover-swap" status="planned" needs="cutover-shadow">
+              <strong>Swap with the old path behind a flag</strong>
+            </lf-atlas-task>
+          </lf-atlas-task>
+        </lf-atlas-plan>
+      </section>
+
+      <aside id="hub-rail">
+        <section class="panel atlas-overview" id="hub-readings">
+          <h2>Current work</h2>
+          <p class="atlas-progress">
+            <output data-atlas-count="progress">Plan loading</output>
+          </p>
+          <dl class="facts">
+            <dt>Running</dt>
+            <dd><output data-atlas-count="running">0</output></dd>
+            <dt>Workers</dt>
+            <dd><output data-atlas-count="workers">0</output></dd>
+            <dt>Quiet</dt>
+            <dd><output data-atlas-count="quiet">0</output></dd>
+            <dt>Stopped</dt>
+            <dd><output data-atlas-count="stopped">0</output></dd>
+          </dl>
+          <button type="button" class="button atlas-refresh" disabled>
+            Show latest
+          </button>
+          <details class="atlas-stopped">
+            <summary>Stopped work</summary>
+            <ul></ul>
+          </details>
+        </section>
+        <section class="panel" id="hub-record">
+          <h2>Record</h2>
+          <p>Recent actions, newest first. Each row links to the affected item.</p>
+          <lf-activity id="atlas-record"></lf-activity>
+        </section>
+      </aside>
+</lf-tab>
+
+<lf-tab id="corpus-data-explorer" label="Shape a release query">
+<header><h1>Shape a release query</h1></header>
+      <lf-ask id="release-query-ask">
+        <h2>Which release query should the agent build?</h2>
+        <lf-playground
+          id="release-query-playground"
+          submit-label="Build query"
+          data-width="available"
+        >
+          <lf-playground-control
+            name="limit"
+            label="Maximum results"
+            kind="range"
+            value="4"
+            min="1"
+            max="6"
+            step="1"
+          ></lf-playground-control>
+          <lf-playground-preset label="Up to 4 results">
+            <lf-playground-setting for="limit" value="4"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preset label="Up to 6 results">
+            <lf-playground-setting for="limit" value="6"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preview id="release-query-preview">
+            <release-query-explorer
+              id="release-query-explorer"
+            ></release-query-explorer>
+          </lf-playground-preview>
+          <lf-playground-output id="release-query-instruction">
+            Implement the default release query in <code>release-report.sql</code> and
+            show the query plus its result-table test.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-ask>
+</lf-tab>
+
+<lf-tab id="corpus-security-boundary" label="Tend agent boundary: design record">
 <h1>Make the agent workspace disposable</h1>
       <p class="lede" id="security-decision">
         Tend keeps GitHub Actions’ workspace runner-owned and gives the agent a
@@ -5930,7 +6284,7 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
           one known consumer while Git, PATH entries, language startup files, action
           manifests, and setup-generated shims remained open paths into runner work.
         </p>
-        <lf-diagram id="security-before-flow" data-height="117" parts="all">
+        <lf-diagram id="security-before-flow" data-height="61" parts="all">
           <pre>
 flowchart LR
   accTitle: Shared checkout crosses the sandbox boundary
@@ -6073,7 +6427,7 @@ flowchart LR
 
         <section id="security-states">
           <h2 id="security-states-heading">Sandbox execution and cleanup</h2>
-          <lf-diagram id="security-proposed-states" parts="all">
+          <lf-diagram id="security-proposed-states" parts="all" data-height="1172">
             <pre>
 stateDiagram-v2
   accTitle: Sandbox execution and cleanup states
@@ -6799,364 +7153,7 @@ stateDiagram-v2
       </details>
 </lf-tab>
 
-<lf-tab id="corpus-command-hub" label="Command">
-<header>
-        <p class="eyebrow">command hub · importer rewrite</p>
-        <h1>Atlas importer rewrite</h1>
-        <p class="lede" id="hub-lede">
-          Get the new importer through one shadow week with no unexplained variance. The
-          tree lists goals of the importer rewrite. The lead is assigned to the whole
-          rewrite, an area owner to one branch, and a specialist to a single task. Open
-          a worker to inspect its latest report and worktree, answer beside the goal
-          that stopped, and use
-          <em>Send &amp; pause</em>
-          when the thread itself should keep new workers away until you resolve it.
-        </p>
-      </header>
-
-      <section class="panel" id="hub-tree">
-        <h2>Plan</h2>
-        <lf-atlas-plan
-          id="hub-plan"
-          label="One clean shadow week"
-          phase="week 3 of 6"
-          overview="hub-readings"
-        >
-          <lf-atlas-worker id="atlas-lead" state="working"
-            ><details>
-              <summary>
-                <strong>atlas-lead</strong
-                ><span class="atlas-worker-state" role="status"></span>
-              </summary>
-              <div class="atlas-worker-body">
-                <p class="atlas-worker-report"></p>
-                Coordinates the whole rewrite by routing decisions, monitoring progress,
-                and choosing which tasks to focus on.
-              </div>
-            </details></lf-atlas-worker
-          >
-          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
-            <strong>Groundwork</strong>
-            <lf-atlas-task id="ground-corpus" status="done">
-              <strong>Snapshot the import corpus</strong> Nine months pinned by content
-              hash.
-            </lf-atlas-task>
-            <lf-atlas-task id="ground-harness" status="done">
-              <strong>Build the replay harness</strong> Old and new importer over the
-              same corpus.
-            </lf-atlas-task>
-            <lf-atlas-task id="ground-schema" status="done">
-              <strong>Map the legacy schema</strong> Every downstream field has an
-              owner.
-            </lf-atlas-task>
-          </lf-atlas-task>
-
-          <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
-            <strong>Replace the XML parser</strong>
-            Two workers own separate worktrees; open each worker to inspect its
-            evidence. The stalled deduplication task appears under this goal.
-            <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
-              ><details>
-                <summary>
-                  <strong>w-1</strong
-                  ><span class="atlas-worker-state" role="status"></span>
-                </summary>
-                <div class="atlas-worker-body">
-                  <p class="atlas-worker-report"></p>
-                  Parser area owner; focused now on declarations and entity boundaries,
-                  but responsible for this whole branch of the plan.
-                  <lf-atlas-tree id="tree-w-1" source="atlas-worktrees"></lf-atlas-tree>
-                </div></details
-            ></lf-atlas-worker>
-            <lf-atlas-task id="parser-declarations" status="active">
-              <strong>Declarations and entities</strong> Three new corpus cases remain.
-              <lf-atlas-task id="parser-stream" status="done">
-                <strong>Streaming core</strong> Constant memory over the full corpus.
-              </lf-atlas-task>
-              <lf-atlas-task id="parser-cdata" status="active">
-                <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
-                <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
-                  ><details>
-                    <summary>
-                      <strong>w-2</strong
-                      ><span class="atlas-worker-state" role="status"></span>
-                    </summary>
-                    <div class="atlas-worker-body">
-                      <p class="atlas-worker-report"></p>
-                      CDATA specialist: escaped-markup corpus cases.
-                      <lf-atlas-tree
-                        id="tree-w-2"
-                        source="atlas-worktrees"
-                      ></lf-atlas-tree>
-                    </div></details
-                ></lf-atlas-worker>
-              </lf-atlas-task>
-            </lf-atlas-task>
-            <lf-atlas-task
-              id="parser-dedupe"
-              status="blocked"
-              stopped-at="2026-08-21T08:12:00-07:00"
-            >
-              <strong>Deduplicate the corpus snapshot</strong> Three hours of worker
-              activity produced no commit. Last worktree:
-              <a href="#tree-w-5">atlas/dedupe-attempt</a>.
-              <lf-atlas-worker id="w-5" state="reaped" on="parser-dedupe"
-                ><details>
-                  <summary>
-                    <strong>w-5</strong
-                    ><span class="atlas-worker-state" role="status"></span>
-                  </summary>
-                  <div class="atlas-worker-body">
-                    <p class="atlas-worker-report"></p>
-                    Dedupe specialist, reaped after three hours without a commit; its
-                    branch and evidence remain inspectable.
-                    <lf-atlas-tree
-                      id="tree-w-5"
-                      source="atlas-worktrees"
-                    ></lf-atlas-tree>
-                  </div></details
-              ></lf-atlas-worker>
-              <lf-ask id="decision-dedupe-region">
-                <h3>What should the host do with the stalled work?</h3>
-                <lf-options id="decision-dedupe" choose>
-                  <lf-option id="dedupe-restart">
-                    <strong>Restart with a fresh worker</strong> Preserve tree-w-5
-                    (atlas/dedupe-attempt), its commits, and comments; reap w-5 and
-                    start a new worker on it.
-                    <em
-                      >My take: keep the durable work and replace the stalled
-                      process.</em
-                    >
-                  </lf-option>
-                  <lf-option id="dedupe-park">
-                    <strong>Park it for tomorrow</strong> Keep tree-w-5
-                    (atlas/dedupe-attempt) and take the goal out of today's plan.
-                  </lf-option>
-                  <lf-option id="dedupe-drop">
-                    <strong>Drop it</strong> Archive tree-w-5 (atlas/dedupe-attempt);
-                    corpus storage stays at 40 GB for this rewrite.
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </lf-atlas-task>
-            <lf-atlas-task
-              id="parser-zero"
-              status="active"
-              stopped-at="2026-08-21T08:46:00-07:00"
-            >
-              <strong>Choose the zero-row behavior</strong> This policy is consequential
-              enough to wait for an explicit choice.
-              <lf-ask id="decision-zero-region">
-                <h3>What should happen when a nightly imports zero rows?</h3>
-                <lf-options id="decision-zero" choose>
-                  <lf-option id="zero-alert" for="parser-zero">
-                    <strong>Fail and page</strong> Preserve the export and stop the
-                    downstream publish.
-                    <em>My take: zero rows is a failure until proved otherwise.</em>
-                  </lf-option>
-                  <lf-option id="zero-warn" for="parser-zero">
-                    <strong>Warn and continue</strong> Record the empty import but
-                    publish no data.
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </lf-atlas-task>
-          </lf-atlas-task>
-
-          <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
-            <strong>Reconcile schema and ledger</strong> The schema decision blocks the
-            backfill, ledger fixture, and nightly variance report.
-            <lf-atlas-task
-              id="schema-choice"
-              status="review"
-              stopped-at="2026-08-21T07:20:00-07:00"
-            >
-              <strong>Choose the additive schema</strong> Both columns are nullable; the
-              migration and reverse path are green.
-              <lf-atlas-worker id="w-8" state="waiting" on="schema-choice"
-                ><details>
-                  <summary>
-                    <strong>w-8</strong
-                    ><span class="atlas-worker-state" role="status"></span>
-                  </summary>
-                  <div class="atlas-worker-body">
-                    <p class="atlas-worker-report"></p>
-                    Schema-choice specialist: migration and reconciliation evidence.
-                    <lf-atlas-tree
-                      id="tree-w-8"
-                      source="atlas-worktrees"
-                    ></lf-atlas-tree>
-                  </div></details
-              ></lf-atlas-worker>
-              <lf-ask id="decision-schema-region">
-                <h3>What should the host do with the schema branch?</h3>
-                <lf-options id="decision-schema" choose>
-                  <lf-option id="schema-land">
-                    <strong>Land it now</strong> Merge tree-w-8 (atlas/schema) from w-8.
-                    Tests are green, it unblocks the dependent work, and shadow reads
-                    begin before anything depends on it.
-                    <em>My take: land while the evidence is current.</em>
-                  </lf-option>
-                  <lf-option id="schema-hold">
-                    <strong>Hold for the backfill</strong> Keep tree-w-8 (atlas/schema)
-                    unmerged, leave the dependent work idle, and take one larger review
-                    tomorrow.
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </lf-atlas-task>
-            <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
-              <strong>Backfill reconciliation fields</strong>
-            </lf-atlas-task>
-            <lf-atlas-task
-              id="ledger-fixture"
-              status="active"
-              needs="schema-choice"
-              stopped-at="2026-08-21T09:04:00-07:00"
-            >
-              <strong>Bring one replica-only ledger fixture</strong> Run the command
-              below, paste its CSV output into the draft, and remove
-              <code>customer_name</code> and <code>billing_email</code> before saving.
-              Saving the draft tells the orchestrator that w-8 can resume.
-              <lf-ask id="decision-ledger-fixture-region">
-                <h3>Which replica-only ledger fixture should the worker use?</h3>
-                <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
-    where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
-                <lf-draft id="ledger-cargo" needed>
-                  <pre>
-Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
-                </lf-draft>
-              </lf-ask>
-            </lf-atlas-task>
-            <lf-atlas-task
-              id="ledger-variance"
-              status="planned"
-              needs="schema-choice ledger-fixture"
-            >
-              <strong>Nightly variance report</strong> Waiting for the schema decision
-              and ledger fixture.
-            </lf-atlas-task>
-          </lf-atlas-task>
-
-          <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
-            <strong>Publish the parser contract</strong> Review the public API branch. A
-            line comment goes to a new evidence worker and stays attached to the source
-            line.
-            <lf-atlas-task
-              id="api-shape"
-              status="review"
-              stopped-at="2026-08-21T10:35:00-07:00"
-            >
-              <strong>Review the public result type</strong>
-              <lf-atlas-worker id="w-3" state="waiting" on="api-shape"
-                ><details>
-                  <summary>
-                    <strong>w-3</strong
-                    ><span class="atlas-worker-state" role="status"></span>
-                  </summary>
-                  <div class="atlas-worker-body">
-                    <p class="atlas-worker-report"></p>
-                    Public-contract specialist: result types and compatibility tests.
-                    <lf-atlas-tree
-                      id="tree-w-3"
-                      source="atlas-worktrees"
-                    ></lf-atlas-tree>
-                  </div></details
-              ></lf-atlas-worker>
-              <lf-ask id="decision-api-region">
-                <h3>What should the host do with atlas/public-api?</h3>
-                <lf-options id="decision-api" choose>
-                  <lf-option id="api-land">
-                    <strong>Land</strong> Merge tree-w-3 (atlas/public-api) from w-3.
-                    The compatibility suite is green.
-                    <em>My take: the public contract is ready.</em>
-                  </lf-option>
-                  <lf-option id="api-revise">
-                    <strong>Request changes</strong> Restate this card and start a fresh
-                    revision worker on tree-w-3; the request remains in the record.
-                  </lf-option>
-                  <lf-option id="api-land-as-is">
-                    <strong>Land as-is — discard revision</strong> Merge tree-w-3
-                    (atlas/public-api) over an open change request and reap its reviser.
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </lf-atlas-task>
-            <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
-              <strong>Map structured failures</strong>
-            </lf-atlas-task>
-            <lf-atlas-task id="api-sdk" status="planned" needs="api-shape">
-              <strong>Regenerate the SDK fixture</strong>
-            </lf-atlas-task>
-          </lf-atlas-task>
-
-          <lf-atlas-task id="goal-docs" status="done" when="week 3">
-            <strong>Document the operator path</strong>
-            <lf-atlas-task id="docs-runbook" status="done">
-              <strong>Write the replica runbook</strong>
-            </lf-atlas-task>
-            <lf-atlas-task id="docs-rollback" status="done">
-              <strong>Write rollback and evidence capture</strong>
-            </lf-atlas-task>
-          </lf-atlas-task>
-
-          <lf-atlas-task
-            id="goal-cutover"
-            status="planned"
-            when="weeks 5–6"
-            tags="downstream"
-            talk
-            needs="goal-schema goal-api"
-          >
-            <strong>Cut over the nightly</strong> This goal is visibly downstream of
-            both schema and ledger evidence.
-            <lf-atlas-task
-              id="cutover-shadow"
-              status="planned"
-              needs="ledger-variance api-shape"
-            >
-              <strong>Shadow both importers for one week</strong>
-            </lf-atlas-task>
-            <lf-atlas-task id="cutover-swap" status="planned" needs="cutover-shadow">
-              <strong>Swap with the old path behind a flag</strong>
-            </lf-atlas-task>
-          </lf-atlas-task>
-        </lf-atlas-plan>
-      </section>
-
-      <aside id="hub-rail">
-        <section class="panel atlas-overview" id="hub-readings">
-          <h2>Current work</h2>
-          <p class="atlas-progress">
-            <output data-atlas-count="progress">Plan loading</output>
-          </p>
-          <dl class="facts">
-            <dt>Running</dt>
-            <dd><output data-atlas-count="running">0</output></dd>
-            <dt>Workers</dt>
-            <dd><output data-atlas-count="workers">0</output></dd>
-            <dt>Quiet</dt>
-            <dd><output data-atlas-count="quiet">0</output></dd>
-            <dt>Stopped</dt>
-            <dd><output data-atlas-count="stopped">0</output></dd>
-          </dl>
-          <button type="button" class="button atlas-refresh" disabled>
-            Show latest
-          </button>
-          <details class="atlas-stopped">
-            <summary>Stopped work</summary>
-            <ul></ul>
-          </details>
-        </section>
-        <section class="panel" id="hub-record">
-          <h2>Record</h2>
-          <p>Recent actions, newest first. Each row links to the affected item.</p>
-          <lf-activity id="atlas-record"></lf-activity>
-        </section>
-      </aside>
-</lf-tab>
-
-<lf-tab id="corpus-current-proposed-comparison" label="Current Proposed Comparison">
+<lf-tab id="corpus-current-proposed-comparison" label="Authentication retry comparison">
 <header>
         <p class="eyebrow">release review · decision recorded</p>
         <h1>Compare expired-session recovery</h1>
@@ -7280,7 +7277,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
       </footer>
 </lf-tab>
 
-<lf-tab id="corpus-playwright-paired-results" label="Playwright Paired Results">
+<lf-tab id="corpus-playwright-paired-results" label="Matched recording results">
 <h1>Compare reviewed results</h1>
       <p>
         These two views deliberately pair different Review outcomes in one recording.
@@ -7311,7 +7308,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
       >
 </lf-tab>
 
-<lf-tab id="corpus-review-queue" label="Review Queue">
+<lf-tab id="corpus-review-queue" label="Release review queue">
 <header>
         <p class="eyebrow">release review · eight items</p>
         <h1>Review the 2.8 release</h1>
@@ -7550,7 +7547,7 @@ expire old keys</code></pre>
       </div>
 </lf-tab>
 
-<lf-tab id="corpus-root-tabs" label="Root Tabs">
+<lf-tab id="corpus-root-tabs" label="Release readiness review">
 <header>
         <p class="eyebrow">release 3.4 · candidate two</p>
         <h1>Prepare the account migration</h1>
@@ -7879,7 +7876,7 @@ observe --cohort staff</code></pre>
       </lf-tabs>
 </lf-tab>
 
-<lf-tab id="corpus-thread-choice-hints" label="Thread Choice Hints">
+<lf-tab id="corpus-thread-choice-hints" label="A discussion over choice hints">
 <h1 id="heading">Heating the bird bath</h1>
       <lf-ask id="heating-decision">
         <h2>Which heater should we use?</h2>
@@ -7934,14 +7931,14 @@ observe --cohort staff</code></pre>
       <p>Continue after reading the discussion.</p>
 </lf-tab>
 
-<lf-tab id="corpus-thread-journey-inline" label="Thread Journey Inline">
+<lf-tab id="corpus-thread-journey-inline" label="Review a changed line">
 <h1 id="title">Review the changed line</h1>
       <p id="plan">Keep the shipping order visible while we discuss this change.</p>
       <lf-diff id="journey-patch" source="review-patch"><pre></pre></lf-diff>
       <p id="tail">The rollout can proceed once the changed line is reviewed.</p>
 </lf-tab>
 
-<lf-tab id="corpus-file-editor" label="File editor package">
+<lf-tab id="corpus-file-editor" label="Quiet file editing">
 <header id="file-editing">
         <h1>Edit the file</h1>
         <p>
@@ -7971,7 +7968,7 @@ observe --cohort staff</code></pre>
       </details>
 </lf-tab>
 
-<lf-tab id="corpus-diff-thread-gallery" label="Diff conversations">
+<lf-tab id="corpus-diff-thread-gallery" label="File conversations in a diff">
 <h1 id="dfg-title">Review app.py</h1>
       <p id="dfg-guide">
         Two fictional conversations sit below the same file. Reply to one while keeping
@@ -8004,9 +8001,43 @@ observe --cohort staff</code></pre>
           </lf-diff>
         </template>
       </lf-sample>
+      <h2>Long lines in a patch</h2>
+      <p>
+        The prose file wraps by default; this code file asks for the same reading mode.
+      </p>
+      <lf-diff id="dfg-prose">
+        <pre>
+diff --git a/notes.md b/notes.md
+--- a/notes.md
++++ b/notes.md
+@@ -1 +1 @@
+-The earlier note was brief.
++The new note describes the review decision in a whole paragraph on one source line, and it should remain readable in the space the page gives it without asking the reader to scroll sideways.
+      </pre>
+      </lf-diff>
+      <lf-diff id="dfg-wrap" overflow="wrap">
+        <pre>
+diff --git a/src/message.py b/src/message.py
+--- a/src/message.py
++++ b/src/message.py
+@@ -1 +1 @@
+-message = "Old wording."
++message = "A long sentence that explains the change in enough detail to wrap inside this diff, keeping the review beside the evidence instead of requiring a second copy of the same words."
+      </pre>
+      </lf-diff>
+      <lf-diff id="dfg-scroll" overflow="scroll">
+        <pre>
+diff --git a/src/constant.py b/src/constant.py
+--- a/src/constant.py
++++ b/src/constant.py
+@@ -1 +1 @@
+-PATTERN = "short"
++PATTERN = "^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega){1,4}$"
+      </pre>
+      </lf-diff>
 </lf-tab>
 
-<lf-tab id="corpus-feature-gallery" label="Core features">
+<lf-tab id="corpus-feature-gallery" label="Leaf core product gallery">
 <header id="bg-head">
         <hgroup id="bg-title">
           <p class="eyebrow">Leaf core product</p>
@@ -8037,8 +8068,8 @@ observe --cohort staff</code></pre>
               </h2>
               <p id="bg-core-surfaces-guide">
                 An <code>lf-ask</code> puts a heading and context around the choice
-                below. <strong>On me</strong> lists everything waiting on you: open items,
-                threads whose question is yours to answer (such as the gallery thread
+                below. <strong>On me</strong> lists everything waiting on you: open
+                items, a question in a thread among them (such as the gallery thread
                 about a pasted image), to-dos the agent put on you, and updates whose
                 reply failed and need sending again.
               </p>
@@ -8050,21 +8081,21 @@ observe --cohort staff</code></pre>
                   highlights; with reduced motion, there is no glide or highlight.
                 </li>
                 <li>
-                  Look at the banner: the <strong>On me</strong> control beside Threads
-                  counts what is on you, and the agent's count, such as
-                  <strong>On Claude: 1</strong>, follows its status.
+                  Look at Leaf's panel at the window's foot: the <strong>On me</strong>
+                  mark beside Threads counts what is on you.
                 </li>
                 <li>
-                  Press either, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the
-                  experimental On panel opens where Threads opens, on the list you
-                  pressed, with a tab for the other. What left each list is folded under
-                  it as Done: answered items under On me, sent replies and ended to-dos under the agent's.
-                  Press Enter on a row: it goes where <kbd>m</kbd> would.
+                  Press it, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the On view opens
+                  above the panel's row on On me, with a tab for the agent's list, such
+                  as <strong>On Claude</strong>, each tab counting its list. What left
+                  each list stands under it as Done: answered items under On me, sent
+                  replies and ended to-dos under the agent's. Press Enter on a row: it
+                  goes where <kbd>m</kbd> would.
                 </li>
                 <li>
                   On a stamped page that asks for sign-off, find the version approval
-                  among the items: its row leads to the banner's Approve control,
-                  approving answers it, and Undo reopens it.
+                  among the items: its row in On me holds the Approve control, approving
+                  answers it, and Undo reopens it.
                 </li>
                 <li>
                   Comment on the map question, then press <kbd>m</kbd> until it lands
@@ -8085,7 +8116,8 @@ observe --cohort staff</code></pre>
               <details id="bg-question-api">
                 <summary>Inspect the item record</summary>
                 <p>
-                  The map's item is <code>widget:bg-choice</code> whether or not it has an <code>lf-ask</code> wrapper. Choose a map, then read its current
+                  The map's item is <code>widget:bg-choice</code> whether or not it has
+                  an <code>lf-ask</code> wrapper. Choose a map, then read its current
                   record: <code>answer.value</code> contains option ids, and
                   <code>prompt.target</code> names the surrounding context.
                 </p>
@@ -8104,14 +8136,13 @@ observe --cohort staff</code></pre>
                 </p>
                 <ul>
                   <li>
-                    Open the On panel: the to-do waits under On me, and its row has a
-                    Done button.
+                    Open On me: the to-do waits there, and its row has a Done button.
                   </li>
                   <li>
-                    Press <kbd>m</kbd> until it lands on the to-do, after the item above,
-                    then press <kbd>x</kbd>, or under a finger the banner's
-                    <strong>Done</strong>: the to-do moves to On me's Done fold, and the
-                    agent is told.
+                    Press <kbd>m</kbd> until it lands on the to-do, after the item
+                    above, then press <kbd>x</kbd>, or its row's
+                    <strong>Done</strong> in On me: the to-do moves under On me's Done,
+                    and the agent is told.
                   </li>
                 </ul>
               </section>
@@ -8136,8 +8167,8 @@ observe --cohort staff</code></pre>
               <section id="bg-keyboard-preference">
                 <h3>Quick keyboard shortcuts</h3>
                 <p>
-                  Open <strong>More → Keyboard shortcuts</strong> and turn off
-                  <strong>Quick keyboard shortcuts</strong>. Letters, numbers and
+                  Open <strong>Keyboard shortcuts</strong> in the leaf's menu and turn
+                  off <strong>Quick keyboard shortcuts</strong>. Letters, numbers and
                   symbols now keep their ordinary meaning: <kbd>c</kbd> leaves the page
                   alone, and the note sample above loses its <kbd>1</kbd> hint. Its
                   button and text field still work with Tab, Enter and Space. Reload to
@@ -8146,34 +8177,13 @@ observe --cohort staff</code></pre>
                 </p>
               </section>
               <section id="bg-floating-panel">
-                <h3>The floating panel and the banner</h3>
+                <h3>The floating panel</h3>
                 <p>
                   Leaf's controls stand in one panel hovering over the foot of the page.
-                  <strong>Use the banner</strong>, at the foot of the leaf's menu,
-                  trades it for the banner and the bottom bar on every page, and
-                  <strong>Use the Leaf panel</strong> in the banner's More menu brings
-                  it back. A window sample shows the chrome its
-                  <code>chrome</code> attribute names, whichever you chose. Below, the
-                  same page in each: press the floating panel's leaf for the menu, and
-                  its field to comment.
+                  In the window below, press the panel's leaf for the menu, and its
+                  field to comment.
                 </p>
-                <lf-sample
-                  id="bg-chrome-classic"
-                  label="classic chrome"
-                  window
-                  chrome="classic"
-                >
-                  <template id="bg-chrome-classic-page" data-sample>
-                    <h1>Trail notes</h1>
-                    <p>The covered terrace is a short walk from the shelter.</p>
-                  </template>
-                </lf-sample>
-                <lf-sample
-                  id="bg-chrome-floating"
-                  label="floating panel"
-                  window
-                  chrome="floating"
-                >
+                <lf-sample id="bg-chrome-floating" label="floating panel" window>
                   <template id="bg-chrome-floating-page" data-sample>
                     <h1>Trail notes</h1>
                     <p>The covered terrace is a short walk from the shelter.</p>
@@ -8181,22 +8191,20 @@ observe --cohort staff</code></pre>
                 </lf-sample>
               </section>
               <p id="bg-core-controls-guide">
-                The banner also shows <strong>Threads</strong>, the
-                <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
-                then <kbd>Shift+P</kbd>), <strong>Command reference</strong> (<kbd
-                  >?</kbd
-                >
-                twice), and <strong>All pages</strong> when another Leaf page is live. A
-                quiet status line at the bottom right reports the current keyboard walk
-                or a useful command result. It moves above the bottom-left shortcuts
-                when room is tight.
+                The leaf's menu also holds <strong>Versions</strong>,
+                <strong>Keyboard shortcuts</strong> (<kbd>?</kbd>), and under Navigate
+                <strong>All pages</strong> when another Leaf page is live;
+                <strong>Page Map</strong> is <kbd>g</kbd> then <kbd>Shift+P</kbd>. The
+                empty comment field reports the current keyboard walk or a useful
+                command result where it would show the agent's status.
               </p>
               <p id="bg-share-guide">
-                On a local server, open <strong>More → Share</strong> and copy the link,
-                then open it in a fresh browser profile. The link keeps the current
-                address and passage and includes the access key even after a reload. The
-                Share panel states that the key grants access to every Leaf page served
-                by the same machine. Sample windows and the public website omit Share.
+                On a local server, choose <strong>Copy link</strong> in the leaf's menu,
+                then open the link in a fresh browser profile. The link keeps the
+                current address and passage and includes the access key even after a
+                reload. The row states that the key grants access to every Leaf page
+                served by the same machine. Sample windows and the public website omit
+                Copy link.
               </p>
               <p id="bg-history-return-guide">
                 Follow
@@ -8278,9 +8286,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </lf-draft>
               <p id="bg-history-guide">
                 <strong>Picked up</strong> means the saved edit entered an agent turn.
-                The receipt follows that edit through delivery and response. The banner
-                describes the agent’s overall availability, including work on other
-                parts of the page.
+                The receipt follows that edit through delivery and response. The panel's
+                status describes the agent’s overall availability, including work on
+                other parts of the page.
               </p>
               <lf-draft id="bg-history">
                 <pre>The sample workshop is in the blue room.</pre>
@@ -8342,7 +8350,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: settled answers in context</span>
               </h2>
               <p id="bg-readings-guide">
-                The meeting point is decided. Open <strong>Settled: At reception</strong>
+                The meeting point is decided. Open
+                <strong>Settled: At reception</strong>
                 to inspect the alternatives, then close it. The spacious cards return to
                 one disclosure line, leaving no empty card space before Sign-off.
               </p>
@@ -8376,8 +8385,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   This gallery deliberately leaves sample items unanswered, so
                   <strong>Approve version</strong> remains unavailable. On a settled
                   page it records approval for the current version; <kbd>z</kbd>, or
-                  “Undo” in “More page controls” on a touch screen, takes that approval
-                  back.
+                  “Undo” in the leaf's menu, takes that approval back.
                 </p>
               </section>
 
@@ -8385,34 +8393,30 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <h3>
                   <strong>Comment on the page</strong
                   ><span class="bg-feature-detail"
-                    >: start a page thread from the banner</span
+                    >: start a page thread from Leaf's panel</span
                   >
                 </h3>
                 <p id="bg-page-comment-card-guide">
-                  The comment symbol beside Threads on the banner starts a thread about
-                  the whole page.
+                  The panel's comment field starts a thread about the whole page.
                 </p>
                 <ul id="bg-page-comment-card-steps">
                   <li>
-                    With Threads shut, press the symbol, or press <kbd>c</kbd> with
-                    nothing selected: a card hangs from the symbol.
+                    Click the field, or press <kbd>c</kbd> with nothing selected: the
+                    status gives way to “Comment on the page” and the caret stands in
+                    the field.
                   </li>
                   <li>
-                    Write a sentence and send it: the card closes and focus returns to
-                    the symbol. Threads flashes yellow with its count one higher while
-                    the panel stays shut, and the new thread is in Threads. Press
-                    <kbd>c</kbd> to write again.
+                    Write a sentence and send it: the new thread is in Threads, whose
+                    count goes up by one, and the caret stays in the field for the next
+                    comment.
                   </li>
                   <li>
-                    Press <kbd>Escape</kbd> or click elsewhere: the card goes away and
-                    keeps what you wrote for the next time it opens.
+                    Press <kbd>Escape</kbd> or click elsewhere: the field keeps what you
+                    wrote for the next time you come back to it.
                   </li>
                   <li>
-                    Open Threads and press the symbol: the same card opens over the
-                    panel.
-                  </li>
-                  <li>
-                    On a phone, find “Comment on the page” in “More page controls”.
+                    Open a thread in Threads: the same field now replies to it, and
+                    closing the thread gives the field back to the page.
                   </li>
                 </ul>
               </section>
@@ -8421,8 +8425,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <h3>Dictate a comment</h3>
                 <p id="bg-comment-dictation-guide">
                   In a browser with speech recognition, every empty comment or reply box
-                  offers a microphone where Send will stand. The page comment card, a
-                  passage's comment box, and a thread reply all use the same control.
+                  offers a microphone where Send will stand. The panel's comment field,
+                  a passage's comment box, and a thread reply all use the same control.
                 </p>
                 <ul id="bg-comment-dictation-steps">
                   <li>
@@ -8453,8 +8457,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   Press <kbd>l</kbd>, then click <strong>Street map</strong>. Leaf opens
                   a comment about <code>lf-option · bg-choice-street</code> without
                   choosing the option. Press <kbd>Escape</kbd> to leave design mode. On
-                  a touch screen, choose “Design mode” in “More page controls”, tap
-                  “Street map”, and tap “Exit Design mode” on the banner to leave.
+                  a touch screen, choose “Design mode” under Annotations in the leaf's
+                  menu, tap “Street map”, and tap “Exit Design mode” in the panel's row
+                  to leave.
                 </p>
               </section>
 
@@ -8502,9 +8507,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     usable while Draw mode is on.
                   </li>
                   <li>
-                    On a touch screen, choose “Draw mode” in “More page controls”; “Undo
-                    stroke” and “Exit Draw mode” stand on the banner while the mode is
-                    on.
+                    On a touch screen, choose “Draw mode” under Annotations in the
+                    leaf's menu; “Undo stroke” and “Exit Draw mode” stand in the panel's
+                    row while the mode is on.
                   </li>
                 </ul>
               </section>
@@ -8519,15 +8524,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </p>
                 <ul id="bg-area-capture-steps">
                   <li>
-                    Open “More page controls”, choose “Capture area”, and drag a
-                    rectangle around this paragraph or a nearby widget. Arrow keys move
-                    the rectangle, and <kbd>Shift</kbd>
+                    Open Annotations in the leaf's menu, choose “Capture area”, and drag
+                    a rectangle around this paragraph or a nearby widget. Arrow keys
+                    move the rectangle, and <kbd>Shift</kbd>
                     with an arrow resizes it.
                   </li>
                   <li>
-                    Choose “Attach capture” in the banner, or press <kbd>Enter</kbd>:
-                    the image appears in an anchored comment, where you can add words,
-                    remove the image, or send it alone.
+                    Choose “Attach capture” in the panel's row, or press
+                    <kbd>Enter</kbd>: the image appears in an anchored comment, where
+                    you can add words, remove the image, or send it alone.
                   </li>
                   <li>
                     Press <kbd>Escape</kbd> or “Cancel capture” instead: you leave
@@ -8548,21 +8553,22 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   >
                 </h3>
                 <p id="bg-align-current-item-guide">
-                  Align current item at top moves the block you are reading to just
-                  below the banner.
+                  Align current item at top moves the block you are reading to the
+                  window's top.
                 </p>
                 <ul id="bg-align-current-item-steps">
                   <li>
                     Select some words in this paragraph, or focus the heading above, and
                     scroll until it sits lower on screen. Press <kbd>g</kbd> and
-                    <kbd>z</kbd>, or choose Align current item at top in More page
-                    controls: its reading block moves just below the banner, and your
-                    focus and selection stay.
+                    <kbd>z</kbd>, or under a finger choose Align current item at top
+                    under Navigate in the leaf's menu: its reading block moves to the
+                    window's top, and your focus and selection stay.
                   </li>
                   <li>
-                    Try it on a focused question: its heading aligns. Try it on a focused
-                    thread in Threads: its card aligns inside the panel. In a bounded
-                    reading area, the block aligns within that area's own scroller.
+                    Try it on a focused question: its heading aligns. Try it on a
+                    focused thread in Threads: its card aligns inside the view. In a
+                    bounded reading area, the block aligns within that area's own
+                    scroller.
                   </li>
                   <li>
                     Press browser Back: there is no new stop to undo. Inside an editor,
@@ -8581,12 +8587,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </h3>
                 <p id="bg-restored-selection-guide">
                   Select a passage here, then press <kbd>Escape</kbd> and read somewhere
-                  else. Press <kbd>g</kbd> and <kbd>v</kbd>, or choose Restore selection
-                  in More page controls: the page reveals the passage and selects the
-                  same words with the same working end. A live revision can replace
-                  their markup; removed or ambiguous words report that the passage is
-                  unavailable. Selecting inside an editor keeps its native meaning.
-                  <kbd>g</kbd> then <kbd>V</kbd> still opens versions.
+                  else. Press <kbd>g</kbd> and <kbd>v</kbd>, or under a finger choose
+                  Restore selection under Navigate in the leaf's menu: the page reveals
+                  the passage and selects the same words with the same working end. A
+                  live revision can replace their markup; removed or ambiguous words
+                  report that the passage is unavailable. Selecting inside an editor
+                  keeps its native meaning. <kbd>g</kbd> then <kbd>V</kbd> still opens
+                  versions.
                 </p>
               </section>
 
@@ -8608,8 +8615,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   </li>
                   <li>
                     Scroll somewhere else, then press <kbd>g</kbd> and <kbd>i</kbd>, or
-                    choose Resume writing in More: the page returns to this editor and
-                    restores the caret.
+                    under a finger choose Resume writing under Navigate in the leaf's
+                    menu: the page returns to this editor and restores the caret.
                   </li>
                   <li>
                     Send the comment, move elsewhere, and use Resume writing again: its
@@ -8691,13 +8698,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
         <lf-tab id="bg-view-threads" label="Threads"
           ><article class="layout-column">
             <section id="bg-panel-views">
-              <h2><strong>Threads panel views</strong></h2>
+              <h2><strong>Threads in the panel</strong></h2>
               <p id="bg-panel-views-guide">
-                Choose a view to open the real Threads panel in this practice page. The
+                Choose a view to open its thread in this practice page's Leaf panel. The
                 controls, messages, filters, and unread state are live. Reset restores
                 the seeded discussion after trying a reply or changing a thread.
               </p>
-              <div id="bg-panel-presets" role="group" aria-label="Threads panel views">
+              <div id="bg-panel-presets" role="group" aria-label="Threads in the panel">
                 <button
                   type="button"
                   class="button"
@@ -8798,18 +8805,16 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   With a thread focused, open Threads, including with <kbd>g</kbd> then
-                  <kbd>T</kbd>: the same thread stays focused in the panel.
+                  <kbd>T</kbd>: the same thread stays focused in the list.
                 </li>
                 <li>
-                  Under “View”, choose “Open” or “Resolved”, and “Me” or the agent's
-                  name under “Waiting on”, to narrow the list, and combine “Page” or
-                  “Anchored” with “Content” or “Design”. Switch “Order” from the page's
-                  order to “Recent”: the thread with the latest message comes first
-                  under its day.
+                  Choose “Open”, “Unread”, “Drafts” or “Resolved” at the head of Threads
+                  to narrow the list, each tab keeping its count, or search the threads'
+                  words with the find button beside them.
                 </li>
                 <li>
-                  Look at a collapsed row: it keeps its message count, last activity,
-                  and status, and “On me” also names the action you owe.
+                  Look at a row: it is one line, the thread's title and its status, and
+                  a thread waiting on you says so.
                 </li>
                 <li>
                   Open a short thread: Reply follows its last message. In a long one,
@@ -8859,7 +8864,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   </li>
                   <li>
                     Start a conversation and mark the proofreading to-do Done: the
-                    package's lists and Leaf's On panel show the same outcomes.
+                    package's lists and Leaf's On view show the same outcomes.
                   </li>
                   <li>
                     Use first-unread and question navigation: each lands in this reader.
@@ -9004,15 +9009,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   If the server refuses the send, the words stay on this passage, where
-                  opening the comment box again finds them; the card under “Comment on
-                  the page” gets them back in place.
+                  opening the comment box again finds them; a page comment's words
+                  return to the panel's comment field.
                 </li>
                 <li>
                   On a touch screen, select words and tap “Comment on selection” in the
-                  banner: the field opens after the native selection menu closes. To
-                  comment on the whole paragraph, open “More page controls”, choose
-                  “Select element”, then tap it; “Cancel selection” leaves the page
-                  unchanged.
+                  panel's row: the field opens after the native selection menu closes.
                 </li>
               </ul>
               <p id="bg-revised-quotes-guide">
@@ -9090,8 +9092,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 These passages have real threads in this gallery. Open Threads to
                 compare each row's status and compact last-activity time, then open a
                 row to inspect its messages. The title remains in the header when the
-                card opens. Drag the panel’s left edge inward to see the status move
-                below a title. The first pair shows a title before and after naming.
+                card opens. The first pair shows a title before and after naming.
               </p>
               <section id="bg-thread-state-titles">
                 <h3>Thread title</h3>
@@ -9142,8 +9143,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                       question still needs an answer even though the agent added a later
                       progress message. In Threads, “My turn to answer” still says so.
                       Open the control and reply: the control turns blue as the thread
-                      comes back to the agent. The same reading fills the panel’s “Me”
-                      filter and this target’s Page Map row.
+                      comes back to the agent. The same reading fills this target’s Page
+                      Map row.
                     </p>
                     <p id="bg-thread-media">
                       <strong>Pasted images.</strong> That thread includes an image
@@ -9174,7 +9175,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <h3>Resolved</h3>
                 <p id="bg-resolved-text">
                   <strong>A resolved thread.</strong> The room has a projector. Its
-                  earlier question is resolved. Open Threads in the banner, select
+                  earlier question is resolved. Open Threads in Leaf's panel, choose
                   “Resolved”, open the thread, and press its underlined “Resolved” to
                   bring its Thread control back to the page.
                 </p>
@@ -9368,9 +9369,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: options laid across</span>
               </h2>
               <p id="bg-ask-across-guide">
-                This question holds a chart and ends in one list of titled options. Under
-                the chart the three cards stand side by side, so the question, the chart
-                and every option fit one window; narrow the window and the cards stack.
+                This question holds a chart and ends in one list of titled options.
+                Under the chart the three cards stand side by side, so the question, the
+                chart and every option fit one window; narrow the window and the cards
+                stack.
               </p>
               <lf-ask id="bg-across-ask">
                 <h3>Which trail should the sample team hike on Saturday?</h3>
@@ -9433,7 +9435,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   Walk the list with the up and down arrows: they pass the headings by.
                 </li>
                 <li>
-                  Press Next on me in the tally: it opens the first item, whose row carries an open mark.
+                  Press Next on me in the tally: it opens the first item, whose row
+                  carries an open mark.
                 </li>
                 <li>
                   Choose Fix, then Escalate to engineering: the row keeps its name and
@@ -9636,8 +9639,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Press <kbd>o</kbd> to hide pins and passage marks while reading the
                 content beneath them. Controls in the rail stay visible, and nothing on
                 the page moves. Press it again to bring the annotations back. On a touch
-                screen, open “More page controls” and choose “Hide annotations”, then
-                “Show annotations”.
+                screen, open Annotations in the leaf's menu and choose “Hide
+                annotations”, then “Show annotations”.
               </p>
               <p id="bg-margin-layer-actions-guide">
                 <strong>Action pins without a rail.</strong> This practice page has no
@@ -10374,11 +10377,11 @@ gallery/
                 <section id="bg-durable-embedding" hidden>
                   <h3>Stamped page in a frame</h3>
                   <p id="bg-durable-frame-guide">
-                    Open the earlier map decision, then open its Threads panel. This is
-                    the gallery's ordinary stamped v2, with its durable history and
-                    original text. Reloading the frame keeps that version; it is not a
-                    temporary practice copy. Its scheme, hostname, and port match this
-                    page; another origin cannot frame it.
+                    Open the earlier map decision, then open its Threads. This is the
+                    gallery's ordinary stamped v2, with its durable history and original
+                    text. Reloading the frame keeps that version; it is not a temporary
+                    practice copy. Its scheme, hostname, and port match this page;
+                    another origin cannot frame it.
                   </p>
                   <div id="bg-durable-frame-host">
                     <button id="bg-durable-frame-open" class="button" type="button">
@@ -10401,9 +10404,9 @@ gallery/
                 <section id="bg-window-practice">
                   <h3>Window sample</h3>
                   <p id="bg-window-sample-guide">
-                    A practice page as a whole window: its banner keeps its status row,
-                    its bottom bar holds its shortcuts, and the frame keeps a window's
-                    height however short the page is. Press its
+                    A practice page as a whole window: its Leaf panel floats at the
+                    window's foot, and the frame keeps a window's height however short
+                    the page is. Press its
                     <strong>Open threads</strong>
                     button to see its authored conversation. Add a reply, then Reset:
                     the original conversation returns, and this gallery gets no thread.
@@ -10887,9 +10890,9 @@ switch --readers checkout-api,orders-api</code></pre>
               <section id="bg-interaction-threads">
                 <h3>Open and close Threads</h3>
                 <p id="bg-interaction-threads-guide">
-                  Press <strong>Threads</strong> in the sample's top bar to open the
-                  Threads panel and read its conversation, then close the panel with its
-                  × button or <kbd>Escape</kbd>.
+                  Press <strong>Threads</strong> in the sample's panel to open the list,
+                  open its conversation, then put the view away with its Close button or
+                  <kbd>Escape</kbd>.
                 </p>
                 <lf-sample
                   id="bg-motion-threads-sample"
@@ -10915,14 +10918,14 @@ switch --readers checkout-api,orders-api</code></pre>
       </lf-tabs>
 </lf-tab>
 
-<lf-tab id="corpus-visual-review-gallery" label="Visual review package">
+<lf-tab id="corpus-visual-review-gallery" label="Leaf visual-review package">
 <lf-visual-review
         id="visual-review-run"
         source="gallery-visual-run"
       ></lf-visual-review>
 </lf-tab>
 
-<lf-tab id="corpus-playwright-trace-gallery" label="Playwright trace package">
+<lf-tab id="corpus-playwright-trace-gallery" label="Leaf Playwright trace review">
 <header id="trace-introduction">
         <h1>Review a recorded release journey</h1>
         <p>

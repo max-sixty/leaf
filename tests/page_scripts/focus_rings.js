@@ -233,9 +233,10 @@
       let scrolled = false;
       const above = flatParent;
       // One side, one message, named for the innermost box that took it. A scroll region's
-      // edge is often the window's to the pixel — .lf-threads' right edge is .lf-thread-panel's is
-      // innerWidth — and one ring reported twice reads as two defects. The innermost box is
-      // the more useful of the two answers anyway: it is the box the control lives in.
+      // edge is often the window's to the pixel — a list flush with a window-edge panel
+      // shares its right edge, which is innerWidth — and one ring reported twice reads as
+      // two defects. The innermost box is the more useful of the two answers anyway: it
+      // is the box the control lives in.
       const taken = {};
       const took = (band, who) => {
         // Only the sides where this box is showing the control's own edge, which is the
@@ -292,9 +293,10 @@
       // box stops somewhere. It is the outermost clip there is: a fixed subtree is laid out
       // against it, and everything else reaches it through body, which is this page's
       // scroller. Not a claim that nothing else could clip a fixed box — a containing block
-      // established by transform, filter or containment is a real case, and .lf-banner's
-      // backdrop-filter is one such generator — but the walk covers that case now by asking
-      // every box on the way up instead of branching on the focused one's own position.
+      // established by transform, filter or containment is a real case, and a chrome
+      // surface's backdrop-filter is one such generator — but the walk covers that case
+      // now by asking every box on the way up instead of branching on the focused one's
+      // own position.
       took({ top: 0, left: 0, bottom: innerHeight, right: innerWidth }, "the window");
       for (const side of ["top", "left", "bottom", "right"])
         if (taken[side]) cuts.push(taken[side]);
@@ -324,10 +326,10 @@
       // hit-testable. A pixel of ring outside the control's box therefore returns whatever
       // is beneath, and beneath is where the answer would have to come from.
       //
-      // That is sound where an ancestor's hit surface covers the sample. The shortcut
-      // bar takes no hits outside its More button, so a ring pixel there returns the
-      // page underneath. The auxiliary envelope also takes no hits, but its panel
-      // restores them inside its box. Read each ring side under the nearest such box;
+      // That is sound where an ancestor's hit surface covers the sample. A chrome layer
+      // that takes no hits, such as the floating panel's window-wide ground, returns the
+      // page underneath for a ring pixel there, unless a box inside it restores hits
+      // over the sample. Read each ring side under the nearest such box;
       // `cuts` remains a geometry reading even where hit order says nothing.
       const orderedAt = (x, y) => {
         let hitSurface = null;
@@ -342,7 +344,7 @@
         return true;
       };
       // Whether a fixed surface standing over this ring is worth reporting. Tab scrolls
-      // the control it lands on clear of the banner — that is what the document's
+      // the control it lands on clear of fixed chrome — that is what the document's
       // scroll-padding is for — so a fixed bar over the focused control's ring is a
       // promise broken. Over a ring some ancestor wears it is not: nobody scrolled that
       // box, and where its top edge comes to rest a pixel under the bar is the user's
@@ -385,8 +387,8 @@
       // Each run sampled in the middle of the part of it that is on screen, rather than in
       // the middle of the whole run. They differ for anything taller or wider than the
       // window, and then the plain midpoint is a point the user cannot see: an option
-      // group 1791px tall was sampled 22px down the window, which is inside the banner,
-      // and the banner's status dot came back as standing over its ring.
+      // group 1791px tall was sampled 22px down the window, which is inside the chrome
+      // fixed there, and its status dot came back as standing over its ring.
       const runX = [Math.max(ring.left, 0), Math.min(ring.right, innerWidth)];
       const runY = [Math.max(ring.top, 0), Math.min(ring.bottom, innerHeight)];
       const shownRun = runX[0] <= runX[1] && runY[0] <= runY[1];
@@ -429,9 +431,9 @@
           // which is a fact about where the control was put rather than about the ring being
           // drawn outside its box. The claim worth making is the other one: where the control
           // can be seen, so can the ring that names it. Stated without a case on purpose —
-          // the one this was written for was the drawer's edge handle running the whole height
-          // of the window under the banner, which stopped being true in 3a8f16f0, the commit
-          // that added this comment and the handle's top inset together.
+          // the one this was written for was a drawer's edge handle running the whole height
+          // of the window under the chrome at its top, which stopped being true in 3a8f16f0,
+          // the commit that added this comment and the handle's top inset together.
           //
           // The step in has to clear the ring's own band. Past an outward ring, `grow + 1`
           // lands on the control's own outermost pixels, so a control whose edge stands

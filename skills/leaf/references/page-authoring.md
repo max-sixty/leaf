@@ -98,12 +98,12 @@ table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
 - **Several views of one subject**, such as a playground to try beside the proposal it
   argues for and the reasoning behind it, are a page of views: one `lf-tabs` set in a
   `main` with no Layout, each view with a Layout of its own (`page-layout.md`, "A page
-  of views"). The views share one history, Threads panel and On me list. A tab set
+  of views"). The views share one history, Threads list and On me list. A tab set
   inside a view holds local alternatives within it.
 
 A page can grow without changing its Layout: a report that gains live status gains a
-row of tiles. Leaf's banner and bottom bar take their own space, and comment markers go
-in the margin or over their targets, so leave room for neither.
+row of tiles. Leaf's panel takes its own room at the window's foot, and comment markers
+go in the margin or over their targets, so leave room for neither.
 
 ## Contents navigation
 

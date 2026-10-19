@@ -80,8 +80,8 @@ writes it. A change crosses that gap in one of two ways.
 - **Drift** may break an older page without a bump while Leaf is in alpha, as
   when a render check imports a runtime name the page's older runtime lacks. Leaf
   doesn't detect drift by comparing a page's files with its own, since nearly
-  every update would then force a rebuild. Instead the banner and `page check`
-  name the Leaf that vendored the page beside the one serving or checking it,
+  every update would then force a rebuild. Instead the Leaf panel's menu and
+  `page check` name the Leaf that vendored the page beside the one serving or checking it,
   with dates, and the agent re-vendors a much older page that misbehaves. Where
   drift does cause a failure, as at the render gate, the failure names the
   re-vendor.
@@ -271,7 +271,7 @@ to the new node, matched by the key the replacement already uses, or the user
 loses it.
 
 Python decides where the agent's work stands: `activity` (`activity.py`) for the
-whole page, read by the banner, and `workflows` (`workflows.py`) for each update
+whole page, read by the Leaf panel, and `workflows` (`workflows.py`) for each update
 the user handed over, read by messages, thread attention, margin entries and the
 Stop hook; thread attention also reads the user's outstanding items. A busy page
 doesn't mean every message is being worked on. The browser adds its own unsent

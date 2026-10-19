@@ -12,7 +12,7 @@ Test in the host the user actually runs:
 - Its inline renderer accepts the resource and supports Leaf's required content
   security policy, including evaluation of `lf-chart` bodies.
 - A keyboard choice and an anchored comment reach the durable page log and appear
-  in the Threads panel.
+  in Threads.
 - Reopening the view reconstructs the same state from the page directory.
 - Version navigation, newly loaded layer assets, and external data use the same
   transport rather than bypassing it.

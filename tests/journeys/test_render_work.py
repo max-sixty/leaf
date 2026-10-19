@@ -29,6 +29,8 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
+from browser.threads import open_panel_thread
+
 
 @pytest.mark.watch_shifts
 def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
@@ -223,15 +225,15 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
     wait_until_ready(page)
     check_generated_status(revised, "active")
     check_thread_quotes([blocked, active])
-    page.locator(".lf-threads-toggle").click()
-    quotes = page.locator(".lf-thread-panel .lf-quote")
-    expect(quotes).to_have_count(2)
-    expect(page.locator(".lf-thread-panel .lf-quote.detached")).to_have_text(
-        "“blocked”"
-    )
-    expect(page.locator(".lf-thread-panel .lf-quote:not(.detached)")).to_have_text(
-        "“active”"
-    )
+    # Each thread's view quotes what it was about, the one whose words the revision
+    # took away detached.
+    for comment, said, detached in (
+        (blocked, "“blocked”", True),
+        (active, "“active”", False),
+    ):
+        quote = open_panel_thread(page, comment["id"]).locator(".lf-quote")
+        expect(quote).to_have_text(said)
+        assert ("detached" in quote.get_attribute("class").split()) is detached
     assert [
         event for event in read_events(serve.page_dir) if event["kind"] == "comment"
     ] == [blocked, active]

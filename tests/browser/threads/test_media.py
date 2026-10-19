@@ -15,10 +15,13 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_harness import (
     LONG_PAGE,
+    PANEL_THREAD,
     example_media,
     holding,
     leaf_page,
     open_page,
+    page_comment,
+    panel_field,
     resized,
     sending,
     stamp_page,
@@ -26,8 +29,6 @@ from render_harness import (
     write,
 )
 
-from browser.test_render_floating_panel import field as floating_field
-from browser.test_render_floating_panel import floating
 from browser.threads import (
     capture_page,
     open_capture_area,
@@ -37,25 +38,23 @@ from browser.threads import (
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-@pytest.mark.parametrize("chrome", ["card", "floating"])
-def test_a_draft_s_image_closes_back_to_the_draft(browser, serve, chrome):
+@pytest.mark.parametrize("editor", ["comment", "reply"])
+def test_a_draft_s_image_closes_back_to_the_draft(browser, serve, editor):
     """Opening a draft's attached image and closing it, by Escape, the close control or
-    a press outside, returns the user to the draft with its words and picture. The page
-    comment card is an auto popover, which modal entry dismisses unless the modal stands
-    in it; the floating panel puts a thread's view away on a press it reads as outside
-    it, and with it the reply being written."""
+    a press outside, returns the user to the draft with its words and picture, in the
+    panel's field whichever editor stands there: the page comment, or an open thread's
+    reply, whose view the panel would put away on a press it read as outside it."""
     url = serve(LONG_PAGE)
-    if chrome == "card":
+    if editor == "comment":
         page = open_page(browser, url)
-        page.keyboard.press("c")
-        box = page.locator(".lf-page-comment-card leaf-text")
+        box = page_comment(page)
     else:
         panel_comment(serve.page_dir, "Can you show me the fault?")
-        page = floating(browser, url)
+        page = open_page(browser, url)
         page.locator("body").focus()
         page.keyboard.press("t")
-        expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
-        box = floating_field(page)
+        expect(page.locator(PANEL_THREAD)).to_be_visible()
+        box = panel_field(page)
     write(box, "See the fault")
     paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
     thumbnail = page.get_by_role("button", name="View attached image 1", exact=True)
@@ -156,7 +155,7 @@ def test_a_capture_in_a_table_is_named_by_its_heads(browser, serve):
         expect(viewer).to_be_hidden()
 
 
-# A diagram that states no size of its own, only a shape, as Mermaid writes one.
+# A diagram that states no size of its own, only a shape, as a diagram renderer writes one.
 DIAGRAM_SVG = (
     b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
     b'<rect width="400" height="200" fill="#cde"/></svg>'
@@ -266,7 +265,6 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         assert zoomed["width"] == pytest.approx(1800, abs=1)
         if not offline and width == 1440:
             page.keyboard.press("?")
-            page.keyboard.press("?")
             help_dialog = page.get_by_role(
                 "dialog", name="Command reference", exact=True
             )
@@ -345,7 +343,6 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     shelf_box = shelf.bounding_box()
     assert shelf_box["x"] + shelf_box["width"] <= field_box["x"]
     assert field_box["x"] + field_box["width"] <= width
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close — draft kept")
     layout = shelf.evaluate(
         """element => ({
           display: getComputedStyle(element).display,

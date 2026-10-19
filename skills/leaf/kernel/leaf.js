@@ -1458,7 +1458,7 @@ function declaredStack(origin) {
     )
   }));
 }
-var commandRoutesAtOpen = /* @__PURE__ */ new Map();
+var commandRoutesAtOpen = { on: /* @__PURE__ */ new Map(), off: /* @__PURE__ */ new Map() };
 var commandReferenceIsOpen = false;
 var commandReferenceInvoke = null;
 var EMPTY_CATALOG = Object.freeze({
@@ -1531,7 +1531,7 @@ function captureCommandReferenceCatalog() {
     return { scope, rows: rows2 };
   }).filter(({ rows: rows2 }) => rows2.length);
   const available = (rowInfo, route) => {
-    const routes = commandRoutesAtOpen.get(rowInfo.row) ?? /* @__PURE__ */ new Set();
+    const routes = commandRoutesAtOpen[quickShortcuts() ? "on" : "off"].get(rowInfo.row) ?? /* @__PURE__ */ new Set();
     const alternatives = route ? [route.binding] : rowInfo.rowBindings;
     return rowInfo.declared.length === 0 ? routes.has(void 0) : alternatives.some((binding) => routes.has(binding));
   };
@@ -1956,7 +1956,10 @@ function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
     dismissPopoversOutside(commandReferenceDialog);
     openLayer(commandReferenceDialog);
     commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
-    commandRoutesAtOpen = availableCommandRoutes({ commands: true });
+    commandRoutesAtOpen = {
+      on: availableCommandRoutes({ commands: true, quick: true }),
+      off: availableCommandRoutes({ commands: true, quick: false })
+    };
   }
   commandReferenceIsOpen = open;
   if (fresh) {

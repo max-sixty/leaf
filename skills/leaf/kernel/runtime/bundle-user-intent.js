@@ -1565,7 +1565,7 @@ function copyControl(className, { label = "", success, error }) {
   copy.errorLabel = error;
   copy.tooltip = "none";
   copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
-  copy.addEventListener("wa-error", () => notice(error, { announce: false }));
+  copy.addEventListener("wa-error", () => raiseError(error, { announce: false }));
   return copy;
 }
 

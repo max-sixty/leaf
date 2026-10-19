@@ -800,7 +800,8 @@ def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
 def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
     """A clipboard that refuses the write leaves the user the link all the same: the
     press turns the menu to About on the link, in a field they can select, and the field
-    says the link was not copied."""
+    says the link was not copied. The failure remains in Errors when the reader
+    leaves About."""
     refuses = (
         "Clipboard.prototype.writeText = () => Promise.reject(new Error('refused'));"
     )
@@ -812,6 +813,11 @@ def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
     expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
     expect(about.locator(".lf-fp-menu-back")).to_contain_text("About this page")
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Link not copied"))
+    about.locator(".lf-fp-menu-back").click()
+    page.locator('.lf-fp-menu [data-row="errors"]').click()
+    expect(page.locator(".lf-fp-menu .lf-fp-error")).to_contain_text(
+        "Link not copied · select it to copy"
+    )
 
 
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
@@ -1416,6 +1422,7 @@ def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, 
         """async () => {
           const box = document.createElement('input');
           box.id = 'elsewhere';
+          box.style.cssText = 'position: fixed; top: 8px; left: 8px';
           document.querySelector('main').prepend(box);
           box.focus();
           const api = await window.__lfWidgetApi();

@@ -68,19 +68,6 @@
    scrolls the reading region, as far as it can, to make the room it needs (`makeRoom`),
    so it opens clear of that target.
 
-   What a surface paints is what the boundary holds. The comment box's frame reserves
-   its card's head row and reply row unpainted (`reserve`), and the one at the end it
-   grows toward may stand past the boundary (`overhang`), which also lets the frame
-   grow that much taller than the boundary. So the words the user typed hold still
-   until the field itself meets the window's edge, and Send, which needs that row
-   inside, moves the words by the overhang, unless the card it becomes fills the
-   boundary (`stood` caps it there) and scrolls them instead. The user asked
-   (2026-10-17) for a box beside its passage to grow down from its top rather than
-   slide. Rejected: holding the whole frame inside, which slid the field as soon as its
-   unpainted reply row met the edge, while the field itself still had room; and letting
-   the reserve overhang only by the room the frame left, which slid the field two lines
-   per line as it neared the window's height.
-
    A surface may hold one edge at an offset of its own choosing (`hold`), in client
    pixels from its line: `row` beside, and under or over the edge of `clear` it stands
    clear of, so a reflow of what it is about carries it. The card keeps its reply row
@@ -97,6 +84,13 @@
    unchanged rewrite closed as a clipped scrolling box; holding its top where the
    window had kept it as it shrank, which a press holding its foot undid; and a floor
    in the rewrite for that one cause of shrinking.
+
+   The comment box's frame reserves its card's head and reply rows around the editor,
+   and the boundary holds all of it, as it holds the card, so Send moves nothing. The
+   box paints that frame while it is written (annotation-chrome.css), so the edge it
+   rises against is one the user sees. Rejected: letting the reserved row the box grows
+   toward stand past the window's edge (#3139), which kept the words still while typing
+   but moved them at Send by that row.
 
    Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
    frame's side and inline start where the boundary still matches, and returns its
@@ -423,12 +417,6 @@ export function commentPlacement() {
     pressHeld = null;
     pressAnswered = null;
   };
-  // Of an unpainted `reserve` ({ top, bottom }, client pixels), what may stand past the
-  // boundary: the end the surface grows toward, away from the edge it holds.
-  const overhangOf = (reserve) => {
-    const end = side === "top" ? "top" : "bottom";
-    return { [end]: reserve?.[end] ?? 0 };
-  };
   const line = (clear, row) =>
     quoted
       ? row
@@ -441,7 +429,7 @@ export function commentPlacement() {
     get side() {
       return side;
     },
-    // Mechanical handoff between the editor's transparent frame and its sent card.
+    // Mechanical handoff between the editor's frame and its sent card.
     capture() {
       return { side, boundary: input?.slice(1, 5) ?? null, moved };
     },
@@ -450,7 +438,6 @@ export function commentPlacement() {
       pending = frame;
     },
     forget,
-    overhang: overhangOf,
     // Which edge this placement holds, `top` or `foot`, from what the caller reports:
     // the transcript's extent, whether the user is drafting, the latest turn
     // (`{ key, author }`), the draft's words, and, while it is the user's latest
@@ -592,7 +579,6 @@ export function commentPlacement() {
         boundary,
         fit,
         hold = null,
-        reserve = null,
       },
     ) {
       const minimumWidth = cardMinimum();
@@ -627,12 +613,6 @@ export function commentPlacement() {
             boundary.right - Math.min(minimumWidth, boundary.width),
           );
       const overflow = { boundary: [], rootBoundary: boundary, padding: 0 };
-      // Shift reads the reserve allowed past the boundary as negative padding.
-      const overhang = Object.entries(overhangOf(reserve));
-      const padding = Object.fromEntries(
-        overhang.map(([end, length]) => [end, -length]),
-      );
-      const reach = overhang.reduce((total, [, length]) => total + length, 0);
       let heldIn = false;
       const attachment = ui.limitShift(() => ({
         mainAxis: !across,
@@ -708,17 +688,11 @@ export function commentPlacement() {
         apply(state) {
           const { scale, line } = measure(state);
           // The height a held surface caps no lower than: the tallest it has stood
-          // while its line stood where it stands now, else the height it last stood,
-          // never more than the boundary and its overhang hold. A card adopting a
-          // comment box's frame paints all of it, so a reserve that stood past the
-          // boundary is not room the card keeps.
+          // while its line stood where it stands now, else the height it last stood.
           const stood = held
-            ? Math.min(
-                boundary.height + reach,
-                Math.max(
-                  held.foot - held.top,
-                  tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0,
-                ),
+            ? Math.max(
+                held.foot - held.top,
+                tallest && Math.abs(tallest.line - line) < 0.5 ? tallest.height : 0,
               ) / scale.y
             : 0;
           const lane =
@@ -791,7 +765,6 @@ export function commentPlacement() {
         heldEdge && sizing,
         ui.shift({
           ...overflow,
-          padding,
           mainAxis: true,
           crossAxis: true,
           limiter: {

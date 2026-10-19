@@ -126,9 +126,7 @@ def test_typing_moves_the_comment_box_and_leaves_the_page_still(
     """A box under or over its passage that outgrows the room on its side moves inside
     the window, across the passage if it must, and the page stays where the user put it.
     The user reported the page scrolling under their keys as the box grew (the box then
-    asked the page to make room for each new line). The painted field is what stays in
-    the window: the bar's frame reserves the sent card's rows unpainted, and they may
-    stand past its edge."""
+    asked the page to make room for each new line)."""
     words = "The reviewer weighs each claim against the evidence offered so far. " * 3
     paragraphs = "".join(f'<p id="p{n}">{words}</p>' for n in range(30))
     page = open_page(browser, serve(leaf_page("Typing room", paragraphs)))
@@ -145,7 +143,6 @@ def test_typing_moves_the_comment_box_and_leaves_the_page_still(
     field = open_compact_comment(page)
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") == placement
-    painted = bar.locator(".lf-compose-field")
     window = page.evaluate(
         """async () => {
           const {top, bottom} = (await window.__lfWidgetApi())
@@ -153,19 +150,19 @@ def test_typing_moves_the_comment_box_and_leaves_the_page_still(
           return {top, bottom, scroll: scrollY};
         }"""
     )
-    start = painted.bounding_box()
+    start = bar.bounding_box()
     lines = [f"Line {n} of a comment that keeps growing" for n in range(22)]
     for line in lines:
         page.keyboard.type(line)
         page.keyboard.press("Shift+Enter")
         rendered(page)
-        box = painted.bounding_box()
+        box = bar.bounding_box()
         assert page.evaluate("scrollY") == window["scroll"], (line, box)
         assert box["y"] >= window["top"] - 0.5, (line, box, window)
         assert box["y"] + box["height"] <= window["bottom"] + 0.5, (line, box, window)
     expect(field).to_have_js_property("value", "\n".join(lines) + "\n")
     assert bar.get_attribute("data-lf-placement") == placement
-    grown = painted.bounding_box()
+    grown = bar.bounding_box()
     # Grown past the room its side showed, so it moved rather than the page.
     room = (
         window["bottom"] - start["y"]

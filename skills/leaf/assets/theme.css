@@ -144,6 +144,7 @@
   --focus-ring: var(--focus-ring-w) solid var(--accent);
   --focus-ring-gap: 3px;
   --focus-ring-room: calc(var(--focus-ring-w) + var(--focus-ring-gap));
+  --focus-ring-landing: calc(var(--focus-ring-room) + 2px);
   --focus-surface: color-mix(in srgb, var(--accent) 4%, var(--card));
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
@@ -832,7 +833,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   gap: 0;
   font: 600 var(--t-6)/1 var(--sans);
   white-space: nowrap;
-  scroll-margin-block: var(--focus-ring-room);
+  scroll-margin-block: var(--focus-ring-landing);
   --lf-entry-lift: 0 1px 0 var(--border-2), var(--raise-1);
 }
 .lf-margin-entry[data-lf-behavior=action] {

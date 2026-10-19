@@ -1456,11 +1456,19 @@ def _winning_declaration(matches, carrier):
     that order, which no ring rule in the layer meets."""
     won = {}
     for match in matches:
-        for prop in match["rule"]["style"]["cssProperties"]:
-            # The longhands the protocol expands a shorthand into carry no source text.
+        style = match["rule"]["style"]
+        # The longhands the protocol expands a shorthand into carry no source text, so
+        # the declarations are the properties that do. A sheet whose source the protocol
+        # has not read lists none with text, and names its shorthands only among
+        # `shorthandEntries`: Chromium on CI's Linux runner listed the chrome sheet's
+        # target hint rule that way.
+        props = [prop for prop in style["cssProperties"] if "text" in prop] or [
+            *style["cssProperties"],
+            *style.get("shorthandEntries", []),
+        ]
+        for prop in props:
             if (
-                "text" in prop
-                and prop["name"] in RING_CARRIERS[carrier]
+                prop["name"] in RING_CARRIERS[carrier]
                 and not prop.get("disabled")
                 and prop.get("parsedOk", True)
             ):

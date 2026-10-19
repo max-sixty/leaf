@@ -271,10 +271,13 @@ def test_reply_admission_finishes_or_restores_its_native_session(
         expect(field).to_have_js_property("value", words)
         assert stored_draft_text(page, "reply:" + root) == words
         # The refusal covers the words it gave back in the panel's field, which sends
-        # nothing until the user's first edit or press there brings them back.
+        # nothing until the user's first edit or press there brings them back. The
+        # press is one in the reply's row, so the resolved thread keeps its editor
+        # once the press has finished painting.
         cover = page.locator(".lf-fp-error-cover")
         expect(cover).to_contain_text("Please retry.")
         cover.click()
+        rendered(page)
         expect(field).to_be_focused()
         with sending(page, "the same reply after refusal"):
             page.keyboard.press("ControlOrMeta+Enter")

@@ -7664,7 +7664,7 @@ function createFloatingPanel({
     const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
     if (field.firstElementChild !== shown[0]) {
       const had = standingIn(field);
-      field.replaceChildren(...shown, errorCover);
+      field.replaceChildren(...shown);
       if (had && !replying) focusDestination(leaf, "return");
     }
     if (caretToField && !replying) {
@@ -7700,6 +7700,8 @@ function createFloatingPanel({
     );
     const [error] = sayable();
     const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
+    if (covering && errorCover.parentNode !== input.parentNode)
+      move(input.parentNode, errorCover, null);
     keepsText(errorCover, covering ? error.message : "");
     keepsHidden(errorCover, !covering);
     const notice2 = passing();

@@ -664,7 +664,10 @@ export function createFloatingPanel({
   // holds, an error covers them (`errorCover`), and the first edit or press there
   // brings them back, a press with the caret at their end; while they are covered the
   // field sends nothing (`busy`), so words the user has not seen again are never sent.
-  // The user chose both on 17 October.
+  // The user chose both on 17 October. The cover stands in the box of the editor whose
+  // words it covers, so a press on it is a press in that box: a reply's ends in its
+  // row, which a press elsewhere would put away (thread/replies.js), even where the
+  // cover going under the pointer lands the click on what holds them both.
   const errorCover = el("p", "lf-fp-error-cover");
   errorCover.setAttribute("aria-hidden", "true");
   const passSayable = () => passErrors(sayable().map((error) => error.id));
@@ -2698,7 +2701,7 @@ export function createFloatingPanel({
     const shown = replying ? [replyOutlet, resolvedLine] : [pageEditor().box];
     if (field.firstElementChild !== shown[0]) {
       const had = standingIn(field);
-      field.replaceChildren(...shown, errorCover);
+      field.replaceChildren(...shown);
       if (had && !replying) focusDestination(leaf, "return");
     }
     // A move to the page's field waits for the paint that stands it there, and lands
@@ -2752,6 +2755,8 @@ export function createFloatingPanel({
     // which the user's first key or press there brings back (`errorCover`).
     const [error] = sayable();
     const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
+    if (covering && errorCover.parentNode !== input.parentNode)
+      move(input.parentNode, errorCover, null);
     keepsText(errorCover, covering ? error.message : "");
     keepsHidden(errorCover, !covering);
     // The line over the field says the passing notice the field cannot, while words

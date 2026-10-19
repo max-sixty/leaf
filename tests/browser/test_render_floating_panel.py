@@ -457,6 +457,7 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
     news = view.locator(".lf-fp-new-reply")
     expect(news).to_be_visible()
     news.focus()
+    expect(news).to_be_focused()
     page.keyboard.press("Enter")
     expect(news).to_have_count(0)
     expect(view.get_by_text("The window covers it.").first).to_be_in_viewport()

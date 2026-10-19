@@ -4033,7 +4033,7 @@ def test_an_item_spanning_its_block_is_a_breakout(browser, serve):
 <h1>Reaching past the column</h1>
 <style>#sized-ask {{ max-width: 36rem; }}</style>
 <p>Prose sets the column.</p>
-{item.format(id="item")}
+{item.format(id="ask")}
 {item.format(id="sized-ask")}
 <div id="bare" style="margin: 0 -120px; padding: 0 120px; text-indent: -120px">Out.</div>
 <div id="tinted" style="margin: 0 -120px; padding: 0 120px; background: #eee">Tint.</div>

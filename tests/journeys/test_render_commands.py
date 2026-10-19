@@ -297,11 +297,11 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     assert set(shows) <= set(names)
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {
-        "1200px-ask-1.png",
-        "1200px-ask-2.png",
-        "1200px-ask-3.png",
+        "1200px-item-1.png",
+        "1200px-item-2.png",
+        "1200px-item-3.png",
     } <= set(names)
-    assert "1200px-ask-4.png" not in names
+    assert "1200px-item-4.png" not in names
     assert any("each press of `m`" in label for label in shows.values())
     assert '"Pre-handover review"' in screens["next"]
     assert any("<main> 1+2 → 1+1+1" in label for label in shows.values())

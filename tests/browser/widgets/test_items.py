@@ -92,7 +92,7 @@ ACROSS_GEOMETRY = """(id) => {
     widths: cards.map((c) => Math.round(c.width)),
     nested: ['hot', 'both'].map((s) => Math.round(box(s).top)),
     list: Math.round(box('choice').width),
-    ask: Math.round(document.getElementById(id).getBoundingClientRect().width),
+    item: Math.round(document.getElementById(id).getBoundingClientRect().width),
   };
 }"""
 

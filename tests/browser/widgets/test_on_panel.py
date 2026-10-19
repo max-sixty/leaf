@@ -374,7 +374,7 @@ def test_pending_action_waits_for_the_item_list_paint_before_retiring(
     banner_control(page, ".lf-queue").click()
     row = page.locator('button.lf-queue-row[data-lf-at="widget:storage-options"]')
     expect(row).to_have_count(1)
-    expect(row).to_have_attribute("data-lf-kind", "item")
+    expect(row).to_have_attribute("data-lf-kind", "widget")
     expect(page.locator("[data-lf-queue='you'] .lf-queue-row")).to_have_count(1)
     page.evaluate(
         """async () => {
@@ -550,7 +550,7 @@ def test_failed_item_paints_report_once_and_retain_their_prior_faces(browser, se
           window.__lfItemRows = [...list.querySelectorAll('button.lf-queue-row')];
           window.__lfItemBulk = document.querySelector('.lf-answer-all');
           const bulkFace = window.__lfItemBulk.querySelector('lf-item-banner-face');
-          for (const [face, name] of [[list, 'Queue list'], [bulkFace, 'item banner']]) {
+          for (const [face, name] of [[list, 'Queue list'], [bulkFace, 'Item banner']]) {
             const render = face.render.bind(face);
             face.render = () => {
               face.render = render;
@@ -579,7 +579,7 @@ def test_failed_item_paints_report_once_and_retain_their_prior_faces(browser, se
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert sorted(said(error) for error in take_browser_errors(page)) == [
-        "leaf: Presentation failed: deliberate item banner failure",
+        "leaf: Presentation failed: deliberate Item banner failure",
         "leaf: Presentation failed: deliberate Queue list failure",
     ]
     holding(page, held, 2, "the gesture and the page's report of its failure")

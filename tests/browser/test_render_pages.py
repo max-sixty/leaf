@@ -1426,7 +1426,7 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     )
     body = (
         '<p id="prose">Prose.</p>'
-        + item.format(id="item", width="", table="")
+        + item.format(id="ask", width="", table="")
         + item.format(id="granted", width=' data-width="wide"', table="")
         + item.format(id="holds", width="", table=table.format(id="holds"))
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
@@ -1450,7 +1450,7 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     edge = at["prose"]["left"]
     # An option list keeps the measure whatever one option holds: only a box's own
     # blocks widen it.
-    for boxed in ("item", "callout", "list"):
+    for boxed in ("ask", "callout", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
     for wide in ("granted", "granted-c", "holds"):
@@ -1504,7 +1504,7 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     assert at["holds"] == at["holds-t"], at
     heading = column.locator("#holds h3").bounding_box()
     assert round(heading["x"]) == at["prose"]["left"], (heading, at)
-    assert at["item"] == at["prose"], at
+    assert at["ask"] == at["prose"], at
     assert at["listed"] == at["listed-t"], at
     assert at["listed"]["width"] < at["prose"]["width"], at
     assert at["both"] == at["both-t"] == {"width": 1080, "left": at["holds"]["left"]}, (
@@ -1542,7 +1542,7 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     )
     resized(workspace, 1726, 900)
     at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
-    for block in ("prose", "item", "granted", "granted-c", "holds", "callout", "list"):
+    for block in ("prose", "ask", "granted", "granted-c", "holds", "callout", "list"):
         assert at[block] == at["region"], (block, at)
     assert at["board"] == at["region"], at
 

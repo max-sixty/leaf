@@ -121,12 +121,12 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         has_text="Which map should the sample team carry?"
     )
     expect(map_item).to_have_count(1)
-    expect(map_item).to_have_attribute("data-lf-kind", "item")
+    expect(map_item).to_have_attribute("data-lf-kind", "widget")
     map_item.click()
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     banner_control(page, ".lf-queue").click()
     page.locator("#bg-question-api > summary").click()
-    page.get_by_role("button", name="Read current ask", exact=True).click()
+    page.get_by_role("button", name="Read current item", exact=True).click()
     reading = json.loads(page.locator("#bg-question-reading").inner_text())
     assert reading["id"] == "widget:bg-choice"
     assert reading["source"]["id"] == "bg-choice"

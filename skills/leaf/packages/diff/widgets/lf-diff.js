@@ -98,8 +98,13 @@ const OPTIONS = Object.freeze({
   disableFileHeader: true,
   hunkSeparators: "line-info-basic",
   lineDiffType: "word-alt",
-  overflow: "scroll",
 });
+
+// Prose files usually keep a paragraph on one source line. Let the file path choose
+// the reading mode unless the page author chose one for the entire patch.
+const overflowFor = (path, authored) =>
+  authored ??
+  (langForPath(path) === "markdown" || /\.txt$/i.test(path) ? "wrap" : "scroll");
 
 // The records every source form renders from, in the shape of the contract's file
 // manifest. A patch text is parsed once, strictly, so a malformed hunk never becomes
@@ -820,14 +825,14 @@ function fileRecord(file, section) {
 
 // One file's evidence, the nodes that go under its disclosure's summary. Each kind of
 // Pierre stylesheet joins `sharedStyles` once, for the stage to hold.
-async function renderFile(file, sharedStyles) {
+async function renderFile(file, sharedStyles, overflow) {
   const lang = langForPath(file.name);
   const [{ preloadDiffHTML, ResizeManager }, { themeName, foreground }] =
     await Promise.all([pierre(), ensureSyntaxLanguage(lang)]);
   const template = document.createElement("template");
   template.innerHTML = await preloadDiffHTML({
     fileDiff: { ...file, lang: lang ?? "text" },
-    options: { ...OPTIONS, theme: themeName },
+    options: { ...OPTIONS, overflow, theme: themeName },
   });
   const rendered = template.content;
 
@@ -1309,11 +1314,12 @@ customElements.define(
       if (reading.error) return reading;
       try {
         const { file } = reading;
-        const nextKey = JSON.stringify(file);
+        const overflow = overflowFor(file.name, this.getAttribute("overflow"));
+        const nextKey = JSON.stringify([file, overflow]);
         const rendered =
           !file.hunks.length || renderKey === nextKey
             ? null
-            : await renderFile(file, sharedStyles);
+            : await renderFile(file, sharedStyles, overflow);
         return { file, renderKey: nextKey, rendered };
       } catch (error) {
         return { error };

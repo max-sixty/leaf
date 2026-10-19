@@ -115,6 +115,8 @@ and every thread that quotes it. To keep evidence exactly as it was reviewed, gi
 its own source id, such as `pr-patch-8f61c2a` for one commit's patch, and never write to
 that id again. Evidence that should follow later `data set` calls shares one id. Add
 `collapsed` to a large `lf-diff` so each file starts closed.
+Markdown and plain-text files wrap long lines by default. For a patch where all files
+should share one mode, set `overflow="wrap"` or `overflow="scroll"` on `lf-diff`.
 
 Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for images,
 video and audio; never inline media bytes. To let the reader zoom into an image, link it

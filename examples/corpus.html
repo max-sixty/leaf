@@ -404,612 +404,6 @@
         },
       );
     </script>
-<!-- data-explorer.html authored styles -->
-<style>
-      release-query-explorer {
-        display: grid;
-        gap: var(--sp-3);
-        min-width: 0;
-      }
-
-      .query-toolbar,
-      .query-row,
-      .query-row-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--sp-2);
-        align-items: center;
-      }
-
-      .query-toolbar {
-        justify-content: space-between;
-      }
-
-      .query-row {
-        --lf-block-frame: 1;
-        padding: var(--sp-2);
-        border: 1px solid var(--border-2);
-        border-radius: var(--r-sm);
-        background: var(--card);
-      }
-
-      .query-row > label {
-        display: grid;
-        gap: var(--sp-1);
-        min-width: 8rem;
-        color: var(--ink-2);
-        font: 600 var(--t-6) / 1.2 var(--sans);
-      }
-
-      .query-row-actions {
-        margin-inline-start: auto;
-      }
-
-      .query-result-count {
-        margin: 0;
-        color: var(--ink-2);
-        font: 650 var(--t-5) / 1.3 var(--sans);
-      }
-
-      /* A table on the stage takes the stage's width; its frame scrolls it when the
-         stage is narrower than its columns. */
-      .query-results {
-        display: table;
-        table-layout: fixed;
-        width: 100%;
-        min-width: 30rem;
-      }
-
-      .query-table-frame {
-        min-width: 0;
-        overflow-x: auto;
-        padding-bottom: 15px;
-        --lf-block-frame: 1;
-      }
-
-      @media (max-width: 42rem) {
-        .query-row > label,
-        .query-row-actions {
-          flex: 1 1 100%;
-          margin-inline-start: 0;
-        }
-      }
-</style>
-<!-- data-explorer.html authored script -->
-<script type="module">
-      import {
-        PAGE_INTERFACE,
-        keepsText,
-        layoutChanged,
-        offer,
-        once,
-        setChildren,
-        whileConnected,
-      } from "/runtime/widget-api.js";
-
-      const RELEASES = [
-        { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
-        { service: "Catalog", region: "europe", risk: 31, owner: "discovery" },
-        { service: "Ledger", region: "americas", risk: 84, owner: "payments" },
-        { service: "Search", region: "asia", risk: 46, owner: "discovery" },
-        { service: "Fraud", region: "europe", risk: 91, owner: "risk" },
-        { service: "Identity", region: "americas", risk: 38, owner: "platform" },
-      ];
-      const DEFAULT_FILTERS = {
-        rows: [
-          { id: "filter-1", field: "region", operator: "is", value: "europe" },
-          { id: "filter-2", field: "risk", operator: "above", value: "40" },
-        ],
-        order: ["filter-1", "filter-2"],
-      };
-
-      function matches(release, row) {
-        const actual = release[row.field];
-        if (row.operator === "above") return Number(actual) > Number(row.value);
-        if (row.operator === "contains")
-          return String(actual).toLowerCase().includes(row.value.toLowerCase());
-        return String(actual).toLowerCase() === row.value.toLowerCase();
-      }
-
-      function labelledSelect(name, label, values, selected, changed) {
-        const wrapper = document.createElement("label");
-        wrapper.append(document.createTextNode(label));
-        const select = offer("select", "");
-        select.name = name;
-        for (const [value, words] of values) {
-          const option = document.createElement("option");
-          option.value = value;
-          option.textContent = words;
-          option.selected = value === selected;
-          select.append(option);
-        }
-        select.addEventListener("change", () => changed(select.value));
-        wrapper.append(select);
-        return wrapper;
-      }
-
-      customElements.define(
-        "release-query-explorer",
-        class extends HTMLElement {
-          #playground = null;
-          #filters = null;
-          #rows = null;
-          #results = null;
-          #count = null;
-          #rowEls = new Map();
-          #listed = "";
-
-          connectedCallback() {
-            if (!once(this)) return;
-            this.#build();
-            whileConnected(this, (signal) => this.#connect(signal));
-          }
-
-          #build() {
-            const toolbar = document.createElement("div");
-            toolbar.className = "query-toolbar";
-            toolbar.append(
-              document.createTextNode("Releases must match every filter."),
-            );
-            const add = offer("button", "lf-btn query-add", "Add filter");
-            add.addEventListener("click", () => {
-              const state = this.#filters.get();
-              const next =
-                Math.max(
-                  0,
-                  ...state.rows.map((row) => Number(row.id.split("-").at(-1))),
-                ) + 1;
-              const id = `filter-${next}`;
-              this.#filters.set({
-                rows: [
-                  ...state.rows,
-                  { id, field: "owner", operator: "is", value: "platform" },
-                ],
-                order: [...state.order, id],
-              });
-              queueMicrotask(() =>
-                this.querySelector(`[data-filter-id="${id}"] input`)?.focus(),
-              );
-            });
-            toolbar.append(add);
-            this.#rows = document.createElement("div");
-            this.#rows.className = "query-rows";
-            this.#count = document.createElement("p");
-            this.#count.className = "query-result-count";
-            this.#count.setAttribute("aria-live", "polite");
-            this.#results = document.createElement("tbody");
-            const table = document.createElement("table");
-            table.className = "query-results";
-            table.innerHTML =
-              "<thead><tr><th>Service</th><th>Region</th><th class='num'>Risk</th><th>Owner</th></tr></thead>";
-            table.append(this.#results);
-            const tableFrame = document.createElement("div");
-            tableFrame.className = "query-table-frame";
-            tableFrame.append(table);
-            this.append(toolbar, this.#rows, this.#count, tableFrame);
-          }
-
-          #connect(signal) {
-            let unsubscribe;
-            const initialize = () => {
-              if (signal.aborted || unsubscribe) return;
-              if (!this.#filters) this.#initialize();
-              unsubscribe = this.#playground.subscribe(() => this.#render());
-            };
-            document.addEventListener(
-              PAGE_INTERFACE,
-              (event) => event.detail.present(Promise.resolve().then(initialize)),
-              { signal },
-            );
-            if (this.#filters) initialize();
-            return () => unsubscribe?.();
-          }
-
-          #initialize() {
-            this.#playground = this.closest("lf-playground");
-            this.#filters = this.#playground.registerContributor(
-              "filters",
-              DEFAULT_FILTERS,
-            );
-            this.#playground.registerInstructionProvider((values) => {
-              const rows = values.filters.order.map((id) =>
-                values.filters.rows.find((row) => row.id === id),
-              );
-              const conditions = rows
-                .map((row) => `${row.field} ${row.operator} ${row.value}`)
-                .join(" and ");
-              const filterTask = conditions
-                ? `Require ${conditions}`
-                : "Apply no filters";
-              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
-            });
-          }
-
-          #update(id, field, value) {
-            const state = this.#filters.get();
-            this.#filters.set({
-              ...state,
-              rows: state.rows.map((row) =>
-                row.id === id ? { ...row, [field]: value } : row,
-              ),
-            });
-          }
-
-          #move(id, offset) {
-            const state = this.#filters.get();
-            const from = state.order.indexOf(id);
-            const to = from + offset;
-            if (to < 0 || to >= state.order.length) return;
-            const order = [...state.order];
-            [order[from], order[to]] = [order[to], order[from]];
-            this.#filters.set({ ...state, order });
-          }
-
-          #remove(id) {
-            const state = this.#filters.get();
-            const index = state.order.indexOf(id);
-            this.#filters.set({
-              rows: state.rows.filter((row) => row.id !== id),
-              order: state.order.filter((rowId) => rowId !== id),
-            });
-            queueMicrotask(() => {
-              const rows = this.querySelectorAll(".query-row");
-              const next = rows[Math.min(index, rows.length - 1)];
-              (
-                next?.querySelector("input") ?? this.querySelector(".query-add")
-              ).focus();
-            });
-          }
-
-          // Each filter keeps its row across renders, so the value being typed keeps its
-          // caret, and a render writes only what moved: a label, an end of the list, or
-          // the order.
-          #row(row) {
-            const known = this.#rowEls.get(row.id);
-            if (known) return known;
-            const { id } = row;
-            const element = document.createElement("div");
-            element.className = "query-row";
-            element.dataset.filterId = id;
-            const field = labelledSelect(
-              `${id}-field`,
-              "Field",
-              [
-                ["region", "Region"],
-                ["risk", "Risk"],
-                ["owner", "Owner"],
-              ],
-              row.field,
-              (value) => this.#update(id, "field", value),
-            );
-            const operator = labelledSelect(
-              `${id}-operator`,
-              "Operator",
-              [
-                ["is", "is"],
-                ["above", "is above"],
-                ["contains", "contains"],
-              ],
-              row.operator,
-              (value) => this.#update(id, "operator", value),
-            );
-            const valueLabel = document.createElement("label");
-            valueLabel.append(document.createTextNode("Value"));
-            const input = offer("input", "", undefined, "text");
-            input.name = `${id}-value`;
-            input.value = row.value;
-            input.addEventListener("input", () =>
-              this.#update(id, "value", input.value),
-            );
-            valueLabel.append(input);
-            const actions = document.createElement("div");
-            actions.className = "query-row-actions";
-            const up = offer("button", "lf-btn small");
-            const down = offer("button", "lf-btn small");
-            const remove = offer("button", "lf-btn small");
-            up.addEventListener("click", () => this.#move(id, -1));
-            down.addEventListener("click", () => this.#move(id, 1));
-            remove.addEventListener("click", () => this.#remove(id));
-            actions.append(up, down, remove);
-            element.append(field, operator, valueLabel, actions);
-            const made = {
-              element,
-              field: field.querySelector("select"),
-              operator: operator.querySelector("select"),
-              input,
-              up,
-              down,
-              remove,
-            };
-            this.#rowEls.set(id, made);
-            return made;
-          }
-
-          #render() {
-            const state = this.#filters.get();
-            const byId = new Map(state.rows.map((row) => [row.id, row]));
-            const last = state.order.length - 1;
-            const shown = state.order.map((id, index) => {
-              const row = byId.get(id);
-              const made = this.#row(row);
-              if (made.field.value !== row.field) made.field.value = row.field;
-              if (made.operator.value !== row.operator)
-                made.operator.value = row.operator;
-              if (made.input.value !== row.value) made.input.value = row.value;
-              keepsText(made.up, `Move filter ${index + 1} up`);
-              keepsText(made.down, `Move filter ${index + 1} down`);
-              keepsText(made.remove, `Remove filter ${index + 1}`);
-              made.up.toggleAttribute("disabled", index === 0);
-              made.down.toggleAttribute("disabled", index === last);
-              return made.element;
-            });
-            for (const id of this.#rowEls.keys())
-              if (!byId.has(id)) this.#rowEls.delete(id);
-            setChildren(this.#rows, shown);
-            const values = this.#playground.values;
-            const filtered = RELEASES.filter((release) =>
-              state.order.every((id) => matches(release, byId.get(id))),
-            ).slice(0, values.limit);
-            const listed = JSON.stringify(filtered);
-            if (listed !== this.#listed) {
-              this.#listed = listed;
-              this.#results.replaceChildren(
-                ...filtered.map((release) => {
-                  const row = document.createElement("tr");
-                  for (const value of Object.values(release)) {
-                    const cell = document.createElement("td");
-                    cell.textContent = value;
-                    if (typeof value === "number") cell.className = "num";
-                    row.append(cell);
-                  }
-                  return row;
-                }),
-              );
-            }
-            keepsText(
-              this.#count,
-              `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
-            );
-            layoutChanged(this);
-          }
-        },
-      );
-    </script>
-<!-- code-comparison.html authored styles -->
-<style data-controls="">
-      code-reader-comparison {
-        display: grid;
-        gap: var(--sp-3);
-        min-width: 0;
-        container-type: inline-size;
-      }
-
-      /* This stylesheet explicitly styles the controls this module builds. */
-      code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--sp-2);
-        align-items: center;
-      }
-
-      .code-comparison-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        align-items: start;
-        gap: var(--sp-3);
-        min-width: 0;
-      }
-
-      /* A candidate stands on the playground's stage as the built reader alone: its
-         lf-code is the one surface, and the frame is drawn only on the chosen one. */
-      .code-candidate {
-        --lf-block-frame: 1;
-        box-sizing: border-box;
-        min-width: 0;
-        padding: var(--sp-2);
-        border: 1px solid transparent;
-        border-radius: var(--r);
-      }
-
-      .code-candidate[data-candidate] {
-        max-width: 100%;
-      }
-
-      .code-candidate-title,
-      .reader-treatment-title {
-        margin: 0 0 var(--sp-1);
-        font: 650 var(--t-5) / 1.3 var(--sans);
-      }
-
-      #code-comparison-playground[data-playground-chosen="A"]
-        .code-candidate[data-candidate="A"],
-      #code-comparison-playground[data-playground-chosen="B"]
-        .code-candidate[data-candidate="B"] {
-        border-color: var(--accent);
-        box-shadow: inset 0 0 0 1px var(--accent);
-      }
-
-      .code-candidate lf-code {
-        --lf-block-frame: 1;
-        box-sizing: border-box;
-        width: 100%;
-        max-width: 100%;
-      }
-
-      .code-candidate[data-density="compact"] lf-code pre {
-        line-height: 1.25;
-      }
-
-      .code-candidate[data-density="comfortable"] lf-code pre {
-        line-height: 1.65;
-      }
-
-      /* The built reader wraps a line longer than its block. A scrolled candidate gives
-         each line its source's width back, so the block scrolls instead. */
-      .code-candidate[data-wrap="false"] .lf-code-line {
-        width: max-content;
-        min-width: 100%;
-        box-sizing: border-box;
-        white-space: pre;
-      }
-
-      .code-measurement {
-        margin: 0 0 var(--sp-2);
-        color: var(--ink-2);
-        font: var(--t-6) / 1.3 var(--sans);
-      }
-
-      /* Side by side while the stage gives each candidate room to read. */
-      @container (max-width: 40rem) {
-        .code-comparison-grid {
-          grid-template-columns: minmax(0, 1fr);
-        }
-      }
-</style>
-<!-- code-comparison.html authored script -->
-<script type="module">
-      import {
-        PAGE_INTERFACE,
-        frameFor,
-        keeps,
-        keepsText,
-        layoutChanged,
-        offer,
-        once,
-        sizeObserver,
-        whileConnected,
-      } from "/runtime/widget-api.js";
-
-      const DEFAULT_COMPARISON = {
-        candidateA: { density: "compact", wrap: false },
-        candidateB: { density: "comfortable", wrap: true },
-      };
-
-      customElements.define(
-        "code-reader-comparison",
-        class extends HTMLElement {
-          #playground = null;
-          #comparison = null;
-          #readerLayout = (event) => {
-            if (event.target.matches("lf-code")) this.#scheduleMeasurement();
-          };
-
-          connectedCallback() {
-            if (!once(this)) return;
-            this.#build();
-            whileConnected(this, (signal) => this.#connect(signal));
-          }
-
-          #button(label, run) {
-            const button = offer("button", "lf-btn small", label);
-            button.addEventListener("click", run);
-            return button;
-          }
-
-          #build() {
-            const toolbar = offer("div", "code-comparison-toolbar");
-            toolbar.setAttribute("aria-label", "Candidate-specific controls");
-            toolbar.append(
-              this.#button("Toggle A density", () => this.#toggleDensity("candidateA")),
-              this.#button("Toggle B density", () => this.#toggleDensity("candidateB")),
-              this.#button("Copy A to B", () => this.#copy("candidateA", "candidateB")),
-              this.#button("Copy B to A", () => this.#copy("candidateB", "candidateA")),
-            );
-            this.prepend(toolbar);
-          }
-
-          #connect(signal) {
-            let unsubscribe;
-            const initialize = () => {
-              if (signal.aborted || unsubscribe) return;
-              if (!this.#comparison) this.#initialize();
-              unsubscribe = this.#playground.subscribe(() => this.#render());
-            };
-            document.addEventListener(
-              PAGE_INTERFACE,
-              (event) => event.detail.present(Promise.resolve().then(initialize)),
-              { signal },
-            );
-            if (this.#comparison) initialize();
-            this.addEventListener("lf-layout", this.#readerLayout, { signal });
-            const watching = sizeObserver(this.#scheduleMeasurement);
-            signal.addEventListener("abort", () => watching.disconnect());
-            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
-              watching.observe(reader);
-            }
-            return () => unsubscribe?.();
-          }
-
-          #initialize() {
-            this.#playground = this.closest("lf-playground");
-            this.#comparison = this.#playground.registerContributor(
-              "comparison",
-              DEFAULT_COMPARISON,
-            );
-            this.#playground.registerInstructionProvider((values) => {
-              const chosen =
-                values.comparison[values.chosen === "A" ? "candidateA" : "candidateB"];
-              const wrapping = chosen.wrap
-                ? "wrap long lines"
-                : "keep horizontal scrolling";
-              return `Update the built Leaf code reader in skills/leaf/packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
-            });
-          }
-
-          #toggleDensity(candidate) {
-            const state = this.#comparison.get();
-            this.#comparison.set({
-              ...state,
-              [candidate]: {
-                ...state[candidate],
-                density:
-                  state[candidate].density === "compact" ? "comfortable" : "compact",
-              },
-            });
-          }
-
-          #copy(from, to) {
-            const state = this.#comparison.get();
-            this.#comparison.set({ ...state, [to]: state[from] });
-          }
-
-          #render() {
-            const state = this.#comparison.get();
-            const values = this.#playground.values;
-            for (const [name, key] of [
-              ["A", "candidateA"],
-              ["B", "candidateB"],
-            ]) {
-              const candidate = this.querySelector(`[data-candidate="${name}"]`);
-              const setting = state[key];
-              keeps(candidate, "data-density", setting.density);
-              keeps(candidate, "data-wrap", setting.wrap);
-              candidate.style.width = `${values.width}px`;
-              keepsText(
-                candidate.querySelector(".code-candidate-title"),
-                `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`,
-              );
-            }
-            this.#scheduleMeasurement();
-          }
-
-          // Reader rendering and box changes invalidate the same derived reading.
-          #scheduleMeasurement = frameFor(this, () => {
-            for (const name of ["A", "B"]) {
-              const candidate = this.querySelector(`[data-candidate="${name}"]`);
-              const pre = candidate.querySelector("lf-code pre");
-              const measurement = candidate.querySelector(".code-measurement");
-              if (!pre || !measurement) continue;
-              keepsText(
-                measurement,
-                `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
-              );
-            }
-            layoutChanged(this);
-          });
-        },
-      );
-    </script>
 <!-- alert-thresholds.html authored styles -->
 <style>
       /* The stage holds the totals and one pair per alert: its evidence, and beside it
@@ -2104,6 +1498,616 @@
       });
       followLine();
     </script>
+<!-- code-comparison.html authored styles -->
+<style data-controls="">
+      code-reader-comparison {
+        display: grid;
+        gap: var(--sp-3);
+        min-width: 0;
+        container-type: inline-size;
+      }
+
+      /* This stylesheet explicitly styles the controls this module builds. */
+      code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        align-items: center;
+      }
+
+      .code-comparison-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+        gap: var(--sp-3);
+        min-width: 0;
+      }
+
+      /* A candidate stands on the playground's stage as the built reader alone: its
+         lf-code is the one surface, and the frame is drawn only on the chosen one. */
+      .code-candidate {
+        --lf-block-frame: 1;
+        box-sizing: border-box;
+        min-width: 0;
+        padding: var(--sp-2);
+        border: 1px solid transparent;
+        border-radius: var(--r);
+      }
+
+      .code-candidate[data-candidate] {
+        max-width: 100%;
+      }
+
+      .code-candidate-title,
+      .reader-treatment-title {
+        margin: 0 0 var(--sp-1);
+        font: 650 var(--t-5) / 1.3 var(--sans);
+      }
+
+      #code-comparison-playground[data-playground-chosen="A"]
+        .code-candidate[data-candidate="A"],
+      #code-comparison-playground[data-playground-chosen="B"]
+        .code-candidate[data-candidate="B"] {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+
+      .code-candidate lf-code {
+        --lf-block-frame: 1;
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .code-candidate[data-density="compact"] lf-code pre {
+        line-height: 1.25;
+      }
+
+      .code-candidate[data-density="comfortable"] lf-code pre {
+        line-height: 1.65;
+      }
+
+      /* The built reader wraps a line longer than its block. A scrolled candidate gives
+         each line its source's width back, so the block scrolls instead. */
+      .code-candidate[data-wrap="false"] .lf-code-line {
+        width: max-content;
+        min-width: 100%;
+        box-sizing: border-box;
+        white-space: pre;
+      }
+
+      .code-measurement {
+        margin: 0 0 var(--sp-2);
+        color: var(--ink-2);
+        font: var(--t-6) / 1.3 var(--sans);
+      }
+
+      /* Side by side while the stage gives each candidate room to read. */
+      @container (max-width: 40rem) {
+        .code-comparison-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+</style>
+<!-- code-comparison.html authored script -->
+<script type="module">
+      import {
+        PAGE_INTERFACE,
+        frameFor,
+        keeps,
+        keepsText,
+        layoutChanged,
+        offer,
+        once,
+        sizeObserver,
+        whileConnected,
+      } from "/runtime/widget-api.js";
+
+      const DEFAULT_COMPARISON = {
+        candidateA: { density: "compact", wrap: false },
+        candidateB: { density: "comfortable", wrap: true },
+      };
+
+      customElements.define(
+        "code-reader-comparison",
+        class extends HTMLElement {
+          #playground = null;
+          #comparison = null;
+          #readerLayout = (event) => {
+            if (event.target.matches("lf-code")) this.#scheduleMeasurement();
+          };
+
+          connectedCallback() {
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => this.#connect(signal));
+          }
+
+          #button(label, run) {
+            const button = offer("button", "lf-btn small", label);
+            button.addEventListener("click", run);
+            return button;
+          }
+
+          #build() {
+            const toolbar = offer("div", "code-comparison-toolbar");
+            toolbar.setAttribute("aria-label", "Candidate-specific controls");
+            toolbar.append(
+              this.#button("Toggle A density", () => this.#toggleDensity("candidateA")),
+              this.#button("Toggle B density", () => this.#toggleDensity("candidateB")),
+              this.#button("Copy A to B", () => this.#copy("candidateA", "candidateB")),
+              this.#button("Copy B to A", () => this.#copy("candidateB", "candidateA")),
+            );
+            this.prepend(toolbar);
+          }
+
+          #connect(signal) {
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              if (!this.#comparison) this.#initialize();
+              unsubscribe = this.#playground.subscribe(() => this.#render());
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
+              { signal },
+            );
+            if (this.#comparison) initialize();
+            this.addEventListener("lf-layout", this.#readerLayout, { signal });
+            const watching = sizeObserver(this.#scheduleMeasurement);
+            signal.addEventListener("abort", () => watching.disconnect());
+            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
+              watching.observe(reader);
+            }
+            return () => unsubscribe?.();
+          }
+
+          #initialize() {
+            this.#playground = this.closest("lf-playground");
+            this.#comparison = this.#playground.registerContributor(
+              "comparison",
+              DEFAULT_COMPARISON,
+            );
+            this.#playground.registerInstructionProvider((values) => {
+              const chosen =
+                values.comparison[values.chosen === "A" ? "candidateA" : "candidateB"];
+              const wrapping = chosen.wrap
+                ? "wrap long lines"
+                : "keep horizontal scrolling";
+              return `Update the built Leaf code reader in skills/leaf/packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
+            });
+          }
+
+          #toggleDensity(candidate) {
+            const state = this.#comparison.get();
+            this.#comparison.set({
+              ...state,
+              [candidate]: {
+                ...state[candidate],
+                density:
+                  state[candidate].density === "compact" ? "comfortable" : "compact",
+              },
+            });
+          }
+
+          #copy(from, to) {
+            const state = this.#comparison.get();
+            this.#comparison.set({ ...state, [to]: state[from] });
+          }
+
+          #render() {
+            const state = this.#comparison.get();
+            const values = this.#playground.values;
+            for (const [name, key] of [
+              ["A", "candidateA"],
+              ["B", "candidateB"],
+            ]) {
+              const candidate = this.querySelector(`[data-candidate="${name}"]`);
+              const setting = state[key];
+              keeps(candidate, "data-density", setting.density);
+              keeps(candidate, "data-wrap", setting.wrap);
+              candidate.style.width = `${values.width}px`;
+              keepsText(
+                candidate.querySelector(".code-candidate-title"),
+                `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`,
+              );
+            }
+            this.#scheduleMeasurement();
+          }
+
+          // Reader rendering and box changes invalidate the same derived reading.
+          #scheduleMeasurement = frameFor(this, () => {
+            for (const name of ["A", "B"]) {
+              const candidate = this.querySelector(`[data-candidate="${name}"]`);
+              const pre = candidate.querySelector("lf-code pre");
+              const measurement = candidate.querySelector(".code-measurement");
+              if (!pre || !measurement) continue;
+              keepsText(
+                measurement,
+                `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`,
+              );
+            }
+            layoutChanged(this);
+          });
+        },
+      );
+    </script>
+<!-- command-hub.html authored styles -->
+<style>
+      @import url("/page/theme.css");
+</style>
+<!-- data-explorer.html authored styles -->
+<style>
+      release-query-explorer {
+        display: grid;
+        gap: var(--sp-3);
+        min-width: 0;
+      }
+
+      .query-toolbar,
+      .query-row,
+      .query-row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-2);
+        align-items: center;
+      }
+
+      .query-toolbar {
+        justify-content: space-between;
+      }
+
+      .query-row {
+        --lf-block-frame: 1;
+        padding: var(--sp-2);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r-sm);
+        background: var(--card);
+      }
+
+      .query-row > label {
+        display: grid;
+        gap: var(--sp-1);
+        min-width: 8rem;
+        color: var(--ink-2);
+        font: 600 var(--t-6) / 1.2 var(--sans);
+      }
+
+      .query-row-actions {
+        margin-inline-start: auto;
+      }
+
+      .query-result-count {
+        margin: 0;
+        color: var(--ink-2);
+        font: 650 var(--t-5) / 1.3 var(--sans);
+      }
+
+      /* A table on the stage takes the stage's width; its frame scrolls it when the
+         stage is narrower than its columns. */
+      .query-results {
+        display: table;
+        table-layout: fixed;
+        width: 100%;
+        min-width: 30rem;
+      }
+
+      .query-table-frame {
+        min-width: 0;
+        overflow-x: auto;
+        padding-bottom: 15px;
+        --lf-block-frame: 1;
+      }
+
+      @media (max-width: 42rem) {
+        .query-row > label,
+        .query-row-actions {
+          flex: 1 1 100%;
+          margin-inline-start: 0;
+        }
+      }
+</style>
+<!-- data-explorer.html authored script -->
+<script type="module">
+      import {
+        PAGE_INTERFACE,
+        keepsText,
+        layoutChanged,
+        offer,
+        once,
+        setChildren,
+        whileConnected,
+      } from "/runtime/widget-api.js";
+
+      const RELEASES = [
+        { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
+        { service: "Catalog", region: "europe", risk: 31, owner: "discovery" },
+        { service: "Ledger", region: "americas", risk: 84, owner: "payments" },
+        { service: "Search", region: "asia", risk: 46, owner: "discovery" },
+        { service: "Fraud", region: "europe", risk: 91, owner: "risk" },
+        { service: "Identity", region: "americas", risk: 38, owner: "platform" },
+      ];
+      const DEFAULT_FILTERS = {
+        rows: [
+          { id: "filter-1", field: "region", operator: "is", value: "europe" },
+          { id: "filter-2", field: "risk", operator: "above", value: "40" },
+        ],
+        order: ["filter-1", "filter-2"],
+      };
+
+      function matches(release, row) {
+        const actual = release[row.field];
+        if (row.operator === "above") return Number(actual) > Number(row.value);
+        if (row.operator === "contains")
+          return String(actual).toLowerCase().includes(row.value.toLowerCase());
+        return String(actual).toLowerCase() === row.value.toLowerCase();
+      }
+
+      function labelledSelect(name, label, values, selected, changed) {
+        const wrapper = document.createElement("label");
+        wrapper.append(document.createTextNode(label));
+        const select = offer("select", "");
+        select.name = name;
+        for (const [value, words] of values) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = words;
+          option.selected = value === selected;
+          select.append(option);
+        }
+        select.addEventListener("change", () => changed(select.value));
+        wrapper.append(select);
+        return wrapper;
+      }
+
+      customElements.define(
+        "release-query-explorer",
+        class extends HTMLElement {
+          #playground = null;
+          #filters = null;
+          #rows = null;
+          #results = null;
+          #count = null;
+          #rowEls = new Map();
+          #listed = "";
+
+          connectedCallback() {
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => this.#connect(signal));
+          }
+
+          #build() {
+            const toolbar = document.createElement("div");
+            toolbar.className = "query-toolbar";
+            toolbar.append(
+              document.createTextNode("Releases must match every filter."),
+            );
+            const add = offer("button", "lf-btn query-add", "Add filter");
+            add.addEventListener("click", () => {
+              const state = this.#filters.get();
+              const next =
+                Math.max(
+                  0,
+                  ...state.rows.map((row) => Number(row.id.split("-").at(-1))),
+                ) + 1;
+              const id = `filter-${next}`;
+              this.#filters.set({
+                rows: [
+                  ...state.rows,
+                  { id, field: "owner", operator: "is", value: "platform" },
+                ],
+                order: [...state.order, id],
+              });
+              queueMicrotask(() =>
+                this.querySelector(`[data-filter-id="${id}"] input`)?.focus(),
+              );
+            });
+            toolbar.append(add);
+            this.#rows = document.createElement("div");
+            this.#rows.className = "query-rows";
+            this.#count = document.createElement("p");
+            this.#count.className = "query-result-count";
+            this.#count.setAttribute("aria-live", "polite");
+            this.#results = document.createElement("tbody");
+            const table = document.createElement("table");
+            table.className = "query-results";
+            table.innerHTML =
+              "<thead><tr><th>Service</th><th>Region</th><th class='num'>Risk</th><th>Owner</th></tr></thead>";
+            table.append(this.#results);
+            const tableFrame = document.createElement("div");
+            tableFrame.className = "query-table-frame";
+            tableFrame.append(table);
+            this.append(toolbar, this.#rows, this.#count, tableFrame);
+          }
+
+          #connect(signal) {
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              if (!this.#filters) this.#initialize();
+              unsubscribe = this.#playground.subscribe(() => this.#render());
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
+              { signal },
+            );
+            if (this.#filters) initialize();
+            return () => unsubscribe?.();
+          }
+
+          #initialize() {
+            this.#playground = this.closest("lf-playground");
+            this.#filters = this.#playground.registerContributor(
+              "filters",
+              DEFAULT_FILTERS,
+            );
+            this.#playground.registerInstructionProvider((values) => {
+              const rows = values.filters.order.map((id) =>
+                values.filters.rows.find((row) => row.id === id),
+              );
+              const conditions = rows
+                .map((row) => `${row.field} ${row.operator} ${row.value}`)
+                .join(" and ");
+              const filterTask = conditions
+                ? `Require ${conditions}`
+                : "Apply no filters";
+              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
+            });
+          }
+
+          #update(id, field, value) {
+            const state = this.#filters.get();
+            this.#filters.set({
+              ...state,
+              rows: state.rows.map((row) =>
+                row.id === id ? { ...row, [field]: value } : row,
+              ),
+            });
+          }
+
+          #move(id, offset) {
+            const state = this.#filters.get();
+            const from = state.order.indexOf(id);
+            const to = from + offset;
+            if (to < 0 || to >= state.order.length) return;
+            const order = [...state.order];
+            [order[from], order[to]] = [order[to], order[from]];
+            this.#filters.set({ ...state, order });
+          }
+
+          #remove(id) {
+            const state = this.#filters.get();
+            const index = state.order.indexOf(id);
+            this.#filters.set({
+              rows: state.rows.filter((row) => row.id !== id),
+              order: state.order.filter((rowId) => rowId !== id),
+            });
+            queueMicrotask(() => {
+              const rows = this.querySelectorAll(".query-row");
+              const next = rows[Math.min(index, rows.length - 1)];
+              (
+                next?.querySelector("input") ?? this.querySelector(".query-add")
+              ).focus();
+            });
+          }
+
+          // Each filter keeps its row across renders, so the value being typed keeps its
+          // caret, and a render writes only what moved: a label, an end of the list, or
+          // the order.
+          #row(row) {
+            const known = this.#rowEls.get(row.id);
+            if (known) return known;
+            const { id } = row;
+            const element = document.createElement("div");
+            element.className = "query-row";
+            element.dataset.filterId = id;
+            const field = labelledSelect(
+              `${id}-field`,
+              "Field",
+              [
+                ["region", "Region"],
+                ["risk", "Risk"],
+                ["owner", "Owner"],
+              ],
+              row.field,
+              (value) => this.#update(id, "field", value),
+            );
+            const operator = labelledSelect(
+              `${id}-operator`,
+              "Operator",
+              [
+                ["is", "is"],
+                ["above", "is above"],
+                ["contains", "contains"],
+              ],
+              row.operator,
+              (value) => this.#update(id, "operator", value),
+            );
+            const valueLabel = document.createElement("label");
+            valueLabel.append(document.createTextNode("Value"));
+            const input = offer("input", "", undefined, "text");
+            input.name = `${id}-value`;
+            input.value = row.value;
+            input.addEventListener("input", () =>
+              this.#update(id, "value", input.value),
+            );
+            valueLabel.append(input);
+            const actions = document.createElement("div");
+            actions.className = "query-row-actions";
+            const up = offer("button", "lf-btn small");
+            const down = offer("button", "lf-btn small");
+            const remove = offer("button", "lf-btn small");
+            up.addEventListener("click", () => this.#move(id, -1));
+            down.addEventListener("click", () => this.#move(id, 1));
+            remove.addEventListener("click", () => this.#remove(id));
+            actions.append(up, down, remove);
+            element.append(field, operator, valueLabel, actions);
+            const made = {
+              element,
+              field: field.querySelector("select"),
+              operator: operator.querySelector("select"),
+              input,
+              up,
+              down,
+              remove,
+            };
+            this.#rowEls.set(id, made);
+            return made;
+          }
+
+          #render() {
+            const state = this.#filters.get();
+            const byId = new Map(state.rows.map((row) => [row.id, row]));
+            const last = state.order.length - 1;
+            const shown = state.order.map((id, index) => {
+              const row = byId.get(id);
+              const made = this.#row(row);
+              if (made.field.value !== row.field) made.field.value = row.field;
+              if (made.operator.value !== row.operator)
+                made.operator.value = row.operator;
+              if (made.input.value !== row.value) made.input.value = row.value;
+              keepsText(made.up, `Move filter ${index + 1} up`);
+              keepsText(made.down, `Move filter ${index + 1} down`);
+              keepsText(made.remove, `Remove filter ${index + 1}`);
+              made.up.toggleAttribute("disabled", index === 0);
+              made.down.toggleAttribute("disabled", index === last);
+              return made.element;
+            });
+            for (const id of this.#rowEls.keys())
+              if (!byId.has(id)) this.#rowEls.delete(id);
+            setChildren(this.#rows, shown);
+            const values = this.#playground.values;
+            const filtered = RELEASES.filter((release) =>
+              state.order.every((id) => matches(release, byId.get(id))),
+            ).slice(0, values.limit);
+            const listed = JSON.stringify(filtered);
+            if (listed !== this.#listed) {
+              this.#listed = listed;
+              this.#results.replaceChildren(
+                ...filtered.map((release) => {
+                  const row = document.createElement("tr");
+                  for (const value of Object.values(release)) {
+                    const cell = document.createElement("td");
+                    cell.textContent = value;
+                    if (typeof value === "number") cell.className = "num";
+                    row.append(cell);
+                  }
+                  return row;
+                }),
+              );
+            }
+            keepsText(
+              this.#count,
+              `${filtered.length} ${filtered.length === 1 ? "release" : "releases"} shown`,
+            );
+            layoutChanged(this);
+          }
+        },
+      );
+    </script>
 <!-- security-boundary.html authored styles -->
 <style>
       #security-before-flow .node.danger rect {
@@ -2113,10 +2117,6 @@
       #security-before-flow .node.danger text {
         fill: var(--danger-ink);
       }
-</style>
-<!-- command-hub.html authored styles -->
-<style>
-      @import url("/page/theme.css");
 </style>
 <!-- current-proposed-comparison.html authored styles -->
 <style>
@@ -2514,7 +2514,7 @@ catalog.</p>
 <section id="corpus-sources">
 <lf-tabs id="corpus">
 
-<lf-tab id="corpus-review-a-plan" label="Plan review">
+<lf-tab id="corpus-review-a-plan" label="Review a plan: sandbox Tend’s agents">
 <header id="plan-top">
         <p class="eyebrow">Tend · sandboxing · implementation plan</p>
         <h1>Move Tend’s agent runs into one sandbox</h1>
@@ -2720,7 +2720,7 @@ catalog.</p>
       </section>
 </lf-tab>
 
-<lf-tab id="corpus-triage-board" label="Triage">
+<lf-tab id="corpus-triage-board" label="Release triage">
 <header>
         <p class="eyebrow">triage · v2.4 release · cut Thursday</p>
         <h1>Release triage</h1>
@@ -2803,7 +2803,7 @@ catalog.</p>
       </aside>
 </lf-tab>
 
-<lf-tab id="corpus-ideas-to-implement" label="Ideas">
+<lf-tab id="corpus-ideas-to-implement" label="Choose ideas to implement">
 <h1>Ideas to implement</h1>
       <p class="lede" id="ideas-premise">
         Select the ideas to build this round and leave the others unchecked. Each can
@@ -2846,7 +2846,7 @@ catalog.</p>
       </lf-ask>
 </lf-tab>
 
-<lf-tab id="corpus-release-notes" label="Notes">
+<lf-tab id="corpus-release-notes" label="Release 3.2 notes for review">
 <h1>Review the 3.2 release packet</h1>
       <p class="lede" id="rn-lede">
         Review four notes for users and operators. Edit any draft that needs different
@@ -2921,7 +2921,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
       </section>
 </lf-tab>
 
-<lf-tab id="corpus-log-retention" label="Retention">
+<lf-tab id="corpus-log-retention" label="Most raw request logs: 45 days, failures: 120">
 <h1 id="ret-title">Keep most raw request logs for 45 days</h1>
       <p class="lede" id="ret-lede">
         Ordinary raw logs fall from 400 days to 45; 5xx logs keep 120 days. Aggregates
@@ -2982,7 +2982,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
       </section>
 </lf-tab>
 
-<lf-tab id="corpus-ship-review" label="Ship review">
+<lf-tab id="corpus-ship-review" label="Finish the iOS ship review">
 <h1>Finish the ship review</h1>
       <p class="lede" id="off-lede">
         The resend is accepted for the first patch: it recovered all 500 forced stalls,
@@ -3054,7 +3054,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
       </dl>
 </lf-tab>
 
-<lf-tab id="corpus-heat-loss" label="Heat">
+<lf-tab id="corpus-heat-loss" label="Choose the next heat-loss fix">
 <h1>Book the loft hatch first</h1>
       <p class="lede" id="heat-lede">
         The survey estimates 265 W of heat loss through the hatch, slightly more than
@@ -3169,7 +3169,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
       </section>
 </lf-tab>
 
-<lf-tab id="corpus-notification-playground" label="Notification">
+<lf-tab id="corpus-notification-playground" label="Stress-test a deployment notification">
 <lf-ask id="notification-ask">
         <h1>Stress-test the deployment notification</h1>
         <lf-playground
@@ -3293,168 +3293,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
       </lf-ask>
 </lf-tab>
 
-<lf-tab id="corpus-data-explorer" label="Data explorer">
-<header><h1>Shape a release query</h1></header>
-      <lf-ask id="release-query-ask">
-        <h2>Which release query should the agent build?</h2>
-        <lf-playground
-          id="release-query-playground"
-          submit-label="Build query"
-          data-width="available"
-        >
-          <lf-playground-control
-            name="limit"
-            label="Maximum results"
-            kind="range"
-            value="4"
-            min="1"
-            max="6"
-            step="1"
-          ></lf-playground-control>
-          <lf-playground-preset label="Up to 4 results">
-            <lf-playground-setting for="limit" value="4"></lf-playground-setting>
-          </lf-playground-preset>
-          <lf-playground-preset label="Up to 6 results">
-            <lf-playground-setting for="limit" value="6"></lf-playground-setting>
-          </lf-playground-preset>
-          <lf-playground-preview id="release-query-preview">
-            <release-query-explorer
-              id="release-query-explorer"
-            ></release-query-explorer>
-          </lf-playground-preview>
-          <lf-playground-output id="release-query-instruction">
-            Implement the default release query in <code>release-report.sql</code> and
-            show the query plus its result-table test.
-          </lf-playground-output>
-        </lf-playground>
-      </lf-ask>
-</lf-tab>
-
-<lf-tab id="corpus-code-comparison" label="Code comparison">
-<header><h1>Choose a code reader treatment</h1></header>
-      <lf-tabs id="code-comparison-views">
-        <lf-tab id="code-comparison-choose" label="Compare">
-          <lf-ask id="code-comparison-ask">
-            <h2>Which code-reader treatment should the agent keep?</h2>
-            <lf-playground
-              id="code-comparison-playground"
-              submit-label="Apply treatment"
-              data-width="available"
-            >
-              <lf-playground-control
-                name="width"
-                label="Comparison viewport"
-                kind="range"
-                value="420"
-                min="280"
-                max="520"
-                step="20"
-                unit="px"
-              ></lf-playground-control>
-              <lf-playground-control
-                name="chosen"
-                label="Treatment"
-                kind="choice"
-                value="A"
-              >
-                <lf-playground-choice value="A" label="A"></lf-playground-choice>
-                <lf-playground-choice value="B" label="B"></lf-playground-choice>
-              </lf-playground-control>
-              <lf-playground-preset label="A at 420px">
-                <lf-playground-setting for="width" value="420"></lf-playground-setting>
-                <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
-              </lf-playground-preset>
-              <lf-playground-preset label="B at 320px">
-                <lf-playground-setting for="width" value="320"></lf-playground-setting>
-                <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
-              </lf-playground-preset>
-              <lf-playground-preview id="code-comparison-preview">
-                <code-reader-comparison id="code-reader-comparison">
-                  <div class="code-comparison-grid">
-                    <section
-                      class="code-candidate"
-                      data-candidate="A"
-                      id="compact-code-candidate"
-                    >
-                      <h3 class="code-candidate-title">A · compact · scroll</h3>
-                      <p class="code-measurement" aria-live="polite">Measuring…</p>
-                      <lf-code id="compact-built-code" language="javascript" hi="2-4">
-                        <pre>
-export function releaseLabel(service, checks) {
-  const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
-  const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
-  return `${service} (${state}): ${detail}`;
-}
-
-export function releaseLabels(releases) {
-  return releases
-    .filter((release) => release.checks.total > 0)
-    .map((release) => releaseLabel(release.service, release.checks));
-}</pre>
-                      </lf-code>
-                    </section>
-                    <section
-                      class="code-candidate"
-                      data-candidate="B"
-                      id="wrapped-code-candidate"
-                    >
-                      <h3 class="code-candidate-title">B · comfortable · wrap</h3>
-                      <p class="code-measurement" aria-live="polite">Measuring…</p>
-                      <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
-                        <pre>
-export function releaseLabel(service, checks) {
-  const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
-  const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
-  return `${service} (${state}): ${detail}`;
-}
-
-export function releaseLabels(releases) {
-  return releases
-    .filter((release) => release.checks.total > 0)
-    .map((release) => releaseLabel(release.service, release.checks));
-}</pre>
-                      </lf-code>
-                    </section>
-                  </div>
-                </code-reader-comparison>
-              </lf-playground-preview>
-              <lf-playground-output id="code-comparison-instruction">
-                Update the built Leaf code reader and show the focused browser
-                measurement test.
-              </lf-playground-output>
-            </lf-playground>
-          </lf-ask>
-        </lf-tab>
-        <lf-tab id="code-comparison-comment" label="Comment on the reader">
-          <section id="code-reader-feedback">
-            <h2>Point at the reader element you want changed</h2>
-            <p id="code-reader-feedback-guide">
-              Turn on Design mode with <kbd>l</kbd> or the More menu, then press the
-              heading or code reader below. For a keyboard choice, press <kbd>s</kbd>,
-              browse targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your
-              comment stays beside that element as its treatment changes. Describe a
-              shared change in the comment when both readers should inherit it.
-            </p>
-            <section
-              id="target-reader-artifact"
-              class="code-candidate"
-              data-width="available"
-            >
-              <h3 id="target-reader-heading" class="reader-treatment-title">
-                Reader sample
-              </h3>
-              <lf-code id="target-built-code" language="javascript" hi="2">
-                <pre>
-export const summarize = checks =>
-  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
-              </lf-code>
-            </section>
-          </section>
-        </lf-tab>
-      </lf-tabs>
-</lf-tab>
-
-<lf-tab id="corpus-alert-thresholds" label="Thresholds">
+<lf-tab id="corpus-alert-thresholds" label="Tune payments-api alert thresholds">
 <h1 id="alert-title">Tune payments-api's alert thresholds</h1>
       <p class="lede" id="alert-lede">
         On-call asked for at most 10 pages a month, every page a real incident, and a
@@ -4064,7 +3903,7 @@ export const summarize = checks =>
       </lf-ask>
 </lf-tab>
 
-<lf-tab id="corpus-live-progress" label="Live">
+<lf-tab id="corpus-live-progress" label="Release page: checkout v2 canary">
 <header>
         <p class="eyebrow">release · production · checkout-v2</p>
         <h1>Checkout v2 release</h1>
@@ -4312,7 +4151,7 @@ export const summarize = checks =>
       </aside>
 </lf-tab>
 
-<lf-tab id="corpus-alert-review" label="Alerts">
+<lf-tab id="corpus-alert-review" label="Weekly alert review: payments on-call">
 <header>
         <h1>Which alerts should still page?</h1>
         <p id="ar-legend">
@@ -4844,7 +4683,7 @@ export const summarize = checks =>
       </footer>
 </lf-tab>
 
-<lf-tab id="corpus-pr-walkthrough" label="PR">
+<lf-tab id="corpus-pr-walkthrough" label="PR walkthrough: Worktrunk unified diff">
 <header>
         <p class="eyebrow">pull request review · captured revision</p>
         <h1>Unified diff in the switch picker</h1>
@@ -5393,7 +5232,7 @@ index b856171b57..cfa4f0448e 100644
       </div>
 </lf-tab>
 
-<lf-tab id="corpus-review-a-fix" label="Fix recordings">
+<lf-tab id="corpus-review-a-fix" label="Check a fix against its recordings">
 <h1 id="fix-title">A comment now survives opening its screenshot</h1>
       <p class="lede" id="fix-lede">
         Pressing Escape on a screenshot's preview used to close the page comment it was
@@ -5487,7 +5326,7 @@ index b856171b57..cfa4f0448e 100644
       </details>
 </lf-tab>
 
-<lf-tab id="corpus-wt-merge" label="Merge film">
+<lf-tab id="corpus-wt-merge" label="Explain how wt merge works">
 <header>
         <h1>Explain how <code>wt merge</code> works</h1>
       </header>
@@ -5612,7 +5451,7 @@ index b856171b57..cfa4f0448e 100644
       </div>
 </lf-tab>
 
-<lf-tab id="corpus-rust-sort" label="Sort film">
+<lf-tab id="corpus-rust-sort" label="Explain Rust&#x27;s 2016 merge sort">
 <header>
         <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
       </header>
@@ -5888,7 +5727,525 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
       </div>
 </lf-tab>
 
-<lf-tab id="corpus-security-boundary" label="Security">
+<lf-tab id="corpus-code-comparison" label="Choose a code reader treatment">
+<header><h1>Choose a code reader treatment</h1></header>
+      <lf-tabs id="code-comparison-views">
+        <lf-tab id="code-comparison-choose" label="Compare">
+          <lf-ask id="code-comparison-ask">
+            <h2>Which code-reader treatment should the agent keep?</h2>
+            <lf-playground
+              id="code-comparison-playground"
+              submit-label="Apply treatment"
+              data-width="available"
+            >
+              <lf-playground-control
+                name="width"
+                label="Comparison viewport"
+                kind="range"
+                value="420"
+                min="280"
+                max="520"
+                step="20"
+                unit="px"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="chosen"
+                label="Treatment"
+                kind="choice"
+                value="A"
+              >
+                <lf-playground-choice value="A" label="A"></lf-playground-choice>
+                <lf-playground-choice value="B" label="B"></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-preset label="A at 420px">
+                <lf-playground-setting for="width" value="420"></lf-playground-setting>
+                <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="B at 320px">
+                <lf-playground-setting for="width" value="320"></lf-playground-setting>
+                <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preview id="code-comparison-preview">
+                <code-reader-comparison id="code-reader-comparison">
+                  <div class="code-comparison-grid">
+                    <section
+                      class="code-candidate"
+                      data-candidate="A"
+                      id="compact-code-candidate"
+                    >
+                      <h3 class="code-candidate-title">A · compact · scroll</h3>
+                      <p class="code-measurement" aria-live="polite">Measuring…</p>
+                      <lf-code id="compact-built-code" language="javascript" hi="2-4">
+                        <pre>
+export function releaseLabel(service, checks) {
+  const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
+  const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
+  return `${service} (${state}): ${detail}`;
+}
+
+export function releaseLabels(releases) {
+  return releases
+    .filter((release) => release.checks.total > 0)
+    .map((release) => releaseLabel(release.service, release.checks));
+}</pre>
+                      </lf-code>
+                    </section>
+                    <section
+                      class="code-candidate"
+                      data-candidate="B"
+                      id="wrapped-code-candidate"
+                    >
+                      <h3 class="code-candidate-title">B · comfortable · wrap</h3>
+                      <p class="code-measurement" aria-live="polite">Measuring…</p>
+                      <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
+                        <pre>
+export function releaseLabel(service, checks) {
+  const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
+  const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
+  return `${service} (${state}): ${detail}`;
+}
+
+export function releaseLabels(releases) {
+  return releases
+    .filter((release) => release.checks.total > 0)
+    .map((release) => releaseLabel(release.service, release.checks));
+}</pre>
+                      </lf-code>
+                    </section>
+                  </div>
+                </code-reader-comparison>
+              </lf-playground-preview>
+              <lf-playground-output id="code-comparison-instruction">
+                Update the built Leaf code reader and show the focused browser
+                measurement test.
+              </lf-playground-output>
+            </lf-playground>
+          </lf-ask>
+        </lf-tab>
+        <lf-tab id="code-comparison-comment" label="Comment on the reader">
+          <section id="code-reader-feedback">
+            <h2>Point at the reader element you want changed</h2>
+            <p id="code-reader-feedback-guide">
+              Turn on Design mode with <kbd>l</kbd> or the More menu, then press the
+              heading or code reader below. For a keyboard choice, press <kbd>s</kbd>,
+              browse targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your
+              comment stays beside that element as its treatment changes. Describe a
+              shared change in the comment when both readers should inherit it.
+            </p>
+            <section
+              id="target-reader-artifact"
+              class="code-candidate"
+              data-width="available"
+            >
+              <h3 id="target-reader-heading" class="reader-treatment-title">
+                Reader sample
+              </h3>
+              <lf-code id="target-built-code" language="javascript" hi="2">
+                <pre>
+export const summarize = checks =>
+  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
+              </lf-code>
+            </section>
+          </section>
+        </lf-tab>
+      </lf-tabs>
+</lf-tab>
+
+<lf-tab id="corpus-command-hub" label="Command hub: Atlas importer rewrite">
+<header>
+        <p class="eyebrow">command hub · importer rewrite</p>
+        <h1>Atlas importer rewrite</h1>
+        <p class="lede" id="hub-lede">
+          Get the new importer through one shadow week with no unexplained variance. The
+          tree lists goals of the importer rewrite. The lead is assigned to the whole
+          rewrite, an area owner to one branch, and a specialist to a single task. Open
+          a worker to inspect its latest report and worktree, answer beside the goal
+          that stopped, and use
+          <em>Send &amp; pause</em>
+          when the thread itself should keep new workers away until you resolve it.
+        </p>
+      </header>
+
+      <section class="panel" id="hub-tree">
+        <h2>Plan</h2>
+        <lf-atlas-plan
+          id="hub-plan"
+          label="One clean shadow week"
+          phase="week 3 of 6"
+          overview="hub-readings"
+        >
+          <lf-atlas-worker id="atlas-lead" state="working"
+            ><details>
+              <summary>
+                <strong>atlas-lead</strong
+                ><span class="atlas-worker-state" role="status"></span>
+              </summary>
+              <div class="atlas-worker-body">
+                <p class="atlas-worker-report"></p>
+                Coordinates the whole rewrite by routing decisions, monitoring progress,
+                and choosing which tasks to focus on.
+              </div>
+            </details></lf-atlas-worker
+          >
+          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
+            <strong>Groundwork</strong>
+            <lf-atlas-task id="ground-corpus" status="done">
+              <strong>Snapshot the import corpus</strong> Nine months pinned by content
+              hash.
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-harness" status="done">
+              <strong>Build the replay harness</strong> Old and new importer over the
+              same corpus.
+            </lf-atlas-task>
+            <lf-atlas-task id="ground-schema" status="done">
+              <strong>Map the legacy schema</strong> Every downstream field has an
+              owner.
+            </lf-atlas-task>
+          </lf-atlas-task>
+
+          <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
+            <strong>Replace the XML parser</strong>
+            Two workers own separate worktrees; open each worker to inspect its
+            evidence. The stalled deduplication task appears under this goal.
+            <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
+              ><details>
+                <summary>
+                  <strong>w-1</strong
+                  ><span class="atlas-worker-state" role="status"></span>
+                </summary>
+                <div class="atlas-worker-body">
+                  <p class="atlas-worker-report"></p>
+                  Parser area owner; focused now on declarations and entity boundaries,
+                  but responsible for this whole branch of the plan.
+                  <lf-atlas-tree id="tree-w-1" source="atlas-worktrees"></lf-atlas-tree>
+                </div></details
+            ></lf-atlas-worker>
+            <lf-atlas-task id="parser-declarations" status="active">
+              <strong>Declarations and entities</strong> Three new corpus cases remain.
+              <lf-atlas-task id="parser-stream" status="done">
+                <strong>Streaming core</strong> Constant memory over the full corpus.
+              </lf-atlas-task>
+              <lf-atlas-task id="parser-cdata" status="active">
+                <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
+                <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
+                  ><details>
+                    <summary>
+                      <strong>w-2</strong
+                      ><span class="atlas-worker-state" role="status"></span>
+                    </summary>
+                    <div class="atlas-worker-body">
+                      <p class="atlas-worker-report"></p>
+                      CDATA specialist: escaped-markup corpus cases.
+                      <lf-atlas-tree
+                        id="tree-w-2"
+                        source="atlas-worktrees"
+                      ></lf-atlas-tree>
+                    </div></details
+                ></lf-atlas-worker>
+              </lf-atlas-task>
+            </lf-atlas-task>
+            <lf-atlas-task
+              id="parser-dedupe"
+              status="blocked"
+              stopped-at="2026-08-21T08:12:00-07:00"
+            >
+              <strong>Deduplicate the corpus snapshot</strong> Three hours of worker
+              activity produced no commit. Last worktree:
+              <a href="#tree-w-5">atlas/dedupe-attempt</a>.
+              <lf-atlas-worker id="w-5" state="reaped" on="parser-dedupe"
+                ><details>
+                  <summary>
+                    <strong>w-5</strong
+                    ><span class="atlas-worker-state" role="status"></span>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Dedupe specialist, reaped after three hours without a commit; its
+                    branch and evidence remain inspectable.
+                    <lf-atlas-tree
+                      id="tree-w-5"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
+              <lf-ask id="decision-dedupe-region">
+                <h3>What should the host do with the stalled work?</h3>
+                <lf-options id="decision-dedupe" choose>
+                  <lf-option id="dedupe-restart">
+                    <strong>Restart with a fresh worker</strong> Preserve tree-w-5
+                    (atlas/dedupe-attempt), its commits, and comments; reap w-5 and
+                    start a new worker on it.
+                    <em
+                      >My take: keep the durable work and replace the stalled
+                      process.</em
+                    >
+                  </lf-option>
+                  <lf-option id="dedupe-park">
+                    <strong>Park it for tomorrow</strong> Keep tree-w-5
+                    (atlas/dedupe-attempt) and take the goal out of today's plan.
+                  </lf-option>
+                  <lf-option id="dedupe-drop">
+                    <strong>Drop it</strong> Archive tree-w-5 (atlas/dedupe-attempt);
+                    corpus storage stays at 40 GB for this rewrite.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </lf-atlas-task>
+            <lf-atlas-task
+              id="parser-zero"
+              status="active"
+              stopped-at="2026-08-21T08:46:00-07:00"
+            >
+              <strong>Choose the zero-row behavior</strong> This policy is consequential
+              enough to wait for an explicit choice.
+              <lf-ask id="decision-zero-region">
+                <h3>What should happen when a nightly imports zero rows?</h3>
+                <lf-options id="decision-zero" choose>
+                  <lf-option id="zero-alert" for="parser-zero">
+                    <strong>Fail and page</strong> Preserve the export and stop the
+                    downstream publish.
+                    <em>My take: zero rows is a failure until proved otherwise.</em>
+                  </lf-option>
+                  <lf-option id="zero-warn" for="parser-zero">
+                    <strong>Warn and continue</strong> Record the empty import but
+                    publish no data.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </lf-atlas-task>
+          </lf-atlas-task>
+
+          <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
+            <strong>Reconcile schema and ledger</strong> The schema decision blocks the
+            backfill, ledger fixture, and nightly variance report.
+            <lf-atlas-task
+              id="schema-choice"
+              status="review"
+              stopped-at="2026-08-21T07:20:00-07:00"
+            >
+              <strong>Choose the additive schema</strong> Both columns are nullable; the
+              migration and reverse path are green.
+              <lf-atlas-worker id="w-8" state="waiting" on="schema-choice"
+                ><details>
+                  <summary>
+                    <strong>w-8</strong
+                    ><span class="atlas-worker-state" role="status"></span>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Schema-choice specialist: migration and reconciliation evidence.
+                    <lf-atlas-tree
+                      id="tree-w-8"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
+              <lf-ask id="decision-schema-region">
+                <h3>What should the host do with the schema branch?</h3>
+                <lf-options id="decision-schema" choose>
+                  <lf-option id="schema-land">
+                    <strong>Land it now</strong> Merge tree-w-8 (atlas/schema) from w-8.
+                    Tests are green, it unblocks the dependent work, and shadow reads
+                    begin before anything depends on it.
+                    <em>My take: land while the evidence is current.</em>
+                  </lf-option>
+                  <lf-option id="schema-hold">
+                    <strong>Hold for the backfill</strong> Keep tree-w-8 (atlas/schema)
+                    unmerged, leave the dependent work idle, and take one larger review
+                    tomorrow.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </lf-atlas-task>
+            <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
+              <strong>Backfill reconciliation fields</strong>
+            </lf-atlas-task>
+            <lf-atlas-task
+              id="ledger-fixture"
+              status="active"
+              needs="schema-choice"
+              stopped-at="2026-08-21T09:04:00-07:00"
+            >
+              <strong>Bring one replica-only ledger fixture</strong> Run the command
+              below, paste its CSV output into the draft, and remove
+              <code>customer_name</code> and <code>billing_email</code> before saving.
+              Saving the draft tells the orchestrator that w-8 can resume.
+              <lf-ask id="decision-ledger-fixture-region">
+                <h3>Which replica-only ledger fixture should the worker use?</h3>
+                <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
+    where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
+                <lf-draft id="ledger-cargo" needed>
+                  <pre>
+Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
+                </lf-draft>
+              </lf-ask>
+            </lf-atlas-task>
+            <lf-atlas-task
+              id="ledger-variance"
+              status="planned"
+              needs="schema-choice ledger-fixture"
+            >
+              <strong>Nightly variance report</strong> Waiting for the schema decision
+              and ledger fixture.
+            </lf-atlas-task>
+          </lf-atlas-task>
+
+          <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
+            <strong>Publish the parser contract</strong> Review the public API branch. A
+            line comment goes to a new evidence worker and stays attached to the source
+            line.
+            <lf-atlas-task
+              id="api-shape"
+              status="review"
+              stopped-at="2026-08-21T10:35:00-07:00"
+            >
+              <strong>Review the public result type</strong>
+              <lf-atlas-worker id="w-3" state="waiting" on="api-shape"
+                ><details>
+                  <summary>
+                    <strong>w-3</strong
+                    ><span class="atlas-worker-state" role="status"></span>
+                  </summary>
+                  <div class="atlas-worker-body">
+                    <p class="atlas-worker-report"></p>
+                    Public-contract specialist: result types and compatibility tests.
+                    <lf-atlas-tree
+                      id="tree-w-3"
+                      source="atlas-worktrees"
+                    ></lf-atlas-tree>
+                  </div></details
+              ></lf-atlas-worker>
+              <lf-ask id="decision-api-region">
+                <h3>What should the host do with atlas/public-api?</h3>
+                <lf-options id="decision-api" choose>
+                  <lf-option id="api-land">
+                    <strong>Land</strong> Merge tree-w-3 (atlas/public-api) from w-3.
+                    The compatibility suite is green.
+                    <em>My take: the public contract is ready.</em>
+                  </lf-option>
+                  <lf-option id="api-revise">
+                    <strong>Request changes</strong> Restate this card and start a fresh
+                    revision worker on tree-w-3; the request remains in the record.
+                  </lf-option>
+                  <lf-option id="api-land-as-is">
+                    <strong>Land as-is — discard revision</strong> Merge tree-w-3
+                    (atlas/public-api) over an open change request and reap its reviser.
+                  </lf-option>
+                </lf-options>
+              </lf-ask>
+            </lf-atlas-task>
+            <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
+              <strong>Map structured failures</strong>
+            </lf-atlas-task>
+            <lf-atlas-task id="api-sdk" status="planned" needs="api-shape">
+              <strong>Regenerate the SDK fixture</strong>
+            </lf-atlas-task>
+          </lf-atlas-task>
+
+          <lf-atlas-task id="goal-docs" status="done" when="week 3">
+            <strong>Document the operator path</strong>
+            <lf-atlas-task id="docs-runbook" status="done">
+              <strong>Write the replica runbook</strong>
+            </lf-atlas-task>
+            <lf-atlas-task id="docs-rollback" status="done">
+              <strong>Write rollback and evidence capture</strong>
+            </lf-atlas-task>
+          </lf-atlas-task>
+
+          <lf-atlas-task
+            id="goal-cutover"
+            status="planned"
+            when="weeks 5–6"
+            tags="downstream"
+            talk
+            needs="goal-schema goal-api"
+          >
+            <strong>Cut over the nightly</strong> This goal is visibly downstream of
+            both schema and ledger evidence.
+            <lf-atlas-task
+              id="cutover-shadow"
+              status="planned"
+              needs="ledger-variance api-shape"
+            >
+              <strong>Shadow both importers for one week</strong>
+            </lf-atlas-task>
+            <lf-atlas-task id="cutover-swap" status="planned" needs="cutover-shadow">
+              <strong>Swap with the old path behind a flag</strong>
+            </lf-atlas-task>
+          </lf-atlas-task>
+        </lf-atlas-plan>
+      </section>
+
+      <aside id="hub-rail">
+        <section class="panel atlas-overview" id="hub-readings">
+          <h2>Current work</h2>
+          <p class="atlas-progress">
+            <output data-atlas-count="progress">Plan loading</output>
+          </p>
+          <dl class="facts">
+            <dt>Running</dt>
+            <dd><output data-atlas-count="running">0</output></dd>
+            <dt>Workers</dt>
+            <dd><output data-atlas-count="workers">0</output></dd>
+            <dt>Quiet</dt>
+            <dd><output data-atlas-count="quiet">0</output></dd>
+            <dt>Stopped</dt>
+            <dd><output data-atlas-count="stopped">0</output></dd>
+          </dl>
+          <button type="button" class="button atlas-refresh" disabled>
+            Show latest
+          </button>
+          <details class="atlas-stopped">
+            <summary>Stopped work</summary>
+            <ul></ul>
+          </details>
+        </section>
+        <section class="panel" id="hub-record">
+          <h2>Record</h2>
+          <p>Recent actions, newest first. Each row links to the affected item.</p>
+          <lf-activity id="atlas-record"></lf-activity>
+        </section>
+      </aside>
+</lf-tab>
+
+<lf-tab id="corpus-data-explorer" label="Shape a release query">
+<header><h1>Shape a release query</h1></header>
+      <lf-ask id="release-query-ask">
+        <h2>Which release query should the agent build?</h2>
+        <lf-playground
+          id="release-query-playground"
+          submit-label="Build query"
+          data-width="available"
+        >
+          <lf-playground-control
+            name="limit"
+            label="Maximum results"
+            kind="range"
+            value="4"
+            min="1"
+            max="6"
+            step="1"
+          ></lf-playground-control>
+          <lf-playground-preset label="Up to 4 results">
+            <lf-playground-setting for="limit" value="4"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preset label="Up to 6 results">
+            <lf-playground-setting for="limit" value="6"></lf-playground-setting>
+          </lf-playground-preset>
+          <lf-playground-preview id="release-query-preview">
+            <release-query-explorer
+              id="release-query-explorer"
+            ></release-query-explorer>
+          </lf-playground-preview>
+          <lf-playground-output id="release-query-instruction">
+            Implement the default release query in <code>release-report.sql</code> and
+            show the query plus its result-table test.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-ask>
+</lf-tab>
+
+<lf-tab id="corpus-security-boundary" label="Tend agent boundary: design record">
 <h1>Make the agent workspace disposable</h1>
       <p class="lede" id="security-decision">
         Tend keeps GitHub Actions’ workspace runner-owned and gives the agent a
@@ -6794,364 +7151,7 @@ stateDiagram-v2
       </details>
 </lf-tab>
 
-<lf-tab id="corpus-command-hub" label="Command">
-<header>
-        <p class="eyebrow">command hub · importer rewrite</p>
-        <h1>Atlas importer rewrite</h1>
-        <p class="lede" id="hub-lede">
-          Get the new importer through one shadow week with no unexplained variance. The
-          tree lists goals of the importer rewrite. The lead is assigned to the whole
-          rewrite, an area owner to one branch, and a specialist to a single task. Open
-          a worker to inspect its latest report and worktree, answer beside the goal
-          that stopped, and use
-          <em>Send &amp; pause</em>
-          when the thread itself should keep new workers away until you resolve it.
-        </p>
-      </header>
-
-      <section class="panel" id="hub-tree">
-        <h2>Plan</h2>
-        <lf-atlas-plan
-          id="hub-plan"
-          label="One clean shadow week"
-          phase="week 3 of 6"
-          overview="hub-readings"
-        >
-          <lf-atlas-worker id="atlas-lead" state="working"
-            ><details>
-              <summary>
-                <strong>atlas-lead</strong
-                ><span class="atlas-worker-state" role="status"></span>
-              </summary>
-              <div class="atlas-worker-body">
-                <p class="atlas-worker-report"></p>
-                Coordinates the whole rewrite by routing decisions, monitoring progress,
-                and choosing which tasks to focus on.
-              </div>
-            </details></lf-atlas-worker
-          >
-          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
-            <strong>Groundwork</strong>
-            <lf-atlas-task id="ground-corpus" status="done">
-              <strong>Snapshot the import corpus</strong> Nine months pinned by content
-              hash.
-            </lf-atlas-task>
-            <lf-atlas-task id="ground-harness" status="done">
-              <strong>Build the replay harness</strong> Old and new importer over the
-              same corpus.
-            </lf-atlas-task>
-            <lf-atlas-task id="ground-schema" status="done">
-              <strong>Map the legacy schema</strong> Every downstream field has an
-              owner.
-            </lf-atlas-task>
-          </lf-atlas-task>
-
-          <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
-            <strong>Replace the XML parser</strong>
-            Two workers own separate worktrees; open each worker to inspect its
-            evidence. The stalled deduplication task appears under this goal.
-            <lf-atlas-worker id="w-1" state="working" on="parser-declarations"
-              ><details>
-                <summary>
-                  <strong>w-1</strong
-                  ><span class="atlas-worker-state" role="status"></span>
-                </summary>
-                <div class="atlas-worker-body">
-                  <p class="atlas-worker-report"></p>
-                  Parser area owner; focused now on declarations and entity boundaries,
-                  but responsible for this whole branch of the plan.
-                  <lf-atlas-tree id="tree-w-1" source="atlas-worktrees"></lf-atlas-tree>
-                </div></details
-            ></lf-atlas-worker>
-            <lf-atlas-task id="parser-declarations" status="active">
-              <strong>Declarations and entities</strong> Three new corpus cases remain.
-              <lf-atlas-task id="parser-stream" status="done">
-                <strong>Streaming core</strong> Constant memory over the full corpus.
-              </lf-atlas-task>
-              <lf-atlas-task id="parser-cdata" status="active">
-                <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
-                <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
-                  ><details>
-                    <summary>
-                      <strong>w-2</strong
-                      ><span class="atlas-worker-state" role="status"></span>
-                    </summary>
-                    <div class="atlas-worker-body">
-                      <p class="atlas-worker-report"></p>
-                      CDATA specialist: escaped-markup corpus cases.
-                      <lf-atlas-tree
-                        id="tree-w-2"
-                        source="atlas-worktrees"
-                      ></lf-atlas-tree>
-                    </div></details
-                ></lf-atlas-worker>
-              </lf-atlas-task>
-            </lf-atlas-task>
-            <lf-atlas-task
-              id="parser-dedupe"
-              status="blocked"
-              stopped-at="2026-08-21T08:12:00-07:00"
-            >
-              <strong>Deduplicate the corpus snapshot</strong> Three hours of worker
-              activity produced no commit. Last worktree:
-              <a href="#tree-w-5">atlas/dedupe-attempt</a>.
-              <lf-atlas-worker id="w-5" state="reaped" on="parser-dedupe"
-                ><details>
-                  <summary>
-                    <strong>w-5</strong
-                    ><span class="atlas-worker-state" role="status"></span>
-                  </summary>
-                  <div class="atlas-worker-body">
-                    <p class="atlas-worker-report"></p>
-                    Dedupe specialist, reaped after three hours without a commit; its
-                    branch and evidence remain inspectable.
-                    <lf-atlas-tree
-                      id="tree-w-5"
-                      source="atlas-worktrees"
-                    ></lf-atlas-tree>
-                  </div></details
-              ></lf-atlas-worker>
-              <lf-ask id="decision-dedupe-region">
-                <h3>What should the host do with the stalled work?</h3>
-                <lf-options id="decision-dedupe" choose>
-                  <lf-option id="dedupe-restart">
-                    <strong>Restart with a fresh worker</strong> Preserve tree-w-5
-                    (atlas/dedupe-attempt), its commits, and comments; reap w-5 and
-                    start a new worker on it.
-                    <em
-                      >My take: keep the durable work and replace the stalled
-                      process.</em
-                    >
-                  </lf-option>
-                  <lf-option id="dedupe-park">
-                    <strong>Park it for tomorrow</strong> Keep tree-w-5
-                    (atlas/dedupe-attempt) and take the goal out of today's plan.
-                  </lf-option>
-                  <lf-option id="dedupe-drop">
-                    <strong>Drop it</strong> Archive tree-w-5 (atlas/dedupe-attempt);
-                    corpus storage stays at 40 GB for this rewrite.
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </lf-atlas-task>
-            <lf-atlas-task
-              id="parser-zero"
-              status="active"
-              stopped-at="2026-08-21T08:46:00-07:00"
-            >
-              <strong>Choose the zero-row behavior</strong> This policy is consequential
-              enough to wait for an explicit choice.
-              <lf-ask id="decision-zero-region">
-                <h3>What should happen when a nightly imports zero rows?</h3>
-                <lf-options id="decision-zero" choose>
-                  <lf-option id="zero-alert" for="parser-zero">
-                    <strong>Fail and page</strong> Preserve the export and stop the
-                    downstream publish.
-                    <em>My take: zero rows is a failure until proved otherwise.</em>
-                  </lf-option>
-                  <lf-option id="zero-warn" for="parser-zero">
-                    <strong>Warn and continue</strong> Record the empty import but
-                    publish no data.
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </lf-atlas-task>
-          </lf-atlas-task>
-
-          <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
-            <strong>Reconcile schema and ledger</strong> The schema decision blocks the
-            backfill, ledger fixture, and nightly variance report.
-            <lf-atlas-task
-              id="schema-choice"
-              status="review"
-              stopped-at="2026-08-21T07:20:00-07:00"
-            >
-              <strong>Choose the additive schema</strong> Both columns are nullable; the
-              migration and reverse path are green.
-              <lf-atlas-worker id="w-8" state="waiting" on="schema-choice"
-                ><details>
-                  <summary>
-                    <strong>w-8</strong
-                    ><span class="atlas-worker-state" role="status"></span>
-                  </summary>
-                  <div class="atlas-worker-body">
-                    <p class="atlas-worker-report"></p>
-                    Schema-choice specialist: migration and reconciliation evidence.
-                    <lf-atlas-tree
-                      id="tree-w-8"
-                      source="atlas-worktrees"
-                    ></lf-atlas-tree>
-                  </div></details
-              ></lf-atlas-worker>
-              <lf-ask id="decision-schema-region">
-                <h3>What should the host do with the schema branch?</h3>
-                <lf-options id="decision-schema" choose>
-                  <lf-option id="schema-land">
-                    <strong>Land it now</strong> Merge tree-w-8 (atlas/schema) from w-8.
-                    Tests are green, it unblocks the dependent work, and shadow reads
-                    begin before anything depends on it.
-                    <em>My take: land while the evidence is current.</em>
-                  </lf-option>
-                  <lf-option id="schema-hold">
-                    <strong>Hold for the backfill</strong> Keep tree-w-8 (atlas/schema)
-                    unmerged, leave the dependent work idle, and take one larger review
-                    tomorrow.
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </lf-atlas-task>
-            <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
-              <strong>Backfill reconciliation fields</strong>
-            </lf-atlas-task>
-            <lf-atlas-task
-              id="ledger-fixture"
-              status="active"
-              needs="schema-choice"
-              stopped-at="2026-08-21T09:04:00-07:00"
-            >
-              <strong>Bring one replica-only ledger fixture</strong> Run the command
-              below, paste its CSV output into the draft, and remove
-              <code>customer_name</code> and <code>billing_email</code> before saving.
-              Saving the draft tells the orchestrator that w-8 can resume.
-              <lf-ask id="decision-ledger-fixture-region">
-                <h3>Which replica-only ledger fixture should the worker use?</h3>
-                <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
-    where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
-                <lf-draft id="ledger-cargo" needed>
-                  <pre>
-Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
-                </lf-draft>
-              </lf-ask>
-            </lf-atlas-task>
-            <lf-atlas-task
-              id="ledger-variance"
-              status="planned"
-              needs="schema-choice ledger-fixture"
-            >
-              <strong>Nightly variance report</strong> Waiting for the schema decision
-              and ledger fixture.
-            </lf-atlas-task>
-          </lf-atlas-task>
-
-          <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
-            <strong>Publish the parser contract</strong> Review the public API branch. A
-            line comment goes to a new evidence worker and stays attached to the source
-            line.
-            <lf-atlas-task
-              id="api-shape"
-              status="review"
-              stopped-at="2026-08-21T10:35:00-07:00"
-            >
-              <strong>Review the public result type</strong>
-              <lf-atlas-worker id="w-3" state="waiting" on="api-shape"
-                ><details>
-                  <summary>
-                    <strong>w-3</strong
-                    ><span class="atlas-worker-state" role="status"></span>
-                  </summary>
-                  <div class="atlas-worker-body">
-                    <p class="atlas-worker-report"></p>
-                    Public-contract specialist: result types and compatibility tests.
-                    <lf-atlas-tree
-                      id="tree-w-3"
-                      source="atlas-worktrees"
-                    ></lf-atlas-tree>
-                  </div></details
-              ></lf-atlas-worker>
-              <lf-ask id="decision-api-region">
-                <h3>What should the host do with atlas/public-api?</h3>
-                <lf-options id="decision-api" choose>
-                  <lf-option id="api-land">
-                    <strong>Land</strong> Merge tree-w-3 (atlas/public-api) from w-3.
-                    The compatibility suite is green.
-                    <em>My take: the public contract is ready.</em>
-                  </lf-option>
-                  <lf-option id="api-revise">
-                    <strong>Request changes</strong> Restate this card and start a fresh
-                    revision worker on tree-w-3; the request remains in the record.
-                  </lf-option>
-                  <lf-option id="api-land-as-is">
-                    <strong>Land as-is — discard revision</strong> Merge tree-w-3
-                    (atlas/public-api) over an open change request and reap its reviser.
-                  </lf-option>
-                </lf-options>
-              </lf-ask>
-            </lf-atlas-task>
-            <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
-              <strong>Map structured failures</strong>
-            </lf-atlas-task>
-            <lf-atlas-task id="api-sdk" status="planned" needs="api-shape">
-              <strong>Regenerate the SDK fixture</strong>
-            </lf-atlas-task>
-          </lf-atlas-task>
-
-          <lf-atlas-task id="goal-docs" status="done" when="week 3">
-            <strong>Document the operator path</strong>
-            <lf-atlas-task id="docs-runbook" status="done">
-              <strong>Write the replica runbook</strong>
-            </lf-atlas-task>
-            <lf-atlas-task id="docs-rollback" status="done">
-              <strong>Write rollback and evidence capture</strong>
-            </lf-atlas-task>
-          </lf-atlas-task>
-
-          <lf-atlas-task
-            id="goal-cutover"
-            status="planned"
-            when="weeks 5–6"
-            tags="downstream"
-            talk
-            needs="goal-schema goal-api"
-          >
-            <strong>Cut over the nightly</strong> This goal is visibly downstream of
-            both schema and ledger evidence.
-            <lf-atlas-task
-              id="cutover-shadow"
-              status="planned"
-              needs="ledger-variance api-shape"
-            >
-              <strong>Shadow both importers for one week</strong>
-            </lf-atlas-task>
-            <lf-atlas-task id="cutover-swap" status="planned" needs="cutover-shadow">
-              <strong>Swap with the old path behind a flag</strong>
-            </lf-atlas-task>
-          </lf-atlas-task>
-        </lf-atlas-plan>
-      </section>
-
-      <aside id="hub-rail">
-        <section class="panel atlas-overview" id="hub-readings">
-          <h2>Current work</h2>
-          <p class="atlas-progress">
-            <output data-atlas-count="progress">Plan loading</output>
-          </p>
-          <dl class="facts">
-            <dt>Running</dt>
-            <dd><output data-atlas-count="running">0</output></dd>
-            <dt>Workers</dt>
-            <dd><output data-atlas-count="workers">0</output></dd>
-            <dt>Quiet</dt>
-            <dd><output data-atlas-count="quiet">0</output></dd>
-            <dt>Stopped</dt>
-            <dd><output data-atlas-count="stopped">0</output></dd>
-          </dl>
-          <button type="button" class="button atlas-refresh" disabled>
-            Show latest
-          </button>
-          <details class="atlas-stopped">
-            <summary>Stopped work</summary>
-            <ul></ul>
-          </details>
-        </section>
-        <section class="panel" id="hub-record">
-          <h2>Record</h2>
-          <p>Recent actions, newest first. Each row links to the affected item.</p>
-          <lf-activity id="atlas-record"></lf-activity>
-        </section>
-      </aside>
-</lf-tab>
-
-<lf-tab id="corpus-current-proposed-comparison" label="Current Proposed Comparison">
+<lf-tab id="corpus-current-proposed-comparison" label="Authentication retry comparison">
 <header>
         <p class="eyebrow">release review · decision recorded</p>
         <h1>Compare expired-session recovery</h1>
@@ -7275,7 +7275,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
       </footer>
 </lf-tab>
 
-<lf-tab id="corpus-playwright-paired-results" label="Playwright Paired Results">
+<lf-tab id="corpus-playwright-paired-results" label="Matched recording results">
 <h1>Compare reviewed results</h1>
       <p>
         These two views deliberately pair different Review outcomes in one recording.
@@ -7306,7 +7306,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
       >
 </lf-tab>
 
-<lf-tab id="corpus-review-queue" label="Review Queue">
+<lf-tab id="corpus-review-queue" label="Release review queue">
 <header>
         <p class="eyebrow">release review · eight items</p>
         <h1>Review the 2.8 release</h1>
@@ -7545,7 +7545,7 @@ expire old keys</code></pre>
       </div>
 </lf-tab>
 
-<lf-tab id="corpus-root-tabs" label="Root Tabs">
+<lf-tab id="corpus-root-tabs" label="Release readiness review">
 <header>
         <p class="eyebrow">release 3.4 · candidate two</p>
         <h1>Prepare the account migration</h1>
@@ -7858,7 +7858,7 @@ observe --cohort staff</code></pre>
       </lf-tabs>
 </lf-tab>
 
-<lf-tab id="corpus-thread-choice-hints" label="Thread Choice Hints">
+<lf-tab id="corpus-thread-choice-hints" label="A discussion over choice hints">
 <h1 id="heading">Heating the bird bath</h1>
       <lf-ask id="heating-decision">
         <h2>Which heater should we use?</h2>
@@ -7913,14 +7913,14 @@ observe --cohort staff</code></pre>
       <p>Continue after reading the discussion.</p>
 </lf-tab>
 
-<lf-tab id="corpus-thread-journey-inline" label="Thread Journey Inline">
+<lf-tab id="corpus-thread-journey-inline" label="Review a changed line">
 <h1 id="title">Review the changed line</h1>
       <p id="plan">Keep the shipping order visible while we discuss this change.</p>
       <lf-diff id="journey-patch" source="review-patch"><pre></pre></lf-diff>
       <p id="tail">The rollout can proceed once the changed line is reviewed.</p>
 </lf-tab>
 
-<lf-tab id="corpus-file-editor" label="File editor package">
+<lf-tab id="corpus-file-editor" label="Quiet file editing">
 <header id="file-editing">
         <h1>Edit the file</h1>
         <p>
@@ -7950,7 +7950,7 @@ observe --cohort staff</code></pre>
       </details>
 </lf-tab>
 
-<lf-tab id="corpus-diff-thread-gallery" label="Diff conversations">
+<lf-tab id="corpus-diff-thread-gallery" label="File conversations in a diff">
 <h1 id="dfg-title">Review app.py</h1>
       <p id="dfg-guide">
         Two fictional conversations sit below the same file. Reply to one while keeping
@@ -7985,7 +7985,7 @@ observe --cohort staff</code></pre>
       </lf-sample>
 </lf-tab>
 
-<lf-tab id="corpus-feature-gallery" label="Core features">
+<lf-tab id="corpus-feature-gallery" label="Leaf core product gallery">
 <hgroup id="bg-title">
         <p class="eyebrow">Leaf core product</p>
         <h1>Leaf core product gallery</h1>
@@ -10798,14 +10798,14 @@ switch --readers checkout-api,orders-api</code></pre>
       </lf-tabs>
 </lf-tab>
 
-<lf-tab id="corpus-visual-review-gallery" label="Visual review package">
+<lf-tab id="corpus-visual-review-gallery" label="Leaf visual-review package">
 <lf-visual-review
         id="visual-review-run"
         source="gallery-visual-run"
       ></lf-visual-review>
 </lf-tab>
 
-<lf-tab id="corpus-playwright-trace-gallery" label="Playwright trace package">
+<lf-tab id="corpus-playwright-trace-gallery" label="Leaf Playwright trace review">
 <header id="trace-introduction">
         <h1>Review a recorded release journey</h1>
         <p>

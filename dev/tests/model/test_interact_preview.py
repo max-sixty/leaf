@@ -1163,6 +1163,15 @@ def test_preview_keeps_watching_after_an_invalid_capture_companion(
             == "First capture"
         )
         assert "Preview update refused" in capsys.readouterr().err
+        for incomplete in (
+            {"$captures": {"text": {}}},
+            {"$captures": {"text": {"file": None}}},
+            {"$captures": []},
+            [],
+        ):
+            companion.write_text(json.dumps(incomplete))
+            yield {str(companion)}
+            assert "Preview update refused" in capsys.readouterr().err
         captured.write_text("Repaired capture")
         companion.write_text(declaration)
         yield {str(companion)}

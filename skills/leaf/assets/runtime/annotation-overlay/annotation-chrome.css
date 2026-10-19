@@ -562,7 +562,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     --lf-top: var(--lf-msg-head-height);
   }
   .lf-margin-thread .lf-thread-transcript .lf-msg-body * {
-    scroll-margin-top: calc(var(--lf-top) + var(--focus-ring-room));
+    scroll-margin-top: calc(var(--lf-top) + var(--focus-ring-landing));
   }
   /* A head row narrower than its words, as when the actions row holds a notice of
      news (thread-card.js), gives up room in one order: first the annotations after the

@@ -47,16 +47,10 @@ export function servedReading(name) {
   return structuredClone(RECORDS.readings[name]);
 }
 
-// An item as On me lists it, holding `ask`; `changes` set where it stands, for a
-// test whose served reading states its items by hand.
+// The On me row naming `item`; `changes` set where it stands, for a test whose served
+// reading states its items by hand.
 export const servedRecordItem = (item, changes) =>
-  served("record_item", {
-    id: item.id,
-    thread: item.thread,
-    title: item.prompt.text,
-    item,
-    ...changes,
-  });
+  served("record_item", { id: item.id, thread: item.thread, ...changes });
 
 // The same admitted undo/refusal/revision sequence used by the Python fold test.
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);

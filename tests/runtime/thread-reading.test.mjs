@@ -63,7 +63,7 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
     }),
   ];
   const read = (acknowledging) =>
-    readThreadRecords(threads, NO_DOCUMENT, new Map(), [], [], acknowledging)[0];
+    readThreadRecords(threads, NO_DOCUMENT, new Map(), [], [], [], acknowledging)[0];
 
   const unread = read([]);
   assert.deepEqual(
@@ -141,15 +141,10 @@ test("attention names the outstanding question rather than the latest message", 
   });
   const source = servedThread([question, followup], {
     attention: { kind: "needs_user", reason: "widget", workflow: null },
-    user_prompt: { message: "question", version: "question" },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
   const attention = threadAttention(thread);
   assert.equal(attention.label, "My turn to answer");
-  assert.equal(
-    threadAttention({ ...thread, user_prompt: null }).label,
-    "My turn to answer",
-  );
   assert.equal(
     threadAttention({
       ...thread,

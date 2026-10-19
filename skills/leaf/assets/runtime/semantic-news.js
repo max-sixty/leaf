@@ -25,7 +25,7 @@ export function semanticNewsReading(root) {
   if (!view) throw new Error("The shown page has no browser reading");
   const state = root.authoritative;
   return {
-    page: view.document,
+    items: view.items,
     thread: view.thread,
     workflows: state.workflows,
     activity: state.activity,
@@ -47,18 +47,13 @@ function unreadContent(threadView) {
     .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
 
-function userObligations(page, threadView) {
+function userObligations(items) {
   const held = new Map();
-  for (const item of page.items.user)
-    held.set(JSON.stringify(["page", item.id]), {
-      source: item.id,
-      thread: null,
-    });
-  for (const item of threadView.items.user) {
-    held.set(JSON.stringify(["thread", item.thread, item.id]), {
-      source: item.id,
-      thread: item.thread,
-    });
+  for (const item of items) {
+    if (item.next_actor !== "user") continue;
+    const key =
+      item.thread === null ? ["page", item.id] : ["thread", item.thread, item.id];
+    held.set(JSON.stringify(key), { source: item.id, thread: item.thread });
   }
   return held;
 }
@@ -91,7 +86,7 @@ const agentAvailable = (activity) =>
 
 export function observeSemanticNews(prior, reading) {
   const content = unreadContent(reading.thread);
-  const obligations = userObligations(reading.page, reading.thread);
+  const obligations = userObligations(reading.items);
   const failures = responseFailures(reading.workflows);
   const available = agentAvailable(reading.activity);
   const first = prior === null;
@@ -155,7 +150,7 @@ export function observeSemanticNews(prior, reading) {
 // an answer can replace a failure while the user's own command holds the line.
 export function currentSemanticNews(news, reading, observed) {
   const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
-  const obligations = userObligations(reading.page, reading.thread);
+  const obligations = userObligations(reading.items);
   const failures = responseFailures(reading.workflows);
   return news.flatMap((item) => {
     switch (item.kind) {

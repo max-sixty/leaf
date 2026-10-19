@@ -131,7 +131,8 @@ def _base_state(
         # What is on the user (On me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; the agent's plan, which arranges them (`plans`); and the complete
-        # canonical item inventory those lists select from.
+        # canonical item inventory those lists select from, whose records an item's
+        # row names by `id`.
         "queues": {"on_user": [], "on_agent": []},
         "todos": [],
         "plan": None,
@@ -390,9 +391,7 @@ def _page_state(
                 item["message"] for item in served_threads[thread["id"]]["unread"]
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
-        state["items"] = (
-            view["document"]["items"]["all"] + view["thread"]["items"]["all"]
-        )
+        state["items"] = view["items"]
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
         state["plan"] = browser["plan"]
         served_queues = view["queues"]

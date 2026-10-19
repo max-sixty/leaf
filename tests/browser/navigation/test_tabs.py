@@ -123,11 +123,11 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         "aria-label", re.compile(r"^Page menu · \S")
     )
     panel_control(page, "queue").click()
-    map_ask = page.locator(".lf-fp-on-item").filter(
+    map_item = page.locator(".lf-fp-on-item").filter(
         has_text="Which map should the sample team carry?"
     )
-    expect(map_ask).to_have_count(1)
-    expect(map_ask).to_have_attribute("data-key", '["ask","widget:bg-choice"]')
+    expect(map_item).to_have_count(1)
+    expect(map_item).to_have_attribute("data-key", '["ask","widget:bg-choice"]')
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     gallery_tab("tab", name="Decisions").click()

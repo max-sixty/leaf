@@ -22,7 +22,7 @@ WIDGET_KINDS = {"action", "report"}
 # `activity` address them and `$events.answering` explains them. Which writer posts a
 # reply is separate: a reply reservation (`delivery`) gives it to a provider turn.
 ANSWER_KINDS = ("reply", "markup")
-ANSWER_ASK_INSTRUCTION = (
+ANSWER_ITEM_INSTRUCTION = (
     "Each update takes the answer named for it. Read current obligations with "
     "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
 )

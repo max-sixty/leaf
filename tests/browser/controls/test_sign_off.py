@@ -8,12 +8,12 @@ from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_ASK_LAYER, SEATED_ASK_WIDGETS, live_url
+from render_cases_interaction import SEATED_ITEM_LAYER, SEATED_ITEM_WIDGETS, live_url
 from render_cases_navigation import actions
 from render_harness import (
     LONG_PAGE,
     _traffic,
-    expect_asks_answered,
+    expect_items_answered,
     holding,
     leaf_page,
     open_page,
@@ -227,7 +227,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
     back with nothing anywhere saying why.
 
-    The subject is the project widget SEATED_ASK_ENTRY declares, whose seat is where a
+    The subject is the project widget SEATED_ITEM_ENTRY declares, whose seat is where a
     user most often starts such a thread; any thread anchored on an ask splits it the
     same way, and the reading under test never asks which widget it is."""
     url = serve(
@@ -238,8 +238,8 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
             '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
             "</lf-ask>",
         ),
-        layer_registry=SEATED_ASK_LAYER,
-        layer_widgets=SEATED_ASK_WIDGETS,
+        layer_registry=SEATED_ITEM_LAYER,
+        layer_widgets=SEATED_ITEM_WIDGETS,
     )
     append_carried_log_record(
         serve.page_dir,
@@ -253,7 +253,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     )
     page = open_page(browser, url)
     # Off the user's list, which is the whole reason the two readings differ here.
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
 
     page.get_by_role("button", name="Accept").click()
     round_trip(page)

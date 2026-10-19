@@ -5,15 +5,15 @@ import pytest
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ALL_ASKS_IN_ORDER,
-    ASK_WITH_CONTEXT_PAGE,
-    ASKS_PAGE,
+    ALL_ITEMS_IN_ORDER,
+    ITEM_WITH_CONTEXT_PAGE,
+    ITEMS_PAGE,
     CHANGE_SHAPES_PAGE,
     ON_ITEM_SAYS,
 )
 from render_harness import (
     PANEL,
-    expect_asks_answered,
+    expect_items_answered,
     leaf_page,
     open_page,
     panel_settled,
@@ -40,7 +40,7 @@ def on_card(page, at):
     return page.locator(f'{ON_ME} .lf-fp-on-item[data-key=\'["ask","{at}"]\']')
 
 
-def test_on_me_lists_open_and_answered_asks(browser, serve):
+def test_on_me_lists_open_and_answered_items(browser, serve):
     """The panel's On me mark lists every open Ask under On me, in document order, and
     every answered one under Done with its current answer, so the user can review and
     revise. A twelfth widget joins by declaring x-awaits.
@@ -49,7 +49,7 @@ def test_on_me_lists_open_and_answered_asks(browser, serve):
     count is the closed view's, and a hidden list of buttons is a set of controls no
     user can press — which the press sweep sees as the page's control set changing
     under it."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     resized(page, 1920, 900)
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view holds no cards"
 
@@ -70,7 +70,7 @@ def test_on_me_lists_open_and_answered_asks(browser, serve):
         ("widget:honored", "done"),
     ]
     for card in cards:
-        assert card["kind"] == "ask", card
+        assert card["kind"] == "item", card
         if card["list"] == "you":
             assert card["w"] > 100 and card["h"] > 20, (
                 f"{card['id']}'s card has no size"
@@ -89,7 +89,7 @@ def test_on_me_lists_open_and_answered_asks(browser, serve):
     # Answered on the page, and the card moves to Done as the route back, saying its
     # current answer. The press on the page puts the view away; it opens on the same.
     page.locator("#lq-token").click()
-    expect_asks_answered(page, "2/5")
+    expect_items_answered(page, "2/5")
     open_on_me(page)
     expect(page.locator(f"{ON_ME} .lf-fp-on-item")).to_have_count(5)
     answered = {c["id"]: c for c in page.evaluate(ON_ITEM_SAYS)}
@@ -114,7 +114,7 @@ def test_on_me_lists_open_and_answered_asks(browser, serve):
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view keeps its cards"
 
 
-def test_an_answered_asks_words_are_its_widgets_semantic_state(browser, serve):
+def test_an_answered_items_words_are_its_widgets_semantic_state(browser, serve):
     """Each family names its answer from the state it was answered with.
 
     A draft says its current words, a playground the instruction it sent rather than
@@ -177,7 +177,7 @@ Adds --dry-run to every mutating command.
             },
         )
         assert posted.ok, posted.text()
-    expect_asks_answered(page, "4/4")
+    expect_items_answered(page, "4/4")
     output = page.locator("#tone lf-playground-output")
     expect(output).to_contain_text("strip")
     page.locator("#tone").get_by_role("radio", name="Banner").click()
@@ -195,14 +195,14 @@ Adds --dry-run to every mutating command.
         )
 
 
-def test_ask_cards_keep_identity_and_publisher_order_when_the_live_dom_moves(
+def test_item_cards_keep_identity_and_publisher_order_when_the_live_dom_moves(
     browser, serve
 ):
     """A keyed card follows the published document, not later presentation DOM edits."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     open_on_me(page)
     cards = page.locator(f"{ON_ME} .lf-fp-on-item")
-    expect(cards).to_have_count(len(ALL_ASKS_IN_ORDER))
+    expect(cards).to_have_count(len(ALL_ITEMS_IN_ORDER))
     order = [
         '["ask","widget:live-question"]',
         '["ask","widget:sug-refill"]',
@@ -214,20 +214,20 @@ def test_ask_cards_keep_identity_and_publisher_order_when_the_live_dom_moves(
     page.evaluate(
         """async () => {
           const {readApplicationPresentation} = await window.__lfCheckApi();
-          window.__lfReadAskPresentation = readApplicationPresentation;
+          window.__lfReadItemPresentation = readApplicationPresentation;
           const cards = [...document.querySelectorAll(
             '.lf-fp-view[data-view="queue"] .lf-fp-on-item')];
-          window.__lfAskCards = new Map(cards.map(card => [card.dataset.key, card]));
+          window.__lfItemCards = new Map(cards.map(card => [card.dataset.key, card]));
           const honored = document.querySelector('#honored-decision');
           document.querySelector('#live-question-decision').before(honored);
-          window.__lfAskCards.get('["ask","widget:sug-refill"]').focus();
+          window.__lfItemCards.get('["ask","widget:sug-refill"]').focus();
           document.dispatchEvent(new Event('lf-presentation'));
         }"""
     )
-    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    page.wait_for_function("__lfReadItemPresentation().pending.length === 0")
     assert cards.evaluate_all("items => items.map(item => item.dataset.key)") == order
     assert cards.evaluate_all(
-        "items => items.every(item => window.__lfAskCards.get(item.dataset.key) === item)"
+        "items => items.every(item => window.__lfItemCards.get(item.dataset.key) === item)"
     )
     sug_refill = on_card(page, "widget:sug-refill")
     expect(sug_refill).to_be_focused()
@@ -240,28 +240,28 @@ def test_ask_cards_keep_identity_and_publisher_order_when_the_live_dom_moves(
           document.dispatchEvent(new Event('lf-presentation'));
         }"""
     )
-    page.wait_for_function("__lfReadAskPresentation().pending.length === 0")
+    page.wait_for_function("__lfReadItemPresentation().pending.length === 0")
     expect(sug_refill).to_be_focused()
     assert cards.evaluate_all("items => items.map(item => item.dataset.key)") == order
     assert cards.evaluate_all(
-        "items => items.every(item => window.__lfAskCards.get(item.dataset.key) === item)"
+        "items => items.every(item => window.__lfItemCards.get(item.dataset.key) === item)"
     )
 
 
-def test_a_completed_ask_persists_and_on_me_says_its_current_answer(browser, serve):
+def test_a_completed_item_persists_and_on_me_says_its_current_answer(browser, serve):
     """Completion survives a reload, and On me, opened from the keyboard, keeps the
     answered Ask under Done saying its current answer, which follows a revision."""
-    page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
+    page = open_page(browser, serve(ITEM_WITH_CONTEXT_PAGE))
     resized(page, 1200, 900)
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
 
     page.locator("#storage-stop").click()
     round_trip(page)
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
 
     page.reload(wait_until="load")
     wait_until_ready(page)
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
 
     # With nothing on the user, the view opens on an empty list with Done under it; ↓
     # enters the first card there, the Ask's.
@@ -279,25 +279,25 @@ def test_a_completed_ask_persists_and_on_me_says_its_current_answer(browser, ser
     page.locator("#storage-evict").click()
     round_trip(page)
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
     open_on_me(page)
     expect(card.locator(".lf-fp-said")).to_contain_text(
         "Answered: Drop the oldest documents"
     )
 
 
-def test_an_answered_boxless_ask_is_taken_back_from_its_card(browser, serve):
+def test_an_answered_boxless_item_is_taken_back_from_its_card(browser, serve):
     """An accepted deletion leaves no box on the page to arrive at, so On me's Done card
     is where the user takes the decision back: it says what was decided, and its Undo
     restores the change to decide again."""
     page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
     resized(page, 560, 620)
-    expect_asks_answered(page, "0/4")
+    expect_items_answered(page, "0/4")
 
     page.locator("[data-lf-margin-for='sug-delete'] .lf-sug-accept").click()
     round_trip(page)
     expect(page.locator("#sug-delete")).to_be_hidden()
-    expect_asks_answered(page, "1/4")
+    expect_items_answered(page, "1/4")
 
     open_on_me(page)
     card = on_card(page, "widget:sug-delete")
@@ -306,4 +306,4 @@ def test_an_answered_boxless_ask_is_taken_back_from_its_card(browser, serve):
     card.get_by_role("button", name="Undo").click()
     round_trip(page)
     expect(page.locator("#sug-delete")).to_be_visible()
-    expect_asks_answered(page, "0/4")
+    expect_items_answered(page, "0/4")

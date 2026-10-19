@@ -25,7 +25,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     toggle_queue,
     unfolded_button,
-    with_one_ask,
+    with_one_item,
 )
 from render_cases_navigation import (
     actions,
@@ -168,7 +168,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(tabs.first).to_have_attribute("aria-selected", "true")
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
-    expect(answer).to_have_attribute("data-lf-asks", "open")
+    expect(answer).to_have_attribute("data-lf-items", "open")
     expect(answer).to_have_text("")
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
@@ -223,11 +223,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("z")
     holding(page, held, 1, "the undo")
-    expect(answer).to_have_attribute("data-lf-asks", "answered")
+    expect(answer).to_have_attribute("data-lf-items", "answered")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(answer).to_have_attribute("data-lf-asks", "open")
+    expect(answer).to_have_attribute("data-lf-items", "open")
     expect(answer).to_have_text("")
     expect(tabs.first).to_have_accessible_description(
         "sev a · suggested fix. Unanswered"
@@ -301,7 +301,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     assert 0 <= top < 200, top
 
 
-def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
+def test_an_ordinary_two_part_item_retains_document_flow(browser, serve):
     """An Ask in a document is prose and a control, not a workspace's region.
 
     The control is the same Ask as a full-height workspace's body, which hands its height to
@@ -319,15 +319,15 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
 """,
     )
     page = open_page(browser, serve(source))
-    ask = page.locator("#session-triage-decision")
-    assert ask.evaluate("node => getComputedStyle(node).display") == "block"
+    item = page.locator("#session-triage-decision")
+    assert item.evaluate("node => getComputedStyle(node).display") == "block"
     assert (
-        ask.locator(":scope > h2").evaluate(
+        item.locator(":scope > h2").evaluate(
             "heading => getComputedStyle(heading).marginTop"
         )
         != "0px"
     )
-    assert ask.evaluate(
+    assert item.evaluate(
         """async node => {
           const leaf = await window.__lfWidgetApi();
           return leaf.readingPosture(node) === 'flow'
@@ -500,7 +500,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 <div style="height: 380px"></div>
 """,
     )
-    url = serve(with_one_ask(source))
+    url = serve(with_one_item(source))
     page = open_page(browser, url)
     resized(page, 1400, 900)
     nav = page.get_by_role("navigation", name="On this page")

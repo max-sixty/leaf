@@ -6,7 +6,7 @@ import re
 import pytest
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASKS_PAGE
+from render_cases_interaction import ITEMS_PAGE
 from render_cases_navigation import CONTROL_LABEL_PAGE, NOTED_PAGE
 from render_harness import (
     LONG_PAGE,
@@ -434,7 +434,7 @@ def test_the_reference_enters_named_go_to_destinations(
 ):
     """A named destination is one capability whether a keyboard sequence or the
     command reference reaches it; native controls keep their own activation."""
-    page = open_page(browser, serve(ASKS_PAGE, comments=2))
+    page = open_page(browser, serve(ITEMS_PAGE, comments=2))
     destination = page.locator(surface)
     if suffix in ("T", "M"):
         control = "threads" if suffix == "T" else "queue"
@@ -658,9 +658,9 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
     )
 
 
-def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
+def test_the_reference_runs_the_exact_numbered_item_action(browser, serve):
     """Each Ask digit is a distinct command when invoked without a keydown."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
 
     page.keyboard.press("m")
     page.keyboard.press("?")
@@ -685,13 +685,13 @@ def test_the_reference_runs_the_exact_numbered_ask_action(browser, serve):
     round_trip(page)
 
 
-def test_away_from_an_ask_the_reference_names_widget_owned_options(browser, serve):
+def test_away_from_an_item_the_reference_names_widget_owned_options(browser, serve):
     """The catalog keeps the widget's named commands and explicitly declared digits.
 
     Outside the widget those commands are unavailable; there is no synthetic page
     command claiming an undifferentiated digit range.
     """
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()

@@ -16,4 +16,4 @@ Use the `diagram` package for behavior or structure, and `diff` for the exact pa
 its call-tree diff. Write the pull-request brief with native headings, tables and
 disclosures, naming the repository, reviewed revision, author, checks and source link.
 Bind evidence through a page-owned data adapter when it must refresh. Pose an ask when
-the user owes a decision (`references/authoring-asks.md`).
+the user owes a decision (`references/authoring-decisions.md`).

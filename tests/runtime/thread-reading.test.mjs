@@ -140,7 +140,7 @@ test("attention names the outstanding question rather than the latest message", 
     seq: 2,
   });
   const source = servedThread([question, followup], {
-    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    attention: { kind: "needs_user", reason: "widget", workflow: null },
     user_prompt: { message: "question", version: "question" },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);

@@ -16,7 +16,7 @@
  * spans the reach the block lends it, its padding giving everything else it holds the
  * column back. Nothing in it moves, since its content box is still its holder's, and
  * the block still breaks out exactly as it did; what changes is the box, so the ring
- * the user stands in (chrome.css, `[data-lf-ask]`) goes round the block rather than
+ * the user stands in (chrome.css, `[data-lf-item]`) goes round the block rather than
  * cutting across it at the column's edges. Where the block does not break out, the Ask
  * does not either: in a box that draws a frame the room is the frame's (layouts.css,
  * `--lf-block-frame`), and where the block keeps to its holder (`data-lf-kept`,

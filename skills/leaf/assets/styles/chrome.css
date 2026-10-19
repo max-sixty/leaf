@@ -185,12 +185,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
    holds a thread waiting on the agent has left the user's list. One decision wears it at
    a time; a widget a page styles boxless hangs it on its contents' boxes (shownParts).
    It is an outline, so it moves nothing. A widget carrying the location itself stands
-   it down with `--lf-ask-ring: none` on the decision. */
+   it down with `--lf-item-ring: none` on the decision. */
 /* The ring stands outside the decision, so a landing keeps its room at the scroller's
    edge, as a margin entry's does (theme.css): an ask landed at the top of a scrolling
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
-[data-lf-ask] {
-  outline: var(--lf-ask-ring, var(--focus-ring));
+[data-lf-item] {
+  outline: var(--lf-item-ring, var(--focus-ring));
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-landing);
 }

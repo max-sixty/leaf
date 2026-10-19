@@ -6,7 +6,7 @@ depending on a remote speech service or replacing a browser API.
 """
 
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_ASK_LAYER, SEATED_ASK_WIDGETS
+from render_cases_interaction import SEATED_ITEM_LAYER, SEATED_ITEM_WIDGETS
 from render_harness import (
     PANEL_THREAD,
     leaf_page,
@@ -30,8 +30,8 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
                 '<p id="passage">The shuttle runs every hour on Sunday.</p>'
                 '<lf-verdict id="proposal" asks>Should the shuttle run earlier?</lf-verdict>',
             ),
-            layer_registry=SEATED_ASK_LAYER,
-            layer_widgets=SEATED_ASK_WIDGETS,
+            layer_registry=SEATED_ITEM_LAYER,
+            layer_widgets=SEATED_ITEM_WIDGETS,
         ),
     )
     supported = page.evaluate(

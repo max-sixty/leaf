@@ -307,7 +307,7 @@ export function createThreadDestinations({
 
   // Where a thread about an element an agent sent in a message goes to its subject: the
   // message stands in for a place on the page (anchor-placement.js), so the message's
-  // thread opens there without moving focus, as a thread ask's does (asks/view.js), and
+  // thread opens there without moving focus, as a thread ask's does (items/view.js), and
   // the user lands on the element in it. A thread whose subject stands on the page goes
   // there by opening itself, beside its words.
   async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {

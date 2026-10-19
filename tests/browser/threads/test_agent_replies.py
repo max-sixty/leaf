@@ -17,7 +17,7 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
-    SEATED_ASK_PAGE,
+    SEATED_ITEM_PAGE,
     THREAD_DIFF_PAGE,
     panel_comment,
 )
@@ -546,7 +546,7 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     """A step's words wrap, so a new step can change the working message's height. In a
     seat where that would move the reply being typed, the step waits behind the
     thread's notice, as a reply would, and the draft keeps its place."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     thread_model.post_reply(
         serve.page_dir, {"to": root, "for": root}, "Reading the jobs.", ephemeral=True

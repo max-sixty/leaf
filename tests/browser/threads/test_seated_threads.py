@@ -8,7 +8,7 @@ from interact_support import append_carried_log_record
 from leaf import data as data_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, panel_comment
+from render_cases_interaction import ITEM_PAGE, panel_comment
 from render_cases_navigation import source_revision
 from render_harness import (
     PANEL,
@@ -845,7 +845,7 @@ def test_a_thread_resolved_while_its_reply_is_written_keeps_the_user_on_it(
 ):
     """A page seat retains its native editor, words and caret through settlement."""
     if kind == "margin":
-        url = serve(ASK_PAGE)
+        url = serve(ITEM_PAGE)
         root = panel_comment(serve.page_dir, "Keep discussing", {"section": "bracket"})
     else:
         url, root = seated_thread(serve, kind, 2)

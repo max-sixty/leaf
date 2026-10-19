@@ -1211,7 +1211,7 @@ def test_reading_keys_page_the_bounded_log_the_user_stands_in(browser, serve):
     assert after == pytest.approx(before, abs=1), f"the page moved {after - before}px"
 
 
-def test_the_ask_walk_lands_an_ask_in_a_bounded_log_at_the_log_top(browser, serve):
+def test_the_item_walk_lands_an_item_in_a_bounded_log_at_the_log_top(browser, serve):
     """An Ask inside a block that bounds its height arrives at the top of that block,
     which is the box scrolling it. The walk measured its run-up against the window and
     moved the page to put it at the window's top, sliding a log the user could

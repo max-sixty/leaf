@@ -27,8 +27,8 @@ from leaf.validation import composition as validation_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASK_PAGE,
-    ASKS_PAGE,
+    ITEM_PAGE,
+    ITEMS_PAGE,
     HOLD_MOTION,
     live_url,
 )
@@ -266,7 +266,7 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     leave its reading of the page behind. Keep the whole comment route on the item the
     user pointed at.
     """
-    source = ASKS_PAGE.replace(
+    source = ITEMS_PAGE.replace(
         "</head>",
         "<style>html { position: relative; margin-left: 40px; "
         "border-left: 30px solid transparent; } "
@@ -940,7 +940,7 @@ def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
     )
 
 
-TALL_ASK_PAGE = leaf_page(
+TALL_ITEM_PAGE = leaf_page(
     "A tall Ask",
     '<h1>Route</h1><lf-ask id="way"><h2>Which way?</h2>'
     + "".join(
@@ -965,14 +965,14 @@ ROWS_ON = """([target]) => {
 }"""
 
 
-@pytest.mark.parametrize("case", ["ask", "thread"])
+@pytest.mark.parametrize("case", ["item", "thread"])
 def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     """A comment pointed at a row deep in its target stands its own margin row there;
     the rest of the target's margin does not follow it. Commenting on an Ask hands it
     to the agent, so its ask marker leaves. A comment already on a thread target
     stays at the target's top, where `t` still lands it."""
-    if case == "ask":
-        url, target = serve(TALL_ASK_PAGE), "way"
+    if case == "item":
+        url, target = serve(TALL_ITEM_PAGE), "way"
         row = f"#{target} p >> nth=25"
     else:
         url, target = serve(TALL_ROWS_PAGE), "whole"
@@ -1011,7 +1011,7 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
         target,
     )
     after = dict(page.evaluate(ROWS_ON, [target]))
-    if case == "ask":
+    if case == "item":
         expect(
             page.locator(f'[data-lf-margin-for="{target}"] > .lf-margin-marker')
         ).to_have_attribute("data-lf-kinds", "comment")
@@ -1022,7 +1022,7 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
             )
     added = (
         list(after.values())
-        if case == "ask"
+        if case == "item"
         else [top for index, top in after.items() if index not in dict(before)]
     )
     assert len(added) == 1 and abs(added[0] - depth) <= 30 and depth > 400, (
@@ -1585,7 +1585,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
 
 def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     """A transient chrome label paints above the page-level trace it summons."""
-    single = ASK_PAGE.replace(
+    single = ITEM_PAGE.replace(
         '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
     )
     page = open_page(browser, live_url(serve(single)))
@@ -3970,7 +3970,7 @@ HEADED_PAGE = LONG_PAGE.replace(
 
 # A suggestion's accept and reject stand in the margin beside it, each wearing the digit
 # Ask travel gives it.
-ASK_PANE_PAGE = DESIGN_PANE_PAGE.replace(
+ITEM_PANE_PAGE = DESIGN_PANE_PAGE.replace(
     '<p id="pane-later">A later finding.</p>',
     '<p id="pane-later">Bring <lf-suggestion id="pane-ask"><lf-old>nine.</lf-old>'
     "<lf-new>ten.</lf-new></lf-suggestion> now.</p>",
@@ -4001,7 +4001,7 @@ def _drawn_on(section):
 
 def _paint_mode(page, mode, words):
     page.evaluate(RELEASE_FOCUS)
-    if mode == "ask":
+    if mode == "item":
         page.keyboard.press("m")
         expect(page.locator("#pane-ask")).to_be_focused()
         expect(page.locator(".lf-command-binding-badge")).to_have_count(2)
@@ -4025,7 +4025,7 @@ def _paint_mode(page, mode, words):
     [
         *(
             (mode, "pane")
-            for mode in ("design", "picker", "go-to", "search", "ask", "ink")
+            for mode in ("design", "picker", "go-to", "search", "item", "ink")
         ),
         ("design", "window"),
         ("design", "header"),
@@ -4049,7 +4049,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     source = {
         "window": LONG_PAGE,
         "header": HEADED_PAGE,
-        "pane": ASK_PANE_PAGE if mode == "ask" else DESIGN_PANE_PAGE,
+        "pane": ITEM_PANE_PAGE if mode == "item" else DESIGN_PANE_PAGE,
     }[scroller]
     if mode == "go-to":
         # Go-to names links.

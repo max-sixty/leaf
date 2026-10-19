@@ -1,6 +1,6 @@
 """Registry-declared markup instance validation."""
 
-from leaf.asks import asking, local_ask_entry, quoted_in, replied
+from leaf.items import asking, local_item_entry, quoted_in, replied
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import leading_title_node
 from leaf.projection import enclosing_widgets, recorded_owner
@@ -208,7 +208,7 @@ def unasked(rec: dict, entry: dict) -> dict:
     }
 
 
-def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding]:
+def item_context_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     """A context supplies a leading title and arrival region for nested asks.
 
     Context never owns ask identity or registration. Any number of sources
@@ -238,7 +238,7 @@ def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
         region = context_of(rec)
-        if local_ask_entry(entry) and region and not quoted_in(rec, registry):
+        if local_item_entry(entry) and region and not quoted_in(rec, registry):
             framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
@@ -262,9 +262,9 @@ def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding
                 }
                 for rec, lacks in framed[id(region)]
             ]
-            errors.append(found_at("empty-ask-context", region, widgets=widgets))
+            errors.append(found_at("empty-question", region, widgets=widgets))
         if not titled:
-            errors.append(found_at("ask-context-title", region))
+            errors.append(found_at("untitled-question", region))
     return errors
 
 
@@ -533,7 +533,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + ask_context_errors(document, registry)
+        + item_context_errors(document, registry)
         + declared_word_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
     )

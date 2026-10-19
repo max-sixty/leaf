@@ -4025,7 +4025,7 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
 
 
-def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
+def test_an_item_spanning_its_block_is_a_breakout(browser, serve):
     """An Ask allocated the column spans the wide block it holds, so its ring goes round
     the block, and the gate named it as set out in the margin on every page with one.
     The theme says which boxes it lets stand past their holders, so the gate reads the
@@ -4033,7 +4033,7 @@ def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
     so its block keeps to it and neither stands past the column. A box padded or sized
     past the column without that leave is named, whether or not it paints there or a
     breakout fills it."""
-    ask = """<lf-ask id="{id}"><h2>Which one?</h2>
+    item = """<lf-ask id="{id}"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
 </lf-ask>"""
@@ -4043,8 +4043,8 @@ def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
 <h1>Reaching past the column</h1>
 <style>#sized-ask {{ max-width: 36rem; }}</style>
 <p>Prose sets the column.</p>
-{ask.format(id="ask")}
-{ask.format(id="sized-ask")}
+{item.format(id="item")}
+{item.format(id="sized-ask")}
 <div id="bare" style="margin: 0 -120px; padding: 0 120px; text-indent: -120px">Out.</div>
 <div id="tinted" style="margin: 0 -120px; padding: 0 120px; background: #eee">Tint.</div>
 <div id="sized" style="width: calc(100% + 120px); background: #eee; --lf-block-frame: 1">

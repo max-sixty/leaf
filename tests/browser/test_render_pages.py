@@ -20,11 +20,11 @@ from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    SEATED_ASK_LAYER,
-    SEATED_ASK_WIDGETS,
+    SEATED_ITEM_LAYER,
+    SEATED_ITEM_WIDGETS,
     live_url,
 )
-from render_cases_layout import toggle_queue, with_one_ask
+from render_cases_layout import toggle_queue, with_one_item
 from render_cases_navigation import (
     composer_quote,
 )
@@ -322,8 +322,8 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
             "Inline rollback",
             '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
-        layer_registry=SEATED_ASK_LAYER,
-        layer_widgets=SEATED_ASK_WIDGETS,
+        layer_registry=SEATED_ITEM_LAYER,
+        layer_widgets=SEATED_ITEM_WIDGETS,
     )
     page = open_page(browser, live_url(url))
     seat = page.locator("#proposal > .lf-thread-seat")
@@ -400,8 +400,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
             "Inline reply rollback",
             '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
-        layer_registry=SEATED_ASK_LAYER,
-        layer_widgets=SEATED_ASK_WIDGETS,
+        layer_registry=SEATED_ITEM_LAYER,
+        layer_widgets=SEATED_ITEM_WIDGETS,
     )
     root = append_carried_log_record(
         serve.page_dir,
@@ -1410,7 +1410,7 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at["room"]["width"] > at["wide"]["width"], at
 
 
-def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
+def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     browser, serve
 ):
     """On a sidebar page an Ask and a callout keep the prose's width and left edge, so
@@ -1424,15 +1424,15 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     fills the region it stands in."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
-    ask = (
+    item = (
         '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
         'choose><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
     )
     body = (
         '<p id="prose">Prose.</p>'
-        + ask.format(id="ask", width="", table="")
-        + ask.format(id="granted", width=' data-width="wide"', table="")
-        + ask.format(id="holds", width="", table=table.format(id="holds"))
+        + item.format(id="item", width="", table="")
+        + item.format(id="granted", width=' data-width="wide"', table="")
+        + item.format(id="holds", width="", table=table.format(id="holds"))
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
         + '<aside class="callout" id="granted-c" data-width="wide"><p>Wide.</p></aside>'
         + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
@@ -1454,7 +1454,7 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     edge = at["prose"]["left"]
     # An option list keeps the measure whatever one option holds: only a box's own
     # blocks widen it.
-    for boxed in ("ask", "callout", "list"):
+    for boxed in ("item", "callout", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     # A granted callout's padding and border fall inside the wide measure.
     for wide in ("granted", "granted-c", "holds"):
@@ -1467,21 +1467,21 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # column, and where the page arranged the Ask, in a grid track, neither grows.
     extras = (
         "<ol><li>"
-        + ask.format(id="listed", width="", table=table.format(id="listed"))
+        + item.format(id="listed", width="", table=table.format(id="listed"))
         + "</li></ol>"
-        + ask.format(
+        + item.format(
             id="both", width=' data-width="wide"', table=table.format(id="both")
         )
         + '<div style="display: grid; grid-template-columns: 350px 1fr">'
-        + ask.format(id="tracked", width="", table=table.format(id="tracked"))
+        + item.format(id="tracked", width="", table=table.format(id="tracked"))
         + "<p>Beside.</p></div>"
-        + ask.format(
+        + item.format(
             id="narrow",
             width="",
             table='<table data-width="wide"><tr><td>a</td><td>b</td></tr></table>',
         )
         + '<div id="wrapper" data-width="wide">'
-        + ask.format(
+        + item.format(
             id="wrapped",
             width="",
             table=f'<table data-width="available"><tr>{cells}</tr></table>',
@@ -1508,7 +1508,7 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     assert at["holds"] == at["holds-t"], at
     heading = column.locator("#holds h3").bounding_box()
     assert round(heading["x"]) == at["prose"]["left"], (heading, at)
-    assert at["ask"] == at["prose"], at
+    assert at["item"] == at["prose"], at
     assert at["listed"] == at["listed-t"], at
     assert at["listed"]["width"] < at["prose"]["width"], at
     assert at["both"] == at["both-t"] == {"width": 1080, "left": at["holds"]["left"]}, (
@@ -1546,7 +1546,7 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     )
     resized(workspace, 1726, 900)
     at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
-    for block in ("prose", "ask", "granted", "granted-c", "holds", "callout", "list"):
+    for block in ("prose", "item", "granted", "granted-c", "holds", "callout", "list"):
         assert at[block] == at["region"], (block, at)
     assert at["board"] == at["region"], at
 
@@ -3226,7 +3226,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
 <div style="height: 1500px"></div>
 """,
     )
-    url = serve(with_one_ask(source))
+    url = serve(with_one_item(source))
 
     reading = """() => {
       const main = document.querySelector('main'), ms = getComputedStyle(main);

@@ -622,7 +622,7 @@ class SourceInventory(NamedTuple):
     """Compact authored facts needed by scans across an entire revision history."""
 
     ids: tuple[str, ...]
-    asks: dict
+    items: dict
     data_documents: list
 
 
@@ -653,12 +653,12 @@ class SourceReading:
     @cached_property
     def inventory(self) -> SourceInventory:
         """Read historical consumers together, without retaining parser records."""
-        from .asks import ask_registrations
+        from .items import item_registrations
         from .data_contracts import data_document_readings
 
         return SourceInventory(
             tuple(self.document.ids),
-            ask_registrations(self.document, self.registry),
+            item_registrations(self.document, self.registry),
             data_document_readings(self.document, "", self.registry),
         )
 

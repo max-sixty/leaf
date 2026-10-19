@@ -8,7 +8,7 @@ import {
   nothing,
 } from "/runtime/widget-api.js";
 
-export function defineSeatedAsk() {
+export function defineSeatedItem() {
   customElements.define(
     "lf-verdict",
     class extends LeafElement {

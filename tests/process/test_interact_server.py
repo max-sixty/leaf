@@ -57,7 +57,7 @@ from interact_support import (
     said,
     spawn_probe,
     vendored_at_another_protocol,
-    vendored_before_the_ask_rename,
+    vendored_before_the_item_rename,
     wait_for,
 )
 from leaf import activity as activity_model
@@ -1758,8 +1758,8 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     unanswered = refused_on(body)
-    assert (unanswered.code, unanswered.values["asks"]) == (
-        "unanswered-asks",
+    assert (unanswered.code, unanswered.values["items"]) == (
+        "unanswered-items",
         ["widget:choice"],
     )
 
@@ -1811,7 +1811,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
-    assert refused_on(body).values["asks"] == ["widget:thread-approval"]
+    assert refused_on(body).values["items"] == ["widget:thread-approval"]
 
     status, body = fetch(
         f"{server}/api/event",
@@ -4631,13 +4631,13 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
     page = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n" + framed)
     (page_dir / "index.html").write_text(page)
     revisioning_model.activate_source(page_dir)
-    vendored_before_the_ask_rename(page_dir)
+    vendored_before_the_item_rename(page_dir)
     # Read as the next process does, which holds nothing of the revision saved above.
     with fresh_process():
-        _serve_after_the_ask_rename(page_dir)
+        _serve_after_the_item_rename(page_dir)
 
 
-def _serve_after_the_ask_rename(page_dir):
+def _serve_after_the_item_rename(page_dir):
     comment = {"kind": "comment", "author": "user", "text": "Which plan?"}
     with pytest.raises(event_model.EventRefused, match="x-question-context") as refused:
         append_command(page_dir, {**comment, "revision": 1})
@@ -4646,14 +4646,14 @@ def _serve_after_the_ask_rename(page_dir):
     reinitialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert reinitialized.exit_code == 0, reinitialized.output
     # Re-vendoring activates valid source with the renamed vocabulary itself.
-    [ask] = [
-        ask
-        for ask in page_state(page_dir)["browser"]["views"]["2"]["document"]["asks"][
+    [item] = [
+        item
+        for item in page_state(page_dir)["browser"]["views"]["2"]["document"]["items"][
             "all"
         ]
-        if ask["source"]["id"] == "route"
+        if item["source"]["id"] == "route"
     ]
-    assert ask["prompt"] == {"text": "Which route?", "target": "route-ask"}
+    assert item["prompt"] == {"text": "Which route?", "target": "route-ask"}
     old, new = (
         next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
     )

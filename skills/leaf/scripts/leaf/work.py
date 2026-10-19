@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from .asks import quoted_in
+from .items import quoted_in
 from .files import latest_revision
 from .findings import Finding
 from .passages import page_passages

@@ -10,7 +10,7 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from pathlib import Path
 
-from leaf.asks import (
+from leaf.items import (
     approval_blocking,
     asking,
     quoted_in,
@@ -546,12 +546,12 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     page = AdmissionReadings(view, events, registry).page(revision)
     work = WorkReading(events, registry, page)
     unanswered = approval_blocking(
-        [*work.document.asks["all"], *work.widget_asks["all"]]
+        [*work.document.items["all"], *work.widget_items["all"]]
     )
     if unanswered:
         return Finding(
-            "unanswered-asks",
-            values={**version, "asks": [ask["id"] for ask in unanswered]},
+            "unanswered-items",
+            values={**version, "items": [item["id"] for item in unanswered]},
         )
     return None
 
@@ -744,7 +744,7 @@ def _plan_error(event: dict, readings) -> Finding | None:
     holds (`plans.plan_error`)."""
     if event["kind"] != "plan":
         return None
-    return plan_error(event, readings.log.todos, readings.work.all_asks["all"])
+    return plan_error(event, readings.log.todos, readings.work.all_items["all"])
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
@@ -791,18 +791,18 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     def user_widget_error(widget: str) -> Finding | None:
         if error := element_error(widget):
             return error
-        ask = next(
+        item = next(
             (
                 item
-                for item in readings.work.all_asks["all"]
+                for item in readings.work.all_items["all"]
                 if item["source"]["kind"] == "widget"
                 and item["source"]["id"] == widget
                 and item["status"] == "open"
             ),
             None,
         )
-        if ask is not None:
-            return Finding("duplicate-ask", values={"widget": widget, "ask": ask["id"]})
+        if item is not None:
+            return Finding("duplicate-item", values={"widget": widget, "item": item["id"]})
         return None
 
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
@@ -813,7 +813,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         element_error=element_error,
         user_widget_error=user_widget_error,
         owed=owed,
-        asks=lambda: readings.work.all_asks["all"],
+        items=lambda: readings.work.all_items["all"],
         registry=readings.work.registry,
     )
 

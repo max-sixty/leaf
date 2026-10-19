@@ -48,7 +48,7 @@ from render_harness import (
     available_commands,
     consume_browser_errors,
     draft_control,
-    expect_asks_answered,
+    expect_items_answered,
     expect_panel_says,
     holding,
     http_error_console,
@@ -1894,12 +1894,12 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     old = page.locator("#sug-refill lf-old")
     accept = suggestion_control(page, "sug-refill", "accept")
     expect(old).to_be_visible()
-    expect_asks_answered(page, "0/3")
+    expect_items_answered(page, "0/3")
 
     accept.click()
     round_trip(page)
     expect(old).to_be_hidden()
-    expect_asks_answered(page, "1/3")
+    expect_items_answered(page, "1/3")
 
     undo(page)
     # Pending again, in every reading of it: the retired half is back on the page,
@@ -1909,7 +1909,7 @@ def test_z_returns_a_recordless_decision_to_undecided(browser, serve):
     expect(suggestion_control(page, "sug-refill", "accept")).to_have_attribute(
         "aria-label", re.compile(r"^Accept the suggested change")
     )
-    expect_asks_answered(page, "0/3")
+    expect_items_answered(page, "0/3")
     assert suggestion_control(page, "sug-refill", "accept").count() == 1, (
         "undo left more than one Accept record for the same suggestion"
     )
@@ -2111,7 +2111,7 @@ def test_a_second_tab_takes_the_decision_back_too(browser, serve):
 
     undo(one)
     expect(two.locator("#sug-refill lf-old")).to_be_visible()
-    expect_asks_answered(two, "0/3")
+    expect_items_answered(two, "0/3")
     # Everything the change had when it was pending, including what the theme paints
     # from ranges the module registers — a rebuild that dropped those would leave a
     # proposal on the page with nothing marking what it changes.
@@ -2168,7 +2168,7 @@ def test_a_withdrawn_decision_is_still_withdrawn_after_a_reload(browser, serve):
 
     again = open_page(browser, url)
     expect(again.locator("#sug-refill lf-old")).to_be_visible()
-    expect_asks_answered(again, "0/3")
+    expect_items_answered(again, "0/3")
 
 
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):

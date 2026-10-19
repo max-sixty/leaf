@@ -44,7 +44,7 @@
  * while any ask the panel holds is unanswered, and once every one is answered a check, with
  * the answer's own words where the panel holds one ask. So a queue shows each item's state
  * and how far the user has worked through it, and an undo that reopens an ask puts the
- * open mark back. Which asks a panel holds is `asksIn` (asks/place.js), read from the
+ * open mark back. Which asks a panel holds is `itemsIn` (items/place.js), read from the
  * admitted ask inventory, so a tally of the queue counts the same asks. A row whose panel
  * authors an ask keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
@@ -54,8 +54,8 @@
 import {
   afterScript,
   PRESS,
-  asksIn,
-  askWords,
+  itemsIn,
+  answerWords,
   under,
   backgroundFlash,
   beginWalk,
@@ -378,16 +378,16 @@ customElements.define(
           changed ? `Δ${changed}` : "",
         );
         const slot = btn.querySelector(":scope > .lf-tab-answer");
-        const asks = slot ? asksIn(panel) : [];
-        const done = asks.filter((ask) => ask.status === "answered");
-        const answered = asks.length > 0 && done.length === asks.length;
-        const only = asks.length === 1 ? asks[0] : null;
-        const answer = answered && only ? askWords(only) : "";
+        const items = slot ? itemsIn(panel) : [];
+        const done = items.filter((item) => item.status === "answered");
+        const answered = items.length > 0 && done.length === items.length;
+        const only = items.length === 1 ? items[0] : null;
+        const answer = answered && only ? answerWords(only) : "";
         if (slot) {
           keeps(
             slot,
-            "data-lf-asks",
-            answered ? "answered" : asks.length ? "open" : null,
+            "data-lf-items",
+            answered ? "answered" : items.length ? "open" : null,
           );
           keepsText(slot.firstElementChild, answer);
         }
@@ -396,17 +396,17 @@ customElements.define(
           group && `${group} group`,
           panel.getAttribute("summary"),
           changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
-          !asks.length
+          !items.length
             ? ""
             : !answered
               ? only
                 ? "Unanswered"
-                : `${done.length} of ${asks.length} answered`
+                : `${done.length} of ${items.length} answered`
               : only
                 ? answer
                   ? `Answered: ${answer}`
                   : "Answered"
-                : `All ${asks.length} answered`,
+                : `All ${items.length} answered`,
         ]
           .filter(Boolean)
           .join(". ");

@@ -36,7 +36,7 @@ import {
 } from "./thread/workflow.js";
 import { renderedOrder, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
-import { askPlace } from "./asks/place.js";
+import { itemPlace } from "./items/place.js";
 import { scrollBehavior } from "./motion.js";
 import {
   comparisonBase,
@@ -52,17 +52,17 @@ import {
 // commits.
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
-  asks: root.effective.asks,
+  items: root.effective.items,
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null,
 });
 
 export function createAnnotationInventory({
-  readAsks,
+  readItems,
   placedAt,
   openThread,
-  goToAsk,
+  goToItem,
   scrollToElement,
 }) {
   const humanized = (value) =>
@@ -327,12 +327,12 @@ export function createAnnotationInventory({
     }
 
     // Only a widget ask has a place on the page; the rest have no node.
-    for (const ask of readAsks().user) {
-      const id = ask.id;
-      const target = askPlace(ask).node;
+    for (const item of readItems().user) {
+      const id = item.id;
+      const target = itemPlace(item).node;
       if (!target) continue;
       add(groups, target, {
-        kind: "ask",
+        kind: "item",
         id: `ask:${id}`,
         // The group this row stands in already names the ask; the row says why it is
         // there, since these are the asks the user owes.
@@ -341,9 +341,9 @@ export function createAnnotationInventory({
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const asks = readAsks().user.filter((ask) => ask.source.kind === "widget");
-          const next = asks.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, asks);
+          const items = readItems().user.filter((item) => item.source.kind === "widget");
+          const next = items.find((candidate) => candidate.id === id);
+          if (next) goToItem(next, items);
         },
       });
     }

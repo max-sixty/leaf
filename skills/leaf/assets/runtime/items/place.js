@@ -8,7 +8,7 @@
    Placement never changes the semantic inventory or its ask identities.
 
    A region holds an ask when the ask's source element is the region or stands under
-   it (`asksIn`), shadow trees included. A withdrawn ask no longer asks anything, and an
+   it (`itemsIn`), shadow trees included. A withdrawn ask no longer asks anything, and an
    ask with no page node (a prose or approval ask, or a frozen source not drawn) stands
    in no region. Membership reads the complete inventory, answered asks included, and
    each consumer selects what it counts from the members: a tab row and `lf-tally`
@@ -16,31 +16,31 @@
    with the agent still counts as undecided, while a goal's interventions (work.js) are
    the members whose next actor is the user, since only those stop work on the user.
    Which ask holds a node the user stands in is the converse question, standing rather
-   than membership (`askHolding`, standing-target.js), and it also falls back to an
+   than membership (`itemHolding`, standing-target.js), and it also falls back to an
    ask's unique context. */
 import { elementById } from "../passages.js";
 import { under } from "../shadow.js";
-import { readAsks } from "./model.js";
+import { readItems } from "./model.js";
 
-export function askPlace(ask, asks = readAsks().all) {
-  if (!ask || ask.source.kind !== "widget")
+export function itemPlace(item, items = readItems().all) {
+  if (!item || item.source.kind !== "widget")
     return { source: null, context: null, node: null };
-  const source = elementById(ask.source.id);
-  const context = elementById(ask.prompt.target);
-  const shared = asks.some(
+  const source = elementById(item.source.id);
+  const context = elementById(item.prompt.target);
+  const shared = items.some(
     (other) =>
-      other.id !== ask.id &&
+      other.id !== item.id &&
       other.source.kind === "widget" &&
-      other.prompt.target === ask.prompt.target,
+      other.prompt.target === item.prompt.target,
   );
   return { source, context, node: shared ? source : context };
 }
 
 // The asks `region` holds, in the order `asks` lists them.
-export function asksIn(region, asks = readAsks().all) {
-  return asks.filter((ask) => {
-    if (ask.source.kind !== "widget" || ask.status === "withdrawn") return false;
-    const source = elementById(ask.source.id);
+export function itemsIn(region, items = readItems().all) {
+  return items.filter((item) => {
+    if (item.source.kind !== "widget" || item.status === "withdrawn") return false;
+    const source = elementById(item.source.id);
     return Boolean(source && under(source, region));
   });
 }

@@ -199,7 +199,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Composition and the application's state                                                                     | `application.js`, `semantic-state.js`, `context.js`                                                                                                                       |
 | Delivery, accepted state, and wakeups                                                                       | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js`                                                                                   |
 | Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                                 |
-| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js`, `queues.js`                                                       |
+| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `items/model.js`, `queues.js`                                                       |
 | Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                                          |
 | Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `widget-elements.js`                                                                                                                      |
 | External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                                 |
@@ -209,7 +209,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                                        |
 | Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                                      |
 | Focus and navigation                                                                                        | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                                    |
-| Asks                                                                                                        | `asks/`                                                                                                                                                                   |
+| Asks                                                                                                        | `items/`                                                                                                                                                                   |
 | Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                                     |
 | Threads                                                                                                     | `thread/`                                                                                                                                                                 |
 | Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                                |
@@ -404,7 +404,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The thread a name names: its id, a message's, or this tab's attempt                                   | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
 | The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
-| Which asks a region of the page holds                                                                 | `asks/place.js` `asksIn`                                                           |
+| Which asks a region of the page holds                                                                 | `items/place.js` `itemsIn`                                                           |
 
 ### Facts both runtimes know
 
@@ -457,8 +457,8 @@ first alone. Code outside the page waits on `pageReadiness`, through
 ## Authoritative projection
 
 Python decides which asks exist, when a widget is complete, and when a thread is
-answered. The server sends complete ask lists for the page (`document.asks`) and for
-each thread's frozen markup (`thread.asks`). The browser reads a widget's answer from
+answered. The server sends complete ask lists for the page (`document.items`) and for
+each thread's frozen markup (`thread.items`). The browser reads a widget's answer from
 the same state its controls draw and doesn't reapply the `x-awaits.answered` rule. A
 required-version approval is an ask the browser updates at once, restoring the server's
 state on refusal. A thread gesture changes no attention and no ask until the server's

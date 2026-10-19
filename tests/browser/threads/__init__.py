@@ -14,8 +14,8 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
-    SEATED_ASK_LAYER,
-    SEATED_ASK_WIDGETS,
+    SEATED_ITEM_LAYER,
+    SEATED_ITEM_WIDGETS,
     panel_comment,
 )
 from render_cases_navigation import source_revision
@@ -472,8 +472,8 @@ def seated_page(serve, kind):
             f'<h1>Review the plan</h1>{SEAT_FILLER}<lf-verdict id="proposal" asks>'
             f"Should these jobs share a visit?</lf-verdict>{SEAT_FILLER}",
         ),
-        layer_registry=SEATED_ASK_LAYER,
-        layer_widgets=SEATED_ASK_WIDGETS,
+        layer_registry=SEATED_ITEM_LAYER,
+        layer_widgets=SEATED_ITEM_WIDGETS,
     ), "#proposal"
 
 

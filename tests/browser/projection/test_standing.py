@@ -8,12 +8,12 @@ import pytest
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASKS_IN_ORDER,
-    ASKS_PAGE,
+    ITEMS_IN_ORDER,
+    ITEMS_PAGE,
     LIVE_KEYS_APPARATUS,
     LIVE_KEYS_APPARATUS_REWRITTEN,
-    LIVE_KEYS_ASK_REWRITTEN,
-    LIVE_KEYS_ASK_WITHDRAWN,
+    LIVE_KEYS_ITEM_REWRITTEN,
+    LIVE_KEYS_ITEM_WITHDRAWN,
     LIVE_KEYS_V1,
     LIVE_KEYS_V2,
     LIVE_KEYS_V3,
@@ -26,7 +26,7 @@ from render_cases_navigation import address_code, go_to_address
 from render_harness import (
     active_digit_bindings,
     draft_control,
-    expect_asks_answered,
+    expect_items_answered,
     expect_panel_offers,
     leaf_page,
     open_page,
@@ -102,7 +102,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     round_trip(page)
 
 
-def test_a_revision_that_restates_an_ask_leaves_the_user_standing_in_it(browser, serve):
+def test_a_revision_that_restates_an_item_leaves_the_user_standing_in_it(browser, serve):
     """The Ask a user is working survives the revision that rewrites it.
 
     A patch keeps every node the revision did not rewrite, so an untouched control is
@@ -121,7 +121,7 @@ def test_a_revision_that_restates_an_ask_leaves_the_user_standing_in_it(browser,
 
     page.keyboard.press("m")
     expect(decision).to_be_focused()
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ASK_REWRITTEN)
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ITEM_REWRITTEN)
     told(page)
     expect(page).to_have_title("Live keys rewritten")
     expect(panel_field(page)).to_have_attribute(
@@ -135,7 +135,7 @@ def test_a_revision_that_restates_an_ask_leaves_the_user_standing_in_it(browser,
     expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
 
 
-def test_a_restated_ask_returns_a_user_to_the_question_not_to_a_control(browser, serve):
+def test_a_restated_item_returns_a_user_to_the_question_not_to_a_control(browser, serve):
     """A user inside the Ask comes back to its opening, never to a guessed control.
 
     Which control they were holding is not a thing the Ask can answer: the controls are
@@ -153,7 +153,7 @@ def test_a_restated_ask_returns_a_user_to_the_question_not_to_a_control(browser,
     mark.focus()
     expect(mark).to_be_focused()
 
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ASK_REWRITTEN)
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ITEM_REWRITTEN)
     told(page)
     expect(page).to_have_title("Live keys rewritten")
     expect(page.locator("#lk-decision")).to_be_focused()
@@ -446,7 +446,7 @@ def test_replacing_document_keeps_typing_while_presentation_is_held(browser, ser
     expect(note).to_be_focused()
 
 
-def test_a_withdrawn_ask_leaves_the_user_on_the_page(browser, serve):
+def test_a_withdrawn_item_leaves_the_user_on_the_page(browser, serve):
     """A revision that takes the question away has nowhere to put the user back."""
     version_url = serve(LIVE_KEYS_V1)
     page = open_page(browser, live_url(version_url))
@@ -454,13 +454,13 @@ def test_a_withdrawn_ask_leaves_the_user_on_the_page(browser, serve):
     mark.focus()
     expect(mark).to_be_focused()
 
-    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ASK_WITHDRAWN)
+    (serve.page_dir / "index.html").write_text(LIVE_KEYS_ITEM_WITHDRAWN)
     told(page)
     expect(page).to_have_title("Live keys without it")
     expect(page.locator("body")).to_be_focused()
 
 
-def test_a_user_working_an_ask_keeps_it_across_a_replacing_document(browser, serve):
+def test_a_user_working_an_item_keeps_it_across_a_replacing_document(browser, serve):
     """The fresh-document install hands back the same standing the patch does.
 
     A revision whose executable identity differs cannot be patched in, so the user
@@ -474,7 +474,7 @@ customElements.define('page-counter', class extends HTMLElement {
 });
 </script>"""
     first = LIVE_KEYS_V1.replace("</head>", module + "</head>")
-    second = LIVE_KEYS_ASK_REWRITTEN.replace(
+    second = LIVE_KEYS_ITEM_REWRITTEN.replace(
         "</head>", module.replace("count 0", "count 10") + "</head>"
     )
     page = open_page(browser, live_url(serve(first)))
@@ -493,7 +493,7 @@ customElements.define('page-counter', class extends HTMLElement {
     assert active_digit_bindings(page) == "1–4"
 
 
-def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
+def test_the_item_walk_keeps_its_place_when_a_version_lands(browser, serve):
     """A stamped version follows by navigation, and the user's place rides across.
     The passage they were reading did; where the walk had got to was a variable in a
     module the navigation threw away, so it did not, and the user was demoted without
@@ -506,16 +506,16 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     the version lands is the press they would have made before it. The ring is not owed a
     record of its own: it is painted from the focus, and the activation hands the user
     back the control they were standing on, so the Ask they were in wears it still."""
-    url = serve(ASKS_PAGE)
+    url = serve(ITEMS_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))
     # Short enough that an Ask in the middle of the window has page text above it,
     # which is the whole of what makes the coarse reading the wrong one.
     resized(page, 900, 400)
 
-    for ask in ASKS_IN_ORDER[:3]:
+    for item in ITEMS_IN_ORDER[:3]:
         page.keyboard.press("m")
-        expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-ask", "1")
+        expect(page.locator(f"#{item}")).to_have_attribute("data-lf-item", "1")
     scroll_settled(page)
 
     # Ask travel now starts at the Ask's opening, which normally makes the coarse
@@ -527,11 +527,11 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
         document.scrollingElement.scrollBy({top: earlier.bottom - 220, behavior: 'instant'});
     }""")
 
-    stamp_page(d, ASKS_PAGE, "two")
+    stamp_page(d, ITEMS_PAGE, "two")
     wait_for_revision(page, 2)
 
-    expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-ask", "1")
-    expect(page.locator("[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-item", "1")
+    expect(page.locator("[data-lf-item]")).to_have_count(1)
     # The condition the restore is for, stated rather than assumed: an earlier Ask's own
     # prose is on screen above the one the user was standing on, so a walk reading the
     # page alone starts behind them and steps forward onto the Ask they just left.
@@ -543,7 +543,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     }""")
     assert 42 < position["earlierBottom"] <= position["decisionTop"], position
     page.keyboard.press("m")
-    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-item", "1")
 
 
 def test_the_ring_says_where_the_user_is_standing(browser, serve):
@@ -567,10 +567,10 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     row the keyboard is on carries the band alone. Which row, in the same band — one ring
     still meaning one thing. An arrival is the other side of that: it stands the user on
     the decision rather than in the control, so there the decision's own ring is the one."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     question = page.locator("#live-question-decision")
     page.keyboard.press("m")
-    expect(question).to_have_attribute("data-lf-ask", "1")
+    expect(question).to_have_attribute("data-lf-item", "1")
     arrival_ring = question.evaluate(RING)
     assert arrival_ring == [
         "solid",
@@ -601,7 +601,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     # Real presses verify the keyboard route as well as its focus treatment.
     page.keyboard.press("m")
     suggestion = page.locator("#sug-refill")
-    expect(suggestion).to_have_attribute("data-lf-ask", "1")
+    expect(suggestion).to_have_attribute("data-lf-item", "1")
     accept = suggestion_control(page, "sug-refill", "accept")
     accept.focus()
     # Tab inside the margin reaches the same suggestion's ✗ Reject, rendered from the
@@ -641,18 +641,18 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
 
     # Standing somewhere that asks nothing takes it off, rather than leaving it behind.
     page.locator("#h").click()
-    expect(page.locator("[data-lf-ask]")).to_have_count(0)
+    expect(page.locator("[data-lf-item]")).to_have_count(0)
 
     # A pointer landing inside an open decision is standing in it, though no walk brought
     # them there: the ring renders the focus rather than remembering a press.
     page.locator("#live-question .lf-another leaf-text").click()
-    expect(question).to_have_attribute("data-lf-ask", "1")
+    expect(question).to_have_attribute("data-lf-item", "1")
 
     # Answering takes it off with the focus still inside: the ring is for the question
     # the user is working, and an answered one is no longer a question.
     page.locator("#lq-token .lf-pick").click()
-    expect_asks_answered(page, "2/5")
-    expect(page.locator("[data-lf-ask]")).to_have_count(0)
+    expect_items_answered(page, "2/5")
+    expect(page.locator("[data-lf-item]")).to_have_count(0)
     expect(page.locator("#lq-token .lf-pick")).to_be_focused()
 
     # The chrome's own control, which the user reaches by Tab or by the panel's own
@@ -671,12 +671,12 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     )
 
 
-def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
+def test_escape_lets_go_of_the_item_the_user_is_standing_on(browser, serve):
     """Escape closes the command reference, then lets go of the Ask and focuses body.
     The next Ask walk reads the visible page place, returning to the first Ask before
     advancing. Letting go also works on a page with no scroll range and after a Page
     Map action leaves focus in a margin cluster."""
-    url = serve(ASKS_PAGE)
+    url = serve(ITEMS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
     answered_comment(
         serve.page_dir,
@@ -685,7 +685,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     )
     page = open_page(browser, url)
     page.keyboard.press("m")
-    expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-item]")).to_have_count(1)
     # The reference says the press in its own words. It said "Back out one layer" for
     # every rung, which was true while every rung took a layer of chrome off the page:
     # standing on a decision is the user holding something, with no layer over the
@@ -696,11 +696,11 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-item]")).to_have_count(1)
 
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
-    expect(page.locator("[data-lf-ask]")).to_have_count(0)
+    expect(page.locator("[data-lf-item]")).to_have_count(0)
     assert page.evaluate("() => document.activeElement === document.body")
 
     # The directional walk reads the user's current visible place after Escape.
@@ -710,7 +710,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     # The suggestion's thread comes up beside it, hung from its own entry, which the
     # cluster unfolds to show for as long as the card stands there.
     page.keyboard.press("m")
-    expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#sug-refill[data-lf-item]")).to_have_count(1)
     walked_item = page.locator('[data-lf-margin-for="sug-refill"]')
     expect(page.locator(".lf-margin-preview")).to_contain_text("Check this wording")
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_visible()
@@ -719,7 +719,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     # only the new destination's Tab-style arrival. The two halves share one native
     # focus transition, whose focusout and focusin both fire inside focus().
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision[data-lf-item]")).to_have_count(1)
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
 
@@ -750,10 +750,10 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_the_ask_walk_follows_registry_declarations(browser, serve):
+def test_the_item_walk_follows_registry_declarations(browser, serve):
     """Removing an open-request declaration removes that widget from every Ask
     surface without changing the runtime, panel, or keyboard walk."""
-    url = serve(ASKS_PAGE)
+    url = serve(ITEMS_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
     del registry["lf-suggestion"]["x-awaits"]
     del registry["lf-suggestion"]["properties"]["resolves"]
@@ -765,7 +765,7 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
     )
 
     page = open_page(browser, live_url(url))
-    expect_asks_answered(page, "1/4")
+    expect_items_answered(page, "1/4")
     # The blanket answer went with the declaration that named its verb.
     expect_panel_offers(page, "blanket:accept", offered=False)
     for expected in [
@@ -774,7 +774,7 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
         "t-bath-decision",
     ]:
         page.keyboard.press("m")
-        expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
+        expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-item", "1")
 
 
 def test_live_revision_drafts_wait_for_the_complete_controller_publication(

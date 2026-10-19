@@ -17,7 +17,7 @@ from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import UTF8_BOM
 from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, live_url
+from render_cases_interaction import ITEM_PAGE, live_url
 from render_cases_navigation import (
     source_revision,
 )
@@ -44,7 +44,7 @@ from journeys.test_render_export import (  # noqa: F401 (fixtures)
 )
 
 
-def test_interactive_export_with_an_ask_reaches_application_presentation(
+def test_interactive_export_with_an_item_reaches_application_presentation(
     browser, serve, tmp_path
 ):
     """Offline mode omits page controls without leaving their ticket pending."""
@@ -81,7 +81,7 @@ def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tm
     A choosable group builds its addition field offline too. Its placeholder, disabled
     Add and empty-field flag are that paint's; focus alone repaints the placeholder with
     its send key, and typing repaints the flag."""
-    serve(ASK_PAGE)
+    serve(ITEM_PAGE)
     interactive = tmp_path / "interactive-addition.html"
     result = CliRunner().invoke(
         cli_model.cli,

@@ -6,7 +6,7 @@ import re
 import pytest
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, PANEL_PAGE, answered_comment
+from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, answered_comment
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
@@ -20,8 +20,8 @@ from render_harness import (
 )
 
 from browser.margin import (
-    ACTION_ON_ASK,
-    COMMENT_ON_ASK,
+    ACTION_ON_ITEM,
+    COMMENT_ON_ITEM,
     PANE_PIN_PAGE,
     _comment_on,
 )
@@ -31,7 +31,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def test_the_margin_keeps_its_page_coordinate_while_the_user_scrolls(browser, serve):
     """Runtime chrome and authored content share one document-space coordinate."""
-    page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
+    page = open_page(browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     target = page.locator("#bracket")
@@ -52,12 +52,12 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     withheld, so there is nothing yet to hang its card from. The card of the thread the
     user leaves goes at once, and the Ask's comes once the margin shows its row, as it
     would for an arrival whose row was already there."""
-    ask = (
+    item = (
         '<lf-ask id="work"><h2>Choose</h2><lf-options id="options" choose>'
         '<lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option>'
         "</lf-options></lf-ask>"
     )
-    url = serve(PANE_PIN_PAGE.replace('<p id="pane-end">The last finding.</p>', ask))
+    url = serve(PANE_PIN_PAGE.replace('<p id="pane-end">The last finding.</p>', item))
     left = answered_comment(serve.page_dir, "First finding", {"section": "pane-top"})
     root = answered_comment(serve.page_dir, "Ask discussion", {"section": "work"})
     page = open_page(browser, url)

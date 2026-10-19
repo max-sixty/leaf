@@ -173,7 +173,7 @@ The user's **On me** list holds everything waiting on them: each decision your w
 leaves to them, whether or not your next step depends on it, and each answer,
 permission, review, or outside action you need. That includes every option you
 present for their judgment, not only the one you recommend. Ask each as a direct
-question by a route in the table below, grouped as `authoring-asks.md` says, and keep
+question by a route in the table below, grouped as `authoring-decisions.md` says, and keep
 it until the user decides or you withdraw it. A question written in prose, a heading,
 a status line or chat isn't on On me; only the routes in the table put it there.
 Information they may comment on but need not decide is not an item.
@@ -185,9 +185,9 @@ press lands where the item is answered; on a widget ask, its numbered actions
 
 | Request                                                                         | Register it                                                                                                     | What answers it                                                                       |
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| A decision or input recorded by a widget                                        | Author a decision widget (`authoring-asks.md`); optional `lf-ask` frames its question and evidence              | The widget's declared answer; a multiple-choice ask also needs the user's Done        |
+| A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence              | The widget's declared answer; a multiple-choice ask also needs the user's Done        |
 | A conversational answer                                                         | An `lf-ask` holding the question, with no widget inside, in a reply's or new thread's markup (`threads.md`)     | The user's next message there or a settling reaction                                  |
-| Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-asks.md`, "Sign-off")                                        | The user's approval of that version, its row in On me                                 |
+| Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-decisions.md`, "Sign-off")                                        | The user's approval of that version, its row in On me                                 |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 Ask ids are `widget:<widget-id>` for a widget, `lf-ask` included, and

@@ -141,7 +141,7 @@ For a thread control, put `iconElement("comment", "lf-action-icon")` in an
 
 A widget that draws from the readings below registers its drawing once with
 `watchProjection(owner, paint)`. Leaf calls `paint()` on the next microtask, again when
-the page first presents, and again whenever a reader it called, such as `readAsks()` or a
+the page first presents, and again whenever a reader it called, such as `readItems()` or a
 controller's `read()`, returns something new. So a paint never lists its inputs. Only
 reads before the first `await` count, and reads of DOM nodes don't; watch those
 yourself. The watcher pauses while the owner is out of the page. Call the returned
@@ -151,7 +151,7 @@ returns true.
 
 ### Reading asks and obligation queues
 
-`readAsks()` returns `{phase, all, user, unanswered}`. `all` holds every ask whose
+`readItems()` returns `{phase, all, user, unanswered}`. `all` holds every ask whose
 source is still there, answered and withdrawn ones included; `user` the open asks
 waiting on the user; and `unanswered` every open ask, including those with the agent.
 Each record looks like this:
@@ -181,7 +181,7 @@ show while `status` is `open`, and an empty selection can be complete. `answer` 
 A widget whose entry declares `x-awaits.reply`, such as an `lf-ask` holding no
 widget, is a question the user answers in words: their next message in its thread, or
 a comment on it on the page, is its `answer.value` (`{text}`, or `{token}` for a
-settling reaction); `askedInWords(ask)` says whether an ask is one. When the agent ends it with `leaf task end` instead, `status` is
+settling reaction); `answeredInWords(ask)` says whether an ask is one. When the agent ends it with `leaf task end` instead, `status` is
 `answered_elsewhere` or `withdrawn` and `end.detail` says why.
 
 An approval ask, `source.kind === "approval"`, asks the user to approve the stamped
@@ -191,14 +191,14 @@ version `source.version`. Approving sets `answer.value` to `true`, and Undo reop
 `prompt.target` is where the user goes to answer. A user's answer shows in `answer`
 at once; which asks exist changes when the server's reading arrives.
 
-`askWords(ask)` words an answer for display, using a widget's `answerWords`
-(`module-state.md`, "Declared widget state"). `asksIn(region, asks)` returns the widget
+`answerWords(ask)` words an answer for display, using a widget's `answerWords`
+(`module-state.md`, "Declared widget state"). `itemsIn(region, asks)` returns the widget
 asks, not withdrawn, inside `region`; `lf-tabs` and `lf-tally` count with it, so a module
-marking asks per card or section should too, passing `readAsks().user` for the asks
+marking asks per card or section should too, passing `readItems().user` for the asks
 waiting on the user.
 
-`askActions.open(id)` takes the user to an ask, resolving to `false` if it is gone.
-`askActions.next({within, dir})` steps to the next ask waiting on the user inside
+`itemActions.open(id)` takes the user to an ask, resolving to `false` if it is gone.
+`itemActions.next({within, dir})` steps to the next ask waiting on the user inside
 `within`, or the previous with `dir: -1`, as `m` does in On me, and resolves to whether
 it arrived. A control that calls it should prevent `mousedown`'s default so focus stays
 put and a second press steps on. Asks have no answer API; answer through the widget's

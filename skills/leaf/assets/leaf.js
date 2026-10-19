@@ -85,9 +85,9 @@ import {
 import { createFloatingPanel } from "./runtime/floating-panel.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
-import { createAskView } from "./runtime/asks/view.js";
+import { createItemView } from "./runtime/items/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
-import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
+import { ITEM_CONTROL } from "./runtime/items/view-elements.js";
 import {
   commandHintLayer,
   createCommandHints,
@@ -193,7 +193,7 @@ annotationRenderer?.mountAnnotationControls();
 let app;
 let layout;
 let pageMapDialog;
-let asks;
+let items;
 let responseSurface;
 let drawing;
 let regionCapture;
@@ -336,8 +336,8 @@ const version = createVersionController({
     const panelShown = floatingPanel.restoreStanding(panel);
     return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
   },
-  captureAskStanding: () => asks.captureStanding(),
-  restoreAskStanding: (standing) => asks.restoreStanding(standing),
+  captureItemStanding: () => items.captureStanding(),
+  restoreItemStanding: (standing) => items.restoreStanding(standing),
   versions: { press: () => floatingPanel.doors.versions.press() },
 });
 
@@ -348,7 +348,7 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-  nextAskWithin: (options) => queueWalk.nextWithin(options),
+  nextItemWithin: (options) => queueWalk.nextWithin(options),
   threadAvailable: !offlineInteractive,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
@@ -392,7 +392,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
-    goToAsk: (...args) => asks.goToAsk(...args),
+    goToItem: (...args) => items.goToItem(...args),
   },
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
@@ -429,7 +429,7 @@ pageMapDialog = createPageMapDialog({
 });
 
 // The ask view is constructed below by its owner factory; all accesses above are inert closures.
-asks = createAskView({
+items = createItemView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
   prepareTrip: anchorTravel.prepareTrip,
@@ -440,7 +440,7 @@ asks = createAskView({
 });
 const queueWalk = createQueueWalk({
   actions: app.queueActions,
-  arriveAtAsk: asks.arriveAtAsk,
+  arriveAtRecord: items.arriveAtRecord,
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
   threadPlace: (id) => app.threadDestinations.threadPlace(id),
@@ -454,8 +454,8 @@ const commandHints = createCommandHints({
 });
 
 const standingTarget = createStandingTarget({
-  isAskControl: (node) => node?.matches?.(ASK_CONTROL),
-  standingIn: asks.standingIn,
+  isItemControl: (node) => node?.matches?.(ITEM_CONTROL),
+  standingIn: items.standingIn,
 });
 
 floatingPanel = createFloatingPanel({
@@ -463,9 +463,9 @@ floatingPanel = createFloatingPanel({
   observeFeedback: app.read.observeFeedback,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-  asks: {
-    choicesOf: asks.choicesOf,
-    open: (id) => app.openAsk(id),
+  items: {
+    choicesOf: items.choicesOf,
+    open: (id) => app.openItem(id),
   },
   queueActions: app.queueActions,
   withdraw: app.withdraw,
@@ -634,11 +634,11 @@ goToSequence = createGoToSequence({
   stopGlide,
 });
 const standingPainters = {
-  markHere: asks.markHere,
+  markHere: items.markHere,
   paintStanding: anchorPaint?.paintStanding,
   paintSelectedMarginEntries: () =>
     app.overlay?.paintSelectedMarginEntries([
-      { kind: "ask", target: asks.standingIn() },
+      { kind: "item", target: items.standingIn() },
       {
         kind: "comment",
         target: anchorPlacement.placedAt(standingThreadId())?.place,
@@ -702,7 +702,7 @@ if (!offlineInteractive) {
   anchorControls.mount();
   pageGeometry.mount();
   pageMapDialog.mount(chromeForeground);
-  asks.mount();
+  items.mount();
   queueWalk.mount();
   commandHints.mount();
   app.mountAnnotations();
@@ -832,8 +832,8 @@ async function startPage() {
   openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {
     layout.syncLayout();
-    asks.buildBulkAnswers();
-    asks.syncAsks();
+    items.buildBulkAnswers();
+    items.syncItems();
   }
   await settlePageInterface();
   landFragment();

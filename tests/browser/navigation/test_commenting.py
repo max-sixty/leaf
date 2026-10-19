@@ -11,8 +11,8 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
-    SEATED_ASK_LAYER,
-    SEATED_ASK_WIDGETS,
+    SEATED_ITEM_LAYER,
+    SEATED_ITEM_WIDGETS,
     panel_comment,
 )
 from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
@@ -23,7 +23,7 @@ from render_harness import (
     RELEASE_FOCUS,
     ROOT,
     draft_control,
-    expect_asks_answered,
+    expect_items_answered,
     leaf_page,
     open_page,
     open_versions,
@@ -352,7 +352,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     # A decision: the composer opens on the question rather than on the option the
     # walk happens to stand the user on, and rather than on the page.
     page.keyboard.press("m")
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-item", "1")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-composer")).to_contain_text("question · Which material?")
@@ -374,7 +374,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     rewrite_action = suggestion_control(page, "sug-window", "accept")
     rewrite_action.focus()
     expect(rewrite_action).to_be_focused()
-    expect(page.locator("#sug-window")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#sug-window")).to_have_attribute("data-lf-item", "1")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-composer")).to_contain_text("rewrite")
@@ -434,7 +434,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     readings and must stay off: the switch is about a seat the user is mid-sentence in,
     not about reopening what a pick has closed.
 
-    The seat and the ask are the project widget SEATED_ASK_ENTRY declares, for the reason
+    The seat and the ask are the project widget SEATED_ITEM_ENTRY declares, for the reason
     test_a_seat_thread_leaves_the_pick_it_is_about_live gives."""
     url = serve(
         leaf_page(
@@ -455,8 +455,8 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 </lf-suggestion></p>
 """,
         ),
-        layer_registry=SEATED_ASK_LAYER,
-        layer_widgets=SEATED_ASK_WIDGETS,
+        layer_registry=SEATED_ITEM_LAYER,
+        layer_widgets=SEATED_ITEM_WIDGETS,
     )
     d = serve.page_dir
     append_carried_log_record(
@@ -474,7 +474,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     # The completion count includes every active Ask: the authored pick is complete;
     # the seated Ask and suggestion are not.
-    expect_asks_answered(page, "1/3")
+    expect_items_answered(page, "1/3")
     # In On me the seated Ask is the agent's: the comment in its seat is owed a reply,
     # which stands for it, so it is neither the user's item nor done.
     panel_control(page, "queue").click()
@@ -496,9 +496,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     # And with it shut, which is every other reading below.
     page.locator("#shape .lf-settle").focus()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-item", "1")
     # The count is completion, not the open walk's position, so focus leaves it stable.
-    expect_asks_answered(page, "1/3")
+    expect_items_answered(page, "1/3")
 
     # Answering hands the question back, and the count moves while the ring does not.
     # Focus is not touched again from here, so the ring read below is the one painted
@@ -522,9 +522,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     told(page)
     # Back on the user's open list, the same Ask is still incomplete, so the
     # completion count remains stable.
-    expect_asks_answered(page, "1/3")
+    expect_items_answered(page, "1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-item", "1")
 
     # And the press means that thread, so the next line joins the one the first line
     # opened rather than starting another on the Ask or the widget. Whichever surface
@@ -548,7 +548,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # the frame before the paint, and stays green while a ring lands here a frame later.
     page.locator("#picked .lf-pick").first.focus()
     rendered(page)
-    assert page.locator("[data-lf-ask]").count() == 0, (
+    assert page.locator("[data-lf-item]").count() == 0, (
         "an answered group wears the ring the switch was not about"
     )
 

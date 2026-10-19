@@ -267,7 +267,7 @@ def _reference_contract(at: str, v: dict) -> str:
     )
 
 
-def _ask_context(at: str, v: dict) -> str:
+def _item_context(at: str, v: dict) -> str:
     widgets = "; ".join(
         f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
         for w in v["widgets"]
@@ -868,8 +868,8 @@ _TEXT = {
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
-    "empty-ask-context": _ask_context,
-    "ask-context-title": lambda at, v: (
+    "empty-question": _item_context,
+    "untitled-question": lambda at, v: (
         f"{_line(at, v)}: an ask context needs a heading to title its ask, leading"
         " its content alone or in an <hgroup> or <header>"
     ),
@@ -1128,8 +1128,8 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "ask-context-id": _declared(lambda v: "x-ask-context must require an id"),
-    "ask-context-prose": _declared(
+    "enclosing-id": _declared(lambda v: "x-ask-context must require an id"),
+    "enclosing-prose": _declared(
         lambda v: "x-ask-context must admit prose around the ask it frames"
     ),
     "data-contract": _declared(
@@ -1595,8 +1595,8 @@ _TEXT = {
         f'v{v["version"]} does not declare <meta name="lf-review" content="sign-off">,'
         " so it has no approval to record"
     ),
-    "unanswered-asks": lambda at, v: (
-        f"v{v['version']} still has unanswered widget asks: {', '.join(v['asks'])}"
+    "unanswered-items": lambda at, v: (
+        f"v{v['version']} still has unanswered widget asks: {', '.join(v['items'])}"
     ),
     # An action or a report, against its widget's declaration.
     "unknown-sender": lambda at, v: (
@@ -1770,8 +1770,8 @@ _TEXT = {
         f"{v['widget']} has no work seat; its widget declares no x-work and it holds"
         " no unsettled action"
     ),
-    "duplicate-ask": lambda at, v: (
-        f"{v['widget']!r} already has ask {v['ask']!r}; use that ask instead of"
+    "duplicate-item": lambda at, v: (
+        f"{v['widget']!r} already has ask {v['item']!r}; use that ask instead of"
         " opening duplicate work"
     ),
     "plan-depth": lambda at, v: (
@@ -1788,18 +1788,18 @@ _TEXT = {
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task open` gave you"
     ),
-    "approval-ask": lambda at, v: (
+    "approval-item": lambda at, v: (
         f"ask {v['todo']!r} requires the user's approval of v{v['version']}; it ends"
         " at the page's Approval control"
     ),
-    "widget-ask": lambda at, v: (
+    "widget-item": lambda at, v: (
         f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
     ),
-    "users-prose-ask": lambda at, v: (
+    "users-question": lambda at, v: (
         "the user's message or settling reaction answers a question asked in words"
     ),
-    "ended-ask": lambda at, v: f"ask {v['todo']!r} is already {v['status']}",
-    "failed-prose-ask": lambda at, v: (
+    "ended-item": lambda at, v: f"ask {v['todo']!r} is already {v['status']}",
+    "failed-question": lambda at, v: (
         "a question asked in words ends `done` when the user answered it elsewhere,"
         " or `dropped` when it no longer applies"
     ),

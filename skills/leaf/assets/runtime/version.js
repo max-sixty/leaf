@@ -161,7 +161,7 @@ import { watchProjection } from "./projection-watch.js";
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
-import { foldWidgetStates, askValue } from "./projection/model.js";
+import { foldWidgetStates, itemValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
@@ -702,8 +702,8 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
         }
         continue;
       }
-      const { value } = askValue(now, verb, true);
-      if (JSON.stringify(value) === JSON.stringify(askValue(before, verb, true).value))
+      const { value } = itemValue(now, verb, true);
+      if (JSON.stringify(value) === JSON.stringify(itemValue(before, verb, true).value))
         continue;
       // The option now picked is where a pick reads; anything else reads on its
       // widget.
@@ -1036,8 +1036,8 @@ function revisionDocument(revision) {
  *   syncLayout: any,
  *   captureRetainedStanding?: () => unknown,
  *   restoreRetainedStanding?: (standing: unknown) => boolean,
- *   captureAskStanding?: () => unknown,
- *   restoreAskStanding?: (standing: unknown) => void,
+ *   captureItemStanding?: () => unknown,
+ *   restoreItemStanding?: (standing: unknown) => void,
  *   versions: { press: () => void },
  * }} controller */
 export function createVersionController({
@@ -1051,8 +1051,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureAskStanding = () => null,
-  restoreAskStanding = () => {},
+  captureItemStanding = () => null,
+  restoreItemStanding = () => {},
   // The chrome's Versions, which `g V` opens or puts away (floating-panel.js, `doors`).
   versions,
 }) {
@@ -1297,7 +1297,7 @@ export function createVersionController({
       replyInView: focusedInView() !== null,
       // Ask standing is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent ask does not also own focus.
-      askStanding: draftEditing ? null : captureAskStanding(),
+      itemStanding: draftEditing ? null : captureItemStanding(),
     };
   }
 
@@ -1314,8 +1314,8 @@ export function createVersionController({
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, askStanding } = continuity;
-    restoreAskStanding(askStanding);
+    const { draftEditing, replyThread, replyInView, itemStanding } = continuity;
+    restoreItemStanding(itemStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
     );

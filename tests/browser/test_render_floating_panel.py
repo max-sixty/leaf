@@ -46,8 +46,8 @@ SIGN_OFF = LONG_PAGE.replace(
     "<title>long</title>",
     '<title>long</title><meta name="lf-review" content="sign-off">',
 )
-ASK_PAGE = leaf_page(
-    "ask",
+ITEM_PAGE = leaf_page(
+    "item",
     """<h1 id="t">Ask</h1>
 <lf-ask id="schema-decision"><h3>How should the schema migrate?</h3>
 <lf-options id="schema" choose>
@@ -526,7 +526,7 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     expect(title).to_have_count(0)
 
 
-def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
+def test_on_shows_an_item_as_its_message_and_reply_comes_back(browser, serve):
     """A question the agent asked in a thread reads in the On view as its message, drawn
     whole as the thread draws it, so what it introduces after a colon is there with it.
     Reply opens its thread with On behind it, where the back link returns."""
@@ -1844,7 +1844,7 @@ def test_a_walk_says_its_position_in_the_panel(browser, serve):
     all that time, once the comment's thread opens over the row."""
     heading = "<h3>How should the schema migrate?</h3>"
     tall = "<p>The old schema has three tables, each a year of records.</p>" * 30
-    page = floating(browser, serve(ASK_PAGE.replace(heading, heading + tall)))
+    page = floating(browser, serve(ITEM_PAGE.replace(heading, heading + tall)))
     room = """async () => {
       const shown = (await window.__lfWidgetApi()).shownWindow();
       return {top: shown.top, bottom: shown.bottom};
@@ -1990,12 +1990,12 @@ def test_a_pointer_folds_the_panel_from_its_corner(browser, serve):
     assert page.evaluate("window.invoked") == "panel.floating.fold"
 
 
-def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
+def test_items_are_answered_where_they_are_read_on_me(browser, serve):
     """On me lists what waits on the user, and each ask takes its answer there, by the
     widget's own choice: the event is the widget's action. The answered card keeps its
     place and height, so the next ask does not move under the pointer, and
     Undo takes the answer back."""
-    page = floating(browser, serve(ASK_PAGE))
+    page = floating(browser, serve(ITEM_PAGE))
     chip = page.locator(".lf-fp-on-user")
     expect(chip).to_contain_text("2")
     # Its mark is its own: the question mark is help's, as `?` and the menu's
@@ -2227,8 +2227,8 @@ def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
           const go = document.createElement('button');
           go.id = 'to-approval';
           go.textContent = 'To the approval';
-          go.onclick = () => api.askActions.open(
-            api.readAsks().all.find((ask) => ask.source.kind === 'approval').id);
+          go.onclick = () => api.itemActions.open(
+            api.readItems().all.find((ask) => ask.source.kind === 'approval').id);
           go.style.cssText = 'position: fixed; top: 0; left: 0';
           document.body.append(go);
         }"""
@@ -2238,16 +2238,16 @@ def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
     expect(card.get_by_role("button", name="Undo")).to_be_focused()
 
 
-def test_the_approval_is_arrived_at_in_sight_below_many_asks(browser, serve):
+def test_the_approval_is_arrived_at_in_sight_below_many_items(browser, serve):
     """With more asks than On me shows at once, arriving at the approval
     scrolls its card into the view, so the Approve the user stands on is in sight."""
-    asks = "".join(
+    items = "".join(
         f'<lf-ask id="ask-{n}"><h3>Question {n}?</h3><lf-options id="o-{n}" choose>'
         f'<lf-option id="y-{n}">Yes</lf-option><lf-option id="n-{n}">No</lf-option>'
         "</lf-options></lf-ask>"
         for n in range(12)
     )
-    source = leaf_page("many", f"<h1>Many</h1>{asks}").replace(
+    source = leaf_page("many", f"<h1>Many</h1>{items}").replace(
         "<title>many</title>",
         '<title>many</title><meta name="lf-review" content="sign-off">',
     )
@@ -2260,8 +2260,8 @@ def test_the_approval_is_arrived_at_in_sight_below_many_asks(browser, serve):
           const go = document.createElement('button');
           go.id = 'to-approval';
           go.textContent = 'To the approval';
-          go.onclick = () => api.askActions.open(
-            api.readAsks().all.find((ask) => ask.source.kind === 'approval').id);
+          go.onclick = () => api.itemActions.open(
+            api.readItems().all.find((ask) => ask.source.kind === 'approval').id);
           go.style.cssText = 'position: fixed; top: 0; left: 0';
           document.body.append(go);
         }"""
@@ -2428,7 +2428,7 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     """The menu's head says the agent's state in a word, over its one line, and under
     that only what the status's disclosure adds to the line: while the agent works, the
     disclosure's sentence restates the line, so what waits on the user is all it adds."""
-    url = serve(ASK_PAGE)
+    url = serve(ITEM_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
     line = re.compile(r"^Claude working\b.* — Drafting the rollout")
@@ -2483,7 +2483,7 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     row. Threads' rows leave out the state the selected filter already says, its
     counted tab says 0 rather than leave a gap where a count would go, and the marks
     that open both name themselves on hover."""
-    url = serve(ASK_PAGE)
+    url = serve(ITEM_PAGE)
     for text in ("Is the window long enough?", "Who watches the weekend?"):
         panel_comment(serve.page_dir, text)
     page = floating(browser, url)

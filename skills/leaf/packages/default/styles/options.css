@@ -580,10 +580,10 @@
    * around it is suppressed rather than reading as a second border. The ask is matched
    * as a widget root as well as a descendant, so an ask at the page's top level is
    * reached too. */
-  :is(:scope, :scope *)[data-lf-ask]:has(
+  :is(:scope, :scope *)[data-lf-item]:has(
       lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]
     ) {
-    --lf-ask-ring: none;
+    --lf-item-ring: none;
   }
   /* A ringed row stands above its neighbours, so the next cell's line does not cut its
    * ring. */

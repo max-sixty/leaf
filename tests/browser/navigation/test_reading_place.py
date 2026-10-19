@@ -490,7 +490,7 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(
     assert result["before"] == result["after"]
 
 
-def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
+def test_back_returns_from_an_item_the_walk_travelled_to(browser, serve):
     """The Ask walk records the same history the thread walk does: one entry for a
     journey to Asks somewhere else however far it goes, so Back returns to where the
     user was reading before it, and a journey that crosses from threads to Asks is still
@@ -575,7 +575,7 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
     )
 
 
-def test_back_returns_from_an_ask_whose_context_the_arrival_brings_in(browser, serve):
+def test_back_returns_from_an_item_whose_context_the_arrival_brings_in(browser, serve):
     """An Ask in front of the user whose arrival region is not still moves the page,
     since the arrival puts the region's start at the top of the window, and a press
     that moves the page records where the user was reading. A draft declares no region,
@@ -696,7 +696,7 @@ def _expect_aligned(page, target, scroller="document.scrollingElement"):
     )
 
 
-def test_align_current_item_keeps_ask_control_heading_selection_and_history(
+def test_align_current_item_keeps_item_control_heading_selection_and_history(
     browser, serve
 ):
     page = open_page(browser, serve(ALIGN_CURRENT_PAGE))
@@ -1096,7 +1096,7 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     )
 
 
-def test_align_current_ask_in_a_reply_keeps_its_question_extent(browser, serve):
+def test_align_current_item_in_a_reply_keeps_its_question_extent(browser, serve):
     url = serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
     roots = [
         event["id"]

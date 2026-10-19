@@ -1397,8 +1397,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-[data-lf-ask] {
-  outline: var(--lf-ask-ring, var(--focus-ring));
+[data-lf-item] {
+  outline: var(--lf-item-ring, var(--focus-ring));
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-landing);
 }

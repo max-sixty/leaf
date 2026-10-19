@@ -30,7 +30,7 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     REPLY_HOST_PAGE,
     consume_browser_errors,
-    expect_asks_answered,
+    expect_items_answered,
     leaf_page,
     open_page,
     panel_settled,
@@ -62,7 +62,7 @@ def thread_quote(page, page_dir):
     return open_panel_thread(page, thread).locator(".lf-fp-quote")
 
 
-def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
+def test_a_projected_attribute_opens_an_item_captured_from_authored_markup(
     browser, serve
 ):
     """Predicate operands survive upgrade even when the Ask starts closed."""
@@ -118,7 +118,7 @@ customElements.define("lf-conditional", class extends LeafElement {
     )
     expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
     view = page.locator('.lf-fp-view[data-view="queue"]:not([data-leaving])')
-    asks = ".lf-fp-on-item[data-key^='[\"ask\"']"
+    items = ".lf-fp-on-item[data-key^='[\"ask\"']"
 
     for phase, count in (("open", 1), ("closed", 0)):
         append_command(
@@ -134,7 +134,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         )
         told(page)
         if count:
-            expect_asks_answered(page, "0/1")
+            expect_items_answered(page, "0/1")
         # The phase move is the agent's to answer. The ask leaves the user's
         # queue when its condition closes, retaining its withdrawn card under Done.
         # An open view keeps its cards seated, so each reading is a fresh opening.
@@ -143,8 +143,8 @@ customElements.define("lf-conditional", class extends LeafElement {
             panel_settled(page, open=False)
         page.locator(".lf-fp-on-user").click()
         panel_settled(page, view="queue")
-        expect(view.locator(f'{asks}[data-list="you"]')).to_have_count(count)
-        withdrawn = view.locator(f'{asks}[data-list="done"]')
+        expect(view.locator(f'{items}[data-list="you"]')).to_have_count(count)
+        withdrawn = view.locator(f'{items}[data-list="done"]')
         expect(withdrawn).to_have_count(1 - count)
         if not count:
             expect(withdrawn).to_contain_text("Withdrawn")

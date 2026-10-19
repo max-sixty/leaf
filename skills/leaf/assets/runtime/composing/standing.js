@@ -15,7 +15,7 @@ import { heldThread } from "../thread/focus.js";
 // Read the deepest focus: a datum is in the shadow tree, while its host is only the
 // enclosing addressable element. The pointer and keyboard resolve through the same
 // aimTargetAt, including source provenance and visual-part identity.
-export function createStandingTarget({ isAskControl, standingIn }) {
+export function createStandingTarget({ isItemControl, standingIn }) {
   return function standingTarget() {
     const held = focused();
     if (!held || held === document.body) return null;
@@ -23,7 +23,7 @@ export function createStandingTarget({ isAskControl, standingIn }) {
     const place = placeOf(held);
     if (!place || inChrome(place)) return null;
     if (place !== held) return aimTargetAt(place);
-    const working = isAskControl(held) ? standingIn() : null;
+    const working = isItemControl(held) ? standingIn() : null;
     return aimTargetAt(working ?? held);
   };
 }

@@ -32,8 +32,8 @@
 import { cycledRow } from "./keyboard/bindings.js";
 import { focused, standingNodes } from "./focus.js";
 import { inChrome } from "./passages.js";
-import { readAsks } from "./asks/model.js";
-import { askPlace } from "./asks/place.js";
+import { readItems } from "./items/model.js";
+import { itemPlace } from "./items/place.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
 import { pageReadingBlock } from "./reading-place.js";
 
@@ -47,16 +47,16 @@ export function declareSide(bridge) {
 
 // Source containment identifies the ask before its context does. A context
 // shared by several sources cannot identify one of them on its own.
-export function askHolding(asks, node) {
+export function itemHolding(items, node) {
   if (!node) return null;
-  const places = asks
-    .filter((ask) => ask.source.kind === "widget")
-    .map((ask) => ({ ask, ...askPlace(ask, asks) }));
+  const places = items
+    .filter((item) => item.source.kind === "widget")
+    .map((item) => ({ item, ...itemPlace(item, items) }));
   const holds = (element) => element && (element === node || under(node, element));
   const source = places.findLast((place) => holds(place.source));
-  if (source) return source.ask;
+  if (source) return source.item;
   const contexts = places.filter((place) => holds(place.node));
-  return contexts.length === 1 ? contexts[0].ask : null;
+  return contexts.length === 1 ? contexts[0].item : null;
 }
 
 // The source target a presentation node shows, by its owner's declaration, or null
@@ -75,11 +75,11 @@ export function placeOf(node) {
   if (!at || at === document.body) return null;
   // An ask is the user's current action wherever it is rendered. A source-linked
   // presentation may otherwise stand in authored flow as well as fixed chrome.
-  if (askHolding(readAsks().all, at)) return at;
+  if (itemHolding(readItems().all, at)) return at;
   for (const side of sides) {
     const place = side(at);
     if (place)
-      return inChrome(place) && !askHolding(readAsks().all, place) ? null : place;
+      return inChrome(place) && !itemHolding(readItems().all, place) ? null : place;
   }
   return inChrome(at) ? null : at;
 }
@@ -131,7 +131,7 @@ export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
 
 // The ask the user stands in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they stand at.
-export function heldAsk(node = focused()) {
-  const ask = askHolding(readAsks().all, placeOf(node));
-  return askPlace(ask).node;
+export function heldItem(node = focused()) {
+  const item = itemHolding(readItems().all, placeOf(node));
+  return itemPlace(item).node;
 }

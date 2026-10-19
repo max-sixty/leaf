@@ -217,7 +217,7 @@ const userAttention = (items) => {
   for (const item of items) {
     const attention = item.userAttention;
     if (!attention) continue;
-    if (attention.reason === "ask") return attention;
+    if (attention.reason === "widget") return attention;
     first ??= attention;
   }
   return first;

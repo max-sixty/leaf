@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASKS_PAGE, live_url
+from render_cases_interaction import ITEMS_PAGE, live_url
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
     INLINE_PAGE,
@@ -120,7 +120,7 @@ def test_overlapping_identical_live_announcements_are_fresh_changes(browser, ser
 
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
     """The same declarations that paint help expose their active keys through ARIA."""
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
 
     expect(page_comment(page)).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
@@ -298,7 +298,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
-    page = open_page(browser, serve(ASKS_PAGE), context=context)
+    page = open_page(browser, serve(ITEMS_PAGE), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
         "the touch fixture never reached Leaf's coarse-pointer rules"
     )

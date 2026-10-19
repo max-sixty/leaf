@@ -39,7 +39,7 @@ from interact_support import (
     registry_refusal,
     shipped_payload,
     vendored_at_another_protocol,
-    vendored_before_the_ask_rename,
+    vendored_before_the_item_rename,
     wait_for,
     words,
 )
@@ -416,7 +416,7 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
     ("vendored", "named"),
     [
         (vendored_at_another_protocol, "page protocol"),
-        (vendored_before_the_ask_rename, "x-question-context"),
+        (vendored_before_the_item_rename, "x-question-context"),
     ],
 )
 def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, named):
@@ -459,7 +459,7 @@ def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed
     revision is published as well as before: here the layer and the revision it
     captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
     Leaf left them."""
-    replied = _replying_after(claimed, server, vendored_before_the_ask_rename)
+    replied = _replying_after(claimed, server, vendored_before_the_item_rename)
     assert replied.returncode != 0, replied.stdout
     assert "x-question-context" in replied.stderr
     assert f"leaf page init {claimed}" in replied.stderr
@@ -1052,7 +1052,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-asks.md",
+        "skills/leaf/references/authoring-decisions.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1900,7 +1900,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
     spelling = (
-        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.ask"] + "]"
+        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.item"] + "]"
     )
     assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 

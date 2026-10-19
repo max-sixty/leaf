@@ -459,7 +459,7 @@ def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):
     assert page.evaluate(wash) == ""
 
 
-def test_an_ask_arrival_reveals_its_pin_while_annotations_are_hidden(browser, serve):
+def test_an_item_arrival_reveals_its_pin_while_annotations_are_hidden(browser, serve):
     """An explicit Ask walk reveals its pin until the user leaves that Ask."""
     page = open_page(
         browser,
@@ -527,7 +527,7 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     expect(pin).to_be_visible()
 
 
-FOOTER_ASK_PAGE = leaf_page(
+FOOTER_ITEM_PAGE = leaf_page(
     "an Ask in a pane's footer",
     """
   <div id="ask-split">
@@ -567,7 +567,7 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     presses. The controls were read at their whole boxes, so a body Ask's controls
     scrolled behind the pane's footer, where nobody can see or press them, pushed the
     footer Ask's marker below the heading it stands beside."""
-    page = open_page(browser, serve(FOOTER_ASK_PAGE))
+    page = open_page(browser, serve(FOOTER_ITEM_PAGE))
     resized(page, 1440, 900)
     pane_posture(page, page.locator("#ask-pane"), "bounded")
     # Scroll the body until its Ask's last control, at the Ask's right edge where a pin

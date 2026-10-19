@@ -57,7 +57,7 @@ COMMENT_ON_SECOND_SUGGESTION = {
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_ask_binding_badges_follow_the_visible_margin_entries(browser, serve, width):
+def test_item_binding_badges_follow_the_visible_margin_entries(browser, serve, width):
     """Ask travel shows hoisted answers above fixed chrome, with binding badges."""
     context = browser.new_context(
         viewport={"width": width, "height": 900}, reduced_motion="reduce"

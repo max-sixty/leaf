@@ -571,7 +571,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
     "starts.</div></div>\n</main>",
 )
 # One Ask, so a page has something On me.
-ONE_ASK = (
+ONE_ITEM = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
     '<lf-option id="go-yes"><strong>Yes</strong></lf-option>'
@@ -580,12 +580,12 @@ ONE_ASK = (
 )
 
 
-def with_one_ask(html):
-    """The page with `ONE_ASK` at the foot of its main, where it moves nothing above it."""
+def with_one_item(html):
+    """The page with `ONE_ITEM` at the foot of its main, where it moves nothing above it."""
     assert html.count("</main>") == 1, (
         "the fixture has no single main to add the Ask to"
     )
-    return html.replace("</main>", ONE_ASK + "</main>")
+    return html.replace("</main>", ONE_ITEM + "</main>")
 
 
 def toggle_queue(page, open=True):

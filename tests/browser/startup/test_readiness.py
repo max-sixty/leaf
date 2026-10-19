@@ -22,7 +22,7 @@ from render_harness import (
     EXAMPLES,
     LONG_PAGE,
     consume_browser_errors,
-    expect_asks_answered,
+    expect_items_answered,
     expect_panel_offers,
     leaf_page,
     open_page,
@@ -340,7 +340,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     # Nothing waits on the user, which the mark says by counting nothing.
     expect(on_me).to_have_attribute("title", "On me")
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
     expect_panel_offers(page, "blanket:accept", offered=False)
 
 

@@ -35,7 +35,7 @@ test("the browser publishes the queues the server selected", () => {
   assert.deepEqual(done.map(listed), served.done);
   // Something of every kind on each list, so each placement below has an item to move.
   assert.deepEqual([...new Set(onUser.map(({ kind }) => kind))].sort(), [
-    "ask",
+    "item",
     "resend",
     "todo",
   ]);
@@ -102,7 +102,7 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
 test("words sent to a question leave it on the user until the log answers", () => {
   const { app } = adopted("queues on both sides");
   const asked = published(app).on_user.find(
-    (item) => item.kind === "ask" && item.ask.source.tag === "lf-ask",
+    (item) => item.kind === "item" && item.item.source.tag === "lf-ask",
   );
   app.enqueue(
     {
@@ -171,9 +171,9 @@ test("a Done this tab sends ends its to-do at once, and its undo puts it back", 
 test("Done lists completed asks and to-dos through their own records", () => {
   const { app } = adopted("done");
   const { done } = published(app);
-  const answered = done.find((item) => item.kind === "ask");
-  assert.equal(answered.ask.status, "answered");
-  assert.equal(answered.id, answered.ask.id);
+  const answered = done.find((item) => item.kind === "item");
+  assert.equal(answered.item.status, "answered");
+  assert.equal(answered.id, answered.item.id);
   assert.equal(answered.state, "done");
   assert.ok(
     done.some((item) => item.kind === "todo" && item.title === "Check the colours"),

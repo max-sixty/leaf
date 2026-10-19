@@ -202,7 +202,7 @@ export function createStateFeed({
       reading = false;
       if (!readQueued) return;
       readQueued = false;
-      ask();
+      item();
     };
     // Nothing is being read or applied: what the page shows is the latest it holds.
     // The reading's own completions below ask less, since a newer read still in flight
@@ -252,7 +252,7 @@ export function createStateFeed({
         failed(error);
       }
     };
-    const ask = () => {
+    const item = () => {
       if (reading) {
         readQueued = true;
         return;
@@ -297,7 +297,7 @@ export function createStateFeed({
           if (!response.ok) throw new Error(`news returned HTTP ${response.status}`);
           const observed = await response.text();
           if (listening === interval) {
-            if (observed !== freshness && observed !== runtime.reading) ask();
+            if (observed !== freshness && observed !== runtime.reading) item();
             else if (returned !== null && observed === runtime.reading && feedQuiet()) {
               // There is no newer state to ask for. Still present what this tab
               // held before the absence, then protect its new baseline again.
@@ -309,7 +309,7 @@ export function createStateFeed({
           }
         } catch {
           if (listening !== interval) return;
-          ask();
+          item();
           delay = TICK_MS;
         }
         if (listening === interval) nextLook = setTimeout(look, delay);
@@ -353,9 +353,9 @@ export function createStateFeed({
           (activityTransitionDue(runtime.state) ||
             (freshness !== null && freshness !== runtime.reading))
         )
-          void ask();
+          void item();
         else if (readAnswered) void heartbeat();
-        else void ask();
+        else void item();
         // A presentation that failed is retried here as the poll retried it, since
         // a quiet page may see no read to chain it onto.
         void present();

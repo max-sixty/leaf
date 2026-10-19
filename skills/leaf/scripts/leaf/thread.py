@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from leaf.activity import answer_command, reply_command
-from leaf.asks import asking, local_ask_entry, quoted_in
+from leaf.items import asking, local_item_entry, quoted_in
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -729,7 +729,7 @@ def _compose_and_append(
     if asks_back and not (
         markup
         and any(
-            local_ask_entry(publication.registry.get(rec["tag"]) or {})
+            local_item_entry(publication.registry.get(rec["tag"]) or {})
             and asking(
                 rec["attrs"], publication.registry[rec["tag"]]["x-awaits"].get("when")
             )

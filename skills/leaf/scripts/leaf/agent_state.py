@@ -135,7 +135,7 @@ def _base_state(
         "queues": {"on_user": [], "on_agent": []},
         "todos": [],
         "plan": None,
-        "asks": [],
+        "items": [],
         # Current semantic facts only. A thread's history belongs to
         # `page state PAGE THREAD`; keeping its sequence list here would make this
         # default snapshot grow with every thread turn. A reaction nobody
@@ -277,12 +277,12 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             ],
         },
         "workflows": workflows,
-        "asks": [
-            ask
-            for ask in state["asks"]
-            if ask["thread"] is None
-            and ask["source"]["kind"] == "widget"
-            and (inside(ask["source"]["id"]) or inside(ask["prompt"]["target"]))
+        "items": [
+            item
+            for item in state["items"]
+            if item["thread"] is None
+            and item["source"]["kind"] == "widget"
+            and (inside(item["source"]["id"]) or inside(item["prompt"]["target"]))
         ],
         "todos": [
             todo
@@ -390,7 +390,7 @@ def _page_state(
                 item["message"] for item in served_threads[thread["id"]]["unread"]
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
-        state["asks"] = view["document"]["asks"]["all"] + view["thread"]["asks"]["all"]
+        state["items"] = view["document"]["items"]["all"] + view["thread"]["items"]["all"]
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
         state["plan"] = browser["plan"]
         served_queues = view["queues"]
@@ -534,6 +534,6 @@ def _page_state(
             },
             "workflows": workflows,
             "todos": [todo for todo in state["todos"] if todo["thread"] == thread_id],
-            "asks": [ask for ask in state["asks"] if ask["thread"] == thread_id],
+            "items": [item for item in state["items"] if item["thread"] == thread_id],
         }
     return state

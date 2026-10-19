@@ -24,7 +24,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
     SUGGESTION_PAGE,
-    THREAD_ASKS,
+    THREAD_ITEMS,
     live_url,
 )
 from render_cases_layout import (
@@ -431,10 +431,10 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
     assert all(event["anchor"] == {"section": "revised-quotes"} for event in moves)
 
 
-@pytest.mark.parametrize("panes", [False, True], ids=["ask", "panes"])
+@pytest.mark.parametrize("panes", [False, True], ids=["item", "panes"])
 def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, panes):
     """A pane does not turn visible prose into separate quotation islands."""
-    ask = """<lf-ask id="decision">
+    item = """<lf-ask id="decision">
       <h2 id="question">Which plan should lead?</h2>
       <lf-options id="plans" choose>
         <lf-option id="steady">Keep the steady plan.</lf-option>
@@ -443,11 +443,11 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve, 
     </lf-ask>"""
     content = (
         f"""<div id="split">
-          <lf-pane id="decision-pane" label="Decision">{ask}</lf-pane>
+          <lf-pane id="decision-pane" label="Decision">{item}</lf-pane>
           <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
         </div>"""
         if panes
-        else ask
+        else item
     )
     markup = leaf_page(
         "Shared quotation",
@@ -798,7 +798,7 @@ def faces(page, *selectors):
 def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     """One physical press keeps its geometry wherever Leaf presents it."""
     url = serve(ADDRESSED_PAGE)
-    for event in THREAD_ASKS:
+    for event in THREAD_ITEMS:
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
 
@@ -808,13 +808,13 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     # read from the one moment its own layer renders it rather than from a single frame
     # that cannot hold both.
     open_panel_thread(page, "c-which")
-    ask = f"{PANEL_THREAD} #tq-one"
-    page.locator(f"{ask} .lf-pick").first.focus()
+    item = f"{PANEL_THREAD} #tq-one"
+    page.locator(f"{item} .lf-pick").first.focus()
     page.keyboard.press("ArrowDown")
     page.keyboard.press("ArrowUp")
-    picked = page.locator(f"{ask} .lf-key-badge").first
+    picked = page.locator(f"{item} .lf-key-badge").first
     expect(picked).to_be_visible()
-    option = faces(page, f"{ask} .lf-key-badge")[0]
+    option = faces(page, f"{item} .lf-key-badge")[0]
     page.keyboard.press("g")
     sequence_step = page.locator(CHIPS).first.locator("kbd").last
     expect(sequence_step).to_be_visible()

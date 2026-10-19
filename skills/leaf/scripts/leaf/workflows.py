@@ -84,7 +84,7 @@ def obligation_reading(readings) -> dict:
     page = work.page
     thread = work.thread
     workflows = work.workflows
-    thread_asks = work.widget_asks
+    thread_items = work.widget_items
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
@@ -104,16 +104,16 @@ def obligation_reading(readings) -> dict:
     return {
         "on_user": {
             "page": [
-                ask["id"]
-                for ask in work.document.asks["unanswered"]
-                if ask["next_actor"] is not None
+                item["id"]
+                for item in work.document.items["unanswered"]
+                if item["next_actor"] is not None
             ]
             if page is not None
             else [],
             "thread": [
-                ask["id"]
-                for ask in thread_asks["unanswered"]
-                if ask["next_actor"] is not None
+                item["id"]
+                for item in thread_items["unanswered"]
+                if item["next_actor"] is not None
             ],
             # The to-dos the agent put on the user, which their Done ends.
             "todos": [
@@ -206,7 +206,7 @@ def canonical_workflows(
     page: PageReading | None = None,
     events: list | None = None,
     todo_reading: TodoReading | None = None,
-    asks: dict,
+    items: dict,
 ) -> list[dict]:
     """The unsettled user inputs and strongest evidence held for each.
 
@@ -489,10 +489,10 @@ def canonical_workflows(
             {"kind": "reply", "to": thread_id, "for": source["id"]} if owed else None
         )
 
-    ask_by_source = {
-        ask["source"]["id"]: ask
-        for ask in asks["all"]
-        if ask["source"]["kind"] == "widget"
+    item_by_source = {
+        item["source"]["id"]: item
+        for item in items["all"]
+        if item["source"]["kind"] == "widget"
     }
     documents = []
     if page is not None:
@@ -509,10 +509,10 @@ def canonical_workflows(
         for coordinate, (source, spec) in projection.actions.items():
             if source["author"] != "user":
                 continue
-            ask = ask_by_source.get(source["widget"])
-            if ask is not None and ask["status"] == "open":
+            item = item_by_source.get(source["widget"])
+            if item is not None and item["status"] == "open":
                 continue
-            owed = ask is not None and ask["status"] == "answered"
+            owed = item is not None and item["status"] == "answered"
             unsettled, answer = settlement(coordinate, source, spec, owed)
             actions.append(
                 (

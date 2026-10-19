@@ -62,7 +62,6 @@
 
 import {
   releaseFocus,
-  holdFocus,
   closeLayer,
   focused,
   handBack,
@@ -297,27 +296,6 @@ export function nativeModalAdmits(node) {
   return [...owner.querySelectorAll("dialog")]
     .filter((dialog) => nativeLayerKind(dialog) === "modal")
     .every((modal) => renderedUnder(node, modal));
-}
-
-// Raising a native ancestor appends it above its open descendants. Re-seat those
-// same layers after its transition, in their native order and from the sources they
-// opened from; their owners and retained nodes keep the reading and the eventual return.
-// The browser state changes in one turn, before any queued close event can see a
-// descendant left closed.
-export function transitionNativeAncestor(root, transition) {
-  const descendants = nativeLayers().filter(
-    (layer) => layer.root !== root && renderedUnder(layer.root, root),
-  );
-  const held = holdFocus(root);
-  closeLayer(
-    () => {
-      for (const layer of descendants.toReversed()) closeNativeLayer(layer.root);
-      transition();
-      for (const layer of descendants)
-        showNativeLayer(layer.root, { source: layer.source });
-    },
-    () => held?.(),
-  );
 }
 
 // The auto and hint popovers standing outside `root`, which modal entry dismisses,

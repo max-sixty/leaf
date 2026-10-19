@@ -26,7 +26,6 @@ from render_cases_interaction import (
     live_url,
     stale_report,
 )
-from render_cases_layout import banner_control
 from render_cases_navigation import source_revision
 from render_harness import (
     compare_with,
@@ -34,6 +33,8 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    panel_field,
+    panel_menu,
     refuse,
     sending,
     stamp_page,
@@ -65,7 +66,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     fraction = page.locator("#t-feeders > .work-progress")
     expect(fraction).to_contain_text("1/2 done")
     # Nothing waits on the user.
-    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
 
     sent = CliRunner().invoke(
         cli_model.cli,
@@ -88,7 +89,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The visible status line follows the reported attribute, so a user listening
     # hears the current state too.
     assert "review" in task.aria_snapshot()
-    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
 
     # A second report supersedes the first — absolute values fold — and the
     # progress fraction recounts across the tree.
@@ -102,7 +103,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     said = task.aria_snapshot()
     assert "done" in said and "review" not in said, said
     expect(fraction).to_contain_text("2/2 done")
-    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
 
     # The overruling version: its markup keeps `active` and publishes typed report
     # settlements resolved from `overruled`, so replay stops them
@@ -159,9 +160,8 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
 
     page.route("**/api/view*", hold_first_view)
     try:
-        banner_control(page, ".lf-version").click()
         with page.expect_request("**/api/view*"):
-            page.locator('.lf-version-diff[data-lf-version="1"]').click()
+            compare_with(page, 1)
         holding(page, held, 1, "the first comparison view")
         assert held, "the first comparison view was not held"
         held[0][1] = held[0][0].fetch()
@@ -185,10 +185,14 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
             held[0][2] = True
         holding(page, requests, 2, "the retried comparison view")
         assert len(requests) >= 2, "the stale comparison view was not retried"
-        expect(page.locator(".lf-version")).to_have_text("Showing v2")
-        expect(page.locator(".lf-version")).to_have_class(re.compile(r"\bon\b"))
         expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
         expect(page.locator("#t-parser")).not_to_have_class(re.compile(r"lf-ins-block"))
+        versions = panel_menu(page, "versions")
+        expect(versions.locator(".lf-fp-version[data-current]")).to_contain_text("v2")
+        expect(
+            versions.get_by_role("menuitem", name=re.compile(r"^Compare with v1\b"))
+        ).to_have_attribute("aria-pressed", "true")
+        page.keyboard.press("Escape")
     finally:
         if held and not held[0][2]:
             held[0][0].fulfill(response=held[0][1])
@@ -221,12 +225,11 @@ def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serv
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"))
 
-    banner_control(page, ".lf-version").click()
-    page.locator('.lf-version-diff[data-lf-version="1"]').click()
+    compare_with(page, 1)
 
     expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
-    expect(page.locator(".lf-notice")).not_to_have_text(
-        "Waiting for the server to finish updating."
+    expect(panel_field(page)).not_to_have_attribute(
+        "placeholder", re.compile("Waiting for the server to finish updating")
     )
 
 
@@ -237,8 +240,8 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
     So the row renders elapsed time from the newest report and re-renders on every poll.
 
     Then the case the line exists for: a claim of work nobody has refreshed. It is
-    called out in words rather than in the tint alone, on the rope the banner already
-    gives a page's one agent (quietSince), and only against a claim — an idle worker
+    called out in words rather than in the tint alone, on the rope the page's status
+    already gives its one agent (quietSince), and only against a claim — an idle worker
     that has said nothing all day is idle, which is what it said."""
     url = serve(ROSTER_PAGE)
     d = serve.page_dir
@@ -518,8 +521,8 @@ def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve)
     the case the user is most exposed to — a fleet published at six in the evening,
     every worker dead by seven, read at eight the next morning. Every row claims work,
     and with no report behind any of them there is no elapsed line to contradict it and
-    no call-out: a dead fleet drawn exactly like a fresh one, one section under a banner
-    whose whole design is that a claim nobody revises must not be repeated as fact."""
+    no call-out: a dead fleet drawn exactly like a fresh one, on a page whose status's
+    whole design is that a claim nobody revises must not be repeated as fact."""
     url = serve(ROSTER_PAGE)
     d = serve.page_dir
     page = open_page(browser, url)

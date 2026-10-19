@@ -1,207 +1,73 @@
-"""Live agent feedback trajectories, graded through Promptfoo.
+"""Delivery trajectories on the shared live eval session.
 
-Idle posts two successive comments; mid-turn posts during the setup turn. Each
-trajectory uses an isolated home, page and state directory, and retains streams
-and the admitted event log. Every expected comment must be picked up, receive an
-accepted start (`leaf task start`) and a successful exact-input reply. The native
-session must complete its work.
-Latency remains diagnostic. Starts and replies come from the admitted page log;
-native observations establish turn completion, not whether a command wrote an event.
+The YAML owns scenarios and comments; the repair fixture owns its result check.
+All cases use LiveSession and the response-times query. A fixed observation window
+keeps unanswered inputs in the evidence; latency is diagnostic, not a pass threshold.
+Promptfoo owns arms, repetitions and reports. Native traces belong to LiveSession.
 """
 
 import json
-from datetime import datetime
-from functools import partial
+import shutil
+import subprocess
+import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.thread import successful_replies
 
-from leaf_dev.arms import (
-    completed,
-    hook_delivered,
-    progress_start,
-    read_trace,
-    run_leaf,
-    scratch,
-)
+from leaf_dev import ROOT
+from leaf_dev.arms import LiveChild, LiveSession, PageClient, run_leaf, scratch
+from leaf_dev.commands.response_times import distribution, page_timings
 from leaf_dev.eval_cases import definition
-from leaf_dev.review_scenario import REQUEST, prepare
-from leaf_dev.usability_eval import Case, Run, execute_live
+from leaf_dev.review_scenario import prepare
 
-# When each of a case's comments is posted: `idle` at the end of a turn, `running`
-# once the setup turn has the page's URL.
 DEFINITION = definition("delivery_eval")
-CASES = {
-    name: tuple(case["inputs"]["injection"])
-    for name, case in DEFINITION["cases"].items()
-}
-COMMENTS = tuple(DEFINITION["comments"])
+CASES = DEFINITION["cases"]
 
 
-def attempt(n: int) -> str:
-    return f"delivery-eval-{n:04d}-attempt"
-
-
-def moment(record: dict) -> float:
-    return datetime.fromisoformat(record["received_at"]).timestamp()
-
-
-def stop_blocked(record: dict) -> bool:
-    """Whether one stream record is the Stop hook holding a turn open: any output
-    it gives does, whether through a block or Claude Code's non-error context."""
+def comments(case: str) -> list[dict]:
+    inputs = CASES[case]["inputs"]
     return (
-        record.get("subtype") == "hook_response"
-        and record["hook_event"] == "Stop"
-        and bool(record["output"].strip())
-    )
-
-
-def run_session(
-    arm: Path, case: str, run: Path, *, harness: str = ClaudeCodeHarness.name
-) -> None:
-    """Drive delivery timing through the same feedback loop as larger examples."""
-    run.mkdir(parents=True, exist_ok=True)
-    with scratch(arm, state=run / "state") as work:
-        (run / "work-dir").write_text(f"{work}\n")
-        page, state = work / "page", run / "state"
-        prepare(arm, state, page)
-        leaf = partial(run_leaf, arm, state)
-        rounds = tuple(
-            (dict(COMMENTS[n], kind="comment", attempt=attempt(n + 1)),)
-            for n in range(len(CASES[case]))
-        )
-        scenario = Case(case, (REQUEST,), rounds=rounds, injection=CASES[case])
-        try:
-            execute_live(Run(case, arm, run, harness), scenario, work, page)
-        finally:
-            (run / "events.jsonl").write_text(
-                leaf("page", "events", str(page), check=True).stdout
+        DEFINITION["workload"]["comments"]
+        if inputs.get("workload")
+        else [
+            dict(comment, name=str(n + 1), injection=injection)
+            for n, (comment, injection) in enumerate(
+                zip(DEFINITION["comments"], inputs["injection"], strict=False)
             )
-
-
-def score(run: Path) -> list[dict]:
-    """Read one run's page log and stream into one reading per comment it was sent."""
-    events = read_events(run)
-    stream = read_trace(run / "stream-1.jsonl")
-    timed_out = (run / "timed-out").exists()
-    turns = [record for record in stream if record["type"] == "result"]
-    session_completed = bool(turns) and all(completed([turn]) for turn in turns)
-    readings = []
-    for marker in (r for r in stream if r["type"] == "eval_post"):
-        number = marker["round"]
-        comment = next(e for e in events if e.get("attempt") == attempt(number))
-        posted = datetime.fromisoformat(comment["ts"]).timestamp()
-        pickup = next(
-            (
-                datetime.fromisoformat(e["ts"]).timestamp()
-                for e in pickup_receipts(events, phase="opened", input_id=comment["id"])
-            ),
-            None,
-        )
-        progress = progress_start(events, comment["id"])
-        replies = [
-            datetime.fromisoformat(e["ts"]).timestamp()
-            for e in successful_replies(events, comment["id"])
         ]
-        claimed = (
-            datetime.fromisoformat(progress["ts"]).timestamp() if progress else None
-        )
-        delivery, transport, ended = None, None, None
-        turn_completed = False
-        for record in stream[stream.index(marker) + 1 :]:
-            if (
-                record["type"] == "result"
-                and claimed is not None
-                and (
-                    record.get("turn_id") == progress["turn"]
-                    if progress.get("turn") and record.get("turn_id")
-                    else moment(record) >= claimed
-                )
-            ):
-                ended = moment(record)
-                turn_completed = completed([record])
-                break
-            if (stop_blocked(record) or hook_delivered(record)) and transport is None:
-                delivery = record
-                transport = f"{record['hook_event'].lower()} hook".replace(
-                    "userpromptsubmit", "prompt"
-                )
-        start = moment(marker)
-        readings.append(
-            {
-                "comment": number,
-                "injection": marker["injection"],
-                "active_turn": marker["active_turn"],
-                "after_completion": any(
-                    record["type"] == "result"
-                    for record in stream[: stream.index(marker)]
-                ),
-                "timed_out": timed_out,
-                "turn_completed": turn_completed,
-                "session_completed": session_completed,
-                "transport": transport,
-                "woken_s": since(delivery and moment(delivery), start),
-                "pickup_s": since(pickup, posted),
-                "claim_s": since(claimed, start),
-                "reply_s": since(replies[0] if replies else None, posted),
-                "turn_s": since(ended, start),
-            }
-        )
-    return readings or [{"comment": None, "timed_out": timed_out}]
-
-
-def since(t: float | None, origin: float) -> float | None:
-    return None if t is None else round(t - origin, 1)
+    )
 
 
 def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     return [
-        "completed",
-        *[
-            f"{check}-{n}"
-            for n in range(1, len(CASES[case]) + 1)
-            for check in (
-                "injected-as-requested",
-                "picked-up",
-                "claimed",
-                "replied",
-                "turn-ended",
-            )
-        ],
+        "injected",
+        *[f"replied-{comment['name']}" for comment in comments(case)],
+        *(["task-correct"] if CASES[case]["inputs"].get("workload") else []),
     ]
 
 
-def grade(case: str, readings: list[dict]) -> dict[str, bool]:
-    """Missing or partial comments fail the same fixed checks as complete runs."""
-    by_comment = {r["comment"]: r for r in readings if r["comment"] is not None}
-    expected = set(range(1, len(CASES[case]) + 1))
-    checks = {name: False for name in expected_checks(case)}
-    checks["completed"] = (
-        set(by_comment) == expected
-        and len(readings) == len(expected)
-        and all(
-            not r["timed_out"] and r["turn_completed"] and r["session_completed"]
-            for r in readings
+def capture_measurements(page: Path, injections: list[dict], until: datetime) -> dict:
+    """Select the scenario's exact inputs from the canonical timing query."""
+    ids = {row["input_id"] for row in injections}
+    timings = page_timings(page, since=None, until=until)
+    recorded = {row["input_id"]: row for row in timings["samples"]}
+    samples = [
+        recorded.get(
+            row["input_id"],
+            {"input_id": row["input_id"], "milestones": {}, "observed_for_s": None},
         )
-    )
-    for n in expected:
-        if n not in by_comment:
-            continue
-        r = by_comment[n]
-        injection = CASES[case][n - 1]
-        checks[f"injected-as-requested-{n}"] = (
-            r["injection"] == injection
-            and (r["after_completion"] is (injection == "idle"))
-            and bool(r["active_turn"]) is (injection == "running")
-        )
-        checks[f"picked-up-{n}"] = r["pickup_s"] is not None
-        checks[f"claimed-{n}"] = r["claim_s"] is not None
-        checks[f"replied-{n}"] = r["reply_s"] is not None
-        checks[f"turn-ended-{n}"] = r["turn_completed"]
-    return checks
+        for row in injections
+    ]
+    return {
+        "observed_until": until.isoformat(),
+        "samples": samples,
+        "unrecorded_inputs": sorted(ids - recorded.keys()),
+        "first_reply": distribution(samples, "first_reply"),
+        "answered": distribution(samples, "answered"),
+    }
 
 
 def execute_scenario(
@@ -212,12 +78,174 @@ def execute_scenario(
     harness: str = ClaudeCodeHarness.name,
     condition: str = "leaf",
 ) -> dict:
-    run_session(payload, case, work, harness=harness)
-    readings = score(work)
+    moves = comments(case)
+    workload = DEFINITION["workload"] if CASES[case]["inputs"].get("workload") else None
+    checks = dict.fromkeys(expected_checks(case), False)
+    diagnostics, texts, injections = {}, {}, []
+    state = work / "state"
+    with scratch(payload, state=state) as cwd:
+        page = cwd / "page"
+        prepare(payload, state, page)
+        if workload:
+            source = ROOT / "evals" / workload["fixture"]
+            shutil.copytree(source, cwd / "suite_lab")
+        cutoff = datetime.now(UTC)
+        try:
+            with LiveSession(
+                LiveChild(
+                    cwd,
+                    DEFINITION["prompts"]["initial"],
+                    "--plugin-dir",
+                    str(payload),
+                    stderr=work / "stderr.txt",
+                    limit=300 + DEFINITION["observation_seconds"],
+                    timed_out=work / "timed-out",
+                    dirs=[payload],
+                    env={"XDG_STATE_HOME": str(state)},
+                    harness=harness,
+                ),
+                work / "stream.jsonl",
+                watch=(payload, state, page),
+            ) as live:
+                try:
+                    preparing = True
+                    started = None
+                    setup_deadline = time.monotonic() + 300
+                    for record in live.records(idle=0.1):
+                        if started is None and time.monotonic() >= setup_deadline:
+                            raise TimeoutError(
+                                "The scenario never reached its injection condition"
+                            )
+                        if not live.url:
+                            continue
+                        if workload and preparing:
+                            if record and record.get("type") == "result":
+                                live.send(workload["prompt"])
+                                preparing = False
+                            continue
+                        if started is None:
+                            ready = (
+                                (cwd / "suite_lab/operations.jsonl").exists()
+                                if workload
+                                else live.running or live.answered > 0
+                            )
+                            if not ready:
+                                continue
+                            started = time.monotonic()
+                            cutoff = datetime.now(UTC) + timedelta(
+                                seconds=DEFINITION["observation_seconds"]
+                            )
+                        elapsed = time.monotonic() - started
+                        if elapsed >= DEFINITION["observation_seconds"]:
+                            break
+                        if len(injections) == len(moves):
+                            continue
+                        move = moves[len(injections)]
+                        ready = (
+                            elapsed >= move["after_seconds"]
+                            if workload
+                            else (
+                                live.running
+                                if move["injection"] == "running"
+                                else not live.running
+                                and time.monotonic() - live.heard >= 3
+                                and (
+                                    not injections
+                                    or successful_replies(
+                                        read_events(page), injections[-1]["input_id"]
+                                    )
+                                )
+                            )
+                        )
+                        if not ready:
+                            continue
+                        client = PageClient(live.url)
+                        attempt = f"delivery-eval-{move['name']}"
+                        current = client.post(
+                            {
+                                "kind": "comment",
+                                "revision": client.state()["active"]["revision"],
+                                "attempt": attempt,
+                                "text": move["text"],
+                                **(
+                                    {"anchor": move["anchor"]}
+                                    if "anchor" in move
+                                    else {}
+                                ),
+                            }
+                        )
+                        event = next(
+                            e for e in current["events"] if e.get("attempt") == attempt
+                        )
+                        injection = {
+                            "name": move["name"],
+                            "input_id": event["id"],
+                            "turn_active": live.running,
+                        }
+                        injections.append(injection)
+                        live.note(
+                            {
+                                "type": "eval_post",
+                                **injection,
+                                "received_at": event["ts"],
+                            }
+                        )
+                finally:
+                    cutoff = min(cutoff, datetime.now(UTC))
+                    shutil.copy(page / "index.html", work / "index.html")
+                    texts["page"] = (work / "index.html").read_text()
+                    if workload:
+                        shutil.copytree(cwd / "suite_lab", work / "task")
+                        diagnostics["task_snapshot_at"] = datetime.now(UTC).isoformat()
+        except BaseException as error:
+            diagnostics["error"] = f"{type(error).__name__}: {error}"
+            raise
+        finally:
+            try:
+                diagnostics["injections"] = injections
+                diagnostics["timings"] = capture_measurements(page, injections, cutoff)
+                checks["injected"] = len(injections) == len(moves) and all(
+                    workload is not None
+                    or row["turn_active"] == (move["injection"] == "running")
+                    for row, move in zip(injections, moves, strict=False)
+                )
+                events = [
+                    e
+                    for e in read_events(page)
+                    if datetime.fromisoformat(e["ts"]) <= cutoff
+                ]
+                for row in injections:
+                    replies = successful_replies(events, row["input_id"])
+                    texts[row["name"]] = "\n\n".join(reply["text"] for reply in replies)
+                    checks[f"replied-{row['name']}"] = bool(replies)
+                for name in ("events.jsonl", "observations.jsonl"):
+                    if (page / name).exists():
+                        shutil.copy(page / name, work / name)
+                if workload:
+                    checked = subprocess.run(
+                        [
+                            "python3",
+                            str(source.parent / "check.py"),
+                            str(work / "task"),
+                            str(cutoff.timestamp()),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        check=False,
+                    )
+                    checks["task-correct"] = checked.returncode == 0
+                    diagnostics["task_result"] = {
+                        "exit_code": checked.returncode,
+                        "stdout": checked.stdout,
+                        "stderr": checked.stderr,
+                    }
+            finally:
+                (work / "diagnostics.json").write_text(
+                    json.dumps(diagnostics, indent=2)
+                )
+                run_leaf(payload, state, "server", "stop", str(page))
     return {
-        "output": json.dumps(readings),
-        "metadata": {
-            "checks": grade(case, readings),
-            "diagnostics": {"comments": readings},
-        },
+        "output": json.dumps(texts),
+        "metadata": {"checks": checks, "diagnostics": diagnostics, "texts": texts},
     }

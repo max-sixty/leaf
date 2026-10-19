@@ -9,6 +9,7 @@ import { elementById } from "./passages.js";
 
 export function validationWidgetStates(eventIds = null) {
   return [...selectWidgets(eventIds)].map(([id, { state, specs }]) => ({
+    id,
     get widget() {
       return elementById(id);
     },

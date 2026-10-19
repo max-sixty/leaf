@@ -1,7 +1,6 @@
 """Added-option presentation and replay tests."""
 
 import base64
-import re
 
 import pytest
 from interact_support import append_carried_log_record, stamp
@@ -21,6 +20,7 @@ from render_harness import (
     EXAMPLES,
     consume_browser_errors,
     example_media,
+    expect_error_waits_in_menu,
     holding,
     http_error_console,
     open_page,
@@ -375,9 +375,9 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
 
-    notice = page.locator(".lf-notice")
-    expect(notice).to_have_class(re.compile(r"\bshow\b"))
-    assert notice.inner_text() == "Images can be added to comments, not options"
+    # The error is about the add field, which the panel's field does not speak for, so
+    # it waits in the leaf's menu, the leaf's dot saying there is one.
+    expect_error_waits_in_menu(page, "Images can be added to comments, not options")
     expect(form.locator(".lf-composer-media")).to_be_hidden()
     expect(form.locator(".lf-composer-media img")).to_have_count(0)
     assert field.evaluate("box => box.value") == ""
@@ -430,8 +430,8 @@ def test_an_arrival_cannot_hide_an_item_draft(browser, serve):
     ]
     action = next(e for e in events_model.read_events(d) if e["kind"] == "action")
     assert action["detail"] == {"option": added.get_attribute("id"), "text": draft}
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(f'.lf-thread[data-id="{external["id"]}"]')).to_have_count(1)
+    page.locator(".lf-fp-threads").click()
+    expect(page.locator(f'.lf-fp-thread[data-key="{external["id"]}"]')).to_have_count(1)
 
 
 def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):

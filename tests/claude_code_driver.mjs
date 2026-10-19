@@ -29,7 +29,6 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const [session, options] = [process.argv[2], JSON.parse(process.argv[3])];
 const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 const watches = new Set();
-let releaseHook;
 let submissions = 0;
 let stopped = false;
 let appends = 0;
@@ -145,17 +144,7 @@ const $ = {
         child.stderr.on("data", (text) => (stderr += text));
         child.on("error", reject);
         child.on("close", (code) => {
-          const finish = () => resolve({ exitCode: code ?? 1, stdout, stderr });
-          if (
-            options.holdPromptHook &&
-            init.stdin &&
-            JSON.parse(init.stdin).hook_event_name === "UserPromptSubmit"
-          ) {
-            // The real hook has confirmed input; hold its host return across
-            // turn completion so receipt and a pending wake can be distinguished.
-            releaseHook = finish;
-            print({ holding_hook: "UserPromptSubmit" });
-          } else finish();
+          resolve({ exitCode: code ?? 1, stdout, stderr });
         });
       }),
     spawn: stream,
@@ -171,19 +160,7 @@ print({ pid: process.pid, events: [...hooks.keys()] });
 
 let release;
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const {
-    emit,
-    e,
-    answer,
-    hold,
-    release: releasing,
-    release_hook,
-    flush,
-  } = JSON.parse(line);
-  if (release_hook) {
-    releaseHook();
-    continue;
-  }
+  const { emit, e, answer, hold, release: releasing, flush } = JSON.parse(line);
   if (flush) {
     await new Promise(setImmediate);
     print({ submissions, appends });

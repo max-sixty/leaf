@@ -24,7 +24,7 @@ from render_cases_interaction import (
     SEATED_ITEM_WIDGETS,
     live_url,
 )
-from render_cases_layout import banner_control, toggle_queue, with_one_item
+from render_cases_layout import toggle_queue, with_one_item
 from render_cases_navigation import (
     composer_quote,
 )
@@ -68,6 +68,7 @@ from render_harness import (
     margins_laid_out,
     nudge,
     open_page,
+    panel_field,
     panel_settled,
     primed,
     refuse,
@@ -81,6 +82,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -246,6 +249,16 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
     assert where == "p-original", f"the new copy took the comment ({where})"
 
 
+def stand_on_thread(page, thread_id):
+    """Open the thread in the panel and go from it to its words on the page, where it
+    stands selected."""
+    open_panel_thread(page, thread_id)
+    page.locator(".lf-fp-aux").get_by_role(
+        "button", name="On the page", exact=True
+    ).click()
+    panel_settled(page, open=False)
+
+
 def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypatch):
     """An agent's side of a thread is the user's side with the author flipped.
     Its label belongs to the message — the poster's own environment stamps it as
@@ -275,24 +288,24 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     record_claim(d, id="claude")
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    toggle = page.locator(".lf-threads-toggle")
-    expect(toggle).to_have_text("Threads: 1")  # counted as open, like any other thread
-    toggle.click()
-    page.locator(".lf-thread-summary").first.click()
-    thread = page.locator(".lf-thread").first
+    # Counted as open, like any other thread.
+    expect(page.locator(".lf-fp-threads")).to_have_attribute(
+        "title", re.compile("^Threads, 1 open")
+    )
+    [root] = [e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"]
+    thread = open_panel_thread(page, root)
     expect(thread.locator(".lf-msg.agent")).to_have_count(1)
     expect(thread.locator(".lf-msg.agent > .lf-msg-head b")).to_have_text("Codex")
-    expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
+    expect(thread.locator(".lf-fp-quote")).to_contain_text(
+        "“Retries are capped at three”"
+    )
 
-    write(thread.locator("leaf-text"), "three is the retry budget, not a guess")
+    write(panel_field(page), "three is the retry budget, not a guess")
     with sending(page, "the reply"):
-        thread.get_by_role("button", name="Send", exact=True).click()
-    expect(page.locator(".lf-msg.user")).to_have_count(1)
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(thread.locator(".lf-msg.user")).to_have_count(1)
     with sending(page, "the resolve"):
-        page.locator(".lf-thread").first.get_by_role(
-            "button", name="Resolve thread", exact=True
-        ).click()
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
+        page.locator(".lf-fp-settle").click()
 
     kinds = [(e["kind"], e.get("author")) for e in events_model.read_events(d)]
     assert ("comment", "agent") in kinds
@@ -469,9 +482,8 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    draft = page.locator(".lf-thread leaf-text")
+    view = open_panel_thread(page, root["id"])
+    draft = panel_field(page)
     write(draft, "keep this unfinished reply")
     expect(draft).to_be_focused()
     draft.evaluate("node => node.setSelectionRange(5, 12, 'backward')")
@@ -499,28 +511,24 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
         )
 
     page.lf_errors.remove(console_finding(fault.value))
-    expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
-        "value", "keep this unfinished reply"
-    )
-    expect(page.locator(".lf-thread leaf-text")).to_be_focused()
+    expect(draft).to_have_js_property("value", "keep this unfinished reply")
+    expect(draft).to_be_focused()
     assert draft.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [5, 12, "backward"]
 
     page.unroute("**/api/state*")
     nudge(page_dir)
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    # The card keeps the user's editing place and holds the remote resolution
-    # behind a notice until they choose to show it.
-    thread = page.locator(".lf-thread")
-    expect(thread.locator(".lf-thread-news")).to_have_text("Resolved")
-    expect(thread).to_have_attribute("data-resolved", "false")
-    expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
-        "value", "keep this unfinished reply"
-    )
-    thread.locator(".lf-thread-news").click()
-    expect(thread).to_have_attribute("data-resolved", "true")
-    expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
+    told(page)
+    # The view keeps the user's editing place and says the remote resolution in a
+    # notice the user opens.
+    news = page.locator(".lf-fp-head .lf-thread-news")
+    expect(news).to_have_text("Resolved")
+    expect(draft).to_have_js_property("value", "keep this unfinished reply")
+    news.click()
+    expect(view).to_be_visible()
+    expect(page.locator(".lf-fp-settle")).to_have_text("Reopen", use_inner_text=True)
+    expect(draft).to_have_js_property("value", "keep this unfinished reply")
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
@@ -530,9 +538,11 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
     page = open_page(browser, live_url(url))
     stamp_page(d, TWIN_V2, "a twin")
     wait_for_revision(page, 2)
-    banner_control(page, ".lf-version").click()
-    menu = page.locator(".lf-version-menu")
-    row = menu.locator('.lf-version-row[aria-current="true"]')
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    menu = page.locator(".lf-fp-menu[data-level=versions]")
+    row = menu.locator(".lf-fp-version .lf-fp-item").first
     expect(row).to_be_focused()
 
     broken = []
@@ -729,10 +739,7 @@ def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, se
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    panel_settled(page)
-    page.locator(".lf-thread .lf-quote").click()
+    stand_on_thread(page, "blocked-card-comment")
 
     card = page.locator("#lp-k-checks")
     mark = page.locator('.lf-visual-mark[data-for="lp-k-checks"].lf-visual-mark-here')
@@ -814,7 +821,11 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
 def test_a_diagram_follows_the_scheme_it_is_read_in(browser, serve):
     """The SVG keeps Leaf's theme variables, so a scheme flip repaints it live."""
     page = open_page(browser, serve(WIDE_DIAGRAM_PAGE))
-    node = page.locator("#flow svg .node rect").first
+    node = (
+        page.locator('#flow g[data-id="S"]')
+        .locator("rect, polygon, path, circle, ellipse")
+        .first
+    )
     expect(node).to_be_visible()
     fill = "el => getComputedStyle(el).fill"
     light = node.evaluate(fill)
@@ -991,10 +1002,7 @@ def test_a_marked_scrolling_visual_keeps_its_keyboard_focus_ring(browser, serve)
     expect(mark).to_have_count(0)
 
     resized(page, 1200, 900)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    panel_settled(page)
-    page.locator(".lf-threads > .lf-thread .lf-quote").first.click()
+    stand_on_thread(page, "diagram-comment")
     expect(diagram).to_have_class(re.compile(r"\blf-mark-here\b"))
     expect(diagram).to_have_css("outline-style", "none")
     expect(mark).to_have_class(re.compile(r"\blf-visual-mark-here\b"))
@@ -2110,11 +2118,10 @@ def test_paper_keeps_the_column(browser, serve):
 
 
 def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
-    """The banner stands over the head of the document and the shortcut bar over its foot, so
-    the document leaves each of them room. Neither bar is on a sheet — the runtime's whole
-    layer is withheld from print — and the room went to paper anyway: written as body's
-    own padding it printed as a blank strip at each end, the banner's height over the
-    first line and the shortcut bar's under the last.
+    """The panel stands over the foot of the document, so the document leaves it room.
+    The panel is not on a sheet — the runtime's whole layer is withheld from print — and
+    chrome's room went to paper anyway once: written as body's own padding it printed as
+    a blank strip under the last line.
 
     The reservations now belong to the document box whose chrome they make room for,
     rather than to the scroll container. The same CSS disappears with the chrome in
@@ -2126,29 +2133,14 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     with the reservation deleted. The room is what the runtime answers for; the column's
     padding is the theme's to change."""
     page = open_page(browser, serve(LONG_PAGE))
-    room = page.evaluate(CHROME_ROOM)
-    assert room["banner"] > 0 and room["line"] > 0, (
-        f"neither bar is shown, so there is nothing here to reserve for: {room}"
-    )
-    assert abs(room["head"] - room["banner"]) <= 1, (
-        f"the document starts {room['head']:.0f}px down, under a "
-        f"{room['banner']:.0f}px banner"
-    )
-    assert room["foot"] >= room["line"] - 1, (
-        f"the document ends {room['foot']:.0f}px short of its own end, under a "
-        f"{room['line']:.0f}px shortcut bar"
-    )
-
-    # The covering toolbar is taller than the desktop row. A user can cross that
-    # breakpoint by rotating or resizing an already-open page, so the flow reservation
-    # follows the rendered banner in both directions rather than keeping its startup
-    # measurement and either covering the document or leaving a blank strip.
-    for width in (390, 900):
+    for width in (1440, 390):
         resized(page, width, 844)
         room = page.evaluate(CHROME_ROOM)
-        assert abs(room["head"] - room["banner"]) <= 1, (
-            f"after resizing to {width}px, the document reserved {room['head']:.0f}px "
-            f"for a {room['banner']:.0f}px banner"
+        assert room["panel"] > 0, f"no panel is shown to reserve for: {room}"
+        assert room["head"] <= 1, f"the document starts {room['head']:.0f}px down"
+        assert room["foot"] >= room["panel"] - 1, (
+            f"at {width}px the document ends {room['foot']:.0f}px short of its own "
+            f"end, under a {room['panel']:.0f}px panel"
         )
 
     page.emulate_media(media="print")
@@ -2516,13 +2508,11 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    panel_settled(page)
-    expect(page.locator("#fallback-flow svg")).to_be_visible()
+    view = open_panel_thread(page, "c-fix")
+    expect(view.locator("#fallback-flow svg")).to_be_visible()
 
     fit = page.evaluate("""() => {
-        const el = document.getElementById('fallback-flow');
+        const el = document.querySelector('.lf-floating-panel #fallback-flow');
         const holder = el.closest('.lf-msg-body');
         const a = el.getBoundingClientRect(), b = holder.getBoundingClientRect();
         return { widget: a.width, message: b.width, past: a.right - b.right,
@@ -2573,15 +2563,13 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    panel_settled(page)
-    expect(page.locator("#rp-quoted")).to_be_visible()
+    view = open_panel_thread(page, "c-log")
+    expect(view.locator("#rp-quoted")).to_be_visible()
 
     marks = page.evaluate("""() => Object.fromEntries(
         [['sample', '#rp-quoted'], ['gloss', '#rp-quoted lf-gloss'], ['log', '#rp-log'],
          ['room', '#rp-room'], ['choice', '#rp-choice']].map(([name, selector]) => {
-            const el = document.querySelector(selector);
+            const el = document.querySelector('.lf-floating-panel ' + selector);
             return [name, Object.fromEntries(
                 ['data-lf-exhibit', 'data-lf-inline', 'data-lf-bound', 'data-lf-space', 'data-lf-awaits']
                     .filter(attr => el.hasAttribute(attr))
@@ -2889,7 +2877,7 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
 
 
 def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve):
-    """Beside the body, the one block a track holds stays in view below the banner as the
+    """Beside the body, the one block a track holds stays in view at the window's head as the
     body scrolls, scrolls what it holds so its end is reachable, and is the reading
     region its words scroll in; it never reaches over a footer. That holds whatever
     shares the page gives the track. Stacked, whether the window is narrow, the body's
@@ -2911,7 +2899,6 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
       return { top: box('block').top, bottom: box('block').bottom,
                foot: box('foot')?.top ?? Infinity, innerHeight,
                position: getComputedStyle(document.getElementById('block')).position,
-               banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
                scroller: scrollerFor(document.getElementById('follow-up'))?.id ?? null };
     }"""
     in_track = block.replace(
@@ -2997,7 +2984,7 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
         case = (css, widths, track[-30:], at)
         if sticks:
             assert at["position"] == "sticky", case
-            assert at["banner"] <= at["top"] <= at["banner"] + 40, case
+            assert 0 <= at["top"] <= 40, case
             assert at["bottom"] <= at["innerHeight"], case
             assert at["scroller"] == "block", case
             page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
@@ -3349,7 +3336,7 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     page.click("a")
     page.wait_for_url(bare)
     wait_until_ready(page)
-    expect(page.locator(".lf-banner")).to_be_visible()
+    expect(page.locator(".lf-floating-panel")).to_be_visible()
     # The poll is the page's own fetch, relative and query-less: it answers only if the
     # cookie rode along.
     assert page.evaluate("() => fetch('/api/state').then(r => r.status)") == 200
@@ -3357,7 +3344,7 @@ def test_the_handed_over_url_opens_the_latest_version(browser, serve):
     page.reload()
     wait_until_ready(page)
     expect(page).to_have_url(bare)
-    expect(page.locator(".lf-banner")).to_be_visible()
+    expect(page.locator(".lf-floating-panel")).to_be_visible()
 
 
 def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
@@ -3391,7 +3378,7 @@ def test_margin_residents_keep_their_first_painted_posture(
         browser, lambda page: page.route("**/leaf.js", lambda route: held.append(route))
     )
     page = controlled.new_page(viewport={"width": 1440, "height": 900})
-    # This boundary deliberately precedes the module-owned banner/readiness stamp.
+    # This boundary deliberately precedes the module-owned readiness stamp.
     page.goto(live_url(serve(source)), wait_until="commit")
     expect(page.locator("#note")).to_have_css("float", "right")
     page.wait_for_function(

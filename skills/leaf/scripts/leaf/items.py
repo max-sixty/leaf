@@ -2,7 +2,8 @@
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
-A widget source owns identity; context wrappers contribute only prompt words and arrival.
+A widget source owns identity; an enclosing widget (`x-awaits.encloses`) contributes only
+prompt words and arrival.
 The inventory is complete even when a work queue hides a resolved thread or an
 older prompt. To-dos never stand in for these records.
 
@@ -366,7 +367,7 @@ def sections_with_agent(threads: dict) -> set[str]:
     the user has said something about it and waits on the reply, so it leaves
     their list until the agent answers. That is not an answer, since the widget's
     state is untouched, and the item stays open, its controls live. The browser
-    receives the lists this leaves rather than deciding again, so the banner's
+    receives the lists this leaves rather than deciding again, so On me's
     count and `page state` cannot disagree about whose turn it is.
 
     Which kind of thread does not enter into it: a seat's, a quote on the item's
@@ -384,8 +385,8 @@ def discussed(records: list[dict], sections: set[str], within: dict) -> None:
     """Hand each open item a thread anchored on `sections` is about to the agent.
 
     A section is about the innermost item whose widget encloses it, answered or not;
-    failing one, about every item whose prompt target (its framing
-    enclosing widget) is the innermost to enclose it. So a note on one item's
+    failing one, about every item whose prompt target (its enclosing
+    widget) is the innermost to enclose it. So a note on one item's
     option leaves its framed sibling with the user, and one on the frame's heading
     is about them all. `within` is the document's containment (`Passages.enclosing`).
     """

@@ -5,7 +5,7 @@ A workflow is one update the user has handed over that has not yet settled.
 Replying), which the margin, the Page Map and a thread's receipt show. `answer` is
 what the agent owes it: an addressed operation, or null for nothing. Every consumer
 that holds the agent to something — delivery, `page state`, activity counts, the
-Stop hook, `leaf status idle`, and the banner's counts — reads `answer` here rather
+Stop hook, `leaf status idle`, and the panel's counts — reads `answer` here rather
 than deciding again. An update with an answer is owed until that answer is written.
 `activity.turn_obligations` decides how long an owed update holds the agent's turn.
 
@@ -447,7 +447,7 @@ def canonical_workflows(
     # Every widget action the user has handed over keeps its delivery receipt until
     # it settles, whether the widget stands in the page or was frozen into thread
     # markup, and only an action in an answered item is owed an answer. An action on an
-    # ask the user is still answering has not been handed over, so it has no receipt
+    # item the user is still answering has not been handed over, so it has no receipt
     # until the finishing action carries one. The two documents differ only in what
     # settles an action and which operation answers an owed one.
     def page_action(coordinate: tuple, source: dict, spec: dict, owed: bool):

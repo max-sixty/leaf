@@ -42,29 +42,6 @@ LIVE_SAMPLES_PAGE = leaf_page(
 ).replace("</template>", SAMPLE_STARTUP_FAILURE + "</template>")
 
 
-def _touch_drag(cdp, x, y, *, dx=0, dy=0, steps=14):
-    """Send the touch stream a device produces, through Chromium's input boundary."""
-    x, y = round(x), round(y)
-    cdp.send(
-        "Input.dispatchTouchEvent",
-        {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
-    )
-    for step in range(1, steps + 1):
-        cdp.send(
-            "Input.dispatchTouchEvent",
-            {
-                "type": "touchMove",
-                "touchPoints": [
-                    {
-                        "x": x + dx * step // steps,
-                        "y": y + dy * step // steps,
-                    }
-                ],
-            },
-        )
-    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
-
-
 # Whether the page is offering a banner control at all, which is not the same question as
 # whether the user can see it standing on the row. A control with nothing to show is
 # drawn away by the banner's own presence writer (paintPresence, display: none), while one

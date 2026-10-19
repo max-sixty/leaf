@@ -148,10 +148,7 @@ class ThreadSeat {
     for (const descriptor of shown.threads) {
       let view = this.#views.get(descriptor.key);
       if (!view)
-        this.#views.set(
-          descriptor.key,
-          (view = new ThreadView(descriptor.surface, this.#commands)),
-        );
+        this.#views.set(descriptor.key, (view = new ThreadView(this.#commands)));
       view.setMarginControls(this.#marginControls);
       view.present(descriptor);
       if (descriptor.surface !== "margin" && descriptor.resolved && !descriptor.reply)
@@ -263,7 +260,7 @@ function seatFor(host, commands, response = () => null, marginControls = null) {
 function seatReading(threads, surface, commands, response) {
   return Object.freeze({
     threads: Object.freeze(
-      threads.map((thread) => threadReading(thread, surface, commands, {})),
+      threads.map((thread) => threadReading(thread, surface, commands)),
     ),
     surface,
     response: Boolean(response),

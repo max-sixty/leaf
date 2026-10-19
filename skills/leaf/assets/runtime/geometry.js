@@ -23,8 +23,7 @@ import { watchScrolls } from "./arrivals.js";
    `shownRect` clips an element's `shownBox` through scrolling ancestors' visible bands (less the sticky headers stuck over their tops) and the viewport,
    following native positioned containing blocks past intermediate overflow clips,
    then takes away what a declared occluder stands over (`declareOccluder`). It is what a box may be drawn over, which
-   chrome can be: the banner and the shortcut bar are drawn above the page, not cut out
-   of it. `seenRect` holds that to the room the chrome leaves (`shownWindow`), and it is
+   chrome can be: the floating panel is drawn above the page, not cut out of it. `seenRect` holds that to the room the chrome leaves (`shownWindow`), and it is
    the one reading of whether the user can see something.
    `clippedRect` applies that same clipping walk to a box measured some other way for an
    element, and `clippedContents` to a box measured from a Range, starting at the element
@@ -62,21 +61,16 @@ import { watchScrolls } from "./arrivals.js";
    declared items with no visible part on which a mark can land. */
 // Where the page's shell ends on the right — the far edge of the room the document has,
 // which is what a margin resident is placed against and what the response surface may not
-// overhang. The auxiliary surfaces stand over the page and take none of it.
+// overhang. The chrome stands over the page and takes none of it.
 export const shellRight = () => document.body.getBoundingClientRect().right;
 
 // How much of the window the page shows: the visible viewport, less the chrome fixed to
-// its edges: the banner over its head, and the boxes the bottom bar's owner and the
-// floating panel stand. Each stands over the page without clipping it, so no clip walk
-// finds it; its owner declares it here (`declareBanner`, banner.js; `declareWindowChrome`,
-// keyboard/shortcut-bar.js and floating-panel.js), and every reading of the room the page
-// has starts from `bannerFoot` or `shownWindow` rather than measuring the chrome itself.
-//
-// The banner's foot is its painted edge, since its declared height (`--lf-banner-h`) is a
-// safe-area `calc()` whose serialized value is not a number. The other chrome is read as
-// the boxes standing in it rather than as a stated height (`--lf-bottom-bar-h`), because
-// the status rises above a covering panel's foot; each box bounds only the room it
-// stands across, from the edge it stands nearer.
+// its edges, the boxes the floating panel stands. Each stands over the page without
+// clipping it, so no clip walk finds it; its owner declares it here
+// (`declareWindowChrome`, floating-panel.js), and every reading of the room the page has
+// starts from `shownWindow` rather than measuring the chrome itself. The chrome is read
+// as the boxes standing in it rather than as a stated height, and each box bounds only
+// the room it stands across, from the edge it stands nearer.
 //
 // The visible viewport is the part of the window the user sees: pinch zoom and a phone's
 // software keyboard shrink it without resizing the layout viewport the page and its fixed
@@ -87,33 +81,25 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // the window the page scrolls through, for a caller asking whether a scroll has carried
 // something out of the page's room rather than whether the user can see it.
 //
-// Each bar's owner also hands over the elements it draws, and a change of their size is
-// announced as `ROOM_MOVED` (`watchRoom`), as is an occluder's (`declareOccluder`): a
-// coarse pointer arriving deepens the banner's rows, the shortcut bar wraps as its hints
-// change, and a panel opens, shuts or is dragged wider, each with no scroll or resize
-// for a reader to hear.
+// The chrome's owner also hands over the elements it draws, and a change of their size
+// is announced as `ROOM_MOVED` (`watchRoom`), as is an occluder's (`declareOccluder`): a
+// view opens or shuts above the floating panel's row, with no scroll or resize for a
+// reader to hear.
 //
-// Chrome takes room from the page, not from itself: what stands in the banner or in a
-// bar's elements is in the room its own chrome leaves (`item`), as the floating panel's
-// field stands in the row that bar declares. Such a box is in front of the user wherever
-// it is, so it names no place in the page (`inWindowChrome`).
-let banner = null;
+// Chrome takes room from the page, not from itself: what stands in the chrome's elements
+// is in the room its own chrome leaves (`item`), as the floating panel's field stands in
+// the row it declares. Such a box is in front of the user wherever it is, so it names
+// no place in the page (`inWindowChrome`).
 const windowChrome = new Map(); // boxes -> the elements they stand
 const chromeSizes = sizeObserver(() => announceRoom(document));
 const watchChrome = (element) => chromeSizes.observe(element, { box: "border-box" });
-export const declareBanner = (element) => {
-  banner = element;
-  watchChrome(element);
-};
 export const declareWindowChrome = (boxes, elements) => {
   windowChrome.set(boxes, elements);
   elements.forEach(watchChrome);
 };
-const inBanner = (node) => Boolean(node && banner) && under(node, banner);
 const standsIn = (node, elements) =>
   Boolean(node) && elements.some((element) => under(node, element));
 export const inWindowChrome = (node) =>
-  inBanner(node) ||
   [...windowChrome.values()].some((elements) => standsIn(node, elements));
 // Every box the declared window chrome stands now, for a reading that keeps clear of
 // them all, as Go-to's chips and a search's marks do; but for the chrome `item` stands
@@ -122,7 +108,6 @@ export const windowChromeBoxes = (item = null) =>
   [...windowChrome]
     .filter(([, elements]) => !standsIn(item, elements))
     .flatMap(([boxes]) => boxes());
-export const bannerFoot = () => banner?.getBoundingClientRect().bottom ?? 0;
 // The layout viewport's box, less the scrollbars the root draws at its edges, where
 // nothing the page shows stands: `innerWidth` and `innerHeight` count a classic
 // scrollbar. Every reading of the whole window's box starts here, `doc`'s for a sample
@@ -146,8 +131,7 @@ export function shownWindow({
       : { offsetLeft: 0, offsetTop: 0, width: layout.right, height: layout.bottom };
   const left = Math.max(offsetLeft, within?.left ?? -Infinity) + gap;
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
-  const head = inBanner(item) ? -Infinity : bannerFoot();
-  let top = Math.max(offsetTop, head, within?.top ?? -Infinity);
+  let top = Math.max(offsetTop, within?.top ?? -Infinity);
   let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
   const middle = offsetTop + height / 2;
   for (const box of windowChromeBoxes(item)) {
@@ -214,7 +198,7 @@ export function shownBand(el) {
 //
 // `landingBand` is where a landing may put something: the shown band less the
 // `scroll-padding` the scroller declares, which is also what `scrollIntoView` honours.
-// It clears what stands over the whole scroller (the banner, a page tab strip); a header
+// It clears what stands over the whole scroller (a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
 // it stands over. It is also where scroll anchoring looks for the box it keeps still:
 // the spec's optimal viewing region, which Chrome reads from `scroll-padding` too
@@ -252,7 +236,7 @@ export function scrollsContent(box) {
 // stands over (theme.css), so where the `--lf-top` computed at `el` exceeds the
 // scroller's own, headers stand over `el`, and their foot is that value below the
 // scroller's padding edge, where a sticky box is measured from. The root's own value is
-// the banner, which is left to `shownWindow`, so with no header over `el` nothing is
+// the head room, which is left to `shownWindow`, so with no header over `el` nothing is
 // taken. A header that is not stuck stands above its content, so the reading holds
 // whether it is stuck or not, except at the end of what the header stands over, where
 // the header is pushed up with it and the reading still counts its height as covered. A
@@ -531,7 +515,7 @@ export function presented(node) {
 // What this page shows of a sample's frame it holds, in the frame's own viewport
 // coordinates: the frame's `seenRect`, within `within`, the window or what this page's
 // own holder shows of it, or null where the user sees none of it. The sample cannot
-// read this itself: only this page's module knows the banner, bottom bar and occluders
+// read this itself: only this page's module knows the chrome and occluders
 // standing over the frame, which cut it as they cut any of this page's boxes. A page in
 // an ordinary iframe reads only its own window.
 export function frameView(frame, within) {
@@ -558,7 +542,7 @@ export function frameView(frame, within) {
 // is measured against changing size or ending a slide (`ROOM_MOVED`). Returns the call
 // that stops watching.
 const ROOM_MOVED = "lf-room-moved";
-export const announceRoom = (target) =>
+const announceRoom = (target) =>
   target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
 export function watchRoom(callback) {
   const viewport = window.visualViewport;
@@ -594,11 +578,11 @@ export function watchRoom(callback) {
 // `details` both opens or shuts and changes what it holds, so a writer doing both lays
 // out the disclosure first (thread-card.js, an outlet thread settling). The band
 // therefore starts at the landing band's top, wherever the seen top stands. Above it, a
-// change moves only what is under the banner, scrolled past, or in the gap between the
-// banner and the band, which it carries up under the banner; below it, a change pushes
+// change moves only what is scrolled past, or in the gap between the window's head and
+// the band, which it carries up past the head; below it, a change pushes
 // down everything after it, even where the seen top stands lower, as a diff's file
 // header reaches below the root's band and hides the change. Past the seen foot a change
-// moves only what is under the bottom bar or below the window. Only heights count: a
+// moves only what is under the floating panel or below the window. Only heights count: a
 // change hidden sideways, by a clip or a pinch zoom's pan, still moves what follows it.
 // The scroller that anchors is the innermost with more to scroll than it shows, since
 // one that grows with what it holds, such as a code block that scrolls only sideways,
@@ -821,8 +805,8 @@ function clipWalk(item, clips, held) {
   // From the box itself, not from its parent: an element is not clipped by its own
   // overflow — that clips what it holds — so its band is skipped and only its position is
   // read. Its position matters when the item is itself fixed: a fixed box escapes its
-  // ancestors' clips, so in design mode the thread panel the aim resolves is not clipped
-  // away by body's band.
+  // ancestors' clips, so in design mode the floating panel the aim resolves is not
+  // clipped away by body's band.
   // Cross an open shadow boundary through its host. A package surface rendered in a
   // declared shadow stage is still clipped by that host and by the page containers
   // outside it; stopping at the ShadowRoot would let chrome paint where the package
@@ -884,9 +868,8 @@ function clipWalk(item, clips, held) {
   return { cuts, fixed: escaped && !containing };
 }
 
-// A surface that stands over the page without clipping it: the thread panel, over the
-// right of a live page at a desktop window, or a view open in the floating panel, over
-// the page's foot (floating-panel.js). Nothing in the page's own tree says so,
+// A surface that stands over the page without clipping it: a view open in the floating
+// panel, over the page's foot (floating-panel.js). Nothing in the page's own tree says so,
 // since the surface is fixed chrome beside the page rather than an ancestor of what it
 // stands over, so the surface declares itself. The
 // clip walk then takes what it stands over away from any box stacked beneath it, and a
@@ -899,12 +882,9 @@ function clipWalk(item, clips, held) {
 // every pixel of the answer is one the user sees, and a box the occluder reaches into
 // reads as less than whole.
 const occluders = new Set();
-// An occluder on its way out (motion.js, `slide`) covers nothing the user is reading past.
-export const LEAVING = "data-lf-leaving";
-// Whether a declared occluder stands now: rendered, and not on its way out. A
-// disconnected surface has no box, so `checkVisibility` answers for that too.
-const standsNow = (surface) =>
-  !surface.hasAttribute(LEAVING) && surface.checkVisibility();
+// Whether a declared occluder stands now: rendered. A disconnected surface has no box,
+// so `checkVisibility` answers for that too.
+const standsNow = (surface) => surface.checkVisibility();
 // Where an occluder stands, not where its slide has carried it this frame: every declared
 // occluder is fixed to the window or stands in a box that is, so its offsets, summed up
 // to that box, are its viewport box without the slide's transform. Each offset runs
@@ -933,9 +913,7 @@ export const declareOccluder = (surface) => {
   };
 };
 // Where the surface standing at the window's right edge begins, or Infinity where none
-// stands: the side panel, Threads or On, whichever is open (drawers.js). What is
-// laid out beside the page, as the comment box is, keeps left of it, and a margin row it
-// reaches is one the user has lost (chrome-layout.js).
+// stands. What is laid out beside the page, as the comment box is, keeps left of it.
 export function rightCover() {
   const edge = layoutWindow().right;
   let left = Infinity;
@@ -950,18 +928,16 @@ export function rightCover() {
 // destination beside the surface it leaves open, which is the most any movement of
 // the page can show while that surface stands.
 const PAST = Symbol("past");
-export const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
+const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
 // A clip pass that reads past every occluder, for what stands above them all: a list in
-// the top layer still hangs from a trigger the thread panel stands over.
+// the top layer still hangs from a trigger a panel view stands over.
 export const clipsPastSurfaces = () => clipsPast(occluders);
 // Whether an occluder hides a destination, an element or a Range, wherever travel lands
 // it: whether it stands over most of it, asked of what the page's clips leave of the
 // destination. Travel moves a destination along its scroller's block axis only, so a
-// surface standing the whole height of the room the page shows, as a side panel does,
-// covers every place the landing can bring it to, and the question is the inline one:
-// more than half its width. A block the width of the column keeps most of itself clear
-// of the thread panel at a desktop window and is seen where it stands, beside the panel;
-// words at the right end of a line, or a box in the right margin, land under it. One
+// surface standing the whole height of the room the page shows would cover every place
+// the landing can bring it to, and the question would be the inline one: more than half
+// its width. One
 // scrolled out of the window is asked it at its own box, which is where the landing will
 // bring it into view. A surface standing over part of that height, as a view open in the
 // floating panel stands over its foot, covers a destination only where it stands now,

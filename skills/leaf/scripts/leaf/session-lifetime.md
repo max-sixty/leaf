@@ -2,9 +2,9 @@
 
 This file says how Leaf decides who holds a page, what the agent is doing on it, and
 how the user's input reaches the agent's turn. It has three parts. "Page activity" is
-the server's one reading of the agent's work, which the banner, the Stop hook and the
-browser all consume. "Watchers" is how each harness carries input into a turn, and the
-hooks that keep a turn from ending over it. "Lifetime" is how serving, claims and
+the server's one reading of the agent's work, which the page's status, the Stop hook
+and the browser all consume. "Watchers" is how each harness carries input into a
+turn, and the hooks that keep a turn from ending over it. "Lifetime" is how serving, claims and
 services begin and end. The Codex transports' delivery records and App Server
 observation belong to `codex.py`, `codex_adapter.py` and `codex_state.py`, whose
 headers state them.
@@ -65,12 +65,12 @@ working independently of how far newer input has progressed. A harness-observed 
 on the user in its own window, such as an approval or a question, is observed work
 that lasts as long as its observer does. Delivery opened into the claimant's running
 turn also proves generic activity before its first start; the receipt itself remains
-Picked up. The banner's line is the newest start's, among the items still in hand.
+Picked up. The status's line is the newest start's, among the items still in hand.
 `counts.overdue` counts the owed updates that stalled with the agent to act: still
 Sent past the pickup grace, or left by a turn that ended or was interrupted before
-answering. Over an `away` page, they are when the banner asks the user to nudge the
-session. The banner consumes this same reading and presents delivery counts
-separately; the Pages drawer consumes each serving page's own canonical publication.
+answering. Over an `away` page, they are when the status asks the user to nudge the
+session. The floating panel consumes this same reading and presents delivery counts
+separately; its All pages view consumes each serving page's own canonical publication.
 
 Observed App Server activity refines the page's work and never a message's. The App
 Server observer retains typed `working`, `thinking`, `tool`, `replying`,
@@ -235,8 +235,8 @@ or the host:
   an Escape until the user next types, Claude Code drops a plugin's prompt (measured
   at 2.1.300), so for a dropped one the module sends a WakeRefused payload and Leaf
   nudges the session as admission would (`session.nudge_pending`). A watch that
-  wakes during a turn calls the prompt hook itself and appends its context to
-  that turn, which reads it at its next step. An interrupted turn runs no Stop hook,
+  wakes during a turn leaves pending input to the native PostToolBatch boundary.
+  An interrupted turn runs no Stop hook,
   but the module still sees it end, so it starts the watch with the Interrupt payload,
   as Pi's extension does. Claude Code prints a Stop hook's context in the user's
   terminal, so the module moves a delivery the Stop hook hands over into the session
@@ -277,8 +277,8 @@ offered, accepted and receipted, and how an App Server client binds a turn's rep
 
 The `hook` command keeps a turn from ending while the turn leaves one of this
 session's pages unwatched or a delivered update unanswered and unstarted. It is
-registered on SessionStart/resume, Stop, UserPromptSubmit, SessionEnd, and Codex's
-PostToolUse and Interrupt, and Leaf's Pi extension (`hooks/pi.ts`) calls it at the
+registered on SessionStart/resume, Stop, UserPromptSubmit, SessionEnd,
+Claude Code's PostToolBatch, and Codex's PostToolUse and Interrupt, and Leaf's Pi extension (`hooks/pi.ts`) calls it at the
 accepted run boundaries. An unwatched page is one whose watcher is a process of its
 own; Claude Code's watch is its next Stop hook. The hook also stamps that turn's
 ending and the next one's opening, surfaces unacknowledged user events at the next
@@ -305,8 +305,12 @@ background (`asyncRewake`) as the session's watch between turns
 startup or application failures retain stderr and return nonblocking exit 1.
 Cancellation stays quiet. Where the user turns on the plugin's `hooks_module` option
 and Claude Code loads hooks modules, Leaf's module (`hooks/claude-code.ts`) runs the
-watch itself and marks the Stop payload it passes on, and the registration given a
-marked payload stands down (`hooks/scripts/background-watch.py`). Pi opens its
+watch itself and marks the Stop payloads it passes on. Both Stop registrations
+stand down (`hooks/scripts/background-watch.py`); the native PostToolBatch hook
+owns mid-turn delivery under either watcher, and a module wake during a turn
+leaves its input there rather than capturing a second delivery.
+Claude Code's worker tool batches name their parent session with a native
+`agent_id`, and the hook leaves that session's input to the parent. Pi opens its
 lifecycle with `TurnStart` only after the SDK accepts the run. That hook reads no page
 and receives no input. Accepted incoming messages are finalized with context before
 the first model request; later live turn boundaries return persisted context entries.

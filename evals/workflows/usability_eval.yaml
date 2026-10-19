@@ -518,7 +518,7 @@ cases:
 
           watch_left_to_leaf (the complete native trace): Throughout this live scenario, the agent left watching for later user input to Leaf rather than launching its own background wait or polling loop. Judge what the tools actually started, including renamed launchers, variables and wrappers. Reading help, quoting a wait command, and failed attempts that started nothing are allowed.
 
-          detail_names_ask (the final canonical page, state and agent replies): This status, shown while the page waits on the user, says what it waits for: their choice of how the backfill copy runs.
+          detail_names_item (the final canonical page, state and agent replies): This status, shown while the page waits on the user, says what it waits for: their choice of how the backfill copy runs.
 
           gesture_named (the final canonical page, state and agent replies): The message tells the user how to make the decision on the page: by picking, choosing or selecting one of its options.
 

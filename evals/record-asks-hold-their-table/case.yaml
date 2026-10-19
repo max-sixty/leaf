@@ -3,7 +3,7 @@
 description: record-asks-hold-their-table
 metadata:
   purpose:
-    "Asks: on a record page, an Ask that turns on a measurement holds the measured table inside
+    "Asks: on a record page, an `lf-ask` that turns on a measurement holds the measured table inside
     the lf-ask, and long backing follows it."
   tags:
     - asks

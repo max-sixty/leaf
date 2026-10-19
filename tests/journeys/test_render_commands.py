@@ -34,7 +34,6 @@ from render_harness import (
     leaf_page,
     open_page,
     page_registry,
-    shortcut_bar_text,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -579,10 +578,6 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
     expect(before_caption).to_have_attribute("aria-pressed", "false")
     expect(after_caption).to_have_attribute("aria-pressed", "false")
-    before_caption.focus()
-    assert "show before" in shortcut_bar_text(page)
-    after_caption.focus()
-    assert "show after" in shortcut_bar_text(page)
     after_caption.click()
     expect(comparison).to_have_attribute("position", "0")
     expect(before_caption).to_have_attribute("aria-pressed", "false")
@@ -593,7 +588,6 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     )
     # A selectable caption owns Space even at its current endpoint so it cannot
     # fall through to browser scrolling (the widget's existing command contract).
-    assert "show after" in shortcut_bar_text(page)
     after_caption.focus()
     page.evaluate("() => { document.scrollingElement.scrollTop -= 120; }")
     expect(after_caption).to_be_in_viewport()
@@ -630,7 +624,6 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
 
     handle.focus()
     expect(handle).to_be_focused()
-    assert "adjust the comparison" in shortcut_bar_text(page)
     page.keyboard.press("ArrowLeft")
     expect(comparison).to_have_attribute("position", "99")
     expect(handle).to_have_attribute("aria-valuetext", "Before 99%, after 1%")

@@ -44,7 +44,7 @@
  * while any item the panel holds is unanswered, and once every one is answered a check, with
  * the answer's own words where the panel holds one item. So a queue shows each item's state
  * and how far the user has worked through it, and an undo that reopens an item puts the
- * open mark back. Which asks a panel holds is `itemsIn` (items/place.js), read from the
+ * open mark back. Which items a panel holds is `itemsIn` (items/place.js), read from the
  * admitted item inventory, so a tally of the queue counts the same items. A row whose panel
  * authors an item keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
@@ -128,7 +128,7 @@ customElements.define(
   "lf-tabs",
   class extends HTMLElement {
     #buttons = new Map(); // panel → its strip button
-    #stopAsks = null;
+    #stopItems = null;
     #active = null;
     #root = false;
     #contextObserver = null;
@@ -312,7 +312,7 @@ customElements.define(
         this.#replaceLocation(this.#active);
       }
       // The Δ count follows the version diff; the runtime announces each toggle.
-      this.#listenForAsks();
+      this.#listenForItems();
       watchComparison(this, () => this.#marks());
       whileConnected(this, (signal) => {
         this.#watchRootContext();
@@ -415,9 +415,9 @@ customElements.define(
     }
 
     // A side list's answers follow the page's item reading.
-    #listenForAsks() {
-      if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
-      this.#stopAsks = watchProjection(this, () => this.#marks());
+    #listenForItems() {
+      if (!this.#side || !this.#buttons.size || this.#stopItems) return;
+      this.#stopItems = watchProjection(this, () => this.#marks());
     }
 
     #activate(active, reason) {

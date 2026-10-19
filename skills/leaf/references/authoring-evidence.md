@@ -26,15 +26,16 @@ measurement, and plain HTML for numbers with no repeatable source.
 Introduce each interaction in the page's own words, such as that a board takes a drag
 or an options group a click, rather than copying the sentence from another page.
 
-Use `lf-diagram` for Mermaid diagrams. It ships in the `diagram` package, so create the
-page with `leaf page init --package diagram <page>`. `page check --render` reports
+Use `lf-diagram` for Mermaid syntax rendered by Pele. It ships in the `diagram`
+package, so create the page with `leaf page init --package diagram <page>`.
+`page check --render` reports
 syntax errors and empty drawings; look at each rendered diagram to check it shows the
 relationships it should. Without visual access, check the source's labels and edges
 against the claims, state those claims in prose or a table beside it, and report the
 diagram as unchecked (`page-checkpoints.md`, "Pre-handover review").
 
-Draw what Mermaid's automatic layout can't place, such as a page layout, a wireframe or
-a thumbnail inside an option, as the `svg.drawing` idiom in a `<figure>` with an `id`,
+Draw what automatic layout can't place, such as a page layout, a wireframe or a
+thumbnail inside an option, as the `svg.drawing` idiom in a `<figure>` with an `id`,
 with `data-width="wide"` when it needs the room. The figure scales the drawing to its
 width, labels included, so make the `viewBox` close to the width it is shown at: 1600
 units in a 720px column draw an 11px label at 5px. `page check --render` names the
@@ -114,6 +115,8 @@ and every thread that quotes it. To keep evidence exactly as it was reviewed, gi
 its own source id, such as `pr-patch-8f61c2a` for one commit's patch, and never write to
 that id again. Evidence that should follow later `data set` calls shares one id. Add
 `collapsed` to a large `lf-diff` so each file starts closed.
+Markdown and plain-text files wrap long lines by default. For a patch where all files
+should share one mode, set `overflow="wrap"` or `overflow="scroll"` on `lf-diff`.
 
 Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for images,
 video and audio; never inline media bytes. To let the reader zoom into an image, link it

@@ -12,9 +12,9 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, REPORT_PAGE, live_url
-from render_cases_layout import banner_control
 from render_cases_navigation import CHIPS, _publish, address_code, go_to_address
 from render_harness import (
+    PANEL,
     RELEASE_FOCUS,
     compare_with,
     draft_control,
@@ -22,6 +22,8 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    panel_control,
+    panel_settled,
     regions_side_by_side,
     resized,
     scroll_settled,
@@ -83,7 +85,8 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
         browser, serve(DUPLICATE_REGION_PAGE, events=DUPLICATE_REGION_COMMENTS)
     )
     resized(page, 390, 760)
-    banner_control(page, ".lf-page-map-toggle").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
 
     headings = dialog.get_by_role("heading", level=3)
@@ -300,7 +303,6 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     expect(dialog).to_be_visible()
     assert page.evaluate("() => window.lfCanonicalActivations") == []
     status.focus()
-    page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.get_by_role("dialog", name="Command reference", exact=True)
     reference.get_by_role("combobox", name="Search commands").fill("margin.press")
@@ -669,14 +671,19 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
 
 def test_the_chrome_names_an_item_by_its_question(browser, serve):
     """An item is named by its heading, not its heading run into its options and their
-    chips: the On panel row, and the Page Map group for it, whose one row says why the
-    item is there rather than naming it a second time."""
+    chips: the card in the panel's On me view, and the Page Map group for it, whose one
+    row says why the item is there rather than naming it a second time."""
     page = open_page(browser, serve(ITEM_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    row = page.locator("button.lf-queue-row").first
-    expect(row).to_contain_text("Which jobs are worth starting?")
-    expect(row).not_to_contain_text("Replace the")
+    panel_settled(page, view="queue")
+    row = page.locator(
+        '.lf-fp-view[data-view="queue"]:not([data-leaving]) .lf-fp-on-item'
+    ).first
+    # The card names the Ask by its question; its options stand below as answers.
+    expect(row.locator(".lf-fp-on-title, .lf-fp-prompt").first).to_have_text(
+        "Which jobs are worth starting?"
+    )
     page.keyboard.press("Escape")
 
     page.keyboard.press("g")
@@ -1007,49 +1014,42 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
     expect(marker).not_to_be_focused()
 
 
-@pytest.mark.parametrize("opener", ["keyboard", "pointer"])
+@pytest.mark.parametrize("opener", ["keyboard", "finger"])
 def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, opener):
     """Where the rail falls the markers are pins, small targets over the content, and
-    the banner offers the whole map as a touch-sized index beside them."""
+    the whole map opens as a touch-sized index beside them: by `g Shift+P`, or for a
+    finger, which has no keys, from the leaf's menu under Navigate."""
+    context = (
+        browser.new_context(
+            viewport={"width": 390, "height": 760}, has_touch=True, is_mobile=True
+        )
+        if opener == "finger"
+        else None
+    )
     page = open_page(
-        browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
+        browser,
+        serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM]),
+        context=context,
     )
     resized(page, 390, 760)
     margins_laid_out(page)
     expect(
         page.locator('.lf-margin-cluster[data-lf-place="pin"]').first
     ).to_be_visible()
-    toggle = page.locator(".lf-page-map-toggle")
-    expect(toggle).to_have_text(re.compile(r"Map \(\d+\)"))
-    toggle = banner_control(page, ".lf-page-map-toggle")
-    expect(toggle).to_be_visible()
-    text_insets = page.locator(".lf-banner-actions > .lf-btn:visible").evaluate_all(
-        """buttons => buttons.map(button => {
-          const box = button.getBoundingClientRect();
-          const range = document.createRange();
-          range.selectNodeContents(button);
-          const text = range.getBoundingClientRect();
-          return {label: button.textContent.trim(),
-                  above: text.top - box.top, below: box.bottom - text.bottom};
-        })"""
-    )
-    assert text_insets
-    for inset in text_insets:
-        assert inset["above"] == pytest.approx(inset["below"], abs=1.5), (
-            f"{inset['label']} is not vertically centred in the compact banner: {inset}"
-        )
 
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     if opener == "keyboard":
         page.keyboard.press("g")
-        expect(page.locator(".lf-shortcut-bar")).to_contain_text("Page Map")
         page.keyboard.press("Shift+p")
     else:
-        toggle.click()
+        panel_control(page, "map", at="navigate").tap()
     dialog = page.locator(".lf-page-map-dialog")
     expect(dialog).to_be_visible()
+    # A finger arrives on the first row, where a soft keyboard would cover the list.
     expect(
-        dialog.get_by_role(
+        dialog.locator("button.lf-page-map-action").first
+        if opener == "finger"
+        else dialog.get_by_role(
             "searchbox", name="Find an action, status, or location in Page Map"
         )
     ).to_be_focused()
@@ -1071,15 +1071,18 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
         if violation["impact"] in {"serious", "critical"}
     ] == []
 
-    # A modal's parent is the page it stands over, so Escape lands the user there
-    # whichever door opened the dialog. The banner overflow the pointer went through
-    # folds with it rather than standing open behind it, promising a door the user has
-    # already been through.
+    # Escape hands the user back where they opened the dialog: the page for `g
+    # Shift+P`, the leaf for its menu's row, which went with the menu. The menu the
+    # finger went through folds with the dialog rather than standing open behind it,
+    # promising a door the user has already been through.
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
-    assert page.evaluate("() => document.activeElement === document.body")
+    if opener == "finger":
+        expect(page.locator(".lf-fp-leaf")).to_be_focused()
+    else:
+        assert page.evaluate("() => document.activeElement === document.body")
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
-    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+    expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
 
 
 def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, serve):
@@ -1088,7 +1091,8 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
         browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
     )
     resized(page, 390, 760)
-    banner_control(page, ".lf-page-map-toggle").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
     expect(dialog).to_be_visible()
 
@@ -1097,7 +1101,6 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
     expect(
         page.locator('.lf-margin-cluster[data-lf-place="rail"]').first
     ).to_be_visible()
-    expect(page.locator(".lf-page-map-toggle")).to_be_hidden()
     expect(dialog).to_be_visible()
     # The item stands once, under the row saying where its answer has got to.
     expect(dialog.locator(".lf-page-map-action")).to_have_count(4)
@@ -1118,7 +1121,8 @@ def test_an_open_small_screen_map_reconciles_arriving_meanings(browser, serve):
         browser, serve(ITEM_PAGE, events=[ACTION_ON_ITEM, COMMENT_ON_ITEM])
     )
     resized(page, 390, height)
-    banner_control(page, ".lf-page-map-toggle").click()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
     actions = dialog.locator(".lf-page-map-action")
     expect(actions).to_have_count(4)
@@ -1205,8 +1209,8 @@ def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, ser
     expect(
         page.locator('.lf-margin-marker[data-lf-kinds~="change"]')
     ).not_to_have_count(0)
-    banner_control(page, ".lf-version").click()
-    page.locator('.lf-version-diff[data-lf-version="1"]').click()
+    # Pressing the same Compare again ends the comparison.
+    compare_with(page, 1)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="change"]')).to_have_count(0)
 
 

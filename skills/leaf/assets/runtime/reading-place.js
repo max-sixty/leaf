@@ -281,7 +281,7 @@ export function openingPassage(where) {
 
 // What the reader can see of a region, or with none given of the page: null where they
 // see none of it. A flowing region is read through the part of the window the page
-// shows: a line hidden under the banner is not where the user is.
+// shows: a line hidden under the chrome is not where the user is.
 function readingBounds(region) {
   const shown = region ? shownRegionBounds(region) : shownWindow();
   if (!shown) return null;
@@ -471,7 +471,7 @@ function drawnAt(body, box, x, edge, blocks) {
 export function capturePlace(region = null, blocks = textBlocks()) {
   const box = region ? effectiveScroller(region) : pageScroller;
   // Places are measured from the top of the box's landing band, below whatever covers
-  // its top edge (the page's banner), so a region handed from the page to its own body
+  // its top edge (the window's head room), so a region handed from the page to its own body
   // keeps the landmark at the same distance below what the user can see. A box a move
   // left off its aim by its rounding is read as if it stood at the aim (scrolling.js,
   // `aimedTop`).

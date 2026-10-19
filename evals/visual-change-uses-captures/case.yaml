@@ -17,13 +17,13 @@ vars:
     users clicked it and nothing happened. The fix paints enabled Save in the accent colour
     and disabled Save at 40% opacity.
 
-    Ask. Approve the new states, or keep the old ones.
+    Decision. Approve the new states, or keep the old ones.
 
     Captures, same viewport and state:
     - evals/visual-change-uses-captures/captures/before.png: the form with Save disabled and enabled, before (1200x700)
     - evals/visual-change-uses-captures/captures/after.png: the same, after (1200x700)
 
-    Write the Leaf page with the finding and the Ask.
+    Write the Leaf page with the finding and the decision.
 assert:
   - type: javascript
     metric: pair-in-one-lf-shot

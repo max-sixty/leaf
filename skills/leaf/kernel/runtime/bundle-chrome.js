@@ -57,6 +57,9 @@ import {
   watchArrivals
 } from "./bundle-page-paint.js";
 import {
+  documentChanged
+} from "./bundle-semantic-state.js";
+import {
   PRESSES,
   WORKS,
   keeps,
@@ -78,6 +81,9 @@ import {
 var chromeRoot = document.createElement("div");
 chromeRoot.className = "lf-chrome";
 var chromeForeground = document.createElement("dialog");
+chromeForeground.className = "lf-ui lf-foreground";
+chromeForeground.setAttribute("open", "");
+chromeForeground.setAttribute("role", "presentation");
 
 // runtime/visual-parts.js
 var registrations = /* @__PURE__ */ new WeakMap();
@@ -269,6 +275,14 @@ var resolvedPassage = ({ place, segments }) => ({
   place,
   segments
 });
+var resolvedInMessage = ({ message }) => ({
+  exact: true,
+  status: "exact",
+  datumElement: null,
+  kind: "message",
+  message,
+  place: null
+});
 var targetElement = (resolved) => resolved?.kind === "element" ? resolved.element : null;
 var targetSegments = (resolved) => resolved?.kind === "passage" ? resolved.segments : [];
 var targetPlace = (resolved) => resolved?.place ?? null;
@@ -321,6 +335,7 @@ var projectedDatum = (source, key) => {
 };
 function datumLabel(anchor) {
   if (!anchor?.datum) return "";
+  documentChanged();
   const source = sectionOf(anchor);
   const datums = currentDatums(
     source,
@@ -1452,6 +1467,7 @@ function anchorView(node, target, changed) {
 export {
   chromeRoot,
   chromeForeground,
+  resolvedInMessage,
   targetElement,
   targetSegments,
   targetPlace,
@@ -1500,7 +1516,6 @@ export {
   boundedBlockOf,
   holdArrivingBounds,
   elementFrame,
-  elementBorderFrame,
   scrollAxes,
   localScrollBy,
   anchorReading,

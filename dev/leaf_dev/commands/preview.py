@@ -36,9 +36,10 @@ actually changed; identical saves leave the browser and server alone. A source o
 (a vendored file, the runtime's Python, its lock)
 re-vendors through `page init`, which mints a new layer generation the browser follows
 into a fresh document. A refused update is printed and retried after the next edit.
-Fixture history, data and earlier versions initialize a fresh slot. Live updates
-follow current markup, page-owned files, media and the runtime; restarting a user
-preview preserves the history and data its page already holds.
+Fixture history, literal data seeds and earlier versions initialize a fresh slot.
+Live updates follow current markup, page-owned files, captured data files, media
+and the runtime; restarting preserves the page's history and current seed data,
+while captures continue following their authored companion declarations.
 
     uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
         [--slot NAME] [--user] [--export]
@@ -77,7 +78,13 @@ from leaf_dev.commands.distribution import (
     cached_installation,
     compiler_root,
 )
-from leaf_dev.example_data import named_source, page_files
+from leaf_dev.example_data import (
+    capture_file,
+    data_companion,
+    data_file,
+    named_source,
+    page_files,
+)
 from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
@@ -90,6 +97,7 @@ from leaf_dev.page_fixtures import (
     prepare_page,
     read_fixture,
     record_run_context,
+    refresh_captures,
     source_manifest,
     source_manifest_candidates,
     source_packages,
@@ -525,6 +533,11 @@ def refresh_preview(
                 )
         else:
             refresh_media(source, page, partial(leaf, launcher, runtime))
+        refresh_captures(
+            read_fixture(source, runtime=launcher.parent.parent),
+            page,
+            partial(leaf, launcher, runtime),
+        )
         state["authored"] = incoming_digest
         mark_preview(source, page, runtime, service.user, state["authored"])
         if service.user:
@@ -592,6 +605,12 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
         path.resolve()
         for path in (
             source,
+            data_file(source),
+            *(
+                capture_file(source, spec)
+                for spec in data_companion(source).get("$captures", {}).values()
+                if "asset" not in spec
+            ),
             *composition_inputs(source),
             companions,
             *companions.rglob("*"),

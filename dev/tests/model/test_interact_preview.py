@@ -17,6 +17,7 @@ import shutil
 import socket
 import subprocess
 import sys
+from functools import partial
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -993,7 +994,87 @@ def test_fixture_captures_use_the_selected_runtime_producer(
     )
     fixture = read_fixture(source, runtime=runtime, env=consumer_env)
     assert fixture.data == (
-        {"source": "patch", "value": {"producer": "selected arm", "patch": patch}},
-        {"source": "notes", "value": "second\n"},
-        {"source": "written", "value": "Authored value"},
+        {
+            "kind": "capture",
+            "source": "patch",
+            "value": {"producer": "selected arm", "patch": patch},
+        },
+        {"kind": "capture", "source": "notes", "value": "second\n"},
+        {"kind": "seed", "source": "written", "value": "Authored value"},
     )
+
+
+def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_seeds(
+    tmp_path,
+):
+    """A retained page adopts new capture names and later edits to their files.
+
+    The source and value publication use the same real refresh as a resumed or
+    live preview; a literal seed edited on the page remains that page's data.
+    """
+    from leaf.data import read_data
+    from leaf.publishing import authored_digest
+    from leaf.registry.storage import load_registry
+    from leaf_dev.commands.distribution import cached_installation
+
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head><body><main>"
+        '<h1>Reading</h1><lf-text-document id="capture" source="before"></lf-text-document>'
+        '<lf-text-document id="notes" source="notes"></lf-text-document></main></body></html>'
+    )
+    (tmp_path / "layer.json").write_text('["default"]')
+    captured = tmp_path / "code.txt"
+    captured.write_text("First capture")
+    companion = source.with_suffix(".data.json")
+    companion.write_text(
+        json.dumps(
+            {"$captures": {"before": {"file": "code.txt"}}, "notes": "Initial seed"}
+        )
+    )
+    installed = cached_installation(ROOT)
+    run_leaf = partial(preview.leaf, installed / "bin/leaf", ROOT)
+    page = tmp_path / "page"
+    prepare_page(page, read_fixture(source, runtime=installed), run_leaf)
+    state = {"authored": authored_digest(preview.incoming_files(source))}
+    run_leaf("data", "set", str(page), "notes", input_text=json.dumps("Page edit"))
+    retained_log = (page / "events.jsonl").read_bytes()
+
+    # This is the existing-slot path: its old data remains while the new fixture
+    # binds a different source. Seeds must not overwrite the page's current data.
+    source.write_text(source.read_text().replace('source="before"', 'source="after"'))
+    companion.write_text(
+        json.dumps(
+            {"$captures": {"after": {"file": "code.txt"}}, "notes": "Replacement seed"}
+        )
+    )
+    service = preview.PreviewService(page, False)
+    try:
+        assert preview.refresh_preview(
+            source, page, installed / "bin/leaf", ROOT, state, service
+        )
+        values = read_data(page, load_registry(page))["sources"]
+        assert values["after"]["value"] == "First capture"
+        assert values["before"]["value"] == "First capture"
+        assert values["notes"]["value"] == "Page edit"
+        run = values["after"]["run"]
+        watched = preview.watch_paths(source, ROOT, [])
+        assert watched.relevant(str(companion))
+        assert watched.relevant(str(captured))
+
+        captured.write_text("Edited capture")
+        assert preview.refresh_preview(
+            source, page, installed / "bin/leaf", ROOT, state, service
+        )
+        values = read_data(page, load_registry(page))["sources"]
+        assert values["after"]["value"] == "Edited capture"
+        assert values["after"]["run"] != run
+        assert values["notes"]["value"] == "Page edit"
+        run = values["after"]["run"]
+        assert preview.refresh_preview(
+            source, page, installed / "bin/leaf", ROOT, state, service
+        )
+        assert read_data(page, load_registry(page))["sources"]["after"]["run"] == run
+        assert (page / "events.jsonl").read_bytes().startswith(retained_log)
+    finally:
+        service.stop()

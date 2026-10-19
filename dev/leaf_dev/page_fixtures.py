@@ -242,6 +242,32 @@ def _seed_data(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> None:
         )
 
 
+def refresh_captures(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> None:
+    """Publish changed authored captures without replaying the page's seed data.
+
+    `$captures` names the fixture files that remain authoritative. Literal
+    companion values are initial state, so a resumed or live preview preserves
+    what the page now holds there. Unchanged captures retain their run receipts;
+    sources no longer captured remain available to historical revisions.
+    """
+    from leaf.data import read_data
+    from leaf.registry.storage import load_registry
+
+    current = read_data(page, load_registry(page))["sources"]
+    for operation in fixture.data:
+        if operation["kind"] != "capture":
+            continue
+        held = current.get(operation["source"])
+        if held is None or "value" not in held or held["value"] != operation["value"]:
+            run_leaf(
+                "data",
+                "set",
+                str(page),
+                operation["source"],
+                input_text=json.dumps(operation["value"]),
+            )
+
+
 def _seed_log(fixture: PageFixture, page: Path) -> None:
     if fixture.seed is None:
         return

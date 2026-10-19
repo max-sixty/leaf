@@ -200,10 +200,15 @@ def capture_file(source: Path, spec: dict) -> Path:
 def data_operations(
     source: Path, *, runtime: Path = ROOT, env: dict[str, str] | None = None
 ) -> list[dict]:
-    """Every source value one example sets: captures first, then written values."""
+    """Every source value an example sets, with captures distinguished from seeds.
+
+    A capture remains authored input whose file a preview follows. A written
+    value initializes the page once, after which the page owns its current data.
+    """
     document = data_companion(source)
     captures = [
         {
+            "kind": "capture",
             "source": name,
             "value": captured_value(
                 capture_file(source, spec), spec, runtime=runtime, env=env
@@ -213,5 +218,8 @@ def data_operations(
     ]
     return [
         *captures,
-        *({"source": name, "value": value} for name, value in document.items()),
+        *(
+            {"kind": "seed", "source": name, "value": value}
+            for name, value in document.items()
+        ),
     ]

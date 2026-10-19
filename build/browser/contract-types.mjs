@@ -6,18 +6,23 @@
  * detail stays open: the page's registry, rather than the kernel, owns it.
  *
  * The served state refers to an event record as `leaf:event` (any kind) or
- * `leaf:event/<kind>`, optionally with a pointer to one of its properties, and to its
- * own definitions as `#/$defs/<Name>`, each of which becomes `Served<Name>`. An object
+ * `leaf:event/<kind>`, optionally with a pointer to one of its properties, to an x-state
+ * verb as `leaf:verb`, which becomes `ServedVerb` from the layer schema's
+ * `VERB_SCHEMA`, and to its own definitions as `#/$defs/<Name>`, each of which becomes
+ * `Served<Name>`. An object
  * closed with `unevaluatedProperties` reads as closed, as one with
  * `additionalProperties: false` does.
  */
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 const ANNOTATIONS = new Set(["description", "title", "$schema", "$id", "$comment"]);
 
 function reference(ref) {
   const own = /^#\/\$defs\/([A-Za-z]+)$/.exec(ref);
   if (own) return `Served${own[1]}`;
+  if (ref === "leaf:verb") return "ServedVerb";
   const event = /^leaf:event(?:\/([a-z_]+))?(?:#\/properties\/([a-z_]+))?$/.exec(ref);
   if (!event) throw new Error(`Unsupported schema reference: ${ref}`);
   const [, kind, field] = event;
@@ -139,17 +144,35 @@ function eventTypes(registry) {
   return `export interface EventMap {\n${records.join("\n")}\n}\ntype Keys<T> = T extends unknown ? keyof T : never;\nexport type CompleteUnion<T, Whole = T> = T extends unknown ? T & Partial<Record<Exclude<Keys<Whole>, keyof T>, never>> : never;\nexport type Event = CompleteUnion<EventMap[keyof EventMap]>;\nexport interface BrowserCommandMap {\n${browser.join("\n")}\n}\nexport type BrowserCommand = CompleteUnion<BrowserCommandMap[keyof BrowserCommandMap]>;\n`;
 }
 
-function servedTypes(schema) {
+function servedTypes(schema, verb) {
   const { $defs, ...state } = schema;
-  const definitions = Object.entries($defs).map(
+  const definitions = Object.entries({ ...$defs, Verb: verb }).map(
     ([name, definition]) => `export type Served${name} = ${typeOf(definition)};`,
   );
   return `${definitions.join("\n")}\nexport type ServedState = ${typeOf(state)};\n`;
+}
+
+// The x-state verb's schema, whose home is Python's layer schema (`schema.VERB_SCHEMA`),
+// built there from the name patterns the rest of the layer schema shares.
+function verbSchema(root) {
+  return JSON.parse(
+    execFileSync(
+      "uv",
+      [
+        "run",
+        "--quiet",
+        "python",
+        "-c",
+        "import json; from leaf.schema import VERB_SCHEMA; print(json.dumps(VERB_SCHEMA))",
+      ],
+      { cwd: fileURLToPath(root), encoding: "utf8" },
+    ),
+  );
 }
 
 export async function contractTypes(root) {
   const read = async (file) => JSON.parse(await readFile(new URL(file, root)));
   const registry = await read("skills/leaf/assets/registry.json");
   const served = await read("skills/leaf/scripts/leaf/served_state/state.schema.json");
-  return `/* @noformat Generated from registry.json and state.schema.json by build/browser/contract-types.mjs. */\n${eventTypes(registry)}${servedTypes(served)}`;
+  return `/* @noformat Generated from registry.json, state.schema.json and schema.VERB_SCHEMA by build/browser/contract-types.mjs. */\n${eventTypes(registry)}${servedTypes(served, verbSchema(root))}`;
 }

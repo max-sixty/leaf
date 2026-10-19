@@ -18,14 +18,19 @@ type Records<T> = T extends readonly (infer Item)[]
     ? T
     : never;
 // Each field, at any depth, that the vendored records name and the current ones lost.
-// `Walked` holds the vendored records the walk passed through, so a record that holds
-// its own kind, such as a plan step's steps, is walked once and the walk ends there.
+// `Walked` holds each pair of vendored and current records the walk compared, so a
+// record that holds its own kind, such as a plan step's steps, ends the walk once its
+// pair comes round again, and a current record that differs there is still compared.
 type Lost<Old, New, Walked extends unknown[] = []> = Old extends unknown
-  ? Among<Old, Walked> extends true
+  ? Among<[Old, New], Walked> extends true
     ? never
     : {
         [K in Keys<Old>]: K extends Keys<New>
-          ? Lost<Records<Field<Old, K>>, Records<Field<New, K>>, [...Walked, Old]>
+          ? Lost<
+              Records<Field<Old, K>>,
+              Records<Field<New, K>>,
+              [...Walked, [Old, New]]
+            >
           : K;
       }[Keys<Old>]
   : never;

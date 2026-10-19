@@ -755,12 +755,14 @@ def stamp(d, text="stamped", completes=()):
 def _served_state_validators() -> dict:
     """`served_state/state.schema.json` with the kernel's event records composed in
     under the `leaf:event` names it refers to them by, each open so the objects that add
-    served fields to one close it again (the schema's own description). Keyed by what
+    served fields to one close it again (the schema's own description), and the x-state
+    verb (`schema.VERB_SCHEMA`) as `leaf:verb`. Keyed by what
     is checked: a complete `/api/state` answer (`answer`), the `Reading` a fold returns
     before the serving route adds its neighbors and token, or a `/api/view` answer
     (`ViewAnswer`)."""
     from leaf.registry.kernel import kernel_event_kinds
     from leaf.registry.schema import json_validator
+    from leaf.schema import VERB_SCHEMA
 
     schema = json.loads(
         Path(served_page.__file__).with_name("state.schema.json").read_text()
@@ -780,6 +782,7 @@ def _served_state_validators() -> dict:
         "$id": "leaf:event",
         "anyOf": [{"$ref": identity} for identity in sorted(records)],
     }
+    records["leaf:verb"] = {"$id": "leaf:verb", **VERB_SCHEMA}
     defs = {**schema["$defs"], **records}
 
     def definition(name: str) -> dict:

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://leaf.page/schema/served-state.json",
   "title": "Served state",
-  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`), which `protocol.test.ts` holds to the type pages vendored at the current protocol read. `leaf:event` refers to any kernel event record and `leaf:event/<kind>` to one kind's, as `$events.kinds` in skills/leaf/assets/registry.json declares them; whoever reads this schema composes those in, each record open so that an object here adding served fields to it closes it again with `unevaluatedProperties`.",
+  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`), which `protocol.test.ts` holds to the type pages vendored at the current protocol read. `leaf:event` refers to any kernel event record and `leaf:event/<kind>` to one kind's, as `$events.kinds` in skills/leaf/assets/registry.json declares them, and `leaf:verb` to an x-state verb as `schema.VERB_SCHEMA` declares it. Whoever reads this schema composes those in, each event record open so that an object here adding served fields to it closes it again with `unevaluatedProperties`.",
   "$ref": "#/$defs/Reading",
   "properties": {
     "others": {
@@ -957,7 +957,7 @@
               },
               "spec": {
                 "description": "The operation the event was admitted under, by the immutable registry of the revision that interpreted it, which may differ from the active document's. Browser folds read this rather than reinterpreting history through whichever registry the current DOM selected.",
-                "$ref": "#/$defs/Verb"
+                "$ref": "leaf:verb"
               },
               "value": true,
               "scope": { "enum": ["document", "thread"] },
@@ -1509,56 +1509,6 @@
     "Stage": {
       "description": "How far an update has reached the agent; `answered` is only ever a retained failed response.",
       "enum": ["sent", "queued", "picked_up", "working", "replying", "answered"]
-    },
-    "Verb": {
-      "description": "One x-state verb as the registry that interpreted the event declares it, which admission checks against `schema.STATE_SCHEMA`: the unit it changes, who writes it, and either its record, how its state reads in markup, or the schema of its detail, which stays open since a widget's registry owns it.",
-      "type": "object",
-      "properties": {
-        "unit": { "type": "string" },
-        "record": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "enum": ["attribute", "value"] },
-                "attr": { "type": "string" }
-              },
-              "required": ["kind", "attr"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": { "const": "position" },
-                "within": { "type": "string" }
-              },
-              "required": ["kind", "within"],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": { "kind": { "const": "body" } },
-              "required": ["kind"],
-              "additionalProperties": false
-            }
-          ]
-        },
-        "writer": { "const": "agent" },
-        "creates": {
-          "type": "object",
-          "properties": {
-            "child": { "type": "string" },
-            "words": { "type": "string" }
-          },
-          "required": ["child", "words"],
-          "additionalProperties": false
-        },
-        "text": { "const": true },
-        "detail": { "type": "object" }
-      },
-      "required": ["unit"],
-      "additionalProperties": false,
-      "oneOf": [{ "required": ["record"] }, { "required": ["detail"] }]
     },
     "ViewAnswer": {
       "description": "The answer `GET /api/view` gives (`served_state.service.PageStateService.page_browser_view`): one revision's browser reading at an exact log boundary, which version comparison folds.",

@@ -78,8 +78,8 @@ assert:
   - type: llm-rubric
     metric: options-show-the-change
     value: |
-      Find the ask deciding whether theme packages get their own tier. Pass only if
+      Find the item deciding whether theme packages get their own tier. Pass only if
       each of its options shows, in a picture inside that option or in a figure inside
-      the ask setting today beside the change, where a theme package's rules would sit
+      the item setting today beside the change, where a theme package's rules would sit
       among the tiers and what they would then beat. Fail if either option gives its
       effect only in prose, CSS, or a table.

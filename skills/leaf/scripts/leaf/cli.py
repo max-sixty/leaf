@@ -1274,8 +1274,8 @@ def task_start(dir: str, item: str, text: str) -> dict:
     ID is the event id of a user update you owe, as its delivery names it, or an
     open to-do's id. LINE names the work and its subject in one sentence; it shows
     beside the update or to-do and in the banner. Your answer to the update, or the
-    to-do's end, ends the start. If your turn ends first, the item reads stalled
-    until you answer it or start it again."""
+    to-do's end, ends the start. If your turn ends first, the update or to-do reads
+    stalled until you answer it or start it again."""
     from leaf.todos import cmd_start
 
     return cmd_start(resolve_dir(dir), item, text)

@@ -44,8 +44,8 @@ message. Read it with `leaf delivery read <id>` and follow its instruction; its 
 ## Activity
 
 Leaf shows the task's current step, such as a tool call or a wait for approval, in the
-page's banner as what the agent is doing on the page as a whole. If you started an item
-with `leaf task start`, its line stays the banner's sentence and the step appears in the
+page's banner as what the agent is doing on the page as a whole. If you started an update
+or to-do with `leaf task start`, its line stays the banner's sentence and the step appears in the
 banner's details.
 
 ## Hand a page over from a terminal

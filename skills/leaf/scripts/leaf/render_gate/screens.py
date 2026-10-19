@@ -89,7 +89,7 @@ STANDING_ITEM = """() => {
 
 def _items_in_turn(page, into: Path) -> tuple[list[Path], bool]:
     """The window at each open item `m` reaches from the top, as far as MOST_SCREENS,
-    and whether the walk goes on past them. Which ask a press reached is the runtime's
+    and whether the walk goes on past them. Which item a press reached is the runtime's
     own mark, so the walk covers whatever `m` does, a suggestion as much as an
     `lf-ask`. The walk stops at its last item rather than wrapping, so a press that
     reaches an item it has already stood on has reached the end."""

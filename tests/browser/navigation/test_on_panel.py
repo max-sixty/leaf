@@ -383,7 +383,7 @@ def test_a_tally_counts_its_regions_items_and_walks_them(browser, serve):
     """An `lf-tally` counts the items its region holds, by the rule a queue row's mark
     reads, and leaves out one outside it. Its Next on me is `m` within the region: a
     press keeps the user standing where they are and steps on, coming round at the end,
-    and the walk announces its place among the region's asks. Reached by Shift+Tab from
+    and the walk announces its place among the region's items. Reached by Shift+Tab from
     an item, through the queue's own rows, Enter counts from that item, so the keyboard
     steps on too. An answer leaves the count once the log admits it; with none left the
     tally says so and Next on me is disabled."""
@@ -849,11 +849,11 @@ def test_a_completed_item_keeps_its_answer_in_the_on_panel(browser, serve):
         """async () => {
           const {readItems} = await window.__lfWidgetApi();
           const reading = readItems();
-          const ask = reading.all.find(q => q.id === 'widget:only');
+          const item = reading.all.find(q => q.id === 'widget:only');
           return {
-            value: ask.answer.value,
-            status: ask.status,
-            unanswered: reading.unanswered.some(q => q.id === ask.id),
+            value: item.answer.value,
+            status: item.status,
+            unanswered: reading.unanswered.some(q => q.id === item.id),
           };
         }"""
     )
@@ -871,13 +871,13 @@ def test_a_completed_item_keeps_its_answer_in_the_on_panel(browser, serve):
     reading = page.evaluate(
         """async () => {
           const {readItems} = await window.__lfWidgetApi();
-          const ask = readItems().all.find(q => q.id === 'widget:only');
+          const item = readItems().all.find(q => q.id === 'widget:only');
           return {
-            id: ask.id,
-            source: ask.source,
-            prompt: ask.prompt,
-            value: ask.answer.value,
-            status: ask.status,
+            id: item.id,
+            source: item.source,
+            prompt: item.prompt,
+            value: item.answer.value,
+            status: item.status,
           };
         }"""
     )
@@ -918,7 +918,7 @@ def test_on_me_says_when_a_revision_removes_its_last_item(browser, serve):
     stamp_page(
         serve.page_dir,
         leaf_page("No decisions", "<h1>No decisions remain</h1>"),
-        "remove the last ask",
+        "remove the last item",
     )
     wait_for_revision(page, 2)
     expect(page.locator("button.lf-queue-row")).to_have_count(0)

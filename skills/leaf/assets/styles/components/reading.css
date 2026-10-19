@@ -90,7 +90,7 @@
  * overflow the scroller no longer pads at its inline end, so the last character sat
  * against the edge and a block that overflowed by less than its inset stopped
  * scrolling, which removed the room, which made it scroll again, a ResizeObserver loop
- * in the command hub's ask. A float leaves the lines where they were, and at the box's
+ * in the command hub's lf-ask. A float leaves the lines where they were, and at the box's
  * full width it can only stand below the last of them. In a grid, which ignores the
  * float, it takes a row of its own across every track. */
 .lf-text-scroller {

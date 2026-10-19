@@ -796,7 +796,7 @@ def test_item_repaints_keep_the_queues_reading_until_an_explicit_arrival(
     assert row.locator(".lf-queue-title").evaluate(
         "words => words.getBoundingClientRect().top >= "
         "words.closest('.lf-drawer-list').getBoundingClientRect().top"
-    ), "explicit ask navigation still reveals its matching row"
+    ), "explicit item navigation still reveals its matching row"
 
 
 @pytest.mark.parametrize("newer_reading", [False, True])

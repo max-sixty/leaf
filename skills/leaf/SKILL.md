@@ -22,7 +22,7 @@ $ARGUMENTS
 
 ## Must remember
 
-- **Everything waiting on the user is an item in their On me list**, including
+- **Everything waiting on the user is an item on their On me list**, including
   each decision you leave to them that your next step doesn't depend on. Register
   it before a page heading, a chat open item or a `needs input:` line mentions it.
   `references/conversation-loop.md`, "The On lists", says how to register each

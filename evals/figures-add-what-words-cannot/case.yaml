@@ -66,7 +66,7 @@ assert:
   - type: llm-rubric
     metric: figures-carry-something
     value: |
-      Find the ask deciding the eight switchovers, and every figure, inline `<svg>`,
+      Find the item deciding the eight switchovers, and every figure, inline `<svg>`,
       `lf-diagram`, `lf-chart` or image in the section. Pass if the section has no
       figure, or if each figure shows something its table and prose don't already
       say: where code or data sits and what calls or feeds what, a visible result
@@ -78,6 +78,6 @@ assert:
     metric: items-stay-answerable
     value: |
       Pass only if the user can see, for each of the eight switchovers, what changes
-      and why it is worth doing, inside or directly beside the ask's answering
+      and why it is worth doing, inside or directly beside the item's answering
       control, and can leave out an individual item. Fail if any item's change or
       reason is missing, or only appears in a figure.

@@ -3219,7 +3219,7 @@ function createVersionController({
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
-      // Ask standing is the fallback for unnamed controls. An exact editor already
+      // Item standing is the fallback for unnamed controls. An exact editor already
       // has a replacement identity, so its parent item does not also own focus.
       itemStanding: draftEditing ? null : captureItemStanding()
     };

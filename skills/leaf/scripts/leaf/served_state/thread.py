@@ -45,8 +45,11 @@ def _response_key(responds: str) -> dict:
 
 
 def _named(event: dict) -> dict:
-    """One served thread event carrying the name it is shown under (`agent_name`)."""
-    return {**event, "agent": agent_name(event)}
+    """One served thread event, an agent's carrying the name it is shown under
+    (`agent_name`). Any other author's carries no `agent`, so the event stays the record
+    its kind declares."""
+    name = agent_name(event)
+    return {**event, "agent": name} if name is not None else event
 
 
 def _answer_key(event: dict, first_answers: dict[str, str]) -> dict:
@@ -95,8 +98,6 @@ def browser_thread(
             summary["protected"] = [
                 identity for identity in summary["covers"] if identity in protected
             ]
-        # Each message names its current content version (`read_state`), the one the
-        # browser marks read once its words have been shown.
         messages = [
             {
                 **_named(message),

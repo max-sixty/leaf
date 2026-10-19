@@ -109,7 +109,7 @@
     "runtime/keyboard/key-badge-placement.js": "9ff62553f42b9bf64a68db06b8ce3668856021767665865b5d3fbd3be907c3e1",
     "runtime/keyboard/key-sequence.js": "da8851e3466920d1ce5303439a92dc43afd714af6f22ec9e26506bfb4d459f31",
     "runtime/keyboard/layer-stack.js": "f71ee7f044da4f9fe7f1c1ff6d4cf94c7c3146466de09fc6e2cbb7bd4c6dbd3a",
-    "runtime/keyboard/page.js": "6623bca17beae63624b3cb895e82da8ef27a579cc7fabbaaaec2bc361b1099c1",
+    "runtime/keyboard/page.js": "56e4eac30d4c99429e15330439dbbd9a9d48fd2a66ed1d0912cc6195b2c3e4f8",
     "runtime/keyboard/register.js": "8819e448b9f3662d2a7eba8badc17d27157bd9de0aec6b31c67e1e745c2dc2b7",
     "runtime/keyboard/scopes.js": "6830d226371eeb47e79f632e32637393a97554a25fd68404b554bd0f506d66b9",
     "runtime/keyboard/status-context.js": "f436050e56337eff6eb8e78ba365262d7d973d9089170f215fda7fffa50e5a3a",

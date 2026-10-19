@@ -664,9 +664,11 @@ function createThreadPreview({
       place: null,
       stopRegion: null,
       side: commentPlacement(),
-      // The width the card stands at for this selection, in client pixels: the one it
-      // first stood at, or was carried at (`placeThreadPreview`).
-      width: null,
+      // The width the card stands at for this selection, in client pixels: the box's
+      // Send replaced, so the two are one rectangle, else the one it first stood at, or
+      // was carried at (`placeThreadPreview`). Sized by itself, Firefox stood a one-line
+      // comment's card 13px wider than its box.
+      width: origin?.box.width ?? null,
       region: null,
       // The user's latest press in the card, while it is their latest input (`holding`).
       pressed: null
@@ -2779,7 +2781,6 @@ function createFloatingResponsePlacement({
         width * scaleX,
         height * scaleY
       ).toJSON(),
-      width,
       placement: fabPlacement.capture(),
       // How far the words stand above their end: where the user was reading them,
       // which the card Send opens keeps (thread-preview.js, `showArrival`).

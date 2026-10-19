@@ -9,6 +9,7 @@ from leaf import data as data_model
 from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
+from render_cases_layout import ring_faults, standing_ring
 from render_harness import (
     at_rest,
     consume_browser_errors,
@@ -1233,12 +1234,12 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
       return r.bottom < host.top && y >= 0 && y < innerHeight
         && document.elementFromPoint(x, y) !== node;
     }""")
-    # The canvas draws its inset ring on its ::after, above the marks (theme.css).
-    assert canvas.evaluate("""node => {
-      const ring = getComputedStyle(node, '::after');
-      return node.matches(':focus-visible') && ring.outlineStyle !== 'none'
-        && parseFloat(ring.outlineOffset) < 0;
-    }""")
+    expect(canvas).to_be_focused()
+    ring = standing_ring(user)
+    assert ring, "the canvas has no focus ring"
+    assert not (faults := ring_faults([ring], "the panned trace canvas")), "\n".join(
+        faults
+    )
 
 
 def test_trace_comparison_prepaint_shows_only_its_opening_recording(browser, serve):

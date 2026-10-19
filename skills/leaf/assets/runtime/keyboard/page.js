@@ -106,9 +106,9 @@ pageCommand({
 });
 
 // Standing is a destination on the page. Releasing it lands at its floor, the document.
-// A thread in the panel has no floor of its own: the list holding focus hands it to the
-// thread it shows open (thread-list-view.js), so the panel's own rungs — its narrowing,
-// then closing it — are the way out of a panel thread.
+// A thread in the floating panel has no floor of its own: what stands open there, the
+// menu and then a view, is a step of this ladder (floating-panel.js), so putting the
+// view away is the way out of a panel thread.
 //
 // Inner controls, reply boxes, and native layers answer first. Page-side state waits
 // while focus is in the panel. On the page, a selection or mode unwinds before the

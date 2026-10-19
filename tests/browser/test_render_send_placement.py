@@ -731,14 +731,16 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             page.mouse.move(880, 650)
             page.mouse.wheel(0, 350)
             scroll_settled(page)
+        # The pointer wheels what scrolls, off the box, which takes the wheel as its
+        # card does.
         mouse = (
             (before_target["x"] + 50, content_box["y"] + 35)
             if region in ("code", "content")
-            # Over the scroller, clear of the box that hangs under the passage.
-            else (
-                120 if scroller else 100,
-                100 if region in ("combined", "pane") else 350,
-            )
+            else (120, 100)
+            if region == "combined"
+            else (120, before_target["y"] - 40)
+            if region == "pane"
+            else (100, 350)
         )
         page.mouse.move(*mouse)
         page.mouse.wheel(0, wheel)
@@ -1177,7 +1179,7 @@ def test_send_grows_thread_around_the_words(
       window.beforePageScroll = scrollY;
       const bar = document.querySelector('.lf-fab-bar');
       window.box = {frame: bar.getBoundingClientRect().toJSON(),
-        painted: getComputedStyle(bar).backgroundColor !== 'rgba(0, 0, 0, 0)'};
+        painted: getComputedStyle(bar, '::before').backgroundColor !== 'rgba(0, 0, 0, 0)'};
       window.sendFrames = [];
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');

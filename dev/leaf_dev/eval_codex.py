@@ -3,8 +3,9 @@
 The real App Server runs the payload's plugin and trusted hooks. It persists its
 thread under the child's home so a later phase resumes that exact conversation.
 Its complete notifications are retained beside the normalized eval trace. The
-normalization exposes actual command execution, replies, hook output and turn
-completion; it neither invents hooks nor acknowledges a Leaf delivery itself.
+normalization exposes actual command execution, replies, hook output, and turn
+starts and completions; it neither invents hooks nor acknowledges a Leaf delivery
+itself.
 """
 
 import json
@@ -24,6 +25,14 @@ from leaf_dev.codex_task import Task, install_plugin
 def records_for(message: dict, session: str, final: str) -> list[dict]:
     """Normalize one observed notification at the evidence boundary."""
     method, params = message.get("method"), message.get("params") or {}
+    if method == "turn/started":
+        return [
+            {
+                "type": "turn_started",
+                "session_id": session,
+                "turn_id": params["turn"]["id"],
+            }
+        ]
     if method == "item/commandExecution/outputDelta":
         return [
             {

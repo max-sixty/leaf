@@ -55,11 +55,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     These surfaces do not repaint on every keystroke as the panel does. News captures
     the same continuity extent, so a panel-only draft fix would leave them broken.
     """
-    from render_cases_interaction import SEATED_ASK_PAGE
+    from render_cases_interaction import SEATED_ITEM_PAGE
     from render_harness import told
 
     if place == "seat":
-        source = SEATED_ASK_PAGE
+        source = SEATED_ITEM_PAGE
         anchor = {"section": "jobs"}
         selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
     else:
@@ -281,10 +281,10 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
 
 def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, serve):
     """Mirrors retain the writing room; canceled input retains it and edits resize it."""
-    from render_cases_interaction import SEATED_ASK_PAGE
+    from render_cases_interaction import SEATED_ITEM_PAGE
     from render_harness import stored_draft_text, told
 
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     parent = events_model.append_event(
         serve.page_dir,
         {
@@ -343,6 +343,7 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
             mirrored,
         )
     assert stored_draft_text(page, "reply:" + parent) == replacement
+    other.close()
     page.bring_to_front()
     editor.focus()
     editor.evaluate("""box => {
@@ -400,6 +401,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     from render_harness import (
         consume_browser_errors,
         holding,
+        http_error_console,
         panel_settled,
         scroll_settled,
         stored_draft_text,
@@ -528,7 +530,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     )
     round_trip(page)
     rendered(page)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     restored = pose()
     for node in pending:
         for edge in pending[node]:

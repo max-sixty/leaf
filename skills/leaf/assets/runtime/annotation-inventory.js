@@ -11,31 +11,32 @@ import { replyAvailable } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
-import { marginInventory } from "./margin-model.js";
+import { marginInventory, threadMarks } from "./margin-model.js";
 import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
-import { elementById, inChrome } from "./passages.js";
+import { elementById, inChrome, quoteFrom, textNodesUnder } from "./passages.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
 import { threadList } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
+import { targetSegments } from "./resolved-target.js";
 import { projectionOrigins, stateCoordinate } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { claimed, heldOut } from "./thread/surfaces.js";
-import { anchorLabel } from "./thread/messages.js";
+import { threadName } from "./thread/messages.js";
 import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
 import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
   strongestWorkflow,
-  threadAttention,
+  todoLabel,
   workflowLabel,
 } from "./thread/workflow.js";
 import { renderedOrder, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
-import { askPlace } from "./asks/place.js";
+import { itemPlace } from "./items/place.js";
 import { scrollBehavior } from "./motion.js";
 import {
   comparisonBase,
@@ -51,17 +52,17 @@ import {
 // commits.
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
-  asks: root.effective.asks,
+  items: root.effective.items,
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null,
 });
 
 export function createAnnotationInventory({
-  readAsks,
+  readItems,
   placedAt,
   openThread,
-  goToAsk,
+  goToItem,
   scrollToElement,
 }) {
   const humanized = (value) =>
@@ -103,6 +104,12 @@ export function createAnnotationInventory({
     return `${prefix}${from}${steps.reverse().join("/")}`;
   }
 
+  // What a group stands by, for its place in the page's order: passages in one text
+  // node by where in it they start.
+  const standsBy = (group) =>
+    group.point ?? targetSegments(group.passage)[0]?.node ?? group.target;
+  const startsAt = (group) => targetSegments(group.passage)[0]?.start ?? -1;
+
   function comesBefore(left, right) {
     if (left === right) return 0;
     if (!left) return 1;
@@ -123,6 +130,10 @@ export function createAnnotationInventory({
   const entryPoint = (entry) =>
     entry ? livePoint(targetFor(entry), points.get(entry.key)) : null;
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
+  // The passage a quoting entry stands by (groupFor), as anchor-placement last resolved
+  // it (resolved-target.js).
+  const passages = new Map();
+  const entryPassage = (entry) => (entry ? (passages.get(entry.key) ?? null) : null);
   // A pointed row is named by its words as the page reads them, cells and blocks apart.
   const pointName = (words) => {
     const excerpt = words && excerptWords(words, 32);
@@ -150,22 +161,25 @@ export function createAnnotationInventory({
       ),
     );
   };
-  // One group per target, and one more for each row inside it that pointing gestures
-  // stood threads at (pointed-place.js): those threads stand there together, and
-  // everything else about the target (its other threads, an ask's marker, a widget's
-  // actions) keeps the target's own row. `pointed` is `{ key, element, words }`: the
-  // row's key, which its first comment gave it and later ones share, the element it is,
-  // and its words as the page reads them, which name it.
+  // One group per target, one more for each row inside it that pointing gestures stood
+  // threads at (pointed-place.js), and one more for each passage threads quote: those
+  // threads stand there together, by what they are about, and everything else about the
+  // target (its other threads, an item's marker, a widget's actions) keeps the target's
+  // own row. `pointed` is `{ key, element, passage, words }`: the row's key (a pointed
+  // row's its first comment gave it, a passage's from its words, `passageRow`), the
+  // element it is or the passage it stands by (a resolved anchor), and its words, which
+  // name it.
   function groupFor(groups, target, pointed = null) {
-    const slot = pointed ? `point:${pointed.key}` : target;
+    const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
+    const slot = pointed ? `point:${key}` : target;
     let group = groups.get(slot);
     if (!group) {
-      const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
       const word = addressableWord(target);
       group = {
         key,
         target,
         point: pointed?.element ?? null,
+        passage: pointed?.passage ?? null,
         pointWords: pointed?.words ?? null,
         word,
         subject: null,
@@ -176,6 +190,22 @@ export function createAnnotationInventory({
       groups.set(slot, group);
     }
     return group;
+  }
+
+  // The row key for threads quoting `passage` of `target`: its words as the page reads
+  // them, and which occurrence of those words in the target's reading it is. Threads
+  // quoting the same words share it, and none settling or arriving changes it, so the
+  // row and a card open on it outlive them. A re-render that removes an earlier
+  // occurrence renumbers it and builds the row again, as a shifted path does an id-less
+  // target's.
+  function passageRow(target, passage) {
+    const segments = targetSegments(passage);
+    const page = textNodesUnder(target);
+    const at = page.findIndex(({ node }) => node === segments[0].node);
+    const before =
+      at < 0 ? page : [...page.slice(0, at), { ...page[at], end: segments[0].start }];
+    const words = quoteFrom(segments);
+    return JSON.stringify([words, quoteFrom(before).split(words).length - 1]);
   }
 
   function add(groups, target, item, pointed = null) {
@@ -262,14 +292,17 @@ export function createAnnotationInventory({
         continue;
       const id = thread.id;
       const target = placedAt(id)?.place;
-      const attention = threadAttention(thread);
-      const onUser = attention?.kind === "needs_user";
-      const unread = thread.unread.length;
       const placement = placedAt(id);
       const point = livePoint(target, placement?.point);
       const pointed = point
         ? { key: placement.pointRow, element: point, words: placement.pointWords }
-        : null;
+        : targetSegments(placement).length
+          ? {
+              key: passageRow(target, placement),
+              passage: placement,
+              words: thread.anchor.quote,
+            }
+          : null;
       add(
         groups,
         target,
@@ -280,54 +313,39 @@ export function createAnnotationInventory({
           // whose identity changed there would be rebuilt — taking with it the reply box
           // the send had just put them in.
           id: marginThreadItem(thread),
-          text: labelWords(
-            thread.root.text || anchorLabel(thread.anchor, thread.root.about),
-          ),
+          text: threadName(thread),
           thread,
           // The Thread record already combines server attention with the local workflow
           // overlay. Margin and Page Map carry that reading rather than deriving another
-          // answer from raw turn or workflow fields.
-          userAttention: onUser
-            ? {
-                label: attention.label,
-                reason: thread.attention?.reason ?? "workflow",
-              }
-            : null,
-          unread,
-          // Page Map lists each thread on its own row, so the word goes on the row
-          // rather than on an aggregate.
-          ...(onUser || thread.attention?.reason === "todo"
-            ? { mapContext: attention.label }
-            : unread
-              ? { mapContext: `${unread} unread` }
-              : {}),
-          // Work decorates the thread control; it never replaces the control's
-          // comment face or its disclosure action.
-          workflowReceipt: onUser ? null : attention?.workflow,
+          // answer from raw turn or workflow fields. Work decorates the thread control;
+          // it never replaces the control's comment face or its disclosure action.
+          ...threadMarks(thread),
           activate: () => openThread(id),
         },
         pointed,
       );
     }
 
-    // Only a widget ask has a place on the page; the rest have no node.
-    for (const ask of readAsks().user) {
-      const id = ask.id;
-      const target = askPlace(ask).node;
+    // Only a widget item has a place on the page; the rest have no node.
+    for (const item of readItems().user) {
+      const id = item.id;
+      const target = itemPlace(item).node;
       if (!target) continue;
       add(groups, target, {
-        kind: "ask",
-        id: `ask:${id}`,
-        // The group this row stands in already names the ask; the row says why it is
-        // there, since these are the asks the user owes.
+        kind: "on-me",
+        id: `on-me:${id}`,
+        // The group this row stands in already names the item; the row says why it is
+        // there, since these are the items the user owes.
         text: "Waiting on me",
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const asks = readAsks().user.filter((ask) => ask.source.kind === "widget");
-          const next = asks.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, asks);
+          const items = readItems().user.filter(
+            (item) => item.source.kind === "widget",
+          );
+          const next = items.find((candidate) => candidate.id === id);
+          if (next) goToItem(next, items);
         },
       });
     }
@@ -435,6 +453,7 @@ export function createAnnotationInventory({
     for (const todo of runtime.todos) {
       if (
         todo.owner !== "agent" ||
+        todo.state !== "open" ||
         (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||
         todo.revision > runtime.currentRevision
       )
@@ -442,7 +461,7 @@ export function createAnnotationInventory({
       if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
       const target = elementById(todo.subject.id);
       const { running } = todo;
-      const label = running ? "Working" : "To-do open";
+      const label = todoLabel(running);
       const account = [todo.agent, running?.text ?? todo.title]
         .filter(Boolean)
         .join(" · ");
@@ -496,15 +515,19 @@ export function createAnnotationInventory({
       .map((group) => group.target);
     targets.clear();
     points.clear();
+    passages.clear();
     entries = marginInventory(
       collected
-        .sort((left, right) =>
-          comesBefore(left.point ?? left.target, right.point ?? right.target),
+        .sort(
+          (left, right) =>
+            comesBefore(standsBy(left), standsBy(right)) ||
+            startsAt(left) - startsAt(right),
         )
         .map((group) => {
           const subject = outlineSubjectFor(group.target, subjects, outline);
           targets.set(group.key, group.target);
           if (group.point) points.set(group.key, group.point);
+          if (group.passage) passages.set(group.key, group.passage);
           return Object.freeze({
             key: group.key,
             targetId: group.target.id,
@@ -555,6 +578,7 @@ export function createAnnotationInventory({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPassage,
     sourceItem,
     workflowReceipt,
     targetPath,

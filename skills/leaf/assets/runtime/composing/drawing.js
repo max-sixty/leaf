@@ -61,6 +61,7 @@ import {
   MAX_DRAWING_STROKES,
   MAX_DRAWING_SAYS_LENGTH,
 } from "./drawing-record.js";
+import { raiseError } from "../errors.js";
 
 const MIN_DISTANCE = 2;
 const MIN_GESTURE = 4;
@@ -382,11 +383,11 @@ export function createDrawingController({
     const source = target && resolveDrawingFrame(target.element, reference);
     const frame = source && elementFrame(source);
     if (!frame) {
-      announce("Draw on or beside something on the page.");
+      raiseError("Draw on or beside something on the page.");
       return;
     }
     if (heldDrawing(target.anchor)?.strokes.length >= MAX_DRAWING_STROKES) {
-      announce(
+      raiseError(
         `A drawing holds ${MAX_DRAWING_STROKES} strokes. Undo a stroke, or send or remove this drawing to start another.`,
       );
       return;

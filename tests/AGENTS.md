@@ -1,5 +1,12 @@
 # Testing leaf
 
+This suite protects shipped Leaf behavior. Tests of developer tools belong in
+`dev/tests/`, outside product CI and landing gates; `dev/AGENTS.md` owns their scope
+and opt-in commands. A product test may use `leaf_dev` to build or serve its fixture:
+what the test proves, rather than what it imports, decides where it belongs.
+PR CI time is scarce: add coverage there for consequential product failures that
+should block landing. A check being quick is not sufficient reason to include it.
+
 Root `AGENTS.md`'s **Stage** says what a test here protects and when to rewrite or
 delete one. Agents wrote most of this suite, and many of its tests assert the shape the
 code had when they were written rather than behavior a user depends on.
@@ -22,8 +29,8 @@ Each helper's docstring owns its contract, and code cites sections here by headi
 Message delivery has one shared journey in `leaf_dev.thread_journey`;
 `leaf_dev.commands.thread_snapshots` owns the thread appearance gate built on it.
 
-Linux browser tests use `tests/fonts.conf` and the `fonts-dejavu` package, which must be
-installed before `wt setup`; macOS uses its native fonts.
+Linux browser tests use `tests/fonts.conf` and the `fonts-dejavu` package installed
+by `wt setup`; macOS uses its native fonts.
 
 ## A failure is evidence about the test too
 
@@ -41,14 +48,18 @@ arrangements, not probabilities**), and fix that cause.
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22.18 or newer, and the pnpm
 version `package.json` pins. `wt setup` installs the browsers, their Linux
-dependencies, the example assets and the Node dependencies; `uv run` syncs Python.
-Worktrunk starts setup in the background when it creates a worktree; run `wt setup`
-before testing to wait for it and see failures. A plain clone starts it with
-`wt hook post-start project:setup`.
+libraries and fonts, the example assets and the Node dependencies; `uv run` syncs
+Python. CI and Tend install the host tools and run the same alias through
+`.github/actions/setup/action.yaml` before tests or the agent start.
+
+In local checkouts, run `wt setup` before testing to wait for any background
+preparation and see failures. Worktrunk starts it when creating a worktree; a
+plain clone uses the same alias. Tend agents run the selected tests directly in
+their prepared environment: setup's system package installation needs privileges
+unavailable inside the sandbox.
 
 ```sh
-wt setup
-uv run pytest tests/browser/test_render_widgets.py -q -n0 -k board   # the tests a change needs
+uv run pytest tests/browser/widgets/test_boards.py -q -n0 -k lifecycle  # the tests a change needs
 pnpm run test:runtime                 # tests/runtime/, under Node
 uv run pytest tests                  # broad selection; the landing gate runs it (root AGENTS.md, "Working on the repository")
 uv run pytest --lf --lfnf=none -x -n0
@@ -76,11 +87,17 @@ test to an earlier tier, make it cheaper. The user chose directory tiers (2026-1
 so that the landing gates stop growing with every test.
 
 A subject whose tests cross different boundaries has a module of the same name in each
-directory, such as `browser/test_render_margin.py` and `journeys/test_render_margin.py`.
+directory, such as `browser/test_render_aim.py` and `journeys/test_render_aim.py`.
 The module holding most of them keeps the helpers, and the others import from it; a
 module fixture they share is declared with `name=` and imported as `<name>_fixture`.
 `model/` and `process/` run in the same tier, so a subject's tests of both kinds stay in
 one module.
+
+A subject too large to read as one module is a package in its directory, with a module
+per behavior, such as `browser/margin/` beside `journeys/test_render_margin.py`. A helper
+one module uses stays in it; the package's `__init__.py` holds those that several use or
+that other directories import, and its `conftest.py` imports the fixtures every module
+takes, as `process/website_server/` does for its autouse one.
 
 Broad discovery skips `browser/` and `journeys/`; `--run-main` adds `browser/` and
 `--run-nightly` runs every tier. An explicit directory, file, node id, `-k`, `-m` or
@@ -254,9 +271,9 @@ The `browser` fixture watches every page it makes and fails the test on any prob
 left at the end; don't install a second collector. Each problem is a record
 (`leaf/findings.py`). Consume an expected one where it happens with
 `consume_browser_errors`, or `reported_browser_errors` when it arrives in parts, naming
-it by its fields (`{"code": "failed-load", "status": 400}`) or by a fragment of the
-console message (`render_harness.is_problem`). For a recurring fault, close the page
-first and then consume. Filtering the collector is not an assertion.
+it by its fields (`{"code": "console-error", "url": "http://page/api/event"}`) or by a
+fragment of the console message (`render_harness.is_problem`). For a recurring fault,
+close the page first and then consume. Filtering the collector is not an assertion.
 
 Three watches report problems; a fourth, `input_work_watch.js`, tells them which input
 caused a change. Fix what they report rather than consuming it; there is no per-test
@@ -398,9 +415,10 @@ printed record), since the log's last event may be a `read` an open page appende
 ### Test-made noise
 
 Instrumentation must not add noise to the channel a test asserts is quiet; `refuse`
-uses the `aborted` reason for that. Assert a deliberate HTTP error through the
-collector's status-and-URL entry, and wrap a deliberate server restart in
-`restarting`, asserting any diagnostic inside that block.
+uses the `aborted` reason for that. Consume a deliberate HTTP error by the browser's
+diagnostic (`http_error_console`); where the status itself is under test, assert the
+response's status. Wrap a deliberate server restart in `restarting`, asserting any
+diagnostic inside that block.
 
 ## Frames, sequences, and instants
 

@@ -37,7 +37,14 @@ import {
 } from "./anchor-resolution.js";
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
-import { elementById, inChrome, pageQueryAll, pageReadingVersion } from "./passages.js";
+import {
+  authoredScope,
+  elementById,
+  inChrome,
+  pageDocument,
+  pageQueryAll,
+  pageReadingVersion,
+} from "./passages.js";
 import { pageUpgraded } from "./page-paint.js";
 import { documentChanged, readPart } from "./semantic-state.js";
 import { registry } from "./registry.js";
@@ -370,7 +377,7 @@ export function createAnchorControls({
     const label = open ? labelAnchor(anchor, about) : "";
     keepsText(draftQuote, label);
     const located = Boolean(resolved && resolved.status !== "outdated");
-    draftQuote.classList.toggle("lf-unseen", !label || (located && !about));
+    draftQuote.classList.toggle("lf-quiet", !label || (located && !about));
   }
 
   function render({ readings, draft }) {
@@ -424,10 +431,17 @@ export function createAnchorControls({
   }
 
   const onLayoutInvalidated = (event) => {
-    // A page visual's parts can move without its nodes moving, and their registration
-    // says so with this signal (visual-parts.js, `update`).
-    if (!inChrome(event.target)) plannedFor = null;
     invalidatePageGeometry();
+    // Authored content asks for a thread pass: its parts can move or be replaced
+    // without a publication, and a pass is what marks the new node. That is the page,
+    // and a message's markup, whose authored document is its body (`authoredScope`)
+    // though it stands in the runtime's chrome. The chrome's own scaffolding holds no
+    // target, so a Threads card opening or closing asks for none.
+    if (inChrome(event.target) && authoredScope(event.target) === pageDocument())
+      return;
+    // Only the page holds the visuals whose actions the pass plans (visual-parts.js,
+    // `update`).
+    if (!inChrome(event.target)) plannedFor = null;
     queueInvalidation();
   };
 

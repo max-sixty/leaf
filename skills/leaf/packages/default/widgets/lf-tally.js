@@ -1,34 +1,34 @@
-/* lf-tally: how many of a region's asks are still to answer, and the way to the next.
+/* lf-tally: how many of a region's items are still to answer, and the way to the next.
  *
- * The region is the element `for` names, and which asks it holds is `asksIn`
- * (runtime/asks/place.js), the rule a side list's rows read too, so "7 of 8 to
- * answer" counts the asks whose open marks the queue shows. An ask counts as to answer
+ * The region is the element `for` names, and which items it holds is `itemsIn`
+ * (runtime/items/place.js), the rule a side list's rows read too, so "7 of 8 to
+ * answer" counts the items whose open marks the queue shows. An item counts as to answer
  * until the log admits its answer, including one the user discussed and left with the
  * agent; it leaves the count when the page adopts the answering reading, never on a
  * guess. Until the page's first reading is in, the tally says nothing rather than a
  * count of an inventory it has not seen.
  *
- * With `next`, a Next on me control steps to the next ask waiting on the user inside
- * the region (`askActions.next`), from where the user stands, so a press keeps
+ * With `next`, a Next on me control steps to the next item waiting on the user inside
+ * the region (`itemActions.next`), from where the user stands, so a press keeps
  * them standing there rather than taking focus onto the control, as the On
  * panel's Next on me does. It is a native button: Tab and Enter reach it, and a
  * finger taps it. Pressed by keyboard, focus is on the control outside the region, so
- * the walk counts from the ask the user last went to there, else the first in sight,
+ * the walk counts from the item the user last went to there, else the first in sight,
  * else the region's start (queue-walk.js says how). With none waiting it is disabled.
  *
  * The structure is the registry's `x-prepaint`, which delivery writes for the first
  * paint and this module fills in. Its room holds the widest count two digits wide, so
  * the words change without moving the control beside them or what follows. */
 import {
-  asksIn,
+  itemsIn,
   declarationFor,
   elementById,
   keeps,
   keepsText,
   offer,
   once,
-  askActions,
-  readAsks,
+  itemActions,
+  readItems,
   relabel,
   watchProjection,
 } from "/runtime/widget-api.js";
@@ -60,39 +60,39 @@ customElements.define(
         this.#next = offer("button", "lf-btn lf-tally-next");
         seat.replaceWith(this.#next);
         relabel(this.#next, "Next on me", { says: false });
-        this.#next.title = "Go to the next ask on me here";
+        this.#next.title = "Go to the next item on me here";
         this.#next.setAttribute("aria-controls", this.getAttribute("for"));
         this.#next.addEventListener("mousedown", (event) => event.preventDefault());
         this.#next.addEventListener("click", () => {
           const region = this.#region();
-          if (region) askActions.next({ within: region });
+          if (region) itemActions.next({ within: region });
         });
       } else seat.remove();
       this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       this.append(face);
-      watchProjection(this, () => this.#paint(readAsks()));
+      watchProjection(this, () => this.#paint(readItems()));
     }
 
     #region() {
       return elementById(this.getAttribute("for"));
     }
 
-    #paint(asks) {
+    #paint(items) {
       const region = this.#region();
-      const ready = asks.phase === "ready" && Boolean(region);
+      const ready = items.phase === "ready" && Boolean(region);
       keeps(this, "data-lf-ready", ready ? "" : null);
       if (!ready) {
         keepsText(this.#words, "");
         return;
       }
-      const held = asksIn(region, asks.all);
-      const open = held.filter((ask) => ask.status === "open").length;
+      const held = itemsIn(region, items.all);
+      const open = held.filter((item) => item.status === "open").length;
       keeps(this, "data-lf-done", held.length && !open ? "" : null);
       keepsText(this.#words, words(open, held.length));
       // Two digits are in the drawing; a longer count widens its room once.
       const digits = "0".repeat(Math.max(2, String(held.length).length));
       keepsText(this.#room, words(digits, digits));
-      this.#next?.toggleAttribute("disabled", asksIn(region, asks.user).length === 0);
+      this.#next?.toggleAttribute("disabled", itemsIn(region, items.user).length === 0);
     }
   },
 );

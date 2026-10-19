@@ -87,15 +87,16 @@ import {
 import { createThreadPanelKeys } from "./runtime/thread/panel.js";
 import { createPageComment } from "./runtime/thread/page-comment.js";
 import { createFloatingPanel } from "./runtime/floating-panel.js";
+import "./runtime/chrome-choice.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
-import { createAskView } from "./runtime/asks/view.js";
+import { createItemView } from "./runtime/items/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
 import { createQueuePanel } from "./runtime/queue-panel.js";
-import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
+import { ITEM_CONTROL } from "./runtime/items/view-elements.js";
 import {
   commandHintLayer,
   createCommandHints,
@@ -232,7 +233,7 @@ let drawers;
 let layout;
 let landing;
 let pageMapDialog;
-let asks;
+let items;
 let panelKeys;
 let pageComment;
 let responseSurface;
@@ -375,7 +376,6 @@ const focusForNavigation = (node, cause, options) =>
 const anchorTravel = createAnchorTravel({
   anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
-  currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
   focusForNavigation,
   threadFocusTarget: (id, options) =>
@@ -414,8 +414,8 @@ const version = createVersionController({
   captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
   restoreRetainedStanding: (standing) =>
     app?.overlay?.restoreStanding(standing) ?? false,
-  captureAskStanding: () => asks.captureStanding(),
-  restoreAskStanding: (standing) => asks.restoreStanding(standing),
+  captureItemStanding: () => items.captureStanding(),
+  restoreItemStanding: (standing) => items.restoreStanding(standing),
 });
 
 const inputs = createCompositionInputs({
@@ -425,7 +425,7 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-  nextAskWithin: (options) => queueWalk.nextWithin(options),
+  nextItemWithin: (options) => queueWalk.nextWithin(options),
   panel,
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
@@ -475,7 +475,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
-    goToAsk: (...args) => asks.goToAsk(...args),
+    goToItem: (...args) => items.goToItem(...args),
   },
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
@@ -539,8 +539,8 @@ pageMapDialog = createPageMapDialog({
   annotationFocus: app.overlay?.mapFocusTarget,
 });
 
-// The ask view is constructed below by its owner factory; all accesses above are inert closures.
-asks = createAskView({
+// The item view is constructed below by its owner factory; all accesses above are inert closures.
+items = createItemView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
   prepareTrip: anchorTravel.prepareTrip,
@@ -551,7 +551,7 @@ asks = createAskView({
 });
 const queueWalk = createQueueWalk({
   actions: app.queueActions,
-  arriveAtAsk: asks.arriveAtAsk,
+  arriveAtRecord: items.arriveAtRecord,
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
   threadPlace: (id) => app.threadDestinations.threadPlace(id),
@@ -573,8 +573,8 @@ const commandHints = createCommandHints({
 });
 
 const standingTarget = createStandingTarget({
-  isAskControl: (node) => node?.matches?.(ASK_CONTROL),
-  standingIn: asks.standingIn,
+  isItemControl: (node) => node?.matches?.(ITEM_CONTROL),
+  standingIn: items.standingIn,
 });
 
 panelKeys = createThreadPanelKeys({
@@ -602,12 +602,13 @@ const floatingPanel =
         observeFeedback: app.read.observeFeedback,
         threadActions: app.threadActions,
         registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-        asks: {
-          choicesOf: asks.choicesOf,
-          open: (id) => app.openAsk(id),
+        items: {
+          choicesOf: items.choicesOf,
+          open: (id) => app.openItem(id),
         },
         queueActions: app.queueActions,
         withdraw: app.withdraw,
+        settlement: app.settlement,
       })
     : null;
 // The page's general comment box: the card under the banner's control, or the floating
@@ -648,7 +649,6 @@ responseSurface = createResponseSurface({
   revealResponseHome: overlaySelected
     ? null
     : () => threadPanelController.setPanel(true),
-  threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
   createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   wireInput: inputs.wireInput,
@@ -815,11 +815,11 @@ goToSequence = createGoToSequence({
   coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
 });
 const standingPainters = {
-  markHere: asks.markHere,
+  markHere: items.markHere,
   paintStanding: anchorPaint?.paintStanding,
   paintSelectedMarginEntries: () =>
     app.overlay?.paintSelectedMarginEntries([
-      { kind: "ask", target: asks.standingIn() },
+      { kind: "on-me", target: items.standingIn() },
       {
         kind: "comment",
         target: anchorPlacement.placedAt(standingThreadId())?.place,
@@ -900,7 +900,7 @@ if (!offlineInteractive) {
   anchorControls.mount();
   pageGeometry.mount();
   pageMapDialog.mount(chromeForeground);
-  asks.mount();
+  items.mount();
   queueWalk.mount();
   queue.mount();
   commandHints.mount();
@@ -1039,8 +1039,8 @@ async function startPage() {
   openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {
     layout.syncLayout();
-    asks.buildBulkAnswers();
-    asks.syncAsks();
+    items.buildBulkAnswers();
+    items.syncItems();
   }
   await settlePageInterface();
   landFragment();

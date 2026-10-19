@@ -279,8 +279,8 @@ export const showsWords = (block) =>
 // marks itself `data-lf-runtime`, so the reading travels with the node rather than with
 // the place it stands. A press mode that comments on or chooses the page leaves these
 // working.
-export const leafSurface = (node) =>
-  node ? closestAcross(node, ".lf-chrome, [data-lf-runtime]") : null;
+export const LEAF_SURFACE = ".lf-chrome, [data-lf-runtime]";
+export const leafSurface = (node) => (node ? closestAcross(node, LEAF_SURFACE) : null);
 // The two together, which is what an affordance acting on where the pointer or the caret
 // is actually needs: the page's own words, as against the layer over them and as against
 // the apparatus inside them. Either half alone leaves a hole, and the hole `.lf-ui` left
@@ -639,7 +639,7 @@ export function closestAcross(node, selector) {
 
 // getElementById searches the document tree alone, which is the same boundary again and
 // the one every question the runtime asks by id runs into: which element an anchor names,
-// what an action rests on, which unit a fold paints, which ask a key steps to. A widget
+// what an action rests on, which unit a fold paints, which item a key steps to. A widget
 // that stages its authored children into a shadow tree takes their ids in there with it,
 // and each of those answers would come back null and quietly do nothing — the anchor
 // captured, the mark never painted, no error anywhere. The document first, because that
@@ -668,6 +668,10 @@ export const elementById = (id, root = document) => {
 // here, so markup a message quotes neither answers for the page nor reaches into it.
 // `doc` is a parsed revision's document, where a version reads its authored `main`.
 export const pageDocument = (doc = document) => doc.querySelector("body > main");
+// The box the page's Layout arranges: `main`, or the shown child of a `main` that carries
+// no Layout itself (layouts.css, `--lf-layout-box`). The margin, the rail and the
+// Layout's regions read this box; the authored content is still `pageDocument`.
+export const layoutBox = () => document.documentElement.lfInitial.layoutBox();
 export const authoredScope = (node) =>
   closestAcross(node, ".lf-msg-body") ?? pageDocument();
 

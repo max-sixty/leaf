@@ -29,7 +29,7 @@ from render_harness import (
     write,
 )
 
-from browser.test_render_threads import paste_image
+from browser.threads import paste_image
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -68,7 +68,7 @@ def draw_over(page, locator, *, steps=8, points=STROKE):
     return stroke_over(page, locator, steps=steps, points=points)
 
 
-# Two joined options of one ask, with prose around them so the page scrolls them
+# Two joined options of one item, with prose around them so the page scrolls them
 # into the middle of the window and on past it.
 FILLER = "\n".join(
     f"<p id='filler-{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(12)
@@ -1311,17 +1311,16 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
         )
 
 
-# The text viewport's length and the device are independent, so each length takes one
-# device rather than both.
+# Comment length and device are independent, so each length takes one device.
 @pytest.mark.parametrize(
     "long, touch",
     [(False, True), (True, False)],
     ids=["short-phone", "scrolled-desktop"],
 )
-def test_sent_drawing_keeps_its_reference_outside_the_retained_text_viewport(
+def test_sent_drawing_keeps_its_reference_in_the_transcript_after_the_text(
     browser, serve, long, touch
 ):
-    """Sending retains the editor's text viewport, not a cap on added metadata."""
+    """The transcript carries the editor's place and holds its drawing reference."""
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
@@ -1364,12 +1363,15 @@ def test_sent_drawing_keeps_its_reference_outside_the_retained_text_viewport(
     text = body.locator(".lf-msg-text")
     if not long:
         assert text.bounding_box()["y"] == pytest.approx(before["top"], abs=1)
-    assert text.evaluate("node => node.scrollHeight > node.clientHeight + 1") == long
-    after = text.evaluate(
+    transcript = card.locator(".lf-thread-transcript")
+    assert (
+        transcript.evaluate("node => node.scrollHeight > node.clientHeight + 1") == long
+    )
+    after = transcript.evaluate(
         "node => ({scroll:node.scrollTop, limit:node.scrollHeight - node.clientHeight})"
     )
-    # The sent card may wrap fewer lines than the draft. Native scrolling clamps a
-    # retained offset to the new scroll range rather than leaving empty space.
+    # The sent card may wrap fewer lines than the draft. Its transcript now owns
+    # the viewport and clamps the retained offset to its own scroll range.
     assert after["scroll"] == pytest.approx(
         min(before["scroll"], after["limit"]), abs=1
     )

@@ -47,6 +47,7 @@ export {
   unconcealedReadingRegions,
 } from "./reading-regions.js";
 export {
+  layoutBox,
   pageDocument,
   quoteFrom,
   verbatimBoundaryIdentity,
@@ -81,7 +82,7 @@ export { selectionAnchor } from "./composing/capture.js";
 export { TEXT_BLOCK } from "./passage-facts.js";
 export { renderingState } from "./rendering.js";
 export { readingBlock, blocksOnScreen } from "./reading-place.js";
-export { walkOrigin, heldAsk, placeOf } from "./standing-target.js";
+export { walkOrigin, heldItem, placeOf } from "./standing-target.js";
 export { walkPosition } from "./walk-position.js";
 export { nativeLayers } from "./keyboard/layer-stack.js";
 export { scrollAxes, elementFrame } from "./element-frame.js";

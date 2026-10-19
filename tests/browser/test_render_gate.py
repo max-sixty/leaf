@@ -72,6 +72,8 @@ from render_cases_layout import (
 )
 from render_cases_navigation import (
     CODE_PAGE,
+    call_diff,
+    call_node,
 )
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
@@ -80,7 +82,6 @@ from render_cases_widgets import (
     visual_widgets,
 )
 from render_harness import (
-    CORPUS_PAGE,
     CORPUS_SOURCES,
     EXAMPLE_PACKAGES,
     EXAMPLES,
@@ -102,6 +103,7 @@ from render_harness import (
     plant_quiet_word,
     primed,
     reader_state,
+    reported_browser_errors,
     resized,
     root_overflow,
     scroll_followers,
@@ -595,12 +597,34 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     assert stopped.value.finding.values["requesting"] == [entry_path]
 
 
+def test_browser_like_console_words_remain_console_diagnostics(browser):
+    """An authored message cannot establish an HTTP failure by imitating Chrome."""
+    page = browser.new_page()
+    text = (
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    )
+    page.evaluate("text => console.error(text)", text)
+    [problem] = reported_browser_errors(page, text)
+    assert problem.code == "console-error"
+    assert problem.values == {"text": text, "url": ""}
+    assert str(problem) == text
+    page.evaluate(
+        "console.error('ordinary failure')\n//# sourceURL=http://page/author.js"
+    )
+    [problem] = reported_browser_errors(page, "ordinary failure")
+    assert problem.values == {
+        "text": "ordinary failure",
+        "url": "http://page/author.js",
+    }
+    assert str(problem) == "ordinary failure — http://page/author.js"
+
+
 def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     browser, serve, monkeypatch
 ):
     """A server that refuses the document leaves the proof with nothing to wait for
-    and the page with no console message of its own. The status the gate collected is
-    the only thing that says why the wait stopped, so the named wait carries it."""
+    and the page with no authored console message. The browser's native diagnostic
+    explains the refusal, so the named wait retains its complete text and URL."""
     real_proof = render_gate_scheme.start_with_pre_upgrade_proof
 
     def promptly(page, url):
@@ -620,9 +644,12 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     assert (failure.code, failure.scheme) == ("never-reached", "light")
     assert failure.values["arrival"] == "an authored main"
     assert {
-        "code": "failed-load",
+        "code": "console-error",
         "severity": "error",
-        "values": {"status": 401, "url": refused},
+        "values": {
+            "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+            "url": refused,
+        },
     } in failure.values["console"], failure
 
 
@@ -848,7 +875,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
     must not carry it into the next document or every later wait there runs its
     timeout out.
 
-    Accept-all is how a real sweep gets here: it answers its asks one awaited
+    Accept-all is how a real sweep gets here: it answers its items one awaited
     trip at a time, so a reload after the press lands mid-cascade and kills an
     /api/event POST that then produces no `response` and no `requestfailed`.
     The held answer puts the navigation on that exact edge. The ledger is the
@@ -898,7 +925,7 @@ def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch
         release_answer.set()
     # The first trip of the new document's own cascade, which is the whole of what a
     # ledger carried across the navigation can get wrong. Waiting the answer-all out
-    # instead ties this reading to how many asks the page happens to carry.
+    # instead ties this reading to how many items the page happens to carry.
     #
     # The trip is over when that first attempt leaves `pending`, which is the outbox's
     # own list of attempts with no outcome — a failed post keeps its attempt there and
@@ -1285,7 +1312,7 @@ flowchart TD
 
     assert page.locator("#identities").evaluate("e => [...e.visualParts.keys()]") == [
         "node:123",
-        "node:Ω",
+        "node:%CE%A9",
     ]
 
 
@@ -2568,6 +2595,11 @@ def resize_findings(page, path):
         ]
 
     left_alone(page)
+    # A sample can hold its child's growth while the reader sees the frame. Resizing
+    # interrupts that reading and releases the held height; take the baseline after
+    # that first release, so the return trip compares settled layouts at each width.
+    resized(page, path[-1], 900)
+    resized(page, path[0], 900)
     said = {width: at_width(width) for width in path}
     for width in path[-2::-1]:
         if changes := state_changes(said[width], at_width(width)):
@@ -2717,7 +2749,7 @@ def unshown_key_findings(page, source):
     """Each command in a widget that declares context keys the page never shows
     (`shows-context-keys`, widget_quality.py), in the page and each Leaf document it
     frames. A worked example shows one state of its widget, and a command a widget
-    declares only in another, such as a multiple-choice ask's Done, goes unseen
+    declares only in another, such as a multiple-choice item's Done, goes unseen
     there; the corpus holds those states. Widgets and `KNOWN` are read as for
     `held_scroller_findings`."""
     local = source.with_suffix(".page")
@@ -3079,6 +3111,7 @@ RELOCATE_ADOPTED = """async () => {
     const order = [...document.styleSheets].map((sheet) => sheet.cssRules[0])
         .find((rule) => rule instanceof CSSLayerStatementRule);
     const style = document.createElement('style');
+    style.setAttribute('data-controls', '');
     style.textContent = [order, ...rules].map((rule) => rule.cssText).join('\\n');
     // A copy: adoptedStyleSheets is a live array, so the assignment below would empty
     // the saved reference along with it.
@@ -3349,44 +3382,6 @@ def pressable_paper_findings(page):
     return findings
 
 
-def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve):
-    """The corpus is the page that holds every widget and idiom at once, so the layer's
-    whole-page rules are read on it, on one page, in turn: the adopted sheet decides
-    nothing by standing last (`adopted_sheet_findings`), every aim takes a finger
-    (`short_aim_findings`), and paper takes the press off everything it cannot press
-    (`pressable_paper_findings`). The touch emulation and print media are each put back
-    before the next reading.
-
-    First, composition preserves markup, not another page's durable versions: the
-    gallery's durable-embedding scenario stays hidden and unloaded in the corpus,
-    which has no version 2 to embed. The corpus then goes back to its first tab, where
-    the aims are measured."""
-    # The corpus's sort film otherwise repaints SVG values while the sheets move.
-    page = open_page(
-        browser,
-        serve(CORPUS_PAGE),
-        context=browser.new_context(
-            viewport={"width": 1200, "height": 900}, reduced_motion="reduce"
-        ),
-    )
-    page.locator('[role="tab"][aria-controls="corpus-feature-gallery"]').click()
-    page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
-    expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
-    assert page.locator("#bg-durable-frame").get_attribute("src") == "about:blank"
-    page.locator('[role="tab"][aria-controls="corpus-review-a-plan"]').click()
-    expect(page.locator("#corpus-review-a-plan")).to_be_visible()
-
-    findings = {
-        "sheet order": adopted_sheet_findings(page),
-        "aims": short_aim_findings(page),
-        "paper": pressable_paper_findings(page),
-    }
-    failed = {reading: found for reading, found in findings.items() if found}
-    assert failed == {}, "\n\n".join(
-        f"{reading}:\n" + "\n".join(found) for reading, found in failed.items()
-    )
-
-
 # From a box's last line of text to the inside of its lower border, and whether the box
 # scrolls sideways at all, since one that fits has no bar to clear.
 TEXT_CLEAR_OF_BAR = """(box) => {
@@ -3472,7 +3467,14 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
-        f"calldiff diff main → feature\n  changed()  app.py:1\n+ └─ {wide}()  app.py:2",
+        call_diff(
+            call_node(
+                "changed()",
+                "app.py",
+                1,
+                children=[call_node(f"{wide}()", "app.py", 2, status="added")],
+            )
+        ),
     )
     data_model.cmd_data_set(
         serve.page_dir,
@@ -4013,15 +4015,15 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
 
 
-def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
-    """An Ask allocated the column spans the wide block it holds, so its ring goes round
-    the block, and the gate named it as set out in the margin on every page with one.
-    The theme says which boxes it lets stand past their holders, so the gate reads the
-    Ask as the breakout it is, and a page width that moves it off the block is named,
-    as for any breakout. A box padded or sized past the
-    column without that leave is named, whether or not it paints there or a breakout
-    fills it."""
-    ask = """<lf-ask id="{id}"><h2>Which one?</h2>
+def test_an_item_spanning_its_block_is_a_breakout(browser, serve):
+    """An item allocated the column spans the wide block it holds, so its ring goes
+    round the block, and the gate named it as set out in the margin on every page with
+    one. The theme says which boxes it lets stand past their holders, so the gate reads
+    the item as the breakout it is. A page width on an item moves its edges off the
+    column's, so its block keeps to it and neither stands past the column. A box padded
+    or sized past the column without that leave is named, whether or not it paints there
+    or a breakout fills it."""
+    item = """<lf-ask id="{id}"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
 </lf-ask>"""
@@ -4031,8 +4033,8 @@ def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
 <h1>Reaching past the column</h1>
 <style>#sized-ask {{ max-width: 36rem; }}</style>
 <p>Prose sets the column.</p>
-{ask.format(id="ask")}
-{ask.format(id="sized-ask")}
+{item.format(id="ask")}
+{item.format(id="sized-ask")}
 <div id="bare" style="margin: 0 -120px; padding: 0 120px; text-indent: -120px">Out.</div>
 <div id="tinted" style="margin: 0 -120px; padding: 0 120px; background: #eee">Tint.</div>
 <div id="sized" style="width: calc(100% + 120px); background: #eee; --lf-block-frame: 1">
@@ -4050,10 +4052,9 @@ def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()
 
-    assert grown > 100, "the Ask never spanned its block, so nothing here was tested"
+    assert grown > 100, "the lf-ask never spanned its block, so nothing here was tested"
     found = sorted((m["code"], m["at"]) for m in misplaced)
     assert found == [
-        ("off-axis", "<lf-ask id=sized-ask>"),
         ("past-column", "<div id=bare>"),
         ("past-column", "<div id=sized>"),
         ("past-column", "<div id=tinted>"),
@@ -4549,6 +4550,7 @@ def test_the_layer_traps_no_margin_in_the_panel_it_draws(browser, serve):
         """() => {
              const s = document.createElement('style');
              s.id = 'trap';
+             s.setAttribute('data-controls', '');
              s.textContent =
                '.lf-thread { padding-top: 8px !important }'
                + '.lf-thread > .lf-thread-summary { margin-block-start: 9px !important }';

@@ -2,12 +2,12 @@
 
 from typing import NamedTuple
 
-from ..asks import approval_blocking, collection
 from ..document_reading import DocumentReading
 from ..events import UndoReading
 from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
+from ..items import approval_blocking, collection
 from ..passages import SourceReading
 from ..projection import (
     FrozenThreadReading,
@@ -40,18 +40,19 @@ class BrowserReading(NamedTuple):
 def _thread_attention(
     thread: dict, owed: bool, candidates: list[dict], todos: list[dict]
 ) -> dict | None:
-    """Whose turn one thread is: `needs_user` while an ask in it is the user's
+    """Whose turn one thread is: `needs_user` while an item in it is the user's
     (`owed`), or for an update the user must send again (`resend`); `waiting` while a
     workflow holds the thread with the agent, which covers every input
     `events.unanswered_turns` holds, or while a to-do the agent opened on it stands;
     else None, as for every resolved thread. `candidates` are the thread's
     `served_workflows`, strongest first, so the first that qualifies is the one the
     thread waits on, and a workflow speaks before a to-do. `todos` are the agent's
-    open to-dos, each stamped with its `thread`."""
+    open to-dos, each stamped with its `thread`; the browser reads the one it waits on
+    from the served `todos` itself, and `todo` here names it for `page state`."""
     if thread["resolved"]:
         return None
     if owed:
-        return {"kind": "needs_user", "reason": "ask", "workflow": None}
+        return {"kind": "needs_user", "reason": "widget", "workflow": None}
     if resend := next(
         (workflow for workflow in candidates if workflow["next_actor"] == "user"),
         None,
@@ -84,11 +85,10 @@ def _apply_thread_attention(
     durable: WorkReading, workflows: list[dict], threads: list[dict], todos: list[dict]
 ):
     """Attach each served thread's `attention`, the browser's one reading of whose turn
-    it is, and its `todos`, the agent's to-dos still open on it. `durable` is the
-    reading of the view these threads are served in, so a pinned revision's threads
-    take the attention its own vocabulary reads; `workflows` are the page's,
-    enriched with delivery liveness."""
-    owed = {ask["thread"] for ask in durable.asks["user"]}
+    it is. `durable` is the reading of the view these threads are served in, so a
+    pinned revision's threads take the attention its own vocabulary reads;
+    `workflows` are the page's, enriched with delivery liveness."""
+    owed = {item["thread"] for item in durable.items["user"]}
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
         if workflow["thread"] is not None:
@@ -97,19 +97,6 @@ def _apply_thread_attention(
         thread["attention"] = _thread_attention(
             thread, thread["id"] in owed, by_thread.get(thread["id"], []), todos
         )
-        # The agent's open to-dos on the thread, each with the line of the start
-        # running on it: a reply that promised one says it is still open (a to-do a
-        # reply opens takes the reply's id, `todos.py`), and a running one is work
-        # the thread's working message reads whoever's turn the thread is.
-        thread["todos"] = [
-            {
-                "id": todo["id"],
-                "title": todo["title"],
-                "line": todo["running"]["text"] if todo["running"] else None,
-            }
-            for todo in todos
-            if todo["thread"] == thread["id"]
-        ]
 
 
 def browser_state(
@@ -158,8 +145,10 @@ def browser_state(
         absorbed=active_page.projection.absorbed,
     )
     workflows = work.workflows
-    todos, ended_todos = durable.page_todos(work.activity["todos"])
-    agent_todos = [todo for todo in todos if todo["owner"] == "agent"]
+    todos = durable.page_todos(work.activity["todos"])
+    agent_todos = [
+        todo for todo in todos if todo["owner"] == "agent" and todo["state"] == "open"
+    ]
 
     views = {}
     documents = {}
@@ -177,7 +166,7 @@ def browser_state(
             )
         )
         # The view's own reading of the log: its document, and the frozen thread
-        # widgets with the asks and attention they give, under its registry.
+        # widgets with the items and attention they give, under its registry.
         viewed = durable.viewing(page)
         reading = viewed.document
         thread, thread_reading = browser_thread(viewed, work.live_reply)
@@ -214,9 +203,9 @@ def browser_state(
             active.get("activated_at") if active_revision == revision else None,
         )
         document = browser_document(reading, revision)
-        # The view's asks are its own document's beside its frozen thread's, so it
-        # carries the lists they add up to and the asks approving it waits on.
-        asks = document["asks"]["all"] + thread["asks"]["all"]
+        # The view's items are its own document's beside its frozen thread's, so it
+        # carries the lists they add up to and the items approving it waits on.
+        items = document["items"]["all"] + thread["items"]["all"]
         views[str(revision)] = {
             "basis": {"revision": revision, "through_seq": through_seq},
             "document": document,
@@ -231,10 +220,8 @@ def browser_state(
             ),
             "coverage": coverage,
             "published_at": published_at,
-            "queues": queues(
-                thread["threads"], workflows, todos, ended_todos, collection(asks)
-            ),
-            "approval_blocking": [ask["id"] for ask in approval_blocking(asks)],
+            "queues": queues(thread["threads"], workflows, todos, collection(items)),
+            "approval_blocking": [item["id"] for item in approval_blocking(items)],
         }
     activity = {
         key: value
@@ -259,12 +246,16 @@ def browser_state(
         **page_history,
         "views": views,
         # Approvals in force across every stamp, for Threads' event timeline.
-        # Current-version approval state lives only in its ask.
+        # Current-version approval state lives only in its item.
         "approval_history": durable.approvals,
         "activity": activity,
         "workflows": workflows,
+        # Every to-do, open and ended, the one record the browser reads each from
+        # (`work_reading.WorkReading.page_todos`).
         "todos": todos,
-        "ended_todos": ended_todos,
+        # The agent's outline of the work, its steps naming to-dos and items by id
+        # (`plans.plan_reading`), or None.
+        "plan": durable.plan,
         "receipts": [event for event in events if event.get("attempt")],
         # Every thread whose history each logged event changes
         # (`thread_context.thread_memberships`), which the browser reads for the

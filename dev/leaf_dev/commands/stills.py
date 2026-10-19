@@ -176,8 +176,8 @@ def banner_more(page: Page) -> None:
 
 def floating_thread(page: Page) -> None:
     """The floating panel (`lf-chrome`) with a thread opened from Threads: its head
-    names the way back, the thread's title and where it stands among the open ones,
-    beside On the page, Resolve and Close."""
+    names the way back and the thread's title, beside On the page, Resolve and
+    Close."""
     page.evaluate("localStorage.setItem('lf-chrome', 'floating')")
     load(page, page.url)
     page.locator(".lf-fp-threads").click()
@@ -266,6 +266,14 @@ def threads_panel(page: Page) -> None:
     page.wait_for_function(
         "() => document.querySelector('.lf-thread-panel')?.checkVisibility()"
     )
+
+
+def call_tree(page: Page) -> None:
+    """The CallDiff root and its unchanged landmarks beside added and removed calls."""
+    page.get_by_role("tab", name="CallDiff", exact=True).click()
+    widget = page.locator("#pr-call-diagram")
+    widget.scroll_into_view_if_needed()
+    widget.locator(".lf-call-root-location a").first.focus()
 
 
 def page_search(page: Page) -> None:
@@ -433,7 +441,7 @@ def composer_long(page: Page) -> None:
 
 
 def composer_sent(page: Page) -> None:
-    """That comment just sent: its card keeps the draft's wrapping while it stands."""
+    """That comment just sent: its card shares the draft's text column and wrapping."""
     composer_long(page)
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.locator(".lf-fab-bar").get_by_role(
@@ -441,7 +449,7 @@ def composer_sent(page: Page) -> None:
         ).tap()
     else:
         page.keyboard.press("Enter")
-    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.locator(".lf-margin-preview").wait_for()
     page.wait_for_function(
         "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
     )
@@ -449,7 +457,7 @@ def composer_sent(page: Page) -> None:
 
 
 def composer_sent_zoomed(page: Page) -> None:
-    """A short sent comment at fractional zoom must keep its one-line viewport."""
+    """A short sent comment at fractional zoom keeps its one line."""
     page.evaluate("document.documentElement.style.zoom = '1.1'")
     page.locator("#plan-lede").click(click_count=3)
     page.locator(".lf-fab-input").click()
@@ -457,7 +465,7 @@ def composer_sent_zoomed(page: Page) -> None:
         "better; is there a way of shortening? or maybe we just remove it??"
     )
     page.keyboard.press("Enter")
-    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.locator(".lf-margin-preview").wait_for()
     page.wait_for_function(
         "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
     )
@@ -811,6 +819,13 @@ def contents_by_keyboard(page: Page) -> None:
     page.locator("lf-toc li a").first.focus()
 
 
+def contents_over_reading(page: Page) -> None:
+    """Reveal the margin map over a section, including its title's background."""
+    contents_by_keyboard(page)
+    page.locator("lf-toc li a").first.press("Enter")
+    page.locator("lf-toc .lf-toc-start a").focus()
+
+
 def widget_inline_hints(page: Page) -> None:
     """A standalone command scope with an active inline hint, outside an Ask."""
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
@@ -854,6 +869,10 @@ def visual_review_menu(page: Page) -> None:
 
 def code_reader_feedback(page: Page) -> None:
     """The built reader and the place where its author receives design feedback."""
+    tab = page.get_by_role("tab", name="Comment on the reader")
+    if tab.count():
+        tab.click()
+        settle(page)
     page.locator(
         "#code-reader-feedback, #code-targeting-ask"
     ).scroll_into_view_if_needed()
@@ -892,6 +911,33 @@ def trace_comparison(page: Page) -> None:
     page.locator("#fix-compare").evaluate(
         "node => node.scrollIntoView({block: 'start'})"
     )
+
+
+def film_inspector(page: Page) -> None:
+    """Details beside the selected SVG commit in the merge film."""
+    page.get_by_role("button", name="Inspect next element", exact=True).click()
+    expect(page.locator("#merge-film .film-inspect")).to_be_visible()
+    page.locator("#merge-film .film-stage").evaluate(
+        "node => node.scrollIntoView({block: 'center'})"
+    )
+
+
+def live_sample_embedded(page: Page) -> None:
+    """The arrived practice page at its embedded content height."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    sample = page.locator("#bg-live-sample")
+    expect(
+        sample.frame_locator("iframe").locator("#bg-live-sample-copy")
+    ).to_be_visible()
+    sample.scroll_into_view_if_needed()
+
+
+def live_sample_full_view(page: Page) -> None:
+    """The same practice frame promoted into its native full-view dialog."""
+    live_sample_embedded(page)
+    sample = page.locator("#bg-live-sample")
+    sample.get_by_role("button", name="Full view", exact=True).click()
+    expect(sample.get_by_role("dialog", name="practice release note")).to_be_visible()
 
 
 def trace_timeline_by_keyboard(page: Page) -> None:
@@ -968,6 +1014,41 @@ STATES = (
         trace_controls,
         viewport=(540, 720),
         region=".lf-trace-toolbar",
+    ),
+    State(
+        "film-inspector",
+        "wt-merge",
+        film_inspector,
+        viewport=(900, 900),
+        region="#merge-film .film-stage",
+    ),
+    State(
+        "film-inspector-phone",
+        "wt-merge",
+        film_inspector,
+        viewport=(390, 844),
+        touch=True,
+        region="#merge-film .film-stage",
+    ),
+    State(
+        "live-sample-embedded",
+        "developer/feature-gallery",
+        live_sample_embedded,
+        region="#bg-live-sample",
+    ),
+    State(
+        "live-sample-embedded-phone",
+        "developer/feature-gallery",
+        live_sample_embedded,
+        viewport=(390, 844),
+        touch=True,
+        region="#bg-live-sample",
+    ),
+    State(
+        "live-sample-full-view",
+        "developer/feature-gallery",
+        live_sample_full_view,
+        region="#bg-live-sample .lf-sample-view",
     ),
     State(
         "trace-comparison-header",
@@ -1114,6 +1195,21 @@ STATES = (
     ),
     State("contents-spine", "developer/feature-gallery", at_rest),
     State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    State(
+        "contents-over-reading",
+        "developer/feature-gallery",
+        contents_over_reading,
+        viewport=(1100, 900),
+        region=".lf-toc-start a",
+    ),
+    State(
+        "contents-over-reading-dark",
+        "developer/feature-gallery",
+        contents_over_reading,
+        viewport=(1100, 900),
+        scheme="dark",
+        region=".lf-toc-start a",
+    ),
     State(
         "contents-spine-dark",
         "developer/feature-gallery",
@@ -1430,6 +1526,14 @@ STATES = (
         touch=True,
     ),
     State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
+    State("walkthrough-calls", "pr-walkthrough", call_tree, region="#pr-call-diagram"),
+    State(
+        "walkthrough-calls-dark",
+        "pr-walkthrough",
+        call_tree,
+        scheme="dark",
+        region="#pr-call-diagram",
+    ),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
     State("walkthrough-diff-comment", "pr-walkthrough", diff_line_composer),
@@ -1506,7 +1610,9 @@ def capture(browser, address: str, state: State, path: Path) -> dict | None:
     density of the displays its pairs are read on, so a crop shows text and hairlines
     as the reader's screen draws them."""
     scale = 2
-    with tab(browser, state.viewport, state.scheme, state.touch, scale=scale) as page:
+    with tab(
+        browser, state.viewport, state.scheme, state.touch, scale=scale, classic=True
+    ) as page:
         load(page, address)
         state.drive(page)
         settle(page)

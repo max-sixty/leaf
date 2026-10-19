@@ -22,12 +22,12 @@ import { copyControl } from "./copy-control.js";
 import { latestChip, versionBtn } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { othersBtn, queueBtn } from "./drawers.js";
+import { leavesCount } from "./live-leaves.js";
 import { pagePresented } from "./page-paint.js";
 import { repaint } from "./repaint.js";
 import { sizeObserver } from "./rendering.js";
 import {
   announce,
-  notice,
   noticeReading,
   registerNoticePresentation,
 } from "./notifications.js";
@@ -38,8 +38,9 @@ import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
 import { WEBSITE_DELIVERY } from "./context.js";
 import { readQueues } from "./queue-api.js";
-import { approvalBlockingAsks } from "./asks/model.js";
+import { approvalBlockingItems } from "./items/model.js";
 import { focusDestination, tabStops } from "./focus.js";
+import { holdingError, raiseError } from "./errors.js";
 
 const INITIAL = Object.freeze({
   tone: "",
@@ -138,7 +139,7 @@ const AWAITING_STATE = "Approval waits until this page has read its current stat
 export const approvalReading = () => {
   if (!signoff) return null;
   const { text, reason } = approvalWords();
-  return { text, reason };
+  return { text, reason, approved: versionApproved() };
 };
 // Keep a refused press focusable, with its reason available to keyboard and touch.
 function presentApproval({ reason, text, title }) {
@@ -160,7 +161,7 @@ registerBannerControl({
   control: othersBtn,
   rank: BANNER_CONTROL_RANK.leaves,
   conditional: true,
-  row: { label: "All pages", group: "navigate" },
+  row: { label: "All pages", value: () => String(leavesCount()), group: "navigate" },
 });
 registerBannerControl({
   key: "latest",
@@ -364,7 +365,7 @@ if (SHARE_ROOT) {
     rank: BANNER_CONTROL_RANK.share,
     // A presentation copies the link with its own copy control: a row of the page's own
     // menu with one press, or, where no clipboard is offered, beside the link to select.
-    row: { label: "Link", value: grants, copies: shareUrl, group: "page" },
+    row: { label: "link", value: grants, copies: shareUrl, group: "page" },
   });
 }
 
@@ -447,10 +448,10 @@ function renderPreview(state) {
       // What it copies is the diagnostics, which a presentation shows to select as
       // well; the line naming the preview says what they describe.
       row: {
-        label: "Preview diagnostics",
+        label: "preview diagnostics",
         value: () => previewLabel,
         copies: () => previewDiagnostics,
-        group: "about",
+        group: "page",
       },
     });
   }
@@ -521,7 +522,7 @@ function renderLayerReference(state) {
         label: "Leaf version",
         value: () => layerNamed,
         copies: () => layerDiagnostics,
-        group: "about",
+        group: "page",
       },
     });
   }
@@ -589,9 +590,9 @@ function renderSessionReference() {
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
       row: {
-        label: "Session reference",
+        label: "session reference",
         copies: () => runtime.sessionReference,
-        group: "about",
+        group: "page",
       },
     });
   }
@@ -624,6 +625,10 @@ function currentStatus() {
   return { status, model: statusModel(status, readQueues(), agentName()) };
 }
 export const statusReading = () => currentStatus()?.model ?? null;
+// A status that reaches nothing, or a reading the page could not apply, is an error the
+// user should see wherever they are (errors.js), held while the status says it. The
+// banner announces a change of status in its own words already.
+const holdUnreached = holdingError({ announce: false });
 function paintStatus() {
   renderSessionReference();
   const state = runtime.state;
@@ -633,6 +638,10 @@ function paintStatus() {
   }
   const current = currentStatus();
   if (current) presentStatus(current);
+  const kind = current?.status.kind;
+  holdUnreached(
+    ["unreachable", "refused", "broken"].includes(kind) ? current.status.summary : null,
+  );
 }
 const statusWatch = watchProjection(document.body, paintStatus);
 document.addEventListener(
@@ -688,7 +697,7 @@ export function mountBanner({ approveVersion, observeFeedback }) {
     // A refused press answers with its reason where every user sees it.
     const { reason } = approvalWords();
     if (reason) {
-      notice(reason);
+      raiseError(reason);
       return;
     }
     approving = true;
@@ -727,17 +736,17 @@ export function stateSignoff(next, syncLayout) {
 let approving = false;
 // Whether the user has approved the shown version.
 const versionApproved = readPart((root) =>
-  root.effective.asks.all.some(
-    (ask) => ask.source.kind === "approval" && ask.status === "answered",
+  root.effective.items.all.some(
+    (item) => item.source.kind === "approval" && item.status === "answered",
   ),
 );
 
 // What Approval says now: its `text`, its `title`, why a press is refused (`reason`,
-// null where it approves) and whether it is `open`. The asks holding approval are null
+// null where it approves) and whether it is `open`. The items holding approval are null
 // before the page has read the log and so cannot say which those are.
 function approvalWords() {
   const approved = versionApproved();
-  const blockingAsks = approvalBlockingAsks();
+  const blockingItems = approvalBlockingItems();
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
   // surface that could have told a user what pressing it would do next went on
@@ -749,10 +758,10 @@ function approvalWords() {
     ? "Approved. Press z to undo while approval is still the latest update"
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
-      : !signoff || !pagePresented() || blockingAsks === null
+      : !signoff || !pagePresented() || blockingItems === null
         ? AWAITING_STATE
-        : blockingAsks.length
-          ? "Answer every ask before approving this work"
+        : blockingItems.length
+          ? "Answer every open widget before approving this work"
           : null;
   return {
     reason: reason ?? (approving ? "Approving this version" : null),
@@ -771,7 +780,7 @@ function drawApproval() {
   presentApproval(words);
   // Approval is open while a press would approve this version, and behind More, on a
   // phone, that puts More's dot up. A refused press does not: the dot comes up when the
-  // last ask holding approval is answered, which is when the user can act on it.
+  // last item holding approval is answered, which is when the user can act on it.
   markBannerControl(approveBtn, words.open ? "approval open" : null);
   repaint();
 }

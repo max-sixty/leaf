@@ -35,10 +35,11 @@ again as new. A batch can still be refused, as when the page changed hands after
 agent's `leaf delivery ack` then confirms it or shows the refusal. A delivery over
 Claude Code's context limit (`HOOK_CONTEXT_LIMIT`) goes as a pointer too.
 
-A page vendored at another protocol is re-vendored before it is read
+A page vendored at an older protocol is re-vendored before it is read
 (`vendoring.renew_layer`), and the turn is told why that failed or which checks
-index.html now fails. A page that could not be re-vendored offers no input
-(`delivery.deliverable`), so the hook names the refusal and records no pickup there.
+index.html now fails. A page this Leaf cannot write, because its re-vendor failed
+or a newer Leaf vendored it, offers no input (`delivery.deliverable`), so the hook
+names the refusal and records no pickup there.
 
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook confirms only before `CONFIRM_WITHIN`, well inside its
@@ -75,7 +76,7 @@ from .event_contracts import write_refusal
 from .findings import Finding
 from .harness import Harness, claim_harness
 from .schema import (
-    ANSWER_ASK_INSTRUCTION,
+    ANSWER_ITEM_INSTRUCTION,
     PREVIEW_FILE,
 )
 from .served_state.context import read_page
@@ -269,7 +270,7 @@ def remedies(
             reasons.append(
                 (
                     f"{plan.page}: {unanswered(plan.owed, plan.page, 'acknowledged')}{restart(plan.owed)}.",
-                    ANSWER_ASK_INSTRUCTION,
+                    ANSWER_ITEM_INSTRUCTION,
                 )
             )
         if not plan.watched:
@@ -376,8 +377,7 @@ POINTED_OPENING = "Leaf has new input for this turn. Read it with"
 # it does not know out of what it hands the model and a hooks module, and keeps
 # the hook's whole stdout in a trace's `hook_response` (measured at 2.1.296). So
 # the field reaches Leaf's hooks module, which runs the Stop hook itself to read
-# it (`hooks/claude-code.ts`), and an eval's reading of a trace
-# (`leaf_dev.arms.hook_delivered`).
+# it (`hooks/claude-code.ts`).
 DELIVERY_FIELD = "leaf_delivery"
 
 

@@ -99,7 +99,7 @@ def constructed_content(
     another owner's decision. Node locations inherit the enclosing reading's
     document source; source and vocabulary paths are not repeated per element.
     """
-    roots = deepcopy(parser.content)
+    roots = deepcopy(parser.authoring.content)
     by_id = {}
     # The id of each identified node's nearest identified ancestor.
     parents = {}

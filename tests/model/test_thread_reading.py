@@ -8,7 +8,7 @@ from click.testing import CliRunner
 from interact_support import (
     _interaction_prompt_evidence,
     append_carried_log_record,
-    command_refusal,
+    command_findings,
     consume_pending_input,
     delivered,
     last_deliverable_seq,
@@ -137,7 +137,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
         )
 
     def refused(start: str, end: str) -> str:
-        return command_refusal(
+        [finding] = command_findings(
             "thread",
             "summarize",
             page_dir,
@@ -147,7 +147,8 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
             end,
             "--text",
             "The first exchange.",
-        ).code
+        )
+        return finding.code
 
     assert refused(second["id"], root["id"]) == "summary-order"
     assert refused(root["id"], neighbor["id"]) == "summary-endpoints"
@@ -522,7 +523,7 @@ def test_agent_sees_a_real_summary_suggestion(page_dir, capsys, snapshot):
     envelope = json.loads(json.dumps(payload).replace(payload["id"], "<delivery>"))
     [batch] = envelope["batches"]
     assert batch["threads"][0]["summary_hint"]
-    # The event carries the ask as well as the digest, so an agent that reads only
+    # The event carries the item as well as the digest, so an agent that reads only
     # what is new can still choose whether to summarize the older discussion.
     [event] = batch["events"]
     assert any("summary_hint" in batch["handling"][h] for h in event["handling"])

@@ -12,12 +12,12 @@ than deciding again. An update with an answer is owed until that answer is writt
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread message, or an
-  action in an answered ask in frozen thread markup. The agent answers it with
+  action in an answered item in frozen thread markup. The agent answers it with
   `leaf response reply <answer.ref>`. While a turn has reserved the reply
   (`delivery`'s header), `activity` adds `writer: "turn"` and the reservation's
   attempt.
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
-  widget's answered ask and the authored markup does not yet record, answered by
+  widget's answered item and the authored markup does not yet record, answered by
   a stamped version that writes it in. An option the user added stays in the log,
   so a version that takes in a pick of it need not write it into the markup.
 
@@ -28,7 +28,7 @@ carried has no ref.
 
 Some workflows carry no answer. When the user sends two messages in a row in a
 thread, the older one's workflow has a null answer, and the reply to the newer one
-answers both. A widget action that answers no ask, such as an edit to a user-owned
+answers both. A widget action that answers no item, such as an edit to a user-owned
 draft or a moved card, owes nothing. The log goes on applying it to later readings
 of the document, and `page check` makes the next version write any part of it the
 markup must record. Its receipt shows until the document takes it in: on the page,
@@ -38,14 +38,14 @@ in a thread's frozen markup, which no version rewrites, until the agent's next
 message in that thread or a resolution after it.
 
 Whether an update needs delivering is decided apart from its workflow. Admission
-records whether the update changes the user's outstanding asks, owed answers, work
+records whether the update changes the user's outstanding items, owed answers, work
 in hand or approvals (`obligation_reading`), and delivery keeps that decision after
 the workflow settles.
 
-An action on a widget whose ask the user is still answering, such as a pick before
+An action on a widget whose item the user is still answering, such as a pick before
 its group's Done or an action before a queue is empty, has no workflow yet; the
-finishing action carries the receipt. Once the ask is answered, every action on that
-widget is owed, and `asks` decides when that is.
+finishing action carries the receipt. Once the item is answered, every action on that
+widget is owed, and `items` decides when that is.
 
 When a harness gives up on an update, `thread.fail_answer` writes the failure, a
 reply in the thread or a failed pickup of a page action, each carrying `failure`.
@@ -71,12 +71,12 @@ from .todos import (
 
 
 def obligation_reading(readings) -> dict:
-    """The outstanding asks and to-dos on the user, answers and work in hand a gesture
+    """The outstanding items and to-dos on the user, answers and work in hand a gesture
     can change.
 
     Delivery progress, receipt-only updates and presentation are absent. Work in hand,
     an update the agent started or a to-do it opened on a thread or widget, also holds the
-    widget inputs in force on its subject, even while an ask is being composed:
+    widget inputs in force on its subject, even while an item is being composed:
     changing a pick under ongoing work changes that work before Done. Admission
     compares this reading on either side of the append and stores the result.
     """
@@ -84,8 +84,7 @@ def obligation_reading(readings) -> dict:
     page = work.page
     thread = work.thread
     workflows = work.workflows
-    thread_asks = work.widget_asks
-    prompts = work.prompts
+    thread_items = work.widget_items
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
@@ -105,20 +104,17 @@ def obligation_reading(readings) -> dict:
     return {
         "on_user": {
             "page": [
-                ask["id"]
-                for ask in work.document.asks["unanswered"]
-                if ask["next_actor"] is not None
+                item["id"]
+                for item in work.document.items["unanswered"]
+                if item["next_actor"] is not None
             ]
             if page is not None
             else [],
             "thread": [
-                ask["id"]
-                for ask in thread_asks["unanswered"]
-                if ask["next_actor"] is not None
+                item["id"]
+                for item in thread_items["unanswered"]
+                if item["next_actor"] is not None
             ],
-            "prompts": {
-                identity: prompt["message"] for identity, prompt in prompts.items()
-            },
             # The to-dos the agent put on the user, which their Done ends.
             "todos": [
                 todo["id"]
@@ -157,7 +153,7 @@ def page_action_unsettled(
 ) -> bool:
     """Whether one page action in force is still unsettled.
 
-    An owed action — part of an answered ask — settles when the authored markup
+    An owed action — part of an answered item — settles when the authored markup
     records it. The note of a later version settles the rest: a verb with no
     authored record form, whose note is the document's answer to it, and an action
     that owed nothing, which that version has taken in whether or not its markup
@@ -210,7 +206,7 @@ def canonical_workflows(
     page: PageReading | None = None,
     events: list | None = None,
     todo_reading: TodoReading | None = None,
-    asks: dict,
+    items: dict,
 ) -> list[dict]:
     """The unsettled user inputs and strongest evidence held for each.
 
@@ -450,7 +446,7 @@ def canonical_workflows(
 
     # Every widget action the user has handed over keeps its delivery receipt until
     # it settles, whether the widget stands in the page or was frozen into thread
-    # markup, and only an action in an answered ask is owed an answer. An action on an
+    # markup, and only an action in an answered item is owed an answer. An action on an
     # ask the user is still answering has not been handed over, so it has no receipt
     # until the finishing action carries one. The two documents differ only in what
     # settles an action and which operation answers an owed one.
@@ -493,10 +489,10 @@ def canonical_workflows(
             {"kind": "reply", "to": thread_id, "for": source["id"]} if owed else None
         )
 
-    ask_by_source = {
-        ask["source"]["id"]: ask
-        for ask in asks["all"]
-        if ask["source"]["kind"] == "widget"
+    item_by_source = {
+        item["source"]["id"]: item
+        for item in items["all"]
+        if item["source"]["kind"] == "widget"
     }
     documents = []
     if page is not None:
@@ -513,10 +509,10 @@ def canonical_workflows(
         for coordinate, (source, spec) in projection.actions.items():
             if source["author"] != "user":
                 continue
-            ask = ask_by_source.get(source["widget"])
-            if ask is not None and ask["status"] == "open":
+            item = item_by_source.get(source["widget"])
+            if item is not None and item["status"] == "open":
                 continue
-            owed = ask is not None and ask["status"] == "answered"
+            owed = item is not None and item["status"] == "answered"
             unsettled, answer = settlement(coordinate, source, spec, owed)
             actions.append(
                 (

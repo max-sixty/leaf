@@ -31,6 +31,8 @@ import {
   nativeLayerHolding,
   nativeLayerKind,
   nextRender,
+  onStanding,
+  pressLed,
   standingIn,
   under
 } from "./bundle-sample-visibility.js";
@@ -208,6 +210,10 @@ function createAuxiliarySurfaces({
     if (!selected || !holder || under(holder, selected.surface)) return;
     if (selected.covers() || hides(selected.surface, where)) select(null);
   }
+  onStanding((node, cause) => {
+    if (cause !== "step" && (cause !== "move" || pressLed())) return;
+    if (!controllers.get(selectedKey)?.covers()) clearFor(node);
+  });
   const selectedSurface = () => controllers.get(selectedKey)?.surface ?? null;
   const coveringSurface = () => active?.surface ?? null;
   const coveringScroller = () => active?.scroller() ?? null;

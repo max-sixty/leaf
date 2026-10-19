@@ -11,7 +11,7 @@
    obligation outranks concurrent agent work, which stays the card's secondary
    status.
 
-   A thread's `id` is its one identity: the id the server keys it by, which every ask,
+   A thread's `id` is its one identity: the id the server keys it by, which every item,
    workflow, placement, and view names it by. Its `root` is its opening message, a
    message like any other, and what a reply or settlement addresses as its `parent`. A
    thread this tab opened goes by its pending message's id until the log answers. */
@@ -210,7 +210,6 @@ export function foldThreads(threads, gestures) {
         summaries: [],
         unread: [],
         attention: reaction ? null : sending(gesture),
-        todos: [],
       };
       opened.push(thread);
       byName.set(gesture.id, thread);
@@ -299,7 +298,7 @@ export const moved = (message) => ({
 
 // When a thread last moved: the latest move of any of its turns.
 /** @param {{msgs: readonly {id: string, token?: string, edited?: {seq?: number, ts: string}, seq?: number, ts?: string}[], root: {id: string}}} thread */
-function lastMovedAt(thread) {
+export function lastMovedAt(thread) {
   let latest = null;
   for (const message of turns(thread)) {
     const { ts } = moved(message);
@@ -308,12 +307,6 @@ function lastMovedAt(thread) {
   }
   return latest;
 }
-
-/** @param {{title: string | null, root: {id: string, body: {text: string}}} & Parameters<typeof lastMovedAt>[0]} thread */
-export const threadSummary = (thread) => ({
-  topic: thread.title ?? thread.root.body.text.trim(),
-  latest: lastMovedAt(thread),
-});
 
 /** @param {import("../../../../../build/browser/domain.ts").ContentVersion} item */
 const versionKey = ({ message, version }) => `${message}\u0000${version}`;
@@ -329,6 +322,8 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
  * @param {import("../../../../../build/browser/application.ts").SemanticDocument} document
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {import("../../../../../build/browser/application.ts").Workflow[]} workflows
+ * @param {readonly import("../../../../../build/browser/application.ts").WireTodo[]} todos
+ *   the open to-dos, of which each thread holds the agent's on it
  * @param {import("../../../../../build/browser/domain.ts").ContentVersion[]} markingRead
  * @param {boolean} ready
  */
@@ -337,6 +332,7 @@ export function readThreadRecords(
   document,
   widgets,
   workflows,
+  todos = [],
   markingRead = [],
   ready = true,
 ) {
@@ -426,7 +422,13 @@ export function readThreadRecords(
       settling: thread.settling ?? null,
       user_prompt: thread.user_prompt,
       attention: thread.attention,
-      todos: thread.todos,
+      // The agent's open to-dos on the thread: a reply that promised one says it is
+      // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first
+      // is the one a thread waiting on a to-do waits on, and a running one is work the
+      // thread's working message reads whoever's turn the thread is.
+      todos: todos.filter(
+        (todo) => todo.owner === "agent" && todo.thread === thread.id,
+      ),
       workflows: workflows.filter((workflow) => workflow.thread === thread.id),
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,

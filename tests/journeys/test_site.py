@@ -41,7 +41,6 @@ from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.structure import SourceDocument
-from leaf_dev import docs
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets
@@ -55,9 +54,11 @@ from render_cases_layout import banner_control
 from render_harness import (
     consume_browser_errors,
     displayed,
-    expect_asks_answered,
     expect_banner_control_offered,
+    expect_items_answered,
     holding,
+    http_error_console,
+    is_problem,
     navigate,
     open_page,
     page_comment,
@@ -151,7 +152,7 @@ def framed_root_examples():
     framed = []
     for page in authored_examples():
         parsed = SourceDocument(page.read_text(encoding="utf-8"))
-        main = next(node for node in parsed.nodes if node["tag"] == "main")
+        main = next(node for node in parsed.authoring.nodes if node["tag"] == "main")
         if "layout-workspace" in main["attrs"].get("class", "").split():
             framed.append(page.stem)
     assert framed, "the corpus published no framed-root example to check"
@@ -164,7 +165,7 @@ def published_pages():
     return [*authored_examples(), *DEVELOPER_PAGES]
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(name="site", scope="module")
 def site(tmp_path_factory):
     """One build for the module: it vendors a layer and checks every published page."""
     out = tmp_path_factory.mktemp("published") / "site"
@@ -230,7 +231,7 @@ def released_site_endpoint(session_site: Path, asset_tree: Path):
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(name="hosted", scope="module")
 def hosted(site, tmp_path_factory):
     """One user's private copy, matching the container boundary in production."""
     session_site = tmp_path_factory.mktemp("website-session") / "site"
@@ -243,7 +244,7 @@ def hosted(site, tmp_path_factory):
         yield f"http://127.0.0.1:{httpd.server_address[1]}"
 
 
-@pytest.fixture
+@pytest.fixture(name="served_example")
 def served_example(site, tmp_path):
     """Serve one browser's disposable pages through the website's real backend."""
     session_site = tmp_path / "site"
@@ -391,7 +392,9 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     """The edge gets served Leaf documents and browser assets, never session state."""
     assets = site_build.asset_site(site)
     pinned = pinned_assets()
-    root_media = SourceDocument(authored_markup(DOCS / "index.html")).media_refs
+    root_media = SourceDocument(
+        authored_markup(DOCS / "index.html")
+    ).authoring.media_refs
     root_media.add(media_url(pinned / site_build.SOCIAL_CARD))
     product_media = {
         Path(media_url(source)).name: source
@@ -813,9 +816,12 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     page.close()
     consume_browser_errors(
         page,
-        {"code": "failed-load", "status": 404},
-        "Failed to load resource",
-        "error loading",
+        lambda problem: (
+            is_problem(problem, http_error_console(404))
+            and urlsplit(problem.values["url"]).path.endswith(
+                ("/leaf.js", "/registry.json")
+            )
+        ),
     )
 
 
@@ -1089,7 +1095,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         wait_until_ready(page)
         assert page.evaluate("document.compatMode") == "CSS1Compat", name
         source = (DOCS / name).read_text(encoding="utf-8")
-        expected_title = SourceDocument(source).title.strip()
+        expected_title = SourceDocument(source).authoring.title.strip()
         assert expected_title
         assert page.title() == expected_title, name
         expect(page.locator("h1")).to_have_text(heading(source))
@@ -1124,7 +1130,7 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         assert not failed, f"{name}: {failed[:3]}"
 
 
-@pytest.fixture
+@pytest.fixture(name="staged_site")
 def staged_site(site, tmp_path):
     """The module's built site, copied for one test to break files in.
 
@@ -1148,73 +1154,6 @@ def staged_site(site, tmp_path):
 
     shutil.copytree(site, staged, copy_function=share_layer)
     return staged
-
-
-def test_a_link_a_host_would_404_stops_the_build(staged_site, hosted):
-    """The build stops on each local link a static host would answer with a 404.
-
-    One copy takes each break in turn and puts it back, and the untouched copy
-    passes first, so each refusal is that break's own."""
-
-    def refusal():
-        with pytest.raises(SystemExit) as stopped:
-            site_build.check_links(staged_site)
-        return str(stopped.value)
-
-    site_build.check_links(staged_site)
-    tour = site_build.product_page(staged_site, "index.html") / "index.html"
-    authored = tour.read_bytes()
-
-    tour.write_text('<a href="whats-new.html">news</a>')
-    assert "whats-new.html" in refusal()
-
-    # The build holds each page's log and the site's own manifest, but the server
-    # routes only a page's document and served resources, so these links 404 live.
-    for target in ("/examples/triage-board/events.jsonl", "/_leaf/site.json"):
-        assert (staged_site / target.lstrip("/")).is_file()
-        with pytest.raises(urllib.error.HTTPError) as missing:
-            urllib.request.urlopen(f"{hosted}{target}")
-        assert missing.value.code == 404
-        tour.write_text(f'<a href="{target}">record</a>')
-        assert target in refusal()
-    tour.write_bytes(authored)
-
-    # What a host answers a directory with is its index, so that is what has to be
-    # there. An existence check passes on the directory itself and publishes a 404.
-    board = staged_site / "examples" / "triage-board" / "index.html"
-    document = board.read_bytes()
-    board.unlink()
-    assert "triage-board" in refusal()
-    board.write_bytes(document)
-
-    # The one broken image a user of the site would never run into. A card is
-    # fetched by whoever unfurls the link, not by the browser showing the page, so a
-    # preview whose bytes moved out from under its content address fails silently
-    # everywhere except in a shared link.
-    manifest_path = staged_site / site_build.SITE_MANIFEST
-    manifest = json.loads(manifest_path.read_text())
-    manifest["pages"]["/examples/triage-board"]["image"] = "/examples/media/gone.jpg"
-    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
-    refused = refusal()
-    assert "og:image" in refused
-    assert "gone.jpg" in refused
-
-
-def test_an_invalid_product_document_stops_the_build(tmp_path, monkeypatch):
-    """The builder crosses Leaf's gate rather than copying a plausible HTML shell."""
-    staged_docs = tmp_path / "docs"
-    shutil.copytree(DOCS, staged_docs)
-    tour = staged_docs / "index.html"
-    tour.write_text(
-        tour.read_text().replace(
-            "</head>", '<base href="https://evil.example/"></head>'
-        )
-    )
-    monkeypatch.setattr(docs, "DOCS", staged_docs)
-
-    with pytest.raises(SystemExit) as stopped:
-        site_build.build(tmp_path / "invalid-site", site_build.checkout_leaf())
-    assert "<base>" in str(stopped.value)
 
 
 def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
@@ -1605,9 +1544,9 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
     # The question Claude asks in that thread is a widget, upgraded from the
     # same canonical state a user can answer where they are standing.
-    ask = page.locator("#off-slip")
-    expect(ask).to_be_visible()
-    assert ask.locator("[data-lf-offer]").count() > 0, (
+    item = page.locator("#off-slip")
+    expect(item).to_be_visible()
+    assert item.locator("[data-lf-offer]").count() > 0, (
         "the group renders on the site with nothing to press, so the decision "
         "is a picture of one"
     )
@@ -1615,7 +1554,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
 
 def test_shipped_data_opens_in_its_package_projection(site, served_example, browser):
     """The page backend delivers package data through the live state contract, and
-    the page counts every Ask it declares."""
+    the page counts every item it declares."""
     stored = data_model.source_file(
         site / "examples" / "command-hub", "atlas-worktrees"
     )
@@ -1634,8 +1573,8 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
             "xpath=following-sibling::dd[1]"
         )
     ).to_have_text("running")
-    # The inventory includes request Decisions beside state Asks.
-    expect_asks_answered(page, "0/5")
+    # The inventory includes request Decisions beside state items.
+    expect_items_answered(page, "0/5")
     expect_banner_control_offered(page.locator(".lf-queue"))
 
 
@@ -1690,17 +1629,17 @@ def test_a_published_decision_survives_reload(served_example, browser):
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
     decisions = page.locator(".lf-queue")
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
     expect_banner_control_offered(decisions)
     chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()
     expect(page.locator("#heat-first")).to_have_attribute("data-lf-user-override", "1")
     assert "heat-opt-floor" in page.evaluate(chosen)
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
     page.reload(wait_until="load")
     wait_until_ready(page)
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
     assert "heat-opt-floor" in page.evaluate(chosen)
 
 

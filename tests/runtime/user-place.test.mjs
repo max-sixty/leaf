@@ -240,6 +240,85 @@ test("a node the render replaced hands the place across under its identity", asy
   scroller.remove();
 });
 
+test("nested keepers on one scroller correct a reflow once", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const [first, later] = [item("first", 1000), item("later", 1200)];
+  scroller.append(first, later);
+  scrollTo(1200);
+  const options = { items: ".item", identity: (node) => node.dataset.id };
+  const list = placeKeeper(scroller, options);
+  const card = placeKeeper(scroller, options);
+  const listHold = list.take();
+  const cardHold = card.take({ spans: false });
+  assert.ok(cardHold);
+  at.set(later, 1269);
+  card.finish(cardHold);
+  list.finish(listHold);
+  assert.equal(scrolled(), 1269);
+  // The inner owner can take the next independent change after the list releases it.
+  const next = card.take({ spans: false });
+  assert.ok(next);
+  card.finish(next);
+  scroller.remove();
+});
+
+test("an inner hold cannot consume movement of another named row", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const first = item("first", 1000);
+  const later = item("later", 1200);
+  first.classList.add("earlier");
+  later.classList.add("later");
+  scroller.append(first, later);
+  scrollTo(1000);
+  const identity = (node) => node.dataset.id;
+  const list = placeKeeper(scroller, { items: ".later", identity });
+  const card = placeKeeper(scroller, { items: ".earlier", identity });
+  const listHold = list.take();
+  const cardHold = card.take({ spans: false });
+  at.set(later, 1269);
+  card.finish(cardHold);
+  list.finish(listHold);
+  assert.equal(scrolled(), 1069);
+  scroller.remove();
+});
+
+test("an outer hold keeps its row when the inner row moves farther", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const first = item("first", 1000);
+  const later = item("later", 1200);
+  first.classList.add("earlier");
+  later.classList.add("later");
+  scroller.append(first, later);
+  scrollTo(1000);
+  const identity = (node) => node.dataset.id;
+  const list = placeKeeper(scroller, { items: ".later", identity });
+  const card = placeKeeper(scroller, { items: ".earlier", identity });
+  const listHold = list.take();
+  const cardHold = card.take({ spans: false });
+  at.set(first, 1069);
+  at.set(later, 1230);
+  card.finish(cardHold);
+  list.finish(listHold);
+  assert.equal(scrolled(), 1030);
+  scroller.remove();
+});
+
+test("a released keeper cannot remove the next keeper's anchoring claim", async () => {
+  const { scroller, item, scrollTo } = laidOut();
+  scroller.append(item("first", 1000));
+  scrollTo(1000);
+  const options = { items: ".item", identity: (node) => node.dataset.id };
+  const first = placeKeeper(scroller, options);
+  const second = placeKeeper(scroller, options);
+  first.finish(first.take());
+  const next = second.take();
+  assert.ok(next);
+  await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
+  assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "none");
+  second.finish(next);
+  scroller.remove();
+});
+
 test("a node with no identity passes the place to the next candidate, not a stranger", () => {
   const { scroller, item, at, scrolled, scrollTo } = laidOut();
   const nodes = ["", "b"].map((id, index) => item(id, 1000 + index * 150));

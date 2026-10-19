@@ -14,10 +14,12 @@ run:
 leaf page export <page> -o <file>
 ```
 
-Hand back the `file://` URL; don't start a server or wait. The file opens offline, and
-its widgets, controls and page code work, but threads and anything that needs the agent
-don't. A page with a live sample can't be exported. Write the file where the project
-keeps files for the user. Exporting a live page doesn't end its loop.
+Hand back the `file://` URL; don't start a server or wait. The file opens offline with
+the stamped content and recorded decisions. Reading controls and the page's own code
+work, but recording new Leaf choices or updates, Undo and threads require the served
+page and its server; an active agent is not required to record a choice. A page with a
+live sample can't be exported. Write the file where the project keeps files for the
+user. Exporting a live page doesn't end its loop.
 
 ## Address and authentication
 
@@ -68,6 +70,9 @@ holds the page. Run it too when you want a newer runtime, theme or package:
 leaf page init <page>
 ```
 
+A page vendored by a newer Leaf than the one you run is refused as well, and `page init`
+won't take it back to an older protocol; the refusal says how to load a newer Leaf.
+
 While Leaf is in alpha, an update can also break an older page without a protocol
 change. `page check` and the page's banner menu name the Leaf that vendored the page and
 the one running, with their dates. If a page misbehaves and its Leaf is much older,
@@ -112,7 +117,7 @@ leaf page state <page>
 ```
 
 Read the active revision's HTML (`active.file`) and the `state` over it, then the open
-asks, the threads, and `measurement_lag` for figures whose sources have run again, as
+items, the threads, and `measurement_lag` for figures whose sources have run again, as
 `authoring-revisions.md`, "Read before editing", describes. Then run
 `leaf page claim <page>`, which moves the page to your session and stops another
 session's watcher from watching it, and watch it as your harness's reference says.

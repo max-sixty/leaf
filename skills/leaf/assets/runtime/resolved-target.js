@@ -61,6 +61,7 @@ export const targetRange = (resolved) => {
 
 export function rangeGeometry(range) {
   return {
+    range,
     contextNode:
       range.startContainer.nodeType === Node.TEXT_NODE
         ? range.startContainer
@@ -71,6 +72,16 @@ export function rangeGeometry(range) {
       null,
   };
 }
+
+// The boxes a passage's words are drawn in: each segment's own lines, never the box of
+// an element the passage runs across. None where a revision has changed its text since
+// it resolved (`targetRange`).
+export const passageBoxes = (resolved) =>
+  targetRange(resolved)
+    ? targetSegments(resolved)
+        .flatMap((segment) => [...rangeOf([segment]).getClientRects()])
+        .filter((box) => box.width && box.height)
+    : [];
 
 export function passageGeometry(resolved) {
   const range = targetRange(resolved);

@@ -8,16 +8,21 @@
  * (`ClaudeCodeHarness` in `skills/leaf/scripts/leaf/harness.py`):
  *
  * - the session's start and each main-loop turn's end start the watch (`bin/leaf
- *   hook --harness claude-code --watch`), which prints a line and exits once one
- *   of the session's pages has input;
+ *   hook --harness claude-code --if-claimed --watch`), which prints a line and
+ *   exits once one of the session's pages has input;
  * - a turn the user interrupts ends with no Stop hook, so the module starts the
  *   watch with the Interrupt payload, which closes the turn. Receipt distinguishes
  *   input that entered that turn from input held outside its context;
  * - a watch that wakes an idle session submits its line as a prompt, whose
- *   prompt hook hands the input over; one that wakes during a turn leaves the
- *   input to the native PostToolBatch boundary, shared with the default
- *   registration. A wake while Stop hooks run waits for their decision before
- *   starting an idle turn. The module never makes a second mid-turn delivery;
+ *   prompt hook hands the input over. From an Escape until the user next types,
+ *   Claude Code drops every prompt a plugin submits but still takes a message
+ *   from another session (measured at 2.1.300), so for a dropped prompt the
+ *   module sends Leaf a WakeRefused payload, and Leaf nudges the session through
+ *   that message, as admission does for a session nothing watches. A watch that
+ *   wakes during a turn leaves pending input to the native PostToolBatch
+ *   boundary, shared with the default registration. A wake while Stop hooks run
+ *   waits for their decision before starting an idle turn. The module never
+ *   makes a second mid-turn delivery;
  * - a delivery Leaf's Stop hook hands over inline as a turn ends, which Claude
  *   Code would print in full, goes into the session the same way, and the turn
  *   goes on with one line in its place. The hook's output names that delivery in
@@ -88,11 +93,14 @@ async function hook(
   payload: Payload,
 ): Promise<HookOutput | undefined> {
   try {
-    const ran = await $.process.run([launcher($), "hook", "--harness", "claude-code"], {
-      env: environment(payload.session_id),
-      stdin: JSON.stringify(payload),
-      timeoutMs: HOOK_TIMEOUT_MS,
-    });
+    const ran = await $.process.run(
+      [launcher($), "hook", "--harness", "claude-code", "--if-claimed"],
+      {
+        env: environment(payload.session_id),
+        stdin: JSON.stringify(payload),
+        timeoutMs: HOOK_TIMEOUT_MS,
+      },
+    );
     if (ran.exitCode !== 0) {
       $.ui.log(
         `Leaf: ${payload.hook_event_name} hook exited with code ${ran.exitCode}${ran.stderr.trim() ? `: ${ran.stderr.trim()}` : ""}`,
@@ -123,7 +131,14 @@ async function ensureWatch($: EngineInterface, session: string, interrupted: boo
           ended_at: ended,
         };
         const stream = $.process.spawn({
-          argv: [launcher($), "hook", "--harness", "claude-code", "--watch"],
+          argv: [
+            launcher($),
+            "hook",
+            "--harness",
+            "claude-code",
+            "--if-claimed",
+            "--watch",
+          ],
           env: environment(session),
           input: JSON.stringify(payload),
         });
@@ -167,7 +182,7 @@ async function ensureWatch($: EngineInterface, session: string, interrupted: boo
           done,
         };
       },
-      (output, live) => wake($, output, live),
+      (output, live) => wake($, session, output, live),
     )
     .catch((error) => {
       $.ui.log(`Leaf: watch could not start: ${error}`);
@@ -188,7 +203,12 @@ function append($: EngineInterface, text: string) {
   });
 }
 
-async function wake($: EngineInterface, woke: string, live: () => boolean) {
+async function wake(
+  $: EngineInterface,
+  session: string,
+  woke: string,
+  live: () => boolean,
+) {
   if (!woke) return;
   try {
     // Claude Code refuses a plugin's prompt that starts with `/`, as the watch's
@@ -196,9 +216,13 @@ async function wake($: EngineInterface, woke: string, live: () => boolean) {
     const prompt = `Leaf: ${woke}`;
     const ongoing = await turnGoesOn();
     if (!live() || ongoing) return;
-    await $.prompt.submit({ text: prompt });
+    // Claude Code drops a plugin's prompt from an Escape until the user next types,
+    // and drops one queued when they press it; Claude Code's debug log says why.
+    const submitted = await $.prompt.submit({ text: prompt });
+    if (submitted?.drop !== undefined)
+      await hook($, { hook_event_name: "WakeRefused", session_id: session });
   } catch (error) {
-    // A wake Claude Code refuses leaves the input to the next turn's prompt hook.
+    // A wake that fails outright leaves the input to the next turn's prompt hook.
     $.ui.log(`Leaf: the watch's wake was refused: ${error}`, { to: "debug" });
   }
 }

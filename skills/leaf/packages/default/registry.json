@@ -16,17 +16,21 @@
     }
   },
   "lf-ask": {
-    "description": "A heading and context for the asks inside it, each answered separately.",
-    "x-space": "column",
-    "x-instructions": "Give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Include the evidence the user needs to answer. Each widget inside that asks for input stays its own ask with its own answer. Wrap the context in a `section` when the document needs a section landmark.",
+    "description": "A question for the user. Around decision widgets it gives their heading and context, each widget answered separately; with no widget inside, it is a question the user answers in words.",
+    "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Include the evidence the user needs to answer. Each widget inside that asks for input stays its own item with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "restated": { "type": "boolean" }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-ask-context": true,
+    "x-awaits": {
+      "reply": true,
+      "encloses": true
+    },
+    "x-word": "question",
     "x-upgrade": false,
     "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees; each option draws its document list once the store fills.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><small class=\"tag\">editing: continues</small><small class=\"tag ok\">recommended</small><strong>Drop the oldest documents</strong> Editing continues. <em>My take: this keeps work moving without losing server data.</em>\n        <figure id=\"store-evict-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"store-evict-t\">\n            <title id=\"store-evict-t\">The oldest document leaves the device; the rest stay editable</title>\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"ghost\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <text class=\"small\" x=\"228\" y=\"44\" text-anchor=\"end\">server only</text>\n          </svg>\n        </figure>\n      </lf-option>\n      <lf-option id=\"store-stop\"><small class=\"tag\">editing: paused</small><strong>Pause offline editing</strong> Nothing leaves.\n        <figure id=\"store-stop-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"store-stop-t\">\n            <title id=\"store-stop-t\">Every document stays on the device, read-only until it reconnects</title>\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <circle class=\"warn\" cx=\"224\" cy=\"28\" r=\"5\"/><text class=\"small\" x=\"212\" y=\"31\" text-anchor=\"end\">read-only</text>\n          </svg>\n        </figure>\n      </lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
   },
@@ -175,8 +179,7 @@
   },
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
-    "x-space": "column",
-    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case inside its lf-option. For an accept-or-reject proposal, a figure of today beside the change compares both answers, so it stays with the group. Use `multiple` when the picks form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Items the user can answer independently are separate asks (references/authoring-asks.md). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the decision. An option the user adds stays in the group from the log, where the user put it; leave it out of revisions. A `multiple` ask needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group (lf-ask can frame its question and context), and each alternative's own case inside its lf-option. For an accept-or-reject proposal, a figure of today beside the change compares both answers, so it stays with the group. Use `multiple` when the picks form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Choices the user can answer independently are separate decisions (references/authoring-decisions.md). The built-in Another option field takes unlisted answers, so add no catch-all option. Use `for` only to point at sections or work items that exist apart from the decision. An option the user adds stays in the group from the log, where the user put it; leave it out of revisions. A `multiple` group needs the user's Done even when `chosen` is authored. `settled` collapses a decided group while keeping its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -266,7 +269,7 @@
   },
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
-    "x-instructions": "Start a card with small.tag labels naming the facts that tell the alternatives apart, then a `<strong>` title and a sentence giving its consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its labels, and give the reason in prose. `chosen` records the user's pick. Below, show what choosing it gives the user (references/authoring-asks.md): where options differ in arrangement, structure or mechanism, an svg.drawing thumbnail of each in the same frame, alike except where they differ; where they differ in how an existing interface looks, a capture of each; where they differ in behavior, that behavior working inside each; where they differ in wording, the words as they would appear. Add paragraphs or a fact rail only when that is not enough; a bare label suits an option that needs no case. Direct text takes inline Markdown; block content needs HTML children. A `for` target must stay useful whatever is decided, and does not supply the option's words. Rewriting a picked option needs `restated` ($restated).",
+    "x-instructions": "Start a card with small.tag labels naming the facts that tell the alternatives apart, then a `<strong>` title and a sentence giving its consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its labels, and give the reason in prose. `chosen` records the user's pick. Below, show what choosing it gives the user (references/authoring-decisions.md): where options differ in arrangement, structure or mechanism, an svg.drawing thumbnail of each in the same frame, alike except where they differ; where they differ in how an existing interface looks, a capture of each; where they differ in behavior, that behavior working inside each; where they differ in wording, the words as they would appear. Add paragraphs or a fact rail only when that is not enough; a bare label suits an option that needs no case. Direct text takes inline Markdown; block content needs HTML children. A `for` target must stay useful whatever is decided, and does not supply the option's words. Rewriting a picked option needs `restated` ($restated).",
     "type": "object",
     "properties": {
       "id": {
@@ -362,7 +365,7 @@
   },
   "lf-shot": {
     "description": "A before-and-after pair of screenshots under a draggable divider, with optional outlines of what changed and a view of the changed pixels.",
-    "x-instructions": "Use it for two versions of an interface. Set `before` and `after` to the paths `leaf page media` prints, and describe the pair in `alt`. `authoring-evidence.md`, \"Source files and media\", covers making captures, laying out captures that vary along more than one axis in a table, and when to add `outlines` or `pixels`. Put explanation in the prose around the pair, not inside the element. When a decision turns on the change, put the pair inside the option that proposes it, or, for an accept-or-reject ask, with the group, where it shows both answers.",
+    "x-instructions": "Use it for two versions of an interface. Set `before` and `after` to the paths `leaf page media` prints, and describe the pair in `alt`. `authoring-evidence.md`, \"Source files and media\", covers making captures, laying out captures that vary along more than one axis in a table, and when to add `outlines` or `pixels`. Put explanation in the prose around the pair, not inside the element. When a decision turns on the change, put the pair inside the option that proposes it, or, for an accept-or-reject decision, with the group, where it shows both answers.",
     "type": "object",
     "properties": {
       "id": {
@@ -490,8 +493,8 @@
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tally": {
-    "description": "A count of the open asks in one region, such as the decisions left in a queue, with an optional control that goes to the next one.",
-    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose asks it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the asks waiting on the user. Don't also state the count in prose or chips; the tally keeps it current.",
+    "description": "A count of the open items in one region, such as the decisions left in a queue, with an optional control that goes to the next one.",
+    "x-instructions": "Write it empty with a stable id, and set `for` to the region whose items it counts, such as a side-list `lf-tabs` queue. Place it where the reader looks for the queue's state, such as a workspace header beside its `.tag` chips. Add `next` for a Next on me control that steps through the items waiting on the user. Don't also state the count in prose or chips; the tally keeps it current.",
     "type": "object",
     "properties": {
       "id": {
@@ -545,7 +548,6 @@
   },
   "lf-draft": {
     "description": "A block of text the user owns and can rewrite in place, with recorded revision history.",
-    "x-space": "column",
     "x-instructions": "Write the exact Markdown source as `<pre>`, one newline, the HTML-escaped source (& before < and >), then `</pre>` right after it. HTML drops that first newline; every later character, indentation and trailing newlines included, is part of the draft. For a change you propose to existing prose, use a suggestion instead. With `needed`, a draft asks the user for an edit; without it, it is an optional editing surface. Use lf-ask when the request needs its own heading and evidence, or page sign-off to approve the whole page. Keep the user's exact source on revision (authoring-revisions.md, \"Honor user state\"); to replace an edited passage on purpose, write the new text and mark the draft `restated` ($restated).",
     "type": "object",
     "properties": {

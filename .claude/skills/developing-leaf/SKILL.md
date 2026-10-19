@@ -29,6 +29,9 @@ A fact both runtimes use has one home (`skills/leaf/assets/AGENTS.md`, "Facts bo
 runtimes know"). When a change adds a parity fixture, or a test that scans one
 language's source for the other's names, ask why the fact isn't generated.
 
+For developer tooling and benchmarks, follow `dev/AGENTS.md`, "Tests", before
+adding coverage or selecting checks. `tests/` holds product behavior.
+
 ## Review a UI change
 
 Record browser API and rendering support gaps in
@@ -46,12 +49,12 @@ changes.
 These are optional installs, separate from Leaf's plugin. Check the harness's available
 skills before invoking one; each link has installation instructions.
 
-| Install | Use in a UI review |
-| --- | --- |
-| [Impeccable](https://github.com/pbakaus/impeccable#installation) | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality; focused workflows such as `layout` and `typeset`. |
-| [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion. |
-| [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design) | `/frontend-design` for new compositions or an intentional redesign. |
-| [Emil Kowalski's skills](https://github.com/emilkowalski/skills) | `review-animations` for motion; it refuses model invocation, so read its `SKILL.md` and `STANDARDS.md`. `/break-ui` for worst-case content, such as long names or no items; keep the demo-data toggle it adds out of a shipped page. |
+| Install                                                                                                     | Use in a UI review                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Impeccable](https://github.com/pbakaus/impeccable#installation)                                            | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality; focused workflows such as `layout` and `typeset`.                                                                                      |
+| [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion.                                                                                                                                     |
+| [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design)                    | `/frontend-design` for new compositions or an intentional redesign.                                                                                                                                                                  |
+| [Emil Kowalski's skills](https://github.com/emilkowalski/skills)                                            | `review-animations` for motion; it refuses model invocation, so read its `SKILL.md` and `STANDARDS.md`. `/break-ui` for worst-case content, such as long names or no items; keep the demo-data toggle it adds out of a shipped page. |
 
 ## Leave taste to the authoring agent
 
@@ -112,7 +115,7 @@ that creates that state.
 ## Explore an open design
 
 When the user is to choose among designs for a visual or interaction question, show
-the candidates side by side in one ask, where the user can compare them, try the
+the candidates side by side in one decision, where the user can compare them, try the
 interactions, comment, and pick the one to build. Their pick, or the configuration a
 playground submits, is the one implementation the change keeps. First look in the
 shipped examples and `notes/` for an exploration of the same surface, and extend it
@@ -127,7 +130,9 @@ To compare against an existing interface, cover the controls and states the name
 property affects, with this checkout's rendered interface as the baseline and
 candidates that differ from it only in the requested change. Build runtime candidates
 in the runtime and theme that own the surface; a separate sketch follows "Decision
-fidelity" in the playground author instructions. Drive the baseline and every candidate
+fidelity" in the playground author instructions, copying Leaf's mark from
+`skills/leaf/assets/icon.svg` as inline SVG and each icon's path from
+`skills/leaf/assets/runtime/icons.js`. Drive the baseline and every candidate
 through the same journey before handoff. For a live Leaf interface, embed each as an
 `lf-sample window` child (`skills/leaf/references/live-samples.md`) and start their
 histories with `data-sample-events`.
@@ -357,6 +362,32 @@ the stills to `max-sixty/leaf-assets` and moves the pin in `leaf-assets.json` an
 README's image URLs; `uv run leaf-dev record-demo` does the same for the README's
 recording and the site's card. Run `wt setup` first in a new checkout; if Worktrunk asks
 to approve the project commands, ask the user to run `wt config approvals add`.
+
+## Regular maintenance
+
+Whenever a survey, a review or the nightly sweep reads a file, look for code that
+makes Leaf harder to develop than it is worth:
+
+- **A mechanism users wouldn't miss.** Of each mechanism, ask who would notice it gone
+  and what it costs the changes around it. Code woven into the core runtime, the server
+  or a shared contract costs every nearby change, which has to reason around it,
+  preserve it or re-plumb it, so it must clear a much higher bar. Signs it doesn't: a
+  hold, carry or special case for one widget or gesture spread across several owners; a
+  public API whose only callers are tests or a single example; a mechanism `git log`
+  shows patched again and again. Code in its own module, such as a package, a widget or
+  a `leaf-dev` command, costs little beyond its own files; remove it only when it is
+  large and unused, such as thousands of lines of tooling nobody runs. Keep anything
+  users would notice losing, including Leaf's interface guarantees such as nothing
+  moving under the reader. Taking a feature away is the maintainer's call, so propose
+  the removal with what users lose and what it deletes.
+- **Several implementations of one capability.** Consolidate them into one home and
+  move every caller to it (root `AGENTS.md`, "Fix the underlying issue").
+- **A mechanism a dependency or the platform already provides.** Delegate it (root
+  `AGENTS.md`, "Use dependencies").
+
+Measure a candidate by making the change in a scratch worktree: `git diff --numstat`
+gives what it deletes, and a probe or capture of the affected journey shows what users
+lose. A count read off the code overstates the saving.
 
 ## Land a change
 

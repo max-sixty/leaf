@@ -77,11 +77,11 @@ container's id, and `rankAt(state.<verb>, container, index, unit)`, which places
 unit at `index` among the container's others and keeps it there however other units
 move. A verb with no record sends what its `detail` schema declares.
 
-A widget that poses an ask can give its class `static answerWords(value, element)`,
-returning short words for the answer in the On panel. `value` is the ask's
+A widget that puts an item on On me can give its class `static answerWords(value,
+element)`, returning short words for the answer in the On panel. `value` is the item's
 `answer.value`, and `element` gives the authored markup, such as option labels; read
 only that, not what the module draws. Without it, the On panel shows no words for the
-answer (`module-reading.md`, "Reading asks and obligation queues").
+answer (`module-reading.md`, "Reading items and obligation queues").
 
 ## Bound data and projections
 
@@ -118,14 +118,21 @@ synchronous turn that puts the words on screen, so comments on them anchor to th
 rather than to prose:
 
 ```js
-setChildren(this, rows.map(row => row.node));
-projectData(this, rows.map(row => ({
-  node: row.node,
-  key: row.key,
-  label: row.label,
-  identity: row.id,
-  origin: {...snapshot.origin, path: ["rows", row.index]},
-})), {snapshot});
+setChildren(
+  this,
+  rows.map((row) => row.node),
+);
+projectData(
+  this,
+  rows.map((row) => ({
+    node: row.node,
+    key: row.key,
+    label: row.label,
+    identity: row.id,
+    origin: { ...snapshot.origin, path: ["rows", row.index] },
+  })),
+  { snapshot },
+);
 ```
 
 `root` is an element with an id, and each datum's `node` must already be under it.
@@ -143,18 +150,13 @@ records each datum's source and revision. A datum that knows its place in the JS
 
 ### Time readings
 
-Reading the time synchronously in a `LeafElement`'s `render()`, a `watchProjection`
-paint or a `readingPaint` draw makes Leaf repaint it when the time's reading changes. `ago(ts)` words a server timestamp as the page does everywhere: "just
+Reading the time synchronously in a `LeafElement`'s `render()` or a `watchProjection`
+paint makes Leaf repaint it when the time's reading changes; time read after an `await`
+isn't watched. `ago(ts)` words a server timestamp as the page does everywhere: "just
 now", then "2m ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h").
 `quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the
 server's grace period. For any other reading, use `clockValue((now) => reading)`, with
 `now` the server's time in milliseconds.
-
-For a paint outside those, wrap it as `const draw = clocked(element, paint)` and call
-`draw()` when state changes; `draw.stop()` takes it off the clock. Where something else
-schedules the paint, pass `invalidate` as a third argument: Leaf calls it when the time
-changes, and your scheduled pass calls `draw()`. Time read after an `await` isn't
-watched.
 
 ## Editing a bound file
 

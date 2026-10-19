@@ -63,6 +63,7 @@ import { recordFormat } from "../protocol.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
+import { raiseError } from "../errors.js";
 
 // The floating field immediately accepts a comment on the target the user named.
 // Tab from the field, or `e` while it stands unfocused, unfolds every other response
@@ -150,7 +151,6 @@ export function createSelectionComposer({
   reactionAvailable,
   designModeActive,
   openPageThread,
-  threadTransitionOrigin,
   anchorTravelAt,
   bringForward,
   fabAnchorAt,
@@ -309,7 +309,7 @@ export function createSelectionComposer({
     if (suggestionMode && syncComposer.hasMedia()) {
       suggestionMode = false;
       syncSuggestMode();
-      notice("Remove attached images before suggesting replacement text");
+      raiseError("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
@@ -705,9 +705,8 @@ export function createSelectionComposer({
         const about = pendingAbout;
         const drawing = pendingDrawing && sentDrawing(structuredClone(pendingDrawing));
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
-        // Threads is open. Carry the submitted field's geometry into the new card, which
-        // stands where the field did: by the row a pointing gesture named.
-        const transition = threadTransitionOrigin?.(composerInput, fabFrameAt());
+        // Threads is open. The new card stands where the field did (`origin`).
+        const origin = fabFrameAt();
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
@@ -767,7 +766,7 @@ export function createSelectionComposer({
             intent: shouldReveal
               ? restrictUserIntent(currentIntent, revealAvailable)
               : currentIntent,
-            transition,
+            origin,
           });
           const thread = destination && closestAcross(destination, THREAD);
           if (shouldReveal && mayReveal() && thread)

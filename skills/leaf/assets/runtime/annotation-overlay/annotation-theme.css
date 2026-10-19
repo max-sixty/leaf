@@ -13,33 +13,69 @@
  * A rail row hangs --rail-hang beyond the column and unfolds rightward. A pin uses
  * the clear seat the geometry owner found near its target and unfolds leftward.
  * A target clipped out of its region withholds its row from paint and tab order. */
-.lf-margin-projection { display: flex; height: 0; pointer-events: none; }
-.lf-margin-toolbar, .lf-margin-lane {
-    position: absolute; left: 0; top: 0; width: 0; height: 0; }
-.lf-margin-lane, .lf-margin-cut { z-index: 2; }
+.lf-margin-projection {
+  display: flex;
+  height: 0;
+  pointer-events: none;
+}
+.lf-margin-toolbar,
+.lf-margin-lane {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+.lf-margin-lane,
+.lf-margin-cut {
+  z-index: 2;
+}
 /* A carrier stands rows in the window, where its anchor puts it (margin-layout.js),
    painted while the element it is anchored to has scrolled out of view. */
-.lf-margin-carrier { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 2;
-    position-visibility: always; }
-.lf-margin-cluster { position: absolute; z-index: 2;
-    left: var(--lf-margin-x, 0px); top: var(--lf-margin-y, 0px);
-    display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
-    padding-right: var(--focus-ring-room); pointer-events: auto; }
+.lf-margin-carrier {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 2;
+  position-visibility: always;
+}
+.lf-margin-cluster {
+  position: absolute;
+  z-index: 2;
+  left: var(--lf-margin-x, 0px);
+  top: var(--lf-margin-y, 0px);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  padding-right: var(--focus-ring-room);
+  pointer-events: auto;
+}
 /* Keep a new row measurable, but unpainted until layout gives it a posture. */
-.lf-margin-cluster:not([data-lf-place]) { visibility: hidden; }
+.lf-margin-cluster:not([data-lf-place]) {
+  visibility: hidden;
+}
 /* A pin folded for want of room (`seatRows`, margin-placement.js) opens over whatever
  * stands beside it, which keeps its place. */
 .lf-margin-cluster[data-lf-place="pin"][data-lf-folded][data-lf-options-open] {
-    z-index: 3; }
+  z-index: 3;
+}
 /* With the annotation layer hidden (`o`, annotation-layer.js) every pin goes, whatever it
  * holds, and the rail stays, since it covers nothing. A row the user asked for by name
  * (`data-lf-revealed`) stays while they stand in it. Hidden rather than taken out of
  * layout, so nothing moves and nothing is measured again. */
 :root[data-lf-annotations="hidden"]
-  .lf-margin-cluster[data-lf-place="pin"]:not([data-lf-revealed]) { visibility: hidden; }
+  .lf-margin-cluster[data-lf-place="pin"]:not([data-lf-revealed]) {
+  visibility: hidden;
+}
 /* A pin's count stands on its left, over the block it is about: at the window's edge the
  * page's `overflow-x: hidden` would clip one on the right. */
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-count { right: auto; left: -7px; }
+.lf-margin-cluster[data-lf-place="pin"] .lf-margin-count {
+  right: auto;
+  left: -7px;
+}
 /* What a hovered or focused item says about the target it acts on is said on the target:
  * `highlight` (margin-projection.js) hands every item to target paint, which traces the
  * region's own shape. The item draws no leader out to it.
@@ -50,17 +86,33 @@
  * why the item's raise is the whole of its own hover paint. The raise is the runtime
  * sheet's (chrome.css), which states it above the page paint the item summons; a second
  * one here would tie it and win or lose by where each sheet stands. */
-.lf-margin-cluster.lf-withheld { display: none; }
-.lf-margin-inline { display: block; }
-.lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
-    white-space: nowrap; }
+.lf-margin-cluster.lf-withheld {
+  display: none;
+}
+.lf-margin-inline {
+  display: block;
+}
+.lf-margin-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
 /* The ink this rule used to state alongside its pointer never reached an entry: every
  * entry carries a behavior, and each of the three states a colour one class heavier
  * than this, so all it ever settled was the pointer. */
-.lf-margin-marker { pointer-events: auto; }
-.lf-margin-reading-option { position: relative; }
-.lf-margin-more { letter-spacing: .04em; }
-.lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
+.lf-margin-marker {
+  pointer-events: auto;
+}
+.lf-margin-reading-option {
+  position: relative;
+}
+.lf-margin-more {
+  letter-spacing: 0.04em;
+}
+.lf-margin-options [data-lf-margin-entry-overflow] {
+  display: none;
+}
 /* Every annotation has the same filled pin face when it stands on the block it is
    about, over the block's own words, so it is a solid teardrop pointing into the block
    with a paper edge that parts it from whatever it covers. It is smaller than a rail
@@ -74,26 +126,53 @@
    respond to a press or darken on hover. Overflow and revealed actions use this same
    face. The pin supplies its ink through --lf-entry-ink, so the shared entry states
    retain it while package themes can still override their paint. */
-.lf-margin-cluster[data-lf-place="pin"] { --margin-entry: max(26px, var(--aim-floor)); }
+.lf-margin-cluster[data-lf-place="pin"] {
+  --margin-entry: max(26px, var(--aim-floor));
+}
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry {
   border-radius: 50% 50% 50% 3px;
   --lf-pin-edge: var(--paper);
   border: 2px solid var(--lf-pin-edge);
-  background: var(--lf-pin-face, var(--pin-fill)); --lf-entry-ink: #fff;
-  box-shadow: 0 1px 2px var(--shade), 0 3px 8px var(--shade); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry
+  background: var(--lf-pin-face, var(--pin-fill));
+  --lf-entry-ink: #fff;
+  box-shadow: var(--raise-1);
+}
+.lf-margin-cluster[data-lf-place="pin"]
+  .lf-margin-entry
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
-  color: var(--lf-entry-ink); inline-size: 14px; block-size: 14px; }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(:hover, [data-lf-focus], [aria-expanded="true"], [data-lf-target-selected]) {
-  border-color: var(--lf-pin-edge); }
-.lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(:hover, [aria-expanded="true"]):not([aria-disabled="true"]):not(:disabled) {
-  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000); }
+  color: var(--lf-entry-ink);
+  inline-size: 14px;
+  block-size: 14px;
+}
+.lf-margin-cluster[data-lf-place="pin"]
+  .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(
+    :hover,
+    [data-lf-focus],
+    [aria-expanded="true"],
+    [data-lf-target-selected]
+  ) {
+  border-color: var(--lf-pin-edge);
+}
+.lf-margin-cluster[data-lf-place="pin"]
+  .lf-margin-entry:not([data-lf-behavior="status"]):is(button, [role="button"]):is(
+    :hover,
+    [aria-expanded="true"]
+  ):not([aria-disabled="true"]):not(:disabled) {
+  background: color-mix(in srgb, var(--lf-pin-face, var(--pin-fill)) 82%, #000);
+}
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry[data-lf-turn="user"] {
-  --lf-pin-face: var(--pin-on-user); }
+  --lf-pin-face: var(--pin-on-user);
+}
 .lf-margin-cluster[data-lf-place="pin"] .lf-margin-entry[data-lf-unread]::after {
-  box-shadow: 0 0 0 2px var(--paper); }
-.lf-margin-receipt { color: var(--ink-2); font-weight: 600; }
-.lf-margin-receipt[data-lf-margin-receipt="negative"] { color: var(--danger-ink); }
+  box-shadow: 0 0 0 2px var(--paper);
+}
+.lf-margin-receipt {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.lf-margin-receipt[data-lf-margin-receipt="negative"] {
+  color: var(--danger-ink);
+}
 /* Margin rows stand where the page leaves room for them, measured beside `main` by the
  * runtime (margin-layout.js), and as pins where it leaves none. A page that wants them
  * in one column declares a rail, `data-rail="right"` on `body`: the shell gives up the
@@ -117,10 +196,17 @@
 }
 /* How far a rail marker hangs off the column. A finger's larger entries spend the rail's
  * room themselves, so the hang shrinks with them. */
-:root { --rail-hang: 22px; }
+:root {
+  --rail-hang: 22px;
+}
 @media (pointer: coarse) {
-  :root { --rail-hang: 10px; }
+  :root {
+    --rail-hang: 10px;
+  }
 }
 @media print {
-  .lf-margin-projection, .lf-margin-marker.lf-margin-entry { display: none !important; }
+  .lf-margin-projection,
+  .lf-margin-marker.lf-margin-entry {
+    display: none !important;
+  }
 }

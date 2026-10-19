@@ -13,8 +13,9 @@
    (a diff's line, a paragraph in a section, a table's row), decided by how it lays out.
    Words, a link or code inline in the target's own lines have none, nor does a drawing's
    shape, nor the target's first line, where the target's own margin row already stands,
-   nor a press on the target's own box or a gesture with no pointer (`c`, a selection):
-   those stand at the target's top. Which line a point is comes from the document, and
+   nor a press on the target's own box or a gesture with no pointer (`c`): those stand
+   at the target's top. A selection points at the words it quotes, which stand a row of
+   their own (annotation-inventory.js, `groupFor`). Which line a point is comes from the document, and
    only its box is read afresh at every placement, so a reflow carries the place with the
    row and never moves a comment from one margin row to another.
 
@@ -55,7 +56,7 @@ const WITHIN_A_LINE = /^(inline|contents$)/;
 // the climb goes on past a block it found to see whether a cell holds it.
 //
 // The target's first line is none either: the target's own margin row stands there
-// already, so a comment pointed at an ask's heading joins the ask's row rather than
+// already, so a comment pointed at an item's heading joins the item's row rather than
 // appearing as a second one pushed below it. First is read off the document, as nothing
 // drawn coming before it in the target, so no reflow, zoom or font moves a comment
 // between the two rows.

@@ -1,14 +1,17 @@
 /* The command reference: the complete command catalog behind `?` and its modal search
    context.
 
-   Opening remembers the user's origin, dismisses the auto and hint popovers that modal
-   entry will close, then captures the registered command vocabulary and executable routes
+   Opening remembers the user's command context and cancellation destination, dismisses
+   the auto and hint popovers that modal entry will close, then captures registered
+   command vocabulary and executable routes
    before the native dialog moves focus. The resulting catalog contains evaluated display
    values and stable command ids, not callbacks or live predicates. Search, ranking,
    selection, and metadata are local user-session state projected through one Lit
    template. Activation closes the dialog and resolves its id afresh in the same gesture,
-   after returning focus to its origin. No deferred dispatch can reinterpret the command
-   at a newer control or take that control's focus; a stale row cannot run.
+   after returning focus to its command context. Escape and Close return to the opening
+   control instead, when chrome opened the reference on behalf of another context.
+   No deferred dispatch can reinterpret the command at a newer control or take that
+   control's focus; a stale row cannot run.
 
    The native dialog, retained Close button, return place, focus, selection, and scrolling
    stay with this controller. Modal entry follows the platform contract rather than
@@ -204,7 +207,7 @@ function declaredStack(origin) {
   }));
 }
 
-let commandRoutesAtOpen = new Map();
+let commandRoutesAtOpen = { on: new Map(), off: new Map() };
 let commandReferenceIsOpen = false;
 let commandReferenceInvoke = null;
 
@@ -312,7 +315,9 @@ function captureCommandReferenceCatalog() {
     .filter(({ rows }) => rows.length);
 
   const available = (rowInfo, route) => {
-    const routes = commandRoutesAtOpen.get(rowInfo.row) ?? new Set();
+    const routes =
+      commandRoutesAtOpen[quickShortcuts() ? "on" : "off"].get(rowInfo.row) ??
+      new Set();
     const alternatives = route ? [route.binding] : rowInfo.rowBindings;
     return rowInfo.declared.length === 0
       ? routes.has(undefined)
@@ -328,7 +333,7 @@ function captureCommandReferenceCatalog() {
   // A control's native Enter/Space scope can name that capability without an action of
   // its own. Prefer a row the reference can invoke, then teach a keyboard route rather
   // than an unbound control; among keyboard routes,
-  // prefer the reachable one (an ask digit can replace a shadowed intrinsic key).
+  // prefer the reachable one (an item digit can replace a shadowed intrinsic key).
   // Invoking the reference names the capability, so any executable route makes the
   // entry available even when its displayed sequence has not been entered yet.
   const preferred = new Map();
@@ -595,12 +600,17 @@ function activateCommandEntry(entry) {
   // Native modal close and the origin handoff are synchronous, so fresh dispatch sees
   // the original gesture's context before another input can change it.
   const invokeCommand = commandReferenceInvoke;
-  closeCommandReference();
+  const origin = openerOf(commandReferenceDialog);
+  const returnTo = commandReferenceReturn;
+  closeLayer(
+    () => closeCommandReference(false),
+    () => handBack(origin),
+  );
   if (invokeCommand?.(entry.id)) return;
   // Complete native close before opening its replacement. This microtask still belongs
   // to the same input turn: no newer gesture can intervene as it could before a frame.
   queueMicrotask(() => {
-    openCommandReference(invokeCommand);
+    openCommandReference(invokeCommand, returnTo);
     commandReferenceState = {
       ...commandReferenceState,
       metaOverride: "That command is no longer available",
@@ -837,13 +847,15 @@ commandReferenceDialog.addEventListener("cancel", (event) => {
   closeCommandReference();
 });
 
-function showCommandReference(open, restoreFocus, invokeCommand) {
+let commandReferenceReturn = null;
+
+function showCommandReference(open, restoreFocus, invokeCommand, returnTo) {
   const fresh = open && !commandReferenceIsOpen;
   // Focusing a text input replaces the document selection. Keep a passage the user has
   // in hand and focus Close instead; an ordinary opening lands directly in search.
   const preserveSelection = fresh && Boolean(pageSelection());
   const handingBack = !open && restoreFocus && standingIn(commandReferenceDialog);
-  const restore = handingBack ? openerOf(commandReferenceDialog) : null;
+  const restore = handingBack ? commandReferenceReturn : null;
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     dismissPopoversOutside(commandReferenceDialog);
@@ -856,7 +868,11 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // A popover opened while nothing held focus lets go as it closes (layer-stack.js),
     // so that user reads as standing on `body` here too.
     openLayer(commandReferenceDialog);
-    commandRoutesAtOpen = availableCommandRoutes({ commands: true });
+    commandReferenceReturn = returnTo ?? openerOf(commandReferenceDialog);
+    commandRoutesAtOpen = {
+      on: availableCommandRoutes({ commands: true, quick: true }),
+      off: availableCommandRoutes({ commands: true, quick: false }),
+    };
   }
   commandReferenceIsOpen = open;
   if (fresh) {
@@ -875,7 +891,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     // Native editing and scrolling values begin fresh and remain untouched by local Lit
     // renders.
     search.value = "";
-    results.scrollTop = 0;
+    results.scrollTo({ top: 0, behavior: "instant" });
     stopReferenceReading = registerReadingRegion({
       id: "lf-region:command-reference",
       host: commandReferenceDialog,
@@ -985,10 +1001,12 @@ function activateSelectedCommand() {
 export const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
-export const openCommandReference = (invokeCommand) =>
-  showCommandReference(true, true, invokeCommand);
+// A chrome caller may supply its door for cancellation; execution uses the captured
+// command context regardless of that return destination.
+export const openCommandReference = (invokeCommand, returnTo = null) =>
+  showCommandReference(true, true, invokeCommand, returnTo);
 export const closeCommandReference = (restoreFocus = true) =>
-  showCommandReference(false, restoreFocus, null);
+  showCommandReference(false, restoreFocus, null, null);
 
 // The dialog's own keys. It is a modal search context and claims the whole keyboard while
 // it stands, so its rows are the only ones the user can reach; the boundary's one route

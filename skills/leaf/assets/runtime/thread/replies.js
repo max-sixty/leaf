@@ -20,14 +20,16 @@
    history, but not the user. A route's view also puts the row in place of its own
    (`carry`), taking it from a view that holds it out of sight. A closed card whose
    thread is still in the margin, and a hidden panel, keep their rows, since the user
-   goes on there when they open again. A view that cannot draw another row, a package
-   mirror, takes the session and caret into its own. */
+   goes on there when they open again. A view that cannot draw another row, a primary
+   reader's reply part (primary-reader.js), takes the session and caret into its own. */
 import {
   captureDraftEditing,
   loadDraft,
   draftHasContent,
   draftEditingStands,
   mirrorDraft,
+  replyContext,
+  rewriteContext,
   saveDraft,
   sendMessage,
   tellDraft,
@@ -38,7 +40,6 @@ import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
-import { editContext } from "./message-edit.js";
 import { el, offer } from "../widget-elements.js";
 import { move } from "../dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
@@ -48,7 +49,6 @@ import { TEXT_FIELD } from "../control-selectors.js";
 const REPLY_COMPOSITION = Symbol("reply composition");
 const compositions = new Map(); // context -> native session, with its current owner
 const views = new Map();
-const replyContext = (key) => "reply:" + key;
 const available = (composition) =>
   Boolean(composition) &&
   views.get(composition.context)?.has(composition) &&
@@ -135,7 +135,7 @@ export function holdReplyCompositions(threads, realize) {
 // or in a rewrite of one of its messages, `ids`, they closed without saving.
 export const threadHoldsDraft = (key, ids) =>
   draftHasContent(replyContext(key)) ||
-  ids.some((id) => draftHasContent(editContext(id)));
+  ids.some((id) => draftHasContent(rewriteContext(id)));
 
 // Revision admission asks the owner about every native editing session, including
 // one the user left by Tab. Persisted words alone do not create a session.
@@ -201,7 +201,7 @@ function handOver(target, owner) {
 // Once no view shows the session's row, the view now drawing its thread puts that row
 // in place of its own, and the user goes on in their own editor, with its undo history.
 // A view holding the row out of sight gives it up and draws a fresh one. A view that
-// cannot draw another row, a package mirror, keeps its own.
+// cannot draw another row, a primary reader's reply part, keeps its own.
 function carry(target, owner) {
   const giver = owner.binding;
   if (
@@ -278,7 +278,7 @@ const sendReply = (draftCtx, key, text, owns, actions) =>
 // after the draft began. The typed action resolves that target from the current reading.
 // What the row does for a view, its actions, `onChange` and `editLast`, is the binding
 // of whichever view holds it now (`attach`).
-function wireReply(key, row, input, send, wireInput, { hint, accessibleName }) {
+function wireReply(key, row, input, send, wireInput, { hint, accessibleName, busy }) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
@@ -294,6 +294,7 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName }) {
   const sync = wireInput(input, {
     hint,
     accessibleName,
+    busy,
     sends: "send",
     sendBtn: send,
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
@@ -429,8 +430,9 @@ export async function restoreReplyEditing(editing, land) {
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
 // A presentation may say what its empty box reads (`hint`) and is named
-// (`accessibleName`), and where its box stays for the next turn, as the floating
-// panel's field does, land a send itself (`sent`) rather than stand on the thread.
+// (`accessibleName`), hold its sends while it covers the box's words (`busy`), and
+// where its box stays for the next turn, as the floating panel's field does, land a
+// send itself (`sent`) rather than stand on the thread.
 export function createReplyView(
   key,
   commands,
@@ -442,6 +444,7 @@ export function createReplyView(
     redraw = null,
     hint = "Reply",
     accessibleName = "Reply",
+    busy = () => false,
     sent = null,
   } = {},
 ) {
@@ -454,6 +457,7 @@ export function createReplyView(
     return wireReply(key, row, input, send, commands.wireInput, {
       hint,
       accessibleName,
+      busy,
     });
   };
   let composition = fresh();

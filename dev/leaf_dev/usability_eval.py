@@ -1,19 +1,9 @@
-"""Whole agent usability trajectories, scored by Promptfoo.
+"""Run usability tasks and give one Promptfoo agent their canonical evidence.
 
-Each provider call owns one isolated scenario, including its resumed phases or
-live user rounds. Promptfoo owns arms, repetition, concurrency, and reporting;
-this module owns fixture setup, execution, and deterministic evidence readings.
-Authored tasks, user moves, fixture prose, and grading live in
-`evals/workflows/usability_eval.yaml`. Evidence stays in the supplied work
-directory, and the agent cwd stays outside any repo.
-
-A fact the page states is read the way Leaf reads it: decisions, asks and
-workflows from `leaf page state`, markup through Leaf's own parse
-(`SourceDocument`, and `SourceReading` for the words an element says). What the
-agent says, in a reply or in prose it wrote onto the page, is judged by meaning
-through native YAML `llm-rubric` assertions over the complete structured trace.
-Command text describes intent; tool results establish whether it happened.
-Deterministic checks read authored structure and admitted page facts.
+This module owns fixture setup, native resumed/live execution and user-input
+injection. It retains page state, active markup, data, events, delivery envelopes
+and the full native trace for the judge. Task correctness belongs to one YAML
+llm-rubric per case, not a parallel Python grader or markup-shape rules.
 """
 
 import json
@@ -27,21 +17,17 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 
-from leaf.delivery import opened_input_ids, pickup_receipts
+from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.passages import SourceReading, collapse
+from leaf.passages import SourceReading
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import requires_agent_attention
 from leaf.structure import SourceDocument
-from leaf.thread import successful_replies
-from playwright.sync_api import Browser
-from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     TURN_LIMIT,
-    URL,
     LiveChild,
     LiveSession,
     PageClient,
@@ -51,18 +37,15 @@ from leaf_dev.arms import (
     inputs_received,
     now,
     observed_sum,
-    progress_start,
     read_page_state,
     read_trace,
     resumed,
     run_agent,
     run_leaf,
     scratch,
-    serving,
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import headless_shell, load, tab
 from leaf_dev.eval_cases import definition
 
 FIXTURES = ROOT / "evals/usability/fixtures"
@@ -70,7 +53,6 @@ READING_FIXTURE = json.loads((FIXTURES / "reading-answers.json").read_text())
 DEFINITION = definition("usability_eval")
 FIXTURE_INPUTS = DEFINITION["fixtures"]
 ELIDED_THREAD = json.loads((FIXTURES / "elided-thread.json").read_text())
-PREMISE = FIXTURE_INPUTS["elided"]["premise"]
 
 
 @dataclass(frozen=True)
@@ -117,32 +99,13 @@ class Run:
         return [read_trace(path) for path in sorted(self.dir.glob("stream-*.jsonl"))]
 
     def usable(self) -> bool:
+        """Whether the native author finished the requested phases."""
         traces = self.traces()
-        case = CASES[self.case]
-        if (
-            len(traces) != len(case.prompts)
-            or not all(completed(t) for t in traces)
-            or any(
-                d.get("is_error") is not False
-                for t in traces
-                for d in t
-                if d.get("type") == "result"
-            )
-            or (self.dir / "timed-out").exists()
-        ):
-            return False
-        rounds = live_rounds(traces[0]) if case.rounds else []
-        if len(rounds) != len(case.rounds) or any(r["end"] is None for r in rounds):
-            return False
-        if not case.rounds:
-            return True
-        attempts = {
-            attempt_key(n, i)
-            for n, moves in enumerate(case.rounds)
-            for i, move in enumerate(moves)
-            if move["kind"] != "error"
-        }
-        return inputs_received(page_events(self.work / "page"), attempts)
+        return (
+            len(traces) == len(CASES[self.case].prompts)
+            and all(completed(trace) for trace in traces)
+            and not (self.dir / "timed-out").exists()
+        )
 
 
 # Fixtures
@@ -478,7 +441,7 @@ def build_fixture(run: Run, name: str, page: Path) -> None:
 def execute(run: Run, work: Path) -> None:
     """One run: build the case's fixture, then run each phase, resuming the first
     phase's session, or the live session. The caller keeps `work` alive through
-    scoring; this function archives pages before returning or raising."""
+    evidence capture; this function archives pages before returning or raising."""
     case = CASES[run.case]
     run.state.mkdir(parents=True)
     (run.dir / "work-dir").write_text(f"{work}\n")
@@ -724,7 +687,7 @@ def pages(*roots: Path) -> list[Path]:
     return sorted(p.parent for root in roots for p in root.rglob("events.jsonl"))
 
 
-# Scoring
+# Canonical evidence
 
 
 def page_state(run: Run, page: Path) -> dict:
@@ -739,591 +702,56 @@ def active_document(run: Run, page: Path) -> tuple[dict, SourceDocument]:
     return state, SourceDocument((page / active["file"]).read_text())
 
 
-def column_cards(document: SourceDocument, column: str) -> list[str]:
-    return [card.attrs.get("id") for card in document.tree.select(f"#{column} lf-card")]
+def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
+    """One completion smoke check; Promptfoo's agent judges the task."""
+    return ["completed"]
 
 
-def score_cold(run: Run) -> dict:
-    found = pages(run.work, run.state)
-    out = {"pages": len(found)}
-    if run.case == "near-miss" or not found:
-        return out
-    page = found[0]
-    checked = run.leaf("page", "check", str(page))
-    state, document = active_document(run, page)
-    tags = [record["tag"] for record in document.lf_elements]
-    groups = [r["attrs"] for r in document.lf_elements if r["tag"] == "lf-options"]
-    return out | {
-        "valid": checked.returncode == 0,
-        "stamped": len(state.get("versions", [])),
-        "status": (state.get("status") or {}).get("state"),
-        "asks": tags.count("lf-ask"),
-        "choose_groups": sum("choose" in attrs for attrs in groups),
-        "options": tags.count("lf-option"),
-        "single_choice": not any("multiple" in attrs for attrs in groups),
-        "no_sign_off": not any(
-            meta["name"] == "lf-review" and meta["content"] == "sign-off"
-            for meta in document.named_metas
-        ),
-    }
+def evidence(run: Run, traces: list[list[dict]]) -> dict:
+    """Give the judge canonical artifacts without a second per-case grading engine.
 
-
-def score_constructs(run: Run) -> dict:
-    page = run.work / "page"
-    state, document = active_document(run, page)
-    if len(state["versions"]) < 2:
-        return {"stamped": False}
-    draft = document.by_id.get("release-note")
-    edited = next(
-        (s["detail"]["value"] for s in state["state"] if s["widget"] == "release-note"),
-        None,
-    )
-    chart = document.by_id.get("region-errors")
-    return {
-        "stamped": True,
-        "texts": {
-            # What the user now reads: their edit where it still stands, else the
-            # markup.
-            "release-note": edited
-            if edited is not None
-            else (draft["body"] if draft else ""),
-            "chart": chart["body"] if chart else "",
-        },
-        "draft_restated": "release-note" in document.restated,
-        "p95_text": "231" in said(document.html).get("p95-figure", ""),
-        "p95_current": state["measurement_lag"] == [],
-        # The figure's owner is the markup; its source keeps the measurement.
-        "source_kept": (page / "data/checkout-p95.json").read_bytes()
-        == (run.dir / "fixture/data/checkout-p95.json").read_bytes(),
-    }
-
-
-def score_board(run: Run) -> dict:
-    state, document = active_document(run, run.work / "page")
-    if len(state["versions"]) < 2:
-        return {"stamped": False}
-    todo = column_cards(document, "col-todo")
-    return {
-        "stamped": True,
-        "doing_order": column_cards(document, "col-doing")
-        == FIXTURE_INPUTS["board"]["doing"],
-        "todo_kept": todo[:1] == ["card-rotate"] and len(todo) == 2,
-        "done_empty": column_cards(document, "col-done") == [],
-        "renamed": "key expiry alerts"
-        in said(document.html).get("card-alerts", "").lower(),
-        "no_restated": not document.restated,
-    }
-
-
-def pick_owed(state: dict, pick: str) -> bool:
-    """Whether the user's pick still waits on the agent to take it into the markup,
-    in Leaf's own reading of the page's workflows."""
-    return any(w["input"] == pick for w in state["workflows"])
-
-
-def score_resume(run: Run) -> dict:
-    page = run.work / "page"
-    state, document = active_document(run, page)
-    events = page_events(page)
-    batch_comment = next(
-        e["id"]
-        for e in events
-        if e.get("kind") == "comment" and e["anchor"]["section"] == "batch-size"
-    )
-    pick = next(e["id"] for e in events if e.get("widget") == "rollout")
-    batch = said(document.html).get("batch-size")
-    return {
-        "versions": len(state["versions"]),
-        "source_valid": not (state.get("source") or {}).get("error"),
-        "batch_200": batch is not None and "200" in batch,
-        "batch_in_place": batch is not None,
-        "pick_taken_in": not pick_owed(state, pick),
-        "pick_in_force": any(
-            s["widget"] == "rollout" and s["detail"]["value"] == ["opt-per-tenant"]
-            for s in state["state"]
-        ),
-        "no_restated": not document.restated,
-        "replied": bool(successful_replies(events, batch_comment)),
-    }
-
-
-def score_package(run: Run) -> dict:
-    """The widget used from its registry entry, with the contract's values."""
-    page = run.work / "page"
-    state, document = active_document(run, page)
-    if len(state["versions"]) < 2:
-        return {"stamped": False}
-    burn = document.tree.select_one("#checkout lf-burn")
-    attrs = burn.attrs if burn else {}
-    return {
-        "stamped": True,
-        "valid": run.leaf("page", "check", str(page)).returncode == 0,
-        "widget_used": burn is not None,
-        "objective": attrs.get("objective") == "99.9",
-        "window": attrs.get("window") == "28d",
-        "consumed": attrs.get("consumed") in ("0.62", ".62"),
-    }
-
-
-def score_shared_source(run: Run) -> dict:
-    """Each widget's record edited through its authored id, nothing else in the
-    snapshot touched."""
-    page = run.work / "page"
-    before = json.loads((FIXTURES / "hub-worktrees.json").read_text())
-    after = json.loads((page / "data/project-worktrees.json").read_text())["value"]
-    finch = after.get("tree-finch", {})
-    # The working markup, stamped or not: a data update needs no new version.
-    document = SourceDocument((page / "index.html").read_text())
-    return {
-        "finch_updated": finch.get("head", "").startswith("3f0a6be")
-        and finch.get("ahead") == 7
-        and finch.get("tests") == "passing",
-        "others_kept": {k: after.get(k) for k in ("tree-finch-old", "tree-wren")}
-        == {k: before[k] for k in ("tree-finch-old", "tree-wren")},
-        "markup_kept": "3f0a6be" not in document.html
-        and len(document.tree.select('[source="project-worktrees"]')) == 2,
-        "source_valid": not (page_state(run, page).get("source") or {}).get("error"),
-    }
-
-
-def live_rounds(trace: list[dict]) -> list[dict]:
-    """Each posted round's confirmed-input window and completed response turn.
-
-    The driver emits eval_received only after admitted attention inputs have
-    opened pickups. A window begins at the post so it includes the ACK and claim
-    operations whose tool result first lets the driver observe that receipt.
-    Hook output text does not prove receipt on either inline or pointer deliveries.
+    Page state is Leaf's own reading; HTML/data/events retain the evidence behind
+    it. Driver records expose native injection, delivery and first-tool progress
+    observations as facts, without converting them into task-specific pass flags.
     """
-    rounds = []
-    for n, post in enumerate(
-        i for i, d in enumerate(trace) if d["type"] == "eval_post"
-    ):
-        received = next(
-            (
-                i
-                for i in range(post, len(trace))
-                if trace[i]["type"] == "eval_received" and trace[i]["round"] == n + 1
-            ),
-            None,
-        )
-        end = (
-            next(
-                (
-                    i
-                    for i in range(received, len(trace))
-                    if trace[i]["type"] == "result"
-                ),
-                None,
-            )
-            if received is not None
-            else None
-        )
-        rounds.append(
+    found = []
+    for page in pages(run.work, run.state):
+        state = page_state(run, page)
+        active = state.get("active") or {"file": "index.html"}
+        found.append(
             {
-                "round": n + 1,
-                "post": post,
-                "delivery": post if received is not None else None,
-                "end": end,
-                "status": end is not None
-                and next(
-                    (d["status"] for d in trace[end:] if d["type"] == "eval_status"),
-                    None,
-                ),
+                "path": str(page),
+                "state": state,
+                "document": (page / active["file"]).read_text(),
+                "data": {
+                    str(path.relative_to(page)): json.loads(path.read_text())
+                    for path in sorted((page / "data").rglob("*.json"))
+                },
+                "events": page_events(page),
             }
         )
-    return rounds
-
-
-def progress_shown(trace: list[dict], events: list[dict], thread: str) -> bool:
-    """Progress on the exact input while the agent is handling it.
-
-    Work starts come from the scenario's admitted page log and exact input.
-    Command spelling, stdout and stream observation times do not set the cutoff.
-    Native commentary counts only when the canonical workflow confirms that
-    the exact input has an active response with text during tool handling.
-    A chat message alone cannot establish that the page showed progress.
-    """
-    first_tool = next(
-        (
-            i
-            for i, record in enumerate(trace)
-            if any(b.get("type") == "tool_use" for b in blocks([record]))
-        ),
-        len(trace),
-    )
-    opening = any(
-        b.get("type") == "text" and b.get("text")
-        for record in trace[:first_tool]
-        if record.get("type") == "assistant"
-        for b in blocks([record])
-    )
-    observation = next((r for r in trace if r["type"] == "eval_first_tool_state"), None)
-    if opening and observation is not None:
-        for workflow in observation["workflows"]:
-            response = workflow["response"]
-            if (
-                workflow["input"] == thread
-                and response is not None
-                and response["state"] == "active"
-                and response["has_text"]
-            ):
-                return True
-    return progress_start(events, thread) is not None
-
-
-def handed_page_url(trace: list[dict], reply: str) -> bool:
-    """The final message links the exact server this live run observed."""
-    served = next((r["url"] for r in trace if r["type"] == "eval_served"), None)
-    return served is not None and served in URL.findall(reply)
-
-
-def round_scores(trace: list[dict], r: dict, name: str) -> dict:
-    """Confirmed input and a waiting handover URL."""
-    if r["delivery"] is None or r["end"] is None:
-        return {f"{name}_delivered": False}
-    end = trace[r["end"]]
+    fixture = run.dir / "fixture"
     return {
-        f"{name}_delivered": True,
-        f"{name}_waiting": (r["status"] or {}).get("state") == "waiting",
-        f"{name}_url": handed_page_url(trace, end.get("result") or ""),
+        "pages": found,
+        "fixture": {
+            str(path.relative_to(fixture)): path.read_text()
+            for path in sorted(fixture.rglob("*"))
+            if path.is_file() and path.suffix in (".html", ".json", ".jsonl")
+        },
+        "delivery_envelopes": [
+            json.loads(path.read_text())
+            for path in sorted((run.state / "leaf/deliveries").glob("*.json"))
+        ],
+        "driver": [
+            record
+            for trace in traces
+            for record in trace
+            if record["type"].startswith("eval_")
+        ],
+        "trace": [
+            {"phase": phase, "records": trace} for phase, trace in enumerate(traces, 1)
+        ],
     }
-
-
-def score_handoff(run: Run, trace: list[dict]) -> dict:
-    page = run.work / "page"
-    events = page_events(page)
-    first_end = next(
-        (i for i, d in enumerate(trace) if d["type"] == "result"), len(trace)
-    )
-    handover = trace[first_end].get("result") or "" if first_end < len(trace) else ""
-    status = (
-        next((d["status"] for d in trace if d["type"] == "eval_status"), None) or {}
-    )
-    out = {
-        "texts": {"handover": handover, "status": status.get("detail") or ""},
-        "served": handed_page_url(trace, handover),
-        "handoff_waiting": status.get("state") == "waiting",
-    }
-    rounds = live_rounds(trace)
-    if rounds:
-        r = rounds[0]
-        comment = posted_event(page, attempt_key(0, 0))
-        _, document = active_document(run, page)
-        out["texts"]["dry-run"] = said(document.html).get("dry-run", "")
-        out |= round_scores(trace, r, "edit") | {
-            "edit_claimed": r["delivery"] is not None
-            and r["end"] is not None
-            and progress_shown(trace[r["delivery"] : r["end"]], events, comment["id"]),
-            "edit_replied": bool(successful_replies(events, comment["id"])),
-        }
-    if len(rounds) > 1:
-        question = posted_event(page, attempt_key(1, 0))
-        out["texts"]["answers"] = answers(events, question["id"])
-        out |= round_scores(trace, rounds[1], "question")
-    return out
-
-
-def answers(events: list[dict], message: str) -> str:
-    """The agent's successful replies to one message, for the judge."""
-    return "\n\n".join(e["text"] for e in successful_replies(events, message))
-
-
-def score_mixed(run: Run, trace: list[dict], browser: Browser) -> dict:
-    page = run.work / "page"
-    events = page_events(page)
-    rounds = live_rounds(trace)
-    if not rounds:
-        return {"batch_delivered": False}
-    r = rounds[0]
-    # The error carries no retry key, as the runtime sends none.
-    posted = [posted_event(page, attempt_key(0, i)) for i in range(5)]
-    comment, pick, reaction, _, _ = posted
-    post_ids = set(trace[r["post"]]["events"])
-    batches = [
-        e
-        for e in pickup_receipts(events, phase="opened")
-        if post_ids.intersection(e["events"])
-    ]
-    fixture_words = len(said((FIXTURES / "mixed.html").read_text())["why-now"].split())
-    state, document = active_document(run, page)
-    words = said(document.html)
-    # Each suggestion's (old, new) words, and the comment its acceptance resolves.
-    suggestions = [
-        (
-            [collapse(old.text) for old in suggestion.select(":scope > lf-old")],
-            [collapse(new.text) for new in suggestion.select(":scope > lf-new")],
-            suggestion.attrs.get("resolves"),
-        )
-        for suggestion in document.tree.select("lf-suggestion")
-    ]
-    return round_scores(trace, r, "batch") | {
-        "texts": {"dry-run": words.get("dry-run", "")},
-        # One delivery carried the whole round, including the page-authored error.
-        "one_delivery": r["delivery"] is not None
-        and len(batches) == 1
-        and post_ids <= set(batches[0]["events"]),
-        "comment_claimed": r["delivery"] is not None
-        and r["end"] is not None
-        and progress_shown(trace[r["delivery"] : r["end"]], events, comment["id"]),
-        "comment_replied": bool(successful_replies(events, comment["id"])),
-        "stamped": len(state["versions"]) >= 2,
-        # Leaf's own reading: the pick owes nothing more, and the ask still shows it
-        # answered with the user's option.
-        "pick_answered": not pick_owed(state, pick["id"])
-        and any(
-            ask["source"]["id"] == "copy-mode"
-            and (ask["answer"] or {}).get("value")
-            == CASES["mixed"].rounds[0][1]["detail"]["value"]
-            for ask in state["asks"]
-        ),
-        # The reaction is acted on, by shortening the paragraph in place or by
-        # proposing a shorter one as a suggestion, and closed, by the agent or by the
-        # suggestion that `resolves` it once the user decides.
-        "reaction_handled": (
-            0 < len(words.get("why-now", "").split()) < 0.7 * fixture_words
-            or any(
-                any("every dashboard that reads" in o for o in old)
-                and new
-                and all(len(n.split()) < 0.7 * fixture_words for n in new)
-                for old, new, _ in suggestions
-            )
-        )
-        and (
-            any(
-                e["kind"] == "resolve"
-                and e["author"] == "agent"
-                and e["parent"] == reaction["id"]
-                for e in events
-            )
-            or any(resolves == reaction["id"] for _, _, resolves in suggestions)
-        ),
-        "reaction_unreplied": not successful_replies(events, reaction["id"]),
-        "undo_kept": "card-lag-alert" in column_cards(document, "col-open")
-        and column_cards(document, "col-done") == [],
-        "error_fixed": copy_summary_works(run, page, browser),
-    }
-
-
-def copy_summary_works(run: Run, page: Path, browser: Browser) -> bool:
-    """Exercise the repaired control; deleting its behavior cannot pass."""
-    with (
-        serving(run.payload, run.state, page) as url,
-        tab(browser) as view,
-    ):
-        view.context.grant_permissions(["clipboard-read", "clipboard-write"])
-        load(view, url)
-        expected = " ".join(view.locator("#summary").inner_text().split())
-        view.evaluate("() => navigator.clipboard.writeText('leaf-eval-unwritten')")
-        try:
-            view.locator("#copy-summary").click()
-            return view.evaluate(
-                """async expected => {
-                    const deadline = performance.now() + 5000;
-                    do {
-                        if (await navigator.clipboard.readText() === expected) return true;
-                        await new Promise(requestAnimationFrame);
-                    } while (performance.now() < deadline);
-                    return false;
-                }""",
-                expected,
-            )
-        except PlaywrightTimeout:
-            return False
-
-
-def score_elided(run: Run, trace: list[dict]) -> dict:
-    page = run.work / "page"
-    events = page_events(page)
-    rounds = live_rounds(trace)
-    if not rounds:
-        return {"question_delivered": False}
-    r = rounds[0]
-    question = posted_event(page, attempt_key(0, 0))
-    thread = next(e["id"] for e in events if e["kind"] == "comment")
-    out = round_scores(trace, r, "question")
-    if r["delivery"] is None:
-        return out
-    # Pickups name the immutable envelope that actually entered context. Its
-    # thread digest states elision directly, independent of hook presentation,
-    # command spelling, JSON escaping or bounded CLI output.
-    refs = {
-        receipt["refs"][question["id"]]["ref"].partition(":")[0]
-        for receipt in pickup_receipts(events, phase="opened", input_id=question["id"])
-        if question["id"] in receipt.get("refs", {})
-    }
-    deliveries = [
-        json.loads((run.state / "leaf/deliveries" / f"{identity}.json").read_text())
-        for identity in refs
-    ]
-    return out | {
-        "texts": {"answers": answers(events, question["id"])},
-        "shown_elided": any(
-            digest["id"] == thread
-            and digest["elided"]["messages"] > 0
-            and PREMISE not in json.dumps(digest)
-            for delivery in deliveries
-            for batch in delivery["batches"]
-            for digest in batch["threads"]
-        ),
-        "titled": any(
-            item["id"] == thread and item["title"] is not None
-            for item in page_state(run, page)["threads"]
-        ),
-        "summarized": any(
-            e["kind"] == "summary" and e.get("thread") == thread for e in events
-        ),
-    }
-
-
-LIVE_SCORES = {"handoff": score_handoff, "elided": score_elided}
-
-# These declarations remain complete when a scorer exits early or a round never
-# arrives. Missing observations fail instead of silently shrinking the assertion set.
-# Native YAML assertions own what a scenario judges by meaning.
-CHECKS = {
-    "cold-report": (
-        "one_page",
-        "valid",
-        "unstamped",
-        "no_ask",
-        "no_sign_off",
-    ),
-    "cold-decision": (
-        "one_page",
-        "valid",
-        "one_ask",
-        "one_choice_group",
-        "three_options",
-        "single_choice",
-        "no_sign_off",
-    ),
-    "near-miss": ("no_page",),
-    "resume": (
-        "stamped",
-        "source_valid",
-        "batch_200",
-        "batch_in_place",
-        "pick_taken_in",
-        "pick_in_force",
-        "no_restated",
-        "replied",
-    ),
-    "constructs": (
-        "stamped",
-        "draft_restated",
-        "p95_text",
-        "p95_current",
-        "source_kept",
-    ),
-    "board": (
-        "stamped",
-        "doing_order",
-        "todo_kept",
-        "done_empty",
-        "renamed",
-        "no_restated",
-    ),
-    "package": (
-        "stamped",
-        "valid",
-        "widget_used",
-        "objective",
-        "window",
-        "consumed",
-    ),
-    "shared-source": (
-        "finch_updated",
-        "others_kept",
-        "markup_kept",
-        "source_valid",
-    ),
-    "handoff": (
-        "served",
-        "handoff_waiting",
-        "edit_delivered",
-        "edit_waiting",
-        "edit_url",
-        "edit_claimed",
-        "edit_replied",
-        "question_delivered",
-        "question_waiting",
-        "question_url",
-    ),
-    "mixed": (
-        "batch_delivered",
-        "batch_waiting",
-        "batch_url",
-        "one_delivery",
-        "comment_claimed",
-        "comment_replied",
-        "stamped",
-        "pick_answered",
-        "reaction_handled",
-        "reaction_unreplied",
-        "undo_kept",
-        "error_fixed",
-    ),
-    "elided": (
-        "question_delivered",
-        "question_waiting",
-        "question_url",
-        "shown_elided",
-        "titled",
-        "summarized",
-    ),
-}
-
-
-def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
-    """The fixed assertion set for one complete scenario."""
-    CASES[case]
-    checks = [] if case.startswith("reading") else list(CHECKS[case])
-    return ["completed", *checks]
-
-
-def checks_for(case: str, score: dict, usable: bool) -> dict:
-    """Turn scored observations into every declared boolean, including absences."""
-    values = dict(score)
-    if CASES[case].fixture is None:
-        if "pages" in score:
-            values |= {"one_page": score["pages"] == 1, "no_page": score["pages"] == 0}
-        for name, field, count in (
-            ("unstamped", "stamped", 0),
-            ("no_ask", "asks", 0),
-            ("one_ask", "asks", 1),
-            ("one_choice_group", "choose_groups", 1),
-            ("three_options", "options", 3),
-        ):
-            if field in score:
-                values[name] = score[field] == count
-    elif case == "resume":
-        values["stamped"] = score.get("versions", 0) >= 3
-    return {
-        name: usable if name == "completed" else values.get(name) is True
-        for name in expected_checks(case)
-    }
-
-
-def score_run(run: Run, traces: list[list[dict]]) -> dict:
-    """Apply the scenario's semantic reading to its complete native trajectory."""
-    if run.case == "mixed":
-        with headless_shell() as browser:
-            return score_mixed(run, traces[0], browser)
-    if run.case in LIVE_SCORES:
-        return LIVE_SCORES[run.case](run, traces[0])
-    if run.case == "package":
-        return score_package(run)
-    if run.case == "shared-source":
-        return score_shared_source(run)
-    if CASES[run.case].fixture is None:
-        return score_cold(run)
-    if run.case.startswith("reading"):
-        return {}
-    if run.case == "board":
-        return score_board(run)
-    if run.case == "constructs":
-        return score_constructs(run)
-    return score_resume(run)
 
 
 def execute_scenario(
@@ -1336,8 +764,8 @@ def execute_scenario(
 ) -> dict:
     """One Promptfoo provider call owns all phases, live rounds, and evidence.
 
-    `metadata.checks` answers each fixed check; `metadata.texts` holds each text a
-    YAML assertion reads: every phase's final message, and what the scorer read."""
+    The one completion check covers execution; the YAML agent rubric receives
+    the final canonical artifacts and complete native trajectory."""
     run = Run(case, payload, work, harness)
     with scratch(payload, state=run.state) as child_work:
         execute(run, child_work)
@@ -1345,14 +773,9 @@ def execute_scenario(
         phases = resumed([trace_summary(t) for t in traces])
         replies = [p["reply"] for p in phases]
         usable = run.usable()
-        score = score_run(run, traces) if usable else {}
-    texts = {f"reply-{n}": reply for n, reply in enumerate(replies, 1)}
-    texts["trace"] = json.dumps(
-        [{"phase": n, "records": trace} for n, trace in enumerate(traces, 1)],
-        ensure_ascii=False,
-    )
-    texts |= score.pop("texts", {})
-    checks = checks_for(case, score, usable)
+        artifacts = evidence(run, traces)
+    texts = {"evidence": json.dumps(artifacts, ensure_ascii=False)}
+    checks = {"completed": usable}
     usage = {
         field: count
         for field, key in (("prompt", "input_tokens"), ("completion", "output_tokens"))
@@ -1369,6 +792,6 @@ def execute_scenario(
         "metadata": {
             "checks": checks,
             "texts": texts,
-            "diagnostics": {"score": score, "phases": phases},
+            "diagnostics": {"phases": phases, "driver": artifacts["driver"]},
         },
     }

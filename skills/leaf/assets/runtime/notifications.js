@@ -2,13 +2,14 @@
 
    News arriving without the user's send gesture may show a notice but does
    not move focus or scroll the panel. `notice` is the one visible surface for a
-   moment's news — a recorded gesture, an arrived version, a refused send — and it
+   moment's news, such as a recorded gesture or an arrived version, and it
    stands in one seat at a time: the bottom status line, in place of the current walk
    position, which returns when the notice fades, or on a phone the banner's status
    words, which return the same way (chrome.css, `--lf-notice-seat`). The live region
    hears the same words. It is text rather than a control: what a notice names, the
    banner's own buttons reach. There is no second surface for news, so nothing floats in
-   a corner to become a stale pointer target. */
+   a corner to become a stale pointer target. A failure is no news: it goes through
+   errors.js, which keeps it until the user has dealt with it. */
 import { el } from "./widget-elements.js";
 import { afterScript } from "./rendering.js";
 
@@ -25,10 +26,10 @@ let showingBackground = null;
 const waitingBackground = [];
 let userContext = false;
 let userHoldTimer = 0;
-// What the seat says, whether it shows, and whether it is news arriving (`background`)
-// rather than the answer to something the user did.
-/** @type {Readonly<{message: string, visible: boolean, news: boolean}>} */
-let noticePresentation = Object.freeze({ message: "", visible: false, news: false });
+// What the seat says and whether it shows. Errors are no notices: they go through
+// errors.js, which keeps them until they are dealt with.
+/** @type {Readonly<{message: string, visible: boolean}>} */
+let noticePresentation = Object.freeze({ message: "", visible: false });
 const noticePresenters = new Set();
 
 export const noticeReading = () => noticePresentation;
@@ -49,8 +50,8 @@ export function registerNoticePresentation(invalidate) {
 const presentAll = () => {
   for (const invalidate of noticePresenters) invalidate();
 };
-const presentNotice = (message, visible, news = false) => {
-  noticePresentation = Object.freeze({ message, visible, news });
+const presentNotice = (message, visible) => {
+  noticePresentation = Object.freeze({ message, visible });
   if (visible) presentAll();
   else afterScript(presentAll);
 };
@@ -58,19 +59,19 @@ const presentNotice = (message, visible, news = false) => {
 export function announce(msg) {
   // Removing and restoring the text node makes repeated identical announcements a
   // fresh live-region change, including when two arrivals' delays overlap.
-  liveEl.replaceChildren();
+  if (liveEl.firstChild) liveEl.replaceChildren();
   setTimeout(() => {
-    liveEl.replaceChildren();
+    if (liveEl.firstChild) liveEl.replaceChildren();
     liveEl.append(msg);
   }, 30);
 }
 
 // The acknowledgement of a gesture ("Moved to Done — sent"), an arrival ("Updated
-// to v3"), a refusal ("Nothing to send — the box is empty"): the quiet status at the page
+// to v3"): the quiet status at the page
 // foot. A sentence that is also a button for four seconds is a target
 // the user cannot learn.
 function showNotice(msg, background = null) {
-  presentNotice(msg, true, Boolean(background));
+  presentNotice(msg, true);
   showingBackground = background;
   clearTimeout(noticeTimer);
   noticeTimer = setTimeout(() => {

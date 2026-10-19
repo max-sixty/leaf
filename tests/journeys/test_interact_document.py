@@ -16,7 +16,6 @@ from interact_support import (
     _tasks_version,
     append_carried_log_record,
     append_command,
-    asks_on_user,
     before_choice,
     check,
     check_findings,
@@ -24,6 +23,7 @@ from interact_support import (
     declare_data_input,
     found,
     fresh_process,
+    items_on_user,
     publish,
     read_page_data,
     refused_on,
@@ -31,6 +31,7 @@ from interact_support import (
     state_json,
     suggest,
 )
+from leaf import agent_state as agent_state_model
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
@@ -607,10 +608,10 @@ def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
     assert not [f for f in findings if "backfill-first" in str(f.values)]
 
 
-def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_in_force(
+def test_an_answered_item_moves_into_a_collapsed_section_with_its_pick_in_force(
     page_dir,
 ):
-    """The route `authoring-revisions.md` gives finished work: the answered Ask goes
+    """The route `authoring-revisions.md` gives finished work: the answered item goes
     to a collapsed section whole, under the words the user picked it under."""
     live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
     (page_dir / "index.html").write_text(
@@ -629,11 +630,11 @@ def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_in_force(
         },
     )
 
-    def complete(ask):
+    def complete(item):
         return PAGE.replace(
             "</section>\n</main>",
             '</section>\n<section id="complete"><h2>Complete</h2><details>'
-            f"<summary>Migration order chosen</summary>{ask}</details></section>\n</main>",
+            f"<summary>Migration order chosen</summary>{item}</details></section>\n</main>",
         )
 
     settled = live.replace('id="g1" choose', 'id="g1" choose settled')
@@ -817,7 +818,7 @@ def test_user_state_survives_without_source_copying(page_dir):
     assert "record behind the log" not in result.output
     state = state_json(page_dir)
     assert state["state"][0]["detail"] == {"value": ["o-shim"]}
-    assert asks_on_user(state) == []
+    assert items_on_user(state) == []
 
     # Explicit incorporation is permitted but unnecessary for correctness.
     write(a=" chosen")
@@ -1108,12 +1109,13 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
 def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch):
     """One request must not re-read the whole page history to answer.
 
-    `GET /` and `GET /api/state` both activate the source under the page's exclusive
-    lock, and that validation asks every revision in the history what its own
-    document and registry said. A revision bundle holds a couple of hundred resource
-    files, so answering through `read_artifact` made one request cost the revision
-    count times the bundle: seconds per request where the page directory is on a
-    network filesystem, with every other reader queued behind the lock.
+    `GET /api/state` activates the source under the page's exclusive lock and then
+    asks every revision in the history what its own document and registry said, for
+    the ids, items and data bindings it declared. A revision bundle holds a couple of
+    hundred resource files, so answering through `read_artifact` made one request
+    cost the revision count times the bundle: seconds per request where the page
+    directory is on a network filesystem, with every other reader queued behind the
+    lock.
 
     The active revision is no exception: whether the source is that revision is a
     question for its manifest's digest, not its bundle. So each revision opens the
@@ -1142,10 +1144,10 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
     monkeypatch.setattr(Path, "open", counted_open)
     # A server started now: it holds none of this test's readings.
     with fresh_process():
-        activated = revisioning_model.activate_source(page_dir)
+        state = agent_state_model.cmd_page_state(page_dir)
     monkeypatch.undo()
-    assert activated.error is None, activated.error
-    assert not activated.created
+    assert state["source"]["error"] is None, state["source"]
+    assert state["active"]["revision"] == revisions[-1]
 
     *history, active = revisions
     for revision in history:

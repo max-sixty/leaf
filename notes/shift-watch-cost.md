@@ -13,13 +13,14 @@ measured and dropped in October 2026, and what would make it worth revisiting.
 - **Watched tests pay a lot.** Comparing the ledger with the gate below, serial runs,
   mean of 3, on the source runtime before #2767:
 
-  | selection | ledger | gate |
-  | --- | ---: | ---: |
-  | 6 typing-heavy tests | 27.3 s | 19.9 s (−27%) |
+  | selection                          | ledger |          gate |
+  | ---------------------------------- | -----: | ------------: |
+  | 6 typing-heavy tests               | 27.3 s | 19.9 s (−27%) |
   | 4 tests opening many sample frames | 25.6 s | 15.5 s (−39%) |
-  | 13 ordinary interaction tests | 20.3 s | 18.1 s (−11%) |
+  | 13 ordinary interaction tests      | 20.3 s | 18.1 s (−11%) |
 
   Opening the feature gallery took 18.0 s with the watch and 9.3 s without.
+
 - **The time goes on full readings of frames where something changed**: page load,
   sample frames upgrading, trace playback, and the frames around each key. The ledger
   needs those readings to judge. A ledger-only variant that reused unchanged readings

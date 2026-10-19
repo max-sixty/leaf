@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/diff/styles/theme.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/packages/diff/styles/theme.css by build/styles.mjs. */
 /* skills/leaf/packages/diff/styles/palette.css */
 :where(:scope, :scope:host) {
   --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
@@ -173,6 +173,7 @@
   color: var(--danger-ink);
 }
 .lf-call-location {
+  white-space: pre;
   margin-inline-start: var(--sp-4);
   color: var(--code-muted);
   text-decoration-color: var(--rule);
@@ -181,17 +182,13 @@
 .lf-call-location[href]:hover {
   color: var(--accent);
 }
-.lf-call-missing,
-.lf-call-invalid {
+.lf-call-missing {
   display: block;
   min-width: 0;
   padding: var(--sp-3);
   color: var(--code-muted);
   font-family: var(--sans);
   white-space: normal;
-}
-.lf-call-invalid {
-  color: var(--danger-ink);
 }
 @media print {
   :scope:is(lf-call-diff),

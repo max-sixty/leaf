@@ -10,11 +10,6 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from pathlib import Path
 
-from leaf.asks import (
-    approval_blocking,
-    asking,
-    quoted_in,
-)
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
@@ -26,8 +21,14 @@ from leaf.events import (
 )
 from leaf.files import version_revisions
 from leaf.findings import Finding
+from leaf.items import (
+    approval_blocking,
+    asking,
+    quoted_in,
+)
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.page_view import CandidatePageView, PageView
+from leaf.plans import plan_error
 from leaf.projection import (
     authored_positions,
     generated_children,
@@ -49,7 +50,7 @@ from leaf.registry.contract import (
 from leaf.registry.kernel import kernel_event_kinds, kernel_event_ownership
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
-from leaf.registry.storage import load_registry
+from leaf.registry.storage import IncompatibleLayer, load_registry
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.todos import todo_error
@@ -545,12 +546,12 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     page = AdmissionReadings(view, events, registry).page(revision)
     work = WorkReading(events, registry, page)
     unanswered = approval_blocking(
-        [*work.document.asks["all"], *work.widget_asks["all"]]
+        [*work.document.items["all"], *work.widget_items["all"]]
     )
     if unanswered:
         return Finding(
-            "unanswered-asks",
-            values={**version, "asks": [ask["id"] for ask in unanswered]},
+            "unanswered-items",
+            values={**version, "items": [item["id"] for item in unanswered]},
         )
     return None
 
@@ -734,13 +735,23 @@ def admission_error(
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
         or _todo_error(view, event, readings)
+        or _plan_error(event, readings)
     )
 
 
+def _plan_error(event: dict, readings) -> Finding | None:
+    """A plan's outline nests one level at a time and names only items the page
+    holds (`plans.plan_error`)."""
+    if event["kind"] != "plan":
+        return None
+    return plan_error(event, readings.log.todos, readings.work.all_items["all"])
+
+
 def _todo_error(view, event: dict, readings) -> Finding | None:
-    """A to-do stands on an open thread, a widget that seats work or an element, or the
-    page. A completing note and `todo_end` share completion authority.
-    A `todo_end` also admits an agent withdrawal of a prose ask; a
+    """A `todo` event stands on a widget that seats work, an element, or the page; a
+    to-do on a thread comes from the reply that promises it. A completing note and
+    `todo_end` share completion authority.
+    A `todo_end` also admits an agent's end of a question answered in words; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -780,18 +791,20 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     def user_widget_error(widget: str) -> Finding | None:
         if error := element_error(widget):
             return error
-        ask = next(
+        item = next(
             (
                 item
-                for item in readings.work.all_asks["all"]
+                for item in readings.work.all_items["all"]
                 if item["source"]["kind"] == "widget"
                 and item["source"]["id"] == widget
                 and item["status"] == "open"
             ),
             None,
         )
-        if ask is not None:
-            return Finding("duplicate-ask", values={"widget": widget, "ask": ask["id"]})
+        if item is not None:
+            return Finding(
+                "duplicate-item", values={"widget": widget, "item": item["id"]}
+            )
         return None
 
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
@@ -802,8 +815,8 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         element_error=element_error,
         user_widget_error=user_widget_error,
         owed=owed,
-        todos=lambda: [todo for half in readings.work.page_todos() for todo in half],
-        asks=lambda: readings.work.all_asks["all"],
+        items=lambda: readings.work.all_items["all"],
+        registry=readings.work.registry,
     )
 
 
@@ -916,6 +929,8 @@ def write_refusal(page_dir: Path) -> Finding | None:
     first, and so does `page check`."""
     try:
         registry = load_registry(page_dir)
+    except IncompatibleLayer as error:
+        return error.findings[0]
     except RegistryError:
         registry = None
     if registry is None:

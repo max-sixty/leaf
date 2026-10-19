@@ -47,7 +47,7 @@ Usage: leaf page state [OPTIONS] PAGE [ID]
   one, names its thread: the output is that thread with a page of its messages,
   their frozen markup, and the state of its widgets, paged by --after and
   --limit. A widget on the page names itself: its element, its current actions
-  and reports, its asks and to-dos, and its workflows.
+  and reports, its items and to-dos, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from
@@ -96,8 +96,9 @@ Usage: leaf thread open [OPTIONS] PAGE
   --section points at a passage, general where neither does \u2014 a question about
   the work as a whole.
 
-  The user answers it in the browser. Refuses a quote the active revision does
-  not hold, or holds more than once. The comment's id is the thread's.
+  The user answers it in the browser; a question in an `<lf-ask>` in --markup
+  waits on them until they do. Refuses a quote the active revision does not
+  hold, or holds more than once. The comment's id is the thread's.
 
 Options:
   --quote TEXT   passage text from the active revision
@@ -124,8 +125,6 @@ Options:
   --ephemeral    one-line progress, without answering
   --todo TITLE   the reply promises work it doesn't deliver; opens that to-do on
                  the thread, ended by `leaf task end` with the reply's id
-  --ask          the reply asks the user something, which waits on them as an
-                 ask
   --markup TEXT  frozen HTML fragment after the text
   --text TEXT    reply text (default: stdin)
   --detach       remove the thread's page target
@@ -139,10 +138,11 @@ Usage: leaf response reply [OPTIONS] REFERENCE
 
   Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
 
-  Mark every answer with one of --done (it delivers what the message asked for),
-  --ask (it asks the user something back) or --todo TITLE (it promises work it
-  doesn't deliver, which stays on you as a to-do). A progress line (--ephemeral)
-  or a failure (--failure) takes none of them.
+  Mark every answer with --done (it delivers what the message asked for) or
+  --todo TITLE (it promises work it doesn't deliver, which stays on you as a to-
+  do), or ask the user something back with an `<lf-ask>` in its --markup, which
+  waits on them until their next message in the thread. A progress line
+  (--ephemeral) or a failure (--failure) takes none of them.
 
   The reply can also set frozen HTML, the thread's title and a new anchor. Saved
   page edits are checked and made live before it posts. After an answer posts,
@@ -161,8 +161,6 @@ Options:
   --ephemeral     one-line progress, without answering
   --todo TITLE    the reply promises work it doesn't deliver; opens that to-do
                   on the thread, ended by `leaf task end` with the reply's id
-  --ask           the reply asks the user something, which waits on them as an
-                  ask
   --markup TEXT   frozen HTML fragment after the text
   --text TEXT     reply text (default: stdin)
   --detach        remove the thread's page target

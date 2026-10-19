@@ -42,15 +42,19 @@ const HTML_WORDS = {
 export function addressableWord(addressable) {
   if (!addressable) return "";
   const tag = addressable.tagName.toLowerCase();
-  if (registry[tag]?.["x-word"] === "module") {
-    const own = addressable.lfWord?.();
-    if (own) return own;
-  }
-  if (registry[tag]?.["x-ask-context"]) return "ask";
-  if (tag.startsWith("lf-")) return tag.slice(3);
+  const word = widgetWord(tag, addressable);
+  if (word) return word;
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
   return HTML_WORDS[tag] ?? tag;
+}
+
+// A widget's word for its kind: its registry's fixed `x-word`, its module's `lfWord()`
+// where `x-word` is `module` and `element` is drawn, else its tag without the prefix.
+export function widgetWord(tag, element = null) {
+  const declared = registry[tag]?.["x-word"];
+  const own = declared === "module" ? element?.lfWord?.() : declared;
+  return own || (tag.startsWith("lf-") ? tag.slice(3) : "");
 }
 
 // The label is rooted at the addressable and reads its authored words. Generated annotation
@@ -75,7 +79,7 @@ export function addressableSays(addressable) {
 // is no part of a heading's name, and generated chrome names nothing: chrome inside
 // the element, asked about the element's own insides, since a widget an agent sent in
 // a reply stands inside the thread panel's chrome and its heading is still its name.
-// An element the contract gives no name answers "". The server names an ask's
+// An element the contract gives no name answers "". The server names an item's
 // element by the same rule off the document (`gesture_words.element_name`), and
 // `tests/name_cases.json` holds both to the same cases.
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";

@@ -1,7 +1,6 @@
 {
   "lf-suggestion": {
     "description": "One proposed change to content the user has already seen, with accept and reject controls.",
-    "x-space": "column",
     "x-instructions": "Copy the current markup verbatim into lf-old and put the proposed markup in lf-new. Both slots replace, lf-new alone inserts, and lf-old alone deletes; a change to a widget also uses its complete old and new markup. Write new content directly, and use lf-draft for words the user owns. Suggestions cannot nest, contain a draft, or appear in a reply. Set `resolves` to the comment whose thread should close when the user accepts. To withdraw an undecided suggestion, replace the whole `lf-suggestion` with `lf-old`'s contents. Keeping `lf-new`'s contents instead would accept it without the user's decision.",
     "type": "object",
     "properties": {
@@ -134,12 +133,12 @@
     "contracts": {}
   },
   "$events": {
-    "protocol": 7,
+    "protocol": 9,
     "ownership": {
       "derived": ["meaning", "attention"],
       "browser_discard": ["id", "author", "agent", "session", "ts", "seq", "attention"]
     },
-    "description": "The kernel's event kinds. Each kind's `record` is the closed schema of the event as the log stores it, and a kind with a `browser` schema can also be posted to POST /api/event. Admission fills in the fields `ownership.derived` names; browser ingress drops those `ownership.browser_discard` names before validating. A layer extends widget behavior through x-state, but cannot add kinds or change who owns a field. Admission sets the boolean `attention`. Every report and error has it, and the agent's other events and the user's bookkeeping never do. The user's other input has it when it changes what is owed: an answer, an ask or to-do on the user, work the agent has started and its inputs, or a sign-off approval. Code that asks whether an event needs attention reads this field instead of switching on the kind. `protocol` is Leaf's only version number. It covers these kinds and the state the server sends a page's runtime, and every record Leaf keeps outside a page's log and document, such as a delivery or a browser draft, carries it in its `format`. A Leaf serves and writes only pages vendored at its own `protocol`, so a change that would break such a page, such as dropping a field or requiring a new one, bumps it. A `bookkeeping` kind (`read`, `reanchor`) records a fact about the user's view, never asks the agent for anything, and travels outside the queue of the user's updates. A `pickup` records that inputs reached their reader, or, with phase `failed`, that the harness gave up on them; it never means work has begun. A `comment` or `reply` with `token` instead of `text` is a reaction ($reactions). `handling` and `answering` hold the instructions delivered with each event, and a later layer may restate them one kind at a time. Each maps a kind (of event, or of the answer it owes: `reply` or `markup`) to an ordered list of clauses: a `text`, and an optional `when` JSON Schema matched against the event's record, the `answer` it owes and its thread's entry in the batch's `threads`. A delivered event carries its kind's matching clauses, then its answer's, so it is told only its own case. Instructions that differ by route are not clauses: the delivery says once who confirms receipt, and sets the answer's `writer` to `turn` where the turn carrying it writes the reply.",
+    "description": "The kernel's event kinds. Each kind's `record` is the closed schema of the event as the log stores it, and a kind with a `browser` schema can also be posted to POST /api/event. Admission fills in the fields `ownership.derived` names; browser ingress drops those `ownership.browser_discard` names before validating. A layer extends widget behavior through x-state, but cannot add kinds or change who owns a field. Admission sets the boolean `attention`. Every report and error has it, and the agent's other events and the user's bookkeeping never do. The user's other input has it when it changes what is owed: an answer, an item or to-do on the user, work the agent has started and its inputs, or a sign-off approval. Code that asks whether an event needs attention reads this field instead of switching on the kind. `protocol` is Leaf's only version number. It covers these kinds and the state the server sends a page's runtime, and every record Leaf keeps outside a page's log and document, such as a delivery or a browser draft, carries it in its `format`. A Leaf serves and writes only pages vendored at its own `protocol`, so a change that would break such a page, such as dropping a field or requiring a new one, bumps it. A `bookkeeping` kind (`read`, `reanchor`) records a fact about the user's view, never asks the agent for anything, and travels outside the queue of the user's updates. A `pickup` records that inputs reached their reader, or, with phase `failed`, that the harness gave up on them; it never means work has begun. A `comment` or `reply` with `token` instead of `text` is a reaction ($reactions). `handling` and `answering` hold the instructions delivered with each event, and a later layer may restate them one kind at a time. Each maps a kind (of event, or of the answer it owes: `reply` or `markup`) to an ordered list of clauses: a `text`, and an optional `when` JSON Schema matched against the event's record, the `answer` it owes and its thread's entry in the batch's `threads`. A delivered event carries its kind's matching clauses, then its answer's, so it is told only its own case. Instructions that differ by route are not clauses: the delivery says once who confirms receipt, and sets the answer's `writer` to `turn` where the turn carrying it writes the reply.",
     "handling": {
       "comment": [
         {
@@ -409,7 +408,7 @@
               "required": ["answer"]
             }
           },
-          "text": "This action owes no answer of its own: it answers no ask, a later action on the same widget carries the answer, or the answer is not complete yet, as with a pick before the Done its group waits for."
+          "text": "This action owes no answer of its own: it answers no item, a later action on the same widget carries the answer, or the answer is not complete yet, as with a pick before the Done its group waits for."
         }
       ],
       "undo": [
@@ -431,7 +430,7 @@
     "answering": {
       "reply": [
         {
-          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even reading the source: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. It shows at once and starts the update, which reads Working until you answer. Do the work and put the result on the page, with what shows it (captures, a figure, the numbers). Then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, as a question may not, answer it with that reply at once. The page holds the work; the thread holds only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If the revision removes the thread's anchor, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject left the page. Each answer takes `--done` when it delivers what was asked, `--ask` when it asks the user something back, or `--todo \"<what you owe>\"` when it promises work beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\").",
+          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even reading the source: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. It shows at once and starts the update, which reads Working until you answer. Do the work and put the result on the page, with what shows it (captures, a figure, the numbers). Then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, as a question may not, answer it with that reply at once. The page holds the work; the thread holds only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If the revision removes the thread's anchor, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject left the page. Each answer takes `--done` when it delivers what was asked, or `--todo \"<what you owe>\"` when it promises work beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\"). To ask the user something back, put the question in an `lf-ask` in `--markup`; it waits on them until their next message there.",
           "when": {
             "properties": {
               "answer": {
@@ -445,7 +444,7 @@
           }
         },
         {
-          "text": "Leaf streams your opening message into the thread and posts your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. For widgets, an ask awaiting the user (`--ask`), work promised beyond this turn (`--todo`), a title or moving the thread, reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`); it posts at once, and your final message is then not posted.",
+          "text": "Leaf streams your opening message into the thread and posts your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. For widgets, a question awaiting the user (an `lf-ask` in `--markup`), work promised beyond this turn (`--todo`), a title or moving the thread, reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`); it posts at once, and your final message is then not posted.",
           "when": {
             "properties": {
               "answer": {
@@ -480,7 +479,7 @@
       ],
       "markup": [
         {
-          "text": "It answers the page's ask, which shows as waiting on you until the markup records the answer. Name the work it selects or unblocks with `leaf task start <page> <event-id> \"<the work, in a line>\"` before starting it; then do it, write the answer in, and stamp a version. An option the user added needs no writing in: the page keeps it where the user put it."
+          "text": "It answers the page's item, which shows as waiting on you until the markup records the answer. Name the work it selects or unblocks with `leaf task start <page> <event-id> \"<the work, in a line>\"` before starting it; then do it, write the answer in, and stamp a version. An option the user added needs no writing in: the page keeps it where the user put it."
         }
       ]
     },
@@ -752,7 +751,6 @@
             "agent": { "type": "string", "minLength": 1 },
             "session": { "type": "string", "minLength": 1 },
             "markup": { "type": "string", "minLength": 1 },
-            "ask": { "const": true },
             "todo": {
               "type": "string",
               "minLength": 1,
@@ -799,7 +797,6 @@
               "not": {
                 "anyOf": [
                   { "required": ["responds"] },
-                  { "required": ["ask"] },
                   { "required": ["todo"] },
                   { "required": ["markup"] },
                   { "required": ["failure"] },
@@ -808,11 +805,10 @@
               }
             },
             "token": { "not": { "required": ["markup"] } },
-            "ask": { "properties": { "author": { "const": "agent" } } },
             "todo": {
               "required": ["text"],
               "properties": { "author": { "const": "agent" } },
-              "not": { "anyOf": [{ "required": ["failure"] }, { "required": ["ask"] }] }
+              "not": { "required": ["failure"] }
             },
             "failure": {
               "required": ["text", "responds"],
@@ -829,7 +825,6 @@
           "not": {
             "anyOf": [
               { "required": ["markup"] },
-              { "required": ["ask"] },
               { "required": ["todo"] },
               { "required": ["anchor"] },
               { "required": ["responds"] },
@@ -1090,6 +1085,55 @@
             "session": { "type": "string", "minLength": 1 }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq"],
+          "additionalProperties": false
+        }
+      },
+      "plan": {
+        "record": {
+          "type": "object",
+          "properties": {
+            "attention": { "type": "boolean" },
+            "id": { "type": "string", "minLength": 1 },
+            "ts": { "type": "string", "minLength": 1 },
+            "author": { "const": "agent" },
+            "kind": { "const": "plan" },
+            "seq": { "type": "integer", "minimum": 1 },
+            "steps": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depth": { "type": "integer", "minimum": 0, "maximum": 8 },
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80,
+                        "pattern": "\\S",
+                        "not": { "pattern": "[\\r\\n]" }
+                      },
+                      "state": { "enum": ["open", "working", "done", "dropped"] }
+                    },
+                    "required": ["depth", "title", "state"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "depth": { "type": "integer", "minimum": 0, "maximum": 8 },
+                      "item": { "type": "string", "minLength": 1 }
+                    },
+                    "required": ["depth", "item"],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 }
+          },
+          "required": ["attention", "id", "ts", "author", "kind", "seq", "steps"],
           "additionalProperties": false
         }
       },
@@ -1533,13 +1577,12 @@
   },
   "$keys": {
     "description": "The meaning of each x- key an element declaration may carry, one member per key. The registry lint admits exactly these keys: it refuses a member for a key it does not admit, and a missing member for one it does. A layer may override a member to describe its own reading of a key, but cannot add a key. The site's registry reference is generated from this entry, so authors, the lint and the site read the same text.",
-    "x-ask-context": "The element frames the asks inside it: its leading heading gives their prompt, and going to one of those asks lands on the element. `lf-ask` declares it; a widget that asks on its own needs no frame. Each ask keeps its own id, answer and completion, and where frames nest, it uses the nearest. Leaf calls the element a question unless its x-word module returns another word.",
-    "x-awaits": "The widget asks the user for input while its authored attributes match `when`. The ask's id is `widget:<source-id>` and never changes. `value` names the x-state verb whose state is the typed answer, and `answered` says when the ask is complete ($awaits); they are separate because a partial value can exist while the ask is open, and an empty value can be a complete answer. `all` names the outcome one banner control can give every ask of this kind at once. Once created, an ask stays answered or withdrawn after `when` stops matching; an element that never matched creates none, and neither does a quoted widget (x-exhibit). A `restated` event asks again. While the agent owes a reply in a thread about the ask, anchored inside the widget, or inside its x-ask-context but no other ask, the agent is its next actor and the ask stays unanswered. A widget in a thread message keeps its ask after the thread closes. Asks and to-dos are separate records, and the user's On me list reads asks directly.",
-    "x-thread-seat": "The module puts a thread box (`threadBox`) in each element that matches `when` on authored attributes, not on attributes an x-state record writes. The box shows, as text, the threads anchored exactly to that element; the Threads panel keeps the full view. An element inside thread markup or quoted content gets no box. On a widget that also asks (x-awaits), the box is where the user answers in words: while a thread there waits on the agent, the ask leaves the user's On me list, but it is still unanswered and the widget's controls still work. `hold` labels a second send button whose comment carries `holds`, naming the widget. The widget is held while that thread is open; resolving the thread releases it. Removing the widget removes only the box, not its threads.",
+    "x-awaits": "The widget asks the user for input while its authored attributes match `when`, which puts an item on their list, On me. The item's id is `widget:<source-id>` and never changes. `value` names the x-state verb whose state is the typed answer, and `answered` says when the item is complete ($awaits); they are separate because a partial value can exist while the item is open, and an empty value can be a complete answer. `all` names the outcome one control can give every item of this kind at once. Once created, an item stays answered or withdrawn after `when` stops matching; an element that never matched creates none, and neither does a quoted widget (x-exhibit). A `restated` event asks again. While the agent owes a reply in a thread about the item, anchored inside the widget, or inside the widget enclosing it but no other item, the agent is its next actor and the item stays unanswered. A widget in a thread message keeps its item after the thread closes. With `reply` in place of `value` and `answered`, the user's words answer the item instead of its state: the next user message in the thread whose message holds it, or a reaction there whose token settles it, or on the page a user message in a thread anchored inside it; the agent's `todo_end` on its id ends it unanswered. `encloses` makes the widget the frame of the items inside it: its leading heading gives their prompt, going to one of them lands on it, and it asks nothing itself while it holds another widget that declares x-awaits, so a frame around a decision widget stays one item. Each item it frames keeps its own id, answer and completion, and where frames nest, an item uses the nearest. `lf-ask` declares it; a widget that asks on its own needs no frame. Items and to-dos are separate records, and the user's On me list reads items directly.",
+    "x-thread-seat": "The module puts a thread box (`threadBox`) in each element that matches `when` on authored attributes, not on attributes an x-state record writes. The box shows, as text, the threads anchored exactly to that element; the Threads panel keeps the full view. An element inside thread markup or quoted content gets no box. On a widget that also asks (x-awaits), the box is where the user answers in words: while a thread there waits on the agent, the item leaves the user's On me list, but it is still unanswered and the widget's controls still work. `hold` labels a second send button whose comment carries `holds`, naming the widget. The widget is held while that thread is open; resolving the thread releases it. Removing the widget removes only the box, not its threads.",
     "x-content": "The required content: `markup` (the author's markup), `members` (only this element's declared member elements), `data` (one <pre> holding text in the notation the description names, with & < > escaped as &amp; &lt; &gt;), or `empty`.",
     "x-data": "The widget's named external-data inputs. Each input names a `$data.contracts` contract and the string attribute whose authored value is the page's source id, and follows that source's current value; where an optional source attribute is absent, a widget reads null. A document binds each source to one contract, and a later document may rebind it; each document reads the value against its own contract and reports a mismatch as a source error. A module subscribes by widget and input name, never by a source name.",
     "x-example": "Authored markup exhibiting the widget, valid against the merged registry: an agent reads it with the element declaration, writes from it, and the lint refuses one that does not validate.",
-    "x-exhibit": "The element shows quoted content: widgets inside it take no input, and their asks stay off the user's On me list. Modules check `quoted(el)` before enabling input.",
+    "x-exhibit": "The element shows quoted content: widgets inside it take no input, and their items stay off the user's On me list. Modules check `quoted(el)` before enabling input.",
     "x-instructions": "Instructions for an author using this widget, read after choosing it and before writing markup. One non-empty string, separate from the short `description` and the schema.",
     "x-inline": "The element sits inline among the surrounding words. The render check therefore requires neither a width of its own nor a place where a block may stand.",
     "x-language": "The attribute that names a code language. Its value must be one of `$languages.names`, so a new tag that takes a language needs only this declaration.",
@@ -1563,14 +1606,14 @@
     "x-prepaint": "Markup the element shows at first paint, before its module draws: one element with the structure the module will draw, holding words that give it the drawing's size. Delivery writes it into every occurrence as the element's first child, marked `data-lf-prepaint`, so the browser lays the widget out at its real size instead of reserving a computed height. The theme keeps the space but paints none of it. The module removes it in the same step that draws, so nothing moves, and draws by filling a copy of this markup, so the structure is stated only here. `{\"as\": tag}` reuses another widget's prepaint, for an element that first appears as that widget will inside it. Declare it on a widget whose drawn structure is fixed while its values come from the log; a widget whose rows depend on the log has no fixed structure to write here.",
     "x-views": "`true`: the element shows one member at a time, as a tab set shows one panel. Its module opens the member the runtime names (`openingView`) and records each member it shows (`keepView`). The runtime opens the member holding the element the URL fragment names, else the member this tab last showed, else the first; a reload prefers the member last shown. Before first paint Leaf marks the member it will open `data-lf-opening`, so the package theme can show that member alone until the module upgrades.",
     "x-visual": "How a rendered picture offers Comment targets. `whole` makes the picture one target. With `{parts: ATTR}` or `{prefixes: [PREFIX, …]}`, the module calls `registerVisualParts(source, read)` once, and `read` returns the current list of `{id, element, label, surface?}`; a comment on a part stores its id as `anchor.visual`. Under `parts`, ATTR names an attribute of the widget, as in `<lf-diagram parts=\"all\">`: the registered parts become targets where the widget carries it, and without it the picture stays one target. Under `prefixes`, Leaf accepts any longer id starting with one of them, such as `commit:3f2a` under `commit:`. `surface` may name a descendant whose own paint, without decoration, gives the outline Leaf marks; `element` stays the target for hits and travel. A comment whose part is gone detaches on replay instead of widening to the whole picture. A visual that draws its parts over time also passes `{reveal}`: `reveal(id)` must synchronously show a state that holds that part, cancelling any pending change that would remove it, and Leaf calls it before going to the part from a thread or `navigateToDatum`. While a declared part is missing from the current state, its threads sit on the whole picture. Call the registration's `update()` after any change to rendering or geometry, including an attribute or style change in place. The render check validates each registered record.",
-    "x-space": "The default width the element takes in a column or sidebar Layout. `column` keeps the prose measure and starts where the prose does, for content read as lines or that frames prose (an ask, `.callout`), widening to its own widest block; `wide` takes the shared, capped evidence width; `available` takes all the width the page shell can give. Without it the element fills its container, as every element does in other Layouts. An authored element may override it with `data-width=wide|available`, which the theme applies without moving the prose.",
+    "x-space": "The width past the reading measure the element takes in a column or sidebar Layout: `wide` takes the shared, capped evidence width; `available` takes all the width the page shell can give. Without it the element fills its container, as every element does in other Layouts; an element read as lines of text keeps to the measure in its own stylesheet (`max-inline-size: var(--lf-measure)`). An authored element may override it with `data-width=wide|available`, which the theme applies without moving the prose.",
     "x-bound": "The element has its own height and scrolls inside it, so a long log or feed never grows the page. `start` opens at the first line; `end` follows the newest entry while the user is at the end, and stays where the user scrolled back to otherwise. An authored element may set or override it with `data-bound=start|end`; delivery writes it as `data-lf-bound`.",
     "x-height": "The height in CSS pixels the page reserves for the element before its module draws: the declared number, or an authored `data-height`, which overrides it; `true` reserves only where `data-height` is given. The theme holds the box to it from first paint until the module marks the element drawn (`lf-rendered`). Declare it on a widget whose drawing can't be sized from its markup. A module that can draw at any height, such as a chart's, draws at this one, so nothing moves; for content with its own height, the reserved height is the author's estimate of it.",
-    "x-history": "`true`: the module renders the page's history, so a page that contains one is served the `history` reading with its state. The reading is the newest 50 logged events, newest first, each with who acted, what they did, the thread and its title, whether a later undo took it back, and, for a widget gesture, the words its ids had when it was made. The module reads it with `readHistory`.",
-    "x-withdrawn-as": "The deciding outcome that declines the proposal. It answers the ask without closing the widget's `resolves` thread. A revision may also remove an unanswered proposal outright, whether or not it has retirable members; ids from earlier versions don't prevent it.",
+    "x-history": "`true`: the module renders the page's history, so a page that contains one is served the `history` reading with its state. The reading is the newest 50 logged events, newest first, each with who acted, what they did, the id of the thread it was in, whether a later undo took it back, and, for a widget gesture, the words its ids had when it was made. The module reads it with `readHistory`.",
+    "x-withdrawn-as": "The deciding outcome that declines the proposal. It answers the item without closing the widget's `resolves` thread. A revision may also remove an unanswered proposal outright, whether or not it has retirable members; ids from earlier versions don't prevent it.",
     "x-within": "The regions (element declarations) inside which a member may sit at any depth instead of as its owner's direct child. It belongs to the nearest owner x-owners names around that region, and `page check` refuses it anywhere else. A playground control written inside `lf-playground-preview` stays where it is written, beside the item it changes, instead of in the rail.",
     "x-name": "The attribute that holds the element's title, which the page uses to name the element elsewhere, as the activity feed does. Declare it only where an attribute is the title, as a column's or a tab's `label` is; a section is already titled by its heading, a disclosure by its summary, and a titled member by its leading <strong>. An attribute the element merely shows first, such as a metric's value, is not its title.",
-    "x-word": "The module gives a word for the widget's kind through `lfWord()`, as `lf-suggestion` returns \"insertion\", \"deletion\" or \"rewrite\" depending on its children. Leaf uses it when naming the widget in a panel row or comment anchor; without one, it calls an x-ask-context widget a question and anything else by its tag name without the prefix. The module may also describe the widget through `lfSays()`, where its text alone doesn't convey its structure, such as a rewrite's old and new text; otherwise Leaf reads the element's text.",
+    "x-word": "The widget's word for its kind, which Leaf uses when naming the widget in a panel row, a walk or a comment anchor: a fixed word, as `lf-ask` says \"question\", or `module`, where the module gives one through `lfWord()`, as `lf-suggestion` returns \"insertion\", \"deletion\" or \"rewrite\" depending on its children. Without one, Leaf calls the widget by its tag name without the prefix. With `module`, the module may also describe the widget through `lfSays()`, where its text alone doesn't convey its structure, such as a rewrite's old and new text; otherwise Leaf reads the element's text.",
     "x-work": "`true`: the agent may open its own to-do on this widget with `leaf task open` even when no update on it is open, and the to-do shows beside the widget. Only a block widget whose x-content is markup may declare it, and markup content does not imply it: markup can itself be a control, or sit in a hidden panel."
   },
   "$state": {
@@ -1591,13 +1634,13 @@
     "why-restated-is-separate": "`restated` is not a settlement. It retracts a user decision because the authored words or state it rested on changed, while `settles` completes provisional information the agent supplied. Merging the two would make finishing work look like taking back the user's action."
   },
   "$awaits": {
-    "value": "The user-written x-state verb whose state is the ask's typed answer: a recorded verb's value, or a custom verb's full current detail, as a map by member id for a verb that keeps state per member.",
-    "when": "The authored attributes that make an element an ask: a map from each attribute to the values that make it one, `true` and `false` for a flag. Every attribute named must match. `lf-options` declares `{\"choose\": [true], \"settled\": [false]}`, so a group asks only while it takes picks and stops once it is `settled`. Without `when`, every element of the tag is an ask, as every `lf-suggestion` is.",
-    "answered": "When the ask is answered: a map from each answering x-state verb to a condition on its state, and the ask is answered while any one holds. Naming the answering verbs keeps other actions, such as adding an option, from answering. `{}` holds while the verb's state is set: a non-empty attribute or value record, read from the authored markup as well as the log, so a version that writes the answer in keeps it answered; for any other verb, an action of it in force. `when` limits a verb to instances whose attributes match, which is how a `multiple` group is answered by its Done (`answer`) and a single-choice group by its pick (`choose`). `empty: {within, when}` holds while the matching member container inside the widget has no members, which is how a queue is answered once its designated column is empty; it needs a position verb, and an answering verb whose unit is a member must use it. Admission marks the action that makes a condition hold in `meaning.answer` (x-state). A thread in the widget's thread box (x-thread-seat) is not an answer.",
-    "all": "The outcome a blanket yes gives, where one banner control answers every ask of this kind at once (`Accept all (3)`). It must be an `outcome` of the widget's deciding verb, which must be an answering verb, and the module must expose a method named for that verb taking the outcome, so each ask records its own decision. Without it, the user answers each ask where it is."
+    "value": "The user-written x-state verb whose state is the item's typed answer: a recorded verb's value, or a custom verb's full current detail, as a map by member id for a verb that keeps state per member.",
+    "when": "The authored attributes that make an element ask: a map from each attribute to the values that make it one, `true` and `false` for a flag. Every attribute named must match. `lf-options` declares `{\"choose\": [true], \"settled\": [false]}`, so a group asks only while it takes picks and stops once it is `settled`. Without `when`, every element of the tag asks, as every `lf-suggestion` does.",
+    "answered": "When the item is answered: a map from each answering x-state verb to a condition on its state, and the item is answered while any one holds. Naming the answering verbs keeps other actions, such as adding an option, from answering. `{}` holds while the verb's state is set: a non-empty attribute or value record, read from the authored markup as well as the log, so a version that writes the answer in keeps it answered; for any other verb, an action of it in force. `when` limits a verb to instances whose attributes match, which is how a `multiple` group is answered by its Done (`answer`) and a single-choice group by its pick (`choose`). `empty: {within, when}` holds while the matching member container inside the widget has no members, which is how a queue is answered once its designated column is empty; it needs a position verb, and an answering verb whose unit is a member must use it. Admission marks the action that makes a condition hold in `meaning.answer` (x-state). A thread in the widget's thread box (x-thread-seat) is not an answer.",
+    "all": "The outcome a blanket yes gives, where one control answers every item of this kind at once (`Accept all (3)`). It must be an `outcome` of the widget's deciding verb, which must be an answering verb, and the module must expose a method named for that verb taking the outcome, so each item records its own decision. Without it, the user answers each item where it is."
   },
   "$restated": {
-    "description": "A boolean attribute saying this revision rewrote words the user already decided on, so the decision no longer applies and the user is asked again. Put it on the element the decision rests on: an `lf-draft` or `lf-suggestion`, or the `lf-card` or `lf-option` inside a board or group. It retracts every action that named that element: a rewritten card drops only that card's moves, while a rewritten option takes back the whole pick it was part of.",
+    "description": "A boolean attribute saying this revision rewrote words the user already decided on, so the decision no longer applies and the user is asked again. Put it on the element the decision rests on: an `lf-draft` or `lf-suggestion`, the `lf-card` or `lf-option` inside a board or group, or an `lf-ask` whose question you rewrote, which then waits on an answer given after the stamp. It retracts every action that named that element: a rewritten card drops only that card's moves, while a rewritten option takes back the whole pick it was part of.",
     "why": "Decisions are recorded against the revision the user saw and survive ordinary edits, so change presentation and wording directly. Use this attribute only when the decision itself should no longer apply; the log records the retraction and keeps the original answer.",
     "when": "When a revision makes a decision no longer apply and needs a fresh answer, write the new content, mark the element the decision names, and say why in the stamp note. Changing decided wording or presentation alone needs no marker. An unused or repeated marker does no harm.",
     "once": "Put the marker only on the revision that retracts the decision; stamping records the retraction. Leave it off later revisions unless they withdraw another decision.",
@@ -1637,7 +1680,6 @@
   },
   ".callout": {
     "description": "An aside set off from the prose in a tinted, bordered box, for something the user must not miss; a note they can skip goes in the margin (aside.sidenote). Add `ok`, `warn` or `danger` when it reports a status, as `class=\"callout warn\"` for a paused release; the tint and the title take the tone, and the prose keeps the body's ink. The title is a `<strong>` written as the callout's first child; one opening a paragraph stays in the body's ink. In a flow wider than the column, such as a sidebar page's body, it keeps the prose width; one holding a wide chart or table takes `data-width`.",
-    "x-space": "column",
     "x-example": "<aside class=\"callout\" id=\"rollback-note\">Rollback is one flag flip; the backfill is idempotent.</aside>"
   },
   "section.panel": {

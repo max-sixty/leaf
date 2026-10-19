@@ -1,5 +1,5 @@
 """The hooks the launcher answers without starting Leaf, in a session that holds no
-claim (`state.hook_needed`)."""
+claim: those registered `--if-claimed` (`bin/leaf`)."""
 
 import json
 import os
@@ -10,13 +10,15 @@ from leaf import service as service_model
 from leaf import state as state_model
 
 LAUNCHER = str(ROOT / "bin" / "leaf")
+REGISTRATIONS = json.loads((ROOT / "hooks" / "hooks.json").read_text())["hooks"]
 
 
-def hook(event: str, session: str, **env: str) -> None:
+def hook(event: str, session: str) -> None:
+    """Run Claude Code's first registered command for `event`, as it would."""
     ran = subprocess.run(
-        [LAUNCHER, "hook", "--harness", "claude-code"],
+        ["/bin/sh", "-c", REGISTRATIONS[event][0]["hooks"][0]["command"]],
         input=json.dumps({"hook_event_name": event, "session_id": session}),
-        env={**os.environ, **env},
+        env={**os.environ, "CLAUDE_PLUGIN_ROOT": str(ROOT)},
         capture_output=True,
         text=True,
         check=False,

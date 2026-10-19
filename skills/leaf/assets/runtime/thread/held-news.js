@@ -78,12 +78,12 @@
    - opening the thread: a seat's Resolved disclosure folding it, or a panel card the
      list opens;
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
-     walk, an ask, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
+     walk, an item, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
      a press on its title, which stands for the whole thread, whether or not it already
      stood open. Coming back to the thread they stood in is a stay, whatever puts them
      there, as when the runtime puts back a reply box a surface stopped drawing, and so
      is a move within it, such as Escape out of its reply box onto its title or going to
-     an ask it already shows;
+     an item it already shows;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
      it, an action on a widget one of them holds or one that closes it, as accepting
      the suggestion it asked for does, or a thread they start in the seat, which
@@ -94,7 +94,7 @@
    sees: none of it stands where a change of size moves what is seen (geometry.js,
    `growthIsSeen`), as when it is scrolled under the banner. A press into the thread, such as into its reply box, shows
    nothing: it asks for what it lands on, and drawing the news would move that under the
-   press. Where the destination is itself held, a message or an ask in a held turn, or a
+   press. Where the destination is itself held, a message or an item in a held turn, or a
    thread a seat holds whole, the route shows it first (`showHeld`), since nothing
    undrawn can take focus. Anything held in a seat is not drawn, so it stays unread until
    it shows.
@@ -143,9 +143,9 @@ import { keeps, keepsText, layoutPx } from "../keeps.js";
 import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread, threadFocusStop } from "./focus.js";
-import { isReaction, messageKey, threadKey, threadNames } from "./model.js";
-import { allThreads, threadState } from "./state.js";
-import { THREAD } from "./selectors.js";
+import { isReaction, messageKey, threadKey } from "./model.js";
+import { allThreads, threadIdNamed, threadState } from "./state.js";
+import { drawnThreadId, THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { runtime } from "../context.js";
 import { onStanding, focused, standingNodes } from "../focus.js";
@@ -156,8 +156,8 @@ import { watchOwner } from "../arrivals.js";
 // Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
 // refusal that takes one back included until the reading it restores is drawn: the
 // application publisher says which thread each stands in (`thread.gestured`). Their
-// words from another tab, or a turn a seat first draws after the log answered it, as a
-// package mirror whose render waited on work of its own does, arrive like the agent's.
+// words from another tab, or a turn a seat first draws after the log answered it, arrive
+// like the agent's.
 export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
 // Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
@@ -219,7 +219,7 @@ function messageChange(prior, message) {
 // foot (`footFold`) it changes only that foot, as the answer's arrival does. `answers`
 // says the news is the agent answering the user, who had the last turn as drawn: all of
 // it, the reply, the work under way on it and that work's fold, lies after that turn,
-// which a presentation may show at once (mirrors.js, `answersAtOnce`). A message the log
+// which a presentation may show at once (primary-reader.js, `answersAtOnce`). A message the log
 // took back is no news: it goes. Null where nothing differs.
 function difference(was, now, { progressOpen = false } = {}) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
@@ -511,7 +511,7 @@ export const showHeldThread = (id) =>
   everySeat(id, (held, thread) => held.showThreads(thread));
 
 function everySeat(id, show) {
-  const thread = threadNames(allThreads()).get(id)?.id ?? id;
+  const thread = threadIdNamed(id);
   let shown = false;
   for (const held of holders) shown = show(held, thread) || shown;
   return shown;
@@ -523,7 +523,7 @@ onStanding((node, cause) => {
   // A drop leaves them standing in the thread, for its owner to put them back in.
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
-  const id = thread ? (thread.dataset.id ?? thread.dataset.thread) : null;
+  const id = drawnThreadId(thread);
   const title = thread && threadFocusStop(thread);
   const arrived =
     id !== null &&

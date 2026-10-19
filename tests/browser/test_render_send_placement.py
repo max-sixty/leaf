@@ -327,8 +327,8 @@ def sent(browser, serve, name, shots):
     page.keyboard.insert_text(COMMENT)
     rendered(page)
     box_side = SIDES[bar.get_attribute("data-lf-placement")]
-    # Both placement readings describe the complete frame, including the transparent
-    # slots around the editor. The glyph test below measures the painted words.
+    # Both placement readings describe the complete frame, including the reserved
+    # rows around the editor. The glyph test below measures the painted words.
     box = page.evaluate(RECT, ".lf-fab-bar")
     words, block = on.line(page), page.evaluate(RECT, on.block)
     phone_room = None
@@ -548,7 +548,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     read Chrome's actual compositor screenshots. The initial passage rectangle, box
     height, side and gap supply the expected attachment independently of the return.
     """
-    marker_style = f"""<style>
+    marker_style = f"""<style data-controls>
       #paint-target {{ background: {SUBJECT_MARK}; }}
       .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}
     </style>"""
@@ -736,10 +736,16 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             page.mouse.move(880, 650)
             page.mouse.wheel(0, 350)
             scroll_settled(page)
+        # The pointer wheels what scrolls, off the box, which takes the wheel as its
+        # card does.
         mouse = (
             (before_target["x"] + 50, content_box["y"] + 35)
             if region in ("code", "content")
-            else (120 if scroller else 100, 100 if region == "combined" else 350)
+            else (120, 100)
+            if region == "combined"
+            else (120, before_target["y"] - 40)
+            if region == "pane"
+            else (100, 350)
         )
         page.mouse.move(*mouse)
         page.mouse.wheel(0, wheel)
@@ -1081,6 +1087,7 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
         ((900, 600), 0.85, False, False, False, False),
         ((390, 844), 0.12, False, False, False, False),
         ((900, 600), 0.4, True, False, False, False),
+        ((900, 600), 0.4, "scrolled", False, False, False),
         ((1440, 900), 0.4, "paragraphs", False, False, False),
         ((1440, 900), 0.4, False, False, True, False),
         ((390, 844), 0.4, "passage", True, False, False),
@@ -1092,9 +1099,12 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
 def test_send_grows_thread_around_the_words(
     browser, serve, size, at, long, touch, again, options
 ):
-    """The real draft's words keep their position/wrapping/scroll through Send,
-    including the decoration animation and acknowledgement. Read inside the editor
-    solely to measure its actual glyphs, without changing its closed-root behavior."""
+    """The box being written is drawn as the card it becomes, and Send swaps one for
+    the other in that rectangle, so the draft's words stand where they were typed through
+    Send and its acknowledgement: the box and the card share one text column and foot,
+    and the card stands its words as far above its end as the box did. Read inside the
+    editor solely to measure its actual glyphs, without changing its closed-root
+    behavior."""
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(
         browser,
@@ -1122,13 +1132,16 @@ def test_send_grows_thread_around_the_words(
     on.open(page, touch)
     text = (
         "Keep the runner checkout fixed while the disposable workspace is safely removed. "
-        * (80 if long is True else 2)
+        * (80 if long in (True, "scrolled") else 2)
     )
     if long == "paragraphs":
         text = "First paragraph.\n\nSecond paragraph."
-    field = page.locator(".lf-fab-input")
     page.keyboard.insert_text(text)
     rendered(page)
+    if long == "scrolled":
+        # The user reads back to the start of a long draft before sending it.
+        page.locator(".lf-fab-input").evaluate("el => el.scrollTo({top: 0})")
+        rendered(page)
     if options:
         page.keyboard.press("Tab")
         rendered(page)
@@ -1168,24 +1181,22 @@ def test_send_grows_thread_around_the_words(
       };
       const editor = window.editorRoots.get(input).querySelector('.cm-content');
       window.beforeWords = rects(editor);
-      window.beforeScroll = input.scrollTop;
       window.beforePageScroll = scrollY;
+      const bar = document.querySelector('.lf-fab-bar');
+      window.box = {frame: bar.getBoundingClientRect().toJSON(),
+        painted: getComputedStyle(bar, '::before').backgroundColor !== 'rgba(0, 0, 0, 0)'};
       window.sendFrames = [];
       const sample = () => {
         const card = document.querySelector('.lf-margin-preview');
         const body = card?.querySelector('.lf-msg-body');
         if (body && card.checkVisibility()) {
-          window.sendFrames.push({rects:rects(body), scroll:body.querySelector('.lf-msg-text').scrollTop, pageScroll:scrollY,
+          window.sendFrames.push({rects:rects(body), pageScroll:scrollY,
             frame:card.getBoundingClientRect().toJSON()});
         }
         window.sampling = requestAnimationFrame(sample);
       };
       window.sampling = requestAnimationFrame(sample);
     }""")
-    # Send's room stands beside every line under a finger and in a scrolled draft,
-    # and after the last words otherwise; the sent message holds it where the draft did.
-    held = field.evaluate("el => el.endRoom")
-    assert held == ("every-line" if touch or long is True else "last-line")
     with sending(page, "comment"):
         if touch:
             page.locator(".lf-fab-bar").get_by_role(
@@ -1194,21 +1205,21 @@ def test_send_grows_thread_around_the_words(
         else:
             page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
-    expect(card).to_have_attribute("data-lf-comment-frame", held)
+    expect(card).to_be_visible()
     rendered(page)
-    wait_for(
-        lambda: page.evaluate(
-            "document.querySelector('.lf-margin-preview').getAnimations().length"
-        ),
-        lambda n: n == 0,
-        failure="Thread growth never finished",
-    )
     reading = page.evaluate("""() => {
       cancelAnimationFrame(window.sampling);
-      return {before:beforeWords,scroll:beforeScroll,pageScroll:beforePageScroll,frames:sendFrames};
+      return {before:beforeWords,pageScroll:beforePageScroll,frames:sendFrames,box};
     }""")
+    assert reading["box"]["painted"], "The box being written showed only its field"
     assert reading["frames"]
+    # The card takes the box's rectangle, less the response choices the box alone
+    # carries under its field.
+    edges = ("left", "right", "top") if options else ("left", "right", "top", "bottom")
     for frame in reading["frames"]:
+        assert {edge: frame["frame"][edge] for edge in edges} == pytest.approx(
+            {edge: reading["box"]["frame"][edge] for edge in edges}, abs=0.75
+        ), reading
         assert frame["frame"]["left"] >= -0.75
         assert frame["frame"]["right"] <= size[0] + 0.75
         assert frame["frame"]["top"] >= -0.75
@@ -1216,24 +1227,12 @@ def test_send_grows_thread_around_the_words(
         assert [v for r in frame["rects"] for v in r] == pytest.approx(
             [v for r in reading["before"] for v in r], abs=0.75
         ), reading
-        assert frame["scroll"] == pytest.approx(reading["scroll"], abs=1), reading
         assert frame["pageScroll"] == reading["pageScroll"], reading
     expect(
         card.get_by_role("button", name="Resolve thread", exact=True)
     ).to_be_visible()
     expect(card.locator('leaf-text[name="reply"]')).to_be_visible()
 
-    if long is True:
-        body = card.locator(".lf-msg-text").first
-        body.hover()
-        page.mouse.wheel(0, -300)
-        expect(body).not_to_have_js_property("scrollTop", reading["scroll"])
-        scroll_settled(page)
-        retained = body.evaluate("el => el.scrollTop")
-        resized(page, size[0] + 1, size[1])
-        rendered(page)
-        assert body.evaluate("el => el.scrollTop") == pytest.approx(retained, abs=1)
-        expect(card).to_have_attribute("data-lf-comment-frame", held)
     if not long and not touch and not again:
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")
@@ -1541,7 +1540,7 @@ def test_a_comment_box_on_words_alone_in_a_scroller_paints_in_the_frame_they_scr
                 + "Export tenants."
                 + "<br>" * 60
                 + '</p><div style="height:1200px"></div>',
-                head=f"<style>#quote {{ height:320px; overflow:auto; color:{SUBJECT_MARK};"
+                head=f"<style data-controls>#quote {{ height:320px; overflow:auto; color:{SUBJECT_MARK};"
                 " font: 900 72px/1 sans-serif; -webkit-text-stroke: 6px currentColor; }"
                 f" .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}</style>",
             )

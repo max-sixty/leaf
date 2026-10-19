@@ -137,11 +137,14 @@ export function createFloatingResponsePlacement({
       ).toJSON(),
       width,
       placement: fabPlacement.capture(),
+      // How far the words stand above their end: where the user was reading them,
+      // which the card Send opens keeps (thread-preview.js, `showArrival`).
+      fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop,
     };
   };
   // Where the frame's native rows end. Used grid tracks exclude transformed descendant
   // paint. Withholding requires only the current controls to fit, so they may borrow the
-  // transparent footer reserved for the future card when space is short.
+  // footer reserved for the future card when space is short.
   const nativeRowEnd = () => {
     const style = getComputedStyle(fabBar);
     const rows = style.gridTemplateRows.split(" ").map(parseFloat);

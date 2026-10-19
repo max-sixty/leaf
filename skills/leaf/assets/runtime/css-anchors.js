@@ -33,7 +33,8 @@
  * than answered by either (notes/browser-support.md, "A stuck sticky anchor in
  * Firefox" and "An anchor under a fixed box in WebKit"): Firefox ignores a sticky
  * anchor's stuck offset, and WebKit adds the root scroll to a box anchored under a
- * fixed ancestor.
+ * fixed ancestor. A third is answered once, where every inset is measured
+ * (`anchorBox`): Firefox leaves an anchor's transforms out.
  *
  * A source keeps one name across those uses. Retained controls can observe whether its
  * source renders near the viewport before entering layout. That reading starts
@@ -332,17 +333,123 @@ const anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
 // The name `el` answers to as an anchor, given it first where it has none.
 export const anchorName = (el) => nameAnchor(anchorReading(el));
 
+// Where `anchor()` reads `anchor`'s box, in client coordinates, which every inset written
+// against it is measured from: its border box as a script reads it, transforms included,
+// as the spec has it. Firefox (155) leaves out the transforms on the anchor and its
+// ancestors, so a box written from the script's reading of a transformed anchor lands
+// off by the transform: a table granted room is translated into place (layouts.css),
+// and at 1728 px every pin, chip and comment box against one stood 300 px left of what
+// it marked (notes/browser-support.md, "An anchor's transforms in Firefox"). There the
+// reading takes off how far each translation on the anchor or an ancestor moves its box
+// (`translationOf`). A scale, rotation or zoom moves each point of a box differently,
+// and keeps the script's reading.
+//
+// Rejected: a probe anchored to the same name, read for the corner `anchor()` resolves.
+// Firefox resolves it from where scrolls stood at its last anchor snapshot, so a probe
+// read straight after a scroll between it and the anchor, the widened table's own
+// included, returned where the anchor stood before; and a probe in the chrome reaches
+// no anchor in a native layer.
+let dropsTransforms;
+// Firefox lacks transforms in `anchor()`; read once whether this engine does.
+function anchorDropsTransforms() {
+  if (dropsTransforms !== undefined) return dropsTransforms;
+  const moved = document.createElement("div");
+  const anchored = document.createElement("div");
+  moved.style.cssText =
+    "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
+  anchored.style.cssText =
+    "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
+  chromeRoot.append(moved, anchored);
+  dropsTransforms = anchored.getBoundingClientRect().left < 4;
+  moved.remove();
+  anchored.remove();
+  return dropsTransforms;
+}
+// Where layout put `el`, in client coordinates, without its own transforms: its offset
+// from its offset parent's box, less the scrolls between, which offsets leave out. A
+// static body's offsets count from the document's corner, and a fixed box's from the
+// window's. Null where it has no offset to read.
+function laidOut(el) {
+  const parent = el.offsetParent;
+  let left = el.offsetLeft;
+  let top = el.offsetTop;
+  if (!parent) {
+    if (getComputedStyle(el).position !== "fixed") return null;
+    return { left, top };
+  }
+  if (parent === document.body && getComputedStyle(parent).position === "static") {
+    left -= scrollX;
+    top -= scrollY;
+  } else {
+    const from = parent.getBoundingClientRect();
+    left += from.left + parent.clientLeft - parent.scrollLeft;
+    top += from.top + parent.clientTop - parent.scrollTop;
+  }
+  for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
+    if (!(box instanceof Element)) return null;
+    left -= box.scrollLeft;
+    top -= box.scrollTop;
+  }
+  return { left, top };
+}
+// Whether `style` moves its box at all, and whether only by a translation.
+function movement(style) {
+  const matrix =
+    style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
+  const moves =
+    Boolean(matrix) ||
+    style.translate !== "none" ||
+    style.rotate !== "none" ||
+    style.scale !== "none" ||
+    style.offsetPath !== "none";
+  const slides =
+    style.rotate === "none" &&
+    style.scale === "none" &&
+    (style.offsetPath === "none" || style.offsetRotate === "0deg") &&
+    (!matrix ||
+      (matrix.is2D &&
+        matrix.a === 1 &&
+        matrix.b === 0 &&
+        matrix.c === 0 &&
+        matrix.d === 1));
+  return { moves, slides };
+}
+// How far the translations on `el` and its ancestors move its box, or null where one of
+// them scales, rotates or zooms it, or has no offset to read.
+function translationOf(el) {
+  let x = 0;
+  let y = 0;
+  for (let at = el; at instanceof Element; at = renderedParent(at)) {
+    const { moves, slides } = movement(getComputedStyle(at));
+    if (!moves) continue;
+    if (!slides || !(at instanceof HTMLElement) || at.currentCSSZoom !== 1) return null;
+    const layout = laidOut(at);
+    if (!layout) return null;
+    const shown = at.getBoundingClientRect();
+    x += shown.left - layout.left;
+    y += shown.top - layout.top;
+  }
+  return { x, y };
+}
+export function anchorBox(anchor) {
+  const box = anchor.getBoundingClientRect();
+  if (!anchorDropsTransforms()) return box;
+  const shift = translationOf(anchorHolder(anchor));
+  return shift && (shift.x || shift.y)
+    ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height)
+    : box;
+}
 // Writes `node` fixed over `box`, a client rectangle, or a point where `box` gives no
-// right edge and the node keeps its own size, as insets from where `anchor` stood (`at`)
-// as `box` was measured, so the browser carries it through every scroll that moves the
-// anchor. With no anchor it stands where the window holds it. `visibility` is its
-// `position-visibility`: a cut box stays drawn while its anchor scrolls out of view, so
-// the frames cutting it decide what shows.
+// right edge and the node keeps its own size, as insets from where `anchor` stood (`at`,
+// `anchorBox`) as `box` was measured, so the browser carries it through every scroll
+// that moves the anchor. With no anchor it stands where the window holds it.
+// `visibility` is its `position-visibility`: a cut box stays drawn while its anchor
+// scrolls out of view, so the frames cutting it decide what shows.
 export function anchorAt(
   node,
   anchor,
   box,
-  at = anchor?.getBoundingClientRect(),
+  at = anchor && anchorBox(anchor),
   visibility = "always",
 ) {
   const from = (side, length) =>
@@ -362,10 +469,14 @@ export function anchorAt(
   });
 }
 
-// A frame's cut on the axes its box clips, and none on the others.
-const cutPath = ({ x, y }) => {
-  const open = (clips) => (clips ? "0" : "-100000px");
-  return `inset(${open(y)} ${open(x)})`;
+// The frame itself has no painted box. Extend its zero-size clip to the measured band
+// (and beyond an uncut axis), so only its descendants stand over page text. A huge
+// transparent frame hid those words from contrast readers even though it took no press.
+const cutPath = ({ x, y }, band) => {
+  const open = 100000;
+  const width = band.right - band.left;
+  const height = band.bottom - band.top;
+  return `inset(${layoutPx(y ? 0 : -open)} ${layoutPx(-width - (x ? 0 : open))} ${layoutPx(-height - (y ? 0 : open))} ${layoutPx(x ? 0 : -open)})`;
 };
 
 // The levels a box following `item` is cut at so that it passes under the sticky headers
@@ -383,7 +494,7 @@ export function headerLevels(item, clips = new Map()) {
     return {
       anchor,
       reading: anchor && anchorReading(anchor),
-      at: anchor?.getBoundingClientRect(),
+      at: anchor && anchorBox(anchor),
       band: band ?? nowhere,
       axes: { x: false, y: true },
     };
@@ -410,8 +521,13 @@ export function cutFrames(levels, frames, make) {
   for (const dropped of frames.slice(0, frames.length - kept.length)) dropped.remove();
   levels.forEach(({ anchor, band, axes, at, reading }, i) => {
     if (reading) nameAnchor(reading);
-    anchorAt(chain[i], anchor, band, at);
-    chain[i].style.clipPath = cutPath(axes);
+    anchorAt(
+      chain[i],
+      anchor,
+      { left: band.left, top: band.top, right: band.left, bottom: band.top },
+      at,
+    );
+    chain[i].style.clipPath = cutPath(axes, band);
   });
   return chain;
 }

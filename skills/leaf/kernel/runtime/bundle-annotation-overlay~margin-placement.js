@@ -6,6 +6,7 @@ import {
   residencyStarted
 } from "./bundle-content-layout.js";
 import {
+  anchorBox,
   anchorElement,
   anchorFor,
   anchorName,
@@ -15,8 +16,11 @@ import {
   cutFrames,
   headerLevels,
   nameAnchor,
+  passageBoxes,
   scrollAxes,
-  scrollsWith
+  scrollsWith,
+  targetRange,
+  targetSegments
 } from "./bundle-chrome.js";
 import {
   afterPresentation,
@@ -30,7 +34,7 @@ import {
 } from "./bundle-presence.js";
 import {
   inChrome,
-  pageDocument
+  layoutBox
 } from "./bundle-passage-facts.js";
 import {
   LAYOUT,
@@ -292,7 +296,7 @@ function carrierAnchor(subject, sources, scroller) {
   if (!scrollsWith(subject, inner)) return own();
   return carriedAnchor(inner) ?? own();
 }
-var marginColumn = () => pageDocument() || document.body;
+var marginColumn = () => layoutBox() || document.body;
 var railStands = (main) => (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
 var railBeside = (scroller) => {
   if (scroller === pageScroller) return true;
@@ -332,9 +336,9 @@ function restingRail() {
   projection.remove();
   return { entry, row };
 }
-function marginSpot(target, point = null) {
+function marginSpot(target, point = null, passage = null) {
   for (const [row, options] of rows)
-    if (options.anchor?.() === target && (options.point?.() ?? null) === point && row.checkVisibility()) {
+    if (options.anchor?.() === target && (options.point?.() ?? null) === point && samePassage(options.passage?.() ?? null, passage) && row.checkVisibility()) {
       const { left: left2, right } = row.getBoundingClientRect();
       return { left: left2, right };
     }
@@ -346,13 +350,22 @@ function marginSpot(target, point = null) {
   const left = main.getBoundingClientRect().right + hang;
   return { left, right: left + restingRail().row };
 }
+function quotedBoxes(options) {
+  if (options.point?.()) return [];
+  return passageBoxes(options.passage?.() ?? null);
+}
+function samePassage(passage, words) {
+  const range = passage && targetRange(passage);
+  if (!range || !words) return !passage && !words;
+  return range.startContainer === words.startContainer && range.startOffset === words.startOffset && range.endContainer === words.endContainer && range.endOffset === words.endOffset;
+}
 function syncMarginResidency(changed) {
   paintPins();
   if (changed) scheduleMarginLayout();
 }
 function paintPins() {
   if (!residencyStarted()) return;
-  const main = pageDocument();
+  const main = layoutBox();
   layer?.root.closest(".lf-chrome").toggleAttribute("data-lf-pins", !main || !railStands(main));
 }
 var labelRect = (name, left, top, label) => ({
@@ -607,6 +620,44 @@ function standFolded(row, fold, on) {
   else folded.delete(row);
   fold?.changed();
 }
+function seatsBy(parts, home, inline, passage, cover, size) {
+  const height = home.bottom - home.top;
+  const box = union(parts) ?? home;
+  const end = parts.at(-1);
+  const under2 = {
+    left: Math.min(home.left, box.left),
+    right: home.right,
+    top: box.bottom + GAP,
+    bottom: box.bottom + GAP + height
+  };
+  const belowClear = !cover.some((box2) => overlaps(box2, under2));
+  return [
+    {
+      left: box.right + GAP,
+      right: box.right + GAP + size,
+      top: box.top,
+      bottom: box.top + height
+    },
+    ...inline && end ? [
+      {
+        left: end.right + GAP,
+        right: end.right + GAP + size,
+        top: end.top,
+        bottom: end.top + height
+      }
+    ] : [],
+    { ...home, left: home.right - size },
+    // Above the corner: a quoted passage hangs off its words so the pin's pointed
+    // foot meets them. Other inline targets keep the inset seat inside their corner.
+    {
+      left: passage ? box.right : home.right - size,
+      right: passage ? box.right + size : home.right,
+      top: box.top - GAP - height,
+      bottom: box.top - GAP
+    },
+    ...belowClear ? [{ ...under2, left: home.right - size }] : []
+  ];
+}
 function pinSeating(rows2, { bands, shell, pinInset }) {
   const main = marginColumn();
   const rootBounds = /^(hidden|clip)$/.test(getComputedStyle(pageScroller).overflowY) ? shownWindow({ viewport: "layout" }) : { top: pageScroller.getBoundingClientRect().top };
@@ -618,7 +669,7 @@ function pinSeating(rows2, { bands, shell, pinInset }) {
       standFolded(read.row, read.options.fold, false);
       continue;
     }
-    const { target, point, row } = read;
+    const { target, point, words, row } = read;
     const home = entry.rect;
     const height = home.bottom - home.top;
     const width = home.right - home.left;
@@ -628,15 +679,22 @@ function pinSeating(rows2, { bands, shell, pinInset }) {
     const style = fold && getComputedStyle(row);
     const across = (count) => count * height + (count - 1) * parseFloat(style.columnGap) + parseFloat(style.paddingRight);
     const wide = fold ? across(2) : width;
-    const parts = partsOf(point ?? target);
-    const box = parts.length ? {
-      right: Math.max(...parts.map((part) => part.right)),
-      top: Math.min(...parts.map((part) => part.top))
-    } : { right: home.right, top: home.top };
+    const parts = words ?? partsOf(point ?? target);
+    const blockParts = words && read.block ? partsOf(target) : [];
+    const block = blockParts.length > 0 && {
+      parts: blockParts,
+      home: {
+        left: read.block.right - pinInset - width,
+        right: read.block.right - pinInset,
+        top: read.block.top,
+        bottom: read.block.top + height
+      }
+    };
+    const spans = [home, ...parts, ...block ? [block.home, ...block.parts] : []];
     const around = height + GAP;
     const band = {
-      top: Math.min(home.top, box.top) - around,
-      bottom: Math.max(home.bottom, ...parts.map((part) => part.bottom)) + around
+      top: Math.min(...spans.map((box) => box.top)) - around,
+      bottom: Math.max(...spans.map((box) => box.bottom)) + around
     };
     const stop = read.scroller;
     const { cover, controls } = coverIn(
@@ -647,39 +705,13 @@ function pinSeating(rows2, { bands, shell, pinInset }) {
       stop
     );
     const end = parts.at(-1);
-    const inline = !point && end && target instanceof HTMLElement && getComputedStyle(target).display.startsWith("inline");
+    const inline = Boolean(words) || !point && end && target instanceof HTMLElement && getComputedStyle(target).display.startsWith("inline");
     const floor = Math.max(home.bottom, ...parts.map((part) => part.bottom));
-    const foot = parts.length ? Math.max(...parts.map((part) => part.bottom)) : home.bottom;
-    const under2 = {
-      left: Math.min(home.left, ...parts.map((part) => part.left)),
-      right: home.right,
-      top: foot + GAP,
-      bottom: foot + GAP + height
-    };
-    const belowClear = !cover.some((box2) => overlaps(box2, under2));
+    const reach2 = (stop === pageScroller ? innerHeight : stop.clientHeight) / 2;
+    const near = (seat) => seat.top >= Math.min(...parts.map((part) => part.top)) - reach2 && seat.bottom <= Math.max(...parts.map((part) => part.bottom)) + reach2;
     const seatsAt = (size) => [
-      {
-        left: box.right + GAP,
-        right: box.right + GAP + size,
-        top: box.top,
-        bottom: box.top + height
-      },
-      ...inline ? [
-        {
-          left: end.right + GAP,
-          right: end.right + GAP + size,
-          top: end.top,
-          bottom: end.top + height
-        }
-      ] : [],
-      { ...home, left: home.right - size },
-      {
-        left: home.right - size,
-        right: home.right,
-        top: box.top - GAP - height,
-        bottom: box.top - GAP
-      },
-      ...belowClear ? [{ ...under2, left: home.right - size }] : []
+      ...seatsBy(parts, home, inline, Boolean(words), cover, size),
+      ...block ? seatsBy(block.parts, block.home, false, false, cover, size).filter(near) : []
     ];
     const within = stop === pageScroller ? rootBounds : contentBox(stop);
     const clipped = clippedBand(target, EVERYWHERE, bands, stop);
@@ -690,7 +722,9 @@ function pinSeating(rows2, { bands, shell, pinInset }) {
       seats: seatsAt(wide),
       corner: inline ? 2 : 1,
       floor,
-      cover,
+      // A passage's own words count twice, so a pin with no clear seat covers its
+      // neighbours' words before the ones it is about.
+      cover: words ? [...cover, ...words] : cover,
       controls,
       folds: fold && { seats: seatsAt(across(1)), open: across(fold.controls()) },
       folded: folded.has(row),
@@ -761,7 +795,7 @@ function setStyle(row, property, value) {
 function targetShown(target, extent, stands, bands) {
   const shown = (part) => part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
   if (!visibleTargetParts(target).some(shown)) return false;
-  if (!clippedBand(target, extent, bands)) return false;
+  if (!extent || !clippedBand(target, extent, bands)) return false;
   if (!stands) return true;
   const view = clippedBand(target, EVERYWHERE, bands);
   return stands.top >= view.top - 1 && (stands.right === void 0 || stands.right <= view.right + 1);
@@ -794,10 +828,11 @@ function scheduleScrollReading() {
       if (!moving) continue;
       if (!row.classList.contains("lf-withheld") && boxes.every((box) => box === pageScroller))
         continue;
-      const extent = shownExtent(target);
+      const whole = shownExtent(target);
+      const words = quotedBoxes(options);
       const by = standsBy.get(row);
-      const stands = row.classList.contains("lf-withheld") || !extent || !by ? null : row.dataset.lfPlace === "pin" ? { top: extent.top + by.top, right: extent.right + by.right } : { top: extent.top + by.top };
-      if (targetShown(target, extent, stands, bands) === row.classList.contains("lf-withheld")) {
+      const stands = row.classList.contains("lf-withheld") || !whole || !by ? null : row.dataset.lfPlace === "pin" ? { top: whole.top + by.top, right: whole.right + by.right } : { top: whole.top + by.top };
+      if (targetShown(target, words.length ? union(words) : whole, stands, bands) === row.classList.contains("lf-withheld")) {
         scheduleMarginLayout();
         return;
       }
@@ -870,15 +905,22 @@ function layoutMarginRows() {
     const anchor = targetBox(target);
     anchors.set(row, anchor);
     const point = options.point?.() ?? null;
+    const words = quotedBoxes(options);
+    const passageNode = words.length ? targetSegments(options.passage?.())[0]?.node : null;
     observeGeometry(point ?? target);
-    present.push({ row, at: point ?? target });
+    present.push({
+      row,
+      at: point ?? passageNode ?? target
+    });
     const scroller = scrollerFor(target);
     const rootLane = scroller === pageScroller;
     const box = anchor.getBoundingClientRect();
     const whole = shownExtent(target);
-    const extent = whole && clippedBand(target, whole, bands, scroller);
-    const top = extent && point ? pointBand(extent, point).top : extent?.top;
-    const level = point ? top : box.top;
+    const block = whole && clippedBand(target, whole, bands, scroller);
+    const extent = words.length ? whole && clippedBand(target, union(words), bands, scroller) : block;
+    const line = point?.getBoundingClientRect() ?? words[0];
+    const top = extent && line ? clamp(line.top, extent.top, extent.bottom) : extent?.top;
+    const level = line ? top : box.top;
     const besideRail = railBeside(scroller);
     const size = stands && besideRail ? railEntrySize() : 0;
     const place = rowPosture({
@@ -895,6 +937,9 @@ function layoutMarginRows() {
       options,
       target,
       point,
+      words: words.length ? words : null,
+      passageNode,
+      block,
       anchor,
       whole,
       scroller,
@@ -970,14 +1015,14 @@ function layoutMarginRows() {
   for (const read of reads) {
     if (!read.target) continue;
     const subject = read.point ?? read.target;
-    read.carrier = carrierAnchor(subject, scrollSources(subject), read.scroller);
+    read.carrier = (read.passageNode && anchorFor(read.passageNode)) ?? carrierAnchor(subject, scrollSources(subject), read.scroller);
     read.cuts = headerLevels(subject, cutClips);
     read.cutKey = read.cuts.map(
       ({ anchor, band, at }) => anchor ? `${idOf(anchor)}:${band.top - at.top}:${band.bottom - at.top}` : `window:${band.top}:${band.bottom}`
     ).join("|");
     if (read.cuts.length)
       read.carrier ??= carriedAnchor(pageScroller) ?? anchorElement(targetBox(subject));
-    read.carrierBox = read.carrier?.getBoundingClientRect();
+    read.carrierBox = read.carrier && anchorBox(read.carrier);
     read.lane = read.scroller === pageScroller ? layer.root : null;
     if (read.carrier && !carrierNames.has(read.carrier))
       carrierNames.set(read.carrier, anchorReading(read.carrier));
@@ -1000,7 +1045,7 @@ function layoutMarginRows() {
         return {
           anchor,
           reading: anchorReading(anchor),
-          at: anchor.getBoundingClientRect(),
+          at: anchorBox(anchor),
           band: !band ? null : i ? band : {
             ...band,
             left: band.left - ring,
@@ -1263,7 +1308,7 @@ function floatingGeometry(contexts) {
   const anchors2 = /* @__PURE__ */ new Map();
   for (const context of contexts) {
     const anchor = anchorFor(context);
-    if (anchor) anchors2.set(anchor, anchor.getBoundingClientRect());
+    if (anchor) anchors2.set(anchor, anchorBox(anchor));
   }
   return { anchors: anchors2 };
 }
@@ -1373,7 +1418,7 @@ function floatingPlacement({ floating, update }) {
       const anchor = anchorFor(context);
       const client = reference.getBoundingClientRect();
       const geometry = reference.geometry ?? floatingGeometry([context]);
-      const anchorBox = geometry.anchors.get(anchor);
+      const anchorStood = geometry.anchors.get(anchor);
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
       const measured = {
@@ -1389,9 +1434,9 @@ function floatingPlacement({ floating, update }) {
       const { offset, scale } = answer.middlewareData.anchorAt;
       const wanted = planeOf(answer);
       const holder = offset && physical && typeof wanted === "object" ? holderOf(wanted, physical, getOverflowAncestors(physical)) : null;
-      const plane = wanted === "page" && anchorBox && offset ? "page" : holder ? "region" : "window";
+      const plane = wanted === "page" && anchorStood && offset ? "page" : holder ? "region" : "window";
       const frameAnchor = plane === "page" ? anchor : plane === "region" ? anchorElement(holder) : null;
-      const frameBox = plane === "page" ? anchorBox : frameAnchor?.getBoundingClientRect();
+      const frameBox = plane === "page" ? anchorStood : frameAnchor && anchorBox(frameAnchor);
       const at = offset && {
         x: offset.x + (frameBox?.left ?? 0) / scale.x,
         y: offset.y + (frameBox?.top ?? 0) / scale.y
@@ -1513,7 +1558,7 @@ function commentAttachment({
     };
   }
   if (!visibleTargetParts(target).length) return null;
-  const margin = marginSpot(target, point);
+  const margin = marginSpot(target, point, passage?.range);
   const context = point ?? passage?.contextNode ?? target;
   const element = point ?? target;
   const geometry = floatingGeometry([element, context]);
@@ -1626,6 +1671,7 @@ function commentPlacement() {
   let moved = false;
   let held2 = null;
   let reading = null;
+  let tallest = null;
   let edge = "top";
   let pressHeld = null;
   let pressAnswered = null;
@@ -1639,6 +1685,7 @@ function commentPlacement() {
     moved = false;
     held2 = null;
     reading = null;
+    tallest = null;
     edge = "top";
     pressHeld = null;
     pressAnswered = null;
@@ -1648,7 +1695,7 @@ function commentPlacement() {
     get side() {
       return side;
     },
-    // Mechanical handoff between the editor's transparent frame and its sent card.
+    // Mechanical handoff between the editor's frame and its sent card.
     capture() {
       return { side, boundary: input?.slice(1, 5) ?? null, moved };
     },
@@ -1693,7 +1740,7 @@ function commentPlacement() {
         replyTurn: keepReplyLine ? latest.key : null,
         draftText
       };
-      edge = hold ? "top" : pressHeld ?? (keepReplyLine || !drafting && side === "top" ? "foot" : "top");
+      edge = hold ? side === "top" ? "foot" : "top" : pressHeld ?? (keepReplyLine || !drafting && side === "top" ? "foot" : "top");
       return edge;
     },
     // The edge a change the user did not make would hold, read before it is drawn: a
@@ -1701,10 +1748,8 @@ function commentPlacement() {
     // holds the foot only where the surface stands above what it is about; any other
     // change keeps the edge held now.
     edgeFor: (turn) => turn ? side === "top" ? "foot" : "top" : edge,
-    // The held edge's offset for `options`' `hold`, and the height between the held
-    // top and foot, which caps a held surface no shorter than it last stood.
+    // The held edge's offset for `options`' `hold`.
     heldAt: (edge2) => held2 && { [edge2]: held2[edge2] },
-    heldHeight: () => held2 ? held2.foot - held2.top : 0,
     scrolled() {
       input = null;
     },
@@ -1829,7 +1874,11 @@ function commentPlacement() {
       const size = ui.size({
         ...overflow,
         apply(state) {
-          const { scale } = measure(state);
+          const { scale, line: line2 } = measure(state);
+          const stood2 = held2 ? Math.max(
+            held2.foot - held2.top,
+            tallest && Math.abs(tallest.line - line2) < 0.5 ? tallest.height : 0
+          ) / scale.y : 0;
           const lane = carriedInline !== null ? boundary.right - (column ?? clear.left) - carriedInline : across ? boundary.right - (inlineStart + (inline ?? 0) * scale.x) : side === "right" ? boundary.right - box.right - COMMENT_GAP : clear.left - boundary.left - COMMENT_GAP;
           fit({
             side,
@@ -1838,6 +1887,7 @@ function commentPlacement() {
               Math.min(state.availableWidth, lane / scale.x)
             ),
             height: state.availableHeight,
+            stood: stood2,
             scale
           });
         }
@@ -1920,7 +1970,12 @@ function commentPlacement() {
       if (vertical(side)) inline ??= x - column;
       else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line2) * scale.y;
-      const spot = { top, foot: top + middlewareData.held.height * scale.y };
+      const height = middlewareData.held.height * scale.y;
+      const spot = { top, foot: top + height };
+      tallest = {
+        height: tallest && Math.abs(tallest.line - line2) < 0.5 ? Math.max(tallest.height, height) : height,
+        line: line2
+      };
       held2 = { ...spot, ...reading };
       return { scale };
     }

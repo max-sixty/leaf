@@ -22,7 +22,7 @@ from render_cases_interaction import (
 from render_cases_layout import (
     toggle_queue,
     token_colour,
-    with_one_ask,
+    with_one_item,
 )
 from render_cases_navigation import _publish
 from render_harness import (
@@ -35,8 +35,10 @@ from render_harness import (
     resized,
     scroll_settled,
     select,
+    stamp_page,
     ticked,
     told,
+    wait_for_revision,
     write,
 )
 
@@ -295,8 +297,9 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
             "author": "agent",
             "agent": "Codex",
             "parent": first,
-            "text": "Which of the two should stay?",
-            "ask": True,
+            "revision": 1,
+            "text": "One question:",
+            "markup": '<lf-ask id="which-stays">Which of the two should stay?</lf-ask>',
         },
     )
     page = open_page(browser, url)
@@ -361,7 +364,9 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
     browser fixture's shift watch fails anything that moves. The news lands well after
     the user's last input."""
     url = serve(PANEL_PAGE)
-    asked = panel_comment(serve.page_dir, "Is forty enough?", author="agent")
+    asked = panel_comment(
+        serve.page_dir, "Is forty enough?", author="agent", question="Forty?"
+    )
     other = panel_comment(serve.page_dir, "A thread waiting on nobody.")
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -682,7 +687,7 @@ def test_the_version_being_read_spans_the_versions_menu(browser, serve):
 
 
 def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, serve):
-    """Approval waits until every Ask is answered, and the control says so to whoever
+    """Approval waits until every item is answered, and the control says so to whoever
     reaches it. Natively disabled, it held its reason in `title` alone: Tab skipped it,
     so a keyboard user never learned why, and a finger never sees a title. It stays in
     the tab order, refused by `aria-disabled` and described by its reason, and a press
@@ -695,7 +700,7 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
     page = open_page(browser, url)
     resized(page, 1440, 900)
     approval = page.locator(".lf-signoff")
-    reason = "Answer every ask before approving this work"
+    reason = "Answer every open widget before approving this work"
     expect(approval).to_have_attribute("aria-disabled", "true")
     expect(approval).to_have_attribute("aria-description", reason)
     expect(approval).to_be_disabled()
@@ -1054,6 +1059,38 @@ def test_a_page_module_importing_the_widget_api_hears_dom_content_loaded(
     assert page.evaluate("() => window.__leafReadyHeard")
 
 
+def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, serve):
+    """Retained scripts and main's patched scripts have distinct document lifetimes."""
+    script = (
+        '<script id="page-behavior" type="module">'
+        "window.pageRuns = (window.pageRuns || 0) + 1;</script>"
+    )
+    source = leaf_page("Script lifetime", '<p id="words">Original words.</p>')
+    head = source.replace("</head>", script + "</head>")
+    main = source.replace("</main>", script + "</main>")
+    tail = source.replace("</body>", script + "</body>")
+    page = open_page(browser, live_url(serve(head)))
+    origin = page.evaluate("performance.timeOrigin")
+    for revision, html, region, reloads in [
+        (2, main, "main", True),
+        (3, main.replace(script, f"<div>{script}</div>"), "div", False),
+        (4, tail, "body", True),
+        (5, tail.replace("Original words.", "Revised words."), "body", False),
+    ]:
+        stamp_page(serve.page_dir, html, "Revise script placement or prose")
+        wait_for_revision(page, revision)
+        next_origin = page.evaluate("performance.timeOrigin")
+        assert (next_origin != origin) == reloads
+        origin = next_origin
+        expect(page.locator("#page-behavior")).to_have_count(1)
+        assert (
+            page.locator("#page-behavior").evaluate("el => el.parentElement.localName")
+            == region
+        )
+        assert page.evaluate("window.pageRuns") == 1
+    expect(page.locator("#words")).to_have_text("Revised words.")
+
+
 @pytest.mark.parametrize("mode", ["overlay", "page"])
 def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve, mode):
     """Delivered sheets parse like their captured files in document and shadow stages.
@@ -1323,7 +1360,7 @@ WIDE_PAGE = leaf_page(
 SURFACE_PAGES = {
     "threads-column": ("threads", lambda: LONG_PAGE),
     "threads-wide-page": ("threads", lambda: WIDE_PAGE),
-    "queue": ("queue", lambda: with_one_ask(LONG_PAGE)),
+    "queue": ("queue", lambda: with_one_item(LONG_PAGE)),
 }
 
 

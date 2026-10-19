@@ -129,7 +129,7 @@ other page files and the external state listed below.
   `data.py` owns storage and updates.
 
 - `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
-  ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
+ID PATH` as `{ "bindings": { "ID": "/absolute/canonical/path" } }`.
   `file_bindings.py` owns the grants and current-file reads and writes. Browser
   requests name only a binding, never a path. The page's reading stamps each bound
   file and the state answer carries those stamps under `files`, so a tab hears a
@@ -253,7 +253,7 @@ contracts with a deferred record field expose the manifest plus the value file a
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
 element, the `state` and `reports` in force on it, the open `todos` on it,
-the canonical `asks` sourced by it, and the `workflows` it is the subject of, with
+the canonical `items` sourced by it, and the `workflows` it is the subject of, with
 their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored
 id shaped like an event id. Default `page state` thread entries stay compact. Raw

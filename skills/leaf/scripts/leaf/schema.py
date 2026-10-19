@@ -22,7 +22,7 @@ WIDGET_KINDS = {"action", "report"}
 # `activity` address them and `$events.answering` explains them. Which writer posts a
 # reply is separate: a reply reservation (`delivery`) gives it to a provider turn.
 ANSWER_KINDS = ("reply", "markup")
-ANSWER_ASK_INSTRUCTION = (
+ANSWER_ITEM_INSTRUCTION = (
     "Each update takes the answer named for it. Read current obligations with "
     "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
 )
@@ -86,7 +86,7 @@ _RECORD_VALUE = {
 }
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves asks and threads because they
+# present or absent). One condition shape serves items and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -99,7 +99,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local ask is answered: a map from each answering x-state verb to the
+# When a local item is answered: a map from each answering x-state verb to the
 # condition its current state meets. An empty condition means the verb's state stands
 # (a non-empty attribute or value record, otherwise an action in force). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
@@ -232,6 +232,10 @@ STATE_SCHEMA = {
         "else": {"properties": {"text": False}},
     },
 }
+# A widget's item is answered either by its own state (`value` and `answered`) or, with
+# `reply`, by the user's words about it, which it has no state to hold. `encloses`
+# makes a widget the frame of the items inside it, asking nothing itself while it holds
+# another that can ask.
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
@@ -240,8 +244,14 @@ AWAITS_SCHEMA = {
         "answered": ANSWERED_SCHEMA,
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "reply": {"const": True},
+        "encloses": {"const": True},
     },
-    "required": ["value", "answered"],
+    "if": {"required": ["reply"]},
+    "then": {
+        "properties": {"value": False, "answered": False, "all": False},
+    },
+    "else": {"required": ["value", "answered"]},
     "additionalProperties": False,
 }
 # Package and data-contract instructions address their declared audiences. Widget
@@ -284,7 +294,6 @@ _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-ask-context": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-thread-seat": {
             "type": "object",
@@ -357,7 +366,7 @@ EXTENSION_SCHEMA = {
                 },
             ]
         },
-        "x-space": {"enum": ["column", "wide", "available"]},
+        "x-space": {"enum": ["wide", "available"]},
         "x-bound": {"enum": ["start", "end"]},
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.
@@ -398,7 +407,7 @@ EXTENSION_SCHEMA = {
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
             "minItems": 1,
         },
-        "x-word": {"enum": ["module"]},
+        "x-word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": {"const": True},
     },
@@ -548,26 +557,23 @@ ATTRIBUTE_KEYS = (
 # one member at a time (x-views). Neither a stylesheet nor the prepaint, which runs
 # before the registry has loaded (`runtime/prepaint.js`), can read the registry, so
 # each is painted where a selector can ask. `authored` is
-# the attribute an occurrence writes to override its tag's or idiom's declaration, and
+# the attribute an occurrence writes to override its tag's declaration, and
 # `authored_on` where that override means something, so elsewhere it is inert:
 # `content`, a block inside `main`, since the room and the bound size a block in the
 # page's flow and on `main` or `body` would size the page itself; `declared`, an element
 # whose tag declares the mark, since a stated height reserves room for a module's
 # drawing and a block no module draws into would be clipped to it for good.
-# `paints` names a value painted as an attribute of its own, with no value, rather than
-# as a value of `paint`: the column is a cap on a box read as lines of text, unlike the
-# room past it that `wide` and `available` grant, so `data-lf-column` marks it and
-# `data-lf-space` means a breakout wherever it stands.
 # `message` says
 # whether the mark holds in a thread's message too:
 # each is the element's own fact wherever it renders, except the room and the margin
 # posture, which are the document's to hand out; a message renders in the panel, whose
 # width bounds it and which has no margin.
-# `idiom` says a selector entry may declare the mark for the elements its selector
-# matches, as `.callout` declares the room: the mark's every reader reads its paint and
-# nothing paints it in a message, so delivery's paint is the whole of it. The others
-# are also read by tag (the asks fold, the render checks, the runtime's descriptors).
 #
+# The room is only ever past the measure: a widget read as lines of text keeps to the
+# measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `x-space`
+# names a breakout and nothing else.
+#
+# `presence` paints only whether a declaration exists, without serializing its rules.
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
 # stamp_composition`), from which the runtime paints a message it renders and tells the
@@ -578,11 +584,9 @@ DECLARED_MARKS = {
     "x-verbatim": {"paint": "data-lf-verbatim", "message": True},
     "x-space": {
         "paint": "data-lf-space",
-        "paints": {"column": "data-lf-column"},
         "authored": "data-width",
         "authored_on": "content",
         "message": False,
-        "idiom": True,
     },
     "x-inline": {"paint": "data-lf-inline", "message": True},
     "x-exhibit": {"paint": "data-lf-exhibit", "message": True},
@@ -601,6 +605,7 @@ DECLARED_MARKS = {
     "x-reading-role": {"paint": "data-lf-reading-role", "message": True},
     "x-resident": {"paint": "data-lf-resident", "message": False},
     "x-views": {"paint": "data-lf-views", "message": True},
+    "x-awaits": {"paint": "data-lf-awaits", "presence": True, "message": True},
 }
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent.parent

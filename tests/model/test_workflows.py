@@ -9,11 +9,11 @@ from interact_support import (
     _start,
     append_carried_log_record,
     append_command,
-    asks_on_user,
     continued,
     declare_work,
     delivered,
     freeze_events,
+    items_on_user,
     last_deliverable_seq,
     owed,
     page_state,
@@ -252,7 +252,7 @@ def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_
     ]
 
 
-def test_unrelated_agent_update_does_not_clear_an_open_user_ask(page_dir):
+def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
     publish(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -266,8 +266,9 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_ask(page_dir):
             "author": "agent",
             "parent": root["id"],
             "responds": root["id"],
-            "ask": True,
-            "text": "Which option?",
+            "text": "One question:",
+            "markup": '<lf-ask id="option">Which option?</lf-ask>',
+            "revision": 1,
         },
     )
     append_carried_log_record(
@@ -285,14 +286,16 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_ask(page_dir):
     assert thread["user_prompt"]["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "ask",
+        "reason": "widget",
         "workflow": None,
     }
 
 
-def test_settling_reaction_closes_an_agent_root_ask(page_dir):
+def test_settling_reaction_closes_an_agent_root_item(page_dir):
     publish(page_dir)
-    question = thread_model.cmd_comment(page_dir, "", "", "", "Is forty enough?", None)
+    question = thread_model.cmd_comment(
+        page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
+    )
     [before] = served_thread(page_state(page_dir)["browser"])["threads"]
     assert before["user_prompt"]["message"] == question["id"]
     assert before["attention"]["kind"] == "needs_user"
@@ -404,7 +407,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     }
 
 
-def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
+def test_a_frozen_move_that_answers_no_item_keeps_a_receipt_and_owes_nothing(
     page_dir,
 ):
     """A card moved on a board sent in a reply is a page move in another document:
@@ -865,7 +868,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     selecting = state_json(page_dir)
-    assert [ask["widget"] for ask in asks_on_user(selecting)] == ["regions"]
+    assert [item["widget"] for item in items_on_user(selecting)] == ["regions"]
     assert selecting["activity"]["obligations"] == []
     assert selecting["workflows"] == []
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
@@ -884,7 +887,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     completed = state_json(page_dir)
-    assert asks_on_user(completed) == []
+    assert items_on_user(completed) == []
     assert completed["activity"]["obligations"] == [answered["id"]]
     cleanup_model.prompt_turn("s1")
     receive_through(page_dir, last_deliverable_seq(page_dir))
@@ -899,7 +902,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         {"kind": "undo", "author": "user", "undoes": answered["id"]},
     )
     resumed = state_json(page_dir)
-    assert [ask["widget"] for ask in asks_on_user(resumed)] == ["regions"]
+    assert [item["widget"] for item in items_on_user(resumed)] == ["regions"]
     assert resumed["activity"]["obligations"] == []
     answered = append_command(
         page_dir,

@@ -73,7 +73,7 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
-test("thread attention gives an open user ask precedence over agent work", () => {
+test("thread attention gives an open user item precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
@@ -82,7 +82,7 @@ test("thread attention gives an open user ask precedence over agent work", () =>
   const thread = {
     resolved: null,
     workflows: [recovery, work],
-    attention: { kind: "needs_user", reason: "ask", workflow: "recovery" },
+    attention: { kind: "needs_user", reason: "widget", workflow: "recovery" },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
@@ -97,12 +97,8 @@ test("a thread an open to-do holds waits on the agent under the to-do's title", 
   const thread = {
     resolved: null,
     workflows: [],
-    attention: {
-      kind: "waiting",
-      reason: "todo",
-      workflow: null,
-      todo: { id: "t1", title: "Rebuild the banner quieter" },
-    },
+    attention: { kind: "waiting", reason: "todo", workflow: null },
+    todos: [{ id: "t1", title: "Rebuild the banner quieter", running: null }],
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "waiting",
@@ -302,7 +298,7 @@ test("pending thread gestures fold in the order the user made them, as the log w
   const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: "kept" };
   const resolve = { kind: "resolve", parent: "root", author: "user" };
   const unresolve = { ...resolve, kind: "unresolve" };
-  const owed = { kind: "needs_user", reason: "ask", workflow: null };
+  const owed = { kind: "needs_user", reason: "widget", workflow: null };
   const fold = (changes, ...gestures) =>
     foldThreads([servedThread([asked, question], changes)], gestures)[0];
 
@@ -337,7 +333,7 @@ test("a frozen message widget keeps its exact workflow in the message and thread
 
 test("a thread this tab opened carries every field a served thread does", () => {
   const root = {
-    id: "pending:ask",
+    id: "pending:question",
     kind: "comment",
     author: "user",
     text: "Question",

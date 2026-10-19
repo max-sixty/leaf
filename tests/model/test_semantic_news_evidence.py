@@ -67,7 +67,7 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
     }
 
 
-def test_user_prompt_names_the_latest_ask_content_version(page_dir):
+def test_user_prompt_names_the_latest_item_content_version(page_dir):
     publish(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -81,8 +81,9 @@ def test_user_prompt_names_the_latest_ask_content_version(page_dir):
             "author": "agent",
             "parent": root["id"],
             "responds": root["id"],
-            "ask": True,
-            "text": "First question?",
+            "revision": 1,
+            "text": "First:",
+            "markup": '<lf-ask id="first">First question?</lf-ask>',
         },
     )
     append_carried_log_record(
@@ -105,8 +106,9 @@ def test_user_prompt_names_the_latest_ask_content_version(page_dir):
             "id": "second-question",
             "author": "agent",
             "parent": first["id"],
-            "ask": True,
-            "text": "Second question?",
+            "revision": 1,
+            "text": "Second:",
+            "markup": '<lf-ask id="second">Second question?</lf-ask>',
         },
     )
     edited = append_carried_log_record(
@@ -116,7 +118,7 @@ def test_user_prompt_names_the_latest_ask_content_version(page_dir):
             "id": "second-edit",
             "author": "agent",
             "message": second["id"],
-            "text": "Reworded second question?",
+            "text": "Reworded second:",
         },
     )
     [thread] = served_thread(page_state(page_dir)["browser"])["threads"]

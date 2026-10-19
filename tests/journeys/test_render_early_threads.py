@@ -13,6 +13,7 @@ from render_cases_navigation import _publish
 from render_harness import (
     consume_browser_errors,
     holding,
+    http_error_console,
     leaf_page,
     page_comment,
     round_trip,
@@ -291,10 +292,10 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment" and event.get("text") == words
     ]
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
 
 
-COLD_ASK = leaf_page(
+COLD_ITEM = leaf_page(
     "Cold decisions",
     """<h1>Cold decisions</h1><lf-ask id="cold-ask"><h2>What now?</h2>
 <lf-options id="cold-choice" choose>
@@ -307,8 +308,8 @@ COLD_ASK = leaf_page(
 def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     browser, serve, key
 ):
-    """Ask walking, Decisions, and Undo wait for their own saved history."""
-    url = serve(COLD_ASK)
+    """Item walking, Decisions, and Undo wait for their own saved history."""
+    url = serve(COLD_ITEM)
     if key != "m":
         append_command(
             serve.page_dir,

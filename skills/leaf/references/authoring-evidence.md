@@ -7,8 +7,14 @@ its unit, bind it to its measurement source, and pin the `run` receipt that
 `leaf data set` returns:
 
 ```html
-The import takes <lf-num source="import-latency"
-  run="a41f103e236c985ba938c643b78bfc21" via="uv run bench-import">184 ms</lf-num> at p95.
+The import takes
+<lf-num
+  source="import-latency"
+  run="a41f103e236c985ba938c643b78bfc21"
+  via="uv run bench-import"
+  >184 ms</lf-num
+>
+at p95.
 ```
 
 The value stays as you wrote it. Any later write to the source, even of the same value,
@@ -76,7 +82,12 @@ discussed; `wt step diff`, when available, often covers a branch.
 `leaf page init --package diff <page>`. Bind each widget to a data source:
 
 ```html
-<lf-text-document id="skill-source" source="leaf-skill" label="SKILL.md" language="markdown"></lf-text-document>
+<lf-text-document
+  id="skill-source"
+  source="leaf-skill"
+  label="SKILL.md"
+  language="markdown"
+></lf-text-document>
 
 <lf-diff id="review-patch" source="review-patch" collapsed><pre></pre></lf-diff>
 ```
@@ -119,7 +130,8 @@ Use a recording for a fixed demo and a live widget where the user should operate
 subject. Show a browser journey recorded with Playwright as a trace in `lf-trace`
 rather than a video, so the user can step through and comment on each action. `lf-trace`
 ships in the `playwright` package; after `leaf page init --package playwright <page>`,
-its producer instructions give the import command:
+its author instructions own the convention for comparable journeys; its producer
+instructions give the import command:
 
 ```bash
 leaf page instructions <page> --contract playwright-trace | jq -er '.producer'

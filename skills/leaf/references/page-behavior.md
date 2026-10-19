@@ -7,10 +7,12 @@ script uses.
 Write page behavior in an inline `<script type="module">` or in modules under `page/`,
 referenced as `/page/…`. Load a library that ships only as a classic script with
 `<script defer src>`; Leaf refuses an inline classic script, a parser-blocking one, or an
-`async` one. Relative imports stay within `page/`, and a module may also import
-`/runtime/widget-api.js`. Leaf saves the local files that scripts and stylesheets name
+`async` one. Relative imports stay within `page/`. A module imports Leaf's helpers
+from `/runtime/widget-api.js`. For floating placement that native layout cannot
+express, import the bundled Floating UI library from `/vendor/floating-ui.esm.js`.
+Leaf saves the local files that scripts and stylesheets name
 by a literal path in the same revision as the markup, so import page files by literal
-URL. Leaf refuses unresolved imports, paths outside the page directory, and any
+URL. Leaf refuses unresolved imports, private layer imports, and any
 declaration about the whole document, such as a `<base>`, an http-equiv `<meta>` or an
 import map.
 
@@ -24,10 +26,10 @@ survive a rewrite (`page-authoring.md`, "Stable anchors").
 Page modules follow `module-authoring.md`, "What a behavior module owes", whose rules
 keep page controls working after a reconnect and inside quoted threads.
 
-A page module that shows the asks in each card or section of its own layout reads them
-from Leaf: `readAsks()` in a `watchProjection` paint, with `asksIn(region)` selecting
-each region's asks and `askActions.next({within})` moving to the next one waiting on the
-user (`module-reading.md`, "Reading asks and obligation queues").
+A page module that shows the items in each card or section of its own layout reads them
+from Leaf: `readItems()` in a `watchProjection` paint, with `itemsIn(region)` selecting
+each region's items and `itemActions.next({within})` moving to the next one waiting on
+the user (`module-reading.md`, "Reading items and obligation queues").
 
 `leaf page check` opens the page once in the host's browser when it has code of its own,
 such as a script or a page widget, or a data widget such as a chart. It fails on any

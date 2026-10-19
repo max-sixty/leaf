@@ -28,8 +28,8 @@ have to picture from a description, and put that thing on the page in its own fo
   show that effect in one of the forms above, with the code beside it.
 
 Pages that decide, plan or review show their subject the same way: a work item that
-fixes a visible fault shows the fault, and an ask's options show what each answer gives
-the user (`authoring-asks.md`). A table or list whose rows say where things sit, how
+fixes a visible fault shows the fault, and a decision's options show what each answer gives
+the user (`authoring-decisions.md`). A table or list whose rows say where things sit, how
 large they are or what connects to what should be a drawing.
 
 A drawing or chart makes its point through its geometry: where its marks sit, their
@@ -73,11 +73,11 @@ on.
 
 ## Composing a page
 
-Most pages use the reading column, `<main class="layout-column">`, where text stays
-within the measure and wider blocks extend beside it. Without a Layout class, the page
-lays out as plain HTML. A diagram or board declares its width; `data-width` asks for
-one on other blocks, such as a wide table (`page-layout.md`, "Bounds and widths").
-Compose the page from these:
+Most pages are read top to bottom and use the reading column,
+`<main class="layout-column">`, where text stays within the measure and wider blocks
+extend beside it. Without a Layout class, the page lays out as plain HTML. A diagram or
+board declares its width; `data-width` asks for one on other blocks, such as a wide
+table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
 
 - **Prose read in order**, such as a plan, review or decision, is plain semantic HTML.
 - **Independent status tiles** are a block with `class="layout-tiles"`, whose children
@@ -86,12 +86,17 @@ Compose the page from these:
 - **A comparison** is a table, or native sections arranged by the page's CSS.
 - **Controls beside evidence** is a playground.
 - **A screen the reader works in rather than scrolls**, like a mail client, a queue
-  worked one item at a time, or a log beside its chart, is a workspace
-  (`page-layout.md`, "A workspace"). A document read top to bottom beside a panel kept
-  in view, such as a postmortem beside its timeline, is a `layout-sidebar` page
-  (`page-layout.md`, "A sidebar page").
+  worked one item at a time, a log beside its chart, or a playground that is the page's
+  subject, is a workspace (`page-layout.md`, "A workspace"). Its surface fills the
+  window from the title's left edge. Broken out of a column, the same surface would sit
+  below the opening prose, with edges that match neither the title nor the prose, which
+  suits a figure a document cites but not the page's main item. Reading that supports the
+  surface, such as the review behind a design the reader tunes, goes in page tabs after
+  the surface's own. A document read top to bottom beside a panel kept in view, such as
+  a postmortem beside its timeline, is a `layout-sidebar` page (`page-layout.md`, "A
+  sidebar page").
 - **Several views of one artifact** are one `lf-tabs` set. Page tabs hold project-scale
-  views that share one history, Threads panel and set of asks; a tabbed section holds
+  views that share one history, Threads panel and On me list; a tabbed section holds
   local alternatives within a view. The `lf-tabs` entry says which placement makes
   which.
 
@@ -115,9 +120,10 @@ Write an empty `lf-toc` with a stable id. On a column page, put it in an
 </aside>
 ```
 
-Leaf shows it in the desktop margin when there is room, and as an open outline in the
-page's flow in a narrow window. On a sidebar page, put the outline and a short verdict
-or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
+Leaf shows it in the desktop margin when there is room, and behind an **On this page**
+disclosure in the page's flow when there isn't. The same links remain available by
+keyboard and touch; printing shows the complete outline. On a sidebar page, put the
+contents and a short verdict or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
 to fit the window, and put detailed evidence and history in the body or behind a
 disclosure. Workspaces and root page tabs have their own navigation.
 
@@ -177,13 +183,13 @@ a pasted link, so write a description that makes sense on its own.
 ```html
 <!doctype html>
 <html lang="en">
-<head>
-  <title>…</title>
-  <meta name="description" content="…">
-</head>
-<body>
-  <main class="layout-column">…</main>
-</body>
+  <head>
+    <title>…</title>
+    <meta name="description" content="…" />
+  </head>
+  <body>
+    <main class="layout-column">…</main>
+  </body>
 </html>
 ```
 

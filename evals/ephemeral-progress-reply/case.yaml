@@ -28,4 +28,5 @@ assert:
       line "Checking the keyboard route." (or close wording), so the message posts as
       progress and the user's answer stays due. Any spelling of the launcher passes.
       Fail if it answers the request instead (no `--ephemeral`), marks the message
-      `--ask` or `--todo`, or folds the thread with `leaf thread summarize`.
+      `--todo`, adds a question as markup, or folds the thread with
+      `leaf thread summarize`.

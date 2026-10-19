@@ -10,11 +10,14 @@
 // `reached` being that input. A held event's bottom prints `{"holding": <event>}`
 // and answers only once a line `{"release": true}` arrives; lines go on being
 // read meanwhile. Every prompt the module submits prints as `{"submitted":
-// <text>}` and every row it appends as `{"appended": <text>}`, and every watch it
-// starts as `{"watching": <its payload>}`. Once a watch has exited and what its
-// exit set going in the module has run as far as it can without waiting on
-// anything outside, `{"watched": <its payload>}` prints. The first line printed
-// is `{"pid", "events"}`: the process the module's processes see as their parent,
+// <text>}`, or as `{"dropped": <text>}` once an Escape (a `turn.complete` that
+// `isAborted`) has stopped the session, since Claude Code drops a plugin's prompt
+// until the user next types, which this driver's user never does. Every row it
+// appends prints as `{"appended": <text>}`, and every watch it starts as
+// `{"watching": <its payload>}`. Once a watch has exited and what its exit set
+// going in the module has run as far as it can without waiting on anything
+// outside, `{"watched": <its payload>}` prints. The first line printed is
+// `{"pid", "events"}`: the process the module's processes see as their parent,
 // and the events it hooks.
 import { spawn } from "node:child_process";
 import * as path from "node:path";
@@ -27,6 +30,7 @@ const [session, options] = [process.argv[2], JSON.parse(process.argv[3])];
 const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
 const watches = new Set();
 let submissions = 0;
+let stopped = false;
 let appends = 0;
 
 function start(argv, env, input) {
@@ -120,8 +124,13 @@ const $ = {
     submit: async ({ text }) => {
       if (text.startsWith("/"))
         throw new Error("a text beginning with / would run a command");
+      if (stopped) {
+        print({ dropped: text });
+        return { drop: "the session was stopped and nobody has sent input since" };
+      }
       ++submissions;
       print({ submitted: text });
+      return { text };
     },
   },
   ui: { log: (text) => print({ diagnostic: text }) },
@@ -161,6 +170,7 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     release();
     continue;
   }
+  if (emit === "turn.complete" && e.isAborted) stopped = true;
   let reached;
   const chain = (hooks.get(emit) ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),

@@ -93,11 +93,15 @@ import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareWindowChrome } from "../geometry.js";
 import { pageUpgraded } from "../page-paint.js";
-import { closeLayer, focusDestination } from "../focus.js";
+import { closeLayer } from "../focus.js";
+import { isNativeLayer } from "../shadow-tree.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
+  bannerStanding,
+  restoreBannerStanding,
   dismissBannerControls,
+  overflowMenu,
   registerBannerControl,
 } from "../banner-toolbar.js";
 
@@ -177,6 +181,19 @@ const shortcutBarTemplate = (model) =>
     }`;
 
 let bottomStatusContext = EMPTY_STATUS_CONTEXT;
+// What the status line says between notices, the Go-to filter's word or the walk's
+// position, for a chrome that says it in a seat of its own (floating-panel.js), which
+// registers to hear when it changes, as a notice's seats do.
+const contextPresenters = new Set();
+export const statusContextReading = () => bottomStatusContext;
+export function registerStatusContextPresentation(invalidate) {
+  contextPresenters.add(invalidate);
+}
+const shownWalk = ({ walk }) => (walk?.shown ? walk : null);
+const sameContext = (a, b) =>
+  a.goTo === b.goTo &&
+  shownWalk(a)?.text === shownWalk(b)?.text &&
+  shownWalk(a)?.boundary === shownWalk(b)?.boundary;
 const renderBottomStatus = () => {
   const model = Object.freeze({
     ...bottomStatusContext,
@@ -218,7 +235,7 @@ declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
 // keeps only bindings no nearer scope has named, so an inner meaning wins while a grouped
-// row's other presses remain visible — for example, an ask's numbered pick replaces the
+// row's other presses remain visible — for example, an item's numbered pick replaces the
 // page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;
@@ -318,18 +335,20 @@ const completeLine = (scopes, candidates) => {
     rows,
   };
 };
-const openCompleteReference = () =>
-  openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+const openCompleteReference = (returnTo = null) =>
+  openCommandReference((id) => executeCommand(id, beforeShortcutCommand), returnTo);
 const keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
 keyboardSettings.type = "button";
 keyboardSettings.addEventListener("click", () => {
-  // Closing the More menu lands the user back on its door, which the complete
-  // reference returns them to (focus.js, `closeLayer`).
-  closeLayer(dismissBannerControls, () => {
-    const door = bannerControlDoor(keyboardSettings);
-    if (door) focusDestination(door, "return");
-  });
-  openCompleteReference();
+  // More borrows the reader's place, while the floating panel presses this control
+  // after returning focus to its own leaf. Only More owes a borrowed-place return.
+  if (isNativeLayer(overflowMenu)) {
+    const held = bannerStanding();
+    closeLayer(dismissBannerControls, () => restoreBannerStanding(held));
+    openCompleteReference(bannerControlDoor(keyboardSettings));
+  } else {
+    openCompleteReference();
+  }
 });
 registerBannerControl({
   key: "keyboard",
@@ -387,6 +406,7 @@ export function renderShortcutBar(goToStatus) {
       text: position.text,
       boundary: position.boundary,
     });
+  const before = bottomStatusContext;
   bottomStatusContext = Object.freeze({
     goTo: goToReading,
     // A retired walk hides but keeps its last wording, matching the native status
@@ -397,6 +417,8 @@ export function renderShortcutBar(goToStatus) {
   });
   setNoticeContext(Boolean(goToReading));
   renderBottomStatus();
+  if (!sameContext(bottomStatusContext, before))
+    for (const invalidate of contextPresenters) invalidate();
   // Keep the two contextual hints together at the front of the ordinary line. The
   // expanded bar and a sequence retain registry order because each is a fuller reading of
   // one scene rather than a ranked shortlist.

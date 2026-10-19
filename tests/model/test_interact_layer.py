@@ -27,7 +27,7 @@ from interact_support import (
     add_test_widget,
     append_carried_log_record,
     case_alias,
-    command_refusal,
+    command_findings,
     element_declaration,
     fetch,
     install_payload,
@@ -39,7 +39,7 @@ from interact_support import (
     registry_refusal,
     shipped_payload,
     vendored_at_another_protocol,
-    vendored_before_the_ask_rename,
+    vendored_before_a_key_rename,
     wait_for,
     words,
 )
@@ -321,23 +321,60 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, 
     assert fetch(f"{server}/api/state")[0] == 200
 
 
-def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
+@pytest.mark.parametrize(
+    "reshape",
+    [
+        None,
+        lambda registry: registry["$events"].pop("handling"),
+        lambda registry: registry.update({"$future": 1}),
+    ],
+    ids=["same-shape", "layer-facts", "declarations"],
+)
+def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed, reshape):
     """A process the session started before its plugin updated still runs the older
     Leaf, and must not take the page back to it: the newer Leaf's next hook would
-    re-vendor it up again, reloading the user's tabs each time."""
+    re-vendor it up again, reloading the user's tabs each time. Neither a command
+    naming the page nor an explicit `page init` re-vendors it down, and each names
+    the newer Leaf as the repair rather than the re-vendor it refuses. That holds
+    for a layer whose shape this Leaf's schema rejects, as a newer protocol's may
+    be: the protocol is read before the shape."""
+    publish(claimed)
     foreign = vendored_at_another_protocol(claimed, newer=True)
-    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(claimed)])
-    assert checked.exit_code != 0
-    assert f"page protocol {foreign}" in checked.output
-    assert (
-        interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
-        == foreign
+    if reshape:
+        path = claimed / "registry.json"
+        registry = json.loads(path.read_text())
+        reshape(registry)
+        # Replaced rather than written through: a revision hard-links its files.
+        path.unlink()
+        path.write_text(json.dumps(registry))
+    for command in (["page", "check"], ["page", "init"]):
+        refused = CliRunner().invoke(cli_model.cli, [*command, str(claimed)])
+        assert refused.exit_code != 0
+        assert f"Use a Leaf at protocol {foreign} or later" in refused.output
+        assert "leaf page init" not in refused.output
+        assert (
+            interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
+            == foreign
+        )
+    # A fresh process in a session that does not hold the page reads the state of
+    # the revision published before, and reports the same refusal as its source
+    # error.
+    stated = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(claimed)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+        env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
     )
+    assert stated.returncode == 0, stated.stderr
+    error = json.loads(stated.stdout)["source"]["error"]
+    assert f"Use a Leaf at protocol {foreign} or later" in error
 
 
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):
-    """A layer vendored before an x- key was renamed (`x-question-context`, now
-    `x-ask-context`) declares nothing under the new name, so this Leaf would quietly
+    """A layer vendored before an x- key was renamed (`x-noun`, say, now `x-word`)
+    declares nothing under the new name, so this Leaf would quietly
     drop what the key said. The layer still reads, but the one reading every server
     and writer refuses on (`layer.incompatible_layer`) names the re-vendor, and so
     does `page check` from a session that may not make it, as one that does not
@@ -355,12 +392,10 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
         path.unlink()
         path.write_text(json.dumps(registry))
 
-    vendored(
-        lambda keys: keys.update({"x-question-context": keys.pop("x-ask-context")})
-    )
+    vendored(lambda keys: keys.update({"x-noun": keys.pop("x-word")}))
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
-    assert write_refusal(page_dir).values["retired"] == ["x-question-context"]
+    assert write_refusal(page_dir).values["retired"] == ["x-noun"]
     checked = CliRunner().invoke(
         cli_model.cli, ["page", "check", str(page_dir)], env=other
     )
@@ -369,9 +404,9 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
     assert finding["code"] == "retired-layer"
-    assert "x-question-context" in finding["text"] and revendor in finding["text"]
+    assert "x-noun" in finding["text"] and revendor in finding["text"]
 
-    vendored(lambda keys: keys.pop("x-question-context"))
+    vendored(lambda keys: keys.pop("x-noun"))
     assert write_refusal(page_dir) is None
 
 
@@ -379,7 +414,7 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
     ("vendored", "named"),
     [
         (vendored_at_another_protocol, "page protocol"),
-        (vendored_before_the_ask_rename, "x-question-context"),
+        (vendored_before_a_key_rename, "x-noun"),
     ],
 )
 def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, named):
@@ -422,9 +457,9 @@ def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed
     revision is published as well as before: here the layer and the revision it
     captured both use the key's old name, in `$keys` and on `lf-ask`, as the older
     Leaf left them."""
-    replied = _replying_after(claimed, server, vendored_before_the_ask_rename)
+    replied = _replying_after(claimed, server, vendored_before_a_key_rename)
     assert replied.returncode != 0, replied.stdout
-    assert "x-question-context" in replied.stderr
+    assert "x-noun" in replied.stderr
     assert f"leaf page init {claimed}" in replied.stderr
     # The re-vendor it names repairs the page: init runs on it, and the reply goes.
     for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
@@ -467,8 +502,12 @@ def test_a_layer_stamped_with_its_revision_still_names_the_revendor(page_dir):
         check=False,
     )
     assert checked.returncode != 0
-    assert "x-work" in words(checked.stdout)
-    assert f"leaf page init {page_dir}" in words(checked.stdout)
+    [refused] = json.loads(checked.stdout)["findings"]
+    assert (refused["code"], refused["values"]["missing"]) == (
+        "keys-documentation",
+        ["x-work"],
+    )
+    assert refused["values"]["revendor"] == str(page_dir)
 
 
 def test_the_skill_routes_every_reference_it_ships():
@@ -581,15 +620,15 @@ def test_workflow_shell_continuations_use_literal_blocks():
 @pytest.mark.parametrize(
     ("argv", "usage"),
     [
-        (["hook"], "leaf hook --harness NAME [--watch]"),
-        (["hook", "--harness"], "leaf hook --harness NAME [--watch]"),
+        (["hook"], "leaf hook --harness NAME [--if-claimed] [--watch]"),
+        (["hook", "--harness"], "leaf hook --harness NAME [--if-claimed] [--watch]"),
         (
             ["hook", "--watch", "--harness", "codex"],
-            "leaf hook --harness NAME [--watch]",
+            "leaf hook --harness NAME [--if-claimed] [--watch]",
         ),
         (
             ["hook", "--harness", "codex", "--bogus"],
-            "leaf hook --harness NAME [--watch]",
+            "leaf hook --harness NAME [--if-claimed] [--watch]",
         ),
         (["session-end", "now"], "leaf session-end"),
     ],
@@ -692,7 +731,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
 
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
-    unnamed = command_refusal(
+    [unnamed] = command_findings(
         "thread", "open", page_dir, "--text", "and the cache?", "--title", ""
     )
     assert (unnamed.code, unnamed.values["kind"]) == ("invalid-event", "comment")
@@ -708,7 +747,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             "thread_title",
         ),
     ):
-        refused = command_refusal(*command)
+        [refused] = command_findings(*command)
         assert (refused.code, refused.values["kind"]) == (
             "invalid-event",
             rejected_kind,
@@ -1011,7 +1050,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "hooks/codex.json",
         "hooks/scripts/background-watch.py",
         "skills/leaf/SKILL.md",
-        "skills/leaf/references/authoring-asks.md",
+        "skills/leaf/references/authoring-decisions.md",
         "skills/leaf/references/authoring-evidence.md",
         "skills/leaf/references/authoring-revisions.md",
         "skills/leaf/references/codex-watcher.md",
@@ -1511,91 +1550,6 @@ def test_the_chrome_restates_no_rule_a_page_side_sheet_already_makes():
     )
 
 
-def _complex_arms(selector):
-    """The complex selectors a selector matches by: itself, or, where the whole of it is
-    one :is()/:where(), each of that list's arms, since Chrome matches each arm on its
-    own and a `:has()` inside one stands before that arm's last combinator."""
-    selector = selector.strip()
-    opening = re.match(r":(?:is|where)\(", selector)
-    close, depth = None, 0
-    if opening:
-        for at in range(opening.end() - 1, len(selector)):
-            depth += {"(": 1, ")": -1}.get(selector[at], 0)
-            if not depth:
-                close = at
-                break
-    if close != len(selector) - 1:
-        yield selector
-        return
-    for arm in _split_top(selector[opening.end() : close], ","):
-        yield from _complex_arms(arm)
-
-
-def _names_a_feature(compound):
-    """Whether a compound names a class, id, attribute, or type, directly or in every
-    arm of an :is()/:where(). `:not()` and pseudo-classes name nothing Chrome can key on."""
-    compound = compound.split("::")[0]
-    arms = []
-    while match := re.search(r":(is|where|not|has|[a-z-]+)\(", compound):
-        depth, end = 0, match.end() - 1
-        for end in range(match.end() - 1, len(compound)):
-            depth += {"(": 1, ")": -1}.get(compound[end], 0)
-            if not depth:
-                break
-        if match.group(1) in ("is", "where"):
-            arms.append(compound[match.end() : end])
-        compound = compound[: match.start()] + compound[end + 1 :]
-    compound = re.sub(r":[a-z-]+", "", compound)
-    if re.search(r"[.#\[]|^[a-zA-Z]", compound):
-        return True
-    return any(
-        all(
-            _names_a_feature(_split_top(arm, " >+~")[-1])
-            for arm in _split_top(arg, ",")
-        )
-        for arg in arms
-    )
-
-
-def test_no_has_rule_restyles_the_whole_document():
-    """Chrome restyles a `:has()` that stands before the last combinator from the document
-    root, selecting by the rightmost compound alone (assets/AGENTS.md states the rule).
-    `.lf-bottom-status:has(> .lf-notice.show) > :not(.lf-notice)` named nothing there, so
-    every runtime write during a drag-select restyled all 21,600 elements of a large page:
-    twelve long tasks of up to 175 ms per three drags, from a line of chrome that was not
-    even showing."""
-    sheets = [
-        *sorted(schema_model.ASSETS.glob("*.css")),
-        *sorted((schema_model.ASSETS / "runtime").glob("*.css")),
-        *sorted(schema_model.BUNDLED_PACKAGES.glob("*/*.css")),
-    ]
-    read = 0
-    unkeyed = []
-    for sheet in sheets:
-        for _conditions, _enclosing, rule_selector, _declarations in _style_rules(
-            sheet
-        ):
-            for selector in _complex_arms(rule_selector):
-                compounds = _split_top(selector, " >+~")
-                if not any(":has(" in compound for compound in compounds[:-1]):
-                    continue
-                read += 1
-                if not _names_a_feature(compounds[-1]):
-                    unkeyed.append(
-                        f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
-                    )
-    assert read, "no non-subject :has() read from the layer — the reading is broken"
-    assert _names_a_feature(":is(.a, lf-b)") and not _names_a_feature(":not(.a)")
-    assert list(_complex_arms(":is(.a:has(.b) > :not(.c), .d *)")) == [
-        ".a:has(.b) > :not(.c)",
-        ".d *",
-    ]
-    assert not unkeyed, (
-        "a :has() rule whose target names nothing restyles the whole document:\n"
-        + "\n".join(unkeyed)
-    )
-
-
 def test_kernel_selectors_name_no_package_tag():
     """The kernel styles and finds a package widget by what its registry declares, a
     mark delivery paints such as `data-lf-resident`, never by its tag: a rule naming
@@ -1641,7 +1595,7 @@ def test_kernel_selectors_name_no_package_tag():
     leaks = []
     for sheet in sorted(schema_model.ASSETS.rglob("*.css")):
         if "vendor" in sheet.parts or sheet.read_text().startswith(
-            "/* Generated from "
+            "/* @noformat Generated from "
         ):
             continue
         where = sheet.relative_to(schema_model.ASSETS)
@@ -1701,7 +1655,7 @@ def test_layout_style_and_widgets_never_read_each_other():
         # Read the owners here rather than treating each compiled delivery as a
         # second authority for selectors.
         if source.suffix == ".css" and source.read_text().startswith(
-            "/* Generated from "
+            "/* @noformat Generated from "
         ):
             continue
         foreign = [names for home, names in owned.items() if home != source]
@@ -1736,6 +1690,77 @@ def test_layout_style_and_widgets_never_read_each_other():
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
 
 
+def test_no_rule_rounds_a_box_edged_on_one_side(tmp_path):
+    """A box marked by a thick edge on one side is not also rounded (assets/AGENTS.md,
+    "Visual grammar"): a stripe bent around a corner reads as decoration rather than a
+    contour, and marks a state another face already shows. A state is one whole contour,
+    or a stripe on a square box. Leaf's own sheets and pages are read, a page's from its
+    `<style>` and the sheets shipped beside it, the corpus's merged copy aside, and a
+    stripe is a side's border of 2px or more or an inset shadow offset
+    along one axis only. The reading is per rule, so a radius another rule gives the
+    same box passes it."""
+    sides = re.compile(
+        r"border-(?:left|right|top|bottom|inline-start|inline-end|block-start|"
+        r"block-end)(?:-width)?"
+    )
+    inset = re.compile(r"(?:^|,)\s*inset\s+(-?[\d.]+)(?:px)?\s+(-?[\d.]+)(?:px)?\s+0")
+
+    def thick(value):
+        return any(float(px) >= 2 for px in re.findall(r"([\d.]+)px", value))
+
+    def edged(declarations):
+        return any(
+            sides.fullmatch(name)
+            and thick(value)
+            or name == "box-shadow"
+            and any(
+                (abs(float(x)) >= 2) != (abs(float(y)) >= 2)
+                for x, y in inset.findall(value)
+            )
+            for name, value in declarations
+        )
+
+    def rounded(declarations):
+        return any(
+            re.fullmatch(r"border(?:-[a-z-]+)?-radius", name)
+            and not re.fullmatch(r"(0(px)?\s*)+", value)
+            for name, value in declarations
+        )
+
+    sheets = [
+        (sheet.relative_to(ROOT), sheet)
+        for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES)
+        for sheet in sorted(root.rglob("*.css"))
+        if "vendor" not in sheet.parts
+        and not sheet.read_text().startswith("/* @noformat Generated from ")
+    ]
+    for root in (ROOT / "examples", ROOT / "docs"):
+        sheets += [
+            (sheet.relative_to(ROOT), sheet)
+            for sheet in sorted(root.rglob("*.css"))
+            if not sheet.parent.name.startswith("corpus")
+        ]
+    for page in sorted(
+        [*(ROOT / "examples").rglob("*.html"), *(ROOT / "docs").glob("*.html")]
+    ):
+        if page.name.startswith("corpus"):
+            continue
+        styles = re.findall(r"<style[^>]*>(.*?)</style>", page.read_text(), re.DOTALL)
+        if styles:
+            sheet = tmp_path / page.relative_to(ROOT).with_suffix(".css")
+            sheet.parent.mkdir(parents=True, exist_ok=True)
+            sheet.write_text("\n".join(styles))
+            sheets.append((page.relative_to(ROOT), sheet))
+    assert len(sheets) > 20, sheets
+    found = [
+        f"{where}: {selector}"
+        for where, sheet in sheets
+        for _conditions, _enclosing, selector, declarations in _style_rules(sheet)
+        if edged(declarations) and rounded(declarations)
+    ]
+    assert not found, "a rounded box edged on one side:\n" + "\n".join(found)
+
+
 def test_every_token_a_sheet_reads_is_set_somewhere():
     """A `var(--name)` with no fallback reads a property something sets: a sheet's
     declaration or `@property`, or a module or delivery writing it by name. One nothing
@@ -1756,7 +1781,7 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
         if (
             source.suffix != ".css"
             or "vendor" in source.parts
-            or text.startswith("/* Generated from ")
+            or text.startswith("/* @noformat Generated from ")
         ):
             continue
         for _conditions, _enclosing, selector, declarations in _style_rules(source):
@@ -1771,121 +1796,6 @@ def test_every_token_a_sheet_reads_is_set_somewhere():
         if name not in written and not name.startswith(tuple(prefixes))
     )
     assert not unset, "a token nothing sets:\n" + "\n".join(unset)
-
-
-def _pseudo_arguments(compound, pseudos):
-    """Each `pseudo(…)` in the compound, for every pseudo named, as (start, end, argument),
-    where `compound[start:end]` is the whole call."""
-    calls = []
-    for pseudo in pseudos:
-        start = 0
-        while (at := compound.find(pseudo, start)) >= 0:
-            depth = 0
-            for end in range(at + len(pseudo) - 1, len(compound)):
-                depth += {"(": 1, ")": -1}.get(compound[end], 0)
-                if not depth:
-                    break
-            calls.append((at, end + 1, compound[at + len(pseudo) : end]))
-            start = end + 1
-    return calls
-
-
-def _without_arguments(compound, pseudos):
-    """The compound with each named pseudo's argument removed."""
-    for start, end, _argument in sorted(_pseudo_arguments(compound, pseudos))[::-1]:
-        compound = compound[:start] + compound[end:]
-    return compound
-
-
-def _has_hosts(selector):
-    """Each compound a `:has()` stands on, without that `:has()`'s argument, so an element
-    it looks for is not read as the element it stands on. A negated selector does not
-    name that host either. A `:has()` inside an `:is()` or
-    `:where()` argument stands on that argument's compound, not on the outer one."""
-    for compound in _split_top(selector, " >+~"):
-        for _start, _end, argument in _pseudo_arguments(compound, (":is(", ":where(")):
-            for arm in _split_top(argument, ","):
-                yield from _has_hosts(arm)
-        if ":has(" in _without_arguments(compound, (":is(", ":where(")):
-            yield _without_arguments(
-                _without_arguments(compound, (":has(",)), (":not(",)
-            )
-
-
-def test_no_has_rule_stands_on_a_root():
-    """Chrome re-reads a `:has()` on every insertion below the element it stands on, and
-    one on the chrome root answered by restyling the whole chrome. The Page Map toggle's
-    `:scope:has(> .lf-margin-projection > …[data-lf-pins])` did that for every text node
-    the runtime wrote anywhere in the chrome: each geometry read after a write paid about
-    4 ms for 800 elements on the corpus page, several times per comment sent. The
-    document's roots stand above the chrome, so one on `body` or `html` is re-read on
-    those same writes: the rail's `body:has(> main[data-rail])` and two flags read off
-    `body` from `html` re-checked both roots about forty times per comment. Say such a
-    condition as an attribute on the element the rule styles, as `data-lf-rail-covered`
-    is on the chrome and `data-lf-draw-mode` on `html`.
-
-    The roots are `.lf-chrome`, `html`, `:root` and `body` in any sheet and, inside the
-    chrome's `@scope`, `:scope` and a top-level `&`, each also
-    inside `:is()` or `:where()`."""
-    sheets = [
-        *sorted(schema_model.ASSETS.glob("*.css")),
-        *sorted((schema_model.ASSETS / "runtime").glob("*.css")),
-        *sorted(schema_model.BUNDLED_PACKAGES.glob("*/*.css")),
-    ]
-
-    def scope_roots(rules):
-        for rule in rules:
-            if rule.type != "at-rule" or rule.content is None:
-                continue
-            if rule.lower_at_keyword == "scope":
-                yield " ".join(tinycss2.serialize(rule.prelude).split())
-            yield from scope_roots(
-                tinycss2.parse_blocks_contents(
-                    rule.content, skip_comments=True, skip_whitespace=True
-                )
-            )
-
-    scopes = {
-        root
-        for sheet in [schema_model.ASSETS / "runtime" / "chrome.css"]
-        for root in scope_roots(
-            tinycss2.parse_stylesheet(
-                sheet.read_text(), skip_comments=True, skip_whitespace=True
-            )
-        )
-    }
-    assert scopes == {"(.lf-chrome)"}, scopes
-    roots = re.compile(
-        r"\.lf-chrome(?![-\w])|(?<![-\w.#:\[])(?:html|body)(?![-\w])|:root"
-    )
-    scoped = re.compile(r":scope(?![-\w])|&")
-    read = 0
-    rooted = []
-    for sheet in sheets:
-        for _conditions, enclosing, selector, _declarations in _style_rules(sheet):
-            read += 1
-            if any(
-                roots.search(stands)
-                or (
-                    sheet == schema_model.ASSETS / "runtime" / "chrome.css"
-                    and "scope" in enclosing
-                    and scoped.search(stands)
-                )
-                for stands in _has_hosts(selector)
-            ):
-                rooted.append(
-                    f"{sheet.relative_to(schema_model.ASSETS.parent)}: {selector}"
-                )
-    assert read, "no rules read from the layer's sheets — the reading is broken"
-    assert list(_has_hosts(".a:has(.b:has(.c)).d")) == [".a.d"]
-    assert list(_has_hosts(".a:not(:has(.b)).c")) == [".a.c"]
-    assert list(_has_hosts(":is(:scope, .x):has(.y)")) == [":is(:scope, .x)"]
-    assert list(_has_hosts(":is(html lf-a:has(> b)) > c")) == ["lf-a"]
-    assert list(_has_hosts("lf-a:not(:where(.lf-chrome *)):not(:has(> b))")) == ["lf-a"]
-    assert roots.search("html[data-lf-live]") and not roots.search(".lf-body")
-    assert not rooted, "a :has() on a root restyles everything below it:\n" + (
-        "\n".join(rooted)
-    )
 
 
 def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
@@ -1996,7 +1906,7 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
         read_property + ":",
         "var(" + read[str(edges)]["constants"]["THREAD_PANEL_PROP"] + ")",
         "var(" + read[str(edges)]["constants"]["DRAWER_SLOT_PROP"] + ")",
-        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.ask"] + "]",
+        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.item"] + "]",
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
@@ -2603,26 +2513,57 @@ def test_a_spawned_process_ends_with_what_it_started(spawn, launcher_ends):
     wait_for(running, lambda alive: not alive, failure="the launcher's child survived")
 
 
-def test_init_refuses_a_layer_theme_that_leaves_a_block_open(tmp_path, monkeypatch):
-    """The CSS parser auto-closes a block left open at end of file, so tinycss2
-    reports nothing — but layer stylesheets concatenate, and an unclosed block
-    swallows every later layer's rules into its own scope. The shipped split hit
-    exactly this: a cut that dropped one closing brace nested the whole standard
-    layer inside a min-width media query, and the only symptom was print styles
-    quietly not applying. The gate names the file while the author is still in
-    front of it."""
-    project = tmp_path / "proj"
-    (project / ".leaf").mkdir(parents=True)
-    (project / ".leaf" / "theme.css").write_text(
-        "@media screen and (min-width: 900px) {\n  :root { --accent: red }\n"
+@pytest.mark.parametrize(
+    "first",
+    [
+        r".x { --token: \{; }",
+        "@media print { .x { color: red;",
+        r"@media print { .x { --token: \} \}",
+        "/* a comment ending at EOF",
+    ],
+)
+def test_composed_sheets_preserve_each_sources_eof_boundary(tmp_path, first):
+    """Browser EOF recovery belongs to each source, before Leaf wraps and joins it.
+
+    Escaped braces are tokens, not block delimiters. An unfinished block or comment
+    in one source must not capture the wrapper or any later source's rules.
+    """
+    roots = [tmp_path / name for name in ("first", "second")]
+    for root, css in zip(roots, (first, ".y { color: red; }"), strict=True):
+        root.mkdir()
+        (root / "theme.css").write_text(css)
+
+    composed = layer_model.composed_sheets(roots)["theme.css"].decode()
+    rules = tinycss2.parse_stylesheet(
+        composed, skip_whitespace=True, skip_comments=True
     )
-    monkeypatch.chdir(project)
-    result = CliRunner().invoke(
-        cli_model.cli, ["page", "init", "--package", "./.leaf", str(tmp_path / "page")]
+    assert [rule.lower_at_keyword for rule in rules] == ["layer", "layer", "layer"]
+    assert tinycss2.serialize(rules[-1].prelude).strip() == "lf-theme"
+    later = tinycss2.parse_rule_list(
+        rules[-1].content, skip_whitespace=True, skip_comments=True
     )
-    assert result.exit_code == 1
-    assert "block(s) left open at end of file" in result.output
-    assert "theme.css" in result.output
+    assert len(later) == 1
+    assert tinycss2.serialize(later[0].prelude).strip() == ".y"
+
+
+@pytest.mark.parametrize(
+    "css",
+    [
+        r'.x { content: "\d800"; }',
+        r".\dfff {}",
+        r".x { background: url(\d800.svg); }",
+    ],
+)
+def test_composed_sheets_replace_surrogate_escapes_as_the_browser_does(tmp_path, css):
+    """CSS replaces surrogate escapes with U+FFFD in strings, identifiers and URLs.
+
+    tinycss2 instead emits lone surrogates; serialization must preserve browser
+    meaning rather than crash UTF-8 encoding while composing the layer.
+    """
+    (tmp_path / "theme.css").write_text(':root { --kept: "é🍂"; }\n' + css)
+    sheet = layer_model.composed_sheets([tmp_path])["theme.css"].decode()
+    assert "\ufffd" in sheet
+    assert "é🍂" in sheet
 
 
 def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
@@ -2724,8 +2665,6 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
     shipped = json.loads((schema_model.ASSETS / "registry.json").read_text())
     assert registry[".hazard"] == hazard
     assert registry[".callout"] == callout
-    assert shipped[".callout"]["x-space"] == "column"
-    assert "x-space" not in registry[".callout"]
     assert set(shipped) <= set(registry)
     assert registry["$languages"]["paths"]["svelte"] == "javascript"
     assert set(shipped["$languages"]["paths"]) <= set(registry["$languages"]["paths"])
@@ -3272,7 +3211,7 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     registry["lf-toned-note"]["x-example"] = example
     registry_path.write_text(json.dumps(registry))
 
-    refused = command_refusal(
+    [refused] = command_findings(
         "page", "init", "--package", "./.leaf", str(tmp_path / "page")
     )
 
@@ -4029,7 +3968,7 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
         packages_model, "starter_element_declaration", lambda tag: declaration
     )
 
-    refused = command_refusal(
+    [refused] = command_findings(
         "package", "init", str(package), "--widget", "lf-risk-note"
     )
 

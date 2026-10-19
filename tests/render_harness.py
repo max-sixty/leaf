@@ -66,10 +66,11 @@ from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
-from leaf.findings import Finding
+from leaf.findings import Finding, placed
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.browser import (
+    CLASSIC_CHROME,
     scroll_settled,
 )
 from leaf_dev.example_data import regression_sources
@@ -603,7 +604,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
         if not fixture:
             html = source
             (d / "index.html").write_text(html)
-            references = structure_model.SourceDocument(html).media_refs
+            references = structure_model.SourceDocument(html).authoring.media_refs
             for reference in references:
                 fixture_media = example_media() / reference.removeprefix("/media/")
                 if fixture_media.is_file():
@@ -1039,7 +1040,7 @@ def plant_quiet_word(page, selector, holding):
 # reading answers that against an `/api/state` answer, and names no transport.
 # Counting answered requests said the same thing only while a fixed interval made them
 # the same thing: the page now asks when its freshness reading says the page has moved, so a
-# count of asks started here reaches the answer that carries the news only by luck of
+# count of items started here reaches the answer that carries the news only by luck of
 # the ordering.
 def told(page, *, until=None):
     """Wait until the page has taken in everything the server now holds.
@@ -1075,7 +1076,7 @@ def nudge(page_dir):
     """Give the page a reason to ask, changing nothing it shows.
 
     The page asks for state when its freshness reading says the page has moved, and the
-    reading names file stamps. A test that wants the page's next ask — to park it, or to
+    reading names file stamps. A test that wants the page's next item — to park it, or to
     watch it refused — used to wait for the poll's timer; now it moves the revisions
     directory stamp, which the state fingerprint reads without changing page content.
     """
@@ -1371,7 +1372,7 @@ def watched(page, *, java_script_enabled=True):
     (`leaf/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
-    them: console warnings and errors, a failed response, and uncaught exceptions.
+    them: console warnings and errors, and uncaught exceptions.
     Window errors without exceptions join them, installed through the same
     `install_window_errors` helper the render gate uses, and so do the health
     sensors' findings, which each sensor hands over as a record through the
@@ -1416,6 +1417,9 @@ def watched(page, *, java_script_enabled=True):
         "__leafWatchFinding", lambda _source, found: errors.append(Finding.read(found))
     )
     page.add_init_script(path=WRITE_WATCH_SOURCE)
+    # The suite reads with the banner unless a test chooses the panel, whose own file
+    # holds its journeys.
+    page.add_init_script(script=CLASSIC_CHROME)
     # One init script keeps cause tracking installed before its words subscriber;
     # Playwright does not promise an order between separately registered scripts.
     page.add_init_script(
@@ -1498,11 +1502,18 @@ def take_browser_errors(page):
     return errors
 
 
+def http_error_console(status):
+    """Chrome's diagnostic prefix for an HTTP error a test arranges.
+
+    This names expected console text; response facts come from the response itself.
+    """
+    return f"Failed to load resource: the server responded with a status of {status}"
+
+
 def said(problem):
     """The first line of what the page itself said in a browser problem: a console
-    entry, an uncaught exception, or a window error. None for a problem the browser or
-    a health sensor reports in fields of its own, such as a failed response's `status`
-    and `url`."""
+    entry, an uncaught exception, or a window error. None for a health sensor's
+    structured finding."""
     text = problem.values.get("text")
     return None if text is None else text.splitlines()[0]
 
@@ -1516,8 +1527,8 @@ def is_problem(problem, expected):
     A string is a fragment of what the page said (`said`), so stack locations cannot
     authorize a problem. A dict names the record as a probe returns one,
     `{code, at, ...values}`: its `code`, and each field the test cares about, equal to
-    what was found, such as `{"code": "failed-load", "status": 400}`. A function of the
-    record answers for itself, for a field read other than by equality."""
+    what was found, such as `{"code": "console-error", "url": "http://page/api/event"}`.
+    A function of the record answers for itself, for a field read other than by equality."""
     if callable(expected):
         return expected(problem)
     if isinstance(expected, str):
@@ -1643,7 +1654,7 @@ def shortcut_bar_text(page):
 
 
 def active_digit_bindings(page):
-    """Read reachable digits without inventing a page-owned aggregate Ask command.
+    """Read reachable digits without inventing a page-owned aggregate item command.
 
     Widgets assign their contextual aliases. The dispatcher is the canonical reader of
     which declared keys can execute where focus stands, including native shadowing.
@@ -1723,15 +1734,15 @@ def expect_banner_control_offered(control, *, offered=True):
         expect(control).to_have_css("display", "none")
 
 
-# How many of the page's active Asks are answered, as "answered/total": the publisher's
-# own Ask reading, which the On panel's Done list and the `m` walk select from. Before
+# How many of the page's active items are answered, as "answered/total": the publisher's
+# own item reading, which the On panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
-_ASKS_ANSWERED = """async () => {
+_ITEMS_ANSWERED = """async () => {
   const { readApplication } = await window.__lfCheckApi();
-  window.__lfAsksAnswered = () => {
+  window.__lfItemsAnswered = () => {
     const application = readApplication();
     if (application.phase !== 'ready') return null;
-    const asks = application.effective.asks;
+    const asks = application.effective.items;
     const all = asks.all.filter(ask => ask.source.kind === "widget");
     const unanswered = asks.unanswered.filter(ask => ask.source.kind === "widget");
     return `${all.length - unanswered.length}/${all.length}`;
@@ -1739,21 +1750,21 @@ _ASKS_ANSWERED = """async () => {
 }"""
 
 
-def expect_asks_answered(page, answered: str) -> None:
-    """Wait until the page's Ask reading holds `answered` ("answered/total").
+def expect_items_answered(page, answered: str) -> None:
+    """Wait until the page's item reading holds `answered` ("answered/total").
 
     The deadline bounds a hang; on expiry the failure names the reading the page held.
     """
-    page.evaluate(_ASKS_ANSWERED)
+    page.evaluate(_ITEMS_ANSWERED)
     try:
         page.wait_for_function(
-            "(want) => window.__lfAsksAnswered() === want",
+            "(want) => window.__lfItemsAnswered() === want",
             arg=answered,
             timeout=render_checks_model.SERVED_TIMEOUT_MS,
         )
     except PlaywrightTimeout as error:
-        held = page.evaluate("() => window.__lfAsksAnswered()")
-        raise AssertionError(f"answered Asks read {held}, not {answered}") from error
+        held = page.evaluate("() => window.__lfItemsAnswered()")
+        raise AssertionError(f"answered items read {held}, not {answered}") from error
 
 
 def open_page(
@@ -2621,7 +2632,10 @@ def scroll_followers(writes, frames=None):
         places.setdefault(w["key"], []).append(w)
     found = []
     for written in places.values():
-        what = f"{written[0]['type']} {written[0]['attribute'] or ''} on {written[0]['target']}"
+        first = written[0]
+        what = (
+            f"{first['type']} {first['attribute'] or ''} on {placed(first['target'])}"
+        )
         on = {w["step"] for w in written}
         if len(on) > max(2, (frames or 0) / 3):
             found.append(f"{what} follows the scroll, written on {len(on)} steps")
@@ -2713,9 +2727,8 @@ def left_alone(page):
 
     rendered(page)
     prepare_children(page.main_frame)
-    notice = page.locator(".lf-notice.show")
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while notice.count():
+    while any(frame.locator(".lf-notice.show").count() for frame in page.frames):
         assert time.monotonic() < deadline, "the arrival notice never retired"
         # still_page fixes Date.now but its timer clock otherwise runs in real time.
         # Run every callback until the notice retires; fast_forward would skip ticks.
@@ -2748,7 +2761,7 @@ def at_rest(page):
         rest = frame.evaluate(_REST_READ)
         where = "" if frame == page.main_frame else f" in {urlsplit(frame.url).path}"
         places = {
-            f"{w['type']} {w['attribute'] or ''} on {w['target']}"
+            f"{w['type']} {w['attribute'] or ''} on {placed(w['target'])}"
             for w in rest["writes"]
         }
         findings += [

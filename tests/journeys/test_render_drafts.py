@@ -3,17 +3,13 @@
 import json
 
 import pytest
-from browser.test_render_application_boundary import (
-    THREAD_MIRROR,
-    THREAD_MIRROR_DECLARATION,
-)
-from browser.test_render_threads import hold_visible_thread_presentation
+from browser.threads import hold_visible_thread_presentation
 from leaf import event_log as events_model
 from leaf.findings import Finding
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    SEATED_ASK_PAGE,
+    SEATED_ITEM_PAGE,
     live_url,
     panel_comment,
 )
@@ -47,10 +43,8 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_drafts import (
+from browser.drafts import (
     cancel_draft,
-    editing_mirror_source,
-    editing_read,
     editing_reply_page,
     editing_revision_source,
     replace_editing_document,
@@ -234,7 +228,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     """One request may lose its answer while another tab gets the same attempt
     accepted. The first tab adopts that durable outcome instead of reporting failure
     or offering the words as a second message."""
-    url = serve(SEATED_ASK_PAGE)
+    url = serve(SEATED_ITEM_PAGE)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
     first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -288,53 +282,6 @@ def test_two_passages_hold_two_composer_drafts(browser, serve, one_user):
     # A tab arriving now: one composer, on the passage touched last.
     third = open_page(browser, url, context=one_user)
     expect(third.locator(".lf-composer leaf-text")).to_have_js_property("value", late)
-
-
-def test_executable_revision_routes_one_editor_among_visible_reply_mirrors(
-    browser, serve
-):
-    page = open_page(
-        browser,
-        live_url(
-            serve(
-                editing_mirror_source("overlay"),
-                layer_registry={"lf-thread-mirror": THREAD_MIRROR_DECLARATION},
-                layer_widgets={"lf-thread-mirror.js": THREAD_MIRROR},
-            )
-        ),
-    )
-    page.locator("#passage").click(click_count=3)
-    page.keyboard.press("c")
-    write(page.locator(".lf-composer leaf-text"), "Canonical root for both mirrors.")
-    page.keyboard.press("Control+Enter")
-    round_trip(page)
-    first = page.locator("#first .lf-thread-reply leaf-text")
-    second = page.locator("#second .lf-thread-reply leaf-text")
-    expect(first).to_be_visible()
-    expect(second).to_be_visible()
-    write(first, "Kept mirror words with backward selection.")
-    first.evaluate("el=>el.setSelectionRange(5,10,'backward')")
-    expect(second).to_have_js_property("value", first.evaluate("el=>el.value"))
-    before = editing_read(first)
-    birth = page.evaluate("performance.timeOrigin")
-    stamp_page(
-        serve.page_dir,
-        editing_mirror_source("page"),
-        "Change the mirror page executable",
-    )
-    told(page)
-    if page.evaluate("performance.timeOrigin") == birth:
-        page.keyboard.press("Control+Alt+r")
-    wait_for_revision(page, 2)
-    current = page.evaluate(
-        """async()=>{
-      const {focused}=await window.__lfWidgetApi();
-      const el=focused();
-      return {tag:el.tagName,value:el.value,caret:[el.selectionStart,el.selectionEnd,el.selectionDirection]};
-    }"""
-    )
-    assert current.get("value") == before["value"]
-    assert current["caret"] == before["caret"]
 
 
 def test_executable_revision_keeps_a_reader_who_scrolled_away_from_their_reply(

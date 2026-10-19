@@ -15,8 +15,6 @@
    widget seats that survive final validation claim first, then the selected page presentation.
    Source coverage and outlet containment are separate: an authored page rail can
    show a target elsewhere in the document.
-   Ordinary mirrors live
-   in mirrors.js and cannot hold that presentation open.
 
    A thread the widget would draw in a seat it has not opened yet, while that would move
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
@@ -30,8 +28,7 @@ import { closestAcross } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
-import { allThreads, readThreads } from "./state.js";
-import { threadNames } from "./model.js";
+import { readThreads, threadIdNamed } from "./state.js";
 import { threadFocusDestination } from "./focus.js";
 import { HeldArrivals } from "./held-news.js";
 import { under } from "../shadow.js";
@@ -121,7 +118,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   };
   // The outlet lifetime also owns its source standing. A page rail's card stands
   // at the source it shows, while its unrelated controls keep their authored place.
-  // The standing reader gives an innermost reply ask priority over this relation.
+  // The standing reader gives an innermost reply item priority over this relation.
   registration.stopSide = declareSide((node) => {
     const outlet = [...registration.outlets].find((outlet) => under(node, outlet));
     if (!outlet) return null;
@@ -510,7 +507,7 @@ export function revealHeld(ids) {
 export function surfaceFocusTarget(id, { part = "reply" } = {}) {
   // Exact message navigation is the panel's; a local surface lands on its thread.
   if (part === "message") return null;
-  id = threadNames(allThreads()).get(id)?.id ?? id;
+  id = threadIdNamed(id);
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets]
       .map((outlet) =>

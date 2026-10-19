@@ -13,8 +13,6 @@ from browser.test_render_application_boundary import (
     THREAD_ACTIONS_DECLARATION,
     THREAD_FILTER,
     THREAD_FILTER_DECLARATION,
-    THREAD_MIRROR,
-    THREAD_MIRROR_DECLARATION,
     THREAD_READER,
     THREAD_READER_DECLARATION,
     activation_page,
@@ -27,14 +25,15 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
     LIVE_V2,
-    SEATED_ASK_ENTRY,
-    SEATED_ASK_MODULE,
+    SEATED_ITEM_ENTRY,
+    SEATED_ITEM_MODULE,
     live_url,
 )
 from render_harness import (
     banner_control,
     consume_browser_errors,
     holding,
+    http_error_console,
     leaf_page,
     open_page,
     page_comment,
@@ -171,7 +170,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
         },
     )
     round_trip(page)
-    consume_browser_errors(page, {"code": "failed-load", "status": 400})
+    consume_browser_errors(page, http_error_console(400))
     expect(reader).not_to_contain_text("Refused words")
     expect(box).to_have_js_property("value", "Refused words")
     if while_pending == "choose-earlier":
@@ -253,115 +252,6 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     # The widget's route through core opens the shut Threads on that thread.
     first.locator("button", has_text="Delta").click()
     expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()
-
-
-def test_package_thread_mirrors_share_core_conversation_without_claiming_placement(
-    browser, serve
-):
-    """Two package containers render one Thread and keep independent lifetimes."""
-    url = serve(
-        leaf_page(
-            "Thread mirrors",
-            '<h1>Thread mirrors</h1><button id="mirror-subject">Subject</button>'
-            '<lf-thread-mirror id="first" filter="Shared"></lf-thread-mirror>'
-            '<lf-thread-mirror id="second" filter="opening"></lf-thread-mirror>',
-        ),
-        layer_registry={"lf-thread-mirror": THREAD_MIRROR_DECLARATION},
-        layer_widgets={"lf-thread-mirror.js": THREAD_MIRROR},
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "id": "shared-thread",
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Shared opening",
-            "anchor": {"section": "mirror-subject"},
-        },
-    )
-    page = open_page(browser, url)
-    first = page.locator("#first")
-    second = page.locator("#second")
-    expect(first.locator(".lf-page-thread")).to_contain_text("Shared opening")
-    expect(second.locator(".lf-page-thread")).to_contain_text("Shared opening")
-    assert first.evaluate("node => node.updates")
-    assert second.evaluate("node => node.updates")
-    expect(page.locator('.lf-margin-marker[data-lf-kinds="comment"]')).to_have_count(1)
-
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_be_visible()
-    page.locator(".lf-threads-toggle").click()
-
-    with sending(page, "a reply from the first package mirror"):
-        write(
-            first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "Shared reply"
-        )
-        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
-            "button", name="Send"
-        ).click()
-    expect(first.locator(".lf-page-thread")).to_contain_text("Shared reply")
-    expect(second.locator(".lf-page-thread")).to_contain_text("Shared reply")
-    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_contain_text(
-        "Shared reply"
-    )
-    second.locator("input").fill("Absent")
-    expect(second.locator(".lf-page-thread")).to_have_count(0)
-    expect(first.locator(".lf-page-thread")).to_contain_text("Shared reply")
-    second.locator("input").fill("opening")
-    expect(second.locator(".lf-page-thread")).to_contain_text("Shared reply")
-
-    second.evaluate("node => { node.holding = true; node.consumer.update(); }")
-    expect(second).to_have_attribute("data-held", "true")
-    with sending(page, "a reply while a package mirror is held"):
-        write(first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "While held")
-        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
-            "button", name="Send"
-        ).click()
-    expect(first.locator(".lf-page-thread")).to_contain_text("While held")
-    expect(page.locator('.lf-thread[data-id="shared-thread"]')).to_contain_text(
-        "While held"
-    )
-    assert second.evaluate("node => node.signals.at(-2).aborted")
-    assert not page.evaluate(
-        """async () => {
-          const {readApplicationPresentation} = await window.__lfCheckApi();
-          return readApplicationPresentation().pending.includes('thread');
-        }"""
-    )
-    second.evaluate("""node => {
-      node.holding = false;
-      for (const release of node.releases.splice(0)) release();
-      node.removeAttribute('data-held');
-      node.consumer.update();
-    }""")
-    # The log answered the reply before the held mirror drew it, so to that mirror it is
-    # news, which waits behind a notice rather than moving its reply box. It is the
-    # user's own message, not a reply.
-    expect(second.locator(".lf-thread-news")).to_have_text("1 new message")
-    expect(second.locator(".lf-page-thread")).not_to_contain_text("While held")
-
-    # This lifecycle removal follows the user's clearing their local filter.
-    second.locator("input").fill("")
-    second_handle = second.element_handle()
-    second.evaluate("node => node.remove()")
-    stopped_at = second_handle.evaluate("node => node.updates")
-    with sending(page, "a reply after the second mirror disconnected"):
-        write(
-            first.locator(".lf-page-thread .lf-thread-reply leaf-text"), "After removal"
-        )
-        first.locator(".lf-page-thread .lf-thread-reply").get_by_role(
-            "button", name="Send"
-        ).click()
-    expect(first.locator(".lf-page-thread")).to_contain_text("After removal")
-    assert second_handle.evaluate("node => node.updates") == stopped_at
-    expect(page.locator('.lf-margin-marker[data-lf-kinds="comment"]')).to_have_count(1)
-    page.locator("#mirror-subject").focus()
-    page.keyboard.press("Shift+Tab")
-    page.keyboard.press("Tab")
-    expect(page.locator("#mirror-subject")).to_be_focused()
-    expect(page.locator(".lf-margin-thread")).to_contain_text("After removal")
 
 
 def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
@@ -456,8 +346,8 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     browser, serve, place
 ):
     """Rows, count, narrowing, and native islands roll back as one checkpoint."""
-    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ASK_ENTRY}
-    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ASK_MODULE}
+    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ITEM_ENTRY}
+    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ITEM_MODULE}
     url = serve(
         leaf_page(
             "Thread rollback",
@@ -526,14 +416,10 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     elif place in {"choose-earlier", "leave-displaced-title"}:
         selected.locator(".lf-thread-summary").click()
 
-    # Choosing an earlier thread while the failing reading is in flight starts two
-    # newer readings (its disclosure's and the publication's), and an attempt a newer
-    # one supersedes restores nothing. Both fail too, so restoring the committed reading
-    # is the last one's to do. There each failing reading waits before it paints and
-    # then fails in the same turn as its paint, as a renderer exception does, so the
-    # test decides which attempt is current and no candidate stands on screen between.
+    # Choosing an earlier thread while the failing reading is in flight keeps that
+    # disclosure open through rollback. Opening it does not start another list paint.
     choose_earlier = place == "choose-earlier"
-    failures = 3 if choose_earlier else 1
+    failures = 1
     page.evaluate(
         "([failures, gateBeforePaint]) => {"
         " window.listFailures = failures; window.gateBeforePaint = gateBeforePaint; }",
@@ -652,9 +538,6 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         selected = page.locator('.lf-thread[data-id="earlier-thread"]')
         selected.locator(".lf-thread-summary").click()
         expect(selected).to_have_attribute("open", "")
-        # Both of the choice's readings stand at the gate, so the first is superseded,
-        # and all three fail once it opens.
-        page.wait_for_function("() => window.heldCandidates === 3")
         page.evaluate("window.releaseFirstListFailure()")
     else:
         expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")
@@ -834,9 +717,13 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     if place == "scaled":
-        page.add_style_tag(
-            content=".lf-thread-panel { transform:scale(1.2); transform-origin:top right; }"
-        )
+        page.evaluate("""() => {
+            const style = document.createElement('style');
+            style.setAttribute('data-controls', '');
+            style.textContent =
+              '.lf-thread-panel { transform:scale(1.2); transform-origin:top right; }';
+            document.head.append(style);
+        }""")
         assert (
             page.locator(".lf-thread-panel").evaluate(
                 "node => getComputedStyle(node).transform"
@@ -914,7 +801,7 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
             {
                 "code": "words-left-screen",
                 "words": "A draft for this conversation",
-                "place": "leaf-text.lf-ui",
+                "place": ["leaf-text.lf-ui"],
             },
         )
     # A view change or choosing another conversation releases retained news too.
@@ -953,8 +840,8 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
     Rolling back a refused reading puts back only what the reading itself took: a user
     who stood in one seat's reply when it began and moved to another seat's box before
     it failed keeps the box they moved to, caret included."""
-    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ASK_ENTRY}
-    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ASK_MODULE}
+    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ITEM_ENTRY}
+    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ITEM_MODULE}
     url = serve(
         leaf_page(
             "Thread rollback",
@@ -1246,8 +1133,8 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
                 "author": "agent",
                 "revision": 1,
                 "parent": "opening",
-                "text": text,
-                "ask": True,
+                "text": "One question:",
+                "markup": f'<lf-ask id="{question_id}-q">{text}</lf-ask>',
             },
         )
     page = open_page(browser, url, context=context)
@@ -1262,7 +1149,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     page.evaluate(
         "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
     )
-    with sending(page, "answer the package's native Ask"):
+    with sending(page, "answer the package's native item"):
         email.get_by_role("checkbox").click()
     expect(workspace.locator(".counts")).to_contain_text("Email")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
@@ -1282,10 +1169,10 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
-    # One reply answers both prose asks. Counts include them, while the
-    # compact answer summary names only widget choices instead of repeating prose.
+    # One reply answers both questions. Counts include them, while the
+    # compact answer summary names only widget choices instead of repeating words.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 asks on me · 3 answered · Email"
+        "0 waiting on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
@@ -1499,6 +1386,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     else:
         workspace.get_by_role("button", name=mode, exact=True).click()
     editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    editor.click()
     write(editor, "Keep this draft while updates wait.")
     assert editor.evaluate("""async editor => {
       const {scrollerFor} = await window.__lfWidgetApi();
@@ -1626,7 +1514,7 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
     assert email.evaluate(
         "node => node === originalOption && node.getRootNode() === document"
     )
-    with sending(page, "answer the unchanged native Ask after reader replacement"):
+    with sending(page, "answer the unchanged native item after reader replacement"):
         email.click()
     expect(replacement.locator(".counts")).to_contain_text("Email")
     replacement.get_by_role("button", name="Keep it concise.", exact=True).click()

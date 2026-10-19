@@ -11,7 +11,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASKS_PAGE,
+    ITEMS_PAGE,
     PANEL_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
@@ -38,8 +38,8 @@ from render_harness import (
     RELEASE_FOCUS,
     ROOT,
     command_reference_rows,
-    expect_asks_answered,
     expect_comment_notes,
+    expect_items_answered,
     leaf_page,
     navigate,
     open_page,
@@ -57,13 +57,45 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_navigation import (
+from browser.navigation import (
     EXPANDED,
     KEY_LINE_HINTS,
-    QUICK_KEYS_PAGE,
     READING_REGIONS_PAGE,
     STANDING,
     color_cue_markup,
+)
+
+# An item's digits beside a page-scoped command with a context key of its own,
+# registered the way an authored module does.
+QUICK_KEYS_PAGE = leaf_page(
+    "quick keys",
+    """
+<h1 id="title">Field day</h1>
+<lf-ask id="map-ask">
+  <h3>Which map should the sample team carry?</h3>
+  <lf-options id="map" choose>
+    <lf-option id="map-street">Street map</lf-option>
+    <lf-option id="map-trail">Trail map</lf-option>
+  </lf-options>
+</lf-ask>
+<div id="local-shortcuts" tabindex="0">
+  <button id="shortcut-focus-note" type="button">Write sample note</button>
+  <label>Sample note <input id="shortcut-note" type="text" /></label>
+</div>
+""",
+    head="""<script type="module">
+import { commands } from "/runtime/widget-api.js";
+const note = document.querySelector("#shortcut-note");
+commands(document.querySelector("#local-shortcuts"), "In the note sample", [{
+  id: "note.focus",
+  contextKeys: ["1"],
+  control: document.querySelector("#shortcut-focus-note"),
+  bindingBadge: null,
+  title: "Write note",
+  description: "Focus the sample note",
+  run: () => note.focus(),
+}]);
+</script>""",
 )
 
 
@@ -133,7 +165,7 @@ def test_reading_keys_scroll_drawers_without_moving_the_document(
     """Drawer reading follows its list in covering and beside postures, including
     focus in its header; neither end spills scrolling into the document."""
     live_leaf("second", "A second leaf")
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     for width in (390, 1280):
         resized(page, width, 700)
         for key, selector in (
@@ -226,7 +258,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_asks_answered(page, "2/2")
+    expect_items_answered(page, "2/2")
     expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
     expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
     page.close()
@@ -234,7 +266,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     newest = serve(example, seed_log=False)
     first = newest.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_asks_answered(page, "0/2")
+    expect_items_answered(page, "0/2")
     expect(page.locator("#review-cache-auto")).not_to_have_attribute("chosen", "")
     expect(page.locator("#review-billing-legacy")).not_to_have_attribute("chosen", "")
     expect(page.locator("#review-cache")).to_contain_text(
@@ -259,7 +291,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-billing-decision")).to_be_focused()
     with sending(page, "the billing reconciliation decision"):
         page.keyboard.press("1")
-    expect_asks_answered(page, "2/2")
+    expect_items_answered(page, "2/2")
     expect(footer).to_contain_text("This revision asks two release-blocking questions")
 
     page.goto(live_url(newest))
@@ -276,9 +308,9 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-detail > footer")).to_contain_text(
         "This revision incorporates both answers"
     )
-    # The revision settles both questions; the ask inventory retains answers
-    # after an authored revision settles their sources (`asks.py`).
-    expect_asks_answered(page, "2/2")
+    # The revision settles both questions; the item inventory retains answers
+    # after an authored revision settles their sources (`items.py`).
+    expect_items_answered(page, "2/2")
 
     actions = [
         event
@@ -361,14 +393,14 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
     expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
     page.close()
 
     newest = serve(example, seed_log=False)
     first = newest.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
     expect(page.locator("#comparison-policy-shared")).not_to_have_attribute(
         "chosen", ""
     )
@@ -388,9 +420,9 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
         "enables shared refreshes for web clients"
     )
     expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
-    # The Ask reading keeps an Ask the user answered after a later version settles it
-    # (`asks.py`, the retained answered inventory).
-    expect_asks_answered(page, "1/1")
+    # The item reading keeps an item the user answered after a later version settles it
+    # (`items.py`, the retained answered inventory).
+    expect_items_answered(page, "1/1")
 
     actions = [
         event
@@ -423,6 +455,11 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
     page = open_page(browser, url, context=context)
     page.evaluate("() => document.fonts.ready")
     navigation = page.locator("#pr-contents")
+    disclosure = navigation.locator("summary")
+    if disclosure.is_visible() and not navigation.locator("details").evaluate(
+        "node => node.open"
+    ):
+        disclosure.click()
     first = navigation.get_by_role("link", name="Review finding", exact=True)
     expect(first).to_be_in_viewport()
     if width < 500:
@@ -449,6 +486,10 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
 
     # Begin again at the opening, and take the native tab order to another route.
     navigate(page, url)
+    if disclosure.is_visible() and not navigation.locator("details").evaluate(
+        "node => node.open"
+    ):
+        disclosure.click()
     page.evaluate(RELEASE_FOCUS)
     invariant = navigation.get_by_role("link", name="Review invariants", exact=True)
     for _ in range(30):
@@ -1080,7 +1121,7 @@ def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, ser
 def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     """Narrowing and page standing unwind before their surrounding surfaces.
 
-    A thread or Ask inside Threads leaves through the panel's own steps: its
+    A thread or item inside Threads leaves through the panel's own steps: its
     narrowing, then the panel.
     """
     url = serve(INLINE_PAGE, anchored=[("p", "bold text")])
@@ -1089,6 +1130,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
         "Is this the passage you meant?",
         {"section": "p2", "quote": "neighbouring block"},
         "agent",
+        question="Is this the passage you meant?",
     )
     page = open_page(browser, url)
     page.set_viewport_size({"width": 1200, "height": 844})
@@ -1111,15 +1153,15 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
 
-    # A page Ask stood on while a drawer the keyboard opened stands beside the page.
-    page = open_page(browser, serve(ASKS_PAGE))
+    # A page item stood on while a drawer the keyboard opened stands beside the page.
+    page = open_page(browser, serve(ITEMS_PAGE))
     line = page.locator(".lf-shortcut-bar")
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(page.locator(".lf-queue-panel.open")).to_be_visible()
-    ask = page.locator("#live-question-decision")
-    ask.evaluate("el => { el.tabIndex = -1; el.focus(); }")
-    expect(ask).to_be_focused()
+    item = page.locator("#live-question-decision")
+    item.evaluate("el => { el.tabIndex = -1; el.focus(); }")
+    expect(item).to_be_focused()
     expect(line).to_contain_text("let go")
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
@@ -1127,7 +1169,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-queue-panel.open")).to_have_count(0)
 
-    # `m` from a heading into a thread's Ask, with the panel already beside the page:
+    # `m` from a heading into a thread's item, with the panel already beside the page:
     # Escape closes the panel, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     line = page.locator(".lf-shortcut-bar")
@@ -1137,7 +1179,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
+    expect(page.locator(".lf-thread lf-ask[data-lf-item]")).to_be_focused()
     expect(line).to_contain_text("close threads")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -1231,7 +1273,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "[el.dataset.lfGoToMarginEntry, el.dataset.lfHintCode]))"
     )
     thread_code = mixed_codes["reading:threadList"]
-    ask_key = next(key for key in mixed_codes if key != "reading:threadList")
+    item_key = next(key for key in mixed_codes if key != "reading:threadList")
 
     page.keyboard.press("m")
     filtered = page.locator(CHIPS)
@@ -1280,10 +1322,10 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     expect(
         page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
     ).to_have_count(1)
-    ask_code = address_code(page, "Margin entry", "opts-decision", ask_key)
-    page.keyboard.type(ask_code)
+    item_code = address_code(page, "Margin entry", "opts-decision", item_key)
+    page.keyboard.type(item_code)
     expect(page.locator("#opts-decision")).to_be_focused()
-    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-item", "1")
 
     # Scroll past the links to give the hyperlinks filter no members. An empty
     # filter stays empty through resize; Escape restores the complete map.
@@ -1293,7 +1335,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         {"kind": "resolve", "author": "user", "parent": thread},
     )
     round_trip(page)
-    expect(page.locator('.lf-margin-marker[data-lf-kinds~="ask"]')).to_have_count(0)
+    expect(page.locator('.lf-margin-marker[data-lf-kinds~="on-me"]')).to_have_count(0)
     page.locator("#opts-decision").evaluate(
         "node => document.scrollingElement.scrollTo(0, node.offsetTop)"
     )
@@ -1359,7 +1401,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "node => getComputedStyle(node).backgroundColor"
     )
 
-    # The ask route may scroll these hyperlinks out of the visible target map.
+    # The item route may scroll these hyperlinks out of the visible target map.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
@@ -1739,7 +1781,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
-    expect(sheet.locator(".lf-page-map-group")).to_have_count(3)
+    expect(sheet.locator(".lf-page-map-group")).to_have_count(4)
     expect(
         sheet.get_by_role(
             "searchbox", name="Find an action, status, or location in Page Map"
@@ -1750,7 +1792,12 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # A visible Margin entry shares the generated target map. Activating the hint
     # opens the same thread preview as its marker.
-    go_to_address(page, "Margin entry", "p1")
+    page.keyboard.press("g")
+    margin_hints = page.locator(
+        f'{CHIPS}[data-lf-go-to-kind="Margin entry"][data-lf-go-to-target="p1"]'
+    )
+    expect(margin_hints).to_have_count(2)
+    page.keyboard.type(margin_hints.first.get_attribute("data-lf-hint-code"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")  # onto the element the thread is about
@@ -1944,7 +1991,7 @@ def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
     """Leaf-owned lists use one ordinal and one boundary face."""
     live_leaf("second", "A second leaf")
     live_leaf("third", "A third leaf")
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     position = page.locator(".lf-walk-position")
 
     page.keyboard.press("g")
@@ -2090,7 +2137,7 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
 ):
     """One auxiliary selection survives reload and retains its native modal posture."""
     live_leaf("second", "A second leaf")
-    page = open_page(browser, serve(ASKS_PAGE, comments=1))
+    page = open_page(browser, serve(ITEMS_PAGE, comments=1))
 
     # A surface beside the page and one covering it; the On panel stands beside
     # it as Threads does.
@@ -2407,7 +2454,15 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(setting).not_to_be_checked()
     comment = reference.locator('tr[data-lf-command="comment.create"]')
     expect(comment.locator("kbd")).to_have_count(0)
-    # Turning a binding off leaves its command actionable in the reference.
+    # Disabling the key makes the command actionable even from the text field where
+    # that key was previously reserved for typing.
+    page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
+    expect(
+        comment.get_by_role("button", name="Comment on the page", exact=True)
+    ).to_have_attribute("data-lf-available", "true")
+    page.get_by_role("button", name="Close the command reference").click()
+    page.locator("body").focus()
+    settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
     comment.get_by_role("button", name="Comment on the page", exact=True).click()
     field = page.get_by_role("textbox", name="Comment on the page", exact=True)
@@ -2497,10 +2552,12 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.keyboard.press("1")
     expect(note).to_be_focused()
 
+    page.locator("body").focus()
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Select element")
     reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()
+    rendered(page)
     expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
     page.keyboard.press("Escape")

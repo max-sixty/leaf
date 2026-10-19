@@ -1,4 +1,4 @@
-"""`WorkReading`: the to-dos, asks and workflows one document and its log hold.
+"""`WorkReading`: the to-dos, items, plan and workflows one document and its log hold.
 
 Its readings come from the event log and one revision's document and registry.
 Admission builds it against the newest revision, under the registry of the page that
@@ -12,10 +12,12 @@ state. A `WorkReading` lasts for one transaction and is never written to disk.
 
 from functools import cached_property
 
-from .asks import collection, thread_ask_readings, thread_asks
 from .document_reading import read_document
 from .events import approvals_in_force, build_threads
+from .items import collection, replied, thread_item_readings
+from .plans import plan_reading
 from .projection import frozen_thread_reading
+from .read_state import content_version
 from .todos import TodoReading
 
 
@@ -44,8 +46,8 @@ class WorkReading:
     def viewing(self, page) -> "WorkReading":
         """This log read beside another revision's document, as a view pinned to that
         revision shows it. That revision captured its frozen thread widgets under its
-        own registry, so their decisions, the asks they answer and the attention those
-        asks give a thread are classified under it, as the page's own are. The threads
+        own registry, so their decisions, the items they answer and the attention those
+        items give a thread are classified under it, as the page's own are. The threads
         themselves fold as every reading of them does, under the published page's
         containment (`events.build_threads`)."""
         if page is self.page:
@@ -69,51 +71,49 @@ class WorkReading:
         )
 
     @cached_property
-    def widget_asks(self) -> dict:
-        return thread_ask_readings(
-            self.events, self.registry, self.threads, reading=self.thread
-        )
-
-    @cached_property
-    def thread_asks(self) -> dict:
-        open_widget_threads = {ask["thread"] for ask in self.widget_asks["user"]}
-        return {
-            identity: thread_asks(
-                identity,
-                held,
-                self.registry,
-                self.thread.structure,
-                open_widget_threads,
-                self.log.ends,
-            )
-            for identity, held in self.threads.items()
-        }
-
-    @cached_property
-    def asks(self) -> dict:
-        return collection(
-            [
-                *self.widget_asks["all"],
-                *(ask for reading in self.thread_asks.values() for ask in reading.asks),
-            ]
-        )
-
-    @cached_property
-    def all_asks(self) -> dict:
-        return collection(
-            [
-                *(self.document.asks["all"] if self.document is not None else []),
-                *self.asks["all"],
-            ]
+    def widget_items(self) -> dict:
+        return thread_item_readings(
+            self.events,
+            self.registry,
+            self.threads,
+            self.log.ends,
+            reading=self.thread,
         )
 
     @property
+    def items(self) -> dict:
+        return self.widget_items
+
+    @cached_property
     def prompts(self) -> dict:
+        """Each thread's question the user owes words to: the latest open
+        reply-answered item on them there, by its message and that message's content
+        version, which the thread's head marks Waiting on me."""
+        prompts = {}
+        for item in self.widget_items["user"]:
+            if not replied(self.registry[item["source"]["tag"]]):
+                continue
+            message = next(
+                message
+                for message in self.threads[item["thread"]]["msgs"]
+                if message["id"] == item["message"]
+            )
+            held = prompts.get(item["thread"])
+            if held is None or held[0]["seq"] < message["seq"]:
+                prompts[item["thread"]] = (message, item)
         return {
-            identity: reading.prompt
-            for identity, reading in self.thread_asks.items()
-            if reading.prompt is not None
+            thread: {"message": message["id"], "version": content_version(message)}
+            for thread, (message, _item) in prompts.items()
         }
+
+    @cached_property
+    def all_items(self) -> dict:
+        return collection(
+            [
+                *(self.document.items["all"] if self.document is not None else []),
+                *self.items["all"],
+            ]
+        )
 
     @cached_property
     def approvals(self) -> list[dict]:
@@ -121,7 +121,11 @@ class WorkReading:
 
     @cached_property
     def document(self):
-        return read_document(self.page, self.threads) if self.page is not None else None
+        return (
+            read_document(self.page, self.threads, self.log.ends)
+            if self.page is not None
+            else None
+        )
 
     @cached_property
     def workflows(self) -> list[dict]:
@@ -133,20 +137,23 @@ class WorkReading:
             page=self.page,
             events=self.events,
             todo_reading=self.log,
-            asks=self.all_asks,
+            items=self.all_items,
         )
 
-    def page_todos(self, aged: list[dict] = ()) -> tuple[list[dict], list[dict]]:
-        """To-dos enriched with their thread and current activity."""
+    @cached_property
+    def plan(self) -> dict | None:
+        return plan_reading(
+            self.events, self.log.withdrawn, self.log.todos, self.all_items["all"]
+        )
+
+    def page_todos(self, aged: list[dict]) -> list[dict]:
+        """Every to-do, open and ended, with its thread, and an open one's activity
+        as `aged` (`activity._canonical_todos`) reads it."""
         by_id = {todo["id"]: todo for todo in aged}
-        log = [
+        return [
             {
                 **by_id.get(todo["id"], todo),
                 "thread": self.thread.subject_thread(todo["subject"]),
             }
             for todo in self.log.todos
         ]
-        return (
-            [todo for todo in log if todo["state"] == "open"],
-            [todo for todo in log if todo["state"] != "open"],
-        )

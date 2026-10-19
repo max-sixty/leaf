@@ -170,7 +170,8 @@ var GENERATED = ".lf-ui, [data-lf-gen]";
 var DATUM = "[data-lf-projection][data-lf-datum]";
 var inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
 var showsWords = (block) => block.checkVisibility({ visibilityProperty: true });
-var leafSurface = (node) => node ? closestAcross(node, ".lf-chrome, [data-lf-runtime]") : null;
+var LEAF_SURFACE = ".lf-chrome, [data-lf-runtime]";
+var leafSurface = (node) => node ? closestAcross(node, LEAF_SURFACE) : null;
 var pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(node);
 var bareTextRefusal = (n) => {
   const host = shadowHost(n.getRootNode());
@@ -358,6 +359,7 @@ var elementById = (id, root = document) => {
   return null;
 };
 var pageDocument = (doc = document) => doc.querySelector("body > main");
+var layoutBox = () => document.documentElement.lfInitial.layoutBox();
 var authoredScope = (node) => closestAcross(node, ".lf-msg-body") ?? pageDocument();
 var elementFromPointAcross = (x, y) => {
   let el = document.elementFromPoint(x, y);
@@ -829,6 +831,7 @@ export {
   DATUM,
   inChrome,
   showsWords,
+  LEAF_SURFACE,
   leafSurface,
   pageWords,
   elementOver,
@@ -838,6 +841,7 @@ export {
   closestAcross,
   elementById,
   pageDocument,
+  layoutBox,
   authoredScope,
   elementFromPointAcross,
   pageQueryAll,

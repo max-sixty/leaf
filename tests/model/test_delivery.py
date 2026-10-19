@@ -305,7 +305,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     )["attention"]
 
 
-def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(page_dir):
+def test_delivery_distinguishes_composing_an_item_from_changing_input_in_hand(page_dir):
     source = PAGE.replace(
         "<lf-options>", '<lf-options id="choice" choose multiple>'
     ).replace(
@@ -346,7 +346,7 @@ def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(pag
         page_dir, {"kind": "undo", "author": "user", "undoes": completed["id"]}
     )
     assert undone["attention"]
-    # The Ask is unfinished again, but the agent is already acting on its pick.
+    # The item is unfinished again, but the agent is already acting on its pick.
     changed = action("choice", "choose", {"value": ["backfill-first"]})
     assert changed["attention"]
     assert append_command(
@@ -1009,7 +1009,9 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     serving(page_dir, 1)
     publish(page_dir)
     session_model.cmd_waiting(page_dir, "")
-    question = thread_model.cmd_comment(page_dir, "", "", "", "Is forty enough?", None)
+    question = thread_model.cmd_comment(
+        page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
+    )
     quiet = append_command(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
@@ -1047,3 +1049,36 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
         {"kind": "reply", "author": "user", "parent": ordinary["id"], "token": "keep"},
     )
     assert mark["attention"] is False
+
+
+def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
+    from leaf.thread import answered_by_reply, successful_replies
+
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "id": "input",
+    }
+    answer = {
+        "kind": "reply",
+        "author": "agent",
+        "seq": 2,
+        "parent": "root",
+        "responds": comment["id"],
+        "text": "Checked",
+    }
+    for changes, success in (
+        ({}, True),
+        ({"ephemeral": True}, False),
+        ({"failure": "turn_failed"}, False),
+        ({"parent": "input", "responds": "later-input"}, False),
+        ({"parent": "input", "responds": None}, False),
+        ({"author": "user"}, False),
+        ({"kind": "comment"}, False),
+    ):
+        reply = {**answer, **changes}
+        events = [comment, reply]
+        expected = [reply] if success else []
+        (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
+        assert successful_replies(events, "input") == expected
+        assert answered_by_reply(events, "input") is success

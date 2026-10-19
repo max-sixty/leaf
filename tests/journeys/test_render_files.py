@@ -7,6 +7,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
+    http_error_console,
     leaf_page,
     one_frame,
     open_page,
@@ -221,8 +222,8 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     consume_browser_errors(
         page,
         "Failed to load resource: net::ERR_FAILED",
-        {"code": "failed-load", "status": 502},
-        {"code": "failed-load", "status": 409},
+        http_error_console(502),
+        http_error_console(409),
     )
 
     # Two versions remain available after a stale save. Explicit replacement
@@ -351,7 +352,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(editor).to_contain_text("Newest")
     consume_browser_errors(
         page,
-        {"code": "failed-load", "status": 409},
+        http_error_console(409),
         "Failed to load resource: net::ERR_FAILED",
     )
 

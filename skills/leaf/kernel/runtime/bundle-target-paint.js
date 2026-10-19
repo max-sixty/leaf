@@ -23,6 +23,7 @@ import {
 } from "./bundle-user-intent.js";
 import {
   anchorAt,
+  anchorBox,
   anchorElement,
   anchorReaches,
   anchorReading,
@@ -240,7 +241,7 @@ function standIn(stand, placed, anchored) {
     origin: anchored ? null : { x: band?.left ?? 0, y: band?.top ?? 0 }
   };
 }
-function standBox(box, rect, stood, anchor, at = anchor?.getBoundingClientRect()) {
+function standBox(box, rect, stood, anchor, at = anchor && anchorBox(anchor)) {
   if (stood.anchored) {
     anchorAt(box, anchor, rect, at, stood.visibility ?? "always");
     return;
@@ -259,7 +260,7 @@ function standBox(box, rect, stood, anchor, at = anchor?.getBoundingClientRect()
 }
 function standOver(stand, placed, borderRadius) {
   const anchor = anchoredBy(placed.surface, stand.root);
-  const at = anchor?.getBoundingClientRect();
+  const at = anchor && anchorBox(anchor);
   const stood = standIn(stand, placed, Boolean(anchor));
   standBox(stand.box, placed.rect, stood, anchor, at);
   Object.assign(stand.box.style, { display: "block", borderRadius });
@@ -382,7 +383,7 @@ function paintSet(root, { onNear = () => {
         plane,
         framed,
         anchor: carriedBy,
-        at: carriedBy?.getBoundingClientRect(),
+        at: carriedBy && anchorBox(carriedBy),
         key: keyOf(placed, carriedBy, plane, framed)
       };
     });
@@ -952,14 +953,7 @@ function createPageMapDialog({
     if (!dialog.open) showNativeLayer(dialog);
     const index = entry ? entries.findIndex((candidate) => candidate.key === entry.key) : -1;
     const group = index < 0 ? null : dialogList.children[index];
-    if (group) {
-      const listBox = dialogList.getBoundingClientRect();
-      const groupBox = group.getBoundingClientRect();
-      if (groupBox.top < listBox.top)
-        dialogList.scrollTop -= listBox.top - groupBox.top;
-      else if (groupBox.bottom > listBox.bottom)
-        dialogList.scrollTop += groupBox.bottom - listBox.bottom;
-    }
+    if (group) scrollIntoView(group, { block: "nearest", within: dialogList });
     const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
     const spilledAction = focusSpill ? groups[index]?.actions.find(
       (action) => action.kind === "control" && action.record.key === spilled?.record?.key && action.record.owner === spilled?.record?.owner || action.kind === "item" && spilled?.choice?.items.some(

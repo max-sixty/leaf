@@ -45,6 +45,12 @@ representative desktop viewport.
   margin resident and sidenotes move the column, through `residency` in
   `prepaint.js`. Checks: `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the
   shift watch. Owner: `annotation-overlay/margin-placement.js`.
+- **A control takes only its own room.** Leaf never reserves a strip, a row or
+  full-width padding to seat one small control. The control joins a line that is
+  already there, such as a head, the line over a field or a row's end, or a corner its
+  content leaves free. The floating panel's more-room mark stands in the corner a long
+  draft leaves free over the leaf (`floating-panel.js`, `expand`) rather than in a strip
+  of its own over the words.
 - **Auxiliary surfaces open over the page and never change its geometry.** The On
   panel, the thread panel and the Pages drawer take no space from the page;
   `auxiliary-surfaces.js` decides whether one sits beside a live page or covers it
@@ -114,14 +120,17 @@ representative desktop viewport.
   (`../references/module-authoring.md`, "First paint"). Check: the widget quality check
   `keeps-first-box`, which fails on any finding `tests/known_widget_findings.py`
   doesn't list.
-- **Generated interface appears in its final position.** Reserve space before a
-  generated control appears. Feedback may repaint a control or change its label, but
-  never its size: `data-lf-room` (`controls.css`) sizes a label to the widest of the
-  words it can show. A parent laying out adjacent actions keeps their hit areas apart.
-- **An unlikely event fits into what is already there.** Reserve no space for a state
-  the user rarely meets, such as a failed save. Show it in a surface already on screen,
-  and let the user's gesture expand it: `lf-file-editor.js` reports a file conflict in
-  its status line and opens the two versions only on Compare.
+- **Generated interface appears in its final position.** Hold room before first paint
+  only for what will be drawn, such as a widget's upgraded controls. Feedback may
+  repaint a control or change its label, but never its size: `data-lf-room`
+  (`controls.css`) sizes a label to the widest of the words it can show. A parent
+  laying out adjacent actions keeps their hit areas apart.
+- **What may appear fits into what is already there.** Hold no empty room for a state
+  that may never come, however likely: a failed save, a rewrite the user hasn't opened.
+  Show it in a slot already on screen, as a message's head carries its delivery and its
+  Edit beside the author, and let the user's gesture make the room it needs:
+  `lf-file-editor.js` reports a file conflict in its status line and opens the two
+  versions only on Compare, and a rewrite grows its message only once opened.
 - **A gesture shows the result the page can draw as it is made** (root `AGENTS.md`,
   "The document starts state; the log changes it"). `standGesture` in `drafts.js`
   handles a send and the refusal that returns the words to their box. The new content
@@ -149,8 +158,15 @@ representative desktop viewport.
 
 - **Visual treatments carry hierarchy and state.** Contours are solid. A dotted or
   dashed line marks a distinct state, such as a draft or a drag placeholder. One
-  contour shows one control state, and a segmented group shares one-pixel seams. Avoid
-  rounded one-sided borders and reflexive cards, tints, gradients and soft shadows.
+  contour shows one control state, and a segmented group shares one-pixel seams. Never
+  round a box edged on one side: mark a state with a whole contour, or a stripe on a
+  square box. Avoid reflexive cards, tints, gradients and soft shadows. Check:
+  `test_no_rule_rounds_a_box_edged_on_one_side`, over Leaf's sheets and pages.
+- **A face used twice is a token or a shared rule**, and a rule names it rather than
+  spelling it out. A lift names one of the theme's three heights, `--raise-1` to
+  `--raise-3` (`styles/theme.css`, beside `--shade`); boxes that wear one face, such as
+  the chip a focused skip link and picture proxy show under the banner, share one rule.
+  Check: `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Each thread's `unread` and `attention` are computed once**, and every surface that
   paints them uses that value, so the Threads toggle, filters, panel, margin entry and
   Page Map change together. Green marks the user's turn; other thread controls stay
@@ -187,39 +203,39 @@ literal paths; only the widget and interaction loaders compute theirs.
 
 Entry points per concern (paths under `runtime/`; each header owns the details):
 
-| Concern | Owners |
-| --- | --- |
-| Composition and the application's state | `application.js`, `semantic-state.js`, `context.js` |
-| Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
-| Undo and withdrawal | `undo.js` |
-| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js`, `queues.js` |
-| Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
-| Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
-| External data | `data.js`, `projection/data.js`, `projection/authored.js` |
-| Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Repaint and geometry | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js` |
-| Chrome and available space | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
-| Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
-| Keyboard | `keyboard/AGENTS.md` |
-| Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js` |
-| Asks | `asks/` |
-| Comment capture | `composing/`, `drafts.js`, `media.js` |
-| Threads | `thread/`, `thread-panel.js` |
-| Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
-| Annotation records and Page Map | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js` |
-| Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/` |
-| Passages and target identity | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js` |
-| Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
-| Banner and approvals | `banner*.js` |
-| Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
-| Activity and reports | `presence.js`, `activity-words.js`, `reports.js` |
-| Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
-| Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
-| Presentation and validation | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
-| Child pages | `sample*.js` |
-| Shadow trees and styles | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `page-sheets.js` |
-| Paint that belongs to an element while it is in the page, whoever added it | `arrivals.js` |
-| Utilities | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js` |
+| Concern                                                                                                     | Owners                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Composition and the application's state                                                                     | `application.js`, `semantic-state.js`, `context.js`                                                                                                                       |
+| Delivery, accepted state, and wakeups                                                                       | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js`                                                                                   |
+| Undo and withdrawal                                                                                         | `undo.js`                                                                                                                                                                 |
+| State models and projection                                                                                 | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `items/model.js`, `queues.js`                                                      |
+| Widget capture and lifecycle                                                                                | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js`                                                          |
+| Vocabulary and public helpers                                                                               | `registry.js`, `widget-api.js`, `widget-elements.js`                                                                                                                      |
+| External data                                                                                               | `data.js`, `projection/data.js`, `projection/authored.js`                                                                                                                 |
+| Revision installs and continuity                                                                            | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js`                                                                     |
+| Repaint and geometry                                                                                        | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js`                                            |
+| Chrome and available space                                                                                  | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js`                                                                                                 |
+| Reading regions and scrolling                                                                               | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js`                                                                        |
+| Keyboard                                                                                                    | `keyboard/AGENTS.md`                                                                                                                                                      |
+| Focus and navigation                                                                                        | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js`                                                    |
+| Items                                                                                                       | `items/`                                                                                                                                                                  |
+| Comment capture                                                                                             | `composing/`, `drafts.js`, `media.js`                                                                                                                                     |
+| Threads                                                                                                     | `thread/`, `thread-panel.js`                                                                                                                                              |
+| Annotation inventory and controls                                                                           | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js`                                                |
+| Annotation records and Page Map                                                                             | `margin-model.js`, `margin-map-model.js`, `page-map-dialog.js`, `pointed-place.js`                                                                                        |
+| Pins, marks and floating placement (loaded only when `body` keeps the default `data-annotations="overlay"`) | `annotation-overlay/`                                                                                                                                                     |
+| Passages and target identity                                                                                | `passages.js`, `passage-facts.js`, `text-alignment.js`, `anchor-coordinate.js`, `resolved-target.js`, `anchor-resolution.js`, `addressable-names.js`                      |
+| Anchor placement, decoration and travel                                                                     | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
+| Banner and approvals                                                                                        | `banner*.js`                                                                                                                                                              |
+| Drawers and neighboring pages                                                                               | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js`                                                                                                        |
+| Activity and reports                                                                                        | `presence.js`, `activity-words.js`, `reports.js`                                                                                                                          |
+| Notices, errors and announcements                                                                           | `semantic-news.js`, `notifications.js`, `errors.js`, `keyboard/shortcut-bar.js`                                                                                           |
+| Reactions and design review                                                                                 | `reactions.js`, `design.js`, `design-readings.js`                                                                                                                         |
+| Presentation and validation                                                                                 | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`, `retained-face.js`                                                                        |
+| Child pages                                                                                                 | `sample*.js`                                                                                                                                                              |
+| Shadow trees and styles                                                                                     | `shadow.js`, `shadow-stage.js`, `stylesheets.js`, `page-sheets.js`                                                                                                        |
+| Paint that belongs to an element while it is in the page, whoever added it                                  | `arrivals.js`                                                                                                                                                             |
+| Utilities                                                                                                   | `abort.js`, `icons.js`, `markdown.js`, `syntax.js`, `motion.js`, `color-scheme.js`, `storage.js`, `interaction-log.js`                                                    |
 
 `runtime/rendering.js` runs every rendering callback in one pass per frame. Schedule
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
@@ -253,16 +269,17 @@ Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py`
 declares (`../references/packages.md`, "Styles and composition"). Each widget package's
 rules reach only its own widgets (`widget_confinement` in `layer.py`), so a rule several
 packages need belongs in the kernel. Page and theme-package rules skip the chrome and
-every `.lf-ui` control unless they name a widget or the layer's vocabulary
-(`runtime/page-sheets.js`).
+every `.lf-ui` control. A page stylesheet explicitly marked `data-controls` or
+a theme package's `controls.css` grants access (`runtime/page-sheets.js`).
 `runtime/stylesheets.js` says which sheets the document and shadow roots adopt.
 
-A `:has()` rule restyles far more than it means to in two shapes. When its rightmost
-compound has no class, id, attribute or type, every runtime write restyles every
-element (`test_no_has_rule_restyles_the_whole_document`); key it by a class its owner
-writes. When it sits on the chrome root, `body` or `html`, every write below re-evaluates
-it (`test_no_has_rule_stands_on_a_root`); have the condition's owner set an attribute
-on the styled element instead.
+A `:has()` rule can make a local write invalidate a whole page or the chrome.
+An unkeyed rightmost compound can widen the invalidation targets; a condition on the
+chrome root, `body` or `html` can be re-evaluated on writes below it. Prefer a class
+that names the targets or a condition its owner sets on the styled element.
+Confirm the cost in the browser: `leaf-dev profile SOURCE TRANSITION` reports
+forced style recalculations, their element counts, and style invalidations with
+the writes that caused them.
 
 ### The browser answers first
 
@@ -272,13 +289,13 @@ transform or the page's own CSS. Before a module measures, positions, stacks, is
 or tracks something, find the browser feature that decides it and shape the markup and
 CSS to use it:
 
-| Question | The browser feature that answers it |
-| --- | --- |
-| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-lf-room` |
-| Where a box sits relative to another box or its scroller | the containing block, sticky positioning, anchor positioning, scroll timelines |
-| Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
-| Whether a box is rendered at all | `checkVisibility` |
-| Which rules reach an element | cascade layers, `@scope`, and a shadow root as the boundary |
+| Question                                                                   | The browser feature that answers it                                                                    |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| How large a box is, including the widest of several labels                 | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, `data-lf-room` |
+| Where a box sits relative to another box or its scroller                   | the containing block, sticky positioning, anchor positioning, scroll timelines                         |
+| Which of Leaf's surfaces paints over which, with the page beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0    |
+| Whether a box is rendered at all                                           | `checkVisibility`                                                                                      |
+| Which rules reach an element                                               | cascade layers, `@scope`, and a shadow root as the boundary                                            |
 
 Where a feature nearly fits, change what the runtime asks of it, such as where a box
 lives in the DOM, rather than computing the answer. A module that answers one of these
@@ -309,22 +326,22 @@ Each mutable fact has one authority and one writer in the browser. The applicati
 publisher (`application.js`) combines authored state, the server's latest state and
 the ordered list of this tab's unresolved work into the one state every component reads:
 
-| Fact | Authority |
-| --- | --- |
-| authored widget state | the validated source markup, captured before upgrade |
-| external data | the latest page data; a widget reads each bound source through `this.data` (data.js) |
-| version shown | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document |
-| accepted history | the server's event log and its `/api/state` answer, which the publisher adopts whole |
-| unresolved browser work | the publisher's one ordered list |
-| threads, workflow, attention, asks, to-dos, activity, unread | the server's state; the browser adds only its own unresolved sends and the versions it is marking read |
-| what waits on the user and on the agent | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`) |
-| what the DOM shows | the presentation coordinator's renderer tickets and preparation regions |
-| when a document-wide renderer paints | the order `PRESENTATION_ORDER` in `runtime/semantic-state.js` declares |
-| where each thread's passage is | `anchor-placement.js`, resolving its anchor in this version |
-| the line inside a target that a comment sits by | `pointed-place.js` (`placePoints`); presentation only |
-| the side and line a comment box and its thread card sit by | `annotation-overlay/comment-placement.js` (`commentSide`) |
-| whether a margin row sits in the rail or as a pin, and where | `annotation-overlay/margin-layout.js` |
-| what a scroller shows, what a surface hides, what sticky headers cover, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`, `motionBand`) |
+| Fact                                                                                                          | Authority                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| authored widget state                                                                                         | the validated source markup, captured before upgrade                                                                                                     |
+| external data                                                                                                 | the latest page data; a widget reads each bound source through `this.data` (data.js)                                                                     |
+| version shown                                                                                                 | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document |
+| accepted history                                                                                              | the server's event log and its `/api/state` answer, which the publisher adopts whole                                                                     |
+| unresolved browser work                                                                                       | the publisher's one ordered list                                                                                                                         |
+| threads, workflow, attention, items, to-dos, activity, unread                                                 | the server's state; the browser adds only its own unresolved sends and the versions it is marking read                                                   |
+| what waits on the user and on the agent                                                                       | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                       |
+| what the DOM shows                                                                                            | the presentation coordinator's renderer tickets and preparation regions                                                                                  |
+| when a document-wide renderer paints                                                                          | the order `PRESENTATION_ORDER` in `runtime/semantic-state.js` declares                                                                                   |
+| where each thread's passage is                                                                                | `anchor-placement.js`, resolving its anchor in this version                                                                                              |
+| the line inside a target that a comment sits by                                                               | `pointed-place.js` (`placePoints`); presentation only                                                                                                    |
+| the side and line a comment box and its thread card sit by                                                    | `annotation-overlay/comment-placement.js` (`commentSide`)                                                                                                |
+| whether a margin row sits in the rail or as a pin, and where                                                  | `annotation-overlay/margin-layout.js`                                                                                                                    |
+| what a scroller shows, what a surface hides, what sticky headers cover, how much of the window the page shows | `geometry.js` (`visibleBand`, `declareOccluder`, `headerInset`, `shownWindow`, `seenRect`, `motionBand`)                                                 |
 
 Add no second cache, pending map, replay list or DOM attribute as another source for
 one of these facts. A rendering may expose state, such as `data-lf-state` and
@@ -344,51 +361,60 @@ second copy usually starts where a symptom appeared and its author didn't find t
 first, then drifts at the edges: under a stuck header, in a shadow tree, in
 right-to-left text. Before writing or approving a predicate or measurement, look for its
 question in "The browser answers first" and then here. A change that creates an owner
-adds its row. Rows marked *lint* are enforced in `eslint.config.mjs`.
+adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 
-| Question | Owner |
-| --- | --- |
-| What is focused, inside open shadow trees or through a held label press | `focus.js` `focused`, `focused(tree)` (*lint*) |
-| Whether the user is inside a scope, across shadow trees and slots | `focus.js` `standingIn` (*lint*) |
-| The user's working place, read before something borrows it and handed back after | `history.js` `readPlace`, `returnPlace` |
-| Where a page walk starts, and which item it steps to | `standing-target.js` `walkOrigin`, `stepFrom` |
-| Which of two nodes the reader reaches first, across shadow trees | `shadow-tree.js` `renderedOrder`, `byRenderedOrder` |
-| Whether a node is inside another across shadow trees | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode` |
-| Put the user on an element, saying what moved them | `focus.js` `focusDestination(node, cause)` (*lint*) |
-| Move a node, keeping the user's place in it | `dom-move.js` `move(parent, node, before)` (*lint*) |
-| Make a list of nodes, some already placed, a parent's children | `dom-children.js` `setChildren` |
-| Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
-| Which keys move a caret, and whether a key is Select All | `control-selectors.js` `CARET_KEYS`, `selectsAll` |
-| A hint map's walk and choose rows | `keyboard/hints.js` `createHintSession` |
-| Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
-| Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
-| Whether a press is a plain primary-button press with no modifier | `pointer.js` `plainPress` |
-| Which arrow means back along a row, in its text direction | `keyboard/bindings.js` `rowArrows` |
-| Whether any of a node is in front of the user | `geometry.js` `seenRect`; past top-layer surfaces, `clipsPastSurfaces` |
-| Whether a size change there would move what is seen | `geometry.js` `motionBand`, `growthIsSeen`, `growthAfterIsSeen` |
-| When none of some nodes is seen any more | `geometry.js` `whenNone` |
-| How much of the window the page shows | `geometry.js` `shownWindow` |
-| The window's box, less its scrollbars | `geometry.js` `layoutWindow` |
-| Whether the page shows a node at all, and what the pages holding it show of its window | `geometry.js` `presented`, `containingView`, `frameView`, `watchRoom` |
-| Whether a box placed against a target belongs in layout yet | `geometry.js` `nearWindow`, `nearObserver` |
-| Where an element or Range destination is, and how much of it survives clipping | `geometry.js` `placeBox`, `clippedPlace` |
-| Whether a box is stuck, and the band sticky headers cover | `geometry.js` `stuckBox`, `headerInset` |
-| Whether a box scrolls, for a script or for the user | `geometry.js` `scrollContainer`, `scrollport`, `userScrollport` |
-| Which axes a box clips | `rect.js` `clippingAxes` |
-| Whether a box is at its scroll end | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK` |
-| Whether the reader or layout chose a box's scroll position | `scrolling.js` `chosenSince`, `placeKept` |
-| The page's `main` | `passages.js` `pageDocument` |
-| Whether a place is already shown, and the space a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
-| Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
-| Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |
-| Whether a node is, or is inside, an open native layer, and of which kind | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (*lint*) |
-| Which native layers are open, in opening order, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |
-| The element a URL fragment names | `anchor-resolution.js` `fragmentTarget` |
-| The language a file path means | `syntax.js` `langForPath`, from the registry's `$languages` |
-| Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
-| Write a DOM value only when it changed | `keeps.js` `keeps` |
-| Threads, workflow, attention, asks, and whether they are answered | the server's state, under "One writer for each fact" |
-| Which asks a region of the page holds | `asks/place.js` `asksIn` |
+| Question                                                                                              | Owner                                                                              |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| What is focused, inside open shadow trees or through a held label press                               | `focus.js` `focused`, `focused(tree)` (_lint_)                                     |
+| Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `standingIn` (_lint_)                                                   |
+| The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
+| Where a page walk starts, and which item it steps to                                                  | `standing-target.js` `walkOrigin`, `stepFrom`                                      |
+| Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
+| Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
+| Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |
+| Move a node, keeping the user's place in it                                                           | `dom-move.js` `move(parent, node, before)` (_lint_)                                |
+| Make a list of nodes, some already placed, a parent's children                                        | `dom-children.js` `setChildren`                                                    |
+| Whether a control takes typed letters                                                                 | `focus.js` `typesText`, `takesLetters`                                             |
+| Which keys move a caret, and whether a key is Select All                                              | `control-selectors.js` `CARET_KEYS`, `selectsAll`                                  |
+| A hint map's walk and choose rows                                                                     | `keyboard/hints.js` `createHintSession`                                            |
+| Which focused control counts as the user's place: shown, and not under a stuck box                    | `user-place.js` `focusedInView`                                                    |
+| Whether a click came from the keyboard                                                                | `pointer.js` `pressIsKeyboardActivation`                                           |
+| Whether a press is a plain primary-button press with no modifier                                      | `pointer.js` `plainPress`                                                          |
+| Which arrow means back along a row, in its text direction                                             | `keyboard/bindings.js` `rowArrows`                                                 |
+| Whether any of a node is in front of the user                                                         | `geometry.js` `seenRect`; past top-layer surfaces, `clipsPastSurfaces`             |
+| Whether a size change there would move what is seen                                                   | `geometry.js` `motionBand`, `growthIsSeen`, `growthAfterIsSeen`                    |
+| When none of some nodes is seen any more                                                              | `geometry.js` `whenNone`                                                           |
+| How much of the window the page shows                                                                 | `geometry.js` `shownWindow`                                                        |
+| The window's box, less its scrollbars                                                                 | `geometry.js` `layoutWindow`                                                       |
+| Whether the page shows a node at all, and what it shows of a sample it holds                          | `geometry.js` `presented`, `frameView`, `watchRoom`                                |
+| Whether a box placed against a target belongs in layout yet                                           | `geometry.js` `nearWindow`, `nearObserver`                                         |
+| Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |
+| Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `headerInset`                                            |
+| Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `scrollport`, `userScrollport`                    |
+| Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |
+| Whether a box is at its scroll end                                                                    | `scrolling.js` `atScrollEnd`, `SCROLL_SLACK`                                       |
+| Whether the reader or layout chose a box's scroll position                                            | `scrolling.js` `chosenSince`, `placeKept`                                          |
+| The page's `main`                                                                                     | `passages.js` `pageDocument`                                                       |
+| The box the page's Layout arranges, and the shell it stands in (its parent)                           | `passages.js` `layoutBox`                                                          |
+| Whether a place is already shown, and the space a landing needs                                       | `landing-scroll.js` `alreadyShown`, `landingRoom`                                  |
+| Bring something into view without scrolling the page around it, or only inside one box (its `within`) | `landing-scroll.js` `scrollIntoView` (_lint_)                                      |
+| Move a box to its end, or by an amount                                                                | `scrolling.js` `scrollToEnd`, `moveScrollerBy` (_lint_)                            |
+| Open or close a native modal or popover                                                               | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (_lint_)           |
+| Whether a node is, or is inside, an open native layer, and of which kind                              | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
+| Which native layers are open, in opening order, and whether a modal admits a node                     | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
+| The element a URL fragment names                                                                      | `anchor-resolution.js` `fragmentTarget`                                            |
+| The language a file path means                                                                        | `syntax.js` `langForPath`, from the registry's `$languages`                        |
+| Paint on the next frame, or watch a size                                                              | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (_lint_)                  |
+| Write a DOM value only when it changed                                                                | `keeps.js` `keeps`                                                                 |
+| Threads, workflow, attention, items, and whether they are answered                                    | the server's state, under "One writer for each fact"                               |
+| A workflow's word, and its progress face on a control; an open to-do's word                           | `thread/workflow.js` `workflowLabel`, `progressFace`, `todoLabel`                  |
+| A thread's word, which Threads states as its status                                                   | `thread/workflow.js` `threadAttention`                                             |
+| What a thread's margin entry and Page Map row say of it: its line, turn and receipt                   | `margin-model.js` `threadMarks`                                                    |
+| A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
+| The thread a name names: its id, a message's, or this tab's attempt                                   | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
+| The thread id a drawn thread carries                                                                  | `thread/selectors.js` `drawnThreadId`                                              |
+| The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
+| Which items a region of the page holds                                                                | `items/place.js` `itemsIn`                                                         |
 
 ### Facts both runtimes know
 
@@ -440,12 +466,12 @@ first alone. Code outside the page waits on `pageReadiness`, through
 
 ## Authoritative projection
 
-Python decides which asks exist, when a widget is complete, and when a thread is
-answered. The server sends complete ask lists for the page (`document.asks`) and for
-each thread's frozen markup (`thread.asks`). The browser reads a widget's answer from
+Python decides which items exist, when a widget is complete, and when a thread is
+answered. The server sends complete item lists for the page (`document.items`) and for
+each thread's frozen markup (`thread.items`). The browser reads a widget's answer from
 the same state its controls draw and doesn't reapply the `x-awaits.answered` rule. A
-required-version approval is an ask the browser updates at once, restoring the server's
-state on refusal. A thread gesture changes no attention and no ask until the server's
+required-version approval is an item the browser updates at once, restoring the server's
+state on refusal. A thread gesture changes no attention and no item until the server's
 reading of it arrives (root `AGENTS.md`, "Responsiveness").
 
 Every state read carries one `through_seq`, and version comparison asks `/api/view` at

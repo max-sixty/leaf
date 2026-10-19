@@ -39,7 +39,7 @@
  * chip explicitly releases that hold. The chip remains available while activation waits.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
- * contract, and the ask view restores the selected ask by id. Both installs restore these
+ * contract, and the item view restores the selected item by id. Both installs restore these
  * readings; the patch passes its retained nodes so restoration skips them. Unnamed
  * replaced controls receive no guessed focus. Authored controls and registered draft
  * editors carry native editing under their existing replacement identity; arbitrary
@@ -167,7 +167,7 @@ import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resoluti
 import { scrollToFragment } from "./anchor-travel.js";
 import { rowWalk } from "./walk-position.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
-import { foldWidgetStates, askValue } from "./projection/model.js";
+import { foldWidgetStates, itemValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
@@ -203,6 +203,7 @@ import {
   restorePlace,
   textBlocks,
 } from "./reading-place.js";
+import { holdingError, raiseError } from "./errors.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 
@@ -405,6 +406,10 @@ function pickerModel(state) {
         : currentLabel,
     }),
     latest: Object.freeze({
+      // The agent's latest save failed its check, so the page shows the last one that
+      // passed; `error` is what the check said.
+      failed: sourceFailed,
+      error: sourceFailed ? state.source_error : null,
       disabled: sourceFailed,
       keyTitle: sourceFailed ? state.source_error : "Open the current page",
       label: latestVersionLabel({
@@ -430,8 +435,17 @@ function pickerModel(state) {
 
 // The page before its first accepted state has a null `runtime.state`. Version controls
 // read the immutable document revision and the accepted root.
+// The agent's latest save failing its check is an error the user should see wherever
+// they are (errors.js), held while the page shows the last one that passed; Versions
+// says what the check found.
+const holdFailedSave = holdingError();
 function paintPicker() {
   const model = pickerModel(runtime.state);
+  holdFailedSave(
+    model.latest.failed
+      ? "Latest edit not shown: it failed its check (see Versions)"
+      : null,
+  );
   versionPicker.present(model);
   showNews(latestChip, model.latest.news);
   repaint();
@@ -689,8 +703,8 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
         }
         continue;
       }
-      const { value } = askValue(now, verb, true);
-      if (JSON.stringify(value) === JSON.stringify(askValue(before, verb, true).value))
+      const { value } = itemValue(now, verb, true);
+      if (JSON.stringify(value) === JSON.stringify(itemValue(before, verb, true).value))
         continue;
       // The option now picked is where a pick reads; anything else reads on its
       // widget.
@@ -913,7 +927,7 @@ async function showComparison(base) {
   if (baseRevision == null) {
     diffPendingBase = null;
     presentPicker();
-    notice(`Couldn't load v${base}`);
+    raiseError(`Couldn't load v${base}`);
     return;
   }
   const documentRequest = authoredDocument(baseVersion.url);
@@ -938,7 +952,7 @@ async function showComparison(base) {
     if (mine === diffRequest) {
       diffPendingBase = null;
       presentPicker();
-      notice(`Couldn't load v${base}`);
+      raiseError(`Couldn't load v${base}`);
     }
     return;
   }
@@ -1023,8 +1037,8 @@ function revisionDocument(revision) {
  *   syncLayout: any,
  *   captureRetainedStanding?: () => unknown,
  *   restoreRetainedStanding?: (standing: unknown) => boolean,
- *   captureAskStanding?: () => unknown,
- *   restoreAskStanding?: (standing: unknown) => void,
+ *   captureItemStanding?: () => unknown,
+ *   restoreItemStanding?: (standing: unknown) => void,
  * }} controller */
 export function createVersionController({
   compositionInput,
@@ -1037,8 +1051,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureAskStanding = () => null,
-  restoreAskStanding = () => {},
+  captureItemStanding = () => null,
+  restoreItemStanding = () => {},
 }) {
   let {
     authoredBodyAttributes,
@@ -1328,9 +1342,6 @@ export function createVersionController({
       const next = new Set();
       for (const node of source) {
         const imported = document.importNode(node, true);
-        // A linked sheet, or one that imports, is complete only once it has loaded.
-        if (imported.localName === "link" || imported.localName === "style")
-          imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
         document.head.append(imported);
         next.add(imported);
       }
@@ -1455,8 +1466,8 @@ export function createVersionController({
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
       // Ask standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent ask does not also own focus.
-      askStanding: draftEditing ? null : captureAskStanding(),
+      // has a replacement identity, so its parent item does not also own focus.
+      itemStanding: draftEditing ? null : captureItemStanding(),
     };
   }
 
@@ -1473,8 +1484,8 @@ export function createVersionController({
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, askStanding } = continuity;
-    restoreAskStanding(askStanding);
+    const { draftEditing, replyThread, replyInView, itemStanding } = continuity;
+    restoreItemStanding(itemStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
     );
@@ -1681,9 +1692,11 @@ export function createVersionController({
   // The move a state asks of the live root, prepared ahead of the commit that makes it.
   // Null where there is nothing to follow — no newer revision, or a document that failed
   // to load, which is reported; the commit's own render then lights the chip as the way
-  // to try again. A re-vendored layer never reaches here: the state names the active
-  // revision's layer, which this tab refuses, and the refusal's probe of the document
-  // source reloads it (layer-client.js, `sourceMovedOn`).
+  // to try again. A re-vendored layer arrives here as a revision whose executable
+  // changed, since the server answers this tab in its revision's layer (http.py,
+  // `_named_layer`); only one this Leaf can no longer admit input against is refused
+  // instead, and the refusal's probe of the document source reloads it at once
+  // (layer-client.js, `sourceMovedOn`).
   // Whether the move happens now is asked at the commit: an unresolved delivery,
   // `midComposition`, or an open menu defers it, unless the chip was pressed (goActive)
   // — the one override, spent by the install it forced.

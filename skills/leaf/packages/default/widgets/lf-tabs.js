@@ -40,13 +40,13 @@
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, and beside the name its asks' state: an open mark
- * while any ask the panel holds is unanswered, and once every one is answered a check, with
- * the answer's own words where the panel holds one ask. So a queue shows each item's state
- * and how far the user has worked through it, and an undo that reopens an ask puts the
- * open mark back. Which asks a panel holds is `asksIn` (asks/place.js), read from the
- * admitted ask inventory, so a tally of the queue counts the same asks. A row whose panel
- * authors an ask keeps the mark's room either way, so an answer moves no row. While the
+ * the panel's `summary` under the name, then its items' state on a reserved line: an open mark
+ * while any item the panel holds is unanswered, and once every one is answered a check, with
+ * the answer's own words where the panel holds one item. So a queue shows each item's state
+ * and how far the user has worked through it, and an undo that reopens an item puts the
+ * open mark back. Which asks a panel holds is `itemsIn` (items/place.js), read from the
+ * admitted item inventory, so a tally of the queue counts the same items. A row whose panel
+ * authors an item keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
@@ -54,8 +54,8 @@
 import {
   afterScript,
   PRESS,
-  asksIn,
-  askWords,
+  itemsIn,
+  answerWords,
   under,
   backgroundFlash,
   beginWalk,
@@ -68,6 +68,7 @@ import {
   keepView,
   keeps,
   keepsText,
+  landingInsets,
   layoutChanged,
   listWalkPosition,
   frameFor,
@@ -207,8 +208,7 @@ customElements.define(
           relabel(summary, panel.getAttribute("summary"), { says: true });
           btn.append(summary);
         }
-        // The row's ask state (`#marks`) stands where the panel authors an ask; before the
-        // Δ count, which takes the next column.
+        // The row's item state (`#marks`) keeps a line where the panel authors an item.
         if (side && elementsDeclaring(panel, "x-awaits").length) {
           const answer = document.createElement("span");
           answer.className = "lf-tab-answer";
@@ -368,7 +368,7 @@ customElements.define(
     }
 
     // What each panel holds, said with its summary as the tab's description: the
-    // version diff's marked passages, and in a side list its asks' state, with the answer
+    // version diff's marked passages, and in a side list its items' state, with the answer
     // once they are all answered.
     #marks() {
       for (const [panel, btn] of this.#buttons) {
@@ -378,16 +378,16 @@ customElements.define(
           changed ? `Δ${changed}` : "",
         );
         const slot = btn.querySelector(":scope > .lf-tab-answer");
-        const asks = slot ? asksIn(panel) : [];
-        const done = asks.filter((ask) => ask.status === "answered");
-        const answered = asks.length > 0 && done.length === asks.length;
-        const only = asks.length === 1 ? asks[0] : null;
-        const answer = answered && only ? askWords(only) : "";
+        const items = slot ? itemsIn(panel) : [];
+        const done = items.filter((item) => item.status === "answered");
+        const answered = items.length > 0 && done.length === items.length;
+        const only = items.length === 1 ? items[0] : null;
+        const answer = answered && only ? answerWords(only) : "";
         if (slot) {
           keeps(
             slot,
-            "data-lf-asks",
-            answered ? "answered" : asks.length ? "open" : null,
+            "data-lf-items",
+            answered ? "answered" : items.length ? "open" : null,
           );
           keepsText(slot.firstElementChild, answer);
         }
@@ -396,17 +396,17 @@ customElements.define(
           group && `${group} group`,
           panel.getAttribute("summary"),
           changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
-          !asks.length
+          !items.length
             ? ""
             : !answered
               ? only
                 ? "Unanswered"
-                : `${done.length} of ${asks.length} answered`
+                : `${done.length} of ${items.length} answered`
               : only
                 ? answer
                   ? `Answered: ${answer}`
                   : "Answered"
-                : `All ${asks.length} answered`,
+                : `All ${items.length} answered`,
         ]
           .filter(Boolean)
           .join(". ");
@@ -414,7 +414,7 @@ customElements.define(
       }
     }
 
-    // A side list's answers follow the page's ask reading.
+    // A side list's answers follow the page's item reading.
     #listenForAsks() {
       if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
       this.#stopAsks = watchProjection(this, () => this.#marks());
@@ -574,35 +574,20 @@ customElements.define(
     #showTab(btn) {
       const strip = this.#strip;
       if (!btn) return;
-      if (strip.scrollHeight > strip.clientHeight) {
-        const room = strip.getBoundingClientRect();
-        const tab = btn.getBoundingClientRect();
-        const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
-        const named = label && label.getBoundingClientRect();
-        const top =
-          named && tab.bottom - named.top <= room.height ? named.top : tab.top;
-        if (top < room.top) strip.scrollTop -= room.top - top;
-        else if (tab.bottom > room.bottom) strip.scrollTop += tab.bottom - room.bottom;
-      }
-      if (strip.scrollWidth <= strip.clientWidth) return;
-      const room = strip.getBoundingClientRect();
-      const { scrollPaddingLeft, scrollPaddingRight } = getComputedStyle(strip);
-      const left = room.left + (Number.parseFloat(scrollPaddingLeft) || 0);
-      const right = room.right - (Number.parseFloat(scrollPaddingRight) || 0);
-      const tab = btn.getBoundingClientRect();
       const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
-      const named = label && label.getBoundingClientRect();
-      const box =
-        named &&
-        Math.max(named.right, tab.right) - Math.min(named.left, tab.left) <=
-          right - left
-          ? {
-              left: Math.min(named.left, tab.left),
-              right: Math.max(named.right, tab.right),
-            }
-          : tab;
-      if (box.left < left) strip.scrollLeft -= left - box.left;
-      else if (box.right > right) strip.scrollLeft += box.right - right;
+      const run = label && document.createRange();
+      run?.setStartBefore(label);
+      run?.setEndAfter(btn);
+      const span = run?.getBoundingClientRect();
+      const pad = landingInsets(strip);
+      // Only an axis the strip scrolls along has a room for the run to fit.
+      const fits =
+        span &&
+        (strip.scrollWidth <= strip.clientWidth ||
+          span.width <= strip.clientWidth - pad.left - pad.right) &&
+        (strip.scrollHeight <= strip.clientHeight ||
+          span.height <= strip.clientHeight - pad.top - pad.bottom);
+      scrollIntoView(fits ? run : btn, { block: "nearest", within: strip });
     }
 
     // The open tab stays in the row as the strip's width changes, and not only when a
@@ -682,7 +667,10 @@ customElements.define(
       } catch {
         // An unreadable place is no place.
       }
-      pageScroller.scrollTop = place ? start : Math.min(from, start);
+      pageScroller.scrollTo({
+        top: place ? start : Math.min(from, start),
+        behavior: "instant",
+      });
       if (place) restorePlace(place);
     }
 

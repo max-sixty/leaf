@@ -37,7 +37,11 @@
  * can shorten without the document moving at all; a widget whose view rearranges
  * descendants without changing its own size emits the shared layout signal. The map
  * writes only to itself, never the main box it observes, and never the track either. The
- * ordinary in-flow list remains the narrow and paper form.
+ * in-flow outline is a native disclosure; paper and the margin expose the same links.
+ * The native node owns the in-flow open choice. While margin or paper hides its
+ * summary, the disclosure opens semantically and temporarily remembers that choice.
+ * Returning to flow restores it, unless a focused link needs to remain reachable.
+ * Keyed revisions keep the same disclosure and links.
  * Fitting the map into a scrollable outline preserves its reading position, except
  * when a viewport change would put the focused link outside the outline's window.
  *
@@ -64,6 +68,7 @@ import {
   render,
   repeat,
   scrollerFor,
+  scrollIntoView,
   scrollLimit,
   sizeObserver,
   whileConnected,
@@ -105,6 +110,7 @@ customElements.define(
     #navHeight = 0;
     #focusedLink = null;
     #focusedVisible = false;
+    #flowOpen;
 
     #onInterface = () => {
       this.#reconcile();
@@ -192,27 +198,32 @@ customElements.define(
             <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>
               On this page
             </p>
-            <div class="lf-toc-rows" ${ref(this.#rowsRef)}>
-              <span
-                class="lf-toc-window"
-                aria-hidden="true"
-                ${ref(this.#lensRef)}
-              ></span>
-              <div
-                class="lf-toc-start"
-                data-lf-depth="0"
-                ${ref((row) => (start.row = row))}
-              >
-                <a
-                  href=${`#${startDestination.id}`}
-                  ${ref((link) => (start.link = link))}
-                  >${title}</a
+            <details class="lf-toc-disclosure">
+              <summary class="lf-toc-toggle lf-label" data-lf-gen="1" data-lf-said>
+                On this page
+              </summary>
+              <div class="lf-toc-rows" ${ref(this.#rowsRef)}>
+                <span
+                  class="lf-toc-window"
+                  aria-hidden="true"
+                  ${ref(this.#lensRef)}
+                ></span>
+                <div
+                  class="lf-toc-start"
+                  data-lf-depth="0"
+                  ${ref((row) => (start.row = row))}
                 >
+                  <a
+                    href=${`#${startDestination.id}`}
+                    ${ref((link) => (start.link = link))}
+                    >${title}</a
+                  >
+                </div>
+                <ol>
+                  ${outline}
+                </ol>
               </div>
-              <ol>
-                ${outline}
-              </ol>
-            </div>
+            </details>
           </nav>
         `,
         this,
@@ -274,6 +285,7 @@ customElements.define(
       document.addEventListener(PRESENTATION, this.#onPresentation, { signal });
       document.addEventListener(PAGE_INTERFACE, this.#onInterface, { signal });
       window.addEventListener("resize", this.#scheduleMeasure, { signal });
+      matchMedia("print").addEventListener("change", this.#onPresentation, { signal });
       this.#scheduleMeasure();
       return () => {
         this.#watching.disconnect();
@@ -290,6 +302,18 @@ customElements.define(
 
     #measure() {
       if (!this.#main || !this.#scroller || !this.#rows) return;
+      const disclosure = this.#nav.querySelector("details");
+      const summary = disclosure.querySelector("summary");
+      // CSS already owns posture. A hidden summary means these links are an
+      // always-exposed outline, which requires native open state in every engine.
+      if (getComputedStyle(summary).display === "none") {
+        this.#flowOpen ??= disclosure.open;
+        if (!disclosure.open) disclosure.open = true;
+      } else if (this.#flowOpen !== undefined) {
+        const open = this.#flowOpen || standingIn(this.#rows);
+        if (disclosure.open !== open) disclosure.open = open;
+        this.#flowOpen = undefined;
+      }
       if (!this.#sections.length) {
         this.#positions = [];
         this.#shown = [];
@@ -412,14 +436,8 @@ customElements.define(
           this.#focusedLink === focused(document) &&
           this.#focusedVisible &&
           this.#nav.getBoundingClientRect().height < this.#navHeight - 1
-        ) {
-          const link = focused(document).getBoundingClientRect();
-          const viewport = this.#nav.getBoundingClientRect();
-          if (link.bottom > viewport.bottom)
-            this.#nav.scrollTop += link.bottom - viewport.bottom;
-          else if (link.top < viewport.top)
-            this.#nav.scrollTop += link.top - viewport.top;
-        }
+        )
+          scrollIntoView(this.#focusedLink, { block: "nearest", within: this.#nav });
         return shifts;
       }
 

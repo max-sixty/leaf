@@ -195,7 +195,7 @@ def model_layer(*packages: str) -> dict:
 
 
 def queue_board_registry(registry: dict) -> dict:
-    """A page-owned queue asks until all cards leave its Queued column.
+    """A page-owned queue stays an item until all cards leave its Queued column.
 
     Extend the board's position verb with a completion condition to exercise
     answers spanning units without a presentation-specific package.
@@ -281,13 +281,14 @@ class ModelPage:
         return []
 
 
-def spawn_probe(spawn, page_dir, body, **environment):
+def spawn_probe(spawn, page_dir, body, *, stdin=None, **environment):
     """Run a deterministic race seam in an isolated Leaf application process."""
     env = {name: str(value) for name, value in environment.items()}
     return spawn(
         [sys.executable, "-c", PROBE_BOOTSTRAP + body],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        stdin=stdin,
         text=True,
         env=os.environ | {"PAGE": str(page_dir)} | env,
     )
@@ -503,20 +504,20 @@ def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
     return foreign
 
 
-def vendored_before_the_ask_rename(page_dir: Path) -> None:
-    """Spell `x-ask-context` as `x-question-context`, its name before the rename, in
-    the page's layer and in every registry its revisions captured: in `$keys` and in
-    each entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
+def vendored_before_a_key_rename(page_dir: Path) -> None:
+    """Spell `x-word` as `x-noun`, as if that were its name before a rename, in the
+    page's layer and in every registry its revisions captured: in `$keys` and in each
+    entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
     a page in, at the same protocol; files are replaced rather than written through."""
     for path in [
         page_dir / "registry.json",
         *page_dir.glob("revisions/*/resources/registry.json"),
     ]:
         registry = json.loads(path.read_text(encoding="utf-8"))
-        assert "x-ask-context" in registry["$keys"]
+        assert "x-word" in registry["$keys"]
         for entry in [registry["$keys"], *registry.values()]:
-            if isinstance(entry, dict) and "x-ask-context" in entry:
-                entry["x-question-context"] = entry.pop("x-ask-context")
+            if isinstance(entry, dict) and "x-word" in entry:
+                entry["x-noun"] = entry.pop("x-word")
         path.unlink()
         cleanup_model.write_json(path, registry)
 
@@ -639,12 +640,11 @@ def registry_refusal(read: Callable) -> Finding:
     return finding
 
 
-def command_refusal(*args) -> Finding:
-    """The one finding the refusal of the leaf command `args`, run in process,
-    carries."""
+def command_findings(*args) -> list[Finding]:
+    """The findings the refusal of the leaf command `args`, run in process, carries:
+    none where the command succeeds."""
     result = CliRunner().invoke(cli_model.cli, [*map(str, args)], standalone_mode=False)
-    [finding] = result.exception.__cause__.findings
-    return finding
+    return [] if result.exception is None else result.exception.__cause__.findings
 
 
 def read_page_data(page_dir) -> dict:
@@ -723,7 +723,7 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     registry = files_model.read_json(page_dir / "registry.json")
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     cleanup_model.write_json(page_dir / "registry.json", registry)
-    # An Ask, so a pick answers it; the markup already records that pick, so the
+    # An item, so a pick answers it; the markup already records that pick, so the
     # answer owes no version of its own and only the thread is left to settle.
     source = page_dir / "index.html"
     source.write_text(
@@ -1014,18 +1014,18 @@ def state_json(d):
     return json.loads(result.output)
 
 
-def asks_on_user(state):
-    """Widget asks on the user's list, On me, retaining source and prompt identity."""
+def items_on_user(state):
+    """Widget items on the user's list, On me, retaining source and prompt identity."""
     return [
         {
             "id": item["id"],
-            "tag": item["ask"]["source"]["tag"],
-            "widget": item["ask"]["source"]["id"],
-            "widget_tag": item["ask"]["source"]["tag"],
+            "tag": item["item"]["source"]["tag"],
+            "widget": item["item"]["source"]["id"],
+            "widget_tag": item["item"]["source"]["tag"],
             "thread": item["thread"],
         }
         for item in state["queues"]["on_user"]
-        if item["kind"] == "ask" and item["ask"]["source"]["kind"] == "widget"
+        if item["kind"] == "widget"
     ]
 
 
@@ -1129,7 +1129,7 @@ def _mutated_registry_check(page_dir, mutate):
     registry = json.loads((page_dir / "registry.json").read_text())
     mutate(registry)
     (page_dir / "registry.json").write_text(json.dumps(registry))
-    return check(page_dir)
+    return check_findings(page_dir)
 
 
 def _report_body_record(registry):
@@ -1600,14 +1600,14 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
     the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
     `session`, `turn`). Raw, so a test can date it in the past; `working` is the
     command an agent runs."""
-    from leaf.todos import owed_todos
+    from leaf.todos import TodoReading
 
     if item is None:
         item = (
             next(
                 (
                     task["id"]
-                    for task in owed_todos(events_model.read_events(page_dir))
+                    for task in TodoReading(events_model.read_events(page_dir)).owed
                     if task["subject"] == {"kind": "page"}
                 ),
                 None,
@@ -1640,9 +1640,9 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
 def end_work(page_dir):
     """End every open task on the page as a whole, `declare_work`'s and `working`'s,
     so nothing the agent opened for itself is in hand any more."""
-    from leaf.todos import owed_todos
+    from leaf.todos import TodoReading
 
-    for task in owed_todos(events_model.read_events(page_dir)):
+    for task in TodoReading(events_model.read_events(page_dir)).owed:
         if task["subject"] == {"kind": "page"}:
             append_carried_log_record(
                 page_dir,
@@ -1657,11 +1657,11 @@ def end_work(page_dir):
 
 def end_work_on(page_dir, subject):
     """End the open tasks on the thread or widget `subject` names, done."""
-    from leaf.todos import owed_todos
+    from leaf.todos import TodoReading
     from leaf.work import page_subject
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
-    for task in owed_todos(events_model.read_events(page_dir)):
+    for task in TodoReading(events_model.read_events(page_dir)).owed:
         if task["subject"] == named:
             ended = CliRunner().invoke(
                 cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
@@ -1693,7 +1693,7 @@ def working(page_dir, line, subject="page"):
     page's open task on that subject, so a test can say what it does next. Returns the
     start's record."""
     from leaf import event_log as log_model
-    from leaf.todos import owed_todos
+    from leaf.todos import TodoReading
     from leaf.work import page_subject
 
     named = (
@@ -1704,7 +1704,7 @@ def working(page_dir, line, subject="page"):
     task = next(
         (
             task
-            for task in owed_todos(log_model.read_events(page_dir))
+            for task in TodoReading(log_model.read_events(page_dir)).owed
             if task["subject"] == named
         ),
         None,
@@ -2329,9 +2329,20 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
     pending input through the hook transport.
     """
     lines = output.splitlines()
-    start = next((i for i, line in enumerate(lines) if line.startswith("{")), None)
-    if start is not None:
-        payload = json.loads("\n".join(lines[start:]))
+    decoder = json.JSONDecoder()
+    payload = None
+    # A served page can print a JSON restart diagnostic before the wait envelope.
+    for i, line in enumerate(lines):
+        if not line.startswith("{"):
+            continue
+        candidate, _ = decoder.raw_decode("\n".join(lines[i:]))
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("format") == delivery_model.DELIVERY_FORMAT
+        ):
+            payload = candidate
+            break
+    if payload is not None:
         assert payload["acknowledge"] is not None
         delivery_model.receive(
             payload, session or session_model.session_harness().session

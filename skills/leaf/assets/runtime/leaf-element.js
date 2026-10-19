@@ -3,7 +3,7 @@
    A module subclasses `LeafElement` and draws in `render()`, as any `LitElement` does,
    into the element itself unless `createRenderRoot()` names a part it generated.
    `render()` reads whatever it shows through readers: the widget's own reading
-   (`this.reading`, `this.state`), a bound data source (`this.data(input)`), asks,
+   (`this.reading`, `this.state`), a bound data source (`this.data(input)`), items,
    reports, work, the time (`ago`, `clockValue`). Every reader it calls synchronously is
    collected (`collectReads`, snapshot.ts), and a move of any of them updates the element
    again, as a watcher's or a region's paint is followed; nothing else is. Lit's own
@@ -12,7 +12,7 @@
    updates it without claiming its region, since the claim would move that proof.
 
    The element owns one presentation region: its widget's render region when the
-   registry declares it a widget, so startup, thread mirrors, gesture release and report
+   registry declares it a widget, so startup, thread readers, gesture release and report
    narration wait on it as they did on the controller's, and otherwise a region of its
    own. A move claims that region synchronously, inside the publication that made it,
    and the next update that draws settles the claim once all of it, `updated` included,

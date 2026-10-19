@@ -30,6 +30,7 @@ import {
   contributionState,
   contributionEntryStateRank,
 } from "./contribution-model.js";
+import { threadAttention } from "./thread/workflow.js";
 
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 // The options toggle's faces: More, or folded, the kind it folds (`clusterProjection`),
@@ -163,7 +164,7 @@ export const optionsOffered = (entry, primary) =>
   secondaryCount(entry, primary) > RESTING_MARGIN_ENTRY_BUDGET - 1;
 
 // The words a reading's control shows: its kind's word, plural for several items, or
-// the one item's own label where it has one (an ask's question). Accessible names keep
+// the one item's own label where it has one (an item's question). Accessible names keep
 // the kind's word and say the subject beside it.
 export function readingLabel(choice) {
   const face = readingFace(choice);
@@ -209,14 +210,14 @@ export function readingState(choice) {
 export const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
 
 // Each member already carries canonical Thread attention. An aggregate keeps a concrete
-// ask ahead of a resend; it never re-derives attention from turns or
+// item ahead of a resend; it never re-derives attention from turns or
 // workflow stages.
 const userAttention = (items) => {
   let first = null;
   for (const item of items) {
     const attention = item.userAttention;
     if (!attention) continue;
-    if (attention.reason === "ask") return attention;
+    if (attention.reason === "widget") return attention;
     first ??= attention;
   }
   return first;
@@ -227,14 +228,53 @@ export const awaitingUser = (items) => Boolean(userAttention(items));
 export const unreadIn = (items) =>
   items.reduce((sum, item) => sum + (item.unread ?? 0), 0);
 
-export function readingContext(choice) {
-  const attention = userAttention(choice?.items ?? []);
-  if (attention) return attention.label;
-  const unread = unreadIn(choice?.items ?? []);
-  if (unread) return `${unread} unread`;
-  if (choice?.items.length !== 1) return null;
-  return choice.items[0].context ?? null;
+// What a thread's margin item and its Page Map row carry of it beside its name and
+// place, from the one reading of the thread's state (`threadAttention`) that Threads
+// paints as its status: whose turn it is; the workflow its progress decoration paints
+// while the thread waits on the agent, saying that workflow's word (`workflowLabel`);
+// and its line, the thread's word wherever no such receipt says it, else how many of
+// its messages the user has not read. A receipt under a condition, such as a response
+// that failed, paints no progress (`progressFace`), so the line says its word.
+export function threadMarks(thread) {
+  const attention = threadAttention(thread);
+  const onUser = attention?.kind === "needs_user";
+  const receipt = attention?.kind === "waiting" ? attention.workflow : null;
+  const unread = thread.unread.length;
+  const line =
+    (attention && (!receipt || receipt.condition) && attention.label) ||
+    (unread ? `${unread} unread` : null);
+  return {
+    userAttention: onUser
+      ? { label: attention.label, reason: thread.attention?.reason ?? "workflow" }
+      : null,
+    unread,
+    context: line,
+    mapContext: line,
+    workflowReceipt: receipt,
+  };
 }
+
+// A reading of one item says that item's own line, as a thread's says its word or its
+// unread count (`threadMarks`); an aggregate says the turn it owes the user, else what
+// its threads hold unread.
+export function readingContext(choice) {
+  const items = choice?.items ?? [];
+  const attention = userAttention(items);
+  if (attention) return attention.label;
+  if (items.length === 1) return items[0].context ?? null;
+  const unread = unreadIn(items);
+  return unread ? `${unread} unread` : null;
+}
+
+// The line a reading's name says too: a thread's, which is its word or what it holds
+// unread (`threadMarks`), and an aggregate's turn or unread count. Another reading's
+// line, such as a change's offer, is said by its control.
+export const spokenContext = (choice) => {
+  const items = choice?.items ?? [];
+  return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items)
+    ? readingContext(choice)
+    : null;
+};
 
 function kindsIn(entry, { markerOnly = false } = {}) {
   const counts = new Map();

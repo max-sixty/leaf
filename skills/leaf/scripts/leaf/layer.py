@@ -9,6 +9,8 @@ from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
+import tinycss2
+
 from .findings import Finding
 from .locations import located, locations_overlap
 from .machine import package_store
@@ -187,7 +189,8 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # order rank their rules. The kernel's Layouts sit above it. A theme package, one that
 # declares no widgets, sits above those defaults and the Layouts (`lf-theme`), so it
 # styles every page the way the page's own sheet styles one; its rules reach Leaf's
-# controls only where they name them, as the page's do (runtime/page-sheets.js).
+# controls only through an explicit controls.css sheet, as a page's marked stylesheet
+# does (runtime/page-sheets.js).
 # Semantic state follows: retirement must outrank a theme's or package's default box
 # and a Layout's arrangement. The page's own sheet stays unlayered above these tiers,
 # and inline widget motion outranks them too. Chrome and apparatus marks stay
@@ -200,12 +203,18 @@ CASCADE_LAYERS = (
     "lf-layouts",
     "lf-shadow",
     "lf-theme",
+    "lf-controls",
     "lf-state",
 )
 
+# tinycss2 currently decodes surrogate escapes to lone surrogates. CSS requires
+# U+FFFD instead; keep its serialization valid UTF-8 until its tokenizer is fixed.
+_CSS_SURROGATES = dict.fromkeys(range(0xD800, 0xE000), 0xFFFD)
+
 
 def _sheet(source: Path) -> str:
-    from .styles import css_syntax_errors
+    """Validate one source and complete its EOF recovery before composition."""
+    from .styles import css_stylesheet, css_syntax_errors
 
     try:
         css = source.read_text(encoding="utf-8")
@@ -213,7 +222,8 @@ def _sheet(source: Path) -> str:
         raise Refused(f"{source} must be UTF-8")
     if errors := css_syntax_errors(css, str(source)):
         raise Refused(str(errors[0]))
-    return css if css.endswith("\n") else css + "\n"
+    serialized = tinycss2.serialize(css_stylesheet(css)).translate(_CSS_SURROGATES)
+    return serialized if serialized.endswith("\n") else serialized + "\n"
 
 
 def widget_confinement(root: Path) -> tuple[str, str] | None:
@@ -235,7 +245,7 @@ def widget_confinement(root: Path) -> tuple[str, str] | None:
     return f":is({listed})", host
 
 
-# A root's own stylesheets, in the order the document's theme.css reads them.
+# Every root's shared sheets, before a theme's optional controls.css.
 ROOT_SHEETS = ("shadow.css", "theme.css")
 
 
@@ -260,8 +270,8 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     ordinary selectors its descendants. CSS owns nested conditions and proximity;
     composition neither rewrites selectors nor adds specificity. Widget-free
     packages are unscoped themes that reach the page and every tree. In the document
-    the browser keeps a theme's rules off Leaf's controls unless they name them
-    (runtime/page-sheets.js); a theme's shadow.css is written for widget internals and
+    the browser keeps ordinary theme rules off Leaf controls; controls.css explicitly
+    grants access from the lf-controls tier (runtime/page-sheets.js); a theme's shadow.css is written for widget internals and
     stands as written.
     """
     from .styles import scoped
@@ -274,7 +284,13 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     for position, root in enumerate(inputs):
         where = widget_confinement(root) if position else None
         themes = position > 0 and where is None
-        for name in ROOT_SHEETS:
+        if not themes and (root / "controls.css").is_file():
+            raise Refused(
+                f"{root}/controls.css belongs to a theme package; "
+                "a widget package styles its own controls in theme.css"
+            )
+        sheets = (*ROOT_SHEETS, "controls.css") if themes else ROOT_SHEETS
+        for name in sheets:
             source = root / name
             if not source.is_file():
                 continue
@@ -284,7 +300,11 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
                 shadow_css = scoped(css, where[1]) if where else css
                 tier = "lf-theme" if themes else "lf-shadow"
                 shadow.append(f"@layer {tier} {{\n{shadow_css}}}\n")
-            tier = "lf-theme" if themes else "lf-base"
+            tier = (
+                ("lf-controls" if name == "controls.css" else "lf-theme")
+                if themes
+                else "lf-base"
+            )
             theme.append(f"@layer {tier} {{\n{placed}}}\n")
     for name in ("layouts.css", "state.css"):
         if (source := inputs[0] / name).is_file():
@@ -485,33 +505,29 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
 
     A Leaf serves and writes any page vendored at its own number, whichever Leaf
     vendored it, so a plugin update leaves open pages working. A page vendored before
-    the number was declared names none, and is refused too. A key renamed or removed
-    since the page was vendored is the same kind of fact: this Leaf would read the
-    key's new name, find nothing, and drop what the page's layer declares under the
-    old one, so the page is refused rather than misread. The check is one-sided: a
-    key this Leaf added and an older layer lacks refuses nothing. Every page server,
-    the gate's and the website's included (`http.page_endpoint`,
-    `leaf_website.page_binding`), the one append door and the writers that ask it
-    first (`event_contracts.write_refusal`), and `page check` refuse on this one
-    reading, each naming the re-vendor that repairs the page; for a page vendored at an
-    older number, the holding session's prompt and Stop hooks, and each of its
-    commands that names the page, make that re-vendor first
+    the number was declared names none, and is refused too. A page vendored at a
+    higher number is refused as `newer-layer`, naming the Leaf that vendored it,
+    since its repair is a newer Leaf: this one does not re-vendor it down
+    (`vendoring._plan_page`). A key renamed or removed since the page was vendored
+    is the same kind of fact: this Leaf would read the key's new name, find nothing,
+    and drop what the page's layer declares under the old one, so the page is
+    refused rather than misread. The check is one-sided: a key this Leaf added and
+    an older layer lacks refuses nothing. Every page server, the gate's and the
+    website's included (`http.page_endpoint`, `leaf_website.page_binding`), the one
+    append door and the writers that ask it first (`event_contracts.write_refusal`),
+    and `page check` refuse on this one reading, each naming its repair. For a page
+    vendored at an older number, the holding session's prompt and Stop hooks, and
+    each of its commands that names the page, make that re-vendor first
     (`vendoring.renew_layer`). So does the source
     check (`validation.source.check_source`), so activation writes no revision under
     the layer and `page state` reports the refusal as `source.error`. A revision the
     page saved before its last re-vendor is judged on its own registry
-    (`incompatible_revision`).
+    (`incompatible_revision`). The vendored layer's reader asks the protocol half
+    (`protocol_refusal`) before it validates the layer's shape
+    (`registry.storage.load_registry`).
     """
-    if (vendored := _foreign_protocol(registry)) is not None:
-        return Finding(
-            "foreign-layer",
-            values={
-                "page": str(page_dir),
-                "vendored": vendored,
-                "leaf": str(PLUGIN_ROOT),
-                "protocol": kernel_protocol(),
-            },
-        )
+    if refusal := protocol_refusal(page_dir, registry):
+        return refusal
     if retired := _retired_keys(registry):
         return Finding(
             "retired-layer",
@@ -519,6 +535,36 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
                 "page": str(page_dir),
                 "retired": retired,
                 "leaf": str(PLUGIN_ROOT),
+            },
+        )
+    return None
+
+
+def protocol_refusal(page_dir: Path, registry: dict) -> Finding | None:
+    """The half of `incompatible_layer` that reads only the page protocol a registry's
+    `$events` declare. It reads `$events` and `$layer` only where they are objects,
+    so it may run on a layer before this Leaf validates what its entries hold
+    (`registry.storage.load_registry`): that shape is this Leaf's protocol's, which a
+    layer vendored at another one need not have."""
+    if (vendored := _foreign_protocol(registry)) is not None:
+        if type(vendored) is int and vendored > kernel_protocol():
+            return Finding(
+                "newer-layer",
+                values={
+                    "page": str(page_dir),
+                    "vendored": vendored,
+                    "vendored_by": provenance_label(_producer(registry)),
+                    "leaf": str(PLUGIN_ROOT),
+                    "protocol": kernel_protocol(),
+                },
+            )
+        return Finding(
+            "foreign-layer",
+            values={
+                "page": str(page_dir),
+                "vendored": vendored,
+                "leaf": str(PLUGIN_ROOT),
+                "protocol": kernel_protocol(),
             },
         )
     return None
@@ -540,7 +586,7 @@ def incompatible_revision(revision: int, registry: dict) -> Finding | None:
     so its live revision is one of these only where the source no longer saves.
     A revision whose vocabulary uses a retired key is refused for the reason the
     layer is: this Leaf would read the key's new name there, find nothing, and draw
-    the revision without what it declares, such as a framed ask's prompt.
+    the revision without what it declares, such as a framed item's prompt.
     """
     if (saved := _foreign_protocol(registry)) is not None:
         return Finding(
@@ -575,10 +621,19 @@ def _retired_keys(registry: dict) -> list[str]:
 def _foreign_protocol(registry: dict) -> int | str | None:
     """The protocol a registry's `$events` declare where this Leaf does not speak
     it, `"none"` where they declare none, or None where it is this Leaf's own."""
-    declared = registry.get("$events", {}).get("protocol")
+    events = registry.get("$events")
+    declared = events.get("protocol") if isinstance(events, dict) else None
     if type(declared) is int and declared == kernel_protocol():
         return None
     return declared if declared is not None else "none"
+
+
+def _producer(registry: dict) -> dict:
+    """The provenance a registry's `$layer` records, or none where a layer of
+    another shape records it elsewhere."""
+    layer = registry.get("$layer")
+    producer = layer.get("producer") if isinstance(layer, dict) else None
+    return producer if isinstance(producer, dict) else {}
 
 
 def payload_provenance(*, include_path: bool = False, root: Path | None = None) -> dict:

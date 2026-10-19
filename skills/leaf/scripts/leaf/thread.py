@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import NamedTuple
 
 from leaf.activity import answer_command, reply_command
-from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
@@ -23,6 +22,7 @@ from leaf.files import (
 )
 from leaf.findings import Finding, Rejected
 from leaf.harness import message_identity
+from leaf.items import asking, local_item_entry, quoted_in
 from leaf.leases import contract_writer
 from leaf.passages import SourceReading
 from leaf.projection import (
@@ -39,6 +39,7 @@ from leaf.validation.admission import (
     check_markup,
     logged_id,
     read_text_arg,
+    revision_publication,
     thread_obligation,
 )
 
@@ -249,7 +250,13 @@ def cmd_comment(
             page_dir, events, quote, section, part, transaction=page
         )
         if markup:
-            check_markup(page_dir, "comment", markup, events)
+            check_markup(
+                page_dir,
+                "comment",
+                markup,
+                events,
+                publication=revision_publication(page_dir, revision),
+            )
         event = {
             "kind": "comment",
             "author": "agent",
@@ -354,8 +361,8 @@ def post_reply(
     claimed_session: str | None = None,
     failure: str | None = None,
     validate_source: bool = False,
-    ask: bool = False,
     todo: str | None = None,
+    asks_back: bool = False,
     ephemeral: bool = False,
     quote: str = "",
     section: str = "",
@@ -383,14 +390,13 @@ def post_reply(
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
-    ``ask`` makes the reply a prose ask on the user (`asks`).
     ``todo`` titles work the reply promises and does not deliver: the reply opens
     that to-do on its thread, under the reply's own id (`todos.todo_reading`), so
     the user's message is answered and the work stays on the agent in one write.
 
     ``ephemeral`` posts progress at the same response address without answering it.
-    It remains content, and cannot carry an ask, a to-do, widgets, failure or relocation.
-    Progress on an update the agent owes says what it has in hand, so it also takes that
+    It remains content, and cannot carry an item, a to-do, widgets, failure or
+    relocation. Progress on an update the agent owes says what it has in hand, so it also takes that
     update in hand with its text as the line (`todos.start_reading`), which is why that
     text is one line: the update reads Working beside its thread and in the banner, and
     the user's message gets the agent's first words and its Working line from one
@@ -424,7 +430,6 @@ def post_reply(
                 address,
                 ephemeral,
                 failure is not None,
-                ask,
                 todo,
             )
         ):
@@ -448,8 +453,8 @@ def post_reply(
             attempt=attempt,
             failure=failure,
             validate_source=validate_source,
-            ask=ask,
             todo=todo,
+            asks_back=asks_back,
             ephemeral=ephemeral,
             quote=quote,
             section=section,
@@ -465,7 +470,6 @@ def _repeated_reply(
     address: dict,
     ephemeral: bool,
     failed: bool,
-    ask: bool,
     todo: str | None,
 ) -> dict | None:
     """The reply an earlier write with this `attempt` appended, or None; refuses an
@@ -490,9 +494,9 @@ def _repeated_reply(
         or not same_scope
     ):
         raise Rejected([Finding("attempt-conflict", values={"attempt": attempt})])
-    if (bool(existing.get("ask")), existing.get("todo")) != (ask, todo):
-        # A repeat that asks or promises differently would otherwise return the
-        # first answer and drop what this one declares.
+    if existing.get("todo") != todo:
+        # A repeat that promises differently would otherwise return the first
+        # answer and drop what this one declares.
         raise Rejected(
             [Finding("redeclared-answer", values={"message": existing["id"]})]
         )
@@ -609,8 +613,8 @@ def _compose_and_append(
     attempt: str | None,
     failure: str | None,
     validate_source: bool,
-    ask: bool,
     todo: str | None,
+    asks_back: bool,
     ephemeral: bool,
     quote: str,
     section: str,
@@ -625,7 +629,7 @@ def _compose_and_append(
     to, thread_id, responds, in_hand = obligation
     opening = _messages(events)[thread_id]
     moving = bool(quote or section or part)
-    if ephemeral and (ask or todo or markup or failure or moving or detach):
+    if ephemeral and (todo or markup or failure or moving or detach):
         raise Rejected([Finding("ephemeral-content")])
     if detach and moving:
         raise Rejected([Finding("detach-with-target")])
@@ -640,7 +644,6 @@ def _compose_and_append(
     if detach and (current_thread is None or current_thread["anchor"] is None):
         raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
     reply_revision = None
-    prospective_page = None
     prospective_anchor = None
     source_events = events
     checked = None
@@ -676,7 +679,6 @@ def _compose_and_append(
                     )
                 ]
             )
-        prospective_page = checked.document
         reply_revision = planned_activation(page_dir, checked).revision
         if moving:
             prospective_anchor = _capture_anchor(
@@ -687,35 +689,6 @@ def _compose_and_append(
                 section,
                 part,
                 reply_revision,
-            )
-    fragment = (
-        check_markup(
-            page_dir,
-            "reply",
-            markup,
-            events,
-            page=prospective_page,
-            thread=thread_id,
-        )
-        if markup
-        else None
-    )
-    if ask and fragment:
-        from leaf.registry.storage import require_registry
-
-        registry = require_registry(page_dir)
-        structural = sorted(
-            {
-                rec["tag"]
-                for rec in fragment.lf_elements
-                if local_ask_entry(registry.get(rec["tag"]) or {})
-                and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
-                and not quoted_in(rec, registry)
-            }
-        )
-        if structural:
-            raise Rejected(
-                [Finding("widget-ask-markup", values={"tags": list(structural)})]
             )
     if prospective_anchor is not None:
         revision, anchor = reply_revision, prospective_anchor
@@ -733,6 +706,38 @@ def _compose_and_append(
         revision, anchor = reply_revision, None
     else:
         revision, anchor = None, None
+    if relocating or markup:
+        revision = revision or latest_revision(page_dir)
+    if markup:
+        # Every route that publishes saved edits has published or planned them by
+        # now, so the markup is checked under the reading the reply is stored with.
+        publication = (
+            checked.reading
+            if checked is not None
+            else revision_publication(page_dir, revision)
+        )
+        fragment = check_markup(
+            page_dir,
+            "reply",
+            markup,
+            events,
+            publication=publication,
+            thread=thread_id,
+        )
+    # An answer that declares neither `--done` nor `--todo` asks the user back, so its
+    # markup holds a widget that asks.
+    if asks_back and not (
+        markup
+        and any(
+            local_item_entry(publication.registry.get(rec["tag"]) or {})
+            and asking(
+                rec["attrs"], publication.registry[rec["tag"]]["x-awaits"].get("when")
+            )
+            and not quoted_in(rec, publication.registry)
+            for rec in fragment.lf_elements
+        )
+    ):
+        raise Rejected([Finding("undeclared-answer")])
     event = {
         "kind": "reply",
         "author": "agent",
@@ -754,8 +759,6 @@ def _compose_and_append(
             "item": in_hand,
             **({"turn": turn} if turn else {}),
         }
-    if ask:
-        event["ask"] = True
     if todo is not None:
         event["todo"] = todo
     if markup:
@@ -765,7 +768,7 @@ def _compose_and_append(
     if failure is not None:
         event["failure"] = failure
     if relocating or markup:
-        event["revision"] = revision or latest_revision(page_dir)
+        event["revision"] = revision
     if relocating:
         event["anchor"] = anchor
     if title is not None:
@@ -847,8 +850,8 @@ def fail_answer(
     - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; an open reply reservation refuses it until its
       turn gives the reply up;
-    - a `markup` answer takes a failed pickup: the user's answer to the ask stands in the
-      log, and answering again sends a new answer.
+    - a `markup` answer takes a failed pickup: the user's answer to the item stands in the log,
+      and answering again sends a new answer.
 
     An update with no answer outstanding writes nothing, except that a repeated reply
     receipt is found by its `attempt` and returned. `only_if_unclaimed` leaves an update

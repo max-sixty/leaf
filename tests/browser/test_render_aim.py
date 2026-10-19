@@ -27,9 +27,9 @@ from leaf.validation import composition as validation_model
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASK_PAGE,
-    ASKS_PAGE,
     HOLD_MOTION,
+    ITEM_PAGE,
+    ITEMS_PAGE,
     live_url,
 )
 from render_cases_layout import (
@@ -202,8 +202,7 @@ def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
     """A compact comment keeps its writing face as Send opens its target's thread.
 
-    A pending margin repaint still carries the submitted field's frame into the real
-    card. The send-placement cases check each word through the motion.
+    A pending margin repaint still opens the real card.
     """
     page = open_page(browser, serve(LONG_PAGE), init_script=HOLD_MOTION)
     resized(page, 1440, 900)
@@ -217,7 +216,6 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     )
     assert field.bounding_box()["height"] == 32
     write(field, "Carry this comment into its thread.")
-    source = field.bounding_box()
     hold_pending_thread_presentation(page)
     page.evaluate(
         """() => {
@@ -253,53 +251,6 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         "size: getComputedStyle(node).fontSize})"
     )
     assert compact == full
-    assert preview.get_attribute("data-lf-comment-frame") is not None
-    motion = preview.evaluate(
-        """card => {
-          const played = window.__lfHeld.find(animation =>
-            animation.effect.target === card &&
-            animation.effect.getKeyframes().some(frame => 'clipPath' in frame));
-          if (!played) return null;
-          const [start, end] = played.effect.getKeyframes();
-          // Chrome serializes equal right and left inset values as a three-value
-          // shorthand. Read only the inset sides, before the separate round radius.
-          const sides = start.clipPath.match(/^inset\\(([^)]*?)(?: round|\\))/)[1]
-            .trim().split(/\\s+/).map(value => Number.parseFloat(value));
-          const inset = sides.length === 1
-            ? [sides[0], sides[0], sides[0], sides[0]]
-            : sides.length === 2
-              ? [sides[0], sides[1], sides[0], sides[1]]
-              : sides.length === 3
-                ? [sides[0], sides[1], sides[2], sides[1]]
-                : sides;
-          const box = card.getBoundingClientRect();
-          const style = getComputedStyle(card);
-          const scaleX = box.width / Number.parseFloat(style.width);
-          const scaleY = box.height / Number.parseFloat(style.height);
-          return {
-            source: {
-              x: box.left + inset[3] * scaleX,
-              y: box.top + inset[0] * scaleY,
-              width: box.width - (inset[1] + inset[3]) * scaleX,
-              height: box.height - (inset[0] + inset[2]) * scaleY,
-            },
-            card: box.toJSON(),
-            end: end.clipPath,
-          };
-        }"""
-    )
-    assert motion is not None
-    for dimension in ("x", "y", "width", "height"):
-        assert motion["source"][dimension] == pytest.approx(source[dimension], abs=1), (
-            motion
-        )
-    assert motion["end"] == "inset(0px round 10px)", motion
-    page.evaluate(
-        "() => window.__lfHeld.slice().forEach(animation => animation.finish())"
-    )
-    settled = preview.bounding_box()
-    for dimension in ("x", "y", "width", "height"):
-        assert settled[dimension] == pytest.approx(motion["card"][dimension], abs=1)
     expect(message).to_have_text("Carry this comment into its thread.")
 
 
@@ -312,7 +263,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_on_panel_open(browser, serve,
     leave its reading of the page behind. Keep the whole comment route on the item the
     user pointed at.
     """
-    source = ASKS_PAGE.replace(
+    source = ITEMS_PAGE.replace(
         "</head>",
         "<style>html { position: relative; margin-left: 40px; "
         "border-left: 30px solid transparent; } "
@@ -997,7 +948,7 @@ def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
     )
 
 
-TALL_ASK_PAGE = leaf_page(
+TALL_ITEM_PAGE = leaf_page(
     "A tall Ask",
     '<h1>Route</h1><lf-ask id="way"><h2>Which way?</h2>'
     + "".join(
@@ -1022,14 +973,14 @@ ROWS_ON = """([target]) => {
 }"""
 
 
-@pytest.mark.parametrize("case", ["ask", "thread"])
+@pytest.mark.parametrize("case", ["item", "thread"])
 def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     """A comment pointed at a row deep in its target stands its own margin row there;
-    the rest of the target's margin does not follow it. Commenting on an Ask hands it
-    to the agent, so its ask marker leaves. A comment already on a thread target
+    the rest of the target's margin does not follow it. Commenting on an item hands it
+    to the agent, so its item marker leaves. A comment already on a thread target
     stays at the target's top, where `t` still lands it."""
-    if case == "ask":
-        url, target = serve(TALL_ASK_PAGE), "way"
+    if case == "item":
+        url, target = serve(TALL_ITEM_PAGE), "way"
         row = f"#{target} p >> nth=25"
     else:
         url, target = serve(TALL_ROWS_PAGE), "whole"
@@ -1068,7 +1019,7 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
         target,
     )
     after = dict(page.evaluate(ROWS_ON, [target]))
-    if case == "ask":
+    if case == "item":
         expect(
             page.locator(f'[data-lf-margin-for="{target}"] > .lf-margin-marker')
         ).to_have_attribute("data-lf-kinds", "comment")
@@ -1079,7 +1030,7 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
             )
     added = (
         list(after.values())
-        if case == "ask"
+        if case == "item"
         else [top for index, top in after.items() if index not in dict(before)]
     )
     assert len(added) == 1 and abs(added[0] - depth) <= 30 and depth > 400, (
@@ -1271,7 +1222,7 @@ POINTED_WITHIN = {
         "#within tr >> nth=30",
     ),
     # A target's first line: its own row stands there already, so a comment pointed at
-    # it joins that row, an Ask's marker's, rather than standing pushed below it.
+    # it joins that row, an item's marker's, rather than standing pushed below it.
     "first line": (
         (
             '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route" choose>'
@@ -1519,7 +1470,7 @@ def test_a_side_comment_rechooses_its_rail_after_horizontal_target_motion(
     assert not [
         write
         for write in scroll_writes(page, (5, 5, -5, 5))
-        if "lf-fab" in write["target"]
+        if any("lf-fab" in step for step in write["target"])
     ]
 
 
@@ -1649,7 +1600,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     on it is a design target, and a press on its scrim puts it away as it would outside
     the mode, which is how a phone the sheet covers gets back to its page.
     """
-    page = open_page(browser, serve(ASKS_PAGE))
+    page = open_page(browser, serve(ITEMS_PAGE))
     # Wide enough that the panel first stands beside the page, where Design mode starts.
     resized(page, 900, 900)
     banner_control(page, ".lf-queue").click()
@@ -1690,7 +1641,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
 
 def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     """A transient chrome label paints above the page-level trace it summons."""
-    single = ASK_PAGE.replace(
+    single = ITEM_PAGE.replace(
         '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
     )
     page = open_page(browser, live_url(serve(single)))
@@ -3209,14 +3160,15 @@ def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
 SHOWN_PAINT = """(selector) => {
   const paint = document.querySelector(selector);
   let { left, right } = paint.getBoundingClientRect();
-  // A frame cuts across where its clip path's inline inset is zero.
-  const cutsAcross = (frame) =>
-    /^inset\\((\\S+ )?0px\\)$/.test(getComputedStyle(frame).clipPath);
+  // Leaf's zero-size frames extend their clip to the measured band.
   for (let frame = paint.parentElement; frame; frame = frame.parentElement)
-    if (frame.matches('.lf-paint-frame') && cutsAcross(frame)) {
+    if (frame.matches('.lf-paint-frame')) {
+      const inset = /^inset\\((-?[\\d.]+)px (-?[\\d.]+)px (-?[\\d.]+)px (-?[\\d.]+)px\\)$/
+        .exec(getComputedStyle(frame).clipPath);
+      if (!inset) continue;
       const cut = frame.getBoundingClientRect();
-      left = Math.max(left, cut.left);
-      right = Math.min(right, cut.right);
+      left = Math.max(left, cut.left + Number(inset[4]));
+      right = Math.min(right, cut.right - Number(inset[2]));
     }
   return { left, right };
 }"""
@@ -3497,7 +3449,7 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
     <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
   </div>""",
                 head=regions_side_by_side("aim-split")
-                + f"<style>#pane-target {{ background:{SUBJECT_MARK}; }}"
+                + f"<style data-controls>#pane-target {{ background:{SUBJECT_MARK}; }}"
                 f" .lf-aim {{ outline:6px solid {FOLLOWER_MARK} !important; }}</style>",
                 layout="workspace",
             )
@@ -4106,8 +4058,8 @@ HEADED_PAGE = LONG_PAGE.replace(
 
 
 # A suggestion's accept and reject stand in the margin beside it, each wearing the digit
-# Ask travel gives it.
-ASK_PANE_PAGE = DESIGN_PANE_PAGE.replace(
+# item travel gives it.
+ITEM_PANE_PAGE = DESIGN_PANE_PAGE.replace(
     '<p id="pane-later">A later finding.</p>',
     '<p id="pane-later">Bring <lf-suggestion id="pane-ask"><lf-old>nine.</lf-old>'
     "<lf-new>ten.</lf-new></lf-suggestion> now.</p>",
@@ -4138,7 +4090,7 @@ def _drawn_on(section):
 
 def _paint_mode(page, mode, words):
     page.evaluate(RELEASE_FOCUS)
-    if mode == "ask":
+    if mode == "item":
         page.keyboard.press("m")
         expect(page.locator("#pane-ask")).to_be_focused()
         expect(page.locator(".lf-command-binding-badge")).to_have_count(2)
@@ -4162,7 +4114,7 @@ def _paint_mode(page, mode, words):
     [
         *(
             (mode, "pane")
-            for mode in ("design", "picker", "go-to", "search", "ask", "ink")
+            for mode in ("design", "picker", "go-to", "search", "item", "ink")
         ),
         ("design", "window"),
         ("design", "header"),
@@ -4181,12 +4133,12 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     settles, and a legend's tags step inside their boxes as they cross a cut. The
     design legend, its boxes and tags placed and written on every scroll, trailed a
     pane by a frame, and so did the picker's and Go-to's chips, the search's mark and
-    an Ask's binding digits, each written on every frame of the gesture. Saved ink
+    an item's binding digits, each written on every frame of the gesture. Saved ink
     stands the same way."""
     source = {
         "window": LONG_PAGE,
         "header": HEADED_PAGE,
-        "pane": ASK_PANE_PAGE if mode == "ask" else DESIGN_PANE_PAGE,
+        "pane": ITEM_PANE_PAGE if mode == "item" else DESIGN_PANE_PAGE,
     }[scroller]
     if mode == "go-to":
         # Go-to names links.
@@ -4229,9 +4181,11 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     # reinserting the same box every frame is still a scroll follower.
     painted = []
     for mutation in writes:
-        if not PAINT.search(mutation["target"]):
+        if not any(PAINT.search(step) for step in mutation["target"]):
             continue
-        if mutation["type"] == "childList" and "lf-paint-carrier" in mutation["target"]:
+        if mutation["type"] == "childList" and any(
+            "lf-paint-carrier" in step for step in mutation["target"]
+        ):
             painted.extend(
                 {**mutation, "key": f"{mutation['key']} {node}"}
                 for node in mutation["nodes"]
@@ -4331,7 +4285,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
         serve(
             DESIGN_PANE_PAGE.replace(
                 "</head>",
-                f"<style>#pane-target {{ background:{SUBJECT_MARK}; }} {follower}"
+                f"<style data-controls>#pane-target {{ background:{SUBJECT_MARK}; }} {follower}"
                 ".lf-legend-tag { display: none; }</style></head>",
             )
         ),

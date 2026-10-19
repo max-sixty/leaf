@@ -58,6 +58,7 @@ import {
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
+import { drawnThreadId } from "../thread/selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import {
   BANNER_CONTROL_RANK,
@@ -129,7 +130,7 @@ import {
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
-import { heldAsk } from "../standing-target.js";
+import { heldItem } from "../standing-target.js";
 
 import { coarsePointer, pointerAt, pressIsKeyboardActivation } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
@@ -169,7 +170,6 @@ export function createResponseSurface({
   pageComment,
   responseHome,
   revealResponseHome = null,
-  threadTransitionOrigin,
   createComment,
   landSent,
   wireInput,
@@ -366,9 +366,9 @@ export function createResponseSurface({
     }) ?? null;
   // An element response exits to its subject, or the declared proxy representing it
   // where the subject cannot take focus. Resolve that structural parent from the current
-  // anchor, so c from an ask and an aimed press on the same ask unwind alike.
-  // There is no saved pre-command focus: standing on an option comments on its ask,
-  // and closing returns to the ask itself. A drawing's proxy is the fallback, not
+  // anchor, so c from an item and an aimed press on the same item unwind alike.
+  // There is no saved pre-command focus: standing on an option comments on its item,
+  // and closing returns to the item itself. A drawing's proxy is the fallback, not
   // the parent, even for a user who pressed it: focused, its face stands under the
   // banner, away from the drawing it is about (chrome.css). A quoted selection clears to
   // the page; a removed subject has no parent to land on.
@@ -957,7 +957,6 @@ export function createResponseSurface({
     reactionAvailable,
     designModeActive,
     openPageThread,
-    threadTransitionOrigin,
     anchorTravelAt,
     bringForward,
     fabAnchorAt,
@@ -1241,10 +1240,10 @@ export function createResponseSurface({
     const here = standingTarget();
     const anchor = fabAnchorAt();
     // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target lies within the element they stand at — the ask holding
-    // focus, answered or not, else the element itself — as an ask's options group does
+    // are in it, or its target lies within the element they stand at — the item holding
+    // focus, answered or not, else the element itself — as an item's options group does
     // when the user holds one of its marks. A card showing an enclosing block's thread is
-    // about that block, so an element inside it, such as an ask in a commented task,
+    // about that block, so an element inside it, such as an item in a commented task,
     // takes a thread of its own, and a selection still starts one on its words.
 
     const inline = threadHere();
@@ -1253,15 +1252,15 @@ export function createResponseSurface({
     const target = threadId && threadTarget(threadId);
     const inlineBox =
       inline &&
-      (inline.dataset.thread ?? inline.dataset.id) === threadId &&
+      drawnThreadId(inline) === threadId &&
       (!here ||
         standingIn(inline) ||
-        (target && under(target, heldAsk() ?? here.element))) &&
+        (target && under(target, heldItem() ?? here.element))) &&
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject =
-      threadId && (!here || (target && under(target, heldAsk() ?? here.element)));
+      threadId && (!here || (target && under(target, heldItem() ?? here.element)));
     const replySubject = subject && replyId;
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // standing target. Read both page and thread standing before choosing the aim.

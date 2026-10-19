@@ -2,8 +2,8 @@ Give each design decision one place where the user selects. When the candidates 
 fixed and visible, put them in `lf-options` inside an `lf-ask`, and draw each candidate
 in its `lf-option`, so the user selects the example they want. When the decision changes
 an existing interface, put a figure of today's interface between the question and the
-options (`references/authoring-asks.md`). A page-local control that steps every
-candidate through the same states or cases goes in that ask too.
+options (`references/authoring-decisions.md`). A page-local control that steps every
+candidate through the same states or cases goes in that lf-ask too.
 
 Use `lf-playground` when the user needs to tune a configuration before choosing it. A
 playground holds exactly one `lf-playground-preview` and one `lf-playground-output`.
@@ -18,14 +18,19 @@ rail beside the preview, above the instruction. When the preview holds several i
 that each take their own settings, such as alerts that each need a threshold, write each
 item's controls inside `lf-playground-preview` beside that item, and leave only the
 settings every item shares in the rail. A control in the preview still belongs to the
-playground. Its value is submitted, and presets and Reset set it.
+playground. Its value is submitted, and presets and Reset set it. With every control
+in the preview, presets precede the full-width preview and the instruction follows it.
 
-When the preview needs width, such as for two candidates side by side, give the
-`lf-playground` `data-width="available"`. The playground then widens past the column
-while the question and premise in its `lf-ask` keep the prose width. On a workspace page
-(`<main class="layout-workspace density-working">`) whose body is that `lf-ask`, the
-playground fills the window. Draw the candidates directly in the preview, without a card
-around each.
+Give the `lf-playground` `data-width="available"` wherever it stands, so it takes the
+room it is given while the question and premise in its `lf-ask` keep the prose width.
+Where the playground is the page's subject, make the page a workspace (`<main
+class="layout-workspace density-working">`) whose body is that `lf-ask`. When the page
+also carries reading that supports the playground, the `lf-ask` is instead the only
+block of the first page tab, and the reading goes in later tabs
+(`references/page-authoring.md`, "Composing a page"). Either way the playground fills
+the window. Where the playground is one exhibit in a document, it breaks out of the
+document's column. Draw the candidates directly in the preview, without a card around
+each.
 
 An A/B comparison mounts both candidates in the preview with the same configuration and
 starting content. When candidates stand side by side, align their names, notes and
@@ -51,9 +56,12 @@ the choice, and add what is missing. Use product copy for visible and accessible
 and put commentary about the prototype in the surrounding playground only where needed.
 
 When the decision changes an existing interface, include its current state as a labeled
-baseline. Derive each candidate from the baseline and change only what is under review,
-keeping its controls, words, tokens and interaction state unless the candidate proposes
-changing them.
+baseline. Derive each candidate from the baseline and change only what is under review.
+Draw everything else as the product shows it, copied from the files that define it: its
+controls and words, its icons and logos, theme tokens and interaction state. The user
+reads any difference from the product as part of the proposal, so a lookalike, such as
+an emoji, a Unicode symbol or a plain dot standing in for an icon or logo, shows a change
+nobody proposed. Where a part can't be copied, leave a plain blank of its size.
 
 A copy of a component's DOM has its appearance but none of its listeners, state or
 lifecycle. When behavior is part of the comparison, mount the component through its
@@ -89,20 +97,33 @@ In this comparison, `format` names which of the two candidates to build:
 ```html
 <lf-ask id="notification-ask">
   <h2>Which deployment notification should we build?</h2>
-  <lf-playground id="notification-playground" submit-label="Create notification"
-    data-width="available">
+  <lf-playground
+    id="notification-playground"
+    submit-label="Create notification"
+    data-width="available"
+  >
     <lf-playground-control name="format" label="Format" kind="choice" value="banner">
       <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
       <lf-playground-choice
-        value="status strip" label="Status strip"
+        value="status strip"
+        label="Status strip"
       ></lf-playground-choice>
     </lf-playground-control>
     <lf-playground-control
-      name="radius" label="Corner radius" kind="range"
-      value="10" min="0" max="24" step="1" unit="px"
+      name="radius"
+      label="Corner radius"
+      kind="range"
+      value="10"
+      min="0"
+      max="24"
+      step="1"
+      unit="px"
     ></lf-playground-control>
     <lf-playground-control
-      name="compact" label="Compact spacing" kind="toggle" value="false"
+      name="compact"
+      label="Compact spacing"
+      kind="toggle"
+      value="false"
     ></lf-playground-control>
 
     <lf-playground-preset label="Status strip">
@@ -114,10 +135,12 @@ In this comparison, `format` names which of the two candidates to build:
     <lf-playground-preview>
       <section class="notification-candidates" aria-label="Notification candidates">
         <article data-candidate="banner">
-          <h3>Banner</h3><p>Checkout deployed. Review the deployment run.</p>
+          <h3>Banner</h3>
+          <p>Checkout deployed. Review the deployment run.</p>
         </article>
         <article data-candidate="status strip">
-          <h3>Status strip</h3><p>Checkout · deployed · 18 checks passed</p>
+          <h3>Status strip</h3>
+          <p>Checkout · deployed · 18 checks passed</p>
         </article>
       </section>
     </lf-playground-preview>
@@ -137,11 +160,18 @@ on the `lf-playground` as a custom property, `--playground-NAME`, and an attribu
 attribute holds the unquoted text:
 
 ```css
-.notification-candidates > article { border-radius: var(--playground-radius); }
+.notification-candidates > article {
+  border-radius: var(--playground-radius);
+}
 #notification-playground[data-playground-compact="true"]
-  .notification-candidates > article { padding: var(--sp-2); }
+  .notification-candidates
+  > article {
+  padding: var(--sp-2);
+}
 #notification-playground[data-playground-format="status strip"]
-  [data-candidate="status strip"] { outline: 2px solid var(--accent); }
+  [data-candidate="status strip"] {
+  outline: 2px solid var(--accent);
+}
 ```
 
 To study Leaf's own live interface, embed each candidate in an `lf-sample window` inside
@@ -172,24 +202,29 @@ Write a preview's script as an inline `<script type="module">`, and put the cand
 in ordinary or custom elements (`references/module-authoring.md`, "What a behavior
 module owes").
 
-Wait for `customElements.whenDefined("lf-playground")` before reading
-`closest("lf-playground").values`. After each change, the playground dispatches a
-bubbling `lf-playground-change` event carrying the values in `detail.values`.
+The playground owns working values. Read its immutable `values` aggregate, or declare
+one named structured slice with `playground.registerContributor(name, defaults)`.
+The returned handle's `get()` reads its immutable current value; `set(next)` replaces
+that slice. Update it on input, so a later control change or submission sees the edit.
+Names are unique and distinct from control names. Retain the handle rather than a
+second configuration object; Reset and Undo replace the values it reads.
 
-To add state of your own to the configuration, call
-`playground.registerContributor(name, defaultSnapshot, {read, apply})`, and call the
-notifier it returns after each gesture that changes that state. The name must be stable,
-unique, and different from every control's name. `read` returns a JSON-safe snapshot.
-`apply` replaces the module's whole state with a snapshot the playground hands it on
-restore, Reset, a preset or a recorded choice. The playground then stores, resets,
-copies and submits that state along with the controls.
+Register slices, one optional `registerInstructionProvider(values => instruction)`,
+and required views during `PAGE_INTERFACE` (`references/module-authoring.md`, "Startup and presentation").
+Join the complete initialization, including synchronous work, with
+`event.detail.present(Promise.resolve().then(initialize))`. Declare a slice and provider
+once per playground lifetime. A view uses `playground.subscribe(values => draw(values))`;
+Its callback paints synchronously: its initial paint and later updates run through
+the playground's LeafElement lifecycle; callback return values are not awaited.
+Use the returned cleanup through `whileConnected` so reconnection restores the view
+without declaring its data again. A preview without structured data only subscribes.
 
-When structured state changes the instruction, register one
-`playground.registerInstructionProvider(values => instruction)` to write the output. The
-instruction it returns describes additions, removals, ordering and relations in readable
-prose, and makes sense without the preview. When a page module adds contributor state,
-redeclare the complete `lf-playground` entry in `page/registry.json` with an exact
-schema for `detail.values`.
+Keep native editors mounted and avoid writing their value when it already matches.
+The playground owns tab persistence, presets, Reset, instruction copying and submission;
+views draw the values they receive. When a page adds contributor state, redeclare the
+complete `lf-playground` entry in `page/registry.json` with an exact schema for
+`detail.values`. An instruction provider describes the configuration as a task that
+makes sense without the preview.
 
 When both candidates draw from shared state, keep dynamic rows under stable keys, apply
 each add, remove, reorder or edit once, and derive both candidates' rows and counts from

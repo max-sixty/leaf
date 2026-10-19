@@ -387,9 +387,9 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "author": "agent",
                 "parent": "e1",
                 "responds": "e1",
-                "text": "Here is the board. Which card goes first?",
-                "ask": True,
-                "markup": board,
+                "text": "Here is the board.",
+                "markup": board
+                + '<lf-ask id="first-card">Which card goes first?</lf-ask>',
             },
             {
                 "kind": "action",
@@ -408,7 +408,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     threads = model.threads(state)
     assert threads["e1"]["attention"] == {
         "kind": "needs_user",
-        "reason": "ask",
+        "reason": "widget",
         "workflow": None,
     }
     assert threads["e4"]["attention"] == {
@@ -460,62 +460,69 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
     ]
 
 
-def test_ask_lifecycle_selects_current_prompt_and_preserves_first_settlement():
-    """Only the latest question is on the user; a settled later question uncovers
-    an older one, and a reply after a task end does not change that end."""
+def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
+    """Each question in a thread waits on the user until a message or settling
+    reaction after it answers it; the thread's head marks the latest. A reply after
+    the agent ended a question does not change that end."""
     events = []
 
     def add(kind, identity, author="agent", **fields):
         events.append({"kind": kind, "id": identity, "author": author, **fields})
         return model.reading(HUB, events)
 
-    add("comment", "first", text="Which route?")
+    def question(name, words):
+        return f'<lf-ask id="{name}">{words}</lf-ask>'
+
+    add("comment", "first", text="One question:", markup=question("route", "Route?"))
     add("reply", "checking", parent="first", text="Checking.")
     add("reply", "progress", parent="first", text="Still checking.", ephemeral=True)
-    state = add("reply", "second", parent="first", text="Which colour?", ask=True)
+    state = add(
+        "reply", "second", parent="first", text="And:", markup=question("hue", "Hue?")
+    )
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "second",
         "version": "second",
     }
     assert state["todos"] == []
-    assert [ask["id"] for ask in served_thread(state)["asks"]["all"]] == [
-        "reply:first",
-        "reply:second",
-    ]
-    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
-        "reply:second"
+    assert [item["id"] for item in served_thread(state)["items"]["user"]] == [
+        "widget:route",
+        "widget:hue",
     ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "first",
         "version": "first",
     }
-    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
-        "reply:first"
+    assert [item["id"] for item in served_thread(state)["items"]["user"]] == [
+        "widget:route"
     ]
-    assert served_thread(state)["asks"]["all"][1]["answer"]["event"]["id"] == "reaction"
+    assert (
+        served_thread(state)["items"]["all"][1]["answer"]["event"]["id"] == "reaction"
+    )
     state = add(
         "todo_end",
         "end",
-        todo="reply:first",
+        todo="widget:route",
         outcome="dropped",
         detail="Asked elsewhere",
     )
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("reply", "answer", "user", parent="first", text="Route A")
-    first, second = served_thread(state)["asks"]["all"]
+    first, second = served_thread(state)["items"]["all"]
     assert (first["status"], first["answer"]) == ("withdrawn", None)
     assert (second["status"], second["answer"]["event"]["id"]) == (
         "answered",
         "reaction",
     )
-    state = add("reply", "third", parent="first", text="Which size?", ask=True)
+    state = add(
+        "reply", "third", parent="first", text="Last:", markup=question("size", "Size?")
+    )
     state = add("resolve", "close", "user", parent="first")
     assert state["todos"] == []
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("unresolve", "reopen", "user", parent="first")
-    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
-        "reply:third"
+    assert [item["id"] for item in served_thread(state)["items"]["user"]] == [
+        "widget:size"
     ]
     assert model.threads(state)["first"]["user_prompt"] == {
         "message": "third",
@@ -523,9 +530,9 @@ def test_ask_lifecycle_selects_current_prompt_and_preserves_first_settlement():
     }
 
 
-def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
+def test_frozen_item_attention_comes_from_its_widget_without_a_prose_task():
     """Frozen widgets have no independent thread seat: their user and unanswered
-    lists agree, and later prose or reactions cannot retire the widget Ask."""
+    lists agree, and later prose or reactions cannot retire the widget item."""
     events = [
         {
             "kind": "comment",
@@ -541,13 +548,13 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     assert thread["user_prompt"] is None
     assert thread["attention"] == {
         "kind": "needs_user",
-        "reason": "ask",
+        "reason": "widget",
         "workflow": None,
     }
     assert state["todos"] == []
-    [ask] = served_thread(state)["asks"]["all"]
-    assert ask["id"] == "widget:routes"
-    assert ask["next_actor"] == "user"
+    [item] = served_thread(state)["items"]["all"]
+    assert item["id"] == "widget:routes"
+    assert item["next_actor"] == "user"
     events.append(
         {
             "kind": "action",
@@ -559,21 +566,25 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     state = model.reading(HUB, events)
     assert model.threads(state)["e1"]["user_prompt"] is None
     assert state["todos"] == []
-    assert state["ended_todos"] == []
-    [ask] = served_thread(state)["asks"]["all"]
-    assert (ask["status"], ask["answer"]["value"]) == (
+    [item] = served_thread(state)["items"]["all"]
+    assert (item["status"], item["answer"]["value"]) == (
         "answered",
         ["route-a"],
     )
 
 
-def test_summary_protects_the_unanswered_ask_after_later_agent_messages():
+def test_summary_protects_the_unanswered_item_after_later_agent_messages():
     """A summary cannot hide the question the user owes merely because a newer
     agent message is the last turn. Protection selects the canonical prompt."""
     state = model.reading(
         HUB,
         (
-            {"kind": "comment", "author": "agent", "text": "Which route?"},
+            {
+                "kind": "comment",
+                "author": "agent",
+                "text": "One question:",
+                "markup": '<lf-ask id="route">Which route?</lf-ask>',
+            },
             {"kind": "reply", "author": "agent", "parent": "e1", "text": "Checking."},
             {
                 "kind": "reply",

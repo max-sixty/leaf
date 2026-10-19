@@ -6,10 +6,14 @@
 
 /* The shared source primitive owns pre-upgrade appearance. The rendered diff
  * keeps code typography while its own shadow tree scrolls the evidence. */
-:scope:is(lf-diff) { contain: inline-size; }
+:scope:is(lf-diff) {
+  contain: inline-size;
+}
 :scope:is(lf-diff).lf-rendered {
-  font-family: var(--mono); font-size: var(--code-size);
-  line-height: var(--code-line); font-variant-ligatures: none;
+  font-family: var(--mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
+  font-variant-ligatures: none;
 }
 
 /* CallDiff is literal review evidence rather than a second diagram language. Its
@@ -50,7 +54,9 @@
   font-size: var(--t-6);
 }
 
-.lf-call-toggle { flex: none; }
+.lf-call-toggle {
+  flex: none;
+}
 
 .lf-call-group,
 .lf-call-root-location {
@@ -201,6 +207,7 @@
 }
 
 .lf-call-location {
+  white-space: pre;
   margin-inline-start: var(--sp-4);
   color: var(--code-muted);
   text-decoration-color: var(--rule);
@@ -213,18 +220,13 @@
   color: var(--accent);
 }
 
-.lf-call-missing,
-.lf-call-invalid {
+.lf-call-missing {
   display: block;
   min-width: 0;
   padding: var(--sp-3);
   color: var(--code-muted);
   font-family: var(--sans);
   white-space: normal;
-}
-
-.lf-call-invalid {
-  color: var(--danger-ink);
 }
 
 @media print {

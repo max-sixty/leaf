@@ -19,7 +19,7 @@ from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASKS_PAGE,
+    ITEMS_PAGE,
 )
 from render_harness import (
     LONG_PAGE,
@@ -618,7 +618,7 @@ EDGE_IDS = [edge.name for edge in EDGES]
 # The On panel, which stands on the Threads panel's edge at its width.
 ON_PANEL = SimpleNamespace(
     name="on",
-    html=lambda: ASKS_PAGE,
+    html=lambda: ITEMS_PAGE,
     comments=0,
     fixtures=(),
     stand=lambda page: banner_control(page, ".lf-queue").click(),
@@ -635,8 +635,8 @@ def edge_world(request, edge):
         request.getfixturevalue(name)
 
 
-# One Ask, so a page offers the On panel.
-ONE_ASK = (
+# One item, so a page offers the On panel.
+ONE_ITEM = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
     '<lf-option id="go-yes"><strong>Yes</strong></lf-option>'
@@ -645,12 +645,12 @@ ONE_ASK = (
 )
 
 
-def with_one_ask(html):
-    """The page with `ONE_ASK` at the foot of its main, where it moves nothing above it."""
+def with_one_item(html):
+    """The page with `ONE_ITEM` at the foot of its main, where it moves nothing above it."""
     assert html.count("</main>") == 1, (
-        "the fixture has no single main to add the Ask to"
+        "the fixture has no single main to add the item to"
     )
-    return html.replace("</main>", ONE_ASK + "</main>")
+    return html.replace("</main>", ONE_ITEM + "</main>")
 
 
 def toggle_queue(page, open=True):
@@ -1297,7 +1297,7 @@ def mark_edges(page, ident, ink):
 
 # Twenty-four things waiting, which is more than any shipped example asks and the point: the
 # room a list reserves at its foot is invisible until the list is longer than the drawer.
-MANY_ASKS_PAGE = leaf_page(
+MANY_ITEMS_PAGE = leaf_page(
     "many decisions",
     """
 <h1>Many decisions</h1>
@@ -1362,12 +1362,7 @@ PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
 
 def serious_axe_violations(page):
     """Serious/critical WCAG A/AA findings in accessible documents, with a report."""
-    # The adapter injects only its document. Install axe in child documents too,
-    # then let axe's frame traversal preserve the parent's accessibility boundary
-    # and inspect exposed child documents without auditing hidden placeholders.
     axe = Axe()
-    for frame in page.frames:
-        frame.evaluate(axe.axe_script)
     options = {
         "runOnly": {
             "type": "tag",
@@ -1381,11 +1376,12 @@ def serious_axe_violations(page):
             ],
         },
         "resultTypes": ["violations"],
+        "iframes": False,
     }
-    result = axe.run(page, options=options)
     violations = [
-        {**violation, "document": page.url}
-        for violation in result.response["violations"]
+        {**violation, "document": frame.url}
+        for frame in accessible_documents(page)
+        for violation in axe.run(frame, options=options).response["violations"]
         if violation["impact"] in {"serious", "critical"}
     ]
     report = "\n\n".join(
@@ -1405,6 +1401,30 @@ def serious_axe_violations(page):
         for violation in violations
     )
     return violations, report
+
+
+def accessible_documents(page):
+    """The root and visible child documents Axe must inspect individually.
+
+    Parent-to-child messages warn on sandboxed frames with opaque origins. Running
+    each exposed frame directly reads it without that cross-origin message path.
+    """
+
+    def exposed(frame):
+        yield frame
+        for child in frame.child_frames:
+            element = child.frame_element()
+            if element.is_visible() and element.evaluate(
+                """element => {
+                  for (let current = element; current; current = current.getRootNode().host) {
+                    if (current.closest('[aria-hidden="true"], [inert]')) return false;
+                  }
+                  return true;
+                }"""
+            ):
+                yield from exposed(child)
+
+    yield from exposed(page.main_frame)
 
 
 # The element at an axe target's selector within one document: a list is a chain of
@@ -1445,43 +1465,32 @@ def overlapped_words(page):
 
     Axe answers these as incomplete, not as violations, so a sweep keeping violations
     alone passes words it never measured. A window-sized transparent layer over the
-    first screen hid every word under it this way (#2559). The run is
-    `serious_axe_violations`' frame traversal, so it reads the same exposed documents."""
+    first screen hid every word under it this way (#2559). The run reads the same
+    exposed documents as `serious_axe_violations`."""
     axe = Axe()
-    for frame in page.frames:
-        frame.evaluate(axe.axe_script)
-    result = axe.run(
-        page,
-        options={
-            "runOnly": {"type": "rule", "values": ["color-contrast"]},
-            "resultTypes": ["incomplete"],
-        },
-    )
     unread = []
-    for rule in result.response["incomplete"]:
-        for node in rule["nodes"]:
-            if not any(
-                isinstance(check.get("data"), dict)
-                and check["data"].get("messageKey") == "bgOverlap"
-                for check in node["any"]
-            ):
-                continue
-            # One selector per document, each frame's inside the one before it.
-            *frames, words = node["target"]
-            frame = page.main_frame
-            for hop in frames:
-                frame = (
-                    frame.evaluate_handle(AXE_TARGET, hop).as_element().content_frame()
-                )
-            if frame.evaluate(
-                UNDER_EMPTY_BOXES, frame.evaluate_handle(AXE_TARGET, words)
-            ):
-                unread.append(
-                    " ".join(
-                        sel if isinstance(sel, str) else " >>> ".join(sel)
-                        for sel in node["target"]
-                    )
-                )
+    for frame in accessible_documents(page):
+        result = axe.run(
+            frame,
+            options={
+                "runOnly": {"type": "rule", "values": ["color-contrast"]},
+                "resultTypes": ["incomplete"],
+                "iframes": False,
+            },
+        )
+        for rule in result.response["incomplete"]:
+            for node in rule["nodes"]:
+                if not any(
+                    isinstance(check.get("data"), dict)
+                    and check["data"].get("messageKey") == "bgOverlap"
+                    for check in node["any"]
+                ):
+                    continue
+                words = node["target"]
+                if frame.evaluate(
+                    UNDER_EMPTY_BOXES, frame.evaluate_handle(AXE_TARGET, words)
+                ):
+                    unread.append(f"{frame.url}: {' >>> '.join(words)}")
     return unread
 
 
@@ -1661,11 +1670,19 @@ def _winning_declaration(matches, carrier):
     that order, which no ring rule in the layer meets."""
     won = {}
     for match in matches:
-        for prop in match["rule"]["style"]["cssProperties"]:
-            # The longhands the protocol expands a shorthand into carry no source text.
+        style = match["rule"]["style"]
+        # The longhands the protocol expands a shorthand into carry no source text, so
+        # the declarations are the properties that do. A sheet whose source the protocol
+        # has not read lists none with text, and names its shorthands only among
+        # `shorthandEntries`: Chromium on CI's Linux runner listed the chrome sheet's
+        # target hint rule that way.
+        props = [prop for prop in style["cssProperties"] if "text" in prop] or [
+            *style["cssProperties"],
+            *style.get("shorthandEntries", []),
+        ]
+        for prop in props:
             if (
-                "text" in prop
-                and prop["name"] in RING_CARRIERS[carrier]
+                prop["name"] in RING_CARRIERS[carrier]
                 and not prop.get("disabled")
                 and prop.get("parsedOk", True)
             ):

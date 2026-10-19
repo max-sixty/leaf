@@ -18,6 +18,7 @@ import {
   presentingContributions,
   registerContribution,
   spokenSubject,
+  threadMarks,
   versionBtn,
   versionMenu,
   versionMenuIsOpen,
@@ -39,8 +40,7 @@ import {
   allThreads,
   alreadyShown,
   anchorLabel,
-  askHolding,
-  askPlace,
+  answeredInWords,
   beginThreadSeats,
   beginWalk,
   blocksOnScreen,
@@ -49,7 +49,6 @@ import {
   capturePlace,
   claimed,
   clearDraft,
-  clearThreadMirrors,
   commandShortcut,
   commitThreadSeats,
   completeReadingReturn,
@@ -60,6 +59,7 @@ import {
   draftContexts,
   draftEditingDestination,
   draftEditingStands,
+  drawnThreadId,
   finishFold,
   fitsWhole,
   focusThread,
@@ -76,6 +76,8 @@ import {
   importWidgets,
   isPageWidgetWorkflow,
   isWorkflowProgress,
+  itemHolding,
+  itemPlace,
   keepRefusedWords,
   landingRoom,
   landingTarget,
@@ -108,7 +110,7 @@ import {
   prepareDeclaredMarkdown,
   prepareEntry,
   rawOffsetFits,
-  readAsks,
+  readItems,
   readThreads,
   readingReturn,
   registerWritingDestination,
@@ -118,7 +120,6 @@ import {
   renderMarginThread,
   renderSeats,
   renderSurfaces,
-  renderThreadMirrors,
   replaceEntry,
   replyAvailable,
   replyDestination,
@@ -146,15 +147,19 @@ import {
   surfaceFocusTarget,
   tabStore,
   textBlocks,
-  threadAttention,
+  threadDraft,
   threadFocusDestination,
   threadFocusStop,
+  threadIdNamed,
   threadList,
+  threadName,
+  threadNamed,
   threadPart,
   threadReading,
   threadReplyInput,
   threadRewrites,
   threadState,
+  todoLabel,
   transferDraft,
   watchDraft,
   watchDrafts,
@@ -163,6 +168,10 @@ import {
   wholeThread,
   workflowLabel
 } from "./bundle-user-intent.js";
+import {
+  holdingError,
+  raiseError
+} from "./bundle-errors.js";
 import {
   aborted,
   authoredStates,
@@ -196,7 +205,8 @@ import {
   targetElement,
   targetPlace,
   targetSegments,
-  visualPartLabel
+  visualPartLabel,
+  widgetWord
 } from "./bundle-chrome.js";
 import {
   initialOrigin,
@@ -209,7 +219,6 @@ import {
   activityTransitionDue,
   ago,
   chosenSince,
-  clocked,
   containingReadingRegionFor,
   effectiveScroller,
   markStateApplied,
@@ -256,6 +265,7 @@ import {
   pageDocument,
   pageParts,
   pageReadingVersion,
+  quoteFrom,
   rangeOf,
   readingFrom,
   selectEnds,
@@ -276,8 +286,9 @@ import {
   clipsPast,
   clipsPastSurfaces,
   closeNativeLayer,
-  containingView,
+  completeData,
   countTraffic,
+  dataHeaders,
   el,
   frameFor,
   growthIsSeen,
@@ -286,8 +297,10 @@ import {
   keys,
   labelOf,
   landingBand,
+  landingInsets,
   layerHeaders,
   layoutChanged,
+  layoutWindow,
   matchesWhen,
   notice,
   offer,
@@ -403,21 +416,21 @@ import {
   PENDING,
   actionForWidget,
   anchorKey,
-  askValue,
   bindQueuedWork,
   collectReads,
+  discussed,
   editable,
   foldWidgetStates,
   isMessageEvent,
   isThreadEvent,
+  itemValue,
+  lastMovedAt,
   moved,
   outsideReading,
   projectionOrigins,
   reactionsAt,
   stateCoordinate,
   threadKey,
-  threadNames,
-  threadSummary,
   tokenChoices,
   untracked
 } from "./bundle-queued-work.js";
@@ -451,9 +464,6 @@ function initializeServedDocument() {
 
 // runtime/page-sheets.js
 var APPARATUS = ":not(:where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *))";
-var NAMES_WIDGET = /(?:^|[\s>+~(,&|])[a-z][\w]*-|[.#]lf-|\[\s*data-lf-/i;
-var NOT_SELECTORS = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|:{1,2}(?:lang|dir|state|part|highlight|nth-[a-z-]+)\([^)]*\)/gi;
-var namesWidget = (text) => NAMES_WIDGET.test(text.replace(NOT_SELECTORS, ""));
 var narrowed = /* @__PURE__ */ new WeakSet();
 function members(text) {
   const found = [];
@@ -485,36 +495,28 @@ function narrow(member, pseudo) {
   const rest = pseudo < 0 ? "" : member.slice(pseudo);
   return selector + APPARATUS + rest;
 }
-function narrowRules(rules, named) {
+function narrowRules(rules) {
   for (const rule of rules) {
     if (rule instanceof CSSKeyframesRule || rule instanceof CSSImportRule) continue;
-    let within = named;
-    if (rule instanceof CSSScopeRule)
-      within ||= namesWidget(rule.start ?? "") || namesWidget(rule.end ?? "");
     if (rule instanceof CSSStyleRule) {
-      const list = members(rule.selectorText);
-      if (!named) {
-        const next = list.map(
-          ([member, pseudo]) => namesWidget(member) ? member : narrow(member, pseudo)
-        ).join(", ");
-        if (next !== rule.selectorText) rule.selectorText = next;
-      }
-      within ||= list.every(([member]) => namesWidget(member));
+      const next = members(rule.selectorText).map(([member, pseudo]) => narrow(member, pseudo)).join(", ");
+      if (next !== rule.selectorText) rule.selectorText = next;
     }
-    if (rule.cssRules) narrowRules(rule.cssRules, within);
+    if (rule.cssRules) narrowRules(rule.cssRules);
   }
 }
 function narrowSheet(sheet2, runtime2) {
   const owner = sheet2.ownerNode;
+  if (owner?.hasAttribute?.("data-controls")) return;
   if (sheet2.href && new URL(sheet2.href).origin !== window.origin && !owner?.hasAttribute?.("crossorigin"))
     return;
   if (!narrowed.has(sheet2)) {
     narrowed.add(sheet2);
-    if (!runtime2) narrowRules(sheet2.cssRules, false);
+    if (!runtime2) narrowRules(sheet2.cssRules);
     else
       for (const rule of sheet2.cssRules)
         if (rule instanceof CSSLayerBlockRule && rule.name === "lf-theme")
-          narrowRules(rule.cssRules, false);
+          narrowRules(rule.cssRules);
   }
   for (const rule of sheet2.cssRules)
     if (rule instanceof CSSImportRule && rule.styleSheet)
@@ -530,13 +532,15 @@ function keepPageRulesOffLayer() {
     );
   if (watching) return;
   watching = true;
-  new MutationObserver((records) => {
-    for (const record of records)
-      for (const node of record.addedNodes)
-        if (node instanceof HTMLLinkElement)
-          node.addEventListener("load", keepPageRulesOffLayer, { once: true });
-    keepPageRulesOffLayer();
-  }).observe(document.head, {
+  document.addEventListener(
+    "load",
+    (event) => {
+      if (event.target instanceof Element && event.target.matches('link[rel~="stylesheet" i], style'))
+        keepPageRulesOffLayer();
+    },
+    true
+  );
+  new MutationObserver(keepPageRulesOffLayer).observe(document.head, {
     childList: true,
     subtree: true,
     characterData: true
@@ -693,7 +697,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/7`;
+var recordFormat = (kind) => `leaf-${kind}/9`;
 
 // runtime/composing/text-field.js
 import {
@@ -751,8 +755,8 @@ sheet.replaceSync(`
     .lf-field-placeholder { padding-inline-end: 0; }
     .cm-line.lf-field-last::after { content: none; }
   }
-  :host(:state(scrolls)) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host(:state(scrolls)) .cm-line.lf-field-last::after { content: none; }
+  :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
+  :host([data-scrolls]) .cm-line.lf-field-last::after { content: none; }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -768,6 +772,15 @@ sheet.replaceSync(`
     text-underline-offset: var(--link-underline-offset); }
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
     padding-inline-start: var(--quote-inset); color: var(--muted); }
+  /* A bullet item's marker is drawn as the message's bullet, in a box as wide as the
+     marker and its space, which the item's wrapped lines hang under. The dash it stands
+     for keeps that box while the caret touches it, so revealing it moves no word. */
+  .lf-md-item { padding-inline-start: 1.25em; text-indent: -1.25em; }
+  .lf-md-bullet { display: inline-block; inline-size: 1.25em; text-indent: 0;
+    white-space: pre; }
+  .lf-md-bullet:not(.lf-md-mark) { color: transparent; position: relative; }
+  .lf-md-bullet:not(.lf-md-mark)::before { content: "\u2022"; position: absolute;
+    inset-inline-start: 0; color: var(--ink); }
   .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
     line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
@@ -781,6 +794,8 @@ var ownerStep = StateEffect2.define();
 var hide = Decoration.replace({});
 var dim = Decoration.mark({ class: "lf-md-mark" });
 var link = Decoration.mark({ class: "lf-md-link" });
+var bullet = Decoration.mark({ class: "lf-md-bullet" });
+var shownBullet = Decoration.mark({ class: "lf-md-bullet lf-md-mark" });
 var line = (cls) => Decoration.line({ class: cls });
 var INLINE = {
   code_inline: Decoration.mark({ tagName: "code" }),
@@ -806,9 +821,17 @@ function decorate(state, placed) {
       at = current.to + 1;
     }
   };
-  for (const { token, from, to, contentFrom, contentTo, escapes } of placed) {
+  for (const {
+    token,
+    from,
+    to,
+    contentFrom,
+    contentTo,
+    escapes,
+    markers,
+    contentLines
+  } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
-    const text = state.doc.sliceString(from, to);
     if (token.type === "code_inline" || contentFrom !== void 0) {
       const words2 = token.type === "code_inline" ? [from + token.markup.length, to - token.markup.length] : [contentFrom, contentTo];
       if (words2[0] > words2[1]) continue;
@@ -821,35 +844,32 @@ function decorate(state, placed) {
       for (const at of escapes ?? [])
         add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
     } else if (token.type === "heading_open") {
-      const end = from + text.trimEnd().length;
-      const atx = text.match(/^ {0,3}#{1,6}(?:[ \t]+|$)/);
-      lines(from, end, (each) => {
-        const underline = !atx && each.to >= end;
-        if (underline) add(each.from, each.to, dim);
-        else out.push(line("lf-md-heading").range(each.from));
+      lines(...contentLines, (each) => {
+        out.push(line("lf-md-heading").range(each.from));
       });
-      if (atx) add(from, from + atx[0].length, syntax);
+      for (const [a, b] of markers)
+        add(a, b, token.markup.startsWith("#") ? syntax : dim);
     } else if (token.type === "fence" || token.type === "code_block") {
-      const end = from + text.trimEnd().length;
-      const fenced = /^ {0,3}(`{3,}|~{3,})/.test(text);
-      lines(from, end, (each) => {
+      lines(from, to, (each) => {
         const ends = [
           each.from <= from ? " lf-md-code-first" : "",
-          each.to >= end ? " lf-md-code-last" : ""
+          each.to + 1 >= to ? " lf-md-code-last" : ""
         ].join("");
         out.push(line(`lf-md-code-block${ends}`).range(each.from));
-        if (fenced && (each.from === from || /^ {0,3}(`{3,}|~{3,})\s*$/.test(each.text)))
-          add(each.from, each.to, dim);
       });
+      for (const [a, b] of markers ?? []) add(a, b, dim);
     } else if (token.type === "blockquote_open") {
-      lines(from, from + text.trimEnd().length, (each) => {
+      lines(from, to, (each) => {
         out.push(line("lf-md-quote").range(each.from));
-        const mark = each.text.match(/^ {0,3}> ?/);
-        if (mark) add(each.from, each.from + mark[0].length, dim);
       });
+      for (const [a, b] of markers) add(a, b, dim);
     } else if (token.type === "list_item_open") {
-      const mark = text.match(/^ {0,3}(?:[*+-]|\d{1,9}[.)])/);
-      if (mark) add(from, from + mark[0].length, dim);
+      const [at, end] = markers[0];
+      if (token.info) add(at, end, dim);
+      else {
+        out.push(line("lf-md-item").range(state.doc.lineAt(from).from));
+        add(at, end, touches(state, at, end) ? shownBullet : bullet);
+      }
     }
   }
   return Decoration.set(out, true);
@@ -917,16 +937,21 @@ var LeafText = class extends HTMLElement {
           const caret = view.coordsAtPos(view.state.selection.main.head);
           const box = this.getBoundingClientRect();
           const { scaleX, scaleY } = view;
+          const inset = landingInsets(this);
+          const leading = caret ? Math.max(
+            0,
+            (parseFloat(getComputedStyle(this).lineHeight) * scaleY - (caret.bottom - caret.top)) / 2
+          ) : 0;
           return {
             caret,
             scaleX,
             scaleY,
-            top: box.top + this.clientTop * scaleY,
-            left: box.left + this.clientLeft * scaleX,
+            top: box.top + (this.clientTop + inset.top) * scaleY + leading,
+            left: box.left + (this.clientLeft + inset.left) * scaleX,
             // client dimensions round fractional CSS sizes. Keep the trailing
             // edges on the actual box, inset by its native border and scrollbar.
-            bottom: box.bottom - (this.offsetHeight - this.clientTop - this.clientHeight) * scaleY,
-            right: box.right - (this.offsetWidth - this.clientLeft - this.clientWidth) * scaleX
+            bottom: box.bottom - (this.offsetHeight - this.clientTop - this.clientHeight + inset.bottom) * scaleY - leading,
+            right: box.right - (this.offsetWidth - this.clientLeft - this.clientWidth + inset.right) * scaleX
           };
         },
         write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
@@ -946,16 +971,35 @@ var LeafText = class extends HTMLElement {
   });
   // Host overflow holds the action's room on every line. The host stops at the page's
   // height limit while words grow inside it, so the reading watches the editor's
-  // scroller too. Editor updates and size changes share its read/write phase: the room
-  // changes layout there, rather than feeding back into resize observer delivery.
+  // content too. Editor updates and size changes share its read/write phase: the room
+  // changes layout there, rather than feeding back into resize observer delivery. The
+  // same reading says which edges words run past (`more-above`, `more-below`), read
+  // again as the host scrolls, so an owner can show there is more without a scrollbar.
+  // A scroll timeline would say it in CSS alone, but Firefox lacks scroll timelines.
   #overflow = sizeObserver(() => this.#measureOverflow());
   #measureOverflow() {
     this.#view?.requestMeasure({
       key: this.#overflow,
-      read: () => this.scrollHeight > this.clientHeight,
-      write: (scrolls) => {
-        if (scrolls) this.#internals.states.add("scrolls");
-        else this.#internals.states.delete("scrolls");
+      // Words, not the host's padding, run past an edge.
+      read: () => {
+        const style = getComputedStyle(this);
+        return {
+          scrolls: this.scrollHeight > this.clientHeight,
+          above: this.scrollTop > Number.parseFloat(style.paddingTop) + 1,
+          below: this.scrollTop + this.clientHeight < this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1
+        };
+      },
+      write: (reading) => {
+        if (this.hasAttribute("data-scrolls") !== reading.scrolls)
+          this.toggleAttribute("data-scrolls", reading.scrolls);
+        for (const [state, on] of [
+          ["more-above", reading.scrolls && reading.above],
+          ["more-below", reading.scrolls && reading.below]
+        ]) {
+          if (this.#internals.states.has(state) === on) continue;
+          if (on) this.#internals.states.add(state);
+          else this.#internals.states.delete(state);
+        }
       }
     });
   }
@@ -975,6 +1019,7 @@ var LeafText = class extends HTMLElement {
     this.#root.append(this.#frame);
     this.#model = this.#create("");
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
+    this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
     this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
       capture: true
     });
@@ -1010,9 +1055,16 @@ var LeafText = class extends HTMLElement {
             run: (view) => this.dispatchEvent(new Event("lf-edit-return", { cancelable: true })) && insertNewline(view)
           },
           { key: "Shift-Enter", run: insertNewlineContinueMarkup },
+          // Outside a list or quote, a plain new line, which asks to be seen as typing
+          // does, so a field at its height limit scrolls to it.
           {
             key: "Shift-Enter",
-            run: (view) => (view.dispatch(view.state.replaceSelection("\n")), true)
+            run: (view) => (view.dispatch(
+              view.state.update(view.state.replaceSelection("\n"), {
+                scrollIntoView: true,
+                userEvent: "input"
+              })
+            ), true)
           },
           ...standardKeymap.filter(
             ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter"
@@ -1074,7 +1126,7 @@ var LeafText = class extends HTMLElement {
     this.#model = null;
     this.#sizes.observe(this);
     this.#overflow.observe(this);
-    this.#overflow.observe(this.#view.scrollDOM);
+    this.#overflow.observe(this.#view.contentDOM);
     this.#view.scrollDOM.removeAttribute("tabindex");
     this.#describe();
     this.#paintEmpty();
@@ -1156,15 +1208,11 @@ var LeafText = class extends HTMLElement {
     else this.#internals.states.add("placeholder-shown");
   }
   // Where the field holds its action's room now: `every-line`, `last-line` after its
-  // last words, or `none` while its last line is blank. A sent message keeping the
-  // draft's wrapping holds the same.
+  // last words, or `none` while its last line is blank.
   get endRoom() {
     if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0)
       return "every-line";
     return lastWithWords(this.#state) ? "last-line" : "none";
-  }
-  get writingEndRoom() {
-    return parseFloat(getComputedStyle(this).getPropertyValue("--lf-field-end-room"));
   }
   get value() {
     return this.#state.doc.toString();
@@ -1196,10 +1244,6 @@ var LeafText = class extends HTMLElement {
   get naturalBlockSize() {
     const host = getComputedStyle(this);
     return parseFloat(getComputedStyle(this.#frame).blockSize) + parseFloat(host.paddingBlockStart) + parseFloat(host.paddingBlockEnd) + parseFloat(host.borderBlockStartWidth) + parseFloat(host.borderBlockEndWidth);
-  }
-  get writingInlineSize() {
-    const frame = getComputedStyle(this.#frame);
-    return parseFloat(frame.inlineSize) + parseFloat(frame.paddingInlineEnd);
   }
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
@@ -1328,7 +1372,6 @@ function createSelectionComposer({
   reactionAvailable: reactionAvailable2,
   designModeActive,
   openPageThread,
-  threadTransitionOrigin,
   anchorTravelAt,
   bringForward,
   fabAnchorAt,
@@ -1440,7 +1483,7 @@ function createSelectionComposer({
     if (suggestionMode && syncComposer.hasMedia()) {
       suggestionMode = false;
       syncSuggestMode();
-      notice("Remove attached images before suggesting replacement text");
+      raiseError("Remove attached images before suggesting replacement text");
       focusDestination(composerInput, "return");
       return;
     }
@@ -1697,7 +1740,7 @@ function createSelectionComposer({
         const suggestion = suggestionMode;
         const about = pendingAbout;
         const drawing = pendingDrawing && sentDrawing(structuredClone(pendingDrawing));
-        const transition = threadTransitionOrigin?.(composerInput, fabFrameAt());
+        const origin = fabFrameAt();
         const point = fabPointAt();
         const epoch = composerEpoch;
         const currentIntent = retainUserIntent();
@@ -1736,7 +1779,7 @@ function createSelectionComposer({
             travel: false,
             flash: false,
             intent: shouldReveal ? restrictUserIntent(currentIntent, revealAvailable) : currentIntent,
-            transition
+            origin
           });
           const thread = destination && closestAcross(destination, THREAD);
           if (shouldReveal && mayReveal() && thread)
@@ -1924,7 +1967,6 @@ function scrollToFragment(element) {
 function createAnchorTravel({
   anchors,
   surfaces,
-  currentThreads,
   refreshThread,
   focusForNavigation,
   threadFocusTarget,
@@ -2036,12 +2078,16 @@ function createAnchorTravel({
           focus: input,
           caret,
           scroll: input ? [
-            { at: input, block: "nearest" },
+            { at: input, block: "nearest", behavior: "instant" },
             {
               at: current.where,
+              behavior: "instant",
               when: () => !readableDestination(current.where) || !readableDestination(input)
-            }
-          ] : [{ at: current.where }]
+            },
+            // The subject and editor can occupy different parts of a tall
+            // page. Finish on the box the user asked to write in.
+            { at: input, block: "nearest", behavior: "instant" }
+          ] : [{ at: current.where, behavior: "instant" }]
         };
       },
       {
@@ -2050,10 +2096,6 @@ function createAnchorTravel({
         present: async () => {
           const current = resolve();
           if (!current) return;
-          if (!readableDestination(current.where))
-            mayArrive.handoff(() => {
-              scrollIntoView(current.where, { behavior: "instant", block: "center" });
-            });
           if (current.open)
             mayArrive.handoff(() => {
               release = current.open();
@@ -2217,7 +2259,7 @@ function createAnchorTravel({
   };
   async function scrollToThread(id, { part = null, focus = true, keep = false, presented: presented3 = null, intent } = {}) {
     const mayArrive = retainTravel(intent);
-    const thread = threadNames(currentThreads()).get(id);
+    const thread = threadNamed(id);
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating = anchor?.datum && status !== "outdated" || anchor?.visual;
@@ -2451,6 +2493,10 @@ function pickerModel(state) {
       ariaLabel: offered ? diffPendingBase !== null ? `${currentLabel}: loading comparison with v${diffPendingBase}; open versions${newer}` : diffOn ? `${currentLabel}: comparing with v${diffBase}; open versions${newer}` : `${currentLabel}: open versions${newer}` : currentLabel
     }),
     latest: Object.freeze({
+      // The agent's latest save failed its check, so the page shows the last one that
+      // passed; `error` is what the check said.
+      failed: sourceFailed,
+      error: sourceFailed ? state.source_error : null,
       disabled: sourceFailed,
       keyTitle: sourceFailed ? state.source_error : "Open the current page",
       label: latestVersionLabel({
@@ -2470,8 +2516,12 @@ function pickerModel(state) {
     })
   });
 }
+var holdFailedSave = holdingError();
 function paintPicker() {
   const model = pickerModel(runtime.state);
+  holdFailedSave(
+    model.latest.failed ? "Latest edit not shown: it failed its check (see Versions)" : null
+  );
   versionPicker.present(model);
   showNews(latestChip, model.latest.news);
   repaint();
@@ -2636,8 +2686,8 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading2) {
         }
         continue;
       }
-      const { value } = askValue(now, verb, true);
-      if (JSON.stringify(value) === JSON.stringify(askValue(before, verb, true).value))
+      const { value } = itemValue(now, verb, true);
+      if (JSON.stringify(value) === JSON.stringify(itemValue(before, verb, true).value))
         continue;
       const ids = (
         /** @type {string[]} */
@@ -2781,7 +2831,7 @@ async function showComparison(base) {
   if (baseRevision == null) {
     diffPendingBase = null;
     presentPicker();
-    notice(`Couldn't load v${base}`);
+    raiseError(`Couldn't load v${base}`);
     return;
   }
   const documentRequest = authoredDocument(baseVersion.url);
@@ -2805,7 +2855,7 @@ async function showComparison(base) {
     if (mine === diffRequest) {
       diffPendingBase = null;
       presentPicker();
-      notice(`Couldn't load v${base}`);
+      raiseError(`Couldn't load v${base}`);
     }
     return;
   }
@@ -2864,8 +2914,8 @@ function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureAskStanding = () => null,
-  restoreAskStanding = () => {
+  captureItemStanding = () => null,
+  restoreItemStanding = () => {
   }
 }) {
   let {
@@ -3084,8 +3134,6 @@ function createVersionController({
       const next = /* @__PURE__ */ new Set();
       for (const node of source) {
         const imported = document.importNode(node, true);
-        if (imported.localName === "link" || imported.localName === "style")
-          imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
         document.head.append(imported);
         next.add(imported);
       }
@@ -3172,8 +3220,8 @@ function createVersionController({
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
       // Ask standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent ask does not also own focus.
-      askStanding: draftEditing ? null : captureAskStanding()
+      // has a replacement identity, so its parent item does not also own focus.
+      itemStanding: draftEditing ? null : captureItemStanding()
     };
   }
   async function landContinuity(land2) {
@@ -3185,8 +3233,8 @@ function createVersionController({
   }
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, askStanding } = continuity;
-    restoreAskStanding(askStanding);
+    const { draftEditing, replyThread, replyInView, itemStanding } = continuity;
+    restoreItemStanding(itemStanding);
     const mayRestore = restrictUserIntent(
       currentIntent,
       () => draftEditingStands(draftEditing)
@@ -3968,7 +4016,7 @@ function threadSection(t, outline, placedAt) {
   });
 }
 var lastMoved = (thread, now) => {
-  const latest = threadSummary(thread).latest;
+  const latest = lastMovedAt(thread);
   return latest ? Date.parse(latest) : now;
 };
 function inRecentOrder(threads) {
@@ -3983,16 +4031,16 @@ function inRecentOrder(threads) {
 // runtime/annotation-inventory.js
 var annotationSelection = (root) => ({
   projection: root.effective.projection,
-  asks: root.effective.asks,
+  items: root.effective.items,
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null
 });
 function createAnnotationInventory({
-  readAsks: readAsks2,
+  readItems: readItems2,
   placedAt,
   openThread,
-  goToAsk,
+  goToItem,
   scrollToElement
 }) {
   const humanized = (value) => String(value ?? "").replace(/[-_]+/g, " ").trim();
@@ -4018,6 +4066,8 @@ function createAnnotationInventory({
     }
     return `${prefix}${from}${steps.reverse().join("/")}`;
   }
+  const standsBy = (group) => group.point ?? targetSegments(group.passage)[0]?.node ?? group.target;
+  const startsAt = (group) => targetSegments(group.passage)[0]?.start ?? -1;
   function comesBefore(left, right) {
     if (left === right) return 0;
     if (!left) return 1;
@@ -4030,6 +4080,8 @@ function createAnnotationInventory({
   const points = /* @__PURE__ */ new Map();
   const entryPoint = (entry) => entry ? livePoint(targetFor(entry), points.get(entry.key)) : null;
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
+  const passages = /* @__PURE__ */ new Map();
+  const entryPassage = (entry) => entry ? passages.get(entry.key) ?? null : null;
   const pointName = (words2) => {
     const excerpt = words2 && excerptWords(words2, 32);
     return excerpt ? `\u201C${excerpt}\u201D` : null;
@@ -4054,15 +4106,16 @@ function createAnnotationInventory({
     );
   };
   function groupFor(groups, target, pointed = null) {
-    const slot = pointed ? `point:${pointed.key}` : target;
+    const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
+    const slot = pointed ? `point:${key}` : target;
     let group = groups.get(slot);
     if (!group) {
-      const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
       const word = addressableWord(target);
       group = {
         key,
         target,
         point: pointed?.element ?? null,
+        passage: pointed?.passage ?? null,
         pointWords: pointed?.words ?? null,
         word,
         subject: null,
@@ -4073,6 +4126,14 @@ function createAnnotationInventory({
       groups.set(slot, group);
     }
     return group;
+  }
+  function passageRow(target, passage) {
+    const segments = targetSegments(passage);
+    const page = textNodesUnder(target);
+    const at = page.findIndex(({ node }) => node === segments[0].node);
+    const before = at < 0 ? page : [...page.slice(0, at), { ...page[at], end: segments[0].start }];
+    const words2 = quoteFrom(segments);
+    return JSON.stringify([words2, quoteFrom(before).split(words2).length - 1]);
   }
   function add(groups, target, item, pointed = null) {
     if (!target?.isConnected || inChrome(target)) return;
@@ -4132,12 +4193,13 @@ function createAnnotationInventory({
         continue;
       const id = thread.id;
       const target = placedAt(id)?.place;
-      const attention = threadAttention(thread);
-      const onUser = attention?.kind === "needs_user";
-      const unread = thread.unread.length;
       const placement = placedAt(id);
       const point = livePoint(target, placement?.point);
-      const pointed = point ? { key: placement.pointRow, element: point, words: placement.pointWords } : null;
+      const pointed = point ? { key: placement.pointRow, element: point, words: placement.pointWords } : targetSegments(placement).length ? {
+        key: passageRow(target, placement),
+        passage: placement,
+        words: thread.anchor.quote
+      } : null;
       add(
         groups,
         target,
@@ -4148,46 +4210,37 @@ function createAnnotationInventory({
           // whose identity changed there would be rebuilt — taking with it the reply box
           // the send had just put them in.
           id: marginThreadItem(thread),
-          text: labelWords(
-            thread.root.text || anchorLabel(thread.anchor, thread.root.about)
-          ),
+          text: threadName(thread),
           thread,
           // The Thread record already combines server attention with the local workflow
           // overlay. Margin and Page Map carry that reading rather than deriving another
-          // answer from raw turn or workflow fields.
-          userAttention: onUser ? {
-            label: attention.label,
-            reason: thread.attention?.reason ?? "workflow"
-          } : null,
-          unread,
-          // Page Map lists each thread on its own row, so the word goes on the row
-          // rather than on an aggregate.
-          ...onUser || thread.attention?.reason === "todo" ? { mapContext: attention.label } : unread ? { mapContext: `${unread} unread` } : {},
-          // Work decorates the thread control; it never replaces the control's
-          // comment face or its disclosure action.
-          workflowReceipt: onUser ? null : attention?.workflow,
+          // answer from raw turn or workflow fields. Work decorates the thread control;
+          // it never replaces the control's comment face or its disclosure action.
+          ...threadMarks(thread),
           activate: () => openThread(id)
         },
         pointed
       );
     }
-    for (const ask of readAsks2().user) {
-      const id = ask.id;
-      const target = askPlace(ask).node;
+    for (const item of readItems2().user) {
+      const id = item.id;
+      const target = itemPlace(item).node;
       if (!target) continue;
       add(groups, target, {
-        kind: "ask",
-        id: `ask:${id}`,
-        // The group this row stands in already names the ask; the row says why it is
-        // there, since these are the asks the user owes.
+        kind: "on-me",
+        id: `on-me:${id}`,
+        // The group this row stands in already names the item; the row says why it is
+        // there, since these are the items the user owes.
         text: "Waiting on me",
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const asks = readAsks2().user.filter((ask2) => ask2.source.kind === "widget");
-          const next = asks.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, asks);
+          const items = readItems2().user.filter(
+            (item2) => item2.source.kind === "widget"
+          );
+          const next = items.find((candidate) => candidate.id === id);
+          if (next) goToItem(next, items);
         }
       });
     }
@@ -4276,12 +4329,12 @@ function createAnnotationInventory({
       });
     });
     for (const todo of runtime.todos) {
-      if (todo.owner !== "agent" || todo.subject.kind !== "widget" && todo.subject.kind !== "element" || todo.revision > runtime.currentRevision)
+      if (todo.owner !== "agent" || todo.state !== "open" || todo.subject.kind !== "widget" && todo.subject.kind !== "element" || todo.revision > runtime.currentRevision)
         continue;
       if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
       const target = elementById(todo.subject.id);
       const { running } = todo;
-      const label = running ? "Working" : "To-do open";
+      const label = todoLabel(running);
       const account = [todo.agent, running?.text ?? todo.title].filter(Boolean).join(" \xB7 ");
       const age = running && ago(running.ts);
       add(groups, target, {
@@ -4327,13 +4380,15 @@ function createAnnotationInventory({
     const subjects = collected.filter((group) => !group.subject).map((group) => group.target);
     targets.clear();
     points.clear();
+    passages.clear();
     entries = marginInventory(
       collected.sort(
-        (left, right) => comesBefore(left.point ?? left.target, right.point ?? right.target)
+        (left, right) => comesBefore(standsBy(left), standsBy(right)) || startsAt(left) - startsAt(right)
       ).map((group) => {
         const subject = outlineSubjectFor(group.target, subjects, outline);
         targets.set(group.key, group.target);
         if (group.point) points.set(group.key, group.point);
+        if (group.passage) passages.set(group.key, group.passage);
         return Object.freeze({
           key: group.key,
           targetId: group.target.id,
@@ -4377,6 +4432,7 @@ function createAnnotationInventory({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPassage,
     sourceItem,
     workflowReceipt,
     targetPath,
@@ -4614,7 +4670,7 @@ function createReactionController({
             reactRaised = false;
             reactSurface = null;
             openLayer(reactLayer, null);
-            notice("That reaction target is no longer available");
+            raiseError("That reaction target is no longer available");
             return;
           }
           reactSurface = marginSurface;
@@ -4849,10 +4905,11 @@ async function readState(bound) {
   try {
     if (offlineInteractive) return offlineState();
     const signal = globalThis.AbortSignal.timeout(bound);
+    const held = runtime.data;
     let res;
     try {
       res = await fetch(pageUrl("api/state"), {
-        headers: layerHeaders(),
+        headers: layerHeaders(dataHeaders(held)),
         // Coalescing bounds concurrency; this bounds its other dimension. A proxy that
         // never answers cannot own the page's single read slot forever.
         signal
@@ -4863,7 +4920,7 @@ async function readState(bound) {
     if (!admitResponse(res)) return null;
     if (!res.ok) return null;
     try {
-      return await res.json();
+      return completeData(await res.json(), held);
     } catch (error) {
       if (signal.aborted) return null;
       throw error;
@@ -5017,6 +5074,7 @@ function createStateFeed({
         const returned = readingReturn();
         try {
           const response = await fetch(pageUrl("api/news"), {
+            headers: layerHeaders(),
             signal: globalThis.AbortSignal.any([
               interval.signal,
               globalThis.AbortSignal.timeout(STATE_READ_TIMEOUT_MS)
@@ -5223,18 +5281,25 @@ function createDelivery({
 }) {
   let draining = false;
   async function deliver(entry) {
-    let announced = false;
+    const retrying = holdingError();
     const retry = async (message) => {
-      if (!announced) notice(message);
-      announced = true;
+      retrying(message);
       await retryPause();
     };
+    try {
+      return await tries(entry, retry);
+    } finally {
+      retrying(null);
+    }
+  }
+  async function tries(entry, retry) {
     for (; ; ) {
       if (!ledger.nameEvents(entry)) return { accepted: null };
       const { event } = entry;
       if (entry.admitted) return { accepted: entry.admitted };
+      const held = runtime.data;
       const sent = await Promise.race([
-        postEvent(event).then(
+        postEvent(event, held).then(
           (response) => ({ response }),
           (error) => ({ error })
         ),
@@ -5272,12 +5337,15 @@ function createDelivery({
       if (accepted)
         return {
           accepted,
-          application: applyAnswerState(applyAcceptedState, answer.state)
+          application: applyAnswerState(
+            applyAcceptedState,
+            completeData(answer.state, held)
+          )
         };
       if (reading === "refused" && (!("attempt" in answer) || answer.attempt === event.attempt) && answer.ok === false) {
         return {
           accepted: null,
-          state: answer.state,
+          state: completeData(answer.state, held),
           refusal: `Couldn't send \u2014 ${answer.error || "the server refused it"}`
         };
       }
@@ -5312,8 +5380,12 @@ function createDelivery({
               ];
               void Promise.all(refused.map(({ answer }) => answer)).then(
                 () => afterScript(() => {
-                  const kept = refusedWords(refused.map(({ attempt }) => attempt));
-                  notice(kept ? `${refusal}. ${kept}` : refusal);
+                  const { said, field } = refusedWords(
+                    refused.map(({ attempt }) => attempt)
+                  );
+                  raiseError(said ? `${refusal}. ${said}` : refusal, {
+                    subject: field
+                  });
                 })
               );
             }
@@ -5327,9 +5399,10 @@ function createDelivery({
   return { drain };
 }
 async function deliverBookkeeping(event, applyState) {
+  const held = runtime.data;
   let response;
   try {
-    response = await postEvent(event);
+    response = await postEvent(event, held);
   } catch {
     return "unreached";
   }
@@ -5341,7 +5414,8 @@ async function deliverBookkeeping(event, applyState) {
     return "unreached";
   }
   const reading = readEventAnswer(response, answer);
-  if (answer?.state) await applyAnswerState(applyState, answer.state);
+  if (answer?.state)
+    await applyAnswerState(applyState, completeData(answer.state, held));
   return reading === "incomplete" ? "unreached" : reading;
 }
 
@@ -5381,7 +5455,7 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
   }
   function withdraw(event) {
     if (!withdrawable(event)) {
-      notice(WAIT);
+      raiseError(WAIT);
       return null;
     }
     const reverse = reversals.get(event.attempt);
@@ -5405,7 +5479,7 @@ function createUndo({ post: post2, stateApplying, unaccountedGesture }) {
   }
   function undoLast() {
     if (stateApplying() || unaccountedGesture()) {
-      notice(WAIT);
+      raiseError(WAIT);
       return null;
     }
     const event = undoable();
@@ -5687,16 +5761,16 @@ function createThreadPresentation({
     const thread = target && closestAcross(target, ".lf-thread");
     if (!thread) return;
     const id = thread.dataset.id;
-    if (thread.hidden) {
-      const { mayReveal } = event.detail;
-      const revealed = view.narrowing.revealThread(id);
-      if (revealed)
-        event.detail.present(
-          revealed.then(() => {
-            if (mayReveal() && thread.isConnected) threadsBox.revealNavigation(id);
-          })
-        );
-    } else threadsBox.revealNavigation(id);
+    threadsBox.revealNavigation(id);
+    if (!thread.hidden) return;
+    const { mayReveal } = event.detail;
+    const revealed = view.narrowing.revealThread(id);
+    if (revealed)
+      event.detail.present(
+        revealed.then(() => {
+          if (mayReveal() && thread.isConnected) threadsBox.revealNavigation(id);
+        })
+      );
   }
   function attach(panel) {
     const listener = (event) => onReveal(panel, event);
@@ -5956,11 +6030,11 @@ function createThreadDestinations({
   const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
   const threadAtStanding = () => {
     const held = heldThread();
-    if (held) return held.dataset.thread ?? held.dataset.id;
+    if (held) return drawnThreadId(held);
     const active = focused();
     const ids = active ? threadIdsAt(active) : [];
     const shown = threadHere();
-    const shownId = shown?.dataset.thread ?? shown?.dataset.id;
+    const shownId = drawnThreadId(shown);
     if ((!active || active === document.body) && shownId) return shownId;
     return ids.includes(shownId) ? shownId : ids[0] ?? null;
   };
@@ -5977,14 +6051,14 @@ function createThreadDestinations({
     flash = true,
     scroll = true,
     intent = retainUserIntent(),
-    transition = null
+    origin = null
   } = {}) {
     if (!intent()) return null;
     const trip = travel2 && scroll;
     const selected = presentation;
     if (selected?.owner.isConnected) {
-      const thread = threadNames(readThreads().threads).get(id);
-      if (!thread) return null;
+      const thread = threadNamed(id);
+      if (!thread || !discussed(thread)) return null;
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
@@ -6061,7 +6135,7 @@ function createThreadDestinations({
       let opened = null;
       if (preview)
         intent.handoff(() => {
-          opened = preview.open(id, { transition });
+          opened = preview.open(id, { origin });
         });
       if (opened) {
         if (trip) {
@@ -6099,16 +6173,15 @@ function createThreadDestinations({
   async function openThreadDraft(context, intent) {
     const thread = threadHolding(context);
     if (!thread) return null;
-    if (context.startsWith("reply:"))
-      return openPageThread(thread.id, { part: "reply", intent });
-    const name = context.slice(context.indexOf(":") + 1);
+    const { part, name } = threadDraft(context);
+    if (part === "reply") return openPageThread(thread.id, { part: "reply", intent });
     const landed = await openPageThread(name, { part: "message", intent });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
   }
   function threadHolding(context) {
-    const name = context.slice(context.indexOf(":") + 1);
-    return context.startsWith("reply:") ? allThreads().find((each) => threadKey(each) === name) : allThreads().find((each) => each.msgs.some(({ id }) => id === name));
+    const { part, name } = threadDraft(context);
+    return part === "reply" ? allThreads().find((each) => threadKey(each) === name) : allThreads().find((each) => each.msgs.some(({ id }) => id === name));
   }
   return {
     register,
@@ -6231,103 +6304,7 @@ function createThreadActions({
   });
 }
 
-// runtime/thread/mirrors.js
-var registrations = /* @__PURE__ */ new WeakMap();
-function registerMirrorConsumer(owner, render, { commands }) {
-  if (registrations.has(owner))
-    throw new Error(`mountThreadViews(${owner.localName}) registered twice`);
-  let active = true;
-  let generation = 0;
-  let pending = null;
-  let queued = false;
-  let outlets = /* @__PURE__ */ new Set();
-  const clear = () => {
-    for (const outlet of outlets) {
-      clearThreadMirrors(outlet);
-      delete outlet.dataset.lfThreadSurface;
-    }
-    outlets = /* @__PURE__ */ new Set();
-  };
-  const report = (error) => reportPageError(error, `Thread mirrors in ${owner.localName}#${owner.id} failed`);
-  async function reconcile() {
-    const current = ++generation;
-    pending?.abort();
-    const abort = new AbortController();
-    pending = abort;
-    const cancelled = aborted(abort.signal);
-    const collection = readThreads();
-    const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
-    const selected = /* @__PURE__ */ new Map();
-    let accepting = true;
-    const mirrors = {
-      signal: abort.signal,
-      thread(key, outlet) {
-        if (!accepting || abort.signal.aborted)
-          throw new Error("Thread mirrors belong to their current render callback");
-        const thread = byKey.get(key);
-        if (!thread) throw new Error(`No Thread has key ${key}`);
-        if ([...selected.values()].some((threads2) => threads2.includes(thread)))
-          throw new Error("A consumer may render a Thread only once");
-        const threads = selected.get(outlet) ?? [];
-        threads.push(thread);
-        selected.set(outlet, threads);
-      }
-    };
-    try {
-      const rendering = render(collection, mirrors);
-      if (rendering?.then) await Promise.race([rendering, cancelled]);
-      accepting = false;
-      if (!active || current !== generation || abort.signal.aborted) return;
-      if (!owner.isConnected) return;
-      for (const outlet of selected.keys()) {
-        if (!outlet.isConnected) selected.delete(outlet);
-        else if (!under(outlet, owner))
-          throw new Error(
-            `mountThreadViews(${owner.localName}) returned an outlet outside its widget`
-          );
-      }
-      for (const outlet of outlets)
-        if (!selected.has(outlet)) {
-          clearThreadMirrors(outlet);
-          delete outlet.dataset.lfThreadSurface;
-        }
-      outlets = new Set(selected.keys());
-      for (const [outlet, threads] of selected) {
-        outlet.toggleAttribute("data-lf-thread-surface", true);
-        renderThreadMirrors(outlet, threads, commands);
-      }
-    } catch (error) {
-      if (!active || current !== generation || abort.signal.aborted) return;
-      clear();
-      report(error);
-    } finally {
-      accepting = false;
-    }
-  }
-  const update = () => {
-    if (!active || queued) return;
-    queued = true;
-    queueMicrotask(() => {
-      queued = false;
-      if (active && owner.isConnected) void reconcile();
-    });
-  };
-  const stop = watchProjection(owner, reconcile);
-  const handle = Object.freeze({
-    update,
-    unregister() {
-      if (!active) return;
-      active = false;
-      ++generation;
-      pending?.abort();
-      stop();
-      registrations.delete(owner);
-      clear();
-    }
-  });
-  registrations.set(owner, handle);
-  return handle;
-}
+// runtime/thread/primary-reader.js
 function createPrimaryReader(owner, render, commands, update, { answersAtOnce = false } = {}) {
   let active = true;
   let generation = 0;
@@ -6471,7 +6448,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
           signal: abort.signal,
           thread: (key, outlet) => nominate("thread", key, null, outlet),
           message: (key, id, outlet) => nominate("message", key, id, outlet),
-          reply: (key, outlet, options) => nominate("reply", key, null, outlet, options)
+          reply: (key, outlet, options) => nominate("reply", key, null, outlet, options),
+          news: (key, outlet) => nominate("news", key, null, outlet)
         })
       );
       if (rendering?.then)
@@ -6513,7 +6491,11 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       if (!view) {
         if (item.kind === "thread")
           view = new ThreadView("outlet", { ...commands, nativeAuthored: true });
-        else {
+        else if (item.kind === "news") {
+          const notice2 = newsNotice();
+          view = { node: notice2.node, notice: notice2, dispose() {
+          } };
+        } else {
           const node = document.createElement("div");
           node.className = "lf-page-thread lf-ui lf-primary-part";
           node.dataset.lfPart = item.kind;
@@ -6533,16 +6515,20 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               message,
               messageKey: item.message,
               reading: null,
+              // Whether the thread's notice stands in this message's head.
+              headNotice: true,
               // Draws the message again at once, as its rewrite opens or closes.
               draw() {
-                message.present(this.reading, { headerControls: this.notice.node });
+                message.present(this.reading, {
+                  headerControls: this.headNotice ? this.notice.node : void 0
+                });
                 message.commit();
               },
               dispose: () => message.retire()
             };
           } else {
             let joined2 = false;
-            const { hint, accessibleName, sent } = item.options;
+            const { hint, accessibleName, busy, sent } = item.options;
             const reply = createReplyView(item.key, commands.reply, {
               onChange: () => {
                 if (joined2) void update().catch(() => {
@@ -6551,6 +6537,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               editLast: rewritesOf(item.key).editLast,
               hint,
               accessibleName,
+              busy,
               sent
             });
             joined2 = true;
@@ -6565,16 +6552,24 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       if (item.kind === "thread") {
         view.present(shown.get(item.key));
         view.commit();
+      } else if (item.kind === "news") {
+        const news = shown.get(item.key)?.news;
+        if (news) view.notice.set(news);
+        keepsHidden(view.node, !news);
       } else {
         keeps(view.node, "data-thread", item.thread.id);
         keeps(view.node, "data-attempt", item.thread.root.attempt ?? null);
         const news = shown.get(item.key)?.news;
+        const nominated = selected.some(
+          (part) => part.key === item.key && part.kind === "news"
+        );
         const first = selected.find((part) => part.key === item.key && part.kind === "message") ?? selected.find((part) => part.key === item.key);
-        const notice2 = Boolean(news) && first === item;
+        const notice2 = Boolean(news) && !nominated && first === item;
         if (notice2) view.notice.set(news);
         keepsHidden(view.notice.node, !notice2);
         if (item.kind === "message") {
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
+          view.headNotice = !nominated;
           view.reading = messageReading(message, {
             panel: false,
             nativeAuthored: true,
@@ -6589,7 +6584,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
           );
         } else {
           keepsHidden(view.node, !replyAvailable(item.thread));
-          if (view.notice.node.parentNode !== view.node)
+          if (nominated) view.notice.node.remove();
+          else if (view.notice.node.parentNode !== view.node)
             move(view.node, view.notice.node, null);
         }
       }
@@ -6613,6 +6609,7 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
       for (const slot of slots.splice(depth)) slot.remove();
       keeps(view.node, "slot", previous?.name ?? null);
       place(destination2, view.node);
+      if (item.kind === "news") continue;
       const parts = destinations.get(item.key) ?? [];
       parts.push(view);
       destinations.set(item.key, parts);
@@ -6767,7 +6764,7 @@ function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   };
   function scan(sampleBand) {
     if (document.visibilityState !== "visible") return;
-    const band = sampleBand ?? containingView();
+    const band = sampleBand ?? layoutWindow();
     if (!band || sampleBand?.visible === false) return;
     const candidates = new Map(
       (threadsPresented ? actionableUnread() : []).map(({ item }) => [
@@ -7035,16 +7032,15 @@ function unreadContent(threadView) {
 }
 function userObligations(page, threadView) {
   const held = /* @__PURE__ */ new Map();
-  for (const ask of page.asks.user)
-    held.set(JSON.stringify(["page", ask.id]), {
-      source: ask.id,
+  for (const item of page.items.user)
+    held.set(JSON.stringify(["page", item.id]), {
+      source: item.id,
       thread: null
     });
-  for (const ask of threadView.asks.user) {
-    const version = ask.source.kind === "reply" ? ask.source.version : null;
-    held.set(JSON.stringify(["thread", ask.thread, ask.id, version]), {
-      source: ask.id,
-      thread: ask.thread
+  for (const item of threadView.items.user) {
+    held.set(JSON.stringify(["thread", item.thread, item.id]), {
+      source: item.id,
+      thread: item.thread
     });
   }
   return held;
@@ -7362,7 +7358,7 @@ function mountApplication(dependencies) {
         )
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "asks", "queue"],
+        ["projection:chrome", "thread", "items", "queue"],
         stillCurrent
       )
     ]);
@@ -7399,7 +7395,7 @@ function mountApplication(dependencies) {
   commandDispatch.mount({
     afterEnqueue,
     withdraw: (candidate) => undo.withdraw(candidate),
-    onCollision: (attempt) => notice(`Couldn't send \u2014 attempt ${attempt} is already in use`)
+    onCollision: (attempt) => raiseError(`Couldn't send \u2014 attempt ${attempt} is already in use`)
   });
   const { post: post2 } = commandDispatch;
   const undo = createUndo({
@@ -7473,10 +7469,10 @@ function mountApplication(dependencies) {
     composition: dependencies.compositionSurface
   };
   const annotations = createAnnotationInventory({
-    readAsks,
+    readItems,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
-    goToAsk: dependencies.annotationCommands.goToAsk,
+    goToItem: dependencies.annotationCommands.goToItem,
     scrollToElement: dependencies.anchorTravel.scrollToElement
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -7489,15 +7485,20 @@ function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  const renderAnnotations = clocked(document.body, () => {
+  let annotationsDrawn = false;
+  const renderAnnotations = () => {
+    annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
-  });
+  };
+  renderAnnotations.refresh = () => {
+    if (annotationsDrawn) renderAnnotations();
+  };
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(
+    const watching2 = watchProjection(
       document.body,
       () => {
         annotationInputs();
@@ -7507,7 +7508,7 @@ function mountApplication(dependencies) {
     );
     document.addEventListener("lf-comparison", renderAnnotations);
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderAnnotations.refresh();
+      if (!onPaper.matches) watching2.refresh();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();
@@ -7671,7 +7672,6 @@ function mountApplication(dependencies) {
     requirePageAnnotations();
     return placePageThreads(owner, render, threadSurfaceCommands);
   };
-  const mountThreadViews2 = (owner, render) => registerMirrorConsumer(owner, render, { commands: inlineView });
   const attachPresentation = (owner, { render, reveal: reveal3, answersAtOnce = false }) => {
     const reader = createPrimaryReader(
       owner,
@@ -7777,26 +7777,26 @@ function mountApplication(dependencies) {
     watchThreadSurfaces: watchThreadSurfaces2,
     placePageThreads: placePageThreads3,
     consumeAnnotations: consumeAnnotations2,
-    mountThreadViews: mountThreadViews2,
     registerThreadPanel,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions: threadActions2,
     queueActions: queueActions2,
-    openAsk(id) {
-      const ask = readAsks().all.find((item) => item.id === id);
-      if (!ask) return Promise.resolve(false);
-      if (ask.source.kind === "approval")
-        return queueActions2.open(JSON.stringify(["ask", ask.id]));
-      if (ask.source.kind === "reply") {
-        showHeld(ask.thread);
-        return threadDestinations.openPageThread(ask.message, {
+    settlement: settlementView,
+    openItem(id) {
+      const item = readItems().all.find((item2) => item2.id === id);
+      if (!item) return Promise.resolve(false);
+      if (item.source.kind === "approval")
+        return queueActions2.open(JSON.stringify(["approval", item.id]));
+      if (item.thread !== null && answeredInWords(item)) {
+        showHeld(item.thread);
+        return threadDestinations.openPageThread(item.message, {
           part: "message"
         });
       }
-      return dependencies.annotationCommands.goToAsk(ask, readAsks().all);
+      return dependencies.annotationCommands.goToItem(item, readItems().all);
     },
     // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
-    nextAsk: (options) => dependencies.nextAskWithin(options),
+    nextItem: (options) => dependencies.nextItemWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput
   };
@@ -7811,7 +7811,6 @@ var post = commandDispatch.post;
 var projectData = (...args) => app().projectData(...args);
 var placePageThreads2 = (...args) => app().placePageThreads(...args);
 var consumeAnnotations = (...args) => app().consumeAnnotations(...args);
-var mountThreadViews = (...args) => app().mountThreadViews(...args);
 var registerThreadPresentation = (...args) => app().registerThreadPresentation(...args);
 var threadActions = Object.freeze({
   open: (...args) => app().threadActions.open(...args),
@@ -7821,9 +7820,9 @@ var threadActions = Object.freeze({
   reopen: (...args) => app().threadActions.reopen(...args),
   setReaction: (...args) => app().threadActions.setReaction(...args)
 });
-var askActions = Object.freeze({
-  open: (...args) => app().openAsk(...args),
-  next: (...args) => app().nextAsk(...args)
+var itemActions = Object.freeze({
+  open: (...args) => app().openItem(...args),
+  next: (...args) => app().nextItem(...args)
 });
 var queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),
@@ -7997,7 +7996,7 @@ function wireThreadLanding(threadsBox) {
   });
 }
 var listNode = (id, threadsBox, preferMessage = false) => {
-  const threadId = threadNames(allThreads()).get(id)?.id ?? id;
+  const threadId = threadIdNamed(id);
   const message = `.lf-msg[data-mid="${CSS.escape(id)}"]`;
   const thread = `.lf-thread[data-id="${CSS.escape(threadId)}"]`;
   const node = preferMessage || id !== threadId ? threadsBox.querySelector(message) ?? threadsBox.querySelector(thread) : threadsBox.querySelector(thread) ?? threadsBox.querySelector(message);
@@ -8011,13 +8010,13 @@ async function showThreadNow(id, part, focus, flash, revealThread, threadsBox, m
     if (node2 && !going && !threadsBox.keepsForWords(id)) return { node: node2 };
     if (!mayArrive()) return null;
     if (going) finishFold(going);
-    const ready = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
+    const ready = revealThread(threadIdNamed(id));
     return ready ? { ready } : null;
   });
   threadsBox.querySelector(
-    `.lf-thread[data-id="${CSS.escape(threadNames(allThreads()).get(id)?.id ?? id)}"], .lf-msg[data-mid="${CSS.escape(id)}"]`
+    `.lf-thread[data-id="${CSS.escape(threadIdNamed(id))}"], .lf-msg[data-mid="${CSS.escape(id)}"]`
   )?.classList.toggle("grow", false);
-  threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
+  threadsBox.revealNavigation(threadIdNamed(id));
   const destination = revealDestination();
   if (!destination) return null;
   let node = destination.node;
@@ -8026,8 +8025,7 @@ async function showThreadNow(id, part, focus, flash, revealThread, threadsBox, m
     if (!mayPresent()) return null;
     node = listNode(id, threadsBox, part === "message");
   }
-  if (mayArrive())
-    threadsBox.revealNavigation(threadNames(allThreads()).get(id)?.id ?? id);
+  if (mayArrive()) threadsBox.revealNavigation(threadIdNamed(id));
   node = listNode(id, threadsBox, part === "message");
   if (!node || !mayPresent()) return null;
   if (node.closest(".lf-summary-originals[hidden]")) {
@@ -8182,39 +8180,44 @@ function declareThreadKeys(landIn, narrowing) {
 function queueTitle(item) {
   const thread = readThreads().threads.find((thread2) => thread2.id === item.thread);
   const own = elementById(item.subject.id);
-  const topic = thread ? threadSummary(thread).topic : "";
+  const topic = thread ? threadName(thread) : "";
   if (item.title) return item.title;
   if (item.kind === "work" && item.detail) return item.detail;
   const sent = item.answer?.message && thread?.msgs.find((message) => message.id === item.answer.message);
   if (sent) return sent.body.text.trim() || topic;
   if (item.subject.kind === "widget") {
-    const ask = own && askHolding(readAsks().all, own);
-    return ask && addressableLabel(askPlace(ask).context) || addressableLabel(own) || topic || item.id;
+    const record = own && itemHolding(readItems().all, own);
+    return record && addressableLabel(itemPlace(record).context) || addressableLabel(own) || topic || item.id;
   }
   return topic || item.id;
 }
 
-// runtime/asks/answer.js
-function ownedAskControl(source, commandSource) {
+// runtime/items/answer.js
+function ownedItemControl(source, commandSource) {
   const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
   return !selector || closestAcross(commandSource, selector) === source;
 }
-function askWords(ask) {
-  if (ask.answer === null) return "";
-  if (ask.source.kind === "approval") return "Approved";
-  if (ask.source.kind === "reply")
-    return ask.answer.value.text ?? ask.answer.value.token ?? "";
-  const source = elementById(ask.source.id);
+function itemWord(item) {
+  if (item.source.kind === "approval") return "Approval";
+  const word = widgetWord(item.source.tag, elementById(item.source.id));
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+function answerWords(item) {
+  if (item.answer === null) return "";
+  if (item.source.kind === "approval") return "Approved";
+  if (answeredInWords(item))
+    return item.answer.value.text ?? item.answer.value.token ?? "";
+  const source = elementById(item.source.id);
   const formatter = (
     /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */
-    customElements.get(ask.source.tag)?.answerWords
+    customElements.get(item.source.tag)?.answerWords
   );
-  return String(source && formatter ? formatter(ask.answer.value, source) : "").replace(/\s+/g, " ").trim();
+  return String(source && formatter ? formatter(item.answer.value, source) : "").replace(/\s+/g, " ").trim();
 }
-function askEnding(ask) {
-  if (ask.status === "withdrawn") return "Withdrawn";
-  if (ask.status === "answered_elsewhere") return "Answered elsewhere";
-  const words2 = askWords(ask);
+function itemEnding(item) {
+  if (item.status === "withdrawn") return "Withdrawn";
+  if (item.status === "answered_elsewhere") return "Answered elsewhere";
+  const words2 = answerWords(item);
   return words2 ? `Answered: ${words2}` : "Answered";
 }
 
@@ -8392,10 +8395,9 @@ export {
   projectData,
   placePageThreads2 as placePageThreads,
   consumeAnnotations,
-  mountThreadViews,
   registerThreadPresentation,
   threadActions,
-  askActions,
+  itemActions,
   queueActions,
   wireInput,
   threadInput,
@@ -8407,9 +8409,10 @@ export {
   createThreadLanding,
   declareThreadKeys,
   queueTitle,
-  ownedAskControl,
-  askWords,
-  askEnding,
+  ownedItemControl,
+  itemWord,
+  answerWords,
+  itemEnding,
   acceptData,
   notifyDataSubscribers,
   dataReader,

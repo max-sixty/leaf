@@ -7,7 +7,7 @@ import pytest
 from browser.test_render_shift_watch import held_stretch, paint, shift_evidence
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE
+from render_cases_interaction import ITEM_PAGE
 from render_harness import (
     is_problem,
     judge_watches,
@@ -37,7 +37,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
             "<strong>Which jobs can share a visit?</strong></lf-test-task></lf-test-plan>",
         )
         if surface == "inline"
-        else ASK_PAGE
+        else ITEM_PAGE
     )
     page = open_page(
         browser,
@@ -255,8 +255,8 @@ def test_real_floating_plane_retains_local_motion(
             state["expected"][axis] + before[axis] - holder_before[axis] + shifted,
             abs=1,
         )
-    expected = {"node": "textarea#field"} | (
-        {"code": "typing-moved", "field": "textarea#field"}
+    expected = {"node": ["textarea#field"]} | (
+        {"code": "typing-moved", "field": ["textarea#field"]}
         if guard_mode == "typing"
         else {"code": "moved-without-input"}
     )
@@ -271,7 +271,7 @@ def test_real_floating_plane_retains_local_motion(
         ]
         assert any(
             term["branch"] == "floating_plane"
-            and term["owner"] == "div#holder"
+            and term["owner"] == ["div#holder"]
             and term["inputs"]["before"]["plane"] == initial
             and term["inputs"]["after"]["plane"] == destination
             and term["inputs"]["same_attachment"]

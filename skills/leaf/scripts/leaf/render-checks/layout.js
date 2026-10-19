@@ -1,5 +1,6 @@
 import { pageScroller, readingPosture, TEXT_BOX } from "/runtime/widget-api.js";
 import {
+  layoutBox,
   pageDocument,
   readingRegions,
   renderedParent,
@@ -18,11 +19,17 @@ export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.client
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // A box the theme lets stand past its holder, which says so where it lets it
 // (`--lf-breakout`, layouts.css): a block granted a wider room than the measure, and an
-// Ask spanning such a block (ask.css). Every other box keeps to the column, as text
-// does. The theme lets only a box it allocates room (`data-lf-space`) or keeps to the
-// column (`data-lf-column`) break out.
+// lf-ask spanning such a block (ask.css). Every other box keeps to the column, as text
+// does. The theme lets only a box it allocates room (`data-lf-space`) or a widget
+// holding authored blocks (`data-lf-content="markup"`) break out.
 const breaksOut = (el) =>
   getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
+
+// An overlay that takes no presses at rest, such as the contents map's spine, stands
+// over the page by design and reveals over it when the user reaches for it, so the box
+// it has at rest is not the room it shows in.
+export const restsOverPage = (style) =>
+  style.position === "fixed" && style.pointerEvents === "none";
 
 // The box a block's width and margins resolve against: its nearest ancestor that
 // generates a block, inside that ancestor's border, padding and any scrollbar gutter,
@@ -50,7 +57,7 @@ function contentBox(el) {
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
 // tokens the margin layout publishes, rather than rediscovering residency from boxes.
 export function marginResidents() {
-  return (pageDocument()?.getAttribute("data-lf-margin") ?? "")
+  return (layoutBox()?.getAttribute("data-lf-margin") ?? "")
     .split(" ")
     .filter((token) => token && token !== "rail")
     .join(" ");
@@ -132,7 +139,7 @@ export function arrangedBoxes(open) {
 // how many share some stretch of the page's height. One is a column of panes; a grid with
 // two stacked on the left of a tall third is two.
 export function heldPanes() {
-  const main = pageDocument();
+  const main = layoutBox();
   if (!main?.matches(".layout-workspace")) return [];
   const held =
     getComputedStyle(main).getPropertyValue("--lf-full-height").trim() === "1";
@@ -164,7 +171,7 @@ const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 // no screen. Each comes back with its id, the name every finding uses, and how far its
 // body runs past its scrollport.
 export function overflowingRegions() {
-  const main = pageDocument();
+  const main = layoutBox();
   if (
     !main?.matches(".layout-workspace") ||
     getComputedStyle(main).getPropertyValue("--lf-full-height").trim() !== "1"
@@ -245,10 +252,8 @@ function marginReading(main) {
         ? "left"
         : "right";
   const isResident = (el, s = getComputedStyle(el), b = el.getBoundingClientRect()) => {
-    // A fixed overlay that takes no presses at rest, such as the contents map, stands over
-    // the page by design and reveals over it; it is a resident of the margin it starts in.
-    if (s.position === "fixed" && s.pointerEvents === "none")
-      return b.left < left - 1 || b.right > right + 1;
+    // An overlay at rest is a resident of the margin it starts in.
+    if (restsOverPage(s)) return b.left < left - 1 || b.right > right + 1;
     if (s.position === "absolute" || s.position === "fixed")
       return b.right <= left + 1 || b.left >= right - 1;
     if (s.float === "none") return false;
@@ -279,7 +284,7 @@ function marginReading(main) {
 // interaction, and text consequences.
 //
 // `tinyBoxes` ensures each declared widget upgrades to a usable box. `unreachableWords`
-// catches rendered words outside reachable flow. `misplacedBoxes` asks each container's
+// catches undeclared text nodes under widget chrome. `misplacedBoxes` asks each container's
 // actual overflow behavior. Do not exempt a box merely because an ancestor declares
 // `overflow`.
 export function misplacedBoxes() {
@@ -289,7 +294,7 @@ export function misplacedBoxes() {
   // apart — and because `overflow` is one of three ways to draw nothing past an edge.
   // (TRAPPED_MARGINS reads `contain` for the neighbouring question: which margins a
   // formatting context keeps in.)
-  const main = pageDocument();
+  const main = layoutBox();
   if (!main) return [];
   // The column belongs to the page. Visible Leaf chrome still has to fit it, but chrome
   // hidden with opacity or visibility has no box a user can lose. checkVisibility()
@@ -300,7 +305,9 @@ export function misplacedBoxes() {
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isResident, left, residents, right } = marginReading(main);
   const wides = new Set(
-    [...main.querySelectorAll("[data-lf-space], [data-lf-column]")].filter(breaksOut),
+    [...main.querySelectorAll(`[data-lf-space], [data-lf-content="markup"]`)].filter(
+      breaksOut,
+    ),
   );
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was
@@ -310,11 +317,19 @@ export function misplacedBoxes() {
   // scroll for it. So the question is the same one, asked
   // against the wider bound: this gate renders at one viewport with no panel open, and
   // the user's window is free to be narrower than this one.
-  const bodyStyle = getComputedStyle(document.body);
-  const bodyBox = document.body.getBoundingClientRect();
-  // Inside body's padding.
-  const roomLeft = bodyBox.left + parseFloat(bodyStyle.paddingLeft);
-  const roomRight = bodyBox.right - parseFloat(bodyStyle.paddingRight);
+  // The shell the Layout's box stands in: `body`, or a `main` holding it.
+  const shell = main.parentElement ?? document.body;
+  const shellStyle = getComputedStyle(shell);
+  const shellBox = shell.getBoundingClientRect();
+  // Inside the shell's border, scrollbar gutters and padding, which are in the shell's
+  // own pixels, scaled to the window's by any transform on the shell or around it.
+  const scale = shellBox.width / shell.offsetWidth || 1;
+  const roomLeft =
+    shellBox.left + (shell.clientLeft + parseFloat(shellStyle.paddingLeft)) * scale;
+  const roomRight =
+    shellBox.left +
+    (shell.clientLeft + shell.clientWidth - parseFloat(shellStyle.paddingRight)) *
+      scale;
   // Both readings that hand a box to an ancestor ask shownBand, or a box inside a
   // container that clips without saying so in `overflow` is named for a spill it is
   // drawn nowhere near and left unnamed for the loss it did take, the walk at the foot
@@ -421,10 +436,8 @@ export function misplacedBoxes() {
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {
       if (el.contains(r) || r.contains(el)) return false;
-      // An overlay that takes no presses at rest reveals over the page by design; the
-      // room it takes at rest is what it states to the column's free room.
-      const rs = getComputedStyle(r);
-      if (rs.position === "fixed" && rs.pointerEvents === "none") return false;
+      // An overlay at rest states the room it takes to the column's free room.
+      if (restsOverPage(getComputedStyle(r))) return false;
       const c = r.getBoundingClientRect();
       return (
         b.left < c.right - 1 &&
@@ -441,7 +454,7 @@ export function misplacedBoxes() {
     // somewhere else, off the prose axis, while every bound above still holds. The
     // computed margins are the ones the theme set, however the box's own width
     // over-constrains them. Only growth the margins made counts: a positioned box is
-    // not grown (prepaint.js, `indents`), and a table is placed by its translation
+    // not grown (prepaint.js, `breakouts`), and a table is placed by its translation
     // (layouts.css), so its margins do not say where its room is. Only a box the user
     // can see is read.
     if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))

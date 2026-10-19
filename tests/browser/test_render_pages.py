@@ -1135,8 +1135,7 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     reach it: an overflow off the start edge is unreachable in any direction, and the
     drawing's first node is the one a user follows the graph from."""
     page = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
-    # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
-    # fits the room after a classic scrollbar has been taken, with the rail shown.
+    # Check both a roomy page and one whose available width is shorter than the drawing.
     resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
@@ -1173,7 +1172,7 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
         "axis"
     )
 
-    resized(page, 1200, 900)
+    resized(page, 1000, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
     assert at["flow"]["scrolls"], (
         "this drawing outgrows the narrow page's room, so its box must scroll"
@@ -2402,7 +2401,7 @@ def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
     drawn at throughout, and the same five steps drawn top-down fit the column and fade
     nothing."""
     page = open_page(browser, serve(LONG_CHAIN_PAGE))
-    resized(page, 850, 900)
+    resized(page, 950, 900)
     rendered(page)
     sizes = page.evaluate("""() => Object.fromEntries(['chain', 'stack'].map((id) => {
         const el = document.getElementById(id), svg = el.querySelector('svg');
@@ -2427,11 +2426,11 @@ def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
             """(side) => {
             const el = document.getElementById('chain'), r = el.getBoundingClientRect();
             const x = side === 'end' ? r.right - 1 : r.left + 1;
-            const node = [...el.querySelectorAll('g.node')]
+            const node = [...el.querySelectorAll('g.pele-node')]
                 .map((n) => n.getBoundingClientRect())
                 .find((n) => n.left < x && n.right > x);
             return node && { x: r.left, y: r.top, width: r.width,
-                             height: node.bottom - r.top, row: node.top + 3 - r.top };
+                             height: node.bottom - r.top, row: node.top + 10 - r.top };
             }""",
             side,
         )
@@ -2463,7 +2462,7 @@ def test_a_drawing_cut_at_its_edge_fades_toward_the_ground_and_still_reaches_it(
     )
     chain = page.locator("#chain")
     chain.evaluate("""(el) => {
-        const node = el.querySelectorAll('g.node')[1].getBoundingClientRect();
+        const node = el.querySelectorAll('g.pele-node')[1].getBoundingClientRect();
         el.scrollLeft += (node.left + node.right) / 2 - el.getBoundingClientRect().left;
     }""")
     expect(chain).to_have_attribute("data-lf-more-before", "")

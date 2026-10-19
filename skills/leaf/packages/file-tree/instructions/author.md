@@ -25,5 +25,6 @@ bound directly to a source keeps selection local. Files are data, not actions:
 expansion, search, and selection do not enter Leaf's event log.
 
 Arrow keys move among visible files and folders; Enter or Space selects a file or
-toggles a folder. Typing searches. The navigator holds its height while its listing
-scrolls; set `--lf-file-tree-height` on the widget to choose that allocation.
+toggles a folder. Typing searches. The navigator fills a definite height allocation,
+such as a workspace pane's body. In ordinary flow, `--lf-file-tree-height` chooses
+its bounded height while the listing scrolls.

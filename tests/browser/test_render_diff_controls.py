@@ -185,7 +185,7 @@ def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, ser
             "</div></lf-pane></div>",
             head="""<style>
               #regions { display:grid; grid-template-columns:240px minmax(0,1fr); }
-              #files { --lf-file-tree-height:100%; --lf-pane-top:0px; margin:0; padding:0; }
+              #files { --lf-pane-top:0px; margin:0; padding:0; }
               #patch { margin:0; }
             </style>""",
             layout="workspace",
@@ -202,6 +202,15 @@ def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, ser
     evidence = page.locator("#evidence")
     visible = page.locator("#patch .lf-diff-fold:visible")
     expect(visible).to_contain_text("first.md")
+    tree_box = tree.bounding_box()
+    pane = page.locator("#files-pane")
+    pane_box = pane.bounding_box()
+    border = pane.evaluate(
+        "node => parseFloat(getComputedStyle(node).borderBottomWidth)"
+    )
+    assert tree_box["y"] + tree_box["height"] == pytest.approx(
+        pane_box["y"] + pane_box["height"] - border, abs=0.5
+    ), "the navigator must fill the pane without an authored height override"
     second = tree.get_by_role("treeitem", name="second.md", exact=True)
 
     def scroll_into_file():
@@ -859,6 +868,7 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
             '<a href="#project-files">Back to files</a>'
             '<lf-file-tree id="project-files" source="project" '
             'data-height="280"></lf-file-tree>',
+            head="<style>#project-files { --lf-file-tree-height:280px; }</style>",
         ),
         packages=("file-tree",),
     )
@@ -874,6 +884,7 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     )
     page = open_page(browser, url)
     tree = page.locator("#project-files")
+    assert tree.bounding_box()["height"] == 280, "flow keeps the authored height"
     row = tree.get_by_role("treeitem", name=re.compile(r"README\.md"))
     expect(row).to_be_visible()
     row.click()

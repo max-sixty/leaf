@@ -1,10 +1,11 @@
 /* A bounded navigator keeps the file listing beside the evidence it navigates.
- * Reserve its final frame before the optional renderer arrives. Page authors can
- * choose the height through --lf-file-tree-height or the ordinary height input. */
+ * Fill a definite allocation; in flow, --lf-file-tree-height chooses the bounded
+ * height. Reserve that frame before the optional renderer arrives. */
 :scope:is(lf-file-tree) {
   position: relative;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
   min-inline-size: 0;
   block-size: var(--lf-file-tree-height, 24rem);
   margin-block: 1rem;
@@ -28,6 +29,15 @@
   --trees-git-modified-color-override: var(--warn-ink);
   --trees-git-deleted-color-override: var(--danger-ink);
   --trees-git-renamed-color-override: var(--accent);
+}
+@media screen {
+  @container style(--lf-full-height: 1) {
+    :scope:is(lf-file-tree) {
+      block-size: 100%;
+      min-block-size: 0;
+      margin-block: 0;
+    }
+  }
 }
 .lf-file-tree-empty {
   margin: 0;

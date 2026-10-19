@@ -2832,12 +2832,14 @@ def test_a_page_thread_opens_in_the_panel_from_the_page_s_routes(browser, serve)
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile("open"))
 
 
-def test_an_image_pasted_in_the_page_s_field_stands_over_its_words(browser, serve):
-    """An image pasted into the page's field stands on a line of its own above the
-    words, as it does over a thread's reply, leaving the field its width; its thumbnail
-    is the paste's result, so no notice says it was added."""
+def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serve):
+    """An image pasted into the page's field hangs just over the panel's top edge,
+    outside its box, so attaching grows the panel by nothing and leaves the field its
+    width; its thumbnail is the paste's result, so no notice says it was added."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
+    card = page.locator(".lf-fp-card")
+    before = card.bounding_box()
     field(page).evaluate(
         """(box, encoded) => {
           const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
@@ -2852,9 +2854,11 @@ def test_an_image_pasted_in_the_page_s_field_stands_over_its_words(browser, serv
     shelf = page.locator(".lf-fp-box .lf-composer-media-item")
     expect(shelf).to_have_count(1)
     expect(field(page)).not_to_have_attribute("aria-busy", "true")
-    words = field(page).bounding_box()
-    assert words["width"] > 300, words
-    assert shelf.bounding_box()["y"] + shelf.bounding_box()["height"] <= words["y"]
+    assert card.bounding_box() == before
+    assert field(page).bounding_box()["width"] > 300
+    tile = shelf.bounding_box()
+    assert tile["y"] + tile["height"] <= before["y"], (tile, before)
+    assert tile["x"] >= field(page).bounding_box()["x"] - 1, tile
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
 
 

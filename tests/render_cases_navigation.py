@@ -28,6 +28,36 @@ from render_harness import (
     write,
 )
 
+
+def call_node(label, file=None, line=None, *, status="same", children=(), kind="call"):
+    """A native CallDiff node, including optional locations and ordered children."""
+    node = {
+        "key": label,
+        "label": label,
+        "status": status,
+        "kind": kind,
+        "children": list(children),
+    }
+    if file is not None:
+        node["file"] = file
+    if line is not None:
+        node["line"] = line
+    return node
+
+
+def call_diff(*roots, to="feature", message=None):
+    """CallDiff's JSON result; ASCII display fields are optional to Leaf's consumer."""
+    result = {
+        "mode": "diff",
+        "from": "main",
+        "to": to,
+        "trees": [{"entry": root["key"], "tree": root} for root in roots],
+    }
+    if message is not None:
+        result["message"] = message
+    return result
+
+
 BINDING_BADGE_PAGE = leaf_page(
     "binding badges",
     """
@@ -208,7 +238,7 @@ def composer_quote(page):
     so it is the box's aria description — which is why this asks the class, not the text."""
     return page.evaluate("""() => {
         const q = document.getElementById('lf-composer-quote');
-        return {text: q.textContent, shown: !q.classList.contains('lf-unseen')};
+        return {text: q.textContent, shown: !q.classList.contains('lf-quiet')};
     }""")
 
 
@@ -974,19 +1004,11 @@ DATA_PROJECTION_PAGE = leaf_page(
 )
 
 DATA_PROJECTION_MODULE = """
-import {offer, projectData, watchData, setChildren} from '/runtime/widget-api.js';
-customElements.define('lf-feed', class extends HTMLElement {
-  connectedCallback() {
-    if (!this.stopWatching)
-      this.stopWatching = watchData(
-        this,
-        'rows',
-        snapshot => this.show(snapshot),
-      );
-  }
-  disconnectedCallback() {
-    this.stopWatching?.();
-    this.stopWatching = null;
+import {offer, LeafElement, nothing, projectData, setChildren} from '/runtime/widget-api.js';
+customElements.define('lf-feed', class extends LeafElement {
+  render() {
+    this.show(this.data('rows'));
+    return nothing;
   }
   show(snapshot) {
     const datums = (snapshot?.value ?? []).map(({key, value}, index) => {

@@ -23,7 +23,7 @@ output_schema:
     made:
       type: boolean
     copied:
-      type: [string, 'null']
+      type: [string, "null"]
     notes:
       type: string
   required: [made, copied, notes]

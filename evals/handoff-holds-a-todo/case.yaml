@@ -15,11 +15,11 @@
 # each reply `--done`; naming a handoff as a promise in "Long-running work" passed 3 of 3.
 description: handoff-holds-a-todo
 metadata:
-  purpose: 'Conversation loop: work the agent hands to another session still gets a
+  purpose: "Conversation loop: work the agent hands to another session still gets a
     to-do on the thread that asked for it, and the brief lets that session end
-    it where the result lands.'
+    it where the result lands."
   tags:
-  - wait-loop
+    - wait-loop
 vars:
   prompt: |
     You are a Claude Code session driving a live Leaf page at
@@ -45,11 +45,11 @@ vars:
     in order, each command you would run on the page in this turn, and the brief you
     would hand the dispatched session.
 assert:
-- type: llm-rubric
-  metric: judgment
-  value: |
-    Pass only if the commands answer 3b9e51a0 with `leaf response reply` carrying
-    `--todo "<title>"` for the parser investigation; and if the brief gives the
-    dispatched session what it needs to end that to-do where its result lands (the
-    page and the to-do's id, with `leaf task end`), or otherwise names how the to-do
-    is ended. Fail if no to-do is opened, or if nothing provides for ending it.
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the commands answer 3b9e51a0 with `leaf response reply` carrying
+      `--todo "<title>"` for the parser investigation; and if the brief gives the
+      dispatched session what it needs to end that to-do where its result lands (the
+      page and the to-do's id, with `leaf task end`), or otherwise names how the to-do
+      is ended. Fail if no to-do is opened, or if nothing provides for ending it.

@@ -4,9 +4,11 @@ behind one of them.
 A harness is the program an agent session runs in, such as Claude Code or Codex, as
 Leaf meets it. `Harness` collects everything that
 differs between them — session lifetime, watcher and transports, the hook's remedies,
-the way to reach a session with nothing watching — so that every module below
-this one dispatches on what a harness declares rather than on which harness it
-is. `session_harness` reads the one running this command out of the
+the way out of its sandbox, the way to reach a session with nothing watching — so
+that every module below this one dispatches on what a harness declares rather than
+on which harness it is: behaviour one harness needs is a method here, which the
+others answer by default, and no module outside this one compares a harness's name
+or reads its environment variables. `session_harness` reads the one running this command out of the
 environment; `claim_harness` rebuilds the one a page's claim recorded.
 
 The machine facts a harness rests on live elsewhere: `machine` reads the
@@ -113,6 +115,13 @@ class Harness:
         consumes these fields without knowing which harness wrote them."""
         raise NotImplementedError
 
+    def escape_sandbox(self) -> None:
+        """Open the road out of this harness's sandbox that this session's `leaf`
+        commands take, for as long as the session lives (`lifetime`). The hook
+        before a command naming `leaf` calls it, outside the sandbox. A harness
+        whose sandbox leaves no road out, as Codex's does, opens none
+        (`TODO.md`)."""
+
     def watcher_live(self, *, listening: bool) -> bool:
         """Whether this session's watcher can still take the page's input into a
         turn — the Stop hook's watch question, and its reason to believe a draft
@@ -177,7 +186,9 @@ class Harness:
         raise NotImplementedError
 
     def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
-        """What to do about a live page this session owes a watcher."""
+        """What to do about a live page this session owes a watcher. A harness whose
+        hooks carry input never owes one inside a hook, since the hook's own run is
+        the watcher's proof (`watcher_live`), so it leaves this unimplemented."""
         raise NotImplementedError
 
     def watches_between_turns(self) -> bool:
@@ -340,6 +351,12 @@ class ClaudeCodeHarness(EnvironmentHarness):
     def process_pid(cls) -> int | None:
         return int(pid) if (pid := os.environ.get("CLAUDE_PID")) else None
 
+    def escape_sandbox(self) -> None:
+        """Leaf's bridge (`bridge.py`), which Claude Code's network proxy reaches."""
+        from .bridge import ensure
+
+        ensure(self.session, self.lifetime())
+
     @classmethod
     def from_claim(cls, claim: dict) -> ClaudeCodeHarness:
         return cls(session=claim["id"], agent=claim["agent"], job=claim.get("job"))
@@ -370,12 +387,6 @@ class ClaudeCodeHarness(EnvironmentHarness):
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's hook puts them in your context at your next turn."
-
-    def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
-        return (
-            "no watcher: Leaf's Stop hook watches this session's pages between "
-            "turns, and has not run for this session."
-        )
 
     def live_turn(self) -> dict | None:
         """The session's live status in Claude Code's session registry
@@ -652,12 +663,6 @@ class PiHarness(EnvironmentHarness):
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's Pi extension puts them in your context at your next turn."
-
-    def nothing_listening(self, page_dir: Path, *, listening: bool) -> str:
-        return (
-            "no watcher: Leaf's Pi extension watches this session's pages as each "
-            "run settles, and has not run for this session."
-        )
 
 
 @dataclass(frozen=True)

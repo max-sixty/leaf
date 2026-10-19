@@ -1,13 +1,15 @@
-# Guards semantic and data subscriptions across removal independently of native resources.
+# Guards a widget's readings across removal independently of native resources.
 # One base/candidate run distinguished teardown/recreation from retained subscriptions.
 # One run per arm retained the three lifecycle passes; only the candidate passed
 # renderer-owned placement with shared datum provenance (20261006-135659-8dka43l3).
+# The first two rubrics moved from controller.subscribe and watchData to LeafElement's
+# render reads when those routes were deleted.
 description: widget-controller-lifetime
 metadata:
-  purpose: A widget retains semantic and data subscriptions across removal and reinsertion.
+  purpose: A widget keeps its semantic and data readings across removal and reinsertion.
   tags:
-  - packages
-  - lifecycle
+    - packages
+    - lifecycle
 vars:
   prompt: |
     Write the lifecycle methods for a Leaf package widget that displays its declared
@@ -26,30 +28,33 @@ vars:
     source replacements. Include the data-rendering method as well as the lifecycle
     methods; other rendering and measurement methods already exist.
 assert:
-- type: llm-rubric
-  metric: controller-owner-lifetime
-  value: |
-    Pass only if the widget obtains widgetController(this) and registers its
-    controller subscription once for the element, with no unsubscribe on disconnect
-    or resubscribe on reconnect. It must rely on the controller to pause detached
-    rendering and catch up on reinsertion. The native window resize listener must
-    still be registered on connection and removed on disconnection; fail if all
-    resources are treated as having the controller's lifetime.
-- type: llm-rubric
-  metric: subscription-owner-lifetime
-  value: |
-    Pass only if watchData(this, "builds", callback) and a watchProjection(this, paint)
-    whose paint reads readHistory() are each registered once for the element. The widget must rely on those
-    subscriptions to pause while detached and deliver the latest readings on return;
-    it must not stop and recreate either subscription in the native connection
-    callbacks. Rendering methods may be assumed to exist as the prompt allows.
-- type: llm-rubric
-  metric: renderer-owned-projection
-  value: |
-    Pass only if the data-rendering method places retained nodes itself and then calls
-    projectData(root, datums, {snapshot}) with node/key descriptors, not a key function
-    and render callback. Each build datum supplies identity: its id, and carries the
-    delivered snapshot so comments follow that build with the correct source revision.
-    Either setChildren or Leaf's public render with keyed repeat can own placement.
-    Fail if projectData is asked to create or reconcile the paragraphs, or if the
-    method replaces every paragraph on every update rather than retaining their nodes.
+  - type: llm-rubric
+    metric: reading-owner-lifetime
+    value: |
+      Pass only if the widget extends LeafElement and its render() reads the declared
+      status and the action's availability through a synchronous read of the widget
+      controller, such as this.state, this.reading or this.controller.read(), with no
+      subscription of its own to the controller that the native connection callbacks stop
+      or recreate. It must rely on LeafElement to pause while detached and catch up on
+      reinsertion. The native window resize listener must still be registered on
+      connection and removed on disconnection, through whileConnected or connection
+      callbacks that call the super method; fail if it lasts the element's whole life.
+  - type: llm-rubric
+    metric: reading-subscription-lifetime
+    value: |
+      Pass only if render(), or a method it calls synchronously, reads this.data("builds")
+      and readHistory(), so LeafElement follows both and draws them again on return with
+      whatever changed while the widget was away. Fail if the widget watches either
+      through a separate subscription, such as watchProjection or a data watcher, or stops
+      and recreates anything for them in the native connection callbacks. Rendering
+      methods may be assumed to exist as the prompt allows.
+  - type: llm-rubric
+    metric: renderer-owned-projection
+    value: |
+      Pass only if the data-rendering method places retained nodes itself and then calls
+      projectData(root, datums, {snapshot}) with node/key descriptors, not a key function
+      and render callback. Each build datum supplies identity: its id, and carries the
+      delivered snapshot so comments follow that build with the correct source revision.
+      Either setChildren or Leaf's public render with keyed repeat can own placement.
+      Fail if projectData is asked to create or reconcile the paragraphs, or if the
+      method replaces every paragraph on every update rather than retaining their nodes.

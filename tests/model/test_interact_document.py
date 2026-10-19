@@ -38,7 +38,7 @@ from interact_support import (
     before_choice,
     check,
     check_findings,
-    command_refusal,
+    command_findings,
     comment,
     declare_data_input,
     found,
@@ -53,6 +53,7 @@ from interact_support import (
     state_json,
     write_revision,
 )
+from leaf import agent_state as agent_state_model
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -185,10 +186,12 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
         'main { background-image: url("../image.svg"); }'
     )
     (authored / "image.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    (authored / "inline.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
     html = PAGE.replace(
         "</head>",
         '<script type="module" src="/page/app.js"></script>'
-        '<link rel="stylesheet" href="/page/style.css"></head>',
+        '<link rel="stylesheet" href="/page/style.css">'
+        "<style>/*</style><style>main { background: url(/page/inline.svg) }</style></head>",
     )
     (page_dir / "index.html").write_text(html)
 
@@ -208,6 +211,7 @@ def test_a_revision_captures_the_complete_dependency_graph(page_dir):
         "/page/image.svg",
     )
     assert artifact.resources["/page/image.svg"].mime == "image/svg+xml"
+    assert artifact.resources["/page/inline.svg"].mime == "image/svg+xml"
     assert artifact.resources["/page/app.js"].mime == "application/javascript"
     assert artifact.registry == read_page_registry(page_dir).registry
     assert artifact.implementations["lf-options"]["path"] == "/widgets/lf-options.js"
@@ -333,11 +337,14 @@ def test_the_captured_widget_digests_say_which_widgets_a_user_may_keep(page_dir)
 def test_module_capture_reads_javascript_syntax_and_rewrites_only_imports(page_dir):
     authored = page_dir / "page"
     (authored / "value.js").write_text("export const value = 1;")
+    (authored / "options.js").write_text("export const options = true;")
     module = """// import "https://outside.example/comment.js";
 const text = 'import "./missing.js"';
 const pattern = /import\\("missing"\\)/;
 const template = `import "./missing.js" ${await import('./value.js')}`;
 export { value } from "./value.js";
+const options = await import(/* module */ './options.js', { /* preserved */ });
+const computed = import(text, { with: { type: './missing.js' } });
 """
     (authored / "app.js").write_text(module)
     (page_dir / "index.html").write_text(
@@ -350,13 +357,18 @@ export { value } from "./value.js";
     assert activated.error is None, activated.error
     artifact = artifact_model.read_artifact(page_dir, activated.revision)
     resource = artifact.resources["/page/app.js"]
-    assert resource.dependencies == ("/page/value.js",)
+    assert resource.dependencies == ("/page/options.js", "/page/value.js")
     rewritten = revision_delivery_model.rebase_module(
         resource.data, "/page/app.js", lambda path: "/revisions/captured" + path
     )
     assert rewritten.decode() == module.replace(
         "import('./value.js')", 'import("/revisions/captured/page/value.js")'
-    ).replace('from "./value.js"', 'from "/revisions/captured/page/value.js"')
+    ).replace('from "./value.js"', 'from "/revisions/captured/page/value.js"').replace(
+        "'./options.js'", '"/revisions/captured/page/options.js"'
+    )
+    assert (
+        artifact.resources["/page/options.js"].data == b"export const options = true;"
+    )
 
 
 def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_path):
@@ -373,20 +385,23 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
             "</head>", '<script type="module" src="/page/app.js"></script></head>'
         )
     )
-    for source, diagnostic in [
-        ('import "./missing.js";', "cannot capture dependency"),
-        ('import "ftp://outside.example/module.js";', "http(s) URL"),
-        ('import "../../outside.js";', "public layer entry point"),
-        ('import "/runtime/events.js";', "public layer entry point"),
-        ('import "./data.json";', "JavaScript MIME"),
-        ('import "./escape.js";', "symlink"),
-        ('import "./data\\u002ejson";', "dependency must be a local URL"),
+    for source, code in [
+        ('import "./missing.js";', "dependency-unreadable"),
+        ('import "ftp://outside.example/module.js";', "dependency-not-local"),
+        ('import "../../outside.js";', "module-outside-page"),
+        ('import "/runtime/events.js";', "module-outside-page"),
+        ('import "/vendor/lit.js";', "module-outside-page"),
+        ('import "./data.json";', "module-type"),
+        ('import "./escape.js";', "dependency-symlink"),
+        ('import "./data\\u002ejson";', "dependency-not-local"),
     ]:
         (authored / "app.js").write_text(source)
         refused = revisioning_model.activate_source(page_dir)
-        assert refused.error and diagnostic in refused.error, (source, refused.error)
+        assert refused.error, source
         assert refused.revision == previous and not refused.created
         assert files_model.latest_revision(page_dir) == previous
+        _, findings = check_findings(page_dir)
+        assert [finding.code for finding in findings] == [code], source
 
 
 def test_an_interrupted_capture_never_publishes_a_partial_revision(
@@ -435,8 +450,9 @@ def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
     revision = files_model.latest_revision(page_dir)
     _replace_manifest(page_dir, revision)
 
-    with pytest.raises(artifact_model.ArtifactError, match="manifest digest"):
+    with pytest.raises(artifact_model.ArtifactError) as refused:
         artifact_model.read_artifact(page_dir, revision)
+    assert [finding.code for finding in refused.value.findings] == ["manifest-digest"]
 
 
 def test_artifact_cache_holds_a_bundle_by_its_content_addressed_path(page_dir):
@@ -460,17 +476,30 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         PAGE.replace("</head>", '<link rel="stylesheet" href="/page/style.css"></head>')
     )
     previous = files_model.latest_revision(page_dir)
-    for css, diagnostic in [
-        ('@import "ftp://outside.example/style.css";', "http(s) URL"),
-        ('@import "./data.json";', "CSS MIME"),
-        ('@import url("./data.json");', "CSS MIME"),
-        ('main { background: url("../../private.svg"); }', "escapes"),
-        ('main { background: url("./missing.svg"); }', "cannot capture"),
+    # Each refusal names the file to repair: the sheet, or the file it loads.
+    sheet = "/page/style.css"
+    for css, code, file in [
+        ('@import "ftp://outside.example/style.css";', "dependency-not-local", sheet),
+        ('@import "./data.json";', "css-import", sheet),
+        ('@import url("./data.json");', "css-import", sheet),
+        ("main { background: url(a b); }", "css-invalid", sheet),
+        (
+            'main { background: url("../../private.svg"); }',
+            "dependency-outside-page",
+            sheet,
+        ),
+        (
+            'main { background: url("./missing.svg"); }',
+            "dependency-unreadable",
+            "/page/missing.svg",
+        ),
     ]:
         (authored / "style.css").write_text(css)
         refused = revisioning_model.activate_source(page_dir)
-        assert refused.error and diagnostic in refused.error, (css, refused.error)
+        assert refused.error, css
         assert refused.revision == previous and not refused.created
+        _, findings = check_findings(page_dir)
+        assert [(f.code, f.values["file"]) for f in findings] == [(code, file)], css
 
 
 def test_an_image_loads_from_any_server(page_dir):
@@ -509,6 +538,15 @@ def test_check_runs_each_script_after_leaf_reads_the_page(page_dir, authored, ex
     assert [f.code for f in findings] == [expected]
 
 
+def test_tail_script_still_requires_deferred_execution(page_dir):
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</body>", "<script>window.x = 1;</script></body>")
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [finding.code for finding in findings] == ["parser-blocking-script"]
+
+
 def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
     quote = "jobs/backfill.py:88. Which plan should lead?"
 
@@ -534,7 +572,7 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert event["revision"] == revision
     assert "anchor" not in event
 
-    anchored = command_refusal(
+    [anchored] = command_findings(
         "thread", "open", page_dir, "--quote", "Plan", "--text", "Change this"
     )
     assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
@@ -606,7 +644,7 @@ def test_file_readings_follow_browser_tree_recovery():
     )
 
     parsed = structure_model.SourceDocument(html)
-    [main] = parsed.content
+    [main] = parsed.authoring.content
     assert [node["tag"] for node in main["content"]] == ["p", "table", "p"]
     assert [node["tag"] for node in main["content"][1]["content"]] == ["tr"]
 
@@ -637,9 +675,9 @@ def test_file_readings_follow_browser_tree_recovery():
 )
 def test_example_fragments_retain_context_sensitive_elements(fragment, tags, ids):
     parsed = structure_model.SourceDocument(fragment, fragment=True)
-    assert [node["tag"] for node in parsed.nodes] == tags
+    assert [node["tag"] for node in parsed.authoring.nodes] == tags
     assert parsed.ids == ids
-    assert parsed.errors == [] and parsed.unclosed == []
+    assert parsed.authoring.errors == [] and parsed.authoring.unclosed == []
 
 
 def test_option_passages_read_rendered_markdown_words():
@@ -704,25 +742,26 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
 
 def test_structural_errors_distinguish_recovery_from_ambiguous_source():
     optional = structure_model.SourceDocument("<main><p>First<div>Second</div></main>")
-    assert optional.errors == [] and optional.unclosed == []
+    assert optional.authoring.errors == []
+    assert optional.authoring.unclosed == []
 
     unclosed = structure_model.SourceDocument("<main><section>Text</main>")
-    assert unclosed.unclosed == [("section", 1)]
+    assert unclosed.authoring.unclosed == [("section", 1)]
 
     caption = structure_model.SourceDocument(
         "<main><table><caption>Title<tbody><tr><td>Cell</table></main>"
     )
-    assert caption.unclosed == []
+    assert caption.authoring.unclosed == []
 
     svg = structure_model.SourceDocument(
         '<main><svg id="plot"><circle cx="5" cy="5" r="4"/></main>'
     )
-    assert svg.unclosed == [("svg", 1)]
+    assert svg.authoring.unclosed == [("svg", 1)]
 
     duplicate_body = structure_model.SourceDocument(
         "<body><main>Text</main></body><body></body>"
     )
-    assert duplicate_body.body_lines == [1, 1]
+    assert duplicate_body.authoring.body_lines == [1, 1]
 
 
 def construction_nodes(content):
@@ -1038,6 +1077,51 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
     rejected = state_json(page_dir)
     assert not rejected["source"]["live"] and rejected["source"]["error"]
     assert rejected["active"] == revised["active"]
+
+
+def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
+    """An unfinished declaration remains author feedback, not a broken state read."""
+    from leaf.revision_artifact import read_revision
+
+    registry = page_dir / "page" / "registry.json"
+    registry.parent.mkdir(exist_ok=True)
+    invalid = {"run-plan": {"x-space": "own"}}
+    registry.write_text(json.dumps(invalid))
+    initial = state_json(page_dir)
+    assert initial["active"] is None
+    assert initial["source"]["error"]
+    assert not initial["source"]["live"]
+    assert initial["data_bindings"] == {}
+    assert check(page_dir).exit_code != 0
+
+    declaration = {
+        "description": "Initial plan",
+        "x-example": '<div class="run-plan">Plan</div>',
+    }
+    registry.write_text(json.dumps({"run-plan": declaration}))
+    accepted = state_json(page_dir)
+    assert accepted["source"]["error"] is None
+    assert accepted["active"] is not None
+    revision = accepted["active"]["revision"]
+    assert read_revision(page_dir, revision).registry["run-plan"] == declaration
+
+    registry.write_text(json.dumps(invalid))
+    rejected = state_json(page_dir)
+    assert rejected["active"] == accepted["active"]
+    assert rejected["source"]["error"]
+    assert not rejected["source"]["live"]
+    assert rejected["asks"] == accepted["asks"]
+    assert check(page_dir).exit_code != 0
+
+    repaired = {**declaration, "description": "Revised plan"}
+    registry.write_text(json.dumps({"run-plan": repaired}))
+    recovered = state_json(page_dir)
+    assert recovered["source"]["error"] is None
+    assert recovered["active"]["revision"] > revision
+    assert (
+        read_revision(page_dir, recovered["active"]["revision"]).registry["run-plan"]
+        == repaired
+    )
 
 
 def test_page_state_names_each_bound_source_and_its_failures(page_dir):
@@ -1692,7 +1776,7 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
         },
     )
 
-    refused = command_refusal(
+    [refused] = command_findings(
         "response", "reply", "--done", reference, "--text", "Made it blue."
     )
     assert refused.code == "superseded-reply"
@@ -1868,23 +1952,31 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     [
         (
             '<script type="module" src="/leaf.js"></script>',
-            ("capture-failed", {"error": "public layer entry point"}),
+            (
+                "module-outside-page",
+                "",
+                {"file": "/index.html", "specifier": "/leaf.js"},
+            ),
         ),
         (
             '<link rel="stylesheet" href="/theme.css" media="print">',
-            ("capture-failed", {"error": "escapes /page/ and /media/"}),
+            (
+                "dependency-outside-page",
+                "",
+                {"file": "/index.html", "specifier": "/theme.css"},
+            ),
         ),
         (
             '<base href="https://outside.example/">',
-            ("document-declaration", {"at": "<base>"}),
+            ("document-declaration", "<base>", {}),
         ),
         (
             '<meta http-equiv="Content-Security-Policy" content="default-src none">',
-            ("document-declaration", {"at": "<meta>"}),
+            ("document-declaration", "<meta>", {}),
         ),
         (
             '<script type="importmap">{"imports": {}}</script>',
-            ("document-declaration", {"at": "<script>"}),
+            ("document-declaration", "<script>", {}),
         ),
     ],
     ids=["runtime-module", "theme", "base", "policy", "import-map"],
@@ -1897,14 +1989,9 @@ def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
     status, findings = check_findings(page_dir)
 
     assert status == 1
-    code, holds = expected
+    code, at, values = expected
     [finding] = findings
-    assert finding.code == code
-    # A capture refusal is still its exception's words (`capture-failed`).
-    if "error" in holds:
-        assert holds["error"] in finding.values["error"]
-    else:
-        assert finding.at == holds["at"]
+    assert found([finding], code, at, **values), finding
 
 
 @pytest.mark.parametrize(
@@ -3707,6 +3794,63 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
 
+def test_a_cold_source_check_reads_no_revision_history(page_dir, monkeypatch):
+    """Every new process checks the source before it reads state, and reading
+    each earlier revision for data bindings was most of what that check cost on a
+    long page. A conflicting binding lies within one document, and every revision
+    and logged fragment was refused for one as it entered, so the check reads the
+    candidate's bindings alone."""
+    for edit in range(4):
+        (page_dir / "index.html").write_text(
+            PAGE.replace("</main>", f"<p>edit {edit}</p></main>")
+        )
+        assert revisioning_model.activate_source(page_dir).error is None
+    active = files_model.revision_path(page_dir, files_model.latest_revision(page_dir))
+    parsed = []
+    native = artifact_model.SourceDocument
+    monkeypatch.setattr(
+        artifact_model,
+        "SourceDocument",
+        lambda source: parsed.append(source) or native(source),
+    )
+    with fresh_process():
+        activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and not activated.created, activated
+    assert parsed == [active.read_text()]
+
+
+def test_a_cold_page_state_reads_only_the_element_index_of_history(
+    page_dir, monkeypatch
+):
+    """A new process scans every revision for the ids, asks and data bindings it
+    declared, and building each one's authoring indexes, which those inventory
+    scans never read, was most of what a command on a long page cost. A document
+    builds its element index as it is read and the rest on first use, so here only
+    the candidate and the active revision are read whole. The withdrawn ask is the
+    control: it is known only from the revision that asked."""
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    for edit in range(4):
+        (page_dir / "index.html").write_text(
+            (source if edit == 0 else source.replace(" choose", "")).replace(
+                "</main>", f"<p>edit {edit}</p></main>"
+            )
+        )
+        activated = revisioning_model.activate_source(page_dir)
+        assert activated.error is None, activated.error
+    active = files_model.revision_path(page_dir, files_model.latest_revision(page_dir))
+    authored = []
+    native = structure_model.Authoring
+    monkeypatch.setattr(
+        structure_model,
+        "Authoring",
+        lambda document: authored.append(document.html) or native(document),
+    )
+    with fresh_process():
+        state = agent_state_model.cmd_page_state(page_dir)
+    assert [ask["status"] for ask in state["asks"]] == ["withdrawn"]
+    assert set(authored) == {active.read_text()}
+
+
 def test_ask_history_survives_parse_eviction_and_new_revisions(page_dir, monkeypatch):
     """A retry or new version reuses completed historical registration work.
 
@@ -3897,7 +4041,7 @@ def test_a_process_keeps_the_pages_it_read_most_recently(page_dir):
             artifact_model.read_revision(other, revision)
         gc.collect()
         assert kept() is None
-        assert artifact_model.read_revision(page_dir, revision).document.title
+        assert artifact_model.read_revision(page_dir, revision).document.authoring.title
         assert artifact_model.read_revision(held_page, revision) is sample_reading
         assert page_memory_model.memory_of(held_page) is holder
 

@@ -82,6 +82,7 @@ import {
   awaitingUser,
   unreadIn,
   readingContext,
+  spokenContext,
   clusterProjection,
 } from "../margin-model.js";
 
@@ -125,8 +126,7 @@ import { closestAcross, inChrome } from "../passages.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
 
-import { allThreads } from "../thread/state.js";
-import { threadNames } from "../thread/model.js";
+import { threadNamed } from "../thread/state.js";
 import { carryingThreadPlace } from "../thread/focus.js";
 
 import { claimed, revealHeld } from "../thread/surfaces.js";
@@ -163,6 +163,7 @@ export function createMarginProjection({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPassage,
     sourceItem,
     workflowReceipt,
     threadIdsAt,
@@ -177,7 +178,7 @@ export function createMarginProjection({
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
-    "Changes, threads, asks, delivery status, and activity",
+    "Changes, threads, items on me, delivery status, and activity",
   );
   nav.append(toolbar);
 
@@ -373,6 +374,7 @@ export function createMarginProjection({
     return {
       anchor: () => targetFor(row.lfEntry),
       point: () => entryPoint(row.lfEntry),
+      passage: () => entryPassage(row.lfEntry),
       order,
       fold: {
         able: () =>
@@ -416,9 +418,7 @@ export function createMarginProjection({
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
-    const items = choice?.items ?? [];
-    const userContext =
-      awaitingUser(items) || unreadIn(items) ? readingContext(choice) : null;
+    const userContext = spokenContext(choice);
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${userContext ? `, ${userContext}` : ""}`;
     const subject =
       count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
@@ -894,10 +894,7 @@ export function createMarginProjection({
     const face = readingFace(choice);
     const count = choice.items.length;
     const kind = count > 1 ? `${face.label}s` : face.label;
-    const userContext =
-      awaitingUser(choice.items) || unreadIn(choice.items)
-        ? readingContext(choice)
-        : null;
+    const userContext = spokenContext(choice);
     const behavior = presentReading(node, entry, choice, {
       accessibleLabel: `${kind} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`,
     });
@@ -1473,8 +1470,8 @@ export function createMarginProjection({
   // cluster to reach the thread's own entry. Where the cluster shows but holds neither
   // on its face, as a suggestion's shows its Accept, the card unfolds it and folds it
   // again on closing; a cluster the page withholds shows no card.
-  function openInlineThread(id, { transition = null, unfold = true } = {}) {
-    const itemId = marginThreadItem(threadNames(allThreads()).get(id));
+  function openInlineThread(id, { origin = null, unfold = true } = {}) {
+    const itemId = marginThreadItem(threadNamed(id));
     const entry = pageInventory.find((candidate) =>
       candidate.items.some((item) => item.id === itemId),
     );
@@ -1489,7 +1486,7 @@ export function createMarginProjection({
     if (!unfold && !marker && !shown(host)) return null;
     const button = marker ?? threadMarginEntry(entry);
     const positioned = showPreview(entry, button, itemId, {
-      origin: transition,
+      origin,
       accompanies: !unfold,
       forced: true,
     });
@@ -1551,8 +1548,8 @@ export function createMarginProjection({
   const threadIdsOf = (entry) =>
     threadReading(entry).items.map((item) => sourceItem(item).thread.id);
   // Only a page-owned seat or an exact widget-local placement takes the thread's
-  // page position. A package mirror uses the same card DOM but leaves that position
-  // and its margin preview available.
+  // page position. The same card DOM drawn in the margin or by a primary reader leaves
+  // that position and its margin preview available.
   const seatedOnPage = (id) =>
     claimed(id) ||
     [
@@ -1567,19 +1564,23 @@ export function createMarginProjection({
   // reader keeps one definition, not in this or any other single reader.
   // Read from where the node stands (standing-target.js), so chrome that shows a page
   // target, such as a comment note, arrives at that target as its own content does.
-  // A target with pointed threads (groupFor) has a row for each: standing inside a
-  // pointed row takes that thread, and standing elsewhere on the target takes its own
-  // row, or a pointed one where it has none.
+  // A target with pointed threads or quoted passages (groupFor) has a row for each:
+  // standing inside a pointed row takes that thread, and standing elsewhere on the
+  // target takes the row the card already shows for it, else its own row, or a pointed
+  // or quoting one where it has none. Focus cannot stand on a passage, so the card's
+  // row is what keeps returning to the target from switching which passage it shows.
   // Subject identity comes from the inventory even where a widget owns its seat.
   const threadEntryAt = (node) => {
     const ids = threadIdsAt(node);
+    const here = (entry) =>
+      threadReading(entry) &&
+      threadIdsOf(entry).some((id) => ids.includes(id)) &&
+      !seatedOnPage(threadIdOf(entry));
+    const shown = previewOpen() && card.selection()?.entry?.key;
     return (
-      pageInventory.find(
-        (entry) =>
-          threadReading(entry) &&
-          threadIdsOf(entry).some((id) => ids.includes(id)) &&
-          !seatedOnPage(threadIdOf(entry)),
-      ) ?? null
+      pageInventory.find((entry) => entry.key === shown && here(entry)) ??
+      pageInventory.find(here) ??
+      null
     );
   };
   // A folded cluster opens while the keyboard stands at its target, as it does when
@@ -1852,7 +1853,6 @@ export function createMarginProjection({
     targetFor,
     paint: renderNow,
     flushLayout: layoutMarginRows,
-    threadTransitionOrigin: card.threadTransitionOrigin,
     scheduleThreadPreviewPosition: card.schedulePosition,
     marginTargetAt,
     marginEntryContextContains,

@@ -7,15 +7,16 @@ one without rebuilding state, and the browser compares them whole. `join_reading
 builds that form; nothing else spells it.
 
 A page's inputs are declared once, here: `page_input` says which paths inside the
-page directory count and `outside_inputs` names the files outside it. The stamps
-below cover exactly those inputs, and every native subscription that wakes on a
-page's changes (`file_changes.page_changes`, `session.Watch`) accepts exactly
-them, so a write that moves a page's reading wakes each of its watchers and a
-write its watchers ignore moves no reading. The one asymmetry is a watcher's
-looseness: it wakes for any write to an entry of a directory the reading stamps
-without descending, since adding or removing one moves that directory's stamp,
-and the read that wake prompts finds nothing moved for an entry rewritten in
-place.
+page directory count and `outside_inputs` names the files outside it. No other
+module keeps a list of them: a reader that keys on the page's files, such as
+`presence.presence_reading`, keys on `page_reading`. The stamps below cover exactly
+those inputs, and every native subscription that wakes on a page's changes
+(`file_changes.page_changes`, `session.Watch`) accepts exactly them, so a write
+that moves a page's reading wakes each of its watchers and a write its watchers
+ignore moves no reading. The one asymmetry is a watcher's looseness: it wakes for
+any write to an entry of a directory the reading stamps without descending, since
+adding or removing one moves that directory's stamp, and the read that wake
+prompts finds nothing moved for an entry rewritten in place.
 """
 
 import hashlib
@@ -37,7 +38,7 @@ from ..service import claim_path, page_claim
 from ..state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
 
 # Diagnostic writes cannot move application state. The server writes `viewed.json`
-# when a visible tab asks for its freshness reading and `interactions.jsonl` for every request
+# when a visible tab asks for its freshness reading and `observations.jsonl` for every request
 # it answers; counting either would make a read say it changed itself, and waking on
 # either would rouse every watcher of a page a tab is merely looking at.
 UNWATCHED = frozenset(

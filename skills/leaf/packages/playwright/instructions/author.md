@@ -1,42 +1,53 @@
-Give a browser journey a review surface whose comments return to the captured
-action, image or saved element. Bind `lf-trace` to the imported
-`playwright-trace` source. The `producer` audience owns the import command.
+Show a Playwright recording of a browser journey in `lf-trace`, where each comment names
+the action, image or saved element the user pointed at. Bind it to an imported
+`playwright-trace` source; the contract's `producer` instructions give the import
+command.
 
-Write an evidence caption: what the recording shows, which outcomes the reader
-should judge, and what the captures establish. Make those outcomes directly
-reachable with named `lf-trace-bookmark` members, preferably
-the successful expectations' After checkpoints. Read their exact targets from
-the imported source as the bookmark entry describes. Choose labels that name
-the result rather than a browser operation. Leave transport, timeline, keyboard
-shortcuts and zoom instructions to the viewer's controls. They are already present
-on the review surface; surrounding prose carries the evidence and its limits.
+Write a caption saying what the recording shows, which outcomes the reader should judge,
+and what the captures establish. Make each of those outcomes reachable with a named
+`lf-trace-bookmark`, preferably at a successful expectation's After checkpoint, reading
+its target from the imported source as the bookmark's entry describes. Label it with the
+result, such as "Settings saved", rather than the browser operation. The viewer has its
+own playback, timeline, keyboard and zoom controls, so the prose explains the evidence
+and its limits, not how to operate the viewer.
 
-The review opens at the earliest authored moment that resolves, in the first
-stream holding one; without one, at the first saved tree, then the first image.
-The timeline places every call, input and capture at its recorded time: calls and
-inputs are bars spanning their call, so a caption can say what happened before or
-after a capture but not an input's exact instant. Native input events carry no
-timestamp, and a key's held duration is not recorded.
-The timeline includes action checkpoints and intermediate filmstrip images at
-their native times. Browser and context operations remain in the chronology;
-multi-page recordings can filter it by page. Separate streams keep their own
-clocks. Recorded pace preserves native timing; optional Review pace slows near
-recorded input and named results, and accelerates quiet intervals. It changes
-viewing speed, not evidence timestamps. Matched recordings need a source and bookmark targets of their own;
-equal elapsed times do not establish matching application states. Put paired viewers
-inside `lf-trace-compare`, with a `label` on each recording and the same `key` on
-corresponding bookmarks. Result selection chooses each recording’s own target;
-the Recording chooser retains the shared inspection position. Manual seeking keeps
-independent positions.
+State timing only as precisely as the recording does. Playwright records when each call
+starts and ends, but not the moment an input inside it happened or how long a key was
+held. A caption can say what came before or after a capture, but not the instant of a
+click.
 
-An image comment names its actual capture. A saved-element comment names an
-action phase and accessibility-tree path, which distinguishes controls with the
-same name. Images and trees are separate captures and can have different times.
-The inspector labels the checkpoint whose saved elements it holds while images
-advance. A first captured image shown before its capture time is labeled as a
-preview, not evidence of an earlier state. Use the linked Playwright viewer for
-DOM snapshots, element picking, console, network and source inspection.
+Images and saved accessibility trees are separate captures taken one after another, so
+don't place an element from the tree at a particular spot in an image. A comment on an
+image names that capture. A comment on a saved element names its action phase and its
+path in the accessibility tree, which tells apart two controls with the same name.
 
-Keep the original archive and serve it in Playwright's viewer at the imported
-`viewerUrl`. Another recording gets a new source id, so prior comments continue
-to name the evidence the user saw.
+To compare recordings, import each under its own source and put their viewers inside
+one `lf-trace-compare`, with a `label` on each. The original timelines and timestamps
+stay visible. Give bookmarks for corresponding steps the same `key`; selecting one
+finds the matching bookmark in the other recording. Switching keeps the image scale.
+An input can produce different results across versions, so name its identity separately
+from the outcome the reader should inspect.
+
+### Record comparable journeys
+
+Run one journey function against both versions, with the same fixture, viewport and
+input targets. Separate setup from the recorded interaction: load and establish the
+same ready state before starting the capture. If startup itself is under review,
+include it in both instead. Wrap each logical input and its outcome check in a native
+Playwright tracing group with the same stable name, such as `enter-ask`, in both runs.
+Use that same identity for the paired bookmarks. Do not match steps by elapsed time,
+rendered labels, archive-local call ids or which outcome happened to succeed.
+
+For a paced demonstration, use one requested input schedule and stop time measured
+from each capture's start. Waiting after every completed action accumulates differing
+latencies; absolute deadlines do not. Report a missed deadline instead of silently
+shifting the remaining schedule. Read the actual native input calls and capture bounds
+back from both traces: the same requested schedule does not guarantee identical browser
+dispatch times. Preserve that difference; do not stretch playback to conceal it. A
+performance comparison must also distinguish intentional demonstration waits from the
+application's response time.
+
+Keep the original archive and serve it in Playwright's own viewer at the imported
+`viewerUrl`, which offers DOM snapshots, element picking, console, network and source.
+Import a new recording under a new source id, so earlier comments keep naming the
+evidence the user saw.

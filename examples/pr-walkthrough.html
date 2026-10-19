@@ -304,7 +304,7 @@ flowchart TB
               <p>
                 This is the exact semantic output of
                 <code
-                  >calldiff@0.5.0 diff … --entry compute_combined_diff --locs
+                  >calldiff@0.5.0 diff … --entry compute_combined_diff --format json
                   --max-depth 1</code
                 >. The stable <code>compute_combined_diff</code> root keeps its
                 neighboring calls while direct Git command assembly disappears and
@@ -326,7 +326,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" data-height="521">
+          <lf-diff view="patch" id="pr-key-hunk" data-height="521">
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 index b856171b57..cfa4f0448e 100644

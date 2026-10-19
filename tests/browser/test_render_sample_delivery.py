@@ -3,11 +3,10 @@
 from journeys.test_render_sample_delivery import sample_records
 from render_harness import (
     consume_browser_errors,
+    leaf_page,
     open_page,
     take_browser_errors,
 )
-
-from browser.test_render_controls import leaf_page
 
 
 def test_sample_view_selection_waits_across_a_reload(browser, serve):

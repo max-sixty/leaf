@@ -137,11 +137,14 @@ export function createFloatingResponsePlacement({
       ).toJSON(),
       width,
       placement: fabPlacement.capture(),
+      // How far the words stand above their end: where the user was reading them,
+      // which the card Send opens keeps (thread-preview.js, `showArrival`).
+      fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop,
     };
   };
   // Where the frame's native rows end. Used grid tracks exclude transformed descendant
   // paint. Withholding requires only the current controls to fit, so they may borrow the
-  // transparent footer reserved for the future card when space is short.
+  // footer reserved for the future card when space is short.
   const nativeRowEnd = () => {
     const style = getComputedStyle(fabBar);
     const rows = style.gridTemplateRows.split(" ").map(parseFloat);
@@ -169,7 +172,6 @@ export function createFloatingResponsePlacement({
   function stopFabPositioning({ reset = false } = {}) {
     carry.placed();
     nativeAttachment = false;
-    if (fabBar.style.height) fabBar.style.removeProperty("height");
     fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
@@ -464,9 +466,6 @@ export function createFloatingResponsePlacement({
         fabPlacement.landed(position);
         editingAttachment = response.open ? attachment : null;
         keeps(fabBar, "data-lf-placement", position.placement);
-        // An auto-height absolute box borrows its inset-modified available height.
-        // Intrinsic sizing keeps moving that inset from masquerading as content resize.
-        fabBar.style.height = response.open ? "max-content" : "";
         fabPosition.stand(position);
         carry.placed();
         nativeAttachment = response.open && fabPosition.follows();

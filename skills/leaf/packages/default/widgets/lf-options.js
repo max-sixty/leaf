@@ -137,7 +137,7 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
-const SECTION = "In an ask's options";
+const SECTION = "In the options";
 const MARK_TAG = "lf-option-control";
 const DONE_TAG = "lf-options-done";
 // The group's render paints retained controls on the authored options. These generated
@@ -366,7 +366,9 @@ customElements.define(
       keeps(
         this.#done.control,
         "aria-label",
-        answered ? "Take back Done: reopen this ask" : "Done: these picks are complete",
+        answered
+          ? "Take back Done: reopen these options"
+          : "Done: these picks are complete",
       );
       keeps(this.#done.control, "aria-pressed", String(answered));
       keeps(this.#done.control, "aria-busy", this.#answering ? "true" : null);
@@ -394,19 +396,18 @@ customElements.define(
     // From a mark, arrows walk the options and Space toggles. The group owns stable
     // numbered commands; the ask view forwards those same declarations.
     #keys() {
-      for (const bindingBadge of this.querySelectorAll(
-        ":scope > lf-option > .lf-key-badge",
-      ))
-        bindingBadge.remove();
       const marks = this.#marks();
       const answerRows = [];
       for (const mark of marks) {
         const option = mark.parentElement;
         // The widget declares the number and its local face; the shared keyboard
         // presenter paints whichever declared binding currently reaches this action.
-        const bindingBadge = offer("span", "lf-key-badge");
-        bindingBadge.setAttribute("aria-hidden", "true");
-        option.prepend(bindingBadge);
+        let bindingBadge = option.querySelector(":scope > .lf-key-badge");
+        if (!bindingBadge) {
+          bindingBadge = offer("span", "lf-key-badge");
+          bindingBadge.setAttribute("aria-hidden", "true");
+          option.prepend(bindingBadge);
+        }
         answerRows.push({
           id: `option.choose-${option.id}`,
           contextKeys: this.#contextKeys(`choose:${option.id}`),
@@ -435,7 +436,7 @@ customElements.define(
             run: () =>
               landInThread(this.#reply(), {
                 target: mark,
-                line: "back to ask",
+                line: "back to the options",
               }),
           },
           // Numbered choices own the shortcut bar; arrow navigation stays in the reference.

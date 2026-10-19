@@ -13,6 +13,7 @@ import {
   queueTitle,
   readAsks,
   askWords,
+  askedInWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
@@ -82,7 +83,7 @@ customElements.define(
       .index button { width:100%; min-width:0; text-align:start; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
       .index ul { list-style:none; margin:0; padding:0; }
-      .index li { display:flex; gap:4px; margin:4px 0; }
+      .index li { display:flex; gap:4px; margin:4px 0; min-height:3rem; }
       .index li > button:first-child { flex:1; }
       .index li > button:last-child:not(:first-child) { width:auto; }
       .reader > div { margin-bottom:16px; }
@@ -205,7 +206,6 @@ customElements.define(
           this.rows.set(key, row);
         }
         keepsHidden(row.button, !thread);
-        row.node.style.minHeight = "3rem";
         if (thread) {
           keepsText(row.button, threadSummary(thread).topic);
           keeps(row.button, "aria-current", key === this.selected ? "true" : null);
@@ -272,9 +272,15 @@ customElements.define(
     paintObligations() {
       const asks = readAsks();
       const answered = asks.all.filter((ask) => ask.status === "answered");
-      // Counts cover every ask; this summary lists completed widget choices.
+      // Counts cover every ask; this summary lists completed widget choices, not the
+      // words that answered a question (an lf-ask).
       const labels = asks.all
-        .filter((ask) => ask.source.kind === "widget" && ask.status === "answered")
+        .filter(
+          (ask) =>
+            ask.source.kind === "widget" &&
+            !askedInWords(ask) &&
+            ask.status === "answered",
+        )
         .map(askWords)
         .filter(Boolean);
       keepsText(
@@ -305,7 +311,6 @@ customElements.define(
             row = { node, open, done };
             this.queueRows.set(identity, row);
           }
-          row.node.style.minHeight = "3rem";
           if (!item) {
             setChildren(row.node, []);
             return row.node;

@@ -1,23 +1,25 @@
-/* Immutable margin inventory and cluster selection.
- * The browser captures target coordinates, contribution readings, and generated facts.
- * The inventory derives control order, reading choices, and placement counts once.
- * This fold owns representation, primary selection, thread aggregation, engagement,
- * ordering, and the compact/expanded budgets. Layout and retained controls consume
- * these values; neither DOM state nor registration capabilities enter this module.
- * A resting cluster has a primary and one peer, or More when multiple peers remain.
- * Expanded clusters have six seats including the route to the complete Page Map.
- * A pin its placement found no room for stands folded where its resting face is a
- * primary and one more control: the options toggle alone, whose options are then every
- * control, the primary first. Folding is placement's input, opening it the gesture's.
- * The folded toggle wears a marker's face, the one its primary contribution's declared
- * `kind` gives, so it says what it folds; unfolded it is More.
- * Failure, work in flight, and engagement keep completion controls exposed. An
- * explicitly focused contribution uses those seats alone; an open thread keeps its
- * aggregate control inside the budget. Thread membership retains thread order.
- * A contributed representation suppresses the matching generated kind. Workflow
- * receipts are chosen here, before any control is painted: each control item carries
- * the target's receipt on the surviving primary and its own on every other control.
- * Expansion and an open thread are explicit mechanical inputs, not application facts.
+/* What each margin cluster shows, chosen from values the browser captured.
+
+   `marginInventory` takes each target's margin contributions and the readings Leaf
+   generated for it (threads, reactions, notices), in document order, and fixes the
+   target's controls, reading choices and state once. `clusterProjection` then picks
+   what its cluster shows. At rest that is a primary control and one more: the single
+   peer, or More when there are several. Expanded, it is up to six controls, the last
+   of them a route to the Page Map when more remain. A failure, work in flight or an
+   open interaction keeps the cluster's controls open (`entryEngaged`). When the user
+   expands one contribution, only its controls show, and an open thread card keeps its
+   Thread control within the six.
+
+   A pin with no room on the page may fold to its options toggle alone (`canFold`),
+   whose options are then every control, the primary first. The folded toggle shows
+   the icon of its primary contribution's declared `kind`; unfolded, it is More.
+   Placement decides whether a pin folds, and the user's gesture opens it.
+
+   A contributed control that represents a kind of generated reading replaces that
+   reading. A target's workflow receipt goes on its primary control, and every other
+   control carries its own (`controlReceipt`). Whether a cluster is expanded and
+   whether a thread is open arrive as arguments. This module reads no DOM and no
+   registrations; layout and the retained controls read its values.
  */
 import {
   KINDS,
@@ -28,6 +30,7 @@ import {
   contributionState,
   contributionEntryStateRank,
 } from "./contribution-model.js";
+import { threadAttention } from "./thread/workflow.js";
 
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 // The options toggle's faces: More, or folded, the kind it folds (`clusterProjection`),
@@ -225,14 +228,53 @@ export const awaitingUser = (items) => Boolean(userAttention(items));
 export const unreadIn = (items) =>
   items.reduce((sum, item) => sum + (item.unread ?? 0), 0);
 
-export function readingContext(choice) {
-  const attention = userAttention(choice?.items ?? []);
-  if (attention) return attention.label;
-  const unread = unreadIn(choice?.items ?? []);
-  if (unread) return `${unread} unread`;
-  if (choice?.items.length !== 1) return null;
-  return choice.items[0].context ?? null;
+// What a thread's margin item and its Page Map row carry of it beside its name and
+// place, from the one reading of the thread's state (`threadAttention`) that Threads
+// paints as its status: whose turn it is; the workflow its progress decoration paints
+// while the thread waits on the agent, saying that workflow's word (`workflowLabel`);
+// and its line, the thread's word wherever no such receipt says it, else how many of
+// its messages the user has not read. A receipt under a condition, such as a response
+// that failed, paints no progress (`progressFace`), so the line says its word.
+export function threadMarks(thread) {
+  const attention = threadAttention(thread);
+  const onUser = attention?.kind === "needs_user";
+  const receipt = attention?.kind === "waiting" ? attention.workflow : null;
+  const unread = thread.unread.length;
+  const line =
+    (attention && (!receipt || receipt.condition) && attention.label) ||
+    (unread ? `${unread} unread` : null);
+  return {
+    userAttention: onUser
+      ? { label: attention.label, reason: thread.attention?.reason ?? "workflow" }
+      : null,
+    unread,
+    context: line,
+    mapContext: line,
+    workflowReceipt: receipt,
+  };
 }
+
+// A reading of one item says that item's own line, as a thread's says its word or its
+// unread count (`threadMarks`); an aggregate says the turn it owes the user, else what
+// its threads hold unread.
+export function readingContext(choice) {
+  const items = choice?.items ?? [];
+  const attention = userAttention(items);
+  if (attention) return attention.label;
+  if (items.length === 1) return items[0].context ?? null;
+  const unread = unreadIn(items);
+  return unread ? `${unread} unread` : null;
+}
+
+// The line a reading's name says too: a thread's, which is its word or what it holds
+// unread (`threadMarks`), and an aggregate's turn or unread count. Another reading's
+// line, such as a change's offer, is said by its control.
+export const spokenContext = (choice) => {
+  const items = choice?.items ?? [];
+  return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items)
+    ? readingContext(choice)
+    : null;
+};
 
 function kindsIn(entry, { markerOnly = false } = {}) {
   const counts = new Map();

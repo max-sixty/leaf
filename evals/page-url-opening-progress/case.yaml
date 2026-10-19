@@ -4,9 +4,9 @@
 # Claude Code.
 description: page-url-opening-progress
 metadata:
-  purpose: 'Handoff: an opening progress message after a page handoff does not repeat its URL.'
+  purpose: "Handoff: an opening progress message after a page handoff does not repeat its URL."
   tags:
-  - handoff
+    - handoff
 vars:
   prompt: |
     You are a Codex desktop task. Earlier in this conversation you handed over a
@@ -24,13 +24,13 @@ vars:
     Use the leaf skill for the page workflow. Read whatever instructions you need.
     Only Skill and Read run here; write the requested chat message itself in your reply.
 assert:
-- type: not-regex
-  metric: page-url
-  value: http://127\.0\.0\.1:42041/
-- type: llm-rubric
-  metric: progress-message
-  value: |
-    Pass only if the reply is an opening progress message saying the agent will
-    investigate or fix the reported selection problem. It must not claim the
-    fix is already complete, refuse the task, or replace the message with an
-    explanation of the instructions.
+  - type: not-regex
+    metric: page-url
+    value: http://127\.0\.0\.1:42041/
+  - type: llm-rubric
+    metric: progress-message
+    value: |
+      Pass only if the reply is an opening progress message saying the agent will
+      investigate or fix the reported selection problem. It must not claim the
+      fix is already complete, refuse the task, or replace the message with an
+      explanation of the instructions.

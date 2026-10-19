@@ -1,64 +1,68 @@
-/* One inspection workspace for independent recordings. Switching the visible
- * recording preserves the workspace's scroll position and each child's local
- * image view. Explicit bookmark keys pair results; this container supplies the
- * comparison identity, never inferring correspondence from labels or clocks.
- * Its one sticky source chooser declares its measured extent to the children,
- * so their inspection stages use the room below it. Measurement commits in the
- * rendering pass: changing a child's extent during observer delivery would
- * resize ancestors the browser has already visited in that delivery. */
+/* A comparison keeps its source chooser in place while each recording owns its
+ * native timeline, playback and moments. Explicit bookmark keys pair results;
+ * elapsed times and labels never establish correspondence. A chosen key also
+ * reaches recordings whose data arrives later. Source switches share the image
+ * inspection view and pause hidden recordings without moving their playheads.
+ * Each direct child that holds a trace is one view, including its caption. */
 import {
-  HIDDEN,
   el,
-  frameFor,
   keepView,
   keeps,
   layoutChanged,
-  layoutPx,
   once,
   offer,
   openingView,
   quoted,
-  sizeObserver,
-  whileConnected,
 } from "/runtime/widget-api.js";
-await import("/vendor/webawesome.esm.js");
+import "./lf-trace.js";
 
 customElements.define(
   "lf-trace-compare",
   class extends HTMLElement {
-    #choices = null;
+    #views = [];
     #recordings = [];
     #selected = 0;
-    #measureHead = frameFor(this, () => {
-      this.style.setProperty(
-        "--lf-trace-compare-head",
-        layoutPx(this.firstElementChild.getBoundingClientRect().height),
-      );
-      layoutChanged(this);
-    });
+    #moment = null;
 
     connectedCallback() {
       if (!once(this)) return;
-      this.#recordings = [...this.querySelectorAll(":scope > lf-trace")];
-      this.#selected = this.#recordings.indexOf(openingView(this, this.#recordings));
+      for (const child of this.children) {
+        const recording = child.matches("lf-trace")
+          ? child
+          : child.querySelector("lf-trace");
+        if (!recording) continue;
+        this.#views.push(child);
+        this.#recordings.push(recording);
+      }
+      this.#selected = this.#views.indexOf(openingView(this, this.#views));
       const header = el("div", "lf-trace-compare-controls");
       header.dataset.lfGen = "1";
-      this.#choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
-      this.#choices.label = "Recording";
-      this.#choices.name = `${this.id}-recording`;
-      this.#choices.size = "s";
-      this.#choices.orientation = "horizontal";
+      /** @type {any} Web Awesome's radio group exposes form properties. */
+      const choices = offer("wa-radio-group", "lf-trace-sources lf-label-hidden");
+      choices.label = "Recording";
+      choices.name = `${this.id}-recording`;
+      choices.size = "s";
+      choices.orientation = "horizontal";
       for (const [index, recording] of this.#recordings.entries()) {
-        recording.addEventListener("lf-reveal", (event) => {
+        const view = this.#views[index];
+        view.addEventListener("lf-reveal", (event) => {
           if (index !== this.#selected) event.detail.replacedView();
           this.#selected = index;
-          this.#choices.value = String(index);
+          choices.value = String(index);
           event.detail.present(this.#draw());
         });
-        recording.addEventListener("beforematch", () => {
+        view.addEventListener("beforematch", () => {
           this.#selected = index;
-          this.#choices.value = String(index);
+          choices.value = String(index);
           this.#draw();
+        });
+        recording.addEventListener("lf-trace-ready", () => {
+          if (this.#moment) recording.selectMoment(this.#moment);
+        });
+        recording.addEventListener("lf-trace-moment", (event) => {
+          this.#moment = event.detail.key;
+          for (const peer of this.#recordings)
+            if (peer !== recording) peer.selectMoment(this.#moment);
         });
         const choice = offer(
           "wa-radio",
@@ -68,30 +72,34 @@ customElements.define(
         choice.value = String(index);
         choice.appearance = "button";
         choice.disabled = quoted(this);
-        this.#choices.append(choice);
+        choices.append(choice);
       }
-      this.#choices.value = String(this.#selected);
-      this.#choices.addEventListener("change", () => {
-        this.#selected = Number(this.#choices.value);
+      choices.value = String(this.#selected);
+      choices.addEventListener("change", () => {
+        const view = this.#recordings[this.#selected].inspectionView;
+        this.#selected = Number(choices.value);
         this.#draw();
+        this.#recordings[this.#selected].inspectionView = view;
       });
-      header.append(this.#choices);
+      header.append(choices);
       this.prepend(header);
-      whileConnected(this, () => {
-        const resize = sizeObserver(this.#measureHead);
-        resize.observe(this.firstElementChild);
-        this.#draw();
-        return () => resize.disconnect();
-      });
+      this.#draw();
     }
 
     #draw() {
+      // Reveal first, so a synchronous layout read never observes an empty
+      // workspace and clamps the document's scroll position to its shorter end.
+      keeps(this.#views[this.#selected], "hidden", null);
       for (const [index, recording] of this.#recordings.entries()) {
-        keeps(recording, "hidden", index === this.#selected ? null : HIDDEN);
+        if (index !== this.#selected) recording.pause();
+        keeps(
+          this.#views[index],
+          "hidden",
+          index === this.#selected ? null : "until-found",
+        );
         keeps(recording, "aria-label", recording.getAttribute("label"));
       }
-      if (this.#recordings[this.#selected])
-        keepView(this, this.#recordings[this.#selected]);
+      if (this.#views[this.#selected]) keepView(this, this.#views[this.#selected]);
       return layoutChanged(this);
     }
   },

@@ -49,15 +49,14 @@ queue transport the desktop app and IDE use runs under
 `leaf-dev journey codex-queue`. Each assertion's `metric` is a named score, so a
 comparison reads per metric across columns.
 
-Complete authoring tasks retain their phase quality metrics. Their visual judge
-returns `pass`, `defect`, or `insufficient_evidence`; native execution or invalid
+A complete authoring task has one final live quality judge. It returns `pass`, `defect`, or `insufficient_evidence`; native execution or invalid
 judge output is `unscored`. Read
 `gradingResult.componentResults[].metadata.authoring_grade` in saved results for
 that status and its reason. Promptfoo's binary pass rate counts only `pass` as
 passing, so its failure percentage is not a page-defect rate.
 
-The judge explores a disposable live copy of the selected version at the required
-window sizes. It chooses which controls, disclosures and scroll routes to inspect,
+The judge explores disposable live copies of the final page and, where applicable,
+the page before the user's decision, at the declared window sizes. It chooses which controls, disclosures and scroll routes to inspect,
 and reads screenshots it takes. The harness serves disposable page copies and
 supplies the existing browser CLI; the judge opens and operates its own browser.
 The native agent stream and its screenshots retain the evidence. Report
@@ -65,13 +64,33 @@ screenshots show arrival only. Unvisited required content remains
 insufficient evidence, while supported defects still fail when other parts remain
 unobserved. The judge follows the requested output's scope.
 
-An authored task's quality score is `uv run leaf-dev eval-pairs RUN...`, which
+## Desktop comparisons and exploratory discovery
+
+Routine authored-task comparisons use a 1600 × 1000 CSS-pixel desktop window.
+The core loop keeps the task, screen size and requested journey fixed while
+changing the Leaf implementation or authoring guidance. `--base` compares a
+candidate against current Leaf. Occasional `--condition both` runs compare Leaf
+against ordinary HTML to check the product's value. Completion and preserved
+user decisions remain part of the judgment. Phone behavior stays visible in
+exploratory observations rather than contributing to a combined desktop/phone
+score.
+
+An optional relative quality comparison is `uv run leaf-dev eval-pairs RUN...`, which
 judges its samples in two columns side by side, each pair in both orders, and counts
-a winner only when both completed live judgments name it. Unverified required
-observation is insufficient evidence; a failed judge is unscored. Each sample's
-own phase rubrics are diagnostics. Run each column the same number of times;
-the Nth samples pair. To keep
-host load and drift from favoring one column, alternate one-repeat runs of each
+a winner only when both completed live judgments name it. Decision controls are
+judged on the latest saved version before the decision; final evidence, layout,
+comment responses and recorded decisions are judged on the final revision. Both
+versions use the sample's original runtime. Each sample captures its common task,
+author phase order, comparison phase roles and viewports before authoring, in
+`comparison.json` and its returned diagnostics. Pairwise judging uses those saved inputs even after the catalog case
+changes or is removed; the judge's methodology comes from the current checkout.
+Samples must have the same saved task inputs. Incomplete or unlike saved inputs
+raise an error for the developer to fix before comparing the runs.
+Unverified required observation is insufficient evidence;
+a failed judge is unscored. Each sample's one final rubric is the absolute-quality judgment; optional pairs add
+a relative comparison without rerunning the author. Run
+each column the same number of times; the Nth samples pair. To keep host load and
+drift from favoring one column, alternate one-repeat runs of each
 condition, swapping which goes first, and pass every run:
 
 ```sh
@@ -79,12 +98,46 @@ uv run leaf-dev eval configuration --harness claude-code --condition leaf --repe
 uv run leaf-dev eval configuration --harness claude-code --condition html --repeat 1 -j 1
 uv run leaf-dev eval configuration --harness claude-code --condition html --repeat 1 -j 1
 uv run leaf-dev eval configuration --harness claude-code --condition leaf --repeat 1 -j 1
-uv run leaf-dev eval-pairs .tmp/eval/<run>...
+uv run leaf-dev eval-pairs .tmp/eval/<leaf-run> .tmp/eval/<html-run> .tmp/eval/<html-repeat> .tmp/eval/<leaf-repeat>
 ```
 
-`uv run leaf-dev eval-report PAGE RUN...` then writes a Leaf page showing each pair's
-arrival screens side by side with what each sample spent, whether it applied the
-user's decision, and what the judge said.
+`leaf-dev eval-discover RUN SAMPLE [--focus TEXT]` gives an agent a saved sample
+and its original runtime to seek useful observations. The agent chooses window
+sizes and interaction sequences, following failures or surprising behavior into
+nearby variations. Most exploration should concern desktop use: short windows,
+layout breakpoints, long content, crowded queues, and edit/save/reload or
+choice/undo journeys. Occasional phone exploration checks functional access and
+records its impact separately. This is agent-led inquiry rather than an
+algorithm that mutates and ranks populations.
+
+```sh
+uv run leaf-dev eval-discover .tmp/eval/<run> <sample-directory-name> --focus 'Explore short desktop windows and decision undo; inspect phone access if useful.'
+uv run leaf-dev eval-report ~/.tmp/leaf/eval-comparison .tmp/eval/<run>
+```
+
+Discovery starts with saved pages to test robustness without another authoring
+run. A changed task, content requirement or authoring instruction requires a
+fresh author to test whether it produces better pages. A useful initial effort
+budget is roughly 80% fixed comparisons and 20% discovery, with most discovery
+also on desktop. The agent allocates that effort; there is no automatic
+scheduler or weighted score.
+
+Each attempt retains observations, viewport, reproduction steps, evidence,
+unverified work and a proposed next check under
+`RUN/discovery/SAMPLE/attempt-*/response.json`, beside native traces and captures.
+Discovery counts are not defect rates: the agent adapts its search toward
+interesting cases. Reproduce a useful finding, simplify its trigger, inspect
+nearby variations, fix the owning mechanism and retain a small regression case.
+Confirm broader gains on fresh or withheld cases.
+
+`uv run leaf-dev eval-report PAGE RUN...` writes a Leaf page with each pair's
+arrival screens, author spend, judge reasons and named defects. It reads each
+sample's saved task, phases and viewport dimensions; unlike task inputs are unscored,
+and incomplete records fail where read. Provider labels distinguish Leaf versions
+as well as the HTML control.
+The report shows exploratory observations separately from pair outcomes, with
+expandable screenshot evidence. Missing captures and supplementary trace paths
+remain explicit.
 
 `pnpm run eval:view` opens Promptfoo's viewer on every run recorded on
 this machine, each named by branch, commits and cases. It shows each sample's
@@ -102,7 +155,10 @@ the outer workflow provider allows a day for multiple turns and artifact checks.
 Elapsed time is diagnostic, separate from correctness. Promptfoo records
 provider-call duration in `latencyMs`.
 Native duration, where a workflow reports it, is unknown when its trace lacks
-completion timing; it is never filled in as zero.
+completion timing; it is never filled in as zero. A Leaf live session's existing
+`eval_served` observation retains the active revision and event boundary beside its
+observation time. This identifies an available candidate, not first HTTP response,
+handoff or usability; HTML controls have no equivalent early revision history.
 
 ## Case format
 
@@ -171,15 +227,17 @@ A complete task names `metadata.executor`, a `leaf_dev` Python module, and
 `metadata.scenario`, a case in `workflows/<module-name>.yaml`. That YAML owns the
 authored prompts, scenario inputs and native Promptfoo `assert` blocks, including
 text `llm-rubric` and screenshot `agent-rubric` assertions. Complete authoring
-tasks use a small JavaScript assertion to preserve the live browser judge's
-three-way verdict through the Python provider. Shared request files
+tasks use one JavaScript assertion to pass the final live judge's verdict through
+the Python provider. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
 
 Python prepares fixtures, drives the agent through resumed phases or live user
-rounds, and extracts evidence. It derives deterministic facts from the page or
-trace, such as whether each input received a completed reply; `expected_checks`
-declares those facts, which become one assertion each, so missing evidence fails
-rather than disappearing. Semantic grading stays with Promptfoo: anything said
+rounds, and extracts evidence. Complete authoring tasks have only two execution
+checks: the author completed all turns, and a final page exists. The one live
+judge owns result correctness, including decision values and the requested
+comment changes. The author is asked to check its own page; the harness does not
+repeat render checks or run a separate decision-reading agent after every sample.
+Other executors declare their execution facts in `expected_checks`. Semantic grading stays with Promptfoo: anything said
 in prose, a reply or a passage on the page, goes to the text judge. A text rubric's
 `transform` can hand the judge one entry of the response's `metadata.texts`, such
 as one phase's reply or one paragraph, in place of the whole output. A screenshot executor lists captures beside the request
@@ -189,19 +247,19 @@ judge may read. `metadata.conditions` and `metadata.harnesses` restrict where it
 `metadata.authoring` and `metadata.executor` select distinct execution modes;
 declaring both on a case, including through inherited variant metadata, is an error.
 
-| Executor | Runs |
-| --- | --- |
-| `arrangement_eval` | Runs a page task the way its user would, in one live session per sample. The author builds the page from `request.md`; the user then asks in chat for the 900px preference, comments on a passage, and makes the page's decision in a browser before asking for it to be applied. Leaf runs as the installed plugin: its agent serves and hands over the page, the comment is posted from a browser selection on that page, and the hook delivers it. HTML gets the comment in chat, and pastes what its page offered to copy, or types the decision. A user agent (`eval_user.py`) makes the decision through the page's own controls; the judge reads the author's answer to the comment, a reader checks the applied result against what was chosen, and on Leaf a fresh reader also reports the decision from the page's state. The judge explores each saved version live on a laptop, at 900px with tall and short windows, and on a phone; reports retain arrival images. The executor records each phase's time, tokens, cost, and authored CSS and script lines. |
-| `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user updates through the served page. Checks read Leaf's page state and its parse of the markup; answers and edited prose go to the text judge; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`. |
-| `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
-| `website_eval` | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Retains native notifications, the opening and final reply updates actually published, and exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user. |
-| `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
+| Executor           | Runs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `arrangement_eval` | One live author builds the page, receives the width preference and passage comment, and applies the browser user's decision. Leaf uses its installed plugin and anchored comments; HTML uses chat and the page's copy route or a typed decision. Python retains the revisions, native traces, final/predecision screenshots and author accounting. One final live judge checks the outcome and operates the earlier decision controls. Optional `eval-pairs` compares saved samples. |
+| `usability_eval`   | Seeded pages read, resumed and revised, and live handoffs where the driver posts user updates through the served page. One agent rubric judges the task from canonical page state, active markup, data, events, delivery envelopes and the full native trace. The driver retains exact input, turn and progress observations as metadata; it does not grade per-case tags, card counts or word ratios. Fixtures are in `usability/fixtures/`.                                        |
+| `delivery_eval`    | Comments posted between turns and mid-turn, each of which must be picked up, started and answered.                                                                                                                                                                                                                                                                                                                                                                                   |
+| `website_eval`     | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Retains native notifications, the opening and final reply updates actually published, and exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user.                                |
+| `reader_eval`      | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards.                                                                                                                                                                                                                                                                      |
 
 `sidebar-page-at-900px` runs the complete authoring and render loop. Its
 `/instructions` diagnostic retains the read-only source probe, and `/live` checks
-the contrasting bounded live stream. The primary judge reads the rendered record:
-the completed log grows in document flow, and checks and navigation stay reachable
-while reading, including in the short window. Source-property checks in the
+the contrasting bounded live stream. The final live judge reads the rendered record: the completed log grows in
+document flow, and checks and navigation stay reachable while reading, including
+in the short window. Source-property checks in the
 instruction diagnostic do not establish that rendered behavior.
 
 ## Isolation and models
@@ -215,8 +273,11 @@ profile that refuses those writes outside its own directories (`private_tmp` in 
 browser load. The decision round's user agent drives the page with the pinned
 Playwright CLI from development dependencies. Native Codex probes install the complete arm through the
 host Codex CLI's plugin installer in that home, and use the same CLI to run the
-read-only task. `MODELS` in `dev/leaf_dev/arms.py` pins the agent and judge
-models. Hosted response cases instead read the model, reasoning effort and
+read-only task. `MODELS` in `dev/leaf_dev/arms.py` owns the model pins. Native
+Codex turns use the Codex harness pin, including the final live judge and optional
+pair judges; their reasoning effort is medium. Text grading uses `judge`, the
+browser user uses `user`, and static screenshot grading uses `screenshots`. Hosted response
+cases instead read the model, reasoning effort and
 instructions from each arm's website adapter, so they follow the deployed agent
 configuration. They use the local login and adapter, without the Worker, container
 or browser; `leaf-dev journey website-adapter` and the website delivery checks
@@ -235,16 +296,21 @@ Successful execution does not prove the judge understood every image. Read its
 actions, screenshots and reasons before accepting a judgment.
 
 Another judge may grade the same samples differently, so a judged difference is
-partly the judge's. To compare judges, point `screenshot_judge` in
-`dev/leaf_dev/eval.py` at another model or provider (an `anthropic:claude-agent-sdk`
+partly the judge's. For static screenshot cases, point `screenshot_judge` in
+`dev/leaf_dev/commands/eval.py` at another model or provider (an `anthropic:claude-agent-sdk`
 grader restricted to `Read` on the screenshot tree works), rerun the same cases, and
 compare the runs in the viewer, starting with the `dashboard/reader-*` calibration.
+That setting does not change complete-task live judges. Their model follows the
+Codex harness pin; `eval-pairs` rejudges saved samples with the current live judge
+while retaining their original authored pages and runtimes. An independent live
+audit should operate those same saved versions before reading the prior verdict.
 
 These cases score instruction use and the agent loop. `leaf-dev journey` covers
 plugin installation, discovery and hooks on each harness, and `leaf-dev verify-site`
 the website.
 
-```sh
-pnpm run test:evals
-uv run pytest tests/model/test_eval.py tests/model/test_scenario_eval.py tests/*/test_usability_eval.py tests/*/test_arrangement_eval.py -q -n0
-```
+Benchmark runs are development experiments, not release gates. Run a selected
+case when changing its behavior, inspect its saved pages and judge evidence, and
+repair mistakes in that loop. Keep only a couple of no-model smoke tests for the
+provider wiring in `dev/tests`; these and other `leaf-dev` tests run explicitly,
+outside product PR CI.

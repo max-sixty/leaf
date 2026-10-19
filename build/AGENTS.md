@@ -1,77 +1,51 @@
 # Committed bundles
 
-This directory builds the browser bundles Leaf commits: everything under
+This directory builds the browser files Leaf commits: everything under
 `skills/leaf/assets/vendor/`, each package's `vendor/`, and the compiled kernel in
-`skills/leaf/kernel/`.
-Installation, page init, and export consume that committed output and never run a
-compiler, so nothing here runs on a host.
+`skills/leaf/kernel/`. Installation, page init and export use the committed files and
+never run a compiler, so nothing here runs on a user's machine. Package authors write
+native JavaScript with no build.
 
-`runtime-bundle.mjs` compiles the kernel, readable and with chunk names that hold
-across rebuilds, so that branches conflict in it rarely; its header records why.
-An install vendors it into pages while `kernel.json` records the tree's modules as
-they are, and the source modules otherwise (`leaf.layer.current_kernel`), so an
-unrebuilt runtime edit never ships a kernel built from other source. The website,
-suite, and developer previews compile it again for their own tree
-(`leaf_dev.distribution`), so they run the kernel even while it is stale. The named
-runtime entries include core and optional overlay diagnostics, so core checks never
-load the physical renderer. Package authors use native JavaScript without a build.
+`browser/build.mjs` is the one builder. `pnpm run build:browser` type-checks and writes
+every output; `pnpm run check:browser`, part of `pnpm run check`, compares a fresh build
+with the committed bytes without writing. Its header lists the outputs; each script
+below owns its own:
 
-`browser/build.mjs` is the one builder: `pnpm run build:browser` writes every
-output below, and `pnpm run check:browser`, part of `pnpm run check`, compares a
-fresh build with the committed bytes without writing. Both first type-check the
-framework and the browser's JavaScript (`browser/tsconfig.json` and
-`browser/tsconfig.runtime.json`; the `typecheck` header in `browser/build.mjs`).
+- `browser/`: the TypeScript browser framework and its Node tests. `build.mjs`
+  compiles each module to one JavaScript module, line for line, so branches conflict in
+  the output only where their TypeScript conflicts. `browser/shipped.mjs` refuses a
+  module an export can't load and writes each bundle's license notices.
+- `initial.mjs`: builds each package's first-paint drawing from its `initial.js` into
+  the bundle its registry names in `x-initial`.
+- `styles.mjs`: resolves CSS imports in `skills/leaf/assets/styles/` and bundled
+  packages' `styles/` into the committed complete sheets.
+- `registry.mjs`: generates the runtime modules that carry a registry fact to the
+  browser.
+- `vendor.mjs`: builds every third-party bundle, one row of its `bundles` table each. A
+  directory here named after a row holds that row's inputs, and a `.patch` file here is
+  an upstream backport, explained beside its row in `vendor.mjs`. `lit.mjs` owns how
+  `vendor/lit.js` exports Lit and how bundles import it.
+- `runtime-bundle.mjs`: runs last and compiles the runtime into the kernel, readable
+  and with stable chunk names so branches rarely conflict in it. An install vendors the
+  kernel into pages only while `kernel.json` matches the tree's modules, and the source
+  modules otherwise (`leaf.layer.current_kernel`). The website, the suite and developer
+  previews compile it again for their own tree (`leaf_dev.commands.distribution`).
 
-- `browser/` is the TypeScript browser framework, its Node tests, and `build.mjs`,
-  which compiles each of its modules to one JavaScript module, line for line, and
-  vendors Lit and Signals for it. `browser/shipped.mjs` refuses a module an
-  export cannot load and writes each bundle's license notices; every build here passes its
-  output through it. Branches that change the framework therefore conflict in its
-  output only where their TypeScript conflicts, and `check:browser` confirms a merge
-  equals a rebuild. `runtime-bundle.mjs` compiles the framework into the kernel.
-- `initial.mjs` builds each package's synchronous initial drawing from its
-  `initial.js` into the one bundle its registry declares with `x-initial`.
-- `styles.mjs` resolves native CSS imports in component source entrypoints under
-  `skills/leaf/assets/styles/` and bundled packages' `styles/` into the committed
-  complete sheets. Consumers load no imports and run no compiler.
-- `registry.mjs` generates the runtime modules that carry a registry fact to the
-  browser, one row per module.
-- `vendor.mjs` builds every third-party bundle outside the framework, bundling what
-  each consumer needs or adapting an upstream browser module, one row of its
-  `bundles` table per bundle. A directory under `build/` named after a row holds
-  that row's inputs. `lit.mjs` owns how `vendor/lit.js` names Lit's exports and how
-  a bundle binds its Lit imports to that copy.
-  `floating-ui-zoom.patch` backports upstream #3492 to the locked 1.8.0 ESM;
-  `floating-ui-element-zoom.patch` locally completes that conversion for a floating
-  element zoomed relative to an Element offset parent, including border origins
-  and overflow lengths.
-- `runtime-bundle.mjs` runs last, on the layer the rows above leave, and writes the
-  kernel.
-
-After `pnpm install --frozen-lockfile`, the build reproduces the tracked bytes, so a
-diff after a rebuild means the lock, a build script, a runtime module, or the
-registry input an output reads changed. A change to `skills/leaf/assets/leaf.js` or
-to a `.js` module under its `runtime/`, `vendor/` or `widgets/` therefore takes a
-rebuild in the same change, and a kernel file that conflicts in a merge is resolved by merging
-`main` and rebuilding, never by hand.
-Rebuild after any of those changes:
+After `pnpm install --frozen-lockfile`, a build reproduces the committed bytes, so a
+diff after rebuilding means the lock, a build script, a runtime module or a registry
+input changed. A change to `skills/leaf/assets/leaf.js`, or to a `.js` module under its
+`runtime/`, `vendor/` or `widgets/`, takes a rebuild in the same change. Resolve a
+kernel file that conflicts in a merge by merging `main` and rebuilding, never by hand.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm run build:browser      # pnpm run check:browser compares without writing
 ```
 
-Rebuild after `pnpm install` moves a pin or the lock, or after changing registry
-input a bundle reads. `package.json` pins each package an entry imports, and the lock
-pins the rest of each closure.
-`lit-html` is held at 3.3.0, below what `lit` would take: from 3.3.1, `repeat` leaves
-a comment behind for each item it removes (lit/lit#5298), so a list the chrome redraws
-grows for as long as the page is open. `browser/build.mjs` backports lit/lit#5218
-to that pin so optional `ref(undefined)` survives disconnection and reconnection.
-The build also routes lit-html's keyed and child-part insertions through
-`runtime/dom-move.js`, which keeps the user's place across a move and native state
-where the browser supports it. It adapts the published modules in memory and fails
-if a locked seam changes.
-Lift it to a release
-that carries lit/lit#5299; the closed-surface journey of
-`test_page_fixture_renders` fails while the leak stands.
+`package.json` pins each package an entry imports, and the lock pins the rest.
+`lit-html` is pinned at 3.3.0 because from 3.3.1 `repeat` leaves a comment behind for
+each item it removes (lit/lit#5298), so a list the chrome redraws grows for as long as
+the page is open. Lift the pin to a release that carries lit/lit#5299; the
+closed-surface journey of `test_page_fixture_renders` fails while the leak remains.
+`litModule` in `browser/build.mjs` says what the build changes in Lit's published
+modules.

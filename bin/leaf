@@ -27,12 +27,14 @@
 # this install has an environment. Its canonical cleanup is a standalone stdlib
 # Python 3.9 program; it never imports the managed Leaf package.
 #
-# Codex runs its tool hook after every tool call, so where the environment
-# exists a Codex hook first asks the same standalone program, on that
-# environment's interpreter, whether the session has anything for it
-# (`state.hook_needed`). That spares uv and the package's imports wherever no
-# page was claimed. Without the environment, or with any answer but "nothing",
-# the hook runs whole.
+# Codex runs its tool hook after every tool call, and Claude Code its prompt and
+# Stop hooks in every session the plugin is installed in, and these have nothing to
+# do in a session that holds no claim. Each such registration says so
+# (`hook --harness NAME --if-claimed`), so where the environment exists the hook
+# first asks the same standalone program, on that environment's interpreter,
+# whether the session holds one (`state.holds_claims`). That spares uv and the
+# package's imports wherever no page was claimed. Without the environment, or with
+# any answer but "nothing", the hook runs whole.
 #
 # Claude Code's sandbox refuses what a command needs, so where it confines this
 # one (SANDBOX_RUNTIME), the bridge Leaf's hooks keep outside it runs the command
@@ -62,8 +64,7 @@ fi
 if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$root/.venv/bin/python" ]; then
     exec "$root/.venv/bin/python" -I -m leaf.bridge run "$@"
 fi
-if [ "$#" -eq 3 ] && [ "$1" = hook ] && [ "$2" = --harness ] && [ "$3" = codex ] &&
-    [ -x "$root/.venv/bin/python" ]; then
+if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$root/.venv/bin/python" ]; then
     payload=$(cat)
     printf '%s' "$payload" | "$root/.venv/bin/python" -S "$state" hook-gate
     [ "$?" -eq 3 ] && exit 0

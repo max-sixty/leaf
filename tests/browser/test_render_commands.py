@@ -1,6 +1,7 @@
 """Render, shot, and browser-gate command tests."""
 
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -38,6 +39,7 @@ from render_harness import (
     margins_laid_out,
     open_page,
     opened_tab,
+    page_registry,
     panel_settled,
     primed,
     resized,
@@ -92,16 +94,20 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 
     def answered(result, node, reason):
         assert result.returncode == 0, result.stdout + result.stderr
-        assert "· render check: not run, Playwright's driver did not start: " in (
-            result.stderr
-        )
-        assert browser_model.DRIVER_VARIABLE in result.stderr
-        assert str(node) in result.stderr
-        assert reason in result.stderr
-        assert "Traceback" not in result.stderr
-        assert "_playwright" not in result.stderr
-        assert "_output" not in result.stderr
-        assert "Task exception was never retrieved" not in result.stderr
+        report = json.loads(result.stdout)
+        assert report["status"] == 0
+        assert report["browser"]["asked"] == ["render check"]
+        assert report["browser"]["ran"] == []
+        unavailable = report["browser"]["unavailable"]
+        assert "Playwright's driver did not start: " in unavailable
+        assert browser_model.DRIVER_VARIABLE in unavailable
+        assert str(node) in unavailable
+        assert reason in unavailable
+        assert result.stderr == ""
+        assert "Traceback" not in result.stdout
+        assert "_playwright" not in result.stdout
+        assert "_output" not in result.stdout
+        assert "Task exception was never retrieved" not in result.stdout
 
     def ran(node, *command):
         return subprocess.run(
@@ -514,6 +520,39 @@ def test_a_tall_shot_keeps_its_endpoint_labels_in_view(browser, serve, holder):
     page.mouse.wheel(0, 1000)
     scroll_settled(page)
     assert rail.bounding_box()["y"] < reading["top"] - 100
+
+
+def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
+    """Upgrading the controls cannot collapse the image allocation before decode."""
+    url = serve(SHOT_PAGE, media={SHOT_SRC[n]: data for n, data in SHOTS.items()})
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    modules, images = [], []
+    page.route("**/widgets/lf-shot.js", lambda route: modules.append(route))
+    page.route("**/media/*.png", lambda route: images.append(route))
+    page.goto(url, wait_until="domcontentloaded")
+    holding(page, modules, 1, "the screenshot widget before upgrade")
+    shot = page.locator("lf-shot")
+    page.wait_for_function(
+        "parseFloat(getComputedStyle(document.querySelector('lf-shot'), '::after').height) > 100"
+    )
+    before = shot.bounding_box()
+    for route in modules:
+        route.continue_()
+    page.unroute("**/widgets/lf-shot.js")
+    expect(shot.locator(".lf-shotframe img")).to_have_count(2)
+    holding(page, images, 2, "both screenshot image responses")
+    pending = shot.bounding_box()
+    assert shot.locator("img").evaluate_all(
+        "images => images.every(image => image.naturalWidth === 0)"
+    )
+    for route in images:
+        route.continue_()
+    page.unroute("**/media/*.png")
+    render_checks_model.wait_until_ready(page)
+    expect(shot.locator("wa-comparison")).to_be_visible()
+    complete = shot.bounding_box()
+    assert pending == pytest.approx(before, abs=1), (before, pending, complete)
+    assert complete == pytest.approx(before, abs=1), (before, pending, complete)
 
 
 def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve):
@@ -955,10 +994,15 @@ def test_render_reads_widget_chrome_where_it_stands(
     package = tmp_path / ".leaf"
     add_test_widget(package, "lf-badge", upgrade=True)
     module = package / "widgets" / "lf-badge.js"
+    source = module.read_text()
+    starter = "class extends LeafElement {},"
+    assert source.count(starter) == 1
     module.write_text(
-        module.read_text().replace(
-            "      if (!once(this)) return;",
-            "      if (!once(this)) return;\n" + BADGE_CHROME,
+        source.replace(
+            starter,
+            "class extends LeafElement {\n    setup() {\n"
+            + BADGE_CHROME
+            + "\n    }\n  },",
         )
     )
     narrow = solid_png(400, 300, (235, 215, 205))
@@ -1050,6 +1094,46 @@ def test_render_reads_widget_chrome_where_it_stands(
         ("chrome-words", "<lf-option id=c-lax>", "Session cookies"),
         ("chrome-words", "<lf-option id=c-lax>", "opens in a new tab"),
     ], failures
+
+
+CONTENTS_MAP_PAGE = leaf_page(
+    "Contents map",
+    """
+<aside class="sidebar" id="contents-sidebar"><lf-toc id="contents"></lf-toc></aside>
+<h1 id="t">Contents map</h1>
+<h2 id="first">First</h2><p>The first section's words.</p>
+<h2 id="second">Second</h2><p>The second section's words.</p>
+""",
+)
+
+
+def test_the_gate_passes_a_contents_map_resting_as_its_spine(browser, serve):
+    """A contents map written as page-authoring.md's "Contents navigation" shows rests
+    in a wide window's margin as a 24px spine whose labels reveal over the page. Held to
+    the width floor of a widget that reserves a region, that spine failed the render gate
+    on every such page. An overlay at rest is held to the height floor alone, so the
+    page passes; the same map at the same width in the flow still fails, so what passes
+    it is the resting posture and not a floor gone missing."""
+    page = open_page(browser, serve(CONTENTS_MAP_PAGE))
+    resized(page, 1200, 900)
+    width = page.locator("lf-toc").evaluate(
+        "el => Math.round(el.getBoundingClientRect().width)"
+    )
+    assert width < 40, (
+        f"the map is {width}px, so it clears the floor and proves nothing"
+    )
+    assert (
+        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
+    )
+
+    page.add_style_tag(
+        content="lf-toc { position: static !important; pointer-events: auto !important; }"
+    )
+    flowed = render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page))
+    page.close()
+    assert [box for box in flowed if box["tag"] == "lf-toc"], (
+        "a map in the flow at its spine's width reports nothing, so the floor is gone"
+    )
 
 
 FILM_DECLARATION = {

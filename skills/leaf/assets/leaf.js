@@ -87,6 +87,7 @@ import {
 import { createThreadPanelKeys } from "./runtime/thread/panel.js";
 import { createPageComment } from "./runtime/thread/page-comment.js";
 import { createFloatingPanel } from "./runtime/floating-panel.js";
+import "./runtime/chrome-choice.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -375,7 +376,6 @@ const focusForNavigation = (node, cause, options) =>
 const anchorTravel = createAnchorTravel({
   anchors: anchorPlacement,
   surfaces: auxiliarySurfaces,
-  currentThreads: allThreads,
   refreshThread: () => app.refreshThread(),
   focusForNavigation,
   threadFocusTarget: (id, options) =>
@@ -565,6 +565,7 @@ const queue = createQueuePanel({
   next: queueWalk.next,
   announce,
   agentDoor: queueCounts,
+  observeFeedback: app.read.observeFeedback,
 });
 
 const commandHints = createCommandHints({
@@ -598,6 +599,7 @@ const floatingPanel =
   document.documentElement.lfChrome?.mode === "floating"
     ? createFloatingPanel({
         wireInput: inputs.wireInput,
+        observeFeedback: app.read.observeFeedback,
         threadActions: app.threadActions,
         registerChromeThreadPresentation: app.registerChromeThreadPresentation,
         asks: {
@@ -606,6 +608,7 @@ const floatingPanel =
         },
         queueActions: app.queueActions,
         withdraw: app.withdraw,
+        settlement: app.settlement,
       })
     : null;
 // The page's general comment box: the card under the banner's control, or the floating
@@ -646,7 +649,6 @@ responseSurface = createResponseSurface({
   revealResponseHome: overlaySelected
     ? null
     : () => threadPanelController.setPanel(true),
-  threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
   createComment: (command) => app.threadActions.create(command)?.delivery ?? null,
   landSent: landing.landSent,
   wireInput: inputs.wireInput,
@@ -709,12 +711,10 @@ regionCapture = createRegionCapture({
 });
 
 layout = createChromeLayout({
-  panelIsOpen,
   elements: {
     panel,
     closeBtn,
     panelFoot,
-    threadsBox,
     shortcutBarEl,
     bottomStatusEl,
   },
@@ -879,6 +879,7 @@ if (!offlineInteractive) {
   panelElements.mountOverlay();
   version.mount();
   mountBanner({
+    observeFeedback: app.read.observeFeedback,
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
   });
   auxiliarySurfaces.mount();
@@ -916,7 +917,6 @@ if (!offlineInteractive) {
   layout.mountLayoutObservers();
   goToSequence.mountGoToSequence();
   mountShortcutBar({
-    placeBottomStatus: layout.syncBottomStatus,
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });

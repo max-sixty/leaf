@@ -33,7 +33,9 @@
  * over again when playback stops; the clock waits only when the image on screen
  * would trail it by more than MAX_LAG.
  * The stage preserves a useful image minimum and grows in document flow when
- * transport, evidence and tools cannot fit the viewport. Later metadata never
+ * its transport, evidence and tools cannot fit the viewport. Scope and saved
+ * moments follow the evidence in normal flow, so their number cannot shrink the image.
+ * Later metadata never
  * overlaps it. Empty and captured states reserve the same image allocation.
  *
  * Recorded pace preserves native timing. Review pace integrates important
@@ -56,7 +58,6 @@
  */
 import {
   commands,
-  authoredScope,
   declarationFor,
   dragging,
   cancelAnimation,
@@ -84,14 +85,13 @@ import {
   keeps,
   keepsText,
   layoutPx,
-  once,
+  LeafElement,
   onUserInput,
   paintKeys,
   projectData,
   signal,
   quoted,
   registerVisualParts,
-  rowArrows,
   scopedMediaUrl,
   retainUserIntent,
   scrollBehavior,
@@ -99,9 +99,7 @@ import {
   setChildren,
   showReadingSubject,
   sizeObserver,
-  watchData,
   whileConnected,
-  widgetController,
   standingIn,
 } from "/runtime/widget-api.js";
 
@@ -219,8 +217,11 @@ const transport = (target, label, icon, disabled, title = label) =>
 
 customElements.define(
   "lf-trace",
-  class extends HTMLElement {
+  class extends LeafElement {
     #snapshot = null;
+    // The delivery the last render read, and the one shown.
+    #delivered;
+    #shown;
     #origins = new Map();
     #imageSizes = new Map();
     #trace = null;
@@ -242,6 +243,7 @@ customElements.define(
     #timelineScope = null;
     #pendingPicture = null;
     #scopeViews = new Map();
+    #pendingInspection = null;
     #applyingPictureView = false;
     #picture = null;
     #pictureId = null;
@@ -306,7 +308,7 @@ customElements.define(
               event.key,
             )))
       )
-        this.#pause();
+        this.pause();
       // Freeze a mouse press before drawing or image dragging claims it. A
       // touch press may start page scrolling; its tap or drawing claim decides.
       else if (
@@ -317,7 +319,7 @@ customElements.define(
         this.#inspectEvidence();
     };
     #inspectEvidence() {
-      this.#pause();
+      this.pause();
       // A review gesture freezes the pixels actually on screen, including when
       // another capture is still preparing.
       const shown = this.#playbackId ?? this.#pictureId;
@@ -325,14 +327,14 @@ customElements.define(
         this.#reveal(this.#id("image", shown));
     }
     #visibility = () => {
-      if (document.hidden) this.#pause();
+      if (document.hidden) this.pause();
     };
 
     // Viewer owns its container sizing; reapply the page's inspection view after
     // a resize refits the image, including a hidden tab becoming visible.
     #resize = frameFor(this, () => {
       if (!this.#viewport.value.clientWidth) {
-        this.#pause();
+        this.pause();
         if (this.#pendingPicture) this.#closePicture();
         return;
       }
@@ -353,18 +355,19 @@ customElements.define(
       this.#parts.update();
     });
 
-    connectedCallback() {
-      if (!once(this)) return;
+    setup() {
       this.#build();
       const timeline = this.#timelineHost.value;
       // Element command scopes leave with their element; a return keeps the declaration.
       if (!quoted(this))
         commands(this, "In a Playwright recording", [
-          // Back along the time scale is the arrow toward its start; the scale
-          // runs left to right in every text direction (theme.css).
+          // Back along the time scale is the arrow toward its start. The scale
+          // runs left to right in every text direction (theme.css), so its arrows
+          // are fixed rather than read from the computed direction, which would
+          // force a style recalculation each time the page's keys are reflected.
           {
             id: "trace.previous",
-            keys: () => [rowArrows(timeline)[0]],
+            keys: ["ArrowLeft"],
             title: "previous timeline point",
             control: this.#previous.value,
             when: () => this.#position() > 0 || this.#cursorTime !== null,
@@ -372,7 +375,7 @@ customElements.define(
           },
           {
             id: "trace.next",
-            keys: () => [rowArrows(timeline)[1]],
+            keys: ["ArrowRight"],
             title: "next timeline point",
             control: this.#next.value,
             when: () => this.#position() < this.#items().length - 1,
@@ -404,16 +407,14 @@ customElements.define(
           },
           {
             id: "trace.previous-event",
-            keys: () =>
-              standingIn(timeline) ? [`Shift+${rowArrows(timeline)[0]}`] : [],
+            keys: () => (standingIn(timeline) ? ["Shift+ArrowLeft"] : []),
             title: "previous input or moment",
             when: () => this.#eventStop(-1) !== null,
             run: () => this.#navigate(this.#eventStop(-1)),
           },
           {
             id: "trace.next-event",
-            keys: () =>
-              standingIn(timeline) ? [`Shift+${rowArrows(timeline)[1]}`] : [],
+            keys: () => (standingIn(timeline) ? ["Shift+ArrowRight"] : []),
             title: "next input or moment",
             when: () => this.#eventStop(1) !== null,
             run: () => this.#navigate(this.#eventStop(1)),
@@ -427,7 +428,7 @@ customElements.define(
             run: () => {
               const pause = this.#playIntent ?? this.#playing;
               this.#playIntent = null;
-              if (pause) this.#pause();
+              if (pause) this.pause();
               else this.#startPlayback();
             },
           },
@@ -451,7 +452,7 @@ customElements.define(
         // A returning recording draws the picture its departure closed.
         if (this.#trace) this.#draw();
         return () => {
-          this.#pause(false);
+          this.pause(false);
           dragging(this, false);
           stopInput();
           for (const stop of stopReading.toReversed()) stop();
@@ -459,7 +460,20 @@ customElements.define(
           this.#closePicture();
         };
       });
-      watchData(this, "trace", (snapshot) => this.#show(snapshot));
+    }
+
+    render() {
+      this.#delivered = this.data("trace");
+      return nothing;
+    }
+
+    // A recording draws each delivery once, after Lit's update, since showing it moves
+    // focus, playback and the picture.
+    updated(changed) {
+      super.updated(changed);
+      if (this.#delivered === this.#shown) return;
+      this.#shown = this.#delivered;
+      this.#show(this.#shown);
     }
 
     #build() {
@@ -478,10 +492,9 @@ customElements.define(
       );
       // Lit owns only this generated container; authored bookmarks and the
       // prepaint face remain outside its child-part markers.
-      this.#view = el("div");
+      this.#view = el("div", "lf-trace-view");
       this.#view.dataset.lfGen = "1";
-      this.#view.style.display = "contents";
-      this.append(this.#waiting, this.#view);
+      this.append(this.#view);
       this.#paint();
       // Viewer owns the viewport's figures and the timeline module its own
       // drawing; neither region holds a Lit child part.
@@ -491,7 +504,7 @@ customElements.define(
         onSeek: (time, final) => this.#seek(time, final),
         onPick: (lane, id, time) => this.#pick(lane, id, time),
         onUserPan: () => {
-          if (this.#playing) this.#pause();
+          if (this.#playing) this.pause();
         },
         // Zoom availability follows the window a gesture left.
         onZoom: () => paintKeys(),
@@ -523,7 +536,7 @@ customElements.define(
     // Review gestures belong to evidence, independently of navigation layout.
     #inspect(event) {
       const path = event.composedPath();
-      if (path.includes(this.#metadata.value)) this.#pause();
+      if (path.includes(this.#metadata.value)) this.pause();
       else if (
         event.type === "lf-inspect" ||
         path.includes(this.#viewport.value) ||
@@ -700,7 +713,7 @@ customElements.define(
       );
     }
     #navigate(id) {
-      this.#pause(false);
+      this.pause(false);
       this.#chosenBookmark = null;
       this.#selected = id;
       this.#cursorTime = null;
@@ -726,7 +739,7 @@ customElements.define(
       return items.findLast((point) => point.timestamp <= time) ?? items[0];
     }
     #seek(elapsed, final) {
-      if (this.#playing) this.#pause(false);
+      if (this.#playing) this.pause(false);
       if (this.#scrubbing !== !final) {
         this.#scrubbing = !final;
         dragging(this, !final);
@@ -761,7 +774,7 @@ customElements.define(
       if (this.#items().some((point) => point.id === destination))
         this.#navigate(destination);
     }
-    #pause(draw = true) {
+    pause(draw = true) {
       if (!this.#playing && !this.#scrubbing) return;
       // A playing film is continuous mechanical motion, outside resting proof.
       // Pausing keeps the playhead where it stands.
@@ -810,7 +823,7 @@ customElements.define(
         // more than MAX_LAG behind it. The readout names that image's own time.
         const shown = this.#shownImage();
         const waiting = this.#pendingPicture || this.#playbackWanted;
-        if (waiting && shown && time - shown.timestamp > MAX_LAG) {
+        if (waiting && (!shown || time - shown.timestamp > MAX_LAG)) {
           previousTick = now;
           this.#playFrame = nextAnimation(tick);
           return;
@@ -832,7 +845,7 @@ customElements.define(
           this.#warm(points.indexOf(point));
         } else this.#drawTime();
         this.#revealTime("page");
-        if (time === end) this.#pause();
+        if (time === end) this.pause();
         else this.#playFrame = nextAnimation(tick);
       };
       this.#playFrame = nextAnimation(tick);
@@ -883,7 +896,7 @@ customElements.define(
     }
 
     #show(snapshot) {
-      this.#pause(false);
+      this.pause(false);
       const restore = holdFocus(this);
       const oldArchive = this.#trace?.archive.sha256;
       this.#snapshot = snapshot;
@@ -943,22 +956,14 @@ customElements.define(
         this.#moments = [];
       }
       this.#draw();
-      // A peer may have chosen a shared result while this source was arriving.
-      // The peer's authored bookmark is the mechanical selection authority.
-      const comparison = this.#comparison();
-      if (this.#trace && comparison && !quoted(this)) {
-        const peer = [...authoredScope(this).querySelectorAll("lf-trace")].find(
-          (peer) =>
-            peer !== this &&
-            peer.#comparison() === comparison &&
-            peer.#chosenBookmark !== null,
-        );
-        const key = peer && peer.#bookmarks[peer.#chosenBookmark]?.key;
-        const match = key && this.#bookmarks.find((moment) => moment.key === key);
-        if (match && this.#targets.has(match.target))
-          this.#reveal(match.target, match.index);
-      }
       restore?.(this.#sources.value);
+      this.dispatchEvent(new Event("lf-trace-ready"));
+      // Readiness may select a paired moment in another stream. Apply an incoming
+      // inspection once that destination exists, outside the archive reset above.
+      if (this.#trace && this.#pendingInspection) {
+        this.inspectionView = this.#pendingInspection;
+        this.#pendingInspection = null;
+      }
     }
 
     #scopeChoices() {
@@ -991,7 +996,7 @@ customElements.define(
 
     #selectScope(scope) {
       if (scope === this.#scope) return;
-      this.#pause(false);
+      this.pause(false);
       Object.assign(this.#scopeView(), {
         selected: this.#selected,
         cursorTime: this.#cursorTime,
@@ -1072,8 +1077,32 @@ customElements.define(
         );
       return action ? this.#phaseId(action, target.phase ?? target.image.phase) : null;
     }
+    // The comparison chooses one declared result; the trace resolves its own
+    // archive coordinate, including when its data arrives after the chooser.
+    selectMoment(key) {
+      const match = this.#bookmarks.find((moment) => moment.key === key);
+      if (match && this.#targets.has(match.target))
+        this.#reveal(match.target, match.index);
+    }
+
+    get inspectionView() {
+      return this.#trace ? (this.#scopeView().image ?? null) : this.#pendingInspection;
+    }
+    set inspectionView(view) {
+      if (!this.#trace) {
+        this.#pendingInspection = view;
+        return;
+      }
+      this.#scopeView().image = view;
+      if (this.#picture?.viewed) {
+        this.#picture.resize();
+        this.#applyPictureView(this.#picture, this.#imageById.get(this.#pictureId));
+        this.#imageZoom();
+      }
+    }
+
     #reveal(id, bookmark = null) {
-      this.#pause(false);
+      this.pause(false);
       const selected = this.#destination(id);
       if (!selected) return;
       const target = this.#targets.get(id);
@@ -1094,19 +1123,9 @@ customElements.define(
     async #visitMoment(id, bookmark, travel = true) {
       const mayArrive = retainUserIntent();
       this.#reveal(id, bookmark);
-      const comparison = this.#comparison();
       const key = this.#bookmarks[bookmark]?.key;
-      // A semantic pairing is authored explicitly; equal times and matching
-      // labels do not establish it. Set each peer's own captured coordinate,
-      // without taking focus or scrolling a hidden recording into the page.
-      if (comparison && key && !quoted(this)) {
-        for (const peer of authoredScope(this).querySelectorAll("lf-trace")) {
-          if (peer === this || peer.#comparison() !== comparison) continue;
-          const match = peer.#bookmarks.find((moment) => moment.key === key);
-          if (match && peer.#targets.has(match.target))
-            peer.#reveal(match.target, match.index);
-        }
-      }
+      if (key)
+        this.dispatchEvent(new CustomEvent("lf-trace-moment", { detail: { key } }));
       if (!travel) return;
       await this.#pendingPicture?.ready;
       if (!mayArrive() || this.#chosenBookmark !== bookmark) return;
@@ -1133,9 +1152,6 @@ customElements.define(
         this.#trace?.pages.find((page) => page.id === this.#scope)?.stream ??
         this.#trace?.streams.find((stream) => stream.id === this.#scope)?.id
       );
-    }
-    #comparison() {
-      return this.closest("lf-trace-compare")?.id;
     }
     #bounds() {
       if (this.#boundsByScope.has(this.#scope))
@@ -1506,7 +1522,7 @@ customElements.define(
         }, failed);
       });
       pending.ready = ready;
-      widgetController(this).present(ready);
+      this.controller.present(ready);
     }
 
     #inputLabel(action) {
@@ -1714,7 +1730,7 @@ customElements.define(
     }
 
     #zoom(change) {
-      this.#pause();
+      this.pause();
       change();
       paintKeys();
     }
@@ -1821,91 +1837,92 @@ customElements.define(
         origin && origin.recordedStart !== null && origin.recordedStart === origin.start
           ? "Times are elapsed since the recording started"
           : "Times are elapsed from the first captured event";
-      render(
-        html`<div ${offered("lf-trace-controls")} ?hidden=${!trace}>
-            <div ${offered("lf-trace-choices")} ?hidden=${choices.length < 2}>
-              <wa-radio-group
-                ${offered("lf-trace-sources lf-label-hidden")}
-                ${ref(this.#sources)}
-                name=${`${this.id}-scope`}
-                label="Recording scope"
-                size="s"
-                orientation="horizontal"
-                ?hidden=${choices.length < 2}
-                ?disabled=${!trace || q}
-                .value=${live(this.#scope ?? "")}
-                @change=${(event) => {
-                  const value = event.currentTarget.value;
-                  if (this.#scope === value) return;
-                  this.#selectScope(value);
-                  this.#draw();
-                }}
-              >
-                ${repeat(
-                  choices,
-                  ([value]) => value,
-                  ([value, label]) =>
-                    html`<wa-radio
-                      ${offered("lf-trace-source")}
-                      appearance="button"
-                      value=${value}
-                      >${label}</wa-radio
-                    >`,
-                )}
-              </wa-radio-group>
-            </div>
-            <section class="lf-trace-bookmarks">
-              <div class="lf-trace-options">
-                <p class="lf-trace-moments-heading" ?hidden=${!this.#moments.length}>
-                  Moments (${available.length + unavailable.length})
-                </p>
-                <a
-                  ${offered("lf-trace-viewer")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  href=${trace?.viewerUrl ?? nothing}
-                  ?hidden=${!trace}
-                  >Open in Playwright</a
-                >
-              </div>
-              <div class="lf-trace-bookmark-list" ?hidden=${!this.#moments.length}>
-                ${repeat(
-                  this.#moments,
-                  (moment) => moment.index,
-                  (moment) => {
-                    const time = moment.scope
-                      ? this.#time(moment.time, moment.stream)
-                      : "Unavailable";
-                    return html`<button
-                      ${offered("lf-trace-bookmark")}
-                      ?hidden=${!(available.includes(moment) || !moment.scope)}
-                      ?disabled=${!moment.scope || q}
-                      aria-label=${`Moment ${moment.number} · ${moment.label} · ${time}`}
-                      aria-current=${this.#momentSelected(moment) ? "true" : nothing}
-                      @click=${() => this.#visitMoment(moment.target, moment.index)}
-                    >
-                      <span class="lf-trace-moment-number">${moment.number}</span
-                      ><span class="lf-trace-moment-label">${moment.label}</span
-                      ><span class="lf-trace-moment-time">${time}</span>
-                    </button>`;
-                  },
-                )}
-                <p
-                  class="lf-trace-no-moments"
-                  ?hidden=${!!available.length || !!unavailable.length}
-                >
-                  No saved moments in this stream.
-                </p>
-              </div>
-            </section>
-          </div>
-          <div class="lf-trace-body" ?hidden=${!trace} ${ref(this.#body)}>
-            <div
-              class="lf-trace-evidence"
-              @click=${{ handleEvent: (event) => this.#inspect(event), capture: true }}
+      const controls = html`<div ${offered("lf-trace-controls")} ?hidden=${!trace}>
+        <div ${offered("lf-trace-choices")} ?hidden=${choices.length < 2}>
+          <wa-radio-group
+            ${offered("lf-trace-sources lf-label-hidden")}
+            ${ref(this.#sources)}
+            name=${`${this.id}-scope`}
+            label="Recording scope"
+            size="s"
+            orientation="horizontal"
+            ?hidden=${choices.length < 2}
+            ?disabled=${!trace || q}
+            .value=${live(this.#scope ?? "")}
+            @change=${(event) => {
+              const value = event.currentTarget.value;
+              if (this.#scope === value) return;
+              this.#selectScope(value);
+              this.#draw();
+            }}
+          >
+            ${repeat(
+              choices,
+              ([value]) => value,
+              ([value, label]) =>
+                html`<wa-radio
+                  ${offered("lf-trace-source")}
+                  appearance="button"
+                  value=${value}
+                  >${label}</wa-radio
+                >`,
+            )}
+          </wa-radio-group>
+        </div>
+        <section class="lf-trace-bookmarks">
+          <div class="lf-trace-options">
+            <p class="lf-trace-moments-heading" ?hidden=${!this.#moments.length}>
+              Moments (${available.length + unavailable.length})
+            </p>
+            <a
+              ${offered("lf-trace-viewer")}
+              target="_blank"
+              rel="noopener noreferrer"
+              href=${trace?.viewerUrl ?? nothing}
+              ?hidden=${!trace}
+              >Open in Playwright</a
             >
-              <div class="lf-trace-stage" ${ref(this.#stage)}>
-                <div class="lf-trace-toolbar">
+          </div>
+          <div class="lf-trace-bookmark-list" ?hidden=${!this.#moments.length}>
+            ${repeat(
+              this.#moments,
+              (moment) => moment.index,
+              (moment) => {
+                const time = moment.scope
+                  ? this.#time(moment.time, moment.stream)
+                  : "Unavailable";
+                return html`<button
+                  ${offered("lf-trace-bookmark")}
+                  ?hidden=${!(available.includes(moment) || !moment.scope)}
+                  ?disabled=${!moment.scope || q}
+                  aria-label=${`Moment ${moment.number} · ${moment.label} · ${time}`}
+                  aria-current=${this.#momentSelected(moment) ? "true" : nothing}
+                  @click=${() => this.#visitMoment(moment.target, moment.index)}
+                >
+                  <span class="lf-trace-moment-number">${moment.number}</span
+                  ><span class="lf-trace-moment-label">${moment.label}</span
+                  ><span class="lf-trace-moment-time">${time}</span>
+                </button>`;
+              },
+            )}
+            <p
+              class="lf-trace-no-moments"
+              ?hidden=${!!available.length || !!unavailable.length}
+            >
+              No saved moments in this stream.
+            </p>
+          </div>
+        </section>
+      </div>`;
+      render(
+        html`<div class="lf-trace-body" ${ref(this.#body)}>
+          <div
+            class="lf-trace-evidence"
+            @click=${{ handleEvent: (event) => this.#inspect(event), capture: true }}
+          >
+            <div class="lf-trace-stage" ?data-ready=${!!trace} ${ref(this.#stage)}>
+              <div class="lf-trace-heading" ?hidden=${!trace}>
+                <div class="lf-trace-toolbar" ?hidden=${!trace}>
                   <div class="lf-trace-transport">
                     ${transport(this.#first, "Start", "start", q)}
                     <button
@@ -1944,7 +1961,13 @@ customElements.define(
                         "lf-action-icon",
                       )}<span>${playLabel}</span>
                     </button>
-                    ${transport(this.#previous, "Previous", "previous", q, "Previous capture")}
+                    ${transport(
+                      this.#previous,
+                      "Previous",
+                      "previous",
+                      q,
+                      "Previous capture",
+                    )}
                     ${transport(this.#next, "Next", "next", q, "Next capture")}
                   </div>
                   <div class="lf-trace-position-row">
@@ -1979,133 +2002,140 @@ customElements.define(
                     </select></label
                   >
                 </div>
-                <div
-                  class="lf-trace-timeline"
-                  ${ref(this.#timelineHost)}
-                  tabindex=${q ? -1 : 0}
-                  role="group"
-                  aria-label="Recording timeline"
-                  aria-description="Left and Right step through captures, Shift with Left and Right through inputs and moments, Home and End to the first and last capture. Space plays and pauses."
-                  ?hidden=${!trace || !items.length}
-                ></div>
-                <div class="lf-trace-images" ${ref(this.#imageHost)}>
-                  <div
-                    class="lf-trace-image-viewport"
-                    ${ref(this.#viewport)}
-                    style=${styleMap({
-                      aspectRatio: extent
-                        ? `${extent.width} / ${extent.height}`
-                        : undefined,
-                      maxWidth: extent ? `${extent.width}px` : undefined,
-                    })}
-                    ?data-sized=${!!extent}
-                  ></div>
-                </div>
-                <div
-                  class="lf-trace-image-tools"
-                  ?hidden=${!extent}
-                  ${ref(this.#imageTools)}
-                >
-                  ${[
-                    ["−", "Zoom image out", () => this.#picture?.zoom(-0.25)],
-                    ["+", "Zoom image in", () => this.#picture?.zoom(0.25)],
-                    ["Fit image", null, () => this.#fitPicture()],
-                    ["Actual size", null, () => this.#picture?.zoomTo(1)],
-                  ].map(
-                    ([text, label, run]) =>
-                      html`<button
-                        ${offered("lf-btn")}
-                        aria-label=${label ?? nothing}
-                        ?disabled=${!this.#picture?.viewed || q}
-                        @click=${run}
-                      >
-                        ${text}
-                      </button>`,
-                  )}
-                  <span class="lf-trace-image-zoom" ${ref(this.#zoomLabel)}></span>
-                </div>
               </div>
-              <div class="lf-trace-capture-footer">
-                <p class="lf-trace-caption" title=${caption} ?hidden=${!extent}>
-                  ${caption}
-                </p>
-                <a
-                  ${offered("lf-trace-full-image")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  ?hidden=${!extent}
-                  ?inert=${!committed}
-                  aria-hidden=${committed ? nothing : "true"}
-                  href=${committed ? scopedMediaUrl(committed.url) : nothing}
-                  >Open full-size image</a
-                >
+              ${this.#waiting}
+              <div
+                class="lf-trace-timeline"
+                ${ref(this.#timelineHost)}
+                tabindex=${q ? -1 : 0}
+                role="group"
+                aria-label="Recording timeline"
+                aria-description="Left and Right step through captures, Shift with Left and Right through inputs and moments, Home and End to the first and last capture. Space plays and pauses."
+                ?hidden=${!trace || !items.length}
+              ></div>
+              <div class="lf-trace-images" ?hidden=${!trace} ${ref(this.#imageHost)}>
+                <div
+                  class="lf-trace-image-viewport"
+                  ${ref(this.#viewport)}
+                  style=${styleMap({
+                    aspectRatio: extent
+                      ? `${extent.width} / ${extent.height}`
+                      : undefined,
+                    maxWidth: extent ? `${extent.width}px` : undefined,
+                  })}
+                  ?data-sized=${!!extent}
+                ></div>
               </div>
               <div
-                class=${classMap({ "lf-trace-metadata": true, "lf-trace-no-action": !point?.action })}
-                ${ref(this.#metadata)}
-                tabindex="0"
-                role="group"
-                aria-label="Selected point details"
+                class="lf-trace-image-tools"
+                ?hidden=${!extent}
+                ${ref(this.#imageTools)}
               >
-                <details
-                  class="lf-trace-tree"
-                  ${ref(this.#tree)}
-                  @toggle=${() => this.#draw()}
-                >
-                  <summary>Saved elements</summary>
-                  <p class="lf-trace-tree-clock">
-                    ${
-                      tree
-                        ? `${tree.nodes.length} elements · ${PHASES[treePoint.phase]} checkpoint at ${this.#time(tree.timestamp, treePoint.action.stream)}. Saved element boxes may differ from the image.`
-                        : "No accessibility tree was saved at this point."
-                    }
-                  </p>
-                  <ul class="lf-trace-nodes" ${ref(this.#treeList)}>
-                    ${repeat(
-                      rows,
-                      ({ id }) => id,
-                      ({ node }) =>
-                        html`<li class="lf-trace-node">
-                          <span class="lf-trace-node-name">${nodeName(node)}</span
-                          ><code class="lf-trace-node-path">path ${node.path}</code>
-                        </li>`,
-                    )}
-                  </ul>
-                </details>
-                <p class="lf-trace-readout">
-                  ${
-                    !trace
-                      ? "Waiting for a Playwright recording."
-                      : !items.length
-                        ? "No recorded checkpoints or frames in this recording scope."
-                        : `Step ${this.#position() + 1} of ${items.length}`
-                  }
-                </p>
-                <p
-                  class="lf-trace-action"
-                  ${ref(this.#actionDetails)}
-                  .textContent=${metadataAction?.title ?? ""}
-                ></p>
-                <h3 class="lf-trace-phase" ${ref(this.#phaseHeading)}>
-                  ${
-                    metadataAction
-                      ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""} · ${this.#time(metadataPoint.timestamp, metadataAction.stream)}`
-                      : ""
-                  }
-                </h3>
-                <p class="lf-trace-error" ?hidden=${!metadataAction?.error}>
-                  ${metadataAction?.error ?? ""}
-                </p>
-                <p class="lf-trace-clock" ?hidden=${!origin}>
-                  ${
-                    trace?.streams.length > 1
-                      ? `${clockLabel} · each stream has its own clock`
-                      : clockLabel
-                  }
-                </p>
+                ${[
+                  ["−", "Zoom image out", () => this.#picture?.zoom(-0.25)],
+                  ["+", "Zoom image in", () => this.#picture?.zoom(0.25)],
+                  ["Fit image", null, () => this.#fitPicture()],
+                  ["Actual size", null, () => this.#picture?.zoomTo(1)],
+                ].map(
+                  ([text, label, run]) =>
+                    html`<button
+                      ${offered("lf-btn")}
+                      aria-label=${label ?? nothing}
+                      ?disabled=${!this.#picture?.viewed || q}
+                      @click=${run}
+                    >
+                      ${text}
+                    </button>`,
+                )}
+                <span class="lf-trace-image-zoom" ${ref(this.#zoomLabel)}></span>
               </div>
             </div>
-          </div>`,
+            <div class="lf-trace-capture-footer" ?hidden=${!trace}>
+              <p class="lf-trace-caption" title=${caption} ?hidden=${!extent}>
+                ${caption}
+              </p>
+              <a
+                ${offered("lf-trace-full-image")}
+                target="_blank"
+                rel="noopener noreferrer"
+                ?hidden=${!extent}
+                ?inert=${!committed}
+                aria-hidden=${committed ? nothing : "true"}
+                href=${committed ? scopedMediaUrl(committed.url) : nothing}
+                >Open full-size image</a
+              >
+            </div>
+            ${controls}
+            <div
+              class=${classMap({
+                "lf-trace-metadata": true,
+                "lf-trace-no-action": !point?.action,
+              })}
+              ?hidden=${!trace}
+              ${ref(this.#metadata)}
+              tabindex="0"
+              role="group"
+              aria-label="Selected point details"
+            >
+              <details
+                class="lf-trace-tree"
+                ${ref(this.#tree)}
+                @toggle=${() => this.#draw()}
+              >
+                <summary>Saved elements</summary>
+                <p class="lf-trace-tree-clock">
+                  ${
+                    tree
+                      ? `${tree.nodes.length} elements · ${PHASES[treePoint.phase]} checkpoint at ${this.#time(tree.timestamp, treePoint.action.stream)}. Saved element boxes may differ from the image.`
+                      : "No accessibility tree was saved at this point."
+                  }
+                </p>
+                <ul class="lf-trace-nodes" ${ref(this.#treeList)}>
+                  ${repeat(
+                    rows,
+                    ({ node }) => node.path,
+                    ({ node }) =>
+                      html`<li class="lf-trace-node">
+                        <span class="lf-trace-node-name">${nodeName(node)}</span
+                        ><code class="lf-trace-node-path">path ${node.path}</code>
+                      </li>`,
+                  )}
+                </ul>
+              </details>
+              <p class="lf-trace-readout">
+                ${
+                  !trace
+                    ? "Waiting for a Playwright recording."
+                    : !items.length
+                      ? "No recorded checkpoints or frames in this recording scope."
+                      : `Step ${this.#position() + 1} of ${items.length}`
+                }
+              </p>
+              <p
+                class="lf-trace-action"
+                ${ref(this.#actionDetails)}
+                .textContent=${metadataAction?.title ?? ""}
+              ></p>
+              <h3 class="lf-trace-phase" ${ref(this.#phaseHeading)}>
+                ${
+                  metadataAction
+                    ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""} · ${this.#time(metadataPoint.timestamp, metadataAction.stream)}`
+                    : ""
+                }
+              </h3>
+              <p class="lf-trace-error" ?hidden=${!metadataAction?.error}>
+                ${metadataAction?.error ?? ""}
+              </p>
+              <p class="lf-trace-clock" ?hidden=${!origin}>
+                ${
+                  trace?.streams.length > 1
+                    ? `${clockLabel} · each stream has its own clock`
+                    : clockLabel
+                }
+              </p>
+            </div>
+          </div>
+        </div>`,
         this.#view,
       );
     }

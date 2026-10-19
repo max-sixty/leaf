@@ -13,8 +13,8 @@ import {
   projectionRegionsPresented,
   readPart,
 } from "./semantic-state.js";
-import { announce, notice } from "./notifications.js";
-import { readAsks } from "./asks/model.js";
+import { announce } from "./notifications.js";
+import { askedInWords, readAsks } from "./asks/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
@@ -31,11 +31,10 @@ import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
 import { watchProjection } from "./projection-watch.js";
-import { clocked } from "./presence.js";
 import { createThreadDestinations } from "./thread/destination.js";
 import { createThreadActions } from "./thread/actions.js";
 import { createQueueActions } from "./queue-api.js";
-import { registerMirrorConsumer, createPrimaryReader } from "./thread/mirrors.js";
+import { createPrimaryReader } from "./thread/primary-reader.js";
 import { createReadTracking } from "./thread/read.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
@@ -49,6 +48,7 @@ import {
 import { createStateApplication } from "./state-application.js";
 import { createStateFeed } from "./state-feed.js";
 import { reportCarried, reportPageError } from "./layer-client.js";
+import { raiseError } from "./errors.js";
 
 const commandDispatch = createCommandDispatch();
 let application = null;
@@ -166,7 +166,7 @@ export function mountApplication(dependencies) {
     afterEnqueue,
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
-      notice(`Couldn't send — attempt ${attempt} is already in use`),
+      raiseError(`Couldn't send — attempt ${attempt} is already in use`),
   });
 
   const { post } = commandDispatch;
@@ -265,18 +265,28 @@ export function mountApplication(dependencies) {
     dependencies.annotationCommands.renderPageMapDialog(entries);
     return entries;
   }
-  const renderAnnotations = clocked(document.body, () => {
+  // The margin's annotations, which the thread presentation, the margin's own geometry
+  // and contributions also redraw directly. `refresh()` redraws them once they have
+  // been drawn.
+  let annotationsDrawn = false;
+  const renderAnnotations = () => {
+    annotationsDrawn = true;
     if (!onPaper.matches) {
       const entries = refreshAnnotationInventory();
       overlay?.paint(entries);
     }
-  });
+  };
+  renderAnnotations.refresh = () => {
+    if (annotationsDrawn) renderAnnotations();
+  };
   // The inventory lists the marks the projection's chrome paints, reading their nodes,
   // which the watcher cannot track, so it reads the parts that move them itself, and
-  // reads them once that region has committed.
+  // reads them once that region has committed. The ages the margin shows are followed
+  // with the rest of what this paint reads, so the clock repaints them by the same
+  // proof.
   const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(
+    const watching = watchProjection(
       document.body,
       () => {
         annotationInputs();
@@ -285,8 +295,10 @@ export function mountApplication(dependencies) {
       () => projectionRegionsPresented([]),
     );
     document.addEventListener("lf-comparison", renderAnnotations);
+    // A paint on paper read no ages, so the return to screen paints through the
+    // watcher, which follows them again.
     onPaper.addEventListener("change", () => {
-      if (!onPaper.matches) renderAnnotations.refresh();
+      if (!onPaper.matches) watching.refresh();
     });
     watchContributions(({ immediate }) => {
       renderAnnotations();
@@ -477,8 +489,6 @@ export function mountApplication(dependencies) {
     requirePageAnnotations();
     return registerPageConsumer(owner, render, threadSurfaceCommands);
   };
-  const mountThreadViews = (owner, render) =>
-    registerMirrorConsumer(owner, render, { commands: inlineView });
 
   // One reader is the page's primary at a time (thread/destination.js). Leaf's own
   // chrome registers one that yields (`registerChromeThreadPresentation`, which the
@@ -598,17 +608,17 @@ export function mountApplication(dependencies) {
     watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
-    mountThreadViews,
     registerThreadPanel,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
+    settlement: settlementView,
     openAsk(id) {
       const ask = readAsks().all.find((item) => item.id === id);
       if (!ask) return Promise.resolve(false);
       if (ask.source.kind === "approval")
         return queueActions.open(JSON.stringify(["ask", ask.id]));
-      if (ask.source.kind === "reply") {
+      if (ask.thread !== null && askedInWords(ask)) {
         showHeld(ask.thread);
         return threadDestinations.openPageThread(ask.message, {
           part: "message",
@@ -636,7 +646,6 @@ export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
-export const mountThreadViews = (...args) => app().mountThreadViews(...args);
 export const registerThreadPresentation = (...args) =>
   app().registerThreadPresentation(...args);
 export const threadActions = Object.freeze({

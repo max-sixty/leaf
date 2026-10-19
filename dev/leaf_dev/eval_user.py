@@ -39,7 +39,7 @@ from leaf_dev.arms import (
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import BESIDE, DESKTOP, headless_shell, load, settle, tab
+from leaf_dev.browser import headless_shell, load, settle, tab
 from leaf_dev.eval_cases import definition
 
 # Elements a reader clicks to open what a list or a disclosure holds.
@@ -183,14 +183,23 @@ def reveal(page: Page, target: str, pattern: str, settled=settle) -> str:
 
 
 def comment_on_passage(
-    url: str, quotes: tuple[str, ...], text: str, fallback: str, target: str = ""
+    url: str,
+    quotes: tuple[str, ...],
+    text: str,
+    fallback: str,
+    target: str = "",
+    *,
+    viewport: tuple[int, int],
 ) -> dict:
     """Comment as the reader of the Leaf page at `url`: on the first drawn
     occurrence of the first of `quotes` the page draws, which the selection's own
     context anchors, opening `target` first where none is drawn, or otherwise
     on the page whole with `fallback`. Return the route, the quote, and the
     `attempt` key that finds the admitted comment in the log."""
-    with headless_shell() as browser, tab(browser, viewport=DESKTOP) as view:
+    with (
+        headless_shell() as browser,
+        tab(browser, viewport=viewport, classic=True) as view,
+    ):
         load(view, url)
         quote = view.evaluate(SELECT, list(quotes))
         opened = None
@@ -247,17 +256,18 @@ def cli() -> list[str]:
     return [str(Path(node).resolve()), str(script), "cli"]
 
 
-def decide(url: str, task: str, evidence: Path) -> dict:
+def decide(url: str, task: str, evidence: Path, *, viewport: tuple[int, int]) -> dict:
     """Have the user agent make the decision `task` on the page at `url`, in a
-    900px tab, and return what it reported (`made`, `copied`, `notes`), what the
-    page put on the clipboard (`copies`), and what the agent spent (`trace`)."""
+    tab at the declared viewport. Return what it reported (`made`, `copied`,
+    `notes`), what the page put on the clipboard (`copies`), and what the agent
+    spent (`trace`)."""
     evidence.mkdir(parents=True, exist_ok=True)
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     with (
         headless_shell(args=[f"--remote-debugging-port={port}"]) as browser,
-        tab(browser, viewport=BESIDE, motion="no-preference") as view,
+        tab(browser, viewport=viewport, motion="no-preference", classic=True) as view,
         scratch() as cwd,
         tempfile.TemporaryDirectory(prefix="leaf-pw-", dir="/tmp") as sockets,
     ):

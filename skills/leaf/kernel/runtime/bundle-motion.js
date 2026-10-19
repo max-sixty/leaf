@@ -44,6 +44,34 @@ function backgroundFlash(el, ms) {
   return motion(el, [{ backgroundColor: "var(--hi-tint)", offset: 0 }], ms);
 }
 var foldDuration = () => time("--lf-motion-fold");
+function foldBlock(el) {
+  if (!CSS.supports("block-size", "calc-size(auto, size)")) return null;
+  return motion(
+    el,
+    [
+      {
+        blockSize: "calc-size(auto, size)",
+        display: "block",
+        overflow: "clip",
+        opacity: 1
+      },
+      {
+        blockSize: "0px",
+        minBlockSize: "0px",
+        marginBlockStart: "0px",
+        marginBlockEnd: "0px",
+        paddingBlockStart: "0px",
+        paddingBlockEnd: "0px",
+        borderBlockStartWidth: "0px",
+        borderBlockEndWidth: "0px",
+        display: "block",
+        overflow: "clip",
+        opacity: 0
+      }
+    ],
+    foldDuration()
+  );
+}
 var SLIDE_IN_MS = 200;
 var SLIDE_OUT_MS = 160;
 var slides = /* @__PURE__ */ new WeakMap();
@@ -84,5 +112,6 @@ export {
   agentArrivalDuration,
   backgroundFlash,
   foldDuration,
+  foldBlock,
   slide
 };

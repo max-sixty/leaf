@@ -57,13 +57,45 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_navigation import (
+from browser.navigation import (
     EXPANDED,
     KEY_LINE_HINTS,
-    QUICK_KEYS_PAGE,
     READING_REGIONS_PAGE,
     STANDING,
     color_cue_markup,
+)
+
+# An ask's digits beside a page-scoped command with a context key of its own,
+# registered the way an authored module does.
+QUICK_KEYS_PAGE = leaf_page(
+    "quick keys",
+    """
+<h1 id="title">Field day</h1>
+<lf-ask id="map-ask">
+  <h3>Which map should the sample team carry?</h3>
+  <lf-options id="map" choose>
+    <lf-option id="map-street">Street map</lf-option>
+    <lf-option id="map-trail">Trail map</lf-option>
+  </lf-options>
+</lf-ask>
+<div id="local-shortcuts" tabindex="0">
+  <button id="shortcut-focus-note" type="button">Write sample note</button>
+  <label>Sample note <input id="shortcut-note" type="text" /></label>
+</div>
+""",
+    head="""<script type="module">
+import { commands } from "/runtime/widget-api.js";
+const note = document.querySelector("#shortcut-note");
+commands(document.querySelector("#local-shortcuts"), "In the note sample", [{
+  id: "note.focus",
+  contextKeys: ["1"],
+  control: document.querySelector("#shortcut-focus-note"),
+  bindingBadge: null,
+  title: "Write note",
+  description: "Focus the sample note",
+  run: () => note.focus(),
+}]);
+</script>""",
 )
 
 
@@ -423,6 +455,11 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
     page = open_page(browser, url, context=context)
     page.evaluate("() => document.fonts.ready")
     navigation = page.locator("#pr-contents")
+    disclosure = navigation.locator("summary")
+    if disclosure.is_visible() and not navigation.locator("details").evaluate(
+        "node => node.open"
+    ):
+        disclosure.click()
     first = navigation.get_by_role("link", name="Review finding", exact=True)
     expect(first).to_be_in_viewport()
     if width < 500:
@@ -449,6 +486,10 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
 
     # Begin again at the opening, and take the native tab order to another route.
     navigate(page, url)
+    if disclosure.is_visible() and not navigation.locator("details").evaluate(
+        "node => node.open"
+    ):
+        disclosure.click()
     page.evaluate(RELEASE_FOCUS)
     invariant = navigation.get_by_role("link", name="Review invariants", exact=True)
     for _ in range(30):
@@ -1089,6 +1130,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
         "Is this the passage you meant?",
         {"section": "p2", "quote": "neighbouring block"},
         "agent",
+        question="Is this the passage you meant?",
     )
     page = open_page(browser, url)
     page.set_viewport_size({"width": 1200, "height": 844})
@@ -1739,7 +1781,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
-    expect(sheet.locator(".lf-page-map-group")).to_have_count(3)
+    expect(sheet.locator(".lf-page-map-group")).to_have_count(4)
     expect(
         sheet.get_by_role(
             "searchbox", name="Find an action, status, or location in Page Map"
@@ -1750,7 +1792,12 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # A visible Margin entry shares the generated target map. Activating the hint
     # opens the same thread preview as its marker.
-    go_to_address(page, "Margin entry", "p1")
+    page.keyboard.press("g")
+    margin_hints = page.locator(
+        f'{CHIPS}[data-lf-go-to-kind="Margin entry"][data-lf-go-to-target="p1"]'
+    )
+    expect(margin_hints).to_have_count(2)
+    page.keyboard.type(margin_hints.first.get_attribute("data-lf-hint-code"))
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
     page.keyboard.press("Escape")  # onto the element the thread is about
@@ -2407,7 +2454,15 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     expect(setting).not_to_be_checked()
     comment = reference.locator('tr[data-lf-command="comment.create"]')
     expect(comment.locator("kbd")).to_have_count(0)
-    # Turning a binding off leaves its command actionable in the reference.
+    # Disabling the key makes the command actionable even from the text field where
+    # that key was previously reserved for typing.
+    page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
+    expect(
+        comment.get_by_role("button", name="Comment on the page", exact=True)
+    ).to_have_attribute("data-lf-available", "true")
+    page.get_by_role("button", name="Close the command reference").click()
+    page.locator("body").focus()
+    settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
     comment.get_by_role("button", name="Comment on the page", exact=True).click()
     field = page.get_by_role("textbox", name="Comment on the page", exact=True)
@@ -2497,10 +2552,12 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     page.keyboard.press("1")
     expect(note).to_be_focused()
 
+    page.locator("body").focus()
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Select element")
     reference.locator('tr[data-lf-command="target.picker.open"]').get_by_role(
         "button"
     ).click()
+    rendered(page)
     expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
     page.keyboard.press("Escape")

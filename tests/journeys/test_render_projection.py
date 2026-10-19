@@ -51,6 +51,8 @@ from render_cases_layout import (
     banner_control,
 )
 from render_cases_navigation import (
+    call_diff,
+    call_node,
     painted,
     source_revision,
 )
@@ -99,11 +101,22 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 """,
     )
     url = serve(authored, packages=("diff",))
-    call_diff = """calldiff diff main → feature
-
-  Limiter.bucket_key(self, request)  gateway/limits.py:38
-+ └─ if request.token  gateway/limits.py:40
-"""
+    capture = call_diff(
+        call_node(
+            "Limiter.bucket_key(self, request)",
+            "gateway/limits.py",
+            38,
+            children=[
+                call_node(
+                    "if request.token",
+                    "gateway/limits.py",
+                    40,
+                    status="added",
+                    kind="branch",
+                )
+            ],
+        )
+    )
     patch = """diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
@@ -116,7 +129,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 +            return f"tok:{request.token.id}"
 +        return f"ip:{request.remote_addr}"
 """
-    data_model.cmd_data_set(serve.page_dir, "request-call-diff", call_diff)
+    data_model.cmd_data_set(serve.page_dir, "request-call-diff", capture)
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
@@ -225,14 +238,17 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     assert selected == "└─ if request.token"
     expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
 
-    updated = (
-        call_diff.replace(
-            "calldiff diff main → feature", "calldiff diff main → feature-2"
-        )
-        + """
-  Limiter.secondary(self)  gateway/limits.py:50
-+ └─ return True  gateway/limits.py:51
-"""
+    updated = call_diff(
+        capture["trees"][0]["tree"],
+        call_node(
+            "Limiter.secondary(self)",
+            "gateway/limits.py",
+            50,
+            children=[
+                call_node("return True", "gateway/limits.py", 51, status="added")
+            ],
+        ),
+        to="feature-2",
     )
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
     told(page)
@@ -337,7 +353,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
-        "calldiff diff main → shifted\n  shifted_call()  gateway/limits.py:102",
+        call_diff(call_node("shifted_call()", "gateway/limits.py", 102)),
     )
     told(page)
     shifted = page.locator(
@@ -349,30 +365,22 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "Opened gateway/limits.py:102 in the exact patch"
     )
 
-    data_model.cmd_data_set(serve.page_dir, "request-call-diff", "not CallDiff output")
-    told(page)
-    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
-        "the first line must be a CallDiff diff header"
+    # Native trees can contain synthetic nodes without source coordinates.
+    data_model.cmd_data_set(
+        serve.page_dir, "request-call-diff", call_diff(call_node("synthetic()"))
     )
+    told(page)
+    expect(widget.locator(".lf-call-group-summary")).to_contain_text("synthetic()")
+    expect(widget.locator(".lf-call-location:visible")).to_have_count(0)
 
     data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
-        "calldiff diff main → feature\n+ └─ orphan()  gateway/limits.py:40",
+        call_diff(message="No callstack changes for requested entrypoints."),
     )
     told(page)
-    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
-        "line 2 appears before a changed root"
-    )
-
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "request-call-diff",
-        "calldiff diff main → feature\n  missing_location()",
-    )
-    told(page)
-    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
-        "line 2 has no source location; capture --locs output"
+    expect(widget.locator(".lf-call-line")).to_have_text(
+        "No callstack changes for requested entrypoints."
     )
     expect(widget.locator(".lf-call-root-location, .lf-call-group")).to_have_count(0)
 
@@ -1438,7 +1446,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
 ):
     """A settlement is the layer's rendering of the log's decision, never a module
     obligation: the trial's module is the product's starter, which only defines the
-    element — it never subscribes to its controller and supplies no renderState — and
+    element — a `LeafElement` with no `render()` of its own — and
     once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
@@ -1454,7 +1462,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     module = (tmp_path / ".leaf" / "widgets" / "lf-trial.js").read_text()
-    assert "subscribe" not in module, "the holder's module must leave the mark to Leaf"
+    assert "render(" not in module, "the holder's module must leave the mark to Leaf"
 
     url = serve(
         TWO_HOLDER_PAGE,
@@ -1548,7 +1556,7 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     )
     assert render_gate_model.render_version(browser, url).failures == []
 
-    hide = "[data-lf-retired] { display: none; }"
+    hide = "  [data-lf-retired] {\n    display: none;\n  }"
     vendored = serve.page_dir / "theme.css"
     css = vendored.read_text()
     assert css.count(hide) == 1
@@ -1556,31 +1564,11 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
         """\
-import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
-  #controller;
+import {keeps, LeafElement} from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends LeafElement {
   #presented;
-  #stop;
-  connectedCallback() {
-    this.#controller ??= widgetController(this);
-    if (!once(this)) {
-      this.#subscribe();
-      return;
-    }
-    this.#subscribe();
-  }
-  disconnectedCallback() {
-    this.#stop?.();
-    this.#stop = undefined;
-    this.#presented?.disconnect();
-    this.#presented = undefined;
-  }
-  #subscribe() {
-    this.#stop ??= this.#controller.subscribe(reading => this.#markAfterPresentation(reading));
-    this.#markAfterPresentation(this.#controller.read());
-  }
-  #markAfterPresentation(reading) {
-    if (!reading.state) return;
+  render() {
+    if (!this.reading.state) return;
     if (document.body.dataset.lfPresented === "1") {
       keeps(this, "data-lf-state", "shelve");
       return;

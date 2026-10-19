@@ -47,6 +47,48 @@ test("working says the agent's own sentence, dated on the row once it is old", (
   ]);
 });
 
+test("authored activity detail retains its exact source only in the words that show it", () => {
+  const source = { event_id: "progress-1", item: "question-1" };
+  const activity = {
+    kind: "working",
+    detail: "checking the roof",
+    detail_source: source,
+  };
+  const reading = pageStatus(state(activity));
+  const model = statusModel(reading, NO_QUEUES, "Claude");
+  assert.equal(model.summary, "Claude working — checking the roof");
+  assert.deepEqual(
+    model.summaryParts.filter((part) => part.source),
+    [{ text: "checking the roof", source }],
+  );
+  const stalled = statusModel(
+    pageStatus(state({ ...activity, kind: "stalled" })),
+    NO_QUEUES,
+    "Claude",
+  );
+  assert.equal(
+    stalled.summaryParts.some((part) => part.source),
+    false,
+  );
+  assert.deepEqual(
+    stalled.explanationParts.filter((part) => part.source),
+    [{ text: "checking the roof", source }],
+  );
+  assert.deepEqual(
+    stalled.addsParts.filter((part) => part.source),
+    [{ text: "checking the roof", source }],
+  );
+  const generic = statusModel(
+    pageStatus(state({ ...activity, detail_source: null })),
+    NO_QUEUES,
+    "Claude",
+  );
+  assert.equal(
+    generic.summaryParts.some((part) => part.source),
+    false,
+  );
+});
+
 test("working with no sentence of the agent's names what its turn picked up", () => {
   const picked = (handling, handling_comments) =>
     said({
@@ -173,7 +215,7 @@ test("an unreachable server, a refused key and an unappliable state each say wha
     adds: "",
   });
   assert.deepEqual(pageStatus(null, { reach: "refused" }), {
-    kind: "unreachable",
+    kind: "refused",
     tone: "offline",
     summary: "Key refused — open Leaf's link in a new tab",
     explanation:
@@ -300,7 +342,13 @@ test("what the disclosure adds to the row says only what the row does not", () =
 test("a published page introduces itself and its links in place of the status", () => {
   const publication = { agent: "Agent", install_url: "/#install" };
   const status = pageStatus({ ...state({ kind: "working" }), publication });
-  assert.deepEqual(status, { kind: "publication", tone: "", publication });
+  // Its line says who answers there, for a seat with room for one line.
+  assert.deepEqual(status, {
+    kind: "publication",
+    tone: "",
+    summary: "Agent revises your private copy",
+    publication,
+  });
   const model = statusModel(status, NO_QUEUES, "Agent");
   assert.equal(
     model.explanation,

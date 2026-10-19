@@ -1,0 +1,15 @@
+# Pilot pending: immediate visual preview changes and final appearance fidelity.
+# Near the shipped playground notification example; an integration task, not an
+# independent design-domain holdout. Selected before any pilot author results.
+description: Notification design
+metadata:
+  purpose: Tune a notification's appearance, correct its message, and retain the
+    actual selected visual design in the final record.
+  tags:
+    - workflow
+    - design
+  conditions:
+    - leaf
+    - html
+  executor: leaf_dev.arrangement_eval
+  scenario: notification-design

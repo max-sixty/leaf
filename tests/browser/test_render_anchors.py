@@ -72,6 +72,7 @@ from render_harness import (
     consume_browser_errors,
     hold_selection,
     holding,
+    http_error_console,
     leaf_page,
     open_page,
     open_versions,
@@ -209,7 +210,7 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     )
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
@@ -1005,7 +1006,7 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     words by definition and still means the document, which
     `test_a_selection_of_the_whole_page_still_finds_its_passage` holds. The chrome half of
     this — which of the layer's words a selection may reach at all — is
-    `test_render_controls.py::test_a_selection_that_reaches_the_layer_stops_at_the_page`.
+    `controls/test_covering.py::test_a_selection_that_reaches_the_layer_stops_at_the_page`.
     """
     quoted = "Paragraph 3. Filler. Filler. Filler."
     page = open_page(browser, serve(LONG_PAGE, anchored=(("p3", quoted),)))
@@ -1151,7 +1152,7 @@ def test_the_captured_quote_is_prose_a_file_can_hold(browser, serve):
         page.locator(block).click(click_count=3)
         page.locator(".lf-fab-input").click()
         page.wait_for_function(
-            "() => document.querySelector('.lf-composer').style.display === 'contents'"
+            "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
         )
 
     # Read off the composer's description of its own anchor, which is the captured quote
@@ -1231,7 +1232,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#q").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
 
     # The click that selected #q also scrolled it into view. Bring the other passage
@@ -1248,7 +1249,7 @@ def test_an_open_composer_does_not_eat_the_next_click(browser, serve):
     page.locator("#p").click(click_count=3)
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
-        "() => document.querySelector('.lf-composer').style.display === 'contents'"
+        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
     )
     page.mouse.click(*mark_point(page, "lf-pending"))
     assert not page.locator(".lf-thread-panel").evaluate(
@@ -1335,14 +1336,24 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
         }).observe(document, {subtree:true, attributes:true,
           attributeFilter:['data-lf-presented']});""",
     )
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
+    page.locator("#source").hover()
+    page.locator(".lf-chrome .lf-code-copy").first.get_by_role("button").hover()
+    assert (
+        page.locator(".lf-chrome .lf-code-copy").evaluate_all(
+            "nodes => nodes.filter(node => getComputedStyle(node).opacity === '1').length"
+        )
+        == 1
+    ), "hovering one Copy control must not reveal the other blocks' controls"
+    page.mouse.move(2, 300)
+
     assert page.evaluate("window.copyAtPresentation") == 1
     page.evaluate(
         "window.detachedCodeSource = document.querySelector('#source'); detachedCodeSource.remove()"
     )
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(1)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(1)
     page.evaluate("document.querySelector('main').append(detachedCodeSource)")
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
     page.locator("#source").focus()
     assert "copy code" in shortcut_bar_text(page)
     page.keyboard.press("Tab")
@@ -1380,11 +1391,44 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
           });
         })()""",
     )
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(60)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(60)
     events = page.evaluate("window.copyPlacementEvents")
     assert events.count("read") >= 60
     assert "write" in events
     assert events.index("write") >= 60
+
+    # Opening unrelated chrome must not restyle every code control. Compare the
+    # browser's invalidated-element count at two populations, independent of time.
+    def restyled_on_chrome_insertion():
+        browser.start_tracing(page=page, categories=["devtools.timeline"])
+        try:
+            page.evaluate("""() => {
+              const chrome = document.querySelector('.lf-chrome');
+              const probe = document.createElement('div');
+              chrome.append(probe);
+              void probe.offsetWidth;
+              probe.remove();
+              void chrome.offsetWidth;
+            }""")
+        finally:
+            trace = json.loads(browser.stop_tracing())
+        restyled = [
+            event["args"]["elementCount"]
+            for event in trace["traceEvents"]
+            if event["name"] == "UpdateLayoutTree"
+        ]
+        assert restyled, "the chrome insertion must exercise style invalidation"
+        return sum(restyled)
+
+    rendered(page)
+    many = restyled_on_chrome_insertion()
+    page.locator("main pre").evaluate_all(
+        "nodes => nodes.slice(1).forEach(node => node.remove())"
+    )
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(1)
+    rendered(page)
+    one = restyled_on_chrome_insertion()
+    assert many <= one, {"60 controls": many, "1 control": one}
 
 
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])
@@ -1406,7 +1450,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     )
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    controls = page.locator(".lf-chrome > .lf-code-copy")
+    controls = page.locator(".lf-chrome .lf-code-copy")
     expect(controls).to_have_count(100)
     control = controls.first
     expect(page.locator("#source")).to_be_hidden()
@@ -1468,7 +1512,7 @@ def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
         live_url(serve(leaf_page("Code stop", markup))),
     )
     pre = page.locator("#source")
-    control = page.locator(".lf-chrome > .lf-code-copy")
+    control = page.locator(".lf-chrome .lf-code-copy")
     expect(control).to_have_count(1)
     assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
     pre.evaluate("(el, text) => el.replaceChildren(text)", source)
@@ -5445,7 +5489,7 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )
-    consume_browser_errors(page, {"code": "failed-load", "status": 500})
+    consume_browser_errors(page, http_error_console(500))
     summary.click()
     summary.click()
     expect(
@@ -5566,7 +5610,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     )
     page.wait_for_timeout(250)
     assert len(requests) == 1, "thread hydration retried without another user gesture"
-    consume_browser_errors(page, {"code": "failed-load", "status": 500})
+    consume_browser_errors(page, http_error_console(500))
 
     summary = page.locator("lf-diff summary")
     summary.click()
@@ -5582,9 +5626,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     ) as retried:
         summary.click()
     assert len(requests) == 2
-    reported_browser_errors(
-        page, {"code": "failed-load", "status": 500, "url": retried.value.url}
-    )
+    reported_browser_errors(page, {"code": "console-error", "url": retried.value.url})
 
 
 def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):

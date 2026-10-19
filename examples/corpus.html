@@ -213,6 +213,7 @@
 <!-- notification-playground.html authored script -->
 <script type="module">
       import {
+        PAGE_INTERFACE,
         keeps,
         keepsText,
         layoutChanged,
@@ -328,13 +329,13 @@
         class extends HTMLElement {
           #banner = null;
           #strip = null;
-          #values = null;
+          #initialized = false;
           #cards = "";
 
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileConnected(this, (signal) => void this.#connect(signal));
+            whileConnected(this, (signal) => this.#connect(signal));
           }
 
           #build() {
@@ -345,67 +346,59 @@
             this.append(candidates);
           }
 
-          async #connect(signal) {
-            await customElements.whenDefined("lf-playground");
-            if (signal.aborted) return;
+          #connect(signal) {
             const playground = this.closest("lf-playground");
-            if (!playground) return;
-            playground.addEventListener(
-              "lf-playground-change",
-              (event) => {
-                if (event.target !== playground) return;
-                this.#values = event.detail.values;
-                this.#render();
-              },
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              unsubscribe = playground.subscribe((values) => this.#render(values));
+              this.#initialized = true;
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
               { signal },
             );
-            this.#values = playground.values;
-            this.#render();
+            if (this.#initialized) initialize();
+            return () => unsubscribe?.();
           }
 
-          #render() {
-            if (!this.#values) return;
-            const events = EVENTS.slice(0, this.#values.events);
-            keeps(this, "data-tone", this.#values.tone);
-            keeps(this, "data-compact", this.#values.compact);
-            this.style.setProperty("--notification-accent", this.#values.accent);
-            this.style.setProperty("--notification-radius", `${this.#values.radius}px`);
+          #render(values) {
+            const events = EVENTS.slice(0, values.events);
+            keeps(this, "data-tone", values.tone);
+            keeps(this, "data-compact", values.compact);
+            this.style.setProperty("--notification-accent", values.accent);
+            this.style.setProperty("--notification-radius", `${values.radius}px`);
             this.#banner.figure.toggleAttribute(
               "data-selected",
-              this.#values.format === "banner",
+              values.format === "banner",
             );
             this.#strip.figure.toggleAttribute(
               "data-selected",
-              this.#values.format === "status strip",
+              values.format === "status strip",
             );
             // The cards read only the event count, the first title and the owner line;
             // a colour or a radius leaves them unchanged.
             const cards = JSON.stringify([
-              this.#values.events,
-              this.#values.title,
-              this.#values["show-owner"],
+              values.events,
+              values.title,
+              values["show-owner"],
             ]);
             if (cards !== this.#cards) {
               this.#cards = cards;
               this.#banner.feed.replaceChildren(
                 ...events.map((event, index) =>
-                  notification(event, "banner", index, this.#values),
+                  notification(event, "banner", index, values),
                 ),
               );
               this.#strip.feed.replaceChildren(
                 ...events.map((event, index) =>
-                  notification(event, "status strip", index, this.#values),
+                  notification(event, "status strip", index, values),
                 ),
               );
             }
-            keepsText(
-              this.#banner.metric,
-              `${this.#values.events} cards · full detail`,
-            );
-            keepsText(
-              this.#strip.metric,
-              `${this.#values.events} rows · compact summary`,
-            );
+            keepsText(this.#banner.metric, `${values.events} cards · full detail`);
+            keepsText(this.#strip.metric, `${values.events} rows · compact summary`);
             layoutChanged(this);
           }
         },
@@ -484,7 +477,15 @@
 </style>
 <!-- data-explorer.html authored script -->
 <script type="module">
-      import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
+      import {
+        PAGE_INTERFACE,
+        keepsText,
+        layoutChanged,
+        offer,
+        once,
+        setChildren,
+        whileConnected,
+      } from "/runtime/widget-api.js";
 
       const RELEASES = [
         { service: "Checkout", region: "europe", risk: 72, owner: "payments" },
@@ -501,8 +502,6 @@
         ],
         order: ["filter-1", "filter-2"],
       };
-
-      const clone = (value) => structuredClone(value);
 
       function matches(release, row) {
         const actual = release[row.field];
@@ -533,18 +532,17 @@
         "release-query-explorer",
         class extends HTMLElement {
           #playground = null;
-          #state = clone(DEFAULT_FILTERS);
-          #notify = null;
+          #filters = null;
           #rows = null;
           #results = null;
           #count = null;
           #rowEls = new Map();
           #listed = "";
-          #next = 3;
 
           connectedCallback() {
-            if (once(this)) this.#build();
-            this.#connect();
+            if (!once(this)) return;
+            this.#build();
+            whileConnected(this, (signal) => this.#connect(signal));
           }
 
           #build() {
@@ -555,15 +553,20 @@
             );
             const add = offer("button", "lf-btn query-add", "Add filter");
             add.addEventListener("click", () => {
-              const id = `filter-${this.#next++}`;
-              this.#state.rows.push({
-                id,
-                field: "owner",
-                operator: "is",
-                value: "platform",
+              const state = this.#filters.get();
+              const next =
+                Math.max(
+                  0,
+                  ...state.rows.map((row) => Number(row.id.split("-").at(-1))),
+                ) + 1;
+              const id = `filter-${next}`;
+              this.#filters.set({
+                rows: [
+                  ...state.rows,
+                  { id, field: "owner", operator: "is", value: "platform" },
+                ],
+                order: [...state.order, id],
               });
-              this.#state.order.push(id);
-              this.#changed();
               queueMicrotask(() =>
                 this.querySelector(`[data-filter-id="${id}"] input`)?.focus(),
               );
@@ -586,27 +589,27 @@
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 
-          async #connect() {
-            await customElements.whenDefined("lf-playground");
-            if (!this.isConnected || this.#notify) return;
+          #connect(signal) {
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              if (!this.#filters) this.#initialize();
+              unsubscribe = this.#playground.subscribe(() => this.#render());
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
+              { signal },
+            );
+            if (this.#filters) initialize();
+            return () => unsubscribe?.();
+          }
+
+          #initialize() {
             this.#playground = this.closest("lf-playground");
-            this.#notify = this.#playground.registerContributor(
+            this.#filters = this.#playground.registerContributor(
               "filters",
               DEFAULT_FILTERS,
-              {
-                read: () => clone(this.#state),
-                apply: (state) => {
-                  this.#state = clone(state);
-                  this.#next =
-                    Math.max(
-                      0,
-                      ...this.#state.rows.map((row) =>
-                        Number(row.id.split("-").at(-1)),
-                      ),
-                    ) + 1;
-                  this.#render();
-                },
-              },
             );
             this.#playground.registerInstructionProvider((values) => {
               const rows = values.filters.order.map((id) =>
@@ -622,31 +625,33 @@
             });
           }
 
-          #changed() {
-            this.#notify();
-          }
-
           #update(id, field, value) {
-            this.#state.rows.find((row) => row.id === id)[field] = value;
-            this.#changed();
+            const state = this.#filters.get();
+            this.#filters.set({
+              ...state,
+              rows: state.rows.map((row) =>
+                row.id === id ? { ...row, [field]: value } : row,
+              ),
+            });
           }
 
           #move(id, offset) {
-            const from = this.#state.order.indexOf(id);
+            const state = this.#filters.get();
+            const from = state.order.indexOf(id);
             const to = from + offset;
-            if (to < 0 || to >= this.#state.order.length) return;
-            [this.#state.order[from], this.#state.order[to]] = [
-              this.#state.order[to],
-              this.#state.order[from],
-            ];
-            this.#changed();
+            if (to < 0 || to >= state.order.length) return;
+            const order = [...state.order];
+            [order[from], order[to]] = [order[to], order[from]];
+            this.#filters.set({ ...state, order });
           }
 
           #remove(id) {
-            const index = this.#state.order.indexOf(id);
-            this.#state.rows = this.#state.rows.filter((row) => row.id !== id);
-            this.#state.order = this.#state.order.filter((rowId) => rowId !== id);
-            this.#changed();
+            const state = this.#filters.get();
+            const index = state.order.indexOf(id);
+            this.#filters.set({
+              rows: state.rows.filter((row) => row.id !== id),
+              order: state.order.filter((rowId) => rowId !== id),
+            });
             queueMicrotask(() => {
               const rows = this.querySelectorAll(".query-row");
               const next = rows[Math.min(index, rows.length - 1)];
@@ -721,10 +726,10 @@
           }
 
           #render() {
-            if (!this.#rows) return;
-            const byId = new Map(this.#state.rows.map((row) => [row.id, row]));
-            const last = this.#state.order.length - 1;
-            const shown = this.#state.order.map((id, index) => {
+            const state = this.#filters.get();
+            const byId = new Map(state.rows.map((row) => [row.id, row]));
+            const last = state.order.length - 1;
+            const shown = state.order.map((id, index) => {
               const row = byId.get(id);
               const made = this.#row(row);
               if (made.field.value !== row.field) made.field.value = row.field;
@@ -740,16 +745,11 @@
             });
             for (const id of this.#rowEls.keys())
               if (!byId.has(id)) this.#rowEls.delete(id);
-            const current = this.#rows.children;
-            if (
-              shown.length !== current.length ||
-              shown.some((element, index) => element !== current[index])
-            )
-              this.#rows.replaceChildren(...shown);
-            const values = this.#playground?.values;
+            setChildren(this.#rows, shown);
+            const values = this.#playground.values;
             const filtered = RELEASES.filter((release) =>
-              this.#state.order.every((id) => matches(release, byId.get(id))),
-            ).slice(0, values?.limit ?? 4);
+              state.order.every((id) => matches(release, byId.get(id))),
+            ).slice(0, values.limit);
             const listed = JSON.stringify(filtered);
             if (listed !== this.#listed) {
               this.#listed = listed;
@@ -776,7 +776,7 @@
       );
     </script>
 <!-- code-comparison.html authored styles -->
-<style>
+<style data-controls="">
       code-reader-comparison {
         display: grid;
         gap: var(--sp-3);
@@ -784,8 +784,7 @@
         container-type: inline-size;
       }
 
-      /* The controls this element's module builds wear the layer's .lf-ui, and a page
-         rule reaches those only by naming the widget they stand in. */
+      /* This stylesheet explicitly styles the controls this module builds. */
       code-reader-comparison :is(.code-comparison-toolbar, .code-candidate-controls) {
         display: flex;
         flex-wrap: wrap;
@@ -835,7 +834,6 @@
         box-sizing: border-box;
         width: 100%;
         max-width: 100%;
-        overflow-x: auto;
       }
 
       .code-candidate[data-density="compact"] lf-code pre {
@@ -871,6 +869,7 @@
 <!-- code-comparison.html authored script -->
 <script type="module">
       import {
+        PAGE_INTERFACE,
         frameFor,
         keeps,
         keepsText,
@@ -885,15 +884,12 @@
         candidateA: { density: "compact", wrap: false },
         candidateB: { density: "comfortable", wrap: true },
       };
-      const clone = (value) => structuredClone(value);
 
       customElements.define(
         "code-reader-comparison",
         class extends HTMLElement {
           #playground = null;
-          #state = clone(DEFAULT_COMPARISON);
-          #notify = null;
-          #change = null;
+          #comparison = null;
           #readerLayout = (event) => {
             if (event.target.matches("lf-code")) this.#scheduleMeasurement();
           };
@@ -901,7 +897,7 @@
           connectedCallback() {
             if (!once(this)) return;
             this.#build();
-            whileConnected(this, (signal) => void this.#connect(signal));
+            whileConnected(this, (signal) => this.#connect(signal));
           }
 
           #button(label, run) {
@@ -922,37 +918,33 @@
             this.prepend(toolbar);
           }
 
-          async #connect(signal) {
-            await Promise.all([
-              customElements.whenDefined("lf-playground"),
-              customElements.whenDefined("lf-code"),
-            ]);
-            if (signal.aborted) return;
-            if (!this.#notify) this.#initialize();
-            this.#playground.addEventListener("lf-playground-change", this.#change, {
-              signal,
-            });
+          #connect(signal) {
+            let unsubscribe;
+            const initialize = () => {
+              if (signal.aborted || unsubscribe) return;
+              if (!this.#comparison) this.#initialize();
+              unsubscribe = this.#playground.subscribe(() => this.#render());
+            };
+            document.addEventListener(
+              PAGE_INTERFACE,
+              (event) => event.detail.present(Promise.resolve().then(initialize)),
+              { signal },
+            );
+            if (this.#comparison) initialize();
             this.addEventListener("lf-layout", this.#readerLayout, { signal });
             const watching = sizeObserver(this.#scheduleMeasurement);
             signal.addEventListener("abort", () => watching.disconnect());
             for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
               watching.observe(reader);
             }
-            this.#render();
+            return () => unsubscribe?.();
           }
 
           #initialize() {
             this.#playground = this.closest("lf-playground");
-            this.#notify = this.#playground.registerContributor(
+            this.#comparison = this.#playground.registerContributor(
               "comparison",
               DEFAULT_COMPARISON,
-              {
-                read: () => clone(this.#state),
-                apply: (state) => {
-                  this.#state = clone(state);
-                  this.#render();
-                },
-              },
             );
             this.#playground.registerInstructionProvider((values) => {
               const chosen =
@@ -962,31 +954,34 @@
                 : "keep horizontal scrolling";
               return `Update the built Leaf code reader in skills/leaf/packages/default/widgets/lf-code.js to use the ${chosen.density} reading density and ${wrapping} at a ${values.width}px comparison viewport. Preserve syntax and line anchors, then show the focused browser measurement test.`;
             });
-            this.#change = (event) => {
-              if (event.target === this.#playground) this.#render();
-            };
           }
 
           #toggleDensity(candidate) {
-            this.#state[candidate].density =
-              this.#state[candidate].density === "compact" ? "comfortable" : "compact";
-            this.#notify();
+            const state = this.#comparison.get();
+            this.#comparison.set({
+              ...state,
+              [candidate]: {
+                ...state[candidate],
+                density:
+                  state[candidate].density === "compact" ? "comfortable" : "compact",
+              },
+            });
           }
 
           #copy(from, to) {
-            this.#state[to] = clone(this.#state[from]);
-            this.#notify();
+            const state = this.#comparison.get();
+            this.#comparison.set({ ...state, [to]: state[from] });
           }
 
           #render() {
-            if (!this.#playground) return;
+            const state = this.#comparison.get();
             const values = this.#playground.values;
             for (const [name, key] of [
               ["A", "candidateA"],
               ["B", "candidateB"],
             ]) {
               const candidate = this.querySelector(`[data-candidate="${name}"]`);
-              const setting = this.#state[key];
+              const setting = state[key];
               keeps(candidate, "data-density", setting.density);
               keeps(candidate, "data-wrap", setting.wrap);
               candidate.style.width = `${values.width}px`;
@@ -1172,7 +1167,11 @@
 </style>
 <!-- alert-thresholds.html authored script -->
 <script type="module">
-      import { afterPresentation, keepsText } from "/runtime/widget-api.js";
+      import {
+        PAGE_INTERFACE,
+        keepsText,
+        whileConnected,
+      } from "/runtime/widget-api.js";
 
       const ALERTS = [
         {
@@ -1365,13 +1364,25 @@
           ]),
         ),
       };
-      afterPresentation(() => {
-        const playground = document.getElementById("alert-playground");
-        playground.registerInstructionProvider(instruction);
-        paint(playground.values, today);
-        playground.addEventListener("lf-playground-change", (event) =>
-          paint(event.detail.values, today),
+      const playground = document.getElementById("alert-playground");
+      let registered = false;
+      whileConnected(playground, (signal) => {
+        let unsubscribe;
+        const initialize = () => {
+          if (signal.aborted || unsubscribe) return;
+          if (!registered) {
+            playground.registerInstructionProvider(instruction);
+            registered = true;
+          }
+          unsubscribe = playground.subscribe((values) => paint(values, today));
+        };
+        document.addEventListener(
+          PAGE_INTERFACE,
+          (event) => event.detail.present(Promise.resolve().then(initialize)),
+          { signal },
         );
+        if (registered) initialize();
+        return () => unsubscribe?.();
       });
     </script>
 <!-- live-progress.html authored styles -->
@@ -1467,7 +1478,9 @@
 <!-- pr-walkthrough.html authored styles -->
 <style>
       @import url("/page/theme.css");
-
+</style>
+<!-- pr-walkthrough.html authored styles -->
+<style>
       .pr-review-gesture {
         padding-block: var(--sp-2);
         border-block: 1px solid var(--rule);
@@ -1542,7 +1555,7 @@
       }
 </style>
 <!-- wt-merge.html authored styles -->
-<style>
+<style data-controls="">
       /* The film beside the steps it plays, stacked where the workspace flows. */
       #merge-regions {
         display: grid;
@@ -1751,7 +1764,9 @@
       }
       lf-merge-film .film-inspect {
         position: absolute;
-        max-width: 300px;
+        box-sizing: border-box;
+        width: max-content;
+        max-width: min(300px, calc(100% - 20px));
         padding: 10px 12px;
         display: grid;
         gap: 4px;
@@ -1762,9 +1777,6 @@
         border-radius: var(--r);
         box-shadow: 0 8px 24px var(--shade);
         pointer-events: none;
-      }
-      lf-merge-film[data-phone] .film-inspect {
-        max-width: calc(100% - 20px);
       }
       lf-merge-film .film-inspect strong {
         font-family: var(--mono);
@@ -1844,9 +1856,9 @@
       }
       lf-merge-steps li {
         margin: 0;
-        padding: 6px 10px 6px 12px;
-        border-left: 3px solid transparent;
-        border-radius: 0 var(--r) var(--r) 0;
+        padding: 5px 9px 5px 11px;
+        border: 1px solid transparent;
+        border-radius: var(--r);
         cursor: pointer;
       }
       lf-merge-steps h3 {
@@ -1906,7 +1918,7 @@
       }
       lf-merge-steps li[data-now] {
         background: var(--accent-tint);
-        border-left-color: var(--accent);
+        border-color: var(--accent);
       }
       lf-merge-steps li[data-now] p {
         display: block;
@@ -1932,7 +1944,7 @@
       }
 </style>
 <!-- rust-sort.html authored styles -->
-<style>
+<style data-controls="">
       /* The sort beside the source it follows, stacked where the workspace flows. */
       #sort-regions {
         display: grid;
@@ -2148,24 +2160,74 @@
 </style>
 <!-- file-tree.html authored styles -->
 <style>
-      .review-files {
+      #file-review-regions {
         display: grid;
-        grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
-        gap: 1.5rem;
-        align-items: start;
+        grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
       }
-      .review-files > * {
+      #file-review-regions > * {
         min-inline-size: 0;
       }
-      @media (max-width: 52rem) {
-        .review-files {
+      #review-files {
+        margin-block: var(--sp-2) 0;
+        --lf-file-tree-height: 35rem;
+      }
+      #patch-pane > header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: var(--sp-3);
+      }
+      #patch-pane > header > * {
+        margin: 0;
+      }
+      #file-review-guide {
+        max-inline-size: 70ch;
+      }
+      #package-fixture {
+        max-inline-size: 30rem;
+      }
+      #proposed-files {
+        --lf-file-tree-height: 16rem;
+      }
+      @media (width < 720px) {
+        #file-review-regions {
           grid-template-columns: minmax(0, 1fr);
+        }
+        #review-files {
+          --lf-file-tree-height: 13.5rem;
+        }
+        #patch-pane {
+          --review-top: var(--lf-top);
+          --review-header-height: calc(var(--aim-floor) + 2px);
+        }
+        #patch-pane > header {
+          position: sticky;
+          top: var(--lf-top);
+          block-size: var(--review-header-height);
+          box-sizing: border-box;
+          z-index: 1;
+          background: var(--paper);
+          padding-block: 0;
+          align-items: center;
+        }
+        #patch-pane > header > a {
+          display: grid;
+          place-items: center;
+          min-inline-size: var(--aim-floor);
+          min-block-size: var(--aim-floor);
+        }
+        #patch-evidence {
+          --lf-top: calc(var(--review-top) + var(--review-header-height));
         }
       }
 </style>
 <!-- feature-gallery.html authored styles -->
 <style>
       @import url("/page/theme.css");
+
+      #bg-style-access :is([role="checkbox"], a) {
+        color: var(--mark-ink);
+      }
 
       #bg-metrics > dl {
         margin: 0;
@@ -2185,6 +2247,11 @@
       }
       #bg-metrics dd small {
         font: 500 var(--t-6)/1.3 var(--sans);
+      }
+
+      #bg-outcome > lf-option {
+        padding: 1rem;
+        min-block-size: 5rem;
       }
 
       .bg-feature-detail {
@@ -2335,6 +2402,12 @@
 
       main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
         display: none;
+      }
+</style>
+<!-- feature-gallery.html authored styles -->
+<style data-controls="">
+      #bg-style-allowed .lf-pick {
+        color: var(--accent);
       }
 </style>
 <!-- feature-gallery.html authored script -->
@@ -3284,11 +3357,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 </lf-tab>
 
 <lf-tab id="corpus-data-explorer" label="Data explorer">
-<h1>Shape a release query</h1>
-      <p class="lede">
-        Choose which releases to include in the report. Add filters, check the matching
-        rows, then ask the agent to build the query.
-      </p>
+<header><h1>Shape a release query</h1></header>
       <lf-ask id="release-query-ask">
         <h2>Which release query should the agent build?</h2>
         <lf-playground
@@ -3325,57 +3394,55 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.<
 </lf-tab>
 
 <lf-tab id="corpus-code-comparison" label="Code comparison">
-<h1>Choose a code reader treatment</h1>
-      <p class="lede">
-        Compare a scrolling code reader with a wrapping one. Adjust their spacing and
-        shared width, then choose the treatment to keep.
-      </p>
-      <lf-ask id="code-comparison-ask">
-        <h2>Which code-reader treatment should the agent keep?</h2>
-        <lf-playground
-          id="code-comparison-playground"
-          submit-label="Apply treatment"
-          data-width="available"
-        >
-          <lf-playground-control
-            name="width"
-            label="Comparison viewport"
-            kind="range"
-            value="420"
-            min="280"
-            max="520"
-            step="20"
-            unit="px"
-          ></lf-playground-control>
-          <lf-playground-control
-            name="chosen"
-            label="Treatment"
-            kind="choice"
-            value="A"
-          >
-            <lf-playground-choice value="A" label="A"></lf-playground-choice>
-            <lf-playground-choice value="B" label="B"></lf-playground-choice>
-          </lf-playground-control>
-          <lf-playground-preset label="A at 420px">
-            <lf-playground-setting for="width" value="420"></lf-playground-setting>
-            <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
-          </lf-playground-preset>
-          <lf-playground-preset label="B at 320px">
-            <lf-playground-setting for="width" value="320"></lf-playground-setting>
-            <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
-          </lf-playground-preset>
-          <lf-playground-preview id="code-comparison-preview">
-            <code-reader-comparison id="code-reader-comparison">
-              <div class="code-comparison-grid">
-                <section
-                  class="code-candidate"
-                  data-candidate="A"
-                  id="compact-code-candidate"
-                >
-                  <h3 class="code-candidate-title">A · compact · scroll</h3>
-                  <p class="code-measurement" aria-live="polite">Measuring…</p>
-                  <lf-code id="compact-built-code" language="javascript" hi="2-4">
-                    <pre>
+<header><h1>Choose a code reader treatment</h1></header>
+      <lf-tabs id="code-comparison-views">
+        <lf-tab id="code-comparison-choose" label="Compare">
+          <lf-ask id="code-comparison-ask">
+            <h2>Which code-reader treatment should the agent keep?</h2>
+            <lf-playground
+              id="code-comparison-playground"
+              submit-label="Apply treatment"
+              data-width="available"
+            >
+              <lf-playground-control
+                name="width"
+                label="Comparison viewport"
+                kind="range"
+                value="420"
+                min="280"
+                max="520"
+                step="20"
+                unit="px"
+              ></lf-playground-control>
+              <lf-playground-control
+                name="chosen"
+                label="Treatment"
+                kind="choice"
+                value="A"
+              >
+                <lf-playground-choice value="A" label="A"></lf-playground-choice>
+                <lf-playground-choice value="B" label="B"></lf-playground-choice>
+              </lf-playground-control>
+              <lf-playground-preset label="A at 420px">
+                <lf-playground-setting for="width" value="420"></lf-playground-setting>
+                <lf-playground-setting for="chosen" value="A"></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preset label="B at 320px">
+                <lf-playground-setting for="width" value="320"></lf-playground-setting>
+                <lf-playground-setting for="chosen" value="B"></lf-playground-setting>
+              </lf-playground-preset>
+              <lf-playground-preview id="code-comparison-preview">
+                <code-reader-comparison id="code-reader-comparison">
+                  <div class="code-comparison-grid">
+                    <section
+                      class="code-candidate"
+                      data-candidate="A"
+                      id="compact-code-candidate"
+                    >
+                      <h3 class="code-candidate-title">A · compact · scroll</h3>
+                      <p class="code-measurement" aria-live="polite">Measuring…</p>
+                      <lf-code id="compact-built-code" language="javascript" hi="2-4">
+                        <pre>
 export function releaseLabel(service, checks) {
   const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
   const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
@@ -3387,17 +3454,17 @@ export function releaseLabels(releases) {
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
 }</pre>
-                  </lf-code>
-                </section>
-                <section
-                  class="code-candidate"
-                  data-candidate="B"
-                  id="wrapped-code-candidate"
-                >
-                  <h3 class="code-candidate-title">B · comfortable · wrap</h3>
-                  <p class="code-measurement" aria-live="polite">Measuring…</p>
-                  <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
-                    <pre>
+                      </lf-code>
+                    </section>
+                    <section
+                      class="code-candidate"
+                      data-candidate="B"
+                      id="wrapped-code-candidate"
+                    >
+                      <h3 class="code-candidate-title">B · comfortable · wrap</h3>
+                      <p class="code-measurement" aria-live="polite">Measuring…</p>
+                      <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
+                        <pre>
 export function releaseLabel(service, checks) {
   const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
   const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
@@ -3409,41 +3476,45 @@ export function releaseLabels(releases) {
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
 }</pre>
-                  </lf-code>
-                </section>
-              </div>
-            </code-reader-comparison>
-          </lf-playground-preview>
-          <lf-playground-output id="code-comparison-instruction">
-            Update the built Leaf code reader and show the focused browser measurement
-            test.
-          </lf-playground-output>
-        </lf-playground>
-      </lf-ask>
-      <section id="code-reader-feedback">
-        <h2>Point at the reader element you want changed</h2>
-        <p id="code-reader-feedback-guide">
-          Turn on Design mode with <kbd>l</kbd> or the More menu, then press the heading
-          or code reader below. For a keyboard choice, press <kbd>s</kbd>, browse
-          targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your comment
-          stays beside that element as its treatment changes. Describe a shared change
-          in the comment when both readers should inherit it.
-        </p>
-        <section
-          id="target-reader-artifact"
-          class="code-candidate"
-          data-width="available"
-        >
-          <h3 id="target-reader-heading" class="reader-treatment-title">
-            Reader sample
-          </h3>
-          <lf-code id="target-built-code" language="javascript" hi="2">
-            <pre>
+                      </lf-code>
+                    </section>
+                  </div>
+                </code-reader-comparison>
+              </lf-playground-preview>
+              <lf-playground-output id="code-comparison-instruction">
+                Update the built Leaf code reader and show the focused browser
+                measurement test.
+              </lf-playground-output>
+            </lf-playground>
+          </lf-ask>
+        </lf-tab>
+        <lf-tab id="code-comparison-comment" label="Comment on the reader">
+          <section id="code-reader-feedback">
+            <h2>Point at the reader element you want changed</h2>
+            <p id="code-reader-feedback-guide">
+              Turn on Design mode with <kbd>l</kbd> or the More menu, then press the
+              heading or code reader below. For a keyboard choice, press <kbd>s</kbd>,
+              browse targets with <kbd>Tab</kbd>, and choose with <kbd>Enter</kbd>. Your
+              comment stays beside that element as its treatment changes. Describe a
+              shared change in the comment when both readers should inherit it.
+            </p>
+            <section
+              id="target-reader-artifact"
+              class="code-candidate"
+              data-width="available"
+            >
+              <h3 id="target-reader-heading" class="reader-treatment-title">
+                Reader sample
+              </h3>
+              <lf-code id="target-built-code" language="javascript" hi="2">
+                <pre>
 export const summarize = checks =>
   `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
-          </lf-code>
-        </section>
-      </section>
+              </lf-code>
+            </section>
+          </section>
+        </lf-tab>
+      </lf-tabs>
 </lf-tab>
 
 <lf-tab id="corpus-alert-thresholds" label="Thresholds">
@@ -5052,7 +5123,7 @@ flowchart TB
               <p>
                 This is the exact semantic output of
                 <code
-                  >calldiff@0.5.0 diff … --entry compute_combined_diff --locs
+                  >calldiff@0.5.0 diff … --entry compute_combined_diff --format json
                   --max-depth 1</code
                 >. The stable <code>compute_combined_diff</code> root keeps its
                 neighboring calls while direct Git command assembly disappears and
@@ -5074,7 +5145,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" data-height="521">
+          <lf-diff view="patch" id="pr-key-hunk" data-height="521">
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 index b856171b57..cfa4f0448e 100644
@@ -5383,6 +5454,100 @@ index b856171b57..cfa4f0448e 100644
           </ol>
         </section>
       </div>
+</lf-tab>
+
+<lf-tab id="corpus-review-a-fix" label="Fix recordings">
+<h1 id="fix-title">A comment now survives opening its screenshot</h1>
+      <p class="lede" id="fix-lede">
+        Pressing Escape on a screenshot's preview used to close the page comment it was
+        attached to. I recorded one journey before and after the fix. Choose a moment,
+        then switch recordings to see the same step in the other.
+      </p>
+
+      <section id="fix-recordings">
+        <lf-trace-compare id="fix-compare"
+          ><figure id="fix-before-figure">
+            <lf-trace id="fix-before" label="Before the fix" source="draft-image-before"
+              ><lf-trace-bookmark
+                label="Screenshot attached"
+                key="attached"
+                target="trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-phase-trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-stream-fb486352db3c8a4a-call-7381d4920886e8e7-after"
+              ></lf-trace-bookmark
+              ><lf-trace-bookmark
+                label="Preview open"
+                key="preview"
+                target="trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-phase-trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-stream-fb486352db3c8a4a-call-4bf0c2b85c239da4-after"
+              ></lf-trace-bookmark
+              ><lf-trace-bookmark
+                label="Back from the preview: the comment is gone"
+                key="closed"
+                target="trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-phase-trace-2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48-stream-fb486352db3c8a4a-call-abe9cf9bf3c4bf2e-after"
+              ></lf-trace-bookmark
+            ></lf-trace>
+            <figcaption>Leaf with the fix reverted.</figcaption>
+          </figure>
+          <figure id="fix-after-figure">
+            <lf-trace id="fix-after" label="After the fix" source="draft-image-after"
+              ><lf-trace-bookmark
+                label="Screenshot attached"
+                key="attached"
+                target="trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-phase-trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-stream-fb486352db3c8a4a-call-eeb575e3c75e317f-after"
+              ></lf-trace-bookmark
+              ><lf-trace-bookmark
+                label="Preview open"
+                key="preview"
+                target="trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-phase-trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-stream-fb486352db3c8a4a-call-8aa54362b1994f28-after"
+              ></lf-trace-bookmark
+              ><lf-trace-bookmark
+                label="Back from the preview: the comment is back"
+                key="closed"
+                target="trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-phase-trace-215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575-stream-fb486352db3c8a4a-call-c7579a9a67f18b3b-after"
+              ></lf-trace-bookmark
+            ></lf-trace>
+            <figcaption>Leaf with the fix.</figcaption>
+          </figure></lf-trace-compare
+        >
+      </section>
+
+      <lf-ask id="fix-ship-ask">
+        <h2>Ship the fix?</h2>
+        <p id="fix-ship-basis">
+          The recordings part at Back from the preview. Before the fix the comment is
+          gone and focus is on the page; after it the comment is back with its words and
+          screenshot, and the thumbnail holds focus.
+        </p>
+        <p id="fix-ship-coverage">
+          The recordings show Escape in Chrome. The regression test also closes the
+          preview with its close button and with a press outside it, in the page comment
+          and in a thread reply in the floating panel, and fails on each without the
+          fix.
+        </p>
+        <lf-options id="fix-ship" choose>
+          <lf-option id="fix-ship-now">
+            <small class="tag ok">recommended</small>
+            <strong>Ship it</strong>
+            <p>The comment and its focus come back however the preview closes.</p>
+          </lf-option>
+          <lf-option id="fix-ship-hold">
+            <strong>Record the floating panel first</strong>
+            <p>
+              Add a pair of recordings of a thread reply, whose view closed for a
+              different reason, and ship after you have watched them.
+            </p>
+          </lf-option>
+        </lf-options>
+      </lf-ask>
+
+      <details id="fix-cause">
+        <summary>Why the comment closed</summary>
+        <p>
+          The page comment card is an auto popover, and opening a modal dialog closes
+          every auto popover the dialog does not stand in. The image preview is a modal
+          dialog, so opening it closed the card, and closing it left focus on the page.
+          The preview now stands inside the open card while it is shown and returns to
+          its usual place when it closes.
+        </p>
+      </details>
 </lf-tab>
 
 <lf-tab id="corpus-wt-merge" label="Merge film">
@@ -7181,19 +7346,27 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
         remain distinct.
       </p>
       <lf-trace-compare id="matched-results"
-        ><lf-trace id="paired-before" label="Before" source="release-journey"
-          ><lf-trace-bookmark
-            label="Reviewed result"
-            key="reviewed"
-            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
-          ></lf-trace-bookmark></lf-trace
-        ><lf-trace id="paired-after" label="After" source="release-journey"
-          ><lf-trace-bookmark
-            label="Reviewed result"
-            key="reviewed"
-            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
-          ></lf-trace-bookmark></lf-trace
-      ></lf-trace-compare>
+        ><figure>
+          <lf-trace id="paired-before" label="Before" source="release-journey"
+            ><lf-trace-bookmark
+              label="Reviewed result"
+              key="reviewed"
+              target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
+            ></lf-trace-bookmark
+          ></lf-trace>
+          <figcaption>Before the fix.</figcaption>
+        </figure>
+        <figure>
+          <lf-trace id="paired-after" label="After" source="release-journey"
+            ><lf-trace-bookmark
+              label="Reviewed result"
+              key="reviewed"
+              target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
+            ></lf-trace-bookmark
+          ></lf-trace>
+          <figcaption>After the fix, recorded from the same journey.</figcaption>
+        </figure></lf-trace-compare
+      >
 </lf-tab>
 
 <lf-tab id="corpus-review-queue" label="Review Queue">
@@ -7841,40 +8014,57 @@ observe --cohort staff</code></pre>
 </lf-tab>
 
 <lf-tab id="corpus-file-tree" label="File tree package">
-<h1 id="file-review">Review the importer change</h1>
-      <p id="file-review-guide">
-        Select a file to open its patch. Use the tree's arrow keys to explore folders,
-        then Enter to visit a file. Search narrows the tree. Comments belong to the
-        patch beside it, where each file and source line keeps its own identity.
-      </p>
-      <div class="review-files">
-        <lf-file-tree
-          id="review-files"
-          for="importer-patch"
-          aria-label="Changed files"
-          data-height="288"
-        ></lf-file-tree>
-        <lf-diff
-          id="importer-patch"
-          source="importer-change"
-          collapsed
-          data-height="173"
-        >
-          <pre></pre>
-        </lf-diff>
+<header>
+        <h1>Trace a unified diff from Git to the picker</h1>
+        <p><span class="tag">Worktrunk · 46 changed files</span></p>
+      </header>
+      <div id="file-review-regions">
+        <lf-pane id="files-pane" label="Changed files">
+          <details id="changed-files-panel" open>
+            <summary>Changed files</summary>
+            <lf-file-tree
+              id="review-files"
+              for="review-patch"
+              aria-label="Changed files"
+            ></lf-file-tree>
+          </details>
+          <footer>
+            <small>Arrow keys explore folders. Enter opens a file.</small>
+          </footer>
+        </lf-pane>
+        <lf-pane id="patch-pane" label="Selected file patch">
+          <header>
+            <h2>Patch</h2>
+            <a href="#changed-files-panel">Files</a>
+          </header>
+          <div id="patch-evidence">
+            <p id="file-review-guide">
+              Start with <code>src/git/repository/diff.rs</code>: how are committed,
+              staged, unstaged, and untracked changes combined? Follow the result to
+              <code>src/commands/picker/preview.rs</code>, then inspect the coverage in
+              <code>tests/integration_tests/switch_picker.rs</code>.
+            </p>
+            <lf-diff id="review-patch" source="worktrunk-change" view="file">
+              <pre></pre>
+            </lf-diff>
+          </div>
+        </lf-pane>
       </div>
-      <h2 id="standalone-files">Explore a proposed layout</h2>
-      <p id="standalone-files-guide">
-        This second tree reads its own file list. Selecting a file highlights it; there
-        is no connected destination. Folders and selection are local navigation, so
-        exploring the proposal records no decision.
-      </p>
-      <lf-file-tree
-        id="proposed-files"
-        source="proposed-layout"
-        aria-label="Proposed layout"
-        data-height="288"
-      ></lf-file-tree>
+      <footer>
+        <details id="package-fixture">
+          <summary>Package fixture: independent file list</summary>
+          <p id="standalone-files-guide">
+            A directory overview can also read a file-list source directly. This
+            proposed layout has no connected file contents.
+          </p>
+          <lf-file-tree
+            id="proposed-files"
+            source="proposed-layout"
+            aria-label="Proposed layout"
+            data-height="256"
+          ></lf-file-tree>
+        </details>
+      </footer>
 </lf-tab>
 
 <lf-tab id="corpus-diff-thread-gallery" label="Diff conversations">
@@ -8046,15 +8236,15 @@ observe --cohort staff</code></pre>
               </p>
             </section>
             <section id="bg-floating-panel">
-              <h3>The floating panel (experimental)</h3>
+              <h3>The floating panel and the banner</h3>
               <p>
-                Add <code>?lf-chrome=floating</code> to this page's address: the banner
-                and the bottom bar give way to one panel hovering over the foot of the
-                page, and the choice stays for every page until
-                <code>?lf-chrome=classic</code> restores them. A window sample shows the
-                chrome its <code>chrome</code> attribute names, whichever you chose.
-                Below, the same page in each: press the floating panel's leaf for the
-                menu, and its field to comment.
+                Leaf's controls stand in one panel hovering over the foot of the page.
+                <strong>Use the banner</strong>, at the foot of the leaf's menu, trades
+                it for the banner and the bottom bar on every page, and
+                <strong>Use the Leaf panel</strong> in the banner's More menu brings it
+                back. A window sample shows the chrome its <code>chrome</code> attribute
+                names, whichever you chose. Below, the same page in each: press the
+                floating panel's leaf for the menu, and its field to comment.
               </p>
               <lf-sample
                 id="bg-chrome-classic"
@@ -8234,17 +8424,22 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
             <h2>
               <strong>Decisions</strong
-              ><span class="bg-feature-detail">: answers in context</span>
+              ><span class="bg-feature-detail">: settled answers in context</span>
             </h2>
             <p id="bg-readings-guide">
-              A recorded answer stays visible in the widget that owns it; the Page Map
-              adds no second status.
+              The meeting point is decided. Open <strong>Settled: At reception</strong>
+              to inspect the alternatives, then close it. The spacious cards return to
+              one disclosure line, leaving no empty card space before Sign-off.
             </p>
             <lf-ask id="bg-outcome-ask">
               <h3>Where should the sample group meet?</h3>
-              <lf-options id="bg-outcome" choose>
-                <lf-option id="bg-outcome-door">At the door</lf-option>
-                <lf-option id="bg-outcome-desk" chosen>At reception</lf-option>
+              <lf-options id="bg-outcome" choose settled>
+                <lf-option id="bg-outcome-door">
+                  <strong>At the door</strong> Wait outside the building.
+                </lf-option>
+                <lf-option id="bg-outcome-desk" chosen>
+                  <strong>At reception</strong> Meet inside, beside the welcome desk.
+                </lf-option>
               </lf-options>
             </lf-ask>
           </section>
@@ -9087,10 +9282,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Choose “Progress messages” in the practice page, then use “Show 2
                 progress messages” beside the answer’s timestamp with a press or Enter.
                 Expanded progress runs have an inset border and ordinary message headers
-                on the page’s normal background. User replies separate the groups. The
-                later room check has no answer yet, so it stands as a dim working
-                message above the reply box rather than as a reply, and counts nothing
-                unread.
+                on the page’s normal background. User replies separate the groups.
+                “Hide” returns the space to the page instead of leaving a gap above the
+                reply box. Disclosures inside interactive replies return their room the
+                same way. The later room check has no answer yet, so it stands as a dim
+                working message above the reply box rather than as a reply, and counts
+                nothing unread. Its header keeps its author and posting time visible.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread,
@@ -9143,6 +9340,28 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <div class="callout" id="bg-theme-conclusion">
               <p id="bg-theme-conclusion-copy">The comparison is ready for review.</p>
             </div>
+          </section>
+
+          <section id="bg-style-access">
+            <h2><strong>A stylesheet explicitly chooses control access</strong></h2>
+            <p id="bg-style-access-guide">
+              The ordinary page rule colors this
+              <a href="#bg-style-allowed">page link</a>, while the first pair keeps
+              Leaf's ink. A separate stylesheet marked <code>data-controls</code>
+              colors the second pair's selection marks with the accent. Pick by click,
+              tap, or Tab and Space; Undo restores the earlier choice without changing
+              either face.
+            </p>
+            <h3>Ordinary page stylesheet</h3>
+            <lf-options id="bg-style-protected" choose>
+              <lf-option id="bg-style-protected-one"><strong>First</strong></lf-option>
+              <lf-option id="bg-style-protected-two"><strong>Second</strong></lf-option>
+            </lf-options>
+            <h3>Stylesheet with control access</h3>
+            <lf-options id="bg-style-allowed" choose>
+              <lf-option id="bg-style-allowed-one"><strong>First</strong></lf-option>
+              <lf-option id="bg-style-allowed-two"><strong>Second</strong></lf-option>
+            </lf-options>
           </section>
 
           <section id="bg-user-view">
@@ -9256,9 +9475,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item: each row shows its name and
-              summary, and rows sharing a <code>group</code> sit under that group's
-              heading. The <code>lf-tally</code> above it counts the queue's asks still
-              to answer.
+              summary, with the chosen outcome on its own line. Rows sharing a
+              <code>group</code> sit under that group's heading. The
+              <code>lf-tally</code> above it counts the queue's asks still to answer.
             </p>
             <ul id="bg-side-list-steps">
               <li>
@@ -9269,13 +9488,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 carries an open mark.
               </li>
               <li>
-                Answer the ask: its row shows a check and the option you picked, and the
-                tally says Answered. Undo puts the open mark and the count back.
+                Choose Fix, then Escalate to engineering: the row keeps its name and
+                summary while the outcome changes on its own line. Undo restores Fix
+                without moving the rows; undo again restores the open mark and tally.
               </li>
               <li>
                 Narrow the window below the set's 36rem: the list becomes a row above
-                the item, each group's name before its first row, and the rows keep only
-                the check.
+                the item, with each group's name before its first row. The chosen
+                outcome remains below the summary; unusually long answers ellipsize.
               </li>
             </ul>
             <p id="bg-side-left">
@@ -9300,6 +9520,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     >
                     <lf-option id="bg-side-4107-close"
                       ><strong>Close</strong> Ask them to roll it back.</lf-option
+                    >
+                    <lf-option id="bg-side-4107-escalate"
+                      ><strong>Escalate to engineering</strong> Send the certificate
+                      failure and logs.</lf-option
                     >
                   </lf-options>
                 </lf-ask>
@@ -9511,11 +9735,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </lf-board>
               </template>
             </lf-sample>
-            <figure id="bg-margin-layer-figure" data-width="available">
-              <table id="bg-margin-layer-table">
+            <figure id="bg-margin-layer-figure">
+              <table id="bg-margin-layer-table" data-width="available">
                 <thead>
                   <tr>
                     <th>Session</th>
+                    <th>Room</th>
                     <th>Mon</th>
                     <th>Tue</th>
                     <th>Wed</th>
@@ -9528,21 +9753,23 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <tbody>
                   <tr>
                     <td>Practice</td>
-                    <td>9:00</td>
-                    <td>9:00</td>
+                    <td>Workshop hall, east wing</td>
+                    <td>9:00–11:00</td>
+                    <td>9:00–11:00</td>
                     <td>—</td>
-                    <td>9:00</td>
-                    <td>9:00</td>
+                    <td>9:00–11:00</td>
+                    <td>9:00–11:00</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>
                   <tr>
                     <td>Debugging</td>
-                    <td>13:30</td>
+                    <td>Lab 2, second floor</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
-                    <td>13:30</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
-                    <td>13:30</td>
+                    <td>13:30–15:00</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>
@@ -10472,7 +10699,8 @@ switch --readers checkout-api,orders-api</code></pre>
               </h3>
               <p id="bg-source-guide">
                 The document follows its source's current value. Its caption names the
-                captured file and line range.
+                captured file and line range. The source uses the same numbered,
+                syntax-colored presentation as a diff; selecting it copies only source.
               </p>
               <lf-text-document
                 id="bg-source-live"

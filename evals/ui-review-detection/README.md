@@ -78,10 +78,10 @@ miss against the complete-source condition.
 
 ## Retained cases and calibration
 
-| Case | Target | Corrected control |
-| --- | --- | --- |
-| `recording-times` | Label boxes lack a visible point anchor, making event time or apparent duration ambiguous. | Restores point dots and stems while retaining label widths, stacking and dense timing. |
-| `recording-stepping` | Variable checkpoint metadata moves the application image during intermediate-frame stepping. | Places the image before variable metadata so its origin stays fixed. |
+| Case                 | Target                                                                                       | Corrected control                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `recording-times`    | Label boxes lack a visible point anchor, making event time or apparent duration ambiguous.   | Restores point dots and stems while retaining label widths, stacking and dense timing. |
+| `recording-stepping` | Variable checkpoint metadata moves the application image during intermediate-frame stepping. | Places the image before variable metadata so its origin stays fixed.                   |
 
 Manual calibration on 2026-10-10 found that Sol missed the timing target in three
 screenshot-only reviews; Opus and Fable detected it in their screenshot-only

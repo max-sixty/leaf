@@ -23,6 +23,7 @@ from render_cases_layout import (
     SHOT_SRC,
     SHOTS,
     UNPARSABLE_DIAGRAM,
+    ring_rule,
     shown_frames,
     solid_png,
 )
@@ -414,7 +415,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     Pointer drag and the component's complete keyboard pattern move one divider. The
     rail jumps to the named endpoints, while print keeps the two complete frames
     and their order. The gate's pass over the pair is
-    `test_render_reads_painted_facts_and_widget_chrome_where_they_stand`'s."""
+    `test_render_reads_widget_chrome_where_it_stands`'s."""
     url = serve(
         SHOT_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -671,13 +672,11 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
         expect(caption).to_be_focused()
 
     handle.focus()
-    ring = handle.evaluate(
-        """node => { const cs = getComputedStyle(node); return {
-          name: cs.getPropertyValue('--lf-focus-ring').trim(),
-          width: cs.outlineStyle === 'none' ? 0 : parseFloat(cs.outlineWidth),
-        }}"""
+    width = handle.evaluate(
+        "node => getComputedStyle(node).outlineStyle === 'none' ? 0 :"
+        " parseFloat(getComputedStyle(node).outlineWidth)"
     )
-    assert ring["name"] == "comparison-handle" and ring["width"] > 0
+    assert width > 0 and "wa-comparison::part(lf-focus)" in ring_rule(handle)
 
 
 def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):

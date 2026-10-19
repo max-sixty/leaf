@@ -31,9 +31,13 @@
    field its reply box is, at the reply box's width and padding (shadow.css,
    `.lf-msg-editor`). Its Cancel and Save stand at the message's head, where the
    message's own control stood (`.lf-msg-edit-actions`), so opening it grows the
-   message by the box's padding alone. Rejected: a box painted around the words where
-   they stood, with no padding of its own, so opening it moved nothing; beside the reply
-   box it read as a thinner, narrower field (the user's decision, 2026-10-13).
+   message by the box's padding alone. In a margin card the editor is the comment box
+   the card grew from instead, whose frame and padding fit the room each of the card's
+   lines already keeps, so opening it on plain words moves nothing there
+   (response.css). Rejected: a
+   box painted around the words where they stood, with no padding of its own, so
+   opening it moved nothing; beside the reply box it read as a thinner, narrower field
+   (the user's decision, 2026-10-13).
 
    A double click on the message or a press on its Edit control opens it. The keyboard
    opens it with ↑: from the thread's empty reply box, the user's latest message, and
@@ -63,6 +67,7 @@
 import {
   clearDraft,
   draftHasContent,
+  rewriteContext,
   forgetWritingPlace,
   loadDraft,
   loadDraftPayload,
@@ -78,12 +83,12 @@ import { seenRect } from "../geometry.js";
 import { revealEditor } from "./reply-landing.js";
 import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
-import { announce, notice } from "../notifications.js";
+import { announce } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
+import { raiseError } from "../errors.js";
 
-export const editContext = (id) => `rewrite:${id}`;
 // What a message's view answers by opening its rewrite, as a press on its Edit control.
 export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 // message id -> {view, panel, thread}: the view drawing its editor, null once that
@@ -119,7 +124,7 @@ function openMessageEdit(id, view, panel, thread) {
     // One no view draws any longer closes as an editor would: words the user left as
     // they were leave no draft to keep it open.
     if (holder.view) holder.view.putEditAside();
-    else if (!draftHasContent(editContext(other))) open.delete(other);
+    else if (!draftHasContent(rewriteContext(other))) open.delete(other);
   }
   const displaced = open.get(id)?.view;
   open.set(id, { view, panel, thread });
@@ -128,11 +133,11 @@ function openMessageEdit(id, view, panel, thread) {
 
 // Whether a rewrite of `id` holds words no editor shows: a reload's or a refusal's.
 export const keptRewrite = (id) =>
-  !open.has(id) && !sending.has(id) && draftHasContent(editContext(id));
+  !open.has(id) && !sending.has(id) && draftHasContent(rewriteContext(id));
 
 // Call `changed` on news of the words of a rewrite of `id`, from this tab or another.
 // Returns the unsubscribe.
-export const watchRewrite = (id, changed) => watchDraft(editContext(id), changed);
+export const watchRewrite = (id, changed) => watchDraft(rewriteContext(id), changed);
 
 // Open the rewrite of message `id` where `thread`, a drawn thread, shows it, and answer
 // the box its words are in: none where the thread does not draw that message as one the
@@ -234,7 +239,7 @@ export function threadRewrites({
 function closeMessageEdit(id, { discard }) {
   open.delete(id);
   if (!discard) return;
-  const ctx = editContext(id);
+  const ctx = rewriteContext(id);
   clearDraft(ctx);
   tellDraft(ctx, null);
   forgetWritingPlace(ctx);
@@ -261,7 +266,7 @@ export class MessageEditor {
     view,
     { wireInput, said, base: currentBase, send, land, paint, previous, reveal },
   ) {
-    const ctx = editContext(id);
+    const ctx = rewriteContext(id);
     // The revision these words are written over, which the log holds the rewrite to: the
     // message as it stands now. Words kept from an earlier opening carry the revision
     // they were written over; where the message has changed since, the user is told what
@@ -271,7 +276,9 @@ export class MessageEditor {
     // Words kept over the user's own edit still sending name it by its pending id, which
     // is no change of anyone else's.
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
-      notice(`This message changed since this edit began. It now says: “${said()}”`);
+      raiseError(
+        `This message changed since this edit began. It now says: “${said()}”`,
+      );
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor lf-comment-box");
     this.input = offer(TEXT_FIELD);

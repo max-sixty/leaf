@@ -21,8 +21,6 @@ import re
 from pathlib import Path
 from uuid import uuid4
 
-import click
-
 from .data_contracts import DataError, payload_error, working_data_bindings
 from .files import replace_files
 from .registry.schema import json_value
@@ -286,18 +284,16 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
         return read_source(page_dir, source, contract, registry)
 
 
-def _report_write(source: str, reading: dict) -> None:
-    """The written source's reading, less the value the writer just handed in."""
-    reading = {key: item for key, item in reading.items() if key != "value"}
-    click.echo(json.dumps({"source": source, **reading}, ensure_ascii=False))
+def cmd_data_set(page_dir: Path, source: str, value) -> dict:
+    """Validate and atomically replace one source's complete current value, and
+    return the written source's reading, less the value the writer just handed in."""
+    reading = _write_source(page_dir, source, value)
+    return {"source": source} | {
+        key: item for key, item in reading.items() if key != "value"
+    }
 
 
-def cmd_data_set(page_dir: Path, source: str, value) -> None:
-    """Validate and atomically replace one source's complete current value."""
-    _report_write(source, _write_source(page_dir, source, value))
-
-
-def cmd_data_clear(page_dir: Path, source: str) -> None:
+def cmd_data_clear(page_dir: Path, source: str) -> dict:
     """Remove one source's current value; its next write uses its current binding."""
     if re.fullmatch(DATA_SOURCE_NAME, source) is None:
         raise DataError(f"invalid source name {source!r}")
@@ -307,4 +303,4 @@ def cmd_data_clear(page_dir: Path, source: str) -> None:
             cleared = True
         except FileNotFoundError:
             cleared = False
-    click.echo(json.dumps({"source": source, "cleared": cleared}))
+    return {"source": source, "cleared": cleared}

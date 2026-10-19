@@ -14,10 +14,15 @@ from render_harness import (
     leaf_page,
     open_page,
     reported_browser_errors,
+    resized,
+    sending,
 )
 
 
-def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(browser, serve):
+@pytest.mark.parametrize("view", ["patch", "file"])
+def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
+    browser, serve, view
+):
     """A separately mounted navigator follows a diff's output and travels through
     the ordinary datum route, including reactivation and updated source evidence."""
 
@@ -32,7 +37,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(browser, ser
             "Browse patch files",
             "<h1>Review the importer</h1>"
             '<lf-file-tree id="files" for="patch" data-height="250"></lf-file-tree>'
-            '<lf-diff id="patch" source="change" collapsed><pre></pre></lf-diff>',
+            f'<lf-diff id="patch" source="change" view="{view}" collapsed><pre></pre></lf-diff>',
         )
     )
     data_model.cmd_data_set(
@@ -48,8 +53,16 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(browser, ser
     row = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).first
     expect(row).to_be_visible()
     folds = page.locator("#patch .lf-diff-fold")
-    expect(folds.first).not_to_have_attribute("open", "")
+    if view == "patch":
+        expect(folds.first).not_to_have_attribute("open", "")
+    else:
+        expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
+        expect(folds.first).to_have_attribute("open", "")
+    # Narrowing remains in place while visiting more than one related file.
+    search = tree.get_by_role("textbox")
+    search.fill("importer")
     row.click()
+    expect(search).to_have_value("importer")
     expect(folds.first).to_have_attribute("open", "")
     expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
     # The same selected file still has an activation route after its patch closes.
@@ -62,6 +75,55 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(browser, ser
     other.press("Enter")
     expect(folds.last).to_have_attribute("open", "")
     expect(folds.last.locator("pre")).to_contain_text("assert keep_names")
+    if view == "file":
+        expect(folds.first).not_to_be_visible()
+        expect(folds.last).to_be_visible()
+        expect(other).to_have_attribute("aria-selected", "true")
+        # Search is an activation route too, even while its text field owns focus.
+        for path, visible in [
+            ("src/importer.py", folds.first),
+            ("tests/importer.py", folds.last),
+        ]:
+            search.fill(path)
+            search.press("ArrowDown")
+            search.press("Enter")
+            expect(visible).to_be_visible()
+            expect(search).to_have_value(path)
+        search.fill("importer")
+        folds.last.locator("summary").press("{")
+        expect(folds.first).to_be_visible()
+        expect(folds.last).not_to_be_visible()
+        expect(row).to_have_attribute("aria-selected", "true")
+        expect(other).to_have_attribute("aria-selected", "false")
+        # Reading new evidence does not take ownership of a selection made while
+        # that read is in flight. Hold one boundary to make the ordering exact.
+        page.evaluate("""() => {
+          const diff = document.getElementById('patch');
+          const readEntry = diff.readEntry.bind(diff);
+          const held = new Promise(resolve => window.releaseEvidence = resolve);
+          diff.readEntry = async (...args) => {
+            window.evidenceHeld = true;
+            await held;
+            return readEntry(...args);
+          };
+        }""")
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "change",
+            patch_manifest(
+                patch("src/importer.py", "new_names = True")
+                + patch("tests/importer.py", "assert new_names")
+            ),
+        )
+        page.wait_for_function("window.evidenceHeld === true")
+        folds.first.locator("summary").press("}")
+        page.evaluate("window.releaseEvidence()")
+        expect(folds.last.locator("pre")).to_contain_text("assert new_names")
+        expect(folds.last).to_be_visible()
+        expect(folds.first).not_to_be_visible()
+        expect(other).to_have_attribute("aria-selected", "true")
+        expect(row).to_have_attribute("aria-selected", "false")
+    search.fill("")
     # A source update replaces the producer inventory, rather than leaving stale rows.
     data_model.cmd_data_set(
         serve.page_dir,
@@ -519,3 +581,224 @@ new mode 100755
     ), "checking closed evidence must not load the textual renderer"
     good.locator("summary").click()
     expect(good.locator("[data-line]").last).to_contain_text("new = True")
+
+
+def test_resolved_file_threads_share_the_file_disclosure_edge(browser, serve):
+    """A resolved file conversation keeps its disclosure on the file's edge.
+
+    The two disclosures use the same marker and inline inset at any width;
+    expanded history puts Reopen beside the first message, like Resolve.
+    """
+    patch = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Resolved file conversations",
+                f'<h1>Review app.py</h1><lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>',
+            )
+        ),
+    )
+    diff = page.locator("#patch")
+    diff.locator(".lf-diff-file-comment").click()
+    field = diff.locator("leaf-text")
+    field.press("A")
+    with sending(page, "the file comment"):
+        field.press("ControlOrMeta+Enter")
+    thread = diff.locator(".lf-page-thread")
+    thread.get_by_role("button", name="Resolve thread", exact=True).focus()
+    with sending(page, "the resolution"):
+        page.keyboard.press("Enter")
+    summary = diff.locator(".lf-resolved-summary")
+    expect(summary).to_have_text("Resolved · 1")
+    for width in (1440, 390):
+        resized(page, width, 900)
+        rendered(page)
+        geometry = summary.evaluate("""summary => {
+          const file = summary.closest('.lf-diff-file').querySelector(':scope > details > summary');
+          const marker = node => {
+            const box = node.getBoundingClientRect(), style = getComputedStyle(node);
+            const arrow = getComputedStyle(node, '::before');
+            return {left: box.left + parseFloat(style.paddingLeft),
+              size: arrow.fontSize, content: arrow.content};
+          };
+          return {file: marker(file), resolved: marker(summary)};
+        }""")
+        assert geometry["file"]["left"] == pytest.approx(
+            geometry["resolved"]["left"], abs=0.5
+        ), geometry
+        assert geometry["file"]["size"] == geometry["resolved"]["size"], geometry
+        assert geometry["file"]["content"] == geometry["resolved"]["content"], geometry
+    summary.click()
+    expect(thread).to_be_visible()
+    reopen = thread.get_by_role("button", name="Reopen", exact=True)
+    expect(reopen).to_be_visible()
+    centers = reopen.evaluate("""button => {
+      const head = button.closest('.lf-page-thread').querySelector('.lf-msg-head').getBoundingClientRect();
+      const action = button.getBoundingClientRect();
+      return [head.top + head.height / 2, action.top + action.height / 2];
+    }""")
+    assert centers[0] == pytest.approx(centers[1], abs=0.5), centers
+    with sending(page, "the reopening"):
+        reopen.click()
+    expect(summary).to_have_count(0)
+    expect(
+        thread.get_by_role("button", name="Resolve thread", exact=True)
+    ).to_be_visible()
+
+
+def test_a_live_line_reply_wraps_without_resize_observer_feedback(
+    browser, serve, request
+):
+    """A streaming answer can wrap when Pierre sizes its sticky line conversation.
+
+    The width write changes the observed code's height. It belongs in a frame,
+    outside ResizeObserver delivery, and must leave the answer readable while the
+    code scrolls. The browser fixture also refuses ResizeObserver window errors.
+    """
+    from interact_support import append_command
+
+    from browser.threads import claim_for_codex, stream_reply
+
+    patch = """diff --git a/uploader.py b/uploader.py
+--- a/uploader.py
++++ b/uploader.py
+@@ -1,4 +1,16 @@
+-def upload(client, job, payload):
+-    response = client.post("/objects", json=payload, timeout=10)
+-    response.raise_for_status()
+-    return response.json()["object_id"]
++import time
++
++def upload(client, job, payload, max_attempts=3):
++    key = f"upload:{job.tenant_id}:{job.id}"
++    for attempt in range(max_attempts):
++        try:
++            response = client.post(
++                "/objects", json=payload,
++                headers={"Idempotency-Key": key}, timeout=10,
++            )
++            response.raise_for_status()
++            return response.json()["object_id"]
++        except TimeoutError:
++            if attempt + 1 == max_attempts:
++                raise
++            time.sleep(0.5 * 2**attempt)
+"""
+    url = serve(
+        leaf_page(
+            "Live patch review",
+            f'<h1>Review</h1><details id="review" open><summary>Patch review</summary>'
+            f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff></details>',
+            head="<style>main { width: 492px; max-width: calc(100% - 48px); padding: 0; }</style>",
+        )
+    )
+    comment = append_command(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Tenant-scoped key computed once before the loop looks right.",
+            "anchor": {"section": "patch", "datum": '["uploader.py","new",4]'},
+        },
+    )
+    claim_for_codex(serve.page_dir, request)
+    reply = (
+        "I’m recording the tenant-scoped key and two-attempt default as your final "
+        "review decision. The selected code will lead the page, with the unrun "
+        "tests and Thursday rollout conditions still clear."
+    )
+    stream_reply(serve.page_dir, comment["id"], reply)
+    context = browser.new_context(viewport={"width": 540, "height": 720})
+    page = open_page(browser, url, context=context)
+    diff = page.locator("#patch")
+    outlet = diff.locator(".lf-diff-thread-outlet")
+    expect(outlet).to_contain_text(reply)
+    code = diff.get_by_role("region", name="uploader.py", exact=True)
+    before = outlet.bounding_box()
+    code.focus()
+    page.keyboard.press("ArrowRight")
+    page.wait_for_function("""() => document.getElementById('patch')
+      .shadowRoot.querySelector('code[data-code]').scrollLeft > 0""")
+    rendered(page)
+    after = outlet.bounding_box()
+    assert abs(after["width"] - before["width"]) <= 1
+    assert after["x"] >= code.bounding_box()["x"] - 1
+    code_box = code.bounding_box()
+    assert after["x"] + after["width"] <= code_box["x"] + code_box["width"] + 1
+    # Retire a file with active geometry observations, then reopen its same source.
+    summary = diff.locator("summary").first
+    summary.focus()
+    page.keyboard.press("Enter")
+    expect(code).not_to_be_visible()
+    page.keyboard.press("Enter")
+    expect(outlet).to_contain_text(reply)
+    resized(page, 390, 844)
+    expect(outlet).to_be_visible()
+    resized(page, 900, 600)
+    expect(outlet).to_be_visible()
+    rendered(page)
+
+    # A retained diff can receive a reply while its native disclosure is closed.
+    page.locator("#review > summary").click()
+    expect(code).not_to_be_visible()
+    hidden_reply = reply + " The review is ready."
+    stream_reply(serve.page_dir, comment["id"], hidden_reply)
+    expect(outlet).to_contain_text(hidden_reply)
+    rendered(page)
+    page.locator("#review > summary").click()
+    expect(outlet).to_be_visible()
+    rendered(page)
+    assert outlet.bounding_box()["width"] <= code.bounding_box()["width"]
+
+
+def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
+    """The optional tree consumes a path list on its own and retains its mounted
+    navigation when an unrelated data value changes."""
+    url = serve(
+        leaf_page(
+            "Explore project files",
+            "<h1>Project files</h1>"
+            '<lf-file-tree id="project-files" source="project" '
+            'data-height="280"></lf-file-tree>',
+        ),
+        packages=("file-tree",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "README.md"},
+                {"path": "src/main.py", "status": "added"},
+            ],
+        },
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#project-files")
+    row = tree.get_by_role("treeitem", name=re.compile(r"README\.md"))
+    expect(row).to_be_visible()
+    row.click()
+    expect(row).to_have_attribute("aria-selected", "true")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "README.md", "status": "modified"},
+                {"path": "src/main.py"},
+            ],
+        },
+    )
+    expect(row).to_have_attribute("aria-selected", "true")
+    search = tree.get_by_role("textbox")
+    search.fill("main")
+    expect(tree.get_by_role("treeitem", name=re.compile(r"README\.md"))).to_have_count(
+        0
+    )
+    search.fill("no-such-file")
+    expect(tree.get_by_role("treeitem")).to_have_count(0)
+    expect(tree).to_contain_text("No matching files.")
+    search.fill("")
+    expect(row).to_be_visible()

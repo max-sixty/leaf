@@ -42,7 +42,10 @@
 // child declares itself the growing tail (`data-lf-append-tail`), as a thread's
 // working message and a reply still streaming do. A scrollport that grows at its foot
 // by no more than that growth, as a floating card sized to its thread does, is
-// stationary for this: it keeps its other edges.
+// stationary for this: it keeps its other edges. One that declares it stands on its
+// foot (`data-lf-rises`), as the floating panel's thread view stands on its row, may
+// instead rise at its head by no more than that growth, carrying all it holds, and its
+// own head, up by its rise: the one case where news may carry controls (`appendGrowth`).
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, and a direct native anchor inset,
@@ -141,8 +144,8 @@
       if (at.getAttribute("aria-hidden") === "true") return false;
     return true;
   };
-  // What the API names, which it does not once the node is gone.
-  const name = (node) => (node ? window.lfPlace(node) : "a node since removed");
+  // Where a node stands (write_watch.js, `place`); null once the API no longer names it.
+  const name = (node) => (node ? window.lfPlace(node) : null);
   // Both edges moved the same way. A box that grew moved one edge, or both apart, as
   // the painted box of a field does when it gains its focus ring.
   const carried = (from, to, start, end) => {
@@ -393,14 +396,14 @@
     window.visualViewport?.addEventListener(type, announce);
   document.fonts?.addEventListener("loadingdone", announce);
   // Emulated media changes style with no event but its query's.
-  for (const query of [
+  const presentationMedia = [
     "print",
     "(prefers-color-scheme: dark)",
     "(prefers-reduced-motion: reduce)",
     "(forced-colors: active)",
     "(prefers-contrast: more)",
-  ])
-    matchMedia(query).addEventListener("change", announce);
+  ].map((query) => matchMedia(query));
+  for (const query of presentationMedia) query.addEventListener("change", announce);
   // Page state that matches selectors or applies style without a DOM write.
   const announcing = (proto, names) => {
     for (const name of names) {
@@ -843,7 +846,7 @@
       depth(miss[0]) > depth(deepest[0]) ? miss : deepest,
     );
     const named = node ? name(node) : null;
-    report(`missed ${named}`, {
+    report(JSON.stringify(["missed", named]), {
       code: "shift-watch-missed",
       node: named,
       changed,
@@ -1072,6 +1075,7 @@
         paddingBottom: range ? null : pixels(style.paddingBottom),
         reflow: range ? null : node.getAttribute("data-lf-reflow"),
         appendTail: !range && node.hasAttribute("data-lf-append-tail"),
+        rises: !range && node.hasAttribute("data-lf-rises"),
         appendChildren,
         runtime: !range && node.matches(".lf-chrome, [data-lf-runtime]"),
         control: !range && node.matches(interactive),
@@ -1080,6 +1084,7 @@
         labelText: labelOwner?.textContent ?? null,
         shown,
       };
+      const words = range ? node.textContent : null;
       const seen = placed.get(node) ?? [];
       const sameBox =
         last &&
@@ -1096,6 +1101,7 @@
         last.rect.top === rect.top &&
         last.rect.right === rect.right &&
         last.rect.bottom === rect.bottom &&
+        last.words === words &&
         Object.keys(paint).every((key) => last.paint[key] === paint[key]) &&
         fragments.length === last.fragments.length &&
         fragments.every((rect, i) =>
@@ -1132,6 +1138,7 @@
         nativeOrigin,
         rect,
         fragments,
+        words,
         paint,
       });
       pruneSamples(seen);
@@ -1369,21 +1376,27 @@
       event,
     );
   });
-  // A viewport resize is input, and its new size is the fact. Chrome lays out the
-  // resized viewport before dispatching resize, which precedes the frame's callbacks,
-  // so tick() always runs after it; a layout-shift record delivered between the two,
-  // as one from an earlier frame can be on a busy machine, has its pose read at the new
-  // size, so the observer looks at the size before reading. The preceding pose seals
-  // typing; taking a new pose here would attribute the resize to the key.
-  let viewport = [innerWidth, innerHeight];
-  const resized = () => {
-    if (innerWidth === viewport[0] && innerHeight === viewport[1]) return;
-    viewport = [innerWidth, innerHeight];
+  // Resizing and media preferences change the browser's presentation. Their new
+  // state is the fact: layout can precede the native event, and a shift record
+  // delivered between them already reads the new presentation, so the observer checks
+  // it before reading. The preceding pose seals typing; taking a new pose here would
+  // attribute the presentation change to the key.
+  const presentationState = () => [
+    innerWidth,
+    innerHeight,
+    ...presentationMedia.map((query) => query.matches),
+  ];
+  let presentation = presentationState();
+  const presentationChanged = () => {
+    const next = presentationState();
+    if (next.every((value, index) => value === presentation[index])) return;
+    presentation = next;
     const before = frames.at(-1)?.at ?? nativePerformance.now();
     if (open?.typing?.until === Infinity) open.typing.until = before;
     begin(nativePerformance.now());
   };
-  listen(window, "resize", resized);
+  listen(window, "resize", presentationChanged);
+  for (const query of presentationMedia) listen(query, "change", presentationChanged);
   // When the page adopted each server reading.
   new MutationObserver(() => {
     unwatch();
@@ -1556,21 +1569,36 @@
   // followers in the same stationary runtime scrollport may be carried by it. A
   // scrollport sized to what it holds grows at its foot with that growth, keeping
   // every other edge, and counts as stationary.
+  //
+  // A scrollport that declares it stands on its foot (`data-lf-rises`), as the floating
+  // panel's thread view stands on its row, instead rises at its head as it grows with
+  // that growth, by no more than it, keeping its other edges. Its holdings are then
+  // read from its head, which carries them all up by its rise, and so does every box
+  // standing on its foot with it (its stand): what stands in that stand above the
+  // scrollport, such as the view's head, rises with it by the same distance and no
+  // more. This is the one place news
+  // may carry controls without a gesture (`skills/leaf/assets/AGENTS.md`, "Stability":
+  // an answer the user waits for grows the panel's thread view).
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,
       last = around[2].at;
+    // How far a standing scrollport's head has risen by `at`, which its holdings'
+    // layout coordinates are read net of.
+    let lift = () => 0;
+    const read = (node, at, screen = false) => {
+      const rect = screen ? boxAt(node, at) : layoutAt(node, at);
+      if (!rect || screen) return rect;
+      const by = lift(at);
+      return { ...rect, top: rect.top - by, bottom: rect.bottom - by };
+    };
     const stable = (node, screen = false) => {
-      const rects = around.map(({ at }) =>
-        screen ? boxAt(node, at) : layoutAt(node, at),
-      );
+      const rects = around.map(({ at }) => read(node, at, screen));
       return rects.every(Boolean) && rects.every((rect) => !moved(rects[0], rect));
     };
     // Whether `node` keeps every edge but its foot, which grows by no more than `by`.
     const footGrowth = (node, by, screen = false) => {
-      const rects = around.map(({ at }) =>
-        screen ? boxAt(node, at) : layoutAt(node, at),
-      );
+      const rects = around.map(({ at }) => read(node, at, screen));
       return (
         rects.every(Boolean) &&
         rects.every(
@@ -1583,13 +1611,40 @@
         )
       );
     };
+    // Whether `node` keeps every edge but its head, which rises; how far, or 0.
+    const headRise = (node) => {
+      const rects = around.map(({ at }) => boxAt(node, at));
+      if (!rects.every(Boolean)) return 0;
+      const rise = rects[0].top - rects[2].top;
+      return rise >= 1 &&
+        rects.every(
+          (rect) =>
+            ["left", "right", "bottom"].every(
+              (edge) => Math.abs(rect[edge] - rects[0][edge]) < 1,
+            ) &&
+            rects[0].top - rect.top > -1 &&
+            rects[0].top - rect.top < rise + 1,
+        )
+        ? rise
+        : 0;
+    };
     return around[0].nodes.flatMap((source) => {
+      lift = () => 0;
       const readings = around.map(({ at }) => paintAt(source, at));
       if (!readings.every((paint) => paint?.reflow === "append")) return [];
+      const port = ancestryAt(source, first).find(
+        (owner) => owner !== source && paintAt(owner, first)?.scrollportY,
+      );
+      const rise =
+        port && around.every(({ at }) => paintAt(port, at)?.rises) ? headRise(port) : 0;
+      if (rise) {
+        const head = boxAt(port, first).top;
+        lift = (at) => boxAt(port, at).top - head;
+      }
       const before = readings[0].appendChildren,
         after = readings[2].appendChildren;
-      const prior = layoutAt(source, first),
-        next = layoutAt(source, last);
+      const prior = read(source, first),
+        next = read(source, last);
       if (!prior || !next || next.bottom - prior.bottom < 1) return [];
       const grown = next.bottom - prior.bottom;
       // The end grows: children join after the old ones, which keep their boxes, or,
@@ -1610,9 +1665,8 @@
                 paintAt(child, first)?.appendTail &&
                 footGrowth(child, grown) &&
                 // The tail's own growth is the region's whole growth.
-                Math.abs(
-                  layoutAt(child, last).bottom - layoutAt(child, first).bottom - grown,
-                ) < 1)),
+                Math.abs(read(child, last).bottom - read(child, first).bottom - grown) <
+                  1)),
         ) ||
         // Where none joins, the growth is the tail's: the region's own box growing
         // around unchanged children is no arrival.
@@ -1620,13 +1674,14 @@
         !footGrowth(source, grown)
       )
         return [];
-      const port = ancestryAt(source, first).find(
-        (owner) => owner !== source && paintAt(owner, first)?.scrollportY,
-      );
       if (
         !port ||
         port === document.scrollingElement ||
-        !(stable(port, true) || footGrowth(port, grown, true)) ||
+        !(
+          stable(port, true) ||
+          footGrowth(port, grown, true) ||
+          (rise && rise < grown + 1)
+        ) ||
         !around.every(
           ({ at }) =>
             ancestryAt(source, at).includes(port) &&
@@ -1638,7 +1693,29 @@
         )
       )
         return [];
-      return [{ source, port, bottom: prior.bottom, by: grown }];
+      // The boxes standing on their foot with a rising port, each risen as far.
+      let stand = port;
+      if (rise)
+        for (const owner of ancestryAt(port, first).slice(1)) {
+          if (Math.abs(headRise(owner) - rise) >= 1) break;
+          stand = owner;
+        }
+      if (
+        rise &&
+        !ancestryAt(stand, first).some((owner) => paintAt(owner, first)?.runtime)
+      )
+        return [];
+      return [
+        {
+          source,
+          port,
+          bottom: prior.bottom,
+          by: grown,
+          rise,
+          stand,
+          head: boxAt(port, first).top,
+        },
+      ];
     });
   };
   const permittedAppend = (node, previousRect, currentRect, around, growth) => {
@@ -1656,7 +1733,17 @@
         ) && before.top >= bottom - 1,
     );
     let by = carries.reduce((sum, each) => sum + each.by, 0);
-    if (!by) return false;
+    // A standing port's rise carries all it holds, and what stands above it in its
+    // stand.
+    const rise = growth
+      .filter(
+        ({ port, stand, head }) =>
+          ancestry.every((parents) => parents.includes(port)) ||
+          (ancestry.every((parents) => parents.includes(stand)) &&
+            boxAt(node, first).bottom <= head + 1),
+      )
+      .reduce((sum, each) => sum + each.rise, 0);
+    if (!by && !rise) return false;
     // A following sticky row receives that carry only until its unchanged inset
     // meets the scrollport's padded content edge. Its descendants keep that exact
     // clamped carry, so extra motion remains an independent finding.
@@ -1705,14 +1792,20 @@
           ) - prior.bottom;
     }
     // Compare each fragment in its retained layout coordinates. A carried container
-    // cannot excuse an extra move or repacking by one of its descendants.
+    // cannot excuse an extra move or repacking by one of its descendants. A text's
+    // words may change as it is carried, as a message's state does, so its fragment's
+    // end is its own; where it starts is not.
     const priorBox = boxAt(node, first),
       nextBox = boxAt(node, last);
-    return ["left", "right", "top", "bottom"].every((edge) => {
+    const edges =
+      node.nodeType === Node.TEXT_NODE
+        ? ["left", "top", "bottom"]
+        : ["left", "right", "top", "bottom"];
+    return edges.every((edge) => {
       const axis = edge === "left" || edge === "right" ? "left" : "top";
       const prior = previousRect[edge] - priorBox[axis] + before[axis];
       const next = currentRect[edge] - nextBox[axis] + after[axis];
-      return Math.abs(next - prior - (axis === "top" ? by : 0)) < 1;
+      return Math.abs(next - prior - (axis === "top" ? by - rise : 0)) < 1;
     });
   };
   const paintState = (node, rect, at) => {
@@ -2152,6 +2245,9 @@
             prior.paint.labelText !== next.paint.labelText)
         )
           continue;
+        // A changed text node is a new reading, even when Lit retained its DOM
+        // identity. Its old and new glyph fragments are not the same landmark.
+        if (node.nodeType === Node.TEXT_NODE && prior.words !== next.words) continue;
         const scroll = scrollMotion(node, around[before].at, around[after].at);
         const motion = animationMotion(
           node,
@@ -2290,7 +2386,7 @@
           ? { previousRect: first.previousRect, currentRect: last.currentRect }
           : chain.find(confirms);
         if (proof)
-          report(`moved ${name(node)}`, {
+          report(JSON.stringify(["moved", name(node)]), {
             code: "moved-without-input",
             node: name(node),
             by: by(proof.previousRect, proof.currentRect),
@@ -2328,9 +2424,9 @@
         Math.abs(from.top - to.top) >= 1 &&
         Math.abs(after.top - before.top - scroll.top - motion.top) >= 1;
       if (!x && !y) continue;
-      const field = window.lfPlace(typing.field),
-        place = window.lfPlace(node);
-      report(`typing in ${field} moved ${place}`, {
+      const field = name(typing.field),
+        place = name(node);
+      report(JSON.stringify(["typing", field, place]), {
         code: "typing-moved",
         node: place,
         field,
@@ -2392,7 +2488,7 @@
   // judges it is complete whatever changed the page, announced or not.
   const received = (entries) => {
     announce();
-    resized();
+    presentationChanged();
     for (const entry of entries) {
       const frame = frames.findLastIndex(({ start }) => start <= entry.startTime);
       // Layout follows the entering frame callback. Counted work can still own

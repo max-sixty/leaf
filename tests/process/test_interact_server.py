@@ -105,14 +105,28 @@ from leaf_dev.example_data import patch_manifest
 from leaf_dev.page_fixtures import example_media
 
 
+def browser_observation(kind, sequence=1, **fields):
+    """A browser observation whose wall clock is deliberately ahead of the host."""
+    return {
+        "type": kind,
+        "observed_at": "2099-01-01T00:00:00Z",
+        "sequence": sequence,
+        "monotonic_ms": sequence * 10,
+        "visibility": "visible",
+        **fields,
+    }
+
+
 def test_interaction_trace_records_browser_entries_and_every_request_outcome(
     server, page_dir
 ):
     payload = {
         "session": "tab-1",
         "entries": [
-            {"type": "click", "target": "#approve", "source": "forged"},
-            {"type": "input", "value": "draft"},
+            browser_observation(
+                "click", target="#approve", source="forged", ts="forged"
+            ),
+            browser_observation("input", 2, value="draft"),
         ],
     }
     assert fetch(f"{server}/api/interaction", data=json.dumps(payload).encode()) == (
@@ -123,11 +137,14 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         fetch(f"{server}/api/interaction", data=b'{"session":"tab-1","entries":[]}')[0]
         == 400
     )
-    for entry in (
-        {"type": "interaction_part", "sequence": 1},
-        {"type": "keydown", "ts": 42},
-        {"type": "focusin", "target": [{}]},
+    for invalid in (
+        {"type": ""},
+        {"observed_at": "2026-10-14T12:00:00"},
+        {"sequence": True},
+        {"monotonic_ms": -1},
+        {"visibility": "unknown"},
     ):
+        entry = browser_observation("keydown", **invalid)
         assert (
             fetch(
                 f"{server}/api/interaction",
@@ -135,24 +152,21 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
             )[0]
             == 400
         )
+    missing_time = browser_observation("click")
+    del missing_time["observed_at"]
+    assert (
+        fetch(
+            f"{server}/api/interaction",
+            data=json.dumps({"session": "missing", "entries": [missing_time]}).encode(),
+        )[0]
+        == 400
+    )
     assert (
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None
         )[0]
         == 401
     )
-    for entry in (
-        {"type": "keydown", "sequence": True},
-        {"type": "interaction_part", "sequence": 1},
-        {"type": "focusin", "target": [{}]},
-    ):
-        assert (
-            fetch(
-                f"{server}/api/interaction",
-                data=json.dumps({"session": "bad", "entries": [entry]}).encode(),
-            )[0]
-            == 400
-        )
     assert fetch(f"{server}/missing")[0] == 404
 
     rows = [
@@ -168,7 +182,9 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         ("tab-1", "input"),
     ]
     assert client[0]["source"] == "client"
-    assert all(row["received"] for row in client)
+    assert all(row["observed_at"] == "2099-01-01T00:00:00Z" for row in client)
+    assert all(datetime.fromisoformat(row["ts"]).year != 2099 for row in client)
+    assert all("received" not in row for row in client)
     server_rows = [row for row in rows if row["source"] == "server"]
     assert {(row["method"], row["path"], row["status"]) for row in server_rows} >= {
         ("POST", "/api/interaction", 204),
@@ -177,7 +193,7 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         ("GET", "/missing", 404),
     }
     assert all("?" not in row["path"] and row["durationMs"] >= 0 for row in server_rows)
-    assert fetch(f"{server}/interactions.jsonl")[0] == 404
+    assert fetch(f"{server}/observations.jsonl")[0] == 404
 
 
 def test_diagnostic_write_failure_does_not_change_the_http_answer(
@@ -208,7 +224,9 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     ) as preview:
         status, body = fetch(
             f"{preview.origin}/api/interaction",
-            data=b'{"session":"preview","entries":[{"type":"click"}]}',
+            data=json.dumps(
+                {"session": "preview", "entries": [browser_observation("click")]}
+            ).encode(),
         )
         assert (status, body) == (204, b"")
         assert fetch(f"{preview.origin}/api/event", data=b"{}")[0] == 403
@@ -222,23 +240,23 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     )
 
 
-def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
+def test_interaction_trace_does_not_change_page_readings(page_dir):
     reading = served_reading.page_reading(page_dir)
     sources = served_reading.source_readings(page_dir)
-    presence_stamp = presence_model._page_stamp(page_dir)
 
-    for sequence in range(2):
+    for sequence in range(1, 3):
         interaction_model.append_interactions(
-            page_dir, [{"source": "client", "sequence": sequence}]
+            page_dir,
+            interaction_model.client_records(
+                "tab-1", "/", [browser_observation("click", sequence)]
+            ),
         )
         assert served_reading.page_reading(page_dir) == reading
         assert served_reading.source_readings(page_dir) == sources
-        assert presence_model._page_stamp(page_dir) == presence_stamp
 
     (page_dir / "index.html").write_text(PAGE + "\n<!-- revised -->")
     assert served_reading.page_reading(page_dir) != reading
     assert served_reading.source_readings(page_dir)[0] != sources[0]
-    assert presence_model._page_stamp(page_dir) != presence_stamp
 
 
 @pytest.mark.parametrize(
@@ -259,17 +277,15 @@ def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, n
     assert revisioning_model.activate_source(page_dir).error is None
 
 
-def test_a_staged_write_moves_neither_the_page_nor_its_presence_reading(page_dir):
+def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     """An atomic write stages its bytes beside the target before the rename, and a
-    look between the two sees a file the page never has. Both readings of the page
-    directory look past it, so the write moves each once, at the rename."""
+    look between the two sees a file the page never has. The page's reading looks
+    past it, so the write moves it once, at the rename."""
     reading = served_reading.page_reading(page_dir)
-    presence_stamp = presence_model._page_stamp(page_dir)
 
     (page_dir / ".0123456789abcdef.tmp").write_text("{}")
 
     assert served_reading.page_reading(page_dir) == reading
-    assert presence_model._page_stamp(page_dir) == presence_stamp
 
 
 def test_samples_use_captured_resources_and_independent_event_logs(server, page_dir):
@@ -325,7 +341,9 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert json.loads(raw)["events"] == []
     assert fetch(
         child + "/api/interaction",
-        data=b'{"session":"child-tab","entries":[{"type":"click"}]}',
+        data=json.dumps(
+            {"session": "child-tab", "entries": [browser_observation("click")]}
+        ).encode(),
     ) == (204, b"")
     status, answer = fetch(
         child + "/api/event",
@@ -645,7 +663,10 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 first + "/api/interaction",
                 token=None,
                 data=json.dumps(
-                    {"session": "routed-sample", "entries": [{"type": "checkpoint"}]}
+                    {
+                        "session": "routed-sample",
+                        "entries": [browser_observation("checkpoint")],
+                    }
                 ).encode(),
             )[0]
             == 204
@@ -670,7 +691,10 @@ def test_sample_capability_authorizes_only_its_live_descendants(page_dir, routed
                 nested + "/api/interaction",
                 token=None,
                 data=json.dumps(
-                    {"session": "nested-sample", "entries": [{"type": "checkpoint"}]}
+                    {
+                        "session": "nested-sample",
+                        "entries": [browser_observation("checkpoint")],
+                    }
                 ).encode(),
             )[0]
             == 204
@@ -1129,9 +1153,13 @@ def test_api_state_carries_each_sources_current_value(server, page_dir):
     }
     assert data["sources"]["builds"]["contract"] == "build-map"
     assert data["sources"]["builds"]["value"] == {"main": "green"}
+    # A tab naming the version it holds is not sent that version's sources again.
+    holding = {"Leaf-Data-Version": data["version"]}
+    unmoved = json.loads(fetch(f"{server}/api/state", headers=holding)[1])["data"]
+    assert unmoved == {"version": data["version"]}
 
     data_model.cmd_data_set(page_dir, "builds", {"main": "red"})
-    rewritten = json.loads(fetch(f"{server}/api/state")[1])["data"]
+    rewritten = json.loads(fetch(f"{server}/api/state", headers=holding)[1])["data"]
     assert rewritten["sources"]["builds"]["value"] == {"main": "red"}
     assert rewritten["version"] != data["version"]
     assert (
@@ -1322,6 +1350,111 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     assert deferred["value"] == patch
 
 
+def news_layer(origin, **headers):
+    """The layer `/api/news` answers a tab sending these headers in."""
+    address = urllib.parse.urlsplit(origin)
+    connection = http.client.HTTPConnection(address.hostname, address.port)
+    connection.request("GET", f"/api/news?t={TOKEN}", headers=headers)
+    response = connection.getresponse()
+    response.read()
+    connection.close()
+    assert response.status == 200
+    return response.getheader("Leaf-Layer")
+
+
+def test_a_tab_on_a_re_vendored_page_hears_news_in_its_own_layer(page_dir):
+    """A re-vendor replaces the page's server, and a tab still open on the older layer
+    keeps hearing news it can read, so it takes the newer layer as a revision once the
+    user has finished what they are doing. Named in the newer layer, the token was
+    refused and reloaded the tab mid-keystroke."""
+    first = revisioning_model.activate_source(page_dir)
+    first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
+        "$layer"
+    ]["generation"]
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
+    vendoring_model.cmd_init(page_dir)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Revised plan"))
+    second = revisioning_model.activate_source(page_dir)
+    assert second.error is None and second.revision != first.revision
+
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as replaced:
+        stale = news_layer(
+            replaced.origin,
+            **{"Leaf-Layer": first_layer, "Leaf-View-Revision": str(first.revision)},
+        )
+        current = news_layer(replaced.origin)
+    assert stale == first_layer
+    assert current != first_layer
+
+
+def test_a_tab_on_a_revision_past_a_protocol_bump_hears_the_newer_layer(page_dir):
+    """Across a protocol bump the server admits nothing against the tab's revision,
+    so holding there for the user would strand their send. The tab hears the newer
+    layer instead and reloads at once, from its news and from a send alike."""
+    page_registry = registry_storage.read_page_registry(page_dir)
+    older = {
+        **page_registry.registry,
+        "$events": {
+            **page_registry.registry["$events"],
+            "protocol": page_registry.registry["$events"]["protocol"] - 1,
+        },
+        "$layer": {**page_registry.registry["$layer"], "generation": "older"},
+    }
+    document = structure_model.SourceDocument(PAGE)
+    artifact = artifact_model.capture_artifact(
+        page_dir,
+        document,
+        older,
+        declaration_sources=page_registry.declaration_sources,
+        widget_sources=page_registry.widget_sources,
+    )
+    artifact_model.write_artifact(
+        page_dir, 1, artifact, passages_model.SourceReading(document, older)
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Revised plan"))
+    assert revisioning_model.activate_source(page_dir).error is None
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as server:
+        stale = news_layer(
+            server.origin, **{"Leaf-Layer": "older", "Leaf-View-Revision": "1"}
+        )
+        assert stale == news_layer(server.origin)
+        status, answer = fetch(
+            f"{server.origin}/api/event",
+            data=json.dumps({"kind": "note", "author": "user"}).encode(),
+            layer="older",
+            headers={"Leaf-View-Revision": "1"},
+        )
+    assert (status, json.loads(answer)) == (200, {"layer": stale})
+
+
+def test_a_state_answer_speaks_the_layer_of_the_revision_it_read(page_dir):
+    """Reading state activates the page's source, so a state answer naming no
+    revision speaks the layer of the revision that activation left active, the one
+    its body describes."""
+    first = revisioning_model.activate_source(page_dir)
+    first_layer = artifact_model.read_revision(page_dir, first.revision).registry[
+        "$layer"
+    ]["generation"]
+    # A source that fails to save keeps the re-vendor from activating it, leaving
+    # the older layer's revision active until the repaired source is read.
+    (page_dir / "index.html").write_text(PAGE.replace("</section>", ""))
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
+    vendoring_model.cmd_init(page_dir)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Revised plan"))
+    with hosting_model.TemporaryPageServer(page_dir, token=TOKEN) as server:
+        address = urllib.parse.urlsplit(server.origin)
+        connection = http.client.HTTPConnection(address.hostname, address.port)
+        connection.request("GET", f"/api/state?t={TOKEN}")
+        response = connection.getresponse()
+        state = json.loads(response.read())
+        connection.close()
+    assert state["active"]["revision"] != first.revision
+    assert response.getheader("Leaf-Layer") == state["layer"]["generation"]
+    assert state["layer"]["generation"] != first_layer
+
+
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
     server, page_dir
 ):
@@ -1387,7 +1520,7 @@ def test_state_validation_follows_css_edits_and_recovers_cached_readings(
 
     path.write_text(source.replace("--probe-width: 700px", "--probe-width  700px"))
     assert (
-        "page <style> syntax error"
+        "page <style> (line 5) syntax error"
         in json.loads(fetch(f"{server}/api/state")[1])["source_error"]
     )
     path.write_text(source)
@@ -2452,7 +2585,7 @@ def test_an_accepted_retry_releases_the_page_before_scanning_neighbours(
         return []
 
     monkeypatch.setattr(served_page, "read_served_page", own_state)
-    monkeypatch.setattr(presence_model, "other_leaves", neighbours)
+    monkeypatch.setattr(presence_model, "neighbor_reading", neighbours)
     status, body = fetch(f"{server}/api/event", data=json.dumps(sent).encode())
 
     assert status == 200, body
@@ -2938,15 +3071,20 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
         return real_other_leaves(directory)
 
     monkeypatch.setattr(presence_model, "other_leaves", counted_other_leaves)
-    first = presence_model.presence_reading(page_dir)
-    assert presence_model.presence_reading(page_dir) == first
+
+    def reading():
+        files = served_reading.page_reading(page_dir)
+        return presence_model.presence_reading(page_dir, files)
+
+    first = reading()
+    assert reading() == first
     assert calls == 1
 
     cleanup_model.write_json(
         page_dir / "status.json",
         {"state": "waiting", "detail": "measuring", "ts": "now"},
     )
-    refreshed = presence_model.presence_reading(page_dir)
+    refreshed = reading()
     assert refreshed == first
     assert calls == 1
 
@@ -2970,8 +3108,9 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     )
     publisher = server_rows_model.RowPublisher(neighbor, "fixture-server")
     publisher.refresh()
-    expected = page_state(neighbor)["activity"]
-    expected.pop("obligations")
+    activity = page_state(neighbor)["activity"]
+    assert activity["detail_source"] is not None
+    expected = server_rows_model.compact_activity(activity)
     reads = []
     read_json = files_model.read_json
 
@@ -2993,6 +3132,8 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     monkeypatch.setattr(event_model, "read_events", no_fold)
     [row] = presence_model.other_leaves(page_dir)
     assert row["activity"] == expected
+    assert "detail_source" not in row["activity"]
+    assert "obligations" not in row["activity"]
     assert row["activity"]["counts"]["pending"] == 1
     assert row["session_cwd"] == "/work/neighbor"
     assert reads == [neighbor / "service.json"]
@@ -3035,7 +3176,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
         return read(page)
 
     monkeypatch.setattr(presence_model, "other_leaves", observe)
-    presence_model._neighbor_reading(page_dir)
+    presence_model.neighbor_reading(page_dir)
     for n in range(20):
         cleanup_model.write_json(
             page_dir / "status.json",
@@ -3048,14 +3189,14 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
         cleanup_model.write_json(
             own.path, {**record, "row": {**record["row"], "title": f"Own {n}"}}
         )
-        presence_model._neighbor_reading(page_dir)
+        presence_model.neighbor_reading(page_dir)
     assert len(calls) == 1
     changed = server_rows_model.row_path(neighbor)
     record = files_model.read_json(changed)
     cleanup_model.write_json(
         changed, {**record, "row": {**record["row"], "title": "Changed neighbor"}}
     )
-    [row] = presence_model._neighbor_reading(page_dir)
+    [row] = presence_model.neighbor_reading(page_dir)
     assert row["title"] == "Changed neighbor"
     assert len(calls) == 2
 
@@ -3064,12 +3205,12 @@ def test_neighbor_discovery_needs_no_native_subscription(
     page_dir, tmp_path, monkeypatch
 ):
     """A short-lived reader sees new rows even when native watches cannot start."""
-    from leaf import file_changes
+    import watchfiles.main
 
     def no_watcher(*_args, **_kwargs):
         raise RuntimeError("native watch unavailable")
 
-    monkeypatch.setattr(file_changes, "RustNotify", no_watcher)
+    monkeypatch.setattr(watchfiles.main, "RustNotify", no_watcher)
     rows = machine_model.state_home() / "rows"
     assert not rows.exists()
     assert presence_model.neighbor_candidates() == ()
@@ -3081,7 +3222,32 @@ def test_neighbor_discovery_needs_no_native_subscription(
     assert second in [page for page, _record in presence_model.neighbor_candidates()]
 
 
+def test_a_reader_retires_rows_no_server_lease_holds(page_dir, tmp_path):
+    """Only a reader removes a row: one whose server lease no process holds,
+    whether or not its page remains. A held lease keeps its row even while it
+    names no live service, as a revival's private reservation does."""
+    live = tmp_path / "live"
+    neighbour_page(live, title="Live")
+    reserved = tmp_path / "reserved"
+    neighbour_page(reserved, title="Reserved")
+    service = files_model.read_json(reserved / "service.json")
+    cleanup_model.write_json(
+        reserved / "service.json", {**service, "server_id": "successor"}
+    )
+    stopped = tmp_path / "stopped"
+    neighbour_page(stopped, title="Stopped", dead=True)
+    deleted = tmp_path / "deleted"
+    neighbour_page(deleted, title="Deleted", dead=True)
+    shutil.rmtree(deleted)
+    assert [row["title"] for row in presence_model.other_leaves(page_dir)] == ["Live"]
+    assert server_rows_model.row_path(live).is_file()
+    assert server_rows_model.row_path(reserved).is_file()
+    assert not server_rows_model.row_path(stopped).exists()
+    assert not server_rows_model.row_path(deleted).exists()
+
+
 def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
+    import watchfiles.main
     from leaf import file_changes
     from watchfiles._rust_notify import WatchfilesRustInternalError
 
@@ -3090,7 +3256,7 @@ def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
             "Error creating recommended watcher: Too many open files (os error 24)"
         )
 
-    monkeypatch.setattr(file_changes, "RustNotify", exhausted)
+    monkeypatch.setattr(watchfiles.main, "RustNotify", exhausted)
     with pytest.raises(WatchfilesRustInternalError, match="Too many open files"):
         file_changes.FileChanges({tmp_path: False}, lambda _path: True)
 
@@ -3152,9 +3318,8 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
 def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
     """A row producer waiting on a page writer cannot hold service retirement.
 
-    The process probe announces the producer's reading of the log, its first wait
-    on a writer, so the stop runs after the producer is blocked rather than winning
-    a scheduling race.
+    Drive its second reading through a pipe after holding the writer's lock. A
+    file notification could arrive before the producer starts waiting for one.
     """
     entered = tmp_path / "row-entered"
     child = spawn_probe(
@@ -3162,8 +3327,9 @@ def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
         page_dir,
         """
 from contextlib import contextmanager
-from leaf import hosting
+from leaf import hosting, server_rows
 from leaf.served_state import reading
+import sys
 
 leased = reading.flocked
 
@@ -3174,8 +3340,16 @@ def announced(path, **options):
         yield log
 
 reading.flocked = announced
+
+def drive_reading(self):
+    self.refresh()
+    sys.stdin.readline()
+    self.refresh()
+
+server_rows.RowPublisher.run = drive_reading
 hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
 """,
+        stdin=subprocess.PIPE,
         ENTERED=entered,
     )
     path = server_rows_model.row_path(page_dir)
@@ -3183,10 +3357,8 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
     entered.unlink()
     ended = threading.Event()
     with service_model.PageTransaction(page_dir):
-        cleanup_model.write_json(
-            page_dir / "status.json",
-            {"state": "waiting", "detail": "blocked", "ts": cleanup_model.now_iso()},
-        )
+        child.stdin.write("read\n")
+        child.stdin.flush()
         wait_for(
             entered.is_file,
             bool,
@@ -4015,6 +4187,7 @@ def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
     crossing an in-place append can pair its modification time with the size before
     it, a state the log was never at, so the look waits for the log's lease, which
     every append holds, and then names the finished append as a state answer would."""
+    absence_window = 0.2  # This duration is the subject of the absence assertion.
     with ThreadPoolExecutor(max_workers=1) as executor:
         with cleanup_model.flocked(page_dir / "events.jsonl") as log:
             log.seek(0, os.SEEK_END)
@@ -4022,7 +4195,7 @@ def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
             log.flush()
             look = executor.submit(served_reading.page_reading, page_dir)
             # The window is the subject of an absence assertion, not a deadline.
-            assert not wait_futures([look], timeout=0.2).done, (
+            assert not wait_futures([look], timeout=absence_window).done, (
                 "the look named the log while an append held it"
             )
             log.write(b'lf"}\n')
@@ -4307,25 +4480,37 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
     the browser on every read. A page an older Leaf vendored the start re-vendors
     first, as the plugin update that left it there calls for. One a newer Leaf
     vendored, which this Leaf does not take back, is refused before the start claims
-    the page or records a service, and the refusal names the re-vendor that ends it.
-    A server already running over such a page is refused the same way rather than
-    handed out as this Leaf's."""
+    the page or records a service, and the refusal names the newer Leaf that would
+    serve it. A server already running over such a page is refused the same way
+    rather than handed out as this Leaf's."""
     from leaf.event_contracts import write_refusal
 
     runner = CliRunner()
+    stamp = page_dir / "registry.json"
+    vendored = stamp.read_text(encoding="utf-8")
     foreign = vendored_at_another_protocol(page_dir, newer=True)
 
     refused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
 
     assert refused.exit_code != 0, refused.output
-    assert f"page protocol {foreign}" in refused.output
-    assert f"leaf page init {page_dir}" in refused.output
+    assert f"Use a Leaf at protocol {foreign} or later" in refused.output
     assert not service_model.claim_path(page_dir).exists()
     assert files_model.read_json(page_dir / "service.json") is None
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
-    reinitialized = runner.invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert reinitialized.exit_code == 0, reinitialized.output
+    # A newer protocol may reshape the layer past this Leaf's schema, which reads
+    # the protocol first.
+    newer = json.loads(stamp.read_text(encoding="utf-8"))
+    stamp.unlink()
+    stamp.write_text(json.dumps({**newer, "$future": 1}), encoding="utf-8")
+    reshaped = runner.invoke(
+        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
+    )
+    assert reshaped.exit_code != 0, reshaped.output
+    assert f"Use a Leaf at protocol {foreign} or later" in reshaped.output
+
+    stamp.unlink()
+    stamp.write_text(vendored, encoding="utf-8")
     vendored_at_another_protocol(page_dir)
     started = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
     try:
@@ -4335,8 +4520,7 @@ def test_a_server_start_re_vendors_an_older_page_and_refuses_a_newer_one(page_di
         foreign = vendored_at_another_protocol(page_dir, newer=True)
         reused = runner.invoke(cli_model.cli, ["server", "start", str(page_dir)])
         assert reused.exit_code != 0, reused.output
-        assert f"page protocol {foreign}" in reused.output
-        assert f"leaf page init {page_dir}" in reused.output
+        assert f"Use a Leaf at protocol {foreign} or later" in reused.output
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -4346,10 +4530,9 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
     """A re-vendor across a protocol bump leaves the revisions the page saved before
     it in place, each with the runtime it was saved with. Served, that runtime would
     talk to this Leaf's server across the bump, so its address refuses, as does an
-    event made against it, a widget to-do opened on it as the newest included, while
-    the revision saved since serves and admits. An event made against no document,
-    such as a pickup, is judged by the page's layer, so it goes through before the
-    source saves again."""
+    event made against it, while the current revision activated by the re-vendor
+    serves and admits, a widget to-do opened on it as the newest included. An event
+    made against no document, such as a pickup, is judged by the page's layer."""
     board = PAGE.replace(
         "<h2>Plan</h2>",
         '<h2>Plan</h2>\n<lf-board id="rollout"><lf-column id="rollout-now" '
@@ -4357,24 +4540,27 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         "</lf-board>",
     )
     (page_dir / "index.html").write_text(board)
-    foreign = vendored_at_another_protocol(page_dir)
-    # Build the capture an older Leaf left behind. This Leaf refuses to activate
-    # mutable source vendored at that older protocol.
+    # Build the capture an older Leaf left behind: this Leaf reads no layer vendored
+    # at that older protocol, so the capture takes this Leaf's vocabulary with the
+    # older number, and the layer then moves to that number too.
     page_registry = registry_storage.read_page_registry(page_dir)
+    foreign = page_registry.registry["$events"]["protocol"] - 1
+    older = {
+        **page_registry.registry,
+        "$events": {**page_registry.registry["$events"], "protocol": foreign},
+    }
     document = structure_model.SourceDocument(board)
     artifact = artifact_model.capture_artifact(
         page_dir,
         document,
-        page_registry.registry,
+        older,
         declaration_sources=page_registry.declaration_sources,
         widget_sources=page_registry.widget_sources,
     )
     artifact_model.write_artifact(
-        page_dir,
-        1,
-        artifact,
-        passages_model.SourceReading(document, page_registry.registry),
+        page_dir, 1, artifact, passages_model.SourceReading(document, older)
     )
+    vendored_at_another_protocol(page_dir)
     waiting = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Still there?"},
@@ -4394,11 +4580,7 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         "subject": {"kind": "widget", "id": "rollout-card"},
         "title": "Check the rollout",
     }
-    with pytest.raises(event_model.EventRefused) as unadmitted:
-        append_command(page_dir, todo)
-    assert refused_on(unadmitted.value).values["saved"] == foreign
-    (page_dir / "index.html").write_text(board.replace("Ship it", "Ship it now"))
-    revisioning_model.activate_source(page_dir)
+    assert append_command(page_dir, todo)["revision"] == 2
     old, new = (
         next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
     )
@@ -4428,7 +4610,6 @@ def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_
         assert f"page protocol {foreign}" in body.decode()
         assert event_model.read_events(page_dir) == before
         assert commented(2)[0] == 200
-        assert append_command(page_dir, todo)["revision"] == 2
     finally:
         temporary.close()
 
@@ -4453,10 +4634,10 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
     vendored_before_the_ask_rename(page_dir)
     # Read as the next process does, which holds nothing of the revision saved above.
     with fresh_process():
-        _serve_after_the_ask_rename(page_dir, page)
+        _serve_after_the_ask_rename(page_dir)
 
 
-def _serve_after_the_ask_rename(page_dir, page):
+def _serve_after_the_ask_rename(page_dir):
     comment = {"kind": "comment", "author": "user", "text": "Which plan?"}
     with pytest.raises(event_model.EventRefused, match="x-question-context") as refused:
         append_command(page_dir, {**comment, "revision": 1})
@@ -4464,10 +4645,7 @@ def _serve_after_the_ask_rename(page_dir, page):
 
     reinitialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert reinitialized.exit_code == 0, reinitialized.output
-    (page_dir / "index.html").write_text(
-        page.replace("Which route?", "Which route now?")
-    )
-    revisioning_model.activate_source(page_dir)
+    # Re-vendoring activates valid source with the renamed vocabulary itself.
     [ask] = [
         ask
         for ask in page_state(page_dir)["browser"]["views"]["2"]["document"]["asks"][
@@ -4475,7 +4653,7 @@ def _serve_after_the_ask_rename(page_dir, page):
         ]
         if ask["source"]["id"] == "route"
     ]
-    assert ask["prompt"] == {"text": "Which route now?", "target": "route-ask"}
+    assert ask["prompt"] == {"text": "Which route?", "target": "route-ask"}
     old, new = (
         next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
     )
@@ -4618,8 +4796,10 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     hosting_model.cmd_stop(neighbor)
     desired = {**files_model.read_json(neighbor / "service.json"), "enabled": True}
     cleanup_model.write_json(neighbor / "service.json", desired)
-    row_before = server_rows_model.row_path(neighbor).read_bytes()
     assert presence_model.other_leaves(page_dir) == []
+    # The stopped incarnation's row is retired by that reading, so a row present
+    # later is one the reservation published.
+    assert not server_rows_model.row_path(neighbor).exists()
     caller, end = socket.socketpair()
     child = spawn(
         [
@@ -4645,7 +4825,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             assert json.loads(announcements.readline())["url"] == previous["url"]
             assert leases_model.lock_is_held(neighbor / "server.lock")
             assert files_model.read_json(neighbor / "service.json") == desired
-            assert server_rows_model.row_path(neighbor).read_bytes() == row_before
+            assert not server_rows_model.row_path(neighbor).exists()
             assert server_model.running_server(neighbor) is None
             assert presence_model.other_leaves(page_dir) == []
             if accepted:
@@ -4669,7 +4849,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             caller.close()
             assert child.wait(timeout=STATED_TIMEOUT) == 0
             assert files_model.read_json(neighbor / "service.json") == desired
-            assert server_rows_model.row_path(neighbor).read_bytes() == row_before
+            assert not server_rows_model.row_path(neighbor).exists()
             assert presence_model.other_leaves(page_dir) == []
     finally:
         caller.close()

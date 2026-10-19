@@ -6,15 +6,15 @@ from typing import NamedTuple
 from leaf.data import read_contracts, read_data
 from leaf.data_contracts import (
     data_document_errors,
+    data_document_readings,
     initial_data_document_readings,
     measurement_lag,
-    working_data_document_readings,
 )
-from leaf.findings import Finding
+from leaf.findings import Finding, Rejected
 from leaf.layer import incompatible_layer
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
-from leaf.registry.storage import read_page_registry
+from leaf.registry.storage import IncompatibleLayer, read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
@@ -100,7 +100,10 @@ def _document_errors(page_dir: Path, parser) -> list[Finding]:
     # module runs after it, in document order. A parser-blocking or async script can
     # run first, changing what Leaf reads as authored and throwing where no check
     # hears it.
-    for script in [*parser.inline_scripts, *parser.external_scripts]:
+    for script in [
+        *parser.authoring.inline_scripts,
+        *parser.authoring.external_scripts,
+    ]:
         attrs = script["attrs"]
         kind = script_kind(attrs)
         if kind not in {"module", "classic"}:
@@ -114,7 +117,7 @@ def _document_errors(page_dir: Path, parser) -> list[Finding]:
 
     errors.extend(document_declaration_errors(parser))
 
-    for meta in parser.named_metas:
+    for meta in parser.authoring.named_metas:
         if not meta["name"].startswith("lf-"):
             continue  # ordinary document metadata: a title, a description, a card
         where = {"name": meta["name"], "line": meta["line"]}
@@ -146,7 +149,7 @@ def _instance_errors(
     """Validate authored instances against their document's event and id namespace."""
     if registry is None:
         return []
-    errors = instance_errors(parser.lf_elements, registry)
+    errors = instance_errors(parser, registry)
     errors.extend(
         reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
     )
@@ -207,12 +210,8 @@ def sample_errors(
                     if registry is not None
                     else []
                 )
-            except ValueError as error:
-                errors.append(
-                    Finding(
-                        "sample-history", values={"error": str(error)}, samples=samples
-                    )
-                )
+            except Rejected as error:
+                errors.extend(found.but(samples=samples) for found in error.findings)
                 child_events = []
             pending.append((child, child_events, child, samples))
             child_readings = initial_data_document_readings(
@@ -232,8 +231,12 @@ def sample_errors(
 
 def _presentation_errors(parser) -> list[Finding]:
     """Validate the page's own CSS: its <style> and each inline style."""
-    errors = list(css_syntax_errors(parser.css, "page <style>"))
-    for inline in parser.inline_styles:
+    errors = []
+    for sheet in parser.authoring.style_blocks:
+        errors.extend(
+            css_syntax_errors(sheet["css"], f"page <style> (line {sheet['line']})")
+        )
+    for inline in parser.authoring.inline_styles:
         errors.extend(
             css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
         )
@@ -244,22 +247,9 @@ def _source_advice(
     parser,
     registry: dict | None,
     stored_data: dict,
-    revision: PredecessorReading,
-    dropped_ids: list[str],
 ) -> list[Finding]:
     """Report non-blocking drift after every error-producing phase has run."""
     return [
-        *(
-            [
-                Finding(
-                    "dropped-ids",
-                    values={"revision": revision.predecessor, "ids": dropped_ids},
-                    severity="advice",
-                )
-            ]
-            if dropped_ids
-            else []
-        ),
         *measurement_lag(parser.lf_elements, registry or {}, stored_data),
         *(
             Finding(
@@ -286,6 +276,10 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     try:
         page_registry = read_page_registry(page_dir)
         registry = page_registry.registry if page_registry is not None else None
+    except IncompatibleLayer as error:
+        return SourceCheck(
+            SourceReading(document, None), None, list(error.findings), []
+        )
     except RegistryError as error:
         registry = None
         errors.extend(error.findings)
@@ -294,8 +288,10 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         return SourceCheck(reading, registry, [refusal], [])
     stored_data = read_data(page_dir, registry)
     contracts = read_contracts(page_dir)
+    # A conflicting binding lies within one document, and history holds none
+    # (`data_contracts.data_binding_errors`), so the check reads this one alone.
     readings = (
-        working_data_document_readings(page_dir, registry, events, authored=document)
+        data_document_readings(document, "index.html", registry)
         if registry is not None
         else []
     )
@@ -322,18 +318,9 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
                 widget_sources=page_registry.widget_sources,
             )
         except ArtifactError as error:
-            errors.append(Finding("capture-failed", values={"error": str(error)}))
+            errors.extend(error.findings)
     revision = predecessor_reading(page_dir, data, events, artifact)
-
-    dropped_advice = sorted(revision.previous.document.ids - document.ids)
-
-    advice = _source_advice(
-        document,
-        registry,
-        stored_data,
-        revision,
-        dropped_advice,
-    )
+    advice = _source_advice(document, registry, stored_data)
     reanchors, anchor_advice = revision_reanchors(
         events, reading, revision, candidate_revision=revision.candidate
     )

@@ -46,11 +46,7 @@
    leaving moves nothing on the banner: "On me: 0" opens a panel that says so. Before
    the log's first answer it says only "On me", since a count read from no log would
    be a claim. */
-import {
-  addressableLabel,
-  addressableName,
-  addressableWord,
-} from "./addressable-names.js";
+import { addressableLabel, addressableName } from "./addressable-names.js";
 import {
   queueBtn,
   queueList,
@@ -67,7 +63,6 @@ import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
 import { itemNoun, itemOutcome } from "./queues.js";
-import { registry } from "./registry.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -78,7 +73,7 @@ import {
   PresentationRetentionError,
 } from "./semantic-state.js";
 import { renderedOrder, under } from "./shadow.js";
-import { askEnding } from "./asks/answer.js";
+import { askEnding, askWord } from "./asks/answer.js";
 import { readAsks } from "./asks/model.js";
 import { askPlace } from "./asks/place.js";
 import { readThreads } from "./thread/state.js";
@@ -86,14 +81,13 @@ import { readQueues, queueItemKey } from "./queue-api.js";
 import { askHolding, declareSide } from "./standing-target.js";
 import { anchorLabel } from "./thread/messages.js";
 import { queueTitle } from "./queue-title.js";
-import { threadSummary } from "./thread/model.js";
+import { lastMovedAt } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
 
-// A widget ask says its widget's word, or Ask; a prose ask says Thread; a to-do on
-// either side says To-do. Response obligations keep their own Reply or Answer wording.
+// An item a source registered says its source's word (`askWord`); a to-do on either
+// side says To-do. Response obligations keep their own Reply or Answer wording.
 const WORDS = Object.freeze({
-  ask: "Ask",
   resend: "Resend",
   answer: "Answer",
   reply: "Reply",
@@ -102,15 +96,6 @@ const WORDS = Object.freeze({
 });
 const wordOf = (item, noun) => WORDS[noun];
 const HEADINGS = "h1, h2, h3, h4, h5, h6";
-
-function askWord(item) {
-  const ask = item.ask;
-  if (ask.source.kind === "reply") return "Thread";
-  if (ask.source.kind === "approval") return "Approval";
-  const word =
-    registry[ask.source.tag]?.["x-word"] && addressableWord(askPlace(ask).source);
-  return word ? word.charAt(0).toUpperCase() + word.slice(1) : "Ask";
-}
 
 // The section a page element stands in: the last heading before it whose parent also
 // holds it, so a heading inside an earlier ask, or one closing an earlier section, is
@@ -129,7 +114,13 @@ function sectionWords(element) {
   return words ? `§ ${words}` : "";
 }
 
-export function createQueuePanel({ actions, next, announce, agentDoor }) {
+export function createQueuePanel({
+  actions,
+  next,
+  announce,
+  agentDoor,
+  observeFeedback,
+}) {
   const reading = readQueues;
   const threadOf = (id) =>
     id === null
@@ -171,19 +162,31 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
   }
   // The rest of where: how long it has stood or how far a reply has got, after the
   // place; and before it, how a finished item ended, which is what a Done row is for.
+  const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
     if (itemNoun(item) === "ask")
-      return thread && shortAgo(threadSummary(thread).latest);
-    // An update in hand says the line the agent last gave for it, as its thread's
-    // working message does.
-    const state = [workflowLabel(item.workflow), item.workflow?.detail];
-    if (item.kind === "answer") return state.filter(Boolean).join(" · ");
-    if (item.kind === "work")
-      return [...state, shortAgo(item.workflow?.ts)].filter(Boolean).join(" · ");
-    // A to-do the agent has in hand says the line its start gave, as an update in hand does.
+      return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
+    // Agent-authored detail has its own span and exact input identity. A generic
+    // stage or a to-do title is never evidence of visible agent words.
+    const feedback =
+      item.workflow?.detail && item.workflow.input
+        ? {
+            input_id: item.workflow.input,
+            reply_id: null,
+            reply_kind: "work",
+            presentation_kind: "queue_words",
+            surface: "queue",
+          }
+        : null;
+    const state = [
+      wherePart(workflowLabel(item.workflow)),
+      wherePart(item.workflow?.detail, feedback),
+    ];
+    if (item.kind === "answer") return state;
+    if (item.kind === "work") return [...state, wherePart(shortAgo(item.workflow?.ts))];
     if (item.kind === "todo" && item.running)
-      return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");
-    return "";
+      return [wherePart(item.running.text), wherePart(shortAgo(item.running.ts))];
+    return [];
   }
   // An ask names how it ended, a to-do its outcome, and a reply that it was sent.
   function ended(item) {
@@ -193,14 +196,12 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
   function row(item, list) {
     const thread = threadOf(item.thread);
     const noun = itemNoun(item);
-    const word = noun === "ask" ? askWord(item) : wordOf(item, noun);
+    const word = noun === "ask" ? askWord(item.ask) : wordOf(item, noun);
     const where = (
       list === "done"
-        ? [ended(item), place(item, thread)]
-        : [place(item, thread), when(item, thread)]
-    )
-      .filter(Boolean)
-      .join(" · ");
+        ? [wherePart(ended(item)), wherePart(place(item, thread))]
+        : [wherePart(place(item, thread)), ...when(item, thread)]
+    ).filter((part) => part.text);
     const words = queueTitle(item);
     // The element a row stands at: an ask, or a page widget whose action the user must send
     // again. A reply the agent owes an update stands nowhere, so an ask's own row is the one
@@ -225,7 +226,12 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
       // A to-do on the user that no widget answers ends at their Done, which its row
       // carries.
       done: item.offers.done,
-      account: [word, words, where, list === "done" ? item.detail : ""]
+      account: [
+        word,
+        words,
+        where.map((part) => part.text).join(" · "),
+        list === "done" ? item.detail : "",
+      ]
         .filter(Boolean)
         .join(" · "),
     });
@@ -371,7 +377,12 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     const entry = rows.get(key);
     if (entry?.done) actions.done(queueItemKey(entry.item));
   }
-  queueList.configure({ activate: goTo, finish, fallback: queuePanel });
+  queueList.configure({
+    activate: goTo,
+    finish,
+    fallback: queuePanel,
+    observeFeedback,
+  });
   queueNextBtn.onclick = () => next();
 
   // A row stands at the element it names rather than in the panel.

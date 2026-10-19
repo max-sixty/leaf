@@ -354,13 +354,13 @@ def _validate_widget_interactions(
                 "work-content", path, tag, content=entry.get("x-content")
             )
     answered = awaits.get("answered", {})
-    if entry.get("x-awaits") is not None and not answered:
+    if entry.get("x-awaits") is not None and not answered and not awaits.get("reply"):
         raise registry_error("awaits-unanswered", path, tag)
     # The user answers their own ask, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):
         raise registry_error("awaits-verbs", path, tag, verbs=unknown)
-    if awaits and awaits["value"] not in user_verbs:
+    if awaits and not awaits.get("reply") and awaits["value"] not in user_verbs:
         raise registry_error("awaits-value", path, tag)
     # A retired ask was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.

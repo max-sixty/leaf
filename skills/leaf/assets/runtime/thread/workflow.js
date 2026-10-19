@@ -8,7 +8,10 @@
    thread the user opened takes its attention from it. Every message, compact thread row and margin entry reads
    these values; none reclassifies receipts, streams, turn ownership, whose turn a
    thread is, or which workflow is stronger. `strongestWorkflow` only places this tab's
-   own sends against the served order. */
+   own sends against the served order. A workflow's word is `workflowLabel` and its face
+   on a control `progressFace`, on every surface; a thread's word is `threadAttention`'s
+   label, which Threads states as its status and the margin and Page Map as its line
+   (`margin-model.js`, `threadMarks`). */
 
 const STAGE_LABELS = Object.freeze({
   sending: "Sending",
@@ -50,8 +53,19 @@ export const workflowTitle = (workflow) => {
   return [label, workflow.detail].filter(Boolean).join(" · ");
 };
 
-export const isWorkflowProgress = (workflow) =>
-  !workflow.condition && ["picked_up", "working", "replying"].includes(workflow.stage);
+// The face a control paints for the agent's progress on a workflow: picked up, or at
+// work, which a reply still streaming is too. Its word stays the workflow's own
+// (`workflowLabel`), so a reply streaming reads Replying under the working face.
+export const progressFace = (workflow) =>
+  !workflow || workflow.condition
+    ? null
+    : workflow.stage === "picked_up"
+      ? "picked_up"
+      : ["working", "replying"].includes(workflow.stage)
+        ? "working"
+        : null;
+
+export const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 
 export const isPageWidgetWorkflow = (workflow, revision) =>
   workflow.subject.kind === "widget" &&
@@ -72,6 +86,9 @@ export function strongestWorkflow(workflows) {
     if (strongest === null || tier(candidate) < tier(strongest)) strongest = candidate;
   return strongest;
 }
+
+// An open to-do's word, wherever it stands: Working while a start runs on it.
+export const todoLabel = (running) => (running ? "Working" : "To-do open");
 
 export function threadAttention(thread) {
   if (thread.resolved) return null;
@@ -108,12 +125,12 @@ export function threadAttention(thread) {
   // settled; its title says what the agent still owes, and while a start runs on it,
   // that start's line says what the agent is doing about it.
   if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") {
-    const { title, line } = thread.attention.todo;
+    const [{ title, running }] = thread.todos;
     return Object.freeze({
       kind: "waiting",
-      label: line ? "Working" : "To-do open",
+      label: todoLabel(running),
       workflow: null,
-      secondary: line ?? title,
+      secondary: running?.text ?? title,
     });
   }
   if (thread.attention?.kind === "waiting")

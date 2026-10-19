@@ -1,65 +1,127 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Trace a unified diff from Git to the switch picker</title>
     <meta
       name="description"
-      content="Explore project files and open exact patch evidence from an independently composed file navigator."
+      content="Review a real Worktrunk patch across Git preparation, picker rendering, tests, and documentation, with a directory navigator beside one file's evidence."
     />
-    <title>Navigate a patch by file</title>
     <style>
-      .review-files {
+      #file-review-regions {
         display: grid;
-        grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
-        gap: 1.5rem;
-        align-items: start;
+        grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
       }
-      .review-files > * {
+      #file-review-regions > * {
         min-inline-size: 0;
       }
-      @media (max-width: 52rem) {
-        .review-files {
+      #review-files {
+        margin-block: var(--sp-2) 0;
+        --lf-file-tree-height: 35rem;
+      }
+      #patch-pane > header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: var(--sp-3);
+      }
+      #patch-pane > header > * {
+        margin: 0;
+      }
+      #file-review-guide {
+        max-inline-size: 70ch;
+      }
+      #package-fixture {
+        max-inline-size: 30rem;
+      }
+      #proposed-files {
+        --lf-file-tree-height: 16rem;
+      }
+      @media (width < 720px) {
+        #file-review-regions {
           grid-template-columns: minmax(0, 1fr);
+        }
+        #review-files {
+          --lf-file-tree-height: 13.5rem;
+        }
+        #patch-pane {
+          --review-top: var(--lf-top);
+          --review-header-height: calc(var(--aim-floor) + 2px);
+        }
+        #patch-pane > header {
+          position: sticky;
+          top: var(--lf-top);
+          block-size: var(--review-header-height);
+          box-sizing: border-box;
+          z-index: 1;
+          background: var(--paper);
+          padding-block: 0;
+          align-items: center;
+        }
+        #patch-pane > header > a {
+          display: grid;
+          place-items: center;
+          min-inline-size: var(--aim-floor);
+          min-block-size: var(--aim-floor);
+        }
+        #patch-evidence {
+          --lf-top: calc(var(--review-top) + var(--review-header-height));
         }
       }
     </style>
   </head>
   <body>
-    <main class="layout-column">
-      <h1 id="file-review">Review the importer change</h1>
-      <p id="file-review-guide">
-        Select a file to open its patch. Use the tree's arrow keys to explore folders,
-        then Enter to visit a file. Search narrows the tree. Comments belong to the
-        patch beside it, where each file and source line keeps its own identity.
-      </p>
-      <div class="review-files">
-        <lf-file-tree
-          id="review-files"
-          for="importer-patch"
-          aria-label="Changed files"
-          data-height="288"
-        ></lf-file-tree>
-        <lf-diff
-          id="importer-patch"
-          source="importer-change"
-          collapsed
-          data-height="173"
-        >
-          <pre></pre>
-        </lf-diff>
+    <main class="layout-workspace density-working" id="file-review">
+      <header>
+        <h1>Trace a unified diff from Git to the picker</h1>
+        <p><span class="tag">Worktrunk · 46 changed files</span></p>
+      </header>
+      <div id="file-review-regions">
+        <lf-pane id="files-pane" label="Changed files">
+          <details id="changed-files-panel" open>
+            <summary>Changed files</summary>
+            <lf-file-tree
+              id="review-files"
+              for="review-patch"
+              aria-label="Changed files"
+            ></lf-file-tree>
+          </details>
+          <footer>
+            <small>Arrow keys explore folders. Enter opens a file.</small>
+          </footer>
+        </lf-pane>
+        <lf-pane id="patch-pane" label="Selected file patch">
+          <header>
+            <h2>Patch</h2>
+            <a href="#changed-files-panel">Files</a>
+          </header>
+          <div id="patch-evidence">
+            <p id="file-review-guide">
+              Start with <code>src/git/repository/diff.rs</code>: how are committed,
+              staged, unstaged, and untracked changes combined? Follow the result to
+              <code>src/commands/picker/preview.rs</code>, then inspect the coverage in
+              <code>tests/integration_tests/switch_picker.rs</code>.
+            </p>
+            <lf-diff id="review-patch" source="worktrunk-change" view="file">
+              <pre></pre>
+            </lf-diff>
+          </div>
+        </lf-pane>
       </div>
-      <h2 id="standalone-files">Explore a proposed layout</h2>
-      <p id="standalone-files-guide">
-        This second tree reads its own file list. Selecting a file highlights it; there
-        is no connected destination. Folders and selection are local navigation, so
-        exploring the proposal records no decision.
-      </p>
-      <lf-file-tree
-        id="proposed-files"
-        source="proposed-layout"
-        aria-label="Proposed layout"
-        data-height="288"
-      ></lf-file-tree>
+      <footer>
+        <details id="package-fixture">
+          <summary>Package fixture: independent file list</summary>
+          <p id="standalone-files-guide">
+            A directory overview can also read a file-list source directly. This
+            proposed layout has no connected file contents.
+          </p>
+          <lf-file-tree
+            id="proposed-files"
+            source="proposed-layout"
+            aria-label="Proposed layout"
+            data-height="256"
+          ></lf-file-tree>
+        </details>
+      </footer>
     </main>
   </body>
 </html>

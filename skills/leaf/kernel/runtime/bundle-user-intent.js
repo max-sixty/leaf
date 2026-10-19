@@ -1,4 +1,7 @@
 import {
+  raiseError
+} from "./bundle-errors.js";
+import {
   aborted,
   commitWidgetDescriptors,
   dataBody,
@@ -14,7 +17,7 @@ import {
 } from "./bundle-media.js";
 import {
   flashDuration,
-  foldDuration,
+  foldBlock,
   motion,
   scrollBehavior
 } from "./bundle-motion.js";
@@ -22,6 +25,7 @@ import {
   ADDRESSABLE,
   addressableWord,
   aimTargetAt,
+  anchorBox,
   anchorForPassage,
   anchorForRange,
   anchorReading,
@@ -29,9 +33,11 @@ import {
   anchoringIsReady,
   chromeForeground,
   chromeRoot,
+  cutFrames,
   datumAimTarget,
   datumLabel,
   followingItsEnd,
+  headerLevels,
   localScrollBy,
   nameAnchor,
   refreshAnchorView,
@@ -82,6 +88,7 @@ import {
   elementById,
   fencePassageParts,
   inChrome,
+  labelWords,
   pageBlocks,
   pageDocument,
   pageRange,
@@ -239,6 +246,7 @@ import {
   html,
   isElementName,
   isReaction,
+  lastMovedAt,
   messageKey,
   moved,
   nothing,
@@ -251,7 +259,6 @@ import {
   share,
   threadKey,
   threadNames,
-  threadSummary,
   turns
 } from "./bundle-queued-work.js";
 
@@ -318,8 +325,24 @@ function placeCorrection({
   const reflowed = withinTask || limit < held.limit && held.scrollTop > limit && scrollTop === limit ? scrollTop - held.scrollTop : 0;
   return now - was - reflowed;
 }
+var heldScrollers = /* @__PURE__ */ new WeakMap();
+var sharedMovement = (moved2, paid) => Math.sign(moved2) === Math.sign(paid) ? Math.sign(paid) * Math.min(Math.abs(moved2), Math.abs(paid)) : 0;
 function placeKeeper(scroller, { items, identity, active = () => true, preferred = () => null }) {
   let current = null;
+  const owner = {};
+  const lease = {
+    owner,
+    snapshot: () => ({
+      hold: current,
+      references: current?.references.filter(live2) ?? []
+    }),
+    sync: ({ hold, references }, paid) => {
+      if (current !== hold) return;
+      for (const reference of references)
+        if (live2(reference)) reference.contentTop += paid;
+      hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    }
+  };
   const limit = () => scrollLimit(scroller);
   const heldBox = (node) => {
     if (!node?.isConnected || !scroller.contains(node) || !node.matches(items) || !node.checkVisibility())
@@ -345,21 +368,25 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
     } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
       returning = nextRender(() => {
         returning = 0;
-        if (!current?.spans) scroller.style.removeProperty("overflow-anchor");
+        if (!heldScrollers.has(scroller))
+          scroller.style.removeProperty("overflow-anchor");
       });
   }
   function release2(hold) {
     if (current !== hold) return;
     current = null;
-    claim();
+    if (heldScrollers.get(scroller)?.owner === owner) heldScrollers.delete(scroller);
+    if (hold.spans) claim();
   }
   function correct(hold) {
     if (current !== hold || !active()) return false;
     const reference = hold.references.find(live2);
     if (!reference) return false;
     const now = heldBox(reference.node).top + scroller.scrollTop;
+    const was = reference.contentTop;
+    const scrollWas = scroller.scrollTop;
     const delta = placeCorrection({
-      was: reference.contentTop,
+      was,
       now,
       scrollTop: scroller.scrollTop,
       limit: limit(),
@@ -375,13 +402,26 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
       if (node) candidate.contentTop = heldBox(node).top + scroller.scrollTop;
     }
     hold.at = { scrollTop: scroller.scrollTop, limit: limit() };
+    if (hold.borrowed) {
+      hold.borrowed.lease.sync(
+        hold.borrowed.reading,
+        sharedMovement(now - was, scroller.scrollTop - scrollWas)
+      );
+      hold.borrowed.reading = hold.borrowed.lease.snapshot();
+    }
     return true;
   }
   function take({ spans: spans2 = true } = {}) {
+    const enclosing = heldScrollers.get(scroller);
+    if (enclosing?.owner !== owner && enclosing && spans2) return null;
     const prior = current;
     if (prior) correct(prior);
     current = heldPlace(prior, spans2);
-    claim();
+    if (current && enclosing?.owner !== owner && enclosing)
+      current.borrowed = { lease: enclosing, reading: enclosing.snapshot() };
+    else if (current) heldScrollers.set(scroller, lease);
+    else if (enclosing?.owner === owner) heldScrollers.delete(scroller);
+    if (spans2 || prior?.spans) claim();
     return current;
   }
   function heldPlace(prior, spans2) {
@@ -446,7 +486,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
       finish(held);
     }
   }
-  return { take: () => take(), finish, around };
+  return { take, finish, around };
 }
 
 // runtime/landing-scroll.js
@@ -536,11 +576,11 @@ function scrollIntoReadingBand(where, holder, block, behavior) {
     inner = outer;
   }
 }
-function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start" } = {}) {
+function scrollIntoView(where, { alignment = where, behavior = "auto", block = "start", within: within2 = null } = {}) {
   if (!where) return;
   const holder = placeHolder(alignment);
   if (!holder) return;
-  const targetScroller = scrollersOf(holder).next().value;
+  const targetScroller = within2 ? null : scrollersOf(holder).next().value;
   let inside = true;
   for (let box = placeHolder(where); box instanceof Element; box = renderedParent(box)) {
     if (box === targetScroller) inside = false;
@@ -552,7 +592,8 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
       const byY = inside ? nearestScrollBy(destination.top, destination.bottom, top, bottom) : 0;
       if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
-    if (box === pageScroller || getComputedStyle(box).position === "fixed") break;
+    if (box === within2 || box === pageScroller || getComputedStyle(box).position === "fixed")
+      break;
   }
   if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
 }
@@ -960,6 +1001,7 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
 // runtime/asks/model.js
 var readAsks = readPart((root) => root.effective.asks);
 var askEntry = (ask) => registry[ask?.source.tag]?.["x-awaits"];
+var askedInWords = (ask) => Boolean(askEntry(ask)?.reply);
 var approvalBlockingAsks = readPart((root) => {
   const { asks, view } = root.effective;
   if (asks.phase !== "ready" || !view) return null;
@@ -1019,16 +1061,26 @@ function placeOf(node) {
   }
   return inChrome(at) ? null : at;
 }
-function standingPlace() {
+function walkOrigin() {
   for (const node of standingNodes()) {
     const place2 = placeOf(node);
-    if (place2) return place2;
+    if (place2) {
+      const tab = place2.closest('[role="tab"][aria-selected="true"]');
+      const panel = tab?.ariaControlsElements?.[0];
+      return panel ? { place: panel, kind: "enter" } : { place: place2, kind: "standing" };
+    }
   }
-  return null;
+  return { place: pageReadingBlock(), kind: "standing" };
 }
-var walkOrigin = () => standingPlace() ?? pageReadingBlock();
-function stepFrom(list, here, dir, placeOfItem) {
+function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   if (!here) return cycledRow(list, null, dir);
+  if (kind === "enter") {
+    const inside = list.filter((item) => {
+      const place2 = placeOfItem(item);
+      return place2 && renderedUnder(place2, here);
+    });
+    if (inside.length) return cycledRow(inside, null, dir);
+  }
   const reach = list.filter((item) => {
     const place2 = placeOfItem(item);
     if (!place2) return dir > 0;
@@ -1434,7 +1486,7 @@ function markDeclared(root) {
     for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el2 of elementsIn(root, tag))
-        keeps(el2, paint2, declared === true ? "" : declared);
+        keeps(el2, paint2, declared === true || mark.presence ? "" : declared);
     }
     if (authored) {
       for (const el2 of elementsIn(root, `[${authored}]`))
@@ -1513,13 +1565,54 @@ function copyControl(className, { label = "", success, error }) {
   copy.errorLabel = error;
   copy.tooltip = "none";
   copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
-  copy.addEventListener("wa-error", () => notice(error, { announce: false }));
+  copy.addEventListener("wa-error", () => raiseError(error, { announce: false }));
   return copy;
 }
 
 // runtime/code-copy.js
 var controls = /* @__PURE__ */ new WeakMap();
 var wired = /* @__PURE__ */ new WeakMap();
+var documentCopies = document.createElement("div");
+documentCopies.className = "lf-code-copy-home";
+var cuts = /* @__PURE__ */ new WeakMap();
+var makeCut = () => {
+  const frame = document.createElement("div");
+  frame.className = "lf-code-copy-cut";
+  return frame;
+};
+var placed = /* @__PURE__ */ new Map();
+var resized = 0;
+addEventListener("resize", () => {
+  resized ||= nextRender(() => {
+    resized = 0;
+    const read = [...placed].map(([copy, pre]) => [copy, pre, headerLevels(pre)]);
+    for (const [copy, pre, levels] of read) standUnderHeaders(copy, pre, levels);
+  });
+});
+function standUnderHeaders(copy, pre, levels) {
+  const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
+  cuts.set(copy, frames);
+  placed.set(copy, pre);
+  if (documentCopies.parentNode !== chromeRoot) move(chromeRoot, documentCopies, null);
+  if (frames[0] && frames[0].parentNode !== documentCopies)
+    move(documentCopies, frames[0], null);
+  const home = frames.at(-1) ?? documentCopies;
+  if (copy.parentNode !== home) move(home, copy, null);
+}
+var revealed = (pre, copy) => {
+  if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
+  const box = pre.getBoundingClientRect();
+  const at = anchorBox(pre);
+  for (const [property, length] of [
+    ["--lf-code-copy-dx", box.left - at.left],
+    ["--lf-code-copy-dy", box.top - at.top]
+  ]) {
+    const value = length ? layoutPx(length) : "";
+    if (copy.style.getPropertyValue(property) !== value)
+      copy.style.setProperty(property, value);
+  }
+  refreshAnchorView(copy);
+};
 var COPY_SCOPE = /* @__PURE__ */ Symbol("code copy");
 var pressedPath = /* @__PURE__ */ new WeakSet();
 addEventListener(
@@ -1532,7 +1625,7 @@ addEventListener(
 onStanding((node) => {
   for (let at = node; at; at = upFrom(at)) {
     const copy = controls.get(at);
-    if (copy) return refreshAnchorView(copy);
+    if (copy) return revealed(at, copy);
   }
 });
 function prepareCodeBlock(pre, source, noun) {
@@ -1557,7 +1650,7 @@ function prepareCodeBlock(pre, source, noun) {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");
     });
-    pre.addEventListener("pointerenter", () => refreshAnchorView(copy));
+    pre.addEventListener("pointerenter", () => revealed(pre, copy));
     controls.set(pre, copy);
   }
   const place2 = () => copy.classList.toggle("lf-code-copy-away", !anchorView(copy, pre, place2));
@@ -1595,20 +1688,21 @@ function watchCodeBlocks() {
     arriveBatch(blocks) {
       const prepared = blocks.filter((pre) => pre.getRootNode() === document).map(
         (pre) => (
-          /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>]} */
+          /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>, any[]]} */
           [
             pre,
             prepareCodeBlock(
               pre,
               () => pre.querySelector(":scope > code").textContent,
               "code"
-            )
+            ),
+            headerLevels(pre)
           ]
         )
       );
-      for (const [pre, pending] of prepared) {
+      for (const [pre, pending, levels] of prepared) {
         const copy = positionCodeBlock(pending);
-        if (copy.parentNode !== chromeRoot) move(chromeRoot, copy, null);
+        standUnderHeaders(copy, pre, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {
@@ -1653,6 +1747,9 @@ function watchCodeBlocks() {
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       copy?.remove();
+      cuts.get(copy)?.[0]?.remove();
+      cuts.delete(copy);
+      placed.delete(copy);
       releaseReachStop(pre);
       projectCommandScope(pre, COPY_SCOPE, null);
     }
@@ -1759,17 +1856,30 @@ function placedMarkdownTokens(source) {
   const tokens3 = markdownTokens(source);
   if (!tokens3) return [];
   const starts = [0];
-  for (let at = 0; at < source.length; at++)
-    if (source[at] === "\n") starts.push(at + 1);
+  for (let at = 0; at < source.length; at++) {
+    if (source[at] === "\r" && source[at + 1] === "\n") at++;
+    if (source[at] === "\r" || source[at] === "\n") starts.push(at + 1);
+  }
   starts.push(source.length);
   const found = [];
   let inlineAt = 0;
-  for (const token of tokens3) {
+  for (const [index, token] of tokens3.entries()) {
     const from = token.map ? starts[token.map[0]] : 0;
     const to = token.map ? starts[token.map[1]] : source.length;
     if (token.type !== "inline") {
       if (token.map && (token.nesting === 1 || token.type === "fence" || token.type === "code_block"))
-        found.push({ token, from, to, words: token.nesting ? null : token.content });
+        found.push({
+          token,
+          from,
+          to,
+          markers: token.meta?.markers?.map(([line, a, b]) => [
+            starts[line] + a,
+            starts[line] + b
+          ]),
+          // A heading's inline token owns its content lines, excluding Setext syntax.
+          contentLines: token.type === "heading_open" ? tokens3[index + 1].map.map((at) => starts[at]) : void 0,
+          words: token.nesting ? null : token.content
+        });
       continue;
     }
     const positions = inlineSourcePositions(
@@ -1785,21 +1895,21 @@ function placedMarkdownTokens(source) {
       if (child.nesting === 1) {
         if (child.markup && child.markup !== "linkify" && child.markup !== "autolink")
           a = b - child.markup.length;
-        const placed = {
+        const placed2 = {
           token: child,
           from: positions[a],
           to: positions[b],
           contentFrom: positions[b]
         };
-        found.push(placed);
-        stack.push(placed);
+        found.push(placed2);
+        stack.push(placed2);
       } else if (child.nesting === -1) {
-        const placed = stack.pop();
-        if (!placed) continue;
+        const placed2 = stack.pop();
+        if (!placed2) continue;
         if (child.markup && child.markup !== "linkify" && child.markup !== "autolink")
           b = a + child.markup.length;
-        placed.to = positions[b];
-        placed.contentTo = positions[a];
+        placed2.to = positions[b];
+        placed2.contentTo = positions[a];
       } else if (child.type !== "html_inline") {
         found.push({
           token: child,
@@ -1826,10 +1936,10 @@ function markdownSourceOffset(body, node, offset) {
   const shown = fragmentWords(body.cloneNode(true));
   let shownAt = 0;
   let sourceEnd = 0;
-  for (const placed of placedMarkdownTokens(source)) {
-    const { token, from, to } = placed;
+  for (const placed2 of placedMarkdownTokens(source)) {
+    const { token, from, to } = placed2;
     if (token.nesting) continue;
-    const words = placed.words;
+    const words = placed2.words;
     if (!words) continue;
     const start = shown.indexOf(words, shownAt);
     if (start < 0) continue;
@@ -2353,6 +2463,14 @@ var projectDraftRecord = (ctx, record) => queueMicrotask(() => {
   tellDraft(ctx, active ? current.text : null, active ? current.payload : void 0);
 });
 var sharedIsBaseOf = (branch, shared) => branch.base === null ? shared === null : shared?.attempt === branch.base;
+var replyContext = (key) => `reply:${key}`;
+var rewriteContext = (id) => `rewrite:${id}`;
+var THREAD_DRAFT = /^(reply|rewrite):(.*)$/s;
+function threadDraft(ctx) {
+  const match = THREAD_DRAFT.exec(ctx);
+  return match ? { part: match[1], name: match[2] } : null;
+}
+var isReply = (ctx) => threadDraft(ctx)?.part === "reply";
 var refreshDraftRecord = (ctx) => {
   const cached = draftCache.get(ctx);
   const read = draftStore.read(DRAFT + ctx);
@@ -2439,7 +2557,7 @@ function transferDraft(from, to, text) {
   const editor = [...draftEditors].find((view) => view.ctx === from) ?? [...draftEditors].find((view) => view.ctx === to);
   const selection = writingPlace?.context === from ? writingPlace.selection : readCaret(editor && editorInput(editor));
   const held = [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
-  const durable = to.startsWith("reply:") ? saveDraft(to, held ? `${text}
+  const durable = isReply(to) ? saveDraft(to, held ? `${text}
 
 ${held}` : text, void 0, null) : saveDraft(to, text, void 0, held);
   keepWritingPlace({
@@ -2504,9 +2622,9 @@ function sendMessage(ctx, owns, send) {
     answer(null);
     return null;
   }
-  if (!ctx.startsWith("reply:")) {
+  if (!isReply(ctx)) {
     openedFrom.set(current.attempt, ctx);
-    const under2 = `reply:${current.attempt}`;
+    const under2 = replyContext(current.attempt);
     if (current.held && !activeDraftRecord(under2)) {
       saveDraft(under2, current.held);
       tellDraft(under2, current.held);
@@ -2514,7 +2632,7 @@ function sendMessage(ctx, owns, send) {
   }
   const previousPlace = writingPlace;
   const sentPlace = previousPlace?.context === ctx ? {
-    context: ctx.startsWith("reply:") ? ctx : `reply:${current.attempt}`,
+    context: isReply(ctx) ? ctx : replyContext(current.attempt),
     selection: [0, 0],
     generation: previousPlace.generation
   } : null;
@@ -2573,7 +2691,7 @@ function keepRefusedWords(attempts) {
   for (const attempt of attempts) {
     const from = openedFrom.get(attempt);
     openedFrom.delete(attempt);
-    const under2 = `reply:${attempt}`;
+    const under2 = replyContext(attempt);
     const box = activeDraftRecord(under2);
     if (from === void 0 || !box || !holdReply(from, box.text)) continue;
     const resumed = writingPlace?.context === under2;
@@ -2588,12 +2706,8 @@ function keepRefusedWords(attempts) {
     );
     return ctx === void 0 ? [] : [ctx];
   });
-  const hidden = returned.filter(
-    (ctx) => ![...draftEditors].some((view) => {
-      const input = view.ctx === ctx && editorInput(view);
-      return Boolean(input?.isConnected && input.checkVisibility());
-    })
-  );
+  const shownIn = (ctx) => [...draftEditors].filter((view) => view.ctx === ctx).map((view) => editorInput(view)).find((input) => input?.isConnected && input.checkVisibility()) ?? null;
+  const hidden = returned.filter((ctx) => !shownIn(ctx));
   for (const ctx of hidden.toReversed())
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
@@ -2601,7 +2715,10 @@ function keepRefusedWords(attempts) {
     hidden.length && "Draft kept \u2014 g i resumes writing",
     held && "Reply kept \u2014 it returns when its comment sends"
   ].filter(Boolean);
-  return sentences.length ? sentences.join(". ") : null;
+  return {
+    said: sentences.length ? sentences.join(". ") : null,
+    field: returned.map(shownIn).find(Boolean) ?? null
+  };
 }
 var writingEditor = () => [...draftEditors].find((editor) => editorInput(editor) === focused());
 var keepWritingCaret = () => {
@@ -2632,7 +2749,6 @@ function registerWritingDestination(prefix, reveal) {
   writingRoutes.set(prefix, reveal);
   return () => writingRoutes.delete(prefix);
 }
-var THREAD_HELD = /^(reply|rewrite):/;
 function moveToPage(ctx) {
   const words = loadDraft(ctx) ?? "";
   const text = [loadDraft(PAGE_DRAFT), words].filter(Boolean).join("\n\n");
@@ -2650,14 +2766,13 @@ function createWritingResume({
   arriveEditor,
   holdsThreadDraft
 }) {
-  const holdsBox = (ctx) => THREAD_HELD.test(ctx) ? holdsThreadDraft(ctx) : [...writingRoutes.keys()].some((prefix) => ctx.startsWith(prefix)) || [...draftEditors].some((view) => view.ctx === ctx);
+  const holdsBox = (ctx) => threadDraft(ctx) ? holdsThreadDraft(ctx) : [...writingRoutes.keys()].some((prefix) => ctx.startsWith(prefix)) || [...draftEditors].some((view) => view.ctx === ctx);
   const resume = async () => {
     const place2 = writingPlace;
     if (!place2) return;
     const intent = retainUserIntent();
     let input;
-    if (THREAD_HELD.test(place2.context))
-      input = await revealInThread(place2.context, intent);
+    if (threadDraft(place2.context)) input = await revealInThread(place2.context, intent);
     else {
       const resolve = () => {
         const route = [...writingRoutes].find(
@@ -2682,7 +2797,7 @@ function createWritingResume({
       notice("Its box is gone, so its words moved to a comment on the page");
       return resume();
     }
-    notice(
+    raiseError(
       `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`
     );
   };
@@ -2713,11 +2828,11 @@ function captureDraftEditing(input = focused()) {
 var draftEditingStands = (editing) => Boolean(editing) && activeDraftRecord(editing.context)?.attempt === editing.attempt;
 function draftEditingDestination(editing, handoff) {
   const shown = (view) => Boolean(editorInput(view)?.checkVisibility({ visibilityProperty: true }));
-  const placed = (view) => editorInput(view)?.isConnected;
+  const placed2 = (view) => editorInput(view)?.isConnected;
   const roots = [...draftEditors].filter(
-    (view) => view.ctx === editing.context && !view.mirrored && (placed(view) || view.resume)
+    (view) => view.ctx === editing.context && !view.mirrored && (placed2(view) || view.resume)
   );
-  const editor = roots.find(shown) ?? roots.find(placed) ?? roots[0];
+  const editor = roots.find(shown) ?? roots.find(placed2) ?? roots[0];
   if (!editor) return null;
   const open2 = shown(editor) ? null : editor.resume?.()?.open;
   if (open2) handoff(open2);
@@ -2788,6 +2903,11 @@ function mirrorDraft(ta, sync, ctx, {
 
 // runtime/off-flow.js
 var surfaces = /* @__PURE__ */ new Map();
+function offFlowSurfaceOf(node) {
+  for (const [surface, { floats }] of surfaces)
+    if (floats() && under(node, surface)) return surface;
+  return null;
+}
 var unseen = (node, surface) => {
   const box = node.getBoundingClientRect();
   const bounds = surface.getBoundingClientRect();
@@ -2819,6 +2939,7 @@ function bringBackSurfaceOf(node, behavior = scrollBehavior()) {
 
 // runtime/thread/selectors.js
 var THREAD = ".lf-thread, .lf-page-thread, [data-lf-thread-view]";
+var drawnThreadId = (node) => node?.dataset.id ?? node?.dataset.thread ?? null;
 var SAYS_IN = `${THREAD}, .lf-thread-seat`;
 var SAY_ROW = ".lf-thread-reply, .lf-say";
 var SAY_BOX = SAY_ROW.split(", ").map((row2) => `:scope > ${row2} ${TEXT_FIELD}`).join(", ");
@@ -2851,7 +2972,8 @@ function showLatestTurn(transcript) {
   const latest = latestTurn(transcript);
   if (!latest) return;
   const over = transcript.getBoundingClientRect().top + transcript.clientTop - latest.getBoundingClientRect().top;
-  if (over > 0) moveScrollerBy(transcript, -over);
+  const headHeight = latest.firstElementChild?.getBoundingClientRect().height ?? 0;
+  if (over > headHeight) moveScrollerBy(transcript, -over);
 }
 function landThread(held, control, behavior, block) {
   bringBackSurfaceOf(held, behavior);
@@ -3083,7 +3205,6 @@ function holdToRead() {
 }
 
 // runtime/thread/message-edit.js
-var editContext = (id) => `rewrite:${id}`;
 var OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 var open = /* @__PURE__ */ new Map();
 var sending = /* @__PURE__ */ new Set();
@@ -3102,14 +3223,14 @@ function openMessageEdit(id, view, panel, thread) {
   for (const [other, holder] of [...open]) {
     if (other === id || holder.thread !== thread) continue;
     if (holder.view) holder.view.putEditAside();
-    else if (!draftHasContent(editContext(other))) open.delete(other);
+    else if (!draftHasContent(rewriteContext(other))) open.delete(other);
   }
   const displaced2 = open.get(id)?.view;
   open.set(id, { view, panel, thread });
   if (displaced2 && displaced2 !== view) displaced2.closeEdit();
 }
-var keptRewrite = (id) => !open.has(id) && !sending.has(id) && draftHasContent(editContext(id));
-var watchRewrite = (id, changed2) => watchDraft(editContext(id), changed2);
+var keptRewrite = (id) => !open.has(id) && !sending.has(id) && draftHasContent(rewriteContext(id));
+var watchRewrite = (id, changed2) => watchDraft(rewriteContext(id), changed2);
 function openMessageEditIn(thread, id) {
   const message = [...thread?.querySelectorAll(".lf-msg") ?? []].find(
     (node) => (node.dataset.mid ?? node.dataset.event) === id
@@ -3168,7 +3289,7 @@ function threadRewrites({
 function closeMessageEdit(id, { discard }) {
   open.delete(id);
   if (!discard) return;
-  const ctx = editContext(id);
+  const ctx = rewriteContext(id);
   clearDraft(ctx);
   tellDraft(ctx, null);
   forgetWritingPlace(ctx);
@@ -3180,11 +3301,13 @@ var MessageEditor = class {
   #settling = null;
   #follow;
   constructor(id, view, { wireInput, said, base: currentBase, send, land: land2, paint: paint2, previous, reveal }) {
-    const ctx = editContext(id);
+    const ctx = rewriteContext(id);
     let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
-      notice(`This message changed since this edit began. It now says: \u201C${said()}\u201D`);
+      raiseError(
+        `This message changed since this edit began. It now says: \u201C${said()}\u201D`
+      );
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor lf-comment-box");
     this.input = offer(TEXT_FIELD);
@@ -3357,7 +3480,8 @@ var workflowTitle = (workflow) => {
   const label = workflowLabel(workflow, { answered: true });
   return [label, workflow.detail].filter(Boolean).join(" \xB7 ");
 };
-var isWorkflowProgress = (workflow) => !workflow.condition && ["picked_up", "working", "replying"].includes(workflow.stage);
+var progressFace = (workflow) => !workflow || workflow.condition ? null : workflow.stage === "picked_up" ? "picked_up" : ["working", "replying"].includes(workflow.stage) ? "working" : null;
+var isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 var isPageWidgetWorkflow = (workflow, revision) => workflow.subject.kind === "widget" && workflow.thread === null && workflow.revision <= revision;
 var tier = (workflow) => (workflow.next_actor === "user" ? 0 : 2) + Number(workflow.stage === "sending");
 function strongestWorkflow(workflows) {
@@ -3366,6 +3490,7 @@ function strongestWorkflow(workflows) {
     if (strongest === null || tier(candidate) < tier(strongest)) strongest = candidate;
   return strongest;
 }
+var todoLabel = (running) => running ? "Working" : "To-do open";
 function threadAttention(thread) {
   if (thread.resolved) return null;
   const workflow = thread.attention?.workflow ? thread.workflows.find(
@@ -3387,12 +3512,12 @@ function threadAttention(thread) {
     });
   }
   if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") {
-    const { title, line } = thread.attention.todo;
+    const [{ title, running }] = thread.todos;
     return Object.freeze({
       kind: "waiting",
-      label: line ? "Working" : "To-do open",
+      label: todoLabel(running),
       workflow: null,
-      secondary: line ?? title
+      secondary: running?.text ?? title
     });
   }
   if (thread.attention?.kind === "waiting")
@@ -3531,6 +3656,18 @@ function messageText(message) {
   }
   return message.suggestion ? message.text ?? "" : proseReading(message).plainText;
 }
+function threadName(thread) {
+  if (thread.title != null) return thread.title;
+  const { root } = thread;
+  const words = labelWords(
+    root.body.kind === "authored" ? root.body.text : messageText(root)
+  );
+  return words || (root.drawing ? "Drawing" : "");
+}
+var threadSummary = (thread) => ({
+  topic: threadName(thread),
+  latest: lastMovedAt(thread)
+});
 var authoredMessages = /* @__PURE__ */ new Map();
 function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
@@ -3588,8 +3725,9 @@ function messageReading(message, { panel, nativeAuthored = false, reactions, wor
     // The agent's progress message (`ephemeral`): a step of work in hand, which the
     // thread shows as its working message until an answer folds it (thread-card.js).
     progress: Boolean(message.ephemeral),
-    // What an answer leaves standing, while it stands: "Waiting on me" for the prose ask the
-    // user owes, "To-do open" for work it promised and has not ended (thread-card.js).
+    // What an answer leaves standing, while it stands: "Waiting on me" for the question the
+    // user owes words to, "To-do open" for work it promised and has not ended
+    // (thread-card.js).
     leaves,
     version: message.content_version,
     seq: moved(message).seq,
@@ -3962,6 +4100,7 @@ var PAGE_COMMANDS = [
   "design.mode.enter",
   "annotations.toggle",
   "panel.floating.fold",
+  "chrome.switch",
   // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the
   // permanent More control instead of spending a hint slot on it.
   COMMAND_REFERENCE,
@@ -4137,7 +4276,7 @@ function createPassageSelection({ restore }) {
           intent
         });
         if (!restored && intent())
-          notice("That selected passage is unavailable on this version");
+          raiseError("That selected passage is unavailable on this version");
       }
     }
   };
@@ -4400,12 +4539,19 @@ var threadState = readPart((root) => root.effective.thread);
 var allThreads = () => threadState().all;
 var readThreads = readPart((root) => root.effective.thread.collection);
 var threadList = () => readThreads().threads;
+var names = /* @__PURE__ */ new WeakMap();
+function threadNamed(name) {
+  const threads = allThreads();
+  let index = names.get(threads);
+  if (!index) names.set(threads, index = threadNames(threads));
+  return index.get(name) ?? null;
+}
+var threadIdNamed = (name) => threadNamed(name)?.id ?? name;
 
 // runtime/thread/replies.js
 var REPLY_COMPOSITION = /* @__PURE__ */ Symbol("reply composition");
 var compositions = /* @__PURE__ */ new Map();
 var views2 = /* @__PURE__ */ new Map();
-var replyContext = (key) => "reply:" + key;
 var available = (composition) => Boolean(composition) && views2.get(composition.context)?.has(composition) && composition.controls.input.isConnected;
 function adopt(context, composition) {
   const session = compositions.get(context);
@@ -4469,7 +4615,7 @@ function holdReplyCompositions(threads, realize) {
     }
   };
 }
-var threadHoldsDraft = (key, ids) => draftHasContent(replyContext(key)) || ids.some((id) => draftHasContent(editContext(id)));
+var threadHoldsDraft = (key, ids) => draftHasContent(replyContext(key)) || ids.some((id) => draftHasContent(rewriteContext(id)));
 var replyDraftsHold = (retains) => [...compositions].some(
   ([context, session]) => loadDraft(context) !== null && !retains(session.owner?.controls.input)
 );
@@ -4558,7 +4704,7 @@ function replyControlDestination(node) {
   };
 }
 var sendReply = (draftCtx, key, text, owns, actions) => sendMessage(draftCtx, owns, (attempt) => actions.reply(key, text, { attempt }));
-function wireReply(key, row2, input, send, wireInput, { hint, accessibleName }) {
+function wireReply(key, row2, input, send, wireInput, { hint, accessibleName, busy }) {
   row2.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
@@ -4574,6 +4720,7 @@ function wireReply(key, row2, input, send, wireInput, { hint, accessibleName }) 
   const sync = wireInput(input, {
     hint,
     accessibleName,
+    busy,
     sends: "send",
     sendBtn: send,
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
@@ -4677,6 +4824,7 @@ function createReplyView(key, commands2, {
   redraw = null,
   hint = "Reply",
   accessibleName = "Reply",
+  busy = () => false,
   sent = null
 } = {}) {
   const fresh = () => {
@@ -4687,7 +4835,8 @@ function createReplyView(key, commands2, {
     row2.append(input, send);
     return wireReply(key, row2, input, send, commands2.wireInput, {
       hint,
-      accessibleName
+      accessibleName,
+      busy
     });
   };
   let composition = fresh();
@@ -4745,10 +4894,9 @@ var ownParts = {
     (control) => control.closest(THREAD) === thread
   ) ?? null
 };
-var threadIdOf = (thread) => thread.dataset.id ?? thread.dataset.thread;
 function* drawingsOf(thread) {
-  const id = threadIdOf(thread);
-  for (let at = thread; at === thread || at && id && threadIdOf(at) === id; at = closestAcross(upFrom(at), THREAD))
+  const id = drawnThreadId(thread);
+  for (let at = thread; at === thread || at && id && drawnThreadId(at) === id; at = closestAcross(upFrom(at), THREAD))
     yield at;
 }
 function wholeThread(thread) {
@@ -4779,10 +4927,7 @@ function focusedThreadTarget() {
   return active?.matches?.(".lf-thread-summary") ? active.closest(".lf-thread") : focusedThread();
 }
 var heldThread = () => closestAcross(focused(), THREAD);
-function heldThreadId() {
-  const thread = heldThread();
-  return (thread && threadIdOf(thread)) ?? null;
-}
+var heldThreadId = () => drawnThreadId(heldThread());
 var pressed = null;
 var release = 0;
 function releasePress() {
@@ -4831,7 +4976,7 @@ function holdThreadPlace(open2, { threadAt, seated }) {
   const destination = replyControlDestination(node);
   const key = destination && replyThreadKey(node);
   const thread = !destination && closestAcross(node, ".lf-page-thread");
-  const id = key ? allThreads().find((each) => threadKey(each) === key)?.id : thread ? thread.dataset.id ?? thread.dataset.thread : threadAt(node);
+  const id = key ? allThreads().find((each) => threadKey(each) === key)?.id : thread ? drawnThreadId(thread) : threadAt(node);
   if (!id) return null;
   const intent = retainUserIntent({ source: node });
   const may = destination ? mayReplyTo(id, intent) : restrictUserIntent(
@@ -5097,7 +5242,7 @@ var holders = /* @__PURE__ */ new Set();
 var showHeld = (id) => everySeat(id, (held, thread) => held.show(thread));
 var showHeldThread = (id) => everySeat(id, (held, thread) => held.showThreads(thread));
 function everySeat(id, show) {
-  const thread = threadNames(allThreads()).get(id)?.id ?? id;
+  const thread = threadIdNamed(id);
   let shown = false;
   for (const held of holders) shown = show(held, thread) || shown;
   return shown;
@@ -5106,7 +5251,7 @@ var standing = null;
 onStanding((node, cause) => {
   if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
-  const id = thread ? thread.dataset.id ?? thread.dataset.thread : null;
+  const id = drawnThreadId(thread);
   const title = thread && threadFocusStop(thread);
   const arrived = id !== null && id !== standing && (cause === "move" || cause === "step" || cause === "press" && title !== thread && node === title);
   standing = id;
@@ -5521,20 +5666,7 @@ function foldOut(node, repaintThread) {
   if (running && node.isConnected) return true;
   folding.delete(node);
   running?.played.cancel();
-  const style = getComputedStyle(node);
-  const from = {
-    height: node.getBoundingClientRect().height + "px",
-    minHeight: style.minHeight,
-    marginBottom: style.marginBottom,
-    borderTopWidth: style.borderTopWidth,
-    borderBottomWidth: style.borderBottomWidth,
-    paddingTop: style.paddingTop,
-    paddingBottom: style.paddingBottom,
-    opacity: 1
-  };
-  const to = Object.fromEntries(Object.keys(from).map((key) => [key, "0px"]));
-  to.opacity = 0;
-  const played = motion(node, [from, to], foldDuration());
+  const played = foldBlock(node);
   if (!played) return false;
   const record = { played };
   folding.set(node, record);
@@ -5647,15 +5779,13 @@ function unreadBoundaries(ranges) {
 }
 
 // runtime/thread/reply-continuity.js
-var writingArea = (row2, target) => row2?.contains(target) ? row2 : target.closest?.(".lf-msg-editor")?.closest(".lf-msg") ?? null;
 var ReplyContinuity = class {
   #owner;
   #row = null;
   #departure = null;
-  #extent = null;
-  // The writing area read at an edit's boundary, and its height then.
-  #read = null;
-  #readHeight = 0;
+  #space = 0;
+  // Growth already deducted from passive space while a refused draft returns.
+  #returningWriting = 0;
   // The writing areas a presentation changes, each with its height before it.
   #presenting = [];
   #writing = null;
@@ -5669,12 +5799,11 @@ var ReplyContinuity = class {
     this.#measure = nextRender(() => {
       this.#measure = null;
       if (this.#writing !== writing2) return;
-      if (!this.#visible()) return this.release();
+      if (!this.#visible()) return this.#releaseSpace();
       writing2.width = atLayoutPrecision(
         parseFloat(getComputedStyle(writing2.input).inlineSize)
       );
       this.#allocateWriting(writing2.input, layoutPx(writing2.input.naturalBlockSize));
-      this.#readArea(this.#row);
     });
   });
   gap = document.createElement("div");
@@ -5687,12 +5816,13 @@ var ReplyContinuity = class {
       if (!this.#visible()) this.release();
     });
     owner.addEventListener(
-      "lf-before-edit",
-      (event) => this.#readArea(writingArea(this.#row, event.target))
-    );
-    owner.addEventListener(
       "input",
-      (event) => this.#edited(writingArea(this.#row, event.target)),
+      (event) => {
+        if (!this.#row?.contains(event.target)) return;
+        const input = this.#row.querySelector(TEXT_FIELD);
+        if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
+        else this.#releaseWriting();
+      },
       { capture: true }
     );
   }
@@ -5707,54 +5837,74 @@ var ReplyContinuity = class {
     if (!this.#visible()) return null;
     this.#presenting = writing2.filter((node) => node.isConnected).map((node) => ({ node, height: node.getBoundingClientRect().height }));
     const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
-    return parseFloat(body.blockSize);
+    const extent = parseFloat(body.blockSize);
+    const place2 = offFlowSurfaceOf(this.#owner) ? null : placeKeeper(scrollerFor(this.#owner), {
+      items: ".lf-reply-continuity",
+      identity: (node) => node.dataset.id,
+      preferred: () => this.#owner
+    });
+    return { extent, place: place2, held: place2?.take({ spans: false }) };
   }
-  after(extent) {
+  after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
     this.#presenting = [];
-    if (extent == null || !this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open) {
-      this.release();
-      if (this.#visible()) this.#retainWriting();
-      return;
+    if (!this.#row?.isConnected || this.#owner.localName === "details" && !this.#owner.open)
+      return this.release();
+    if (!this.#visible()) {
+      reading?.place?.finish(reading.held);
+      return this.#releaseSpace();
     }
-    if (this.#extent == null) this.#keep(extent);
-    const grown = presenting.filter(({ node }) => node.isConnected).reduce(
-      (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
-      0
-    );
-    this.#keep(Math.max(0, extent + grown));
-    this.#readArea(this.#row);
     this.#retainWriting();
-    this.#departure?.();
-    this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
-  }
-  #keep(extent) {
-    if (extent === this.#extent) return;
-    this.#extent = extent;
-    this.#owner.style.setProperty("--lf-thread-body-extent", layoutPx(extent));
-  }
-  #edited(area) {
-    if (!area?.isConnected) return;
-    if (area === this.#row) {
+    if (reading != null) {
+      const { extent, place: place2, held } = reading;
+      const body = this.#owner.localName === "details" ? getComputedStyle(this.#owner, "::details-content") : getComputedStyle(this.#owner);
+      const written = presenting.filter(({ node }) => node.isConnected).reduce(
+        (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
+        0
+      );
       const input = this.#row.querySelector(TEXT_FIELD);
-      if (input.value) this.#allocateWriting(input, layoutPx(input.naturalBlockSize));
-      else this.#releaseWriting();
+      const context = input && replyDraftContext(input);
+      const returning = this.#writing?.input === input && context && draftHasContent(context) && !this.#owner.querySelector(".lf-msg.user[data-attempt]") ? Math.max(
+        0,
+        parseFloat(this.#writing.room) - input.getBoundingClientRect().height
+      ) : 0;
+      this.#keep(
+        Math.max(
+          0,
+          this.#space + extent - parseFloat(body.blockSize) + written + this.#returningWriting - returning
+        )
+      );
+      this.#returningWriting = returning;
+      place2?.finish(held);
     }
-    const height = area.getBoundingClientRect().height;
-    if (this.#extent != null && area === this.#read)
-      this.#keep(Math.max(0, this.#extent + height - this.#readHeight));
-    this.#read = area;
-    this.#readHeight = height;
+    if (!this.#visible()) return this.#releaseSpace();
+    this.#departure?.();
+    this.#departure = whenNone([this.#row], growthIsSeen, () => {
+      if (!this.#owner.isConnected || this.#owner.localName === "details" && !this.#owner.open)
+        this.release();
+      else this.#releaseSpace();
+    });
   }
-  #readArea(area) {
-    if (!area?.isConnected) return;
-    this.#read = area;
-    this.#readHeight = area.getBoundingClientRect().height;
+  #keep(space) {
+    if (space === this.#space) return;
+    this.#space = space;
+    const value = layoutPx(space);
+    if (this.gap.style.getPropertyValue("--lf-reply-space") !== value)
+      this.gap.style.setProperty("--lf-reply-space", value);
   }
   #retainWriting() {
     const input = this.#row?.querySelector(TEXT_FIELD);
-    if (!input?.value) return this.#releaseWriting();
+    if (!input?.value) {
+      const context = input && replyDraftContext(input);
+      if (context && draftHasContent(context) && this.#writing?.context === context) {
+        if (this.#writing.input === input) return;
+        const width = atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize));
+        if (width === this.#writing.width)
+          return this.#allocateWriting(input, this.#writing.room);
+      }
+      return this.#releaseWriting();
+    }
     if (this.#writing?.input === input) return;
     this.#allocateWriting(input, getComputedStyle(input).blockSize);
   }
@@ -5763,6 +5913,7 @@ var ReplyContinuity = class {
       this.#releaseWriting();
       this.#writing = {
         input,
+        context: replyDraftContext(input),
         width: atLayoutPrecision(parseFloat(getComputedStyle(input).inlineSize)),
         room: null
       };
@@ -5774,17 +5925,23 @@ var ReplyContinuity = class {
   }
   #releaseWriting() {
     if (!this.#writing) return;
+    this.#returningWriting = 0;
     const { input } = this.#writing;
     input.style.removeProperty("--lf-reply-writing-room");
     this.#sizes.unobserve(input);
     this.#writing = null;
   }
-  release() {
+  #releaseSpace() {
     this.#departure?.();
     this.#departure = null;
-    this.#extent = null;
+    this.#space = 0;
+    this.#returningWriting = 0;
+    if (this.gap.style.getPropertyValue("--lf-reply-space"))
+      this.gap.style.removeProperty("--lf-reply-space");
+  }
+  release() {
+    this.#releaseSpace();
     this.#releaseWriting();
-    this.#owner.style.removeProperty("--lf-thread-body-extent");
   }
 };
 
@@ -5828,13 +5985,28 @@ function workingMessage(thread, attention, messages) {
   const stopped = workflows.find(
     (workflow) => STOPPED.has(workflow.condition?.kind) && workflow.detail
   );
-  const todo = (thread.todos ?? []).find(({ line }) => line);
-  const [words, live2, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.line, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
+  const todo = thread.todos.find((open2) => open2.running);
+  const [words, live2, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.running.text, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
   if (!words || !pending.length && !live2 && !condition) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
+  const work = running?.detail ? running : !running && !todo ? stopped : null;
+  const progress = !work && (running || !todo && !stopped) ? pending.at(-1) : null;
+  const timestamp = work?.ts ?? progress?.timestamp ?? null;
+  const feedback = work?.input ? {
+    input_id: work.input,
+    reply_id: null,
+    reply_kind: "work"
+  } : progress ? {
+    reply_id: progress.id,
+    attempt: progress.attempt,
+    reply_kind: "progress"
+  } : null;
   return Object.freeze({
-    who: agent || agentMessage?.by || "Agent",
+    who: work?.agent || progress?.by || agent || agentMessage?.by || "Agent",
+    timestamp,
+    age: timestamp ? ago(timestamp) : null,
     words: words.trim().replace(/\.$/, ""),
+    feedback,
     live: live2,
     condition
   });
@@ -5849,8 +6021,8 @@ function threadReading(thread, surface, commands2, options) {
   const label = resolved2 ? word2 : "Resolve thread";
   const attention = threadAttention(thread);
   const asking = thread.user_prompt?.message;
-  const openTodos = new Set((thread.todos ?? []).map(({ id }) => id));
-  const leaves = (message) => message.ask && message.id === asking ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
+  const openTodos = new Set(thread.todos.map(({ id }) => id));
+  const leaves = (message) => message.id === asking ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
   const messages = turns(thread).map(
     (message) => messageReading(message, {
       panel,
@@ -5919,7 +6091,10 @@ function threadReading(thread, surface, commands2, options) {
 function workingView(working) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
-      ${working.condition ? html`<span class="lf-msg-meta">${working.condition}</span>` : nothing}
+      ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
+              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
+              ${working.condition}</span
+            >` : nothing}
     </div>
     <div class="lf-thread-working-words">${working.words}</div>`;
 }
@@ -5984,15 +6159,6 @@ function paintBoundary(node, kind) {
   );
 }
 var nextViewId = 0;
-var allotMarginControls = (row2) => row2.parentElement?.style.setProperty(
-  "--lf-margin-controls-width",
-  layoutPx(row2.getBoundingClientRect().width)
-);
-var marginControlsSizes = sizeObserver((entries) => {
-  nextRender(() => {
-    for (const { target } of entries) allotMarginControls(target);
-  });
-});
 var replyRowSizes = sizeObserver((entries) => {
   for (const { target, borderBoxSize } of entries)
     target.parentElement?.style.setProperty(
@@ -6022,6 +6188,7 @@ var ThreadView = class {
   #actions = document.createElement("span");
   #transcript = document.createElement("div");
   #working = document.createElement("div");
+  #stopWorkingExposure = null;
   // Each pending progress range's covered message ids, as last drawn, so a fold that
   // takes the range over can take its disclosure state with it.
   #pendingCovers = /* @__PURE__ */ new Map();
@@ -6031,7 +6198,6 @@ var ThreadView = class {
   #expandedSummaries = /* @__PURE__ */ new Set();
   #quoteExpanded = false;
   #marginControls = null;
-  #marginControlsRow = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -6049,11 +6215,6 @@ var ThreadView = class {
     this.#quoteNode = node;
     if (node) this.#sizes.observe(node);
   };
-  #watchMarginControls = (node) => {
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
-    this.#marginControlsRow = node;
-    if (node) marginControlsSizes.observe(node);
-  };
   #sizes = sizeObserver(() => {
     this.#retainHeaderSlot();
     this.#measureQuote();
@@ -6065,7 +6226,7 @@ var ThreadView = class {
       views: () => (this.#model?.messages ?? []).flatMap(
         ({ key }) => this.#messages.get(key) ?? []
       ),
-      paint: (message) => this.repaint({ writing: message }),
+      paint: () => this.repaint(),
       send: (id, text, options) => this.#speak(
         () => commands2.reply.actions.edit(this.#model.key, id, text, options),
         options.attempt,
@@ -6150,8 +6311,8 @@ var ThreadView = class {
   }
   // Local disclosure and draft changes repaint the complete received descriptor,
   // never feed a held presentation back into the news owner's input.
-  repaint(options) {
-    this.present(this.#received, options);
+  repaint() {
+    this.#paint(this.#received);
   }
   // What holds the card folded away: its own closed disclosure, a panel card's, or the
   // closed Resolved disclosure its seat gathers it in (inline.js).
@@ -6293,7 +6454,12 @@ var ThreadView = class {
     return share(was, now) === was && outside.every((part, index) => part === this.#drawnWith[index]);
   }
   #drawnWith = null;
-  present(model, { retaining = false, viewChanged = false, writing: writing2 = null } = {}) {
+  present(model, options = {}) {
+    return this.#paint(model, options, true);
+  }
+  // The caller knows whether this is a publication or a local repaint. Only a
+  // publication allocates passive space; disclosures and editors stay intrinsic.
+  #paint(model, { retaining = false, viewChanged = false } = {}, published = false) {
     this.#received = model;
     this.#drawnWith = this.#outside(model);
     const prior = this.#model;
@@ -6317,11 +6483,8 @@ var ThreadView = class {
         this.#heldNews.hold({ threads: [model] }, { row: false }).threads[0]
       );
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    const rewritten2 = new Set(
-      [...this.#messages.values()].filter((view) => view.editing).map(({ node }) => node)
-    );
-    if (writing2) rewritten2.add(writing2);
-    const bodyPlace = this.#continuity?.before([...rewritten2]);
+    const rewritten2 = [...this.#messages.values()].filter((view) => view.editing).map(({ node }) => node);
+    const bodyPlace = published ? this.#continuity?.before(rewritten2) : null;
     const restoreFocus = holdFocus(this.node);
     const standing2 = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -6385,7 +6548,12 @@ var ThreadView = class {
     this.#titleControl = titleControl;
     let threadActions = null;
     if (settlementPlace === "head" || settlementPlace === "margin") {
-      const actions = marginControls ? [marginControls.nav, settlement, marginControls.close].filter(Boolean) : [settlement].filter(Boolean);
+      const actions = marginControls ? [
+        model.news ? notice2.node : null,
+        marginControls.nav,
+        settlement,
+        marginControls.close
+      ].filter(Boolean) : [settlement].filter(Boolean);
       setChildren(this.#actions, actions);
       threadActions = actions.length || model.news ? this.#actions : null;
     }
@@ -6457,7 +6625,7 @@ var ThreadView = class {
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     const markers = /* @__PURE__ */ new Map();
-    const placed = (key, summary) => {
+    const placed2 = (key, summary) => {
       const node = messageNodes.get(key);
       keeps(node, "data-lf-summary", summary);
       const kind = boundaries.get(key);
@@ -6472,7 +6640,7 @@ var ThreadView = class {
     const transcriptLists = [[this.#transcript, transcript]];
     for (const range of rangeState) {
       if (range.kind === "message") {
-        transcript.push(...placed(range.message.key, null));
+        transcript.push(...placed2(range.message.key, null));
         continue;
       }
       const id = range.summary.id;
@@ -6482,7 +6650,7 @@ var ThreadView = class {
       transcript.push(checkpoint.node);
       transcriptLists.push([
         checkpoint.originals,
-        range.messages.flatMap((message) => placed(message.key, id))
+        range.messages.flatMap((message) => placed2(message.key, id))
       ]);
     }
     if (model.working) {
@@ -6490,6 +6658,15 @@ var ThreadView = class {
       render(workingView(model.working), this.#working);
       transcript.push(this.#working);
     }
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(
+      this.#working.querySelector(".lf-thread-working-words"),
+      {
+        ...model.working.feedback,
+        presentation_kind: "working_words",
+        surface: model.surface
+      }
+    ) : null;
     this.#checkpoints = checkpoints;
     this.#markers = markers;
     keeps(
@@ -6536,13 +6713,7 @@ var ThreadView = class {
               </blockquote>
             </header>` : nothing}
       ${this.#transcript}
-      ${threadActions ? marginControls ? html`${model.news ? html`<div class="lf-margin-thread-news">${news}</div>` : nothing}
-                <div
-                  class="lf-margin-thread-controls"
-                  ${ref(this.#watchMarginControls)}
-                >
-                  ${threadActions}
-                </div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
+      ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>` : nothing}
     `;
@@ -6560,9 +6731,6 @@ var ThreadView = class {
       `,
       this.node
     );
-    const controlsRow = marginControls && this.#marginControlsRow;
-    if (controlsRow?.isConnected)
-      measure(controlsRow, () => allotMarginControls(controlsRow));
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
@@ -6744,16 +6912,18 @@ var ThreadView = class {
     const ids = ranges.map((range) => range.summary.id);
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${subject}`;
     return html`<button
       type="button"
-      class="lf-thread-disclosure lf-summary-expand"
+      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
+      data-lf-room=${progress ? `Show ${subject}` : nothing}
       data-summary-toggle=${ids[0]}
       aria-expanded=${String(expanded)}
       aria-controls=${ids.map((id) => `lf-summary-originals-${this.#viewId}-${id}`).join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${label}
+      ${progress ? html`<span>${label}</span>` : label}
     </button>`;
   }
   #setSummaryExpanded(ids, expanded) {
@@ -7008,6 +7178,8 @@ var ThreadView = class {
     this.#reply?.claim(shown);
   }
   retire() {
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = null;
     this.#reply?.cancelDictation();
     for (const view of this.#messages.values()) view.retire();
   }
@@ -7015,7 +7187,6 @@ var ThreadView = class {
     this.#sizes.disconnect();
     this.#quoteNode = null;
     this.#releaseHeaderSlot();
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();
@@ -7232,12 +7403,6 @@ function renderThreadSurface(host, threads, commands2, response = null) {
 var claimSeatReplies = (host) => seats.get(host)?.claim();
 function clearThreadSurface(host) {
   seats.get(host)?.present(EMPTY);
-}
-function renderThreadMirrors(host, threads, commands2) {
-  seatFor(host, commands2).present(seatReading(threads, "outlet", commands2, null), null);
-}
-function clearThreadMirrors(host) {
-  seats.get(host)?.present(EMPTY, null);
 }
 function mountFirstMessage(host, editor) {
   const seat = seatFor(host, null, () => editor);
@@ -7637,7 +7802,7 @@ function revealHeld(ids) {
 }
 function surfaceFocusTarget(id, { part = "reply" } = {}) {
   if (part === "message") return null;
-  id = threadNames(allThreads()).get(id)?.id ?? id;
+  id = threadIdNamed(id);
   for (const registration of registrations.values()) {
     const thread = [...registration.outlets].map(
       (outlet) => outlet.querySelector(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`)
@@ -8041,6 +8206,7 @@ export {
   restorePlace,
   readAsks,
   askEntry,
+  askedInWords,
   approvalBlockingAsks,
   askPlace,
   asksIn,
@@ -8095,6 +8261,8 @@ export {
   whereDraft,
   tellDraft,
   storedDraft,
+  replyContext,
+  threadDraft,
   draftHasContent,
   saveDraft,
   clearDraft,
@@ -8118,6 +8286,7 @@ export {
   declareOffFlowSurface,
   bringBackSurfaceOf,
   THREAD,
+  drawnThreadId,
   SAYS_IN,
   SAY_BOX,
   landingTarget,
@@ -8131,9 +8300,11 @@ export {
   openMessageEditIn,
   threadRewrites,
   workflowLabel,
+  progressFace,
   isWorkflowProgress,
   isPageWidgetWorkflow,
   strongestWorkflow,
+  todoLabel,
   threadAttention,
   DESIGN_MODE_KEY,
   designName,
@@ -8141,6 +8312,8 @@ export {
   holdToRead,
   loadMessageMarkdown,
   messageText,
+  threadName,
+  threadSummary,
   prepareAuthoredMessage,
   messageReading,
   MessageView,
@@ -8170,6 +8343,8 @@ export {
   allThreads,
   readThreads,
   threadList,
+  threadNamed,
+  threadIdNamed,
   replyDraftContext,
   holdReplyCompositions,
   threadHoldsDraft,
@@ -8184,6 +8359,7 @@ export {
   replyAvailable,
   restoreReplyEditing,
   createReplyView,
+  settleThread,
   finishFold,
   hasFolding,
   whenFolded,
@@ -8205,6 +8381,7 @@ export {
   holdThreadPlace,
   readingIsContinuous,
   readingReturn,
+  onReadingInterrupted,
   completeReadingReturn,
   gesturedOn,
   newsNotice,
@@ -8216,8 +8393,6 @@ export {
   threadReading,
   ThreadView,
   claimSeatReplies,
-  renderThreadMirrors,
-  clearThreadMirrors,
   mountFirstMessage,
   renderSeats,
   renderMarginThread,

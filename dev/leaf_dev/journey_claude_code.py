@@ -45,9 +45,10 @@ The steps, in order:
 Between steps every comment sent so far has exactly one reply and a pickup, and the
 page's claim names the session with its turn closed. With the hooks module, Escape
 closes the turn, a watch runs after each turn, an interrupted one included, and no
-delivery shows in the terminal. Without it, what follows an Escape is reported
-rather than required: the watch from before goes on only if it has not woken, and
-otherwise admission's nudge carries the next comment.
+delivery shows in the terminal; Claude Code drops the prompt that watch wakes the
+stopped session with, so the page nudges it. Without it, what follows an Escape is
+reported rather than required: the watch from before goes on only if it has not
+woken, and otherwise admission's nudge carries the next comment.
 
 A step with comments also prints whether the page nudged the session, and a step
 with an Escape whether it left the turn open, a watch running, and what the page's
@@ -80,7 +81,7 @@ from leaf.state import session_record
 
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, claude_environment, claude_home, run_leaf
-from leaf_dev.journey import Isolation, Terminal, User, isolated, user_at
+from leaf_dev.commands.journey import Isolation, Terminal, User, isolated, user_at
 from leaf_dev.review_scenario import (
     REQUEST,
     SLEEP,

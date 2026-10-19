@@ -1,0 +1,1169 @@
+"""How the Threads chrome is laid out and styled: message and card heads, the panel's
+column, floating surfaces under zoom and short windows, and its rules staying apart from
+page and package styles."""
+
+import json
+import re
+
+import pytest
+from interact_support import append_carried_log_record
+from leaf import thread as thread_model
+from leaf.render_checks import one_frame, rendered
+from playwright.sync_api import expect
+from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
+from render_cases_layout import token_colour
+from render_harness import (
+    LONG_PAGE,
+    example_media,
+    leaf_page,
+    open_page,
+    panel_settled,
+    resized,
+    round_trip,
+    scroll_settled,
+    select_words,
+    sending,
+    stamp_page,
+    wait_for_revision,
+    write,
+)
+
+from browser.threads import (
+    LANDING_WORDS,
+    _shadow_tree_widget,
+    append_agent_reply,
+    focus_panel_thread,
+    paste_image,
+)
+
+pytestmark = pytest.mark.shifts_unsurveyed
+
+
+@pytest.mark.parametrize(("touch", "surface"), [(False, "panel"), (True, "margin")])
+def test_thread_actions_share_consistently_sized_message_headers(
+    browser, serve, touch, surface
+):
+    """Independent thread actions take the first header's spare inline room.
+
+    Controls must not give the opening message a different metadata-to-body gap
+    from later user and agent messages. Every header holds the input's target floor,
+    and each body keeps the conversation's full reading width.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "testing", {"section": "lede"})
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "revision": 1,
+            "text": "Another thought on the same passage.",
+        },
+    )
+    append_agent_reply(serve.page_dir, root, "Testing received successfully.")
+    context = browser.new_context(has_touch=touch, is_mobile=touch)
+    page = open_page(browser, url, context=context)
+    if surface == "panel":
+        page.locator(".lf-threads-toggle").click()
+        panel_settled(page)
+        card = page.locator(f'.lf-thread[data-id="{root}"]')
+        focus_panel_thread(card)
+    else:
+        page.locator(".lf-margin-marker").first.click()
+        card = page.locator(".lf-margin-preview .lf-page-thread")
+        expect(card).to_be_visible()
+    for width in (1440, 390):
+        resized(page, width, 900)
+        rendered(page)
+        geometry = card.evaluate(
+            """card => {
+              const box = selector => card.querySelector(selector).getBoundingClientRect();
+              const title = (card.querySelector('.lf-thread-head') ??
+                card.querySelector('.lf-thread-summary'))?.getBoundingClientRect();
+              const head = box('.lf-msg-head');
+              const action = box('.lf-resolve');
+              const body = box('.lf-msg-body');
+              const center = box => box.top + box.height / 2;
+              return {
+                headerGap: title ? head.top - title.bottom : null,
+                messageGaps: [...card.querySelectorAll('.lf-msg')].map(message => {
+                  const name = message.querySelector('.lf-msg-head b').getBoundingClientRect();
+                  const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
+                  return body.top - name.bottom;
+                }),
+                centers: [center(head), center(action)],
+                headRight: head.right, actionLeft: action.left,
+                bodyLeft: body.left, headLeft: head.left,
+                bodyRight: body.right, actionRight: action.right,
+              };
+            }"""
+        )
+        assert abs(geometry["centers"][0] - geometry["centers"][1]) < 1, geometry
+        if geometry["headerGap"] is not None:
+            assert 0 <= geometry["headerGap"] <= 12, geometry
+        assert len(geometry["messageGaps"]) == 3, geometry
+        assert max(geometry["messageGaps"]) - min(geometry["messageGaps"]) < 0.01, (
+            geometry
+        )
+        assert geometry["headRight"] <= geometry["actionLeft"], geometry
+        assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+        assert geometry["bodyRight"] >= geometry["actionRight"], geometry
+
+
+def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):
+    """The picker floats from its message corner without moving the thread.
+
+    A reaction list used to add forty pixels to its thread only while open. That moved
+    every later thread under the pointer and made choosing a reaction change the layout
+    being acted on. The next card is the single-factor neighbor: opening the picker is
+    the only change between these two frames."""
+    url = serve(PANEL_PAGE)
+    first = panel_comment(
+        serve.page_dir, "Keep the route visible.", {"section": "how-store"}
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": first,
+            "revision": 1,
+            "text": "The route stays beside the choice.",
+        },
+    )
+    second = panel_comment(
+        serve.page_dir, "Keep the cap visible too.", {"section": "how-cap"}
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{first}"]')
+    neighbor = page.locator(f'.lf-thread[data-id="{second}"]')
+    card.locator(".lf-thread-summary").click()
+    trigger = card.locator(".lf-msg.agent .lf-react-trigger")
+    assert trigger.evaluate("b => getComputedStyle(b).backgroundColor") == (
+        "rgba(0, 0, 0, 0)"
+    )
+    trigger.hover()
+    expect(trigger).to_have_css("background-color", token_colour(page, "--chip"))
+    expect(trigger).to_have_css("border-top-color", token_colour(page, "--border-2"))
+    before = {
+        "card": card.bounding_box(),
+        "neighbor": neighbor.bounding_box(),
+    }
+
+    trigger.click()
+    expect(trigger).to_have_attribute("aria-expanded", "true")
+    palette = card.locator(".lf-react-palette")
+    expect(palette).to_be_visible()
+    after = {
+        "card": card.bounding_box(),
+        "neighbor": neighbor.bounding_box(),
+    }
+    assert after == before
+    assert palette.bounding_box()["y"] >= (
+        trigger.bounding_box()["y"] + trigger.bounding_box()["height"]
+    )
+
+
+def test_a_pages_own_element_rules_leave_the_layers_controls_alone(browser, serve):
+    """A page dressing its own `button` and `a` is dressing its prose. The controls a
+    widget builds and the chrome's own buttons keep Leaf's face instead: a page's
+    element rule once took the family and ink of half corpus.html's widget controls,
+    and the family, ink, border and padding of the banner's and thread panel's. An
+    explicitly marked stylesheet grants access for deliberate control styling. A face
+    set on body reaches prose by inheritance and stops at controls and chrome, which
+    state their own."""
+    board = (
+        '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
+        '<lf-card id="k1">One</lf-card><lf-card id="k2">Two</lf-card></lf-column>'
+        '<lf-column id="c2" label="Done"></lf-column></lf-board>'
+        '<p>See <a href="#b">the board</a>.</p>'
+        '<style id="body-controls">lf-board button { border-bottom-color: rgb(51, 102, 153); }</style>'
+    )
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "t",
+                    board,
+                    # A selector naming a widget grants no access. Native scope is also
+                    # ordinary CSS, not permission to style generated controls.
+                    head="<style>button:not(lf-board), a, lf-board .lf-absent { font-family: cursive;"
+                    " color: rgb(255, 0, 0); }"
+                    "body { font-style: italic; letter-spacing: 3px; }"
+                    "@scope (lf-board) { button { background-color: rgb(255, 0, 0); } }"
+                    ":root { --control-access-proof: teal; }"
+                    "html[data-lf-interactive] p > a { background-color: rgb(1, 2, 3); }"
+                    "p > a::before { content: 'Kept'; }"
+                    "p { border-top: 7px solid red; }</style>"
+                    "<style data-controls>"
+                    ":nth-child(1 of lf-board) button { outline: 3px solid rgb(0, 128, 0); }"
+                    "</style>",
+                )
+            )
+        ),
+    )
+    faces = page.evaluate("""() => {
+        const adopted = new CSSStyleSheet();
+        adopted.replaceSync('p { border-top-color: rgb(0, 0, 255); }');
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, adopted];
+        const face = el => { const cs = getComputedStyle(el);
+            return [el.className, cs.fontFamily, cs.color, cs.fontStyle, cs.letterSpacing,
+                    cs.outlineColor]; };
+        return {
+            controls: [...document.querySelectorAll('main button.lf-ui')].map(face),
+            chrome: [...document.querySelectorAll('.lf-chrome button')].map(face),
+            prose: face(document.querySelector('main p > a')),
+            rootToken: getComputedStyle(document.documentElement)
+                .getPropertyValue('--control-access-proof').trim(),
+            ancestor: getComputedStyle(document.querySelector('main p > a')).backgroundColor,
+            pseudo: getComputedStyle(document.querySelector('main p > a'), '::before').content,
+            adopted: getComputedStyle(document.querySelector('main p')).borderTopColor,
+            controlBackgrounds: [...document.querySelectorAll('main button.lf-ui')].map(
+                el => getComputedStyle(el).backgroundColor),
+        };
+    }""")
+    assert faces["rootToken"] == "teal", faces
+    assert faces["ancestor"] == "rgb(1, 2, 3)", faces
+    assert faces["pseudo"] == '"Kept"', faces
+    assert faces["adopted"] == "rgb(0, 0, 255)", faces
+    assert "rgb(255, 0, 0)" not in faces["controlBackgrounds"], faces
+    # The control: the page's rules reach the page's own link, by selector and by
+    # inheritance.
+    assert faces["prose"][1:5] == ["cursive", "rgb(255, 0, 0)", "italic", "3px"], faces[
+        "prose"
+    ]
+    assert faces["controls"], "the board built no control to read"
+    assert faces["chrome"], "the chrome built no button to read"
+    reached = [
+        face
+        for face in faces["controls"] + faces["chrome"]
+        if "cursive" in face[1]
+        or face[2] == "rgb(255, 0, 0)"
+        or face[3] == "italic"
+        or face[4] == "3px"
+    ]
+    assert not reached, reached
+    # The marked sheet selects the board using native nth-child selector grammar.
+    assert {face[5] for face in faces["controls"]} == {"rgb(0, 128, 0)"}, faces[
+        "controls"
+    ]
+    source = (serve.page_dir / "index.html").read_text()
+    stamp_page(
+        serve.page_dir,
+        source.replace(
+            '<style id="body-controls">', '<style id="body-controls" data-controls>'
+        ),
+        "Grant the body stylesheet control access",
+    )
+    wait_for_revision(page, 2)
+    expect(page.locator("lf-board button.lf-ui").first).to_have_css(
+        "border-bottom-color", "rgb(51, 102, 153)"
+    )
+
+    stamp_page(serve.page_dir, source, "Withdraw body stylesheet control access")
+    wait_for_revision(page, 3)
+    expect(page.locator("lf-board button.lf-ui").first).not_to_have_css(
+        "border-bottom-color", "rgb(51, 102, 153)"
+    )
+
+
+def test_a_sheet_a_page_script_writes_later_leaves_the_layers_controls_alone(
+    browser, serve
+):
+    """A CSS framework such as Tailwind builds its sheet in the head after the page
+    loads and rewrites it as classes change, and each rewrite is a new sheet. Its
+    element rules reach the page's prose and stop at Leaf's controls, as the page's
+    own stylesheet's do: Tailwind's reset once took the family of every chrome
+    button."""
+    url = serve(
+        leaf_page(
+            "t",
+            '<h1>t</h1><p>See <a id="prose" href="#t">the link</a>.</p>',
+            head="""<style>@import url("page/author.css");</style>
+<link rel="stylesheet" data-controls href="page/controls.css">
+<script type="module">
+const sheet = document.createElement("style");
+document.head.append(sheet);
+sheet.textContent = "button, a { font-family: fantasy; }";
+setTimeout(() => {
+  sheet.textContent = "button, a { font-family: cursive; }";
+  window.rewritten = true;
+}, 50);
+</script>""",
+        ),
+        page_files={
+            "author.css": "a { border-top: 7px solid red; } button { border-top: 77px solid red; }",
+            "controls.css": '@import url("controls-import.css");',
+            "controls-import.css": ".lf-chrome button { outline-color: rgb(0, 128, 0); }",
+        },
+    )
+    page = open_page(browser, url)
+    page.wait_for_function("() => window.rewritten")
+    faces = page.evaluate("""() => {
+        const family = el => getComputedStyle(el).fontFamily;
+        return {
+            chrome: [...document.querySelectorAll('.lf-chrome button')].map(family),
+            prose: family(document.getElementById('prose')),
+            imported: getComputedStyle(document.getElementById('prose')).borderTopWidth,
+            chromeBorders: [...document.querySelectorAll('.lf-chrome button')].map(
+                el => getComputedStyle(el).borderTopWidth),
+            chromeOutlines: [...document.querySelectorAll('.lf-chrome button')].map(
+                el => getComputedStyle(el).outlineColor),
+        };
+    }""")
+    assert set(faces["chromeOutlines"]) == {"rgb(0, 128, 0)"}, faces
+    assert faces["prose"] == "cursive", faces
+    assert faces["imported"] == "7px", faces
+    assert "77px" not in faces["chromeBorders"], faces
+    assert faces["chrome"], "the chrome built no button to read"
+    assert not [f for f in faces["chrome"] if f in {"cursive", "fantasy"}], faces
+
+
+def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path):
+    """A package that declares widgets styles those widgets and nothing else, whatever
+    its sheet says: its rule for `p` dresses the paragraph inside its widget and leaves
+    the page's own paragraphs alone, and its rule for the widget's host still reaches
+    the host. The confinement is the composition's (layer.py, `widget_confinement`),
+    so it holds for any package, not only the ones this repository ships."""
+    package = tmp_path / ".leaf"
+    package.mkdir()
+    (package / "theme.css").write_text(
+        "p { color: rgb(0, 128, 0); }\n"
+        "em { @media screen { color: rgb(0, 128, 0); } }\n"
+        ":scope:is(lf-shelf) { display: block; border: 3px solid rgb(0, 128, 0); }\n"
+    )
+    url = serve(
+        leaf_page(
+            "t",
+            '<h1>t</h1><p id="out">Outside <em id="out-em">here</em>.</p>'
+            '<lf-shelf id="shelf"><p id="in">Inside <em id="in-em">here</em>.</p>'
+            "</lf-shelf>",
+        ),
+        layer_registry={
+            "lf-shelf": {
+                "description": "A project-supplied box.",
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "markup",
+                "x-upgrade": False,
+            }
+        },
+    )
+    page = open_page(browser, url)
+    faces = page.evaluate("""() => Object.fromEntries(
+        ['out', 'in', 'out-em', 'in-em', 'shelf'].map(id => {
+        const cs = getComputedStyle(document.getElementById(id));
+        return [id, [cs.color, cs.borderTopWidth]]; }))""")
+    assert faces["in"][0] == faces["in-em"][0] == "rgb(0, 128, 0)", faces
+    assert "rgb(0, 128, 0)" not in (faces["out"][0], faces["out-em"][0]), faces
+    assert faces["shelf"][1] == "3px", faces
+
+
+def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
+    browser, serve, tmp_path
+):
+    """A package that declares no widgets is a theme: its rules outrank the Layouts and
+    every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
+    the column Layout's and its plain `lf-card` rule beats the board's own
+    `:scope:is(lf-card)`. Like the page's own rules, its bare `button` dresses the
+    page's buttons and leaves the controls the board builds alone. A separate controls.css
+    sheet grants deliberate access to board controls (runtime/page-sheets.js)."""
+    theme = tmp_path / "theme"
+    theme.mkdir()
+    (theme / "theme.css").write_text(
+        "main { padding-top: 11px; }\n"
+        "lf-card { padding-left: 13px; }\n"
+        "button { font-family: cursive; }\n"
+    )
+    (theme / "controls.css").write_text(
+        "lf-board button { outline: 3px solid rgb(0, 128, 0); }\n"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "t",
+                '<h1>t</h1><p><button id="own" type="button">Own</button></p>'
+                '<lf-board id="b"><lf-column id="c1" label="To do">'
+                '<lf-card id="k1">One</lf-card></lf-column></lf-board>',
+            ),
+            packages=("./theme",),
+        ),
+    )
+    faces = page.evaluate("""() => {
+        const cs = el => getComputedStyle(el);
+        return {
+            main: cs(document.querySelector('main')).paddingTop,
+            card: cs(document.getElementById('k1')).paddingLeft,
+            own: cs(document.getElementById('own')).fontFamily,
+            controls: [...document.querySelectorAll('lf-board button.lf-ui')].map(
+                el => [cs(el).fontFamily, cs(el).outlineColor]),
+            chrome: [...document.querySelectorAll('.lf-chrome button')].map(
+                el => cs(el).fontFamily),
+        };
+    }""")
+    assert faces["main"] == "11px", faces
+    assert faces["card"] == "13px", faces
+    assert faces["own"] == "cursive", faces
+    assert faces["controls"], "the board built no control to read"
+    assert faces["chrome"], "the chrome built no button to read"
+    assert not [f for f, _ in faces["controls"] if "cursive" in f], faces
+    assert not [f for f in faces["chrome"] if "cursive" in f], faces
+    assert {color for _, color in faces["controls"]} == {"rgb(0, 128, 0)"}, faces
+
+
+def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
+    browser, serve, tmp_path
+):
+    """Every declared shadow tree receives the layer's shadow sheet, so a package's
+    `shadow.css` is confined there too: its rule for `span` dresses the tree its own
+    widget hosts and not the tree another package's widget hosts."""
+    own, own_module = _shadow_tree_widget("lf-own-tree")
+    other, other_module = _shadow_tree_widget("lf-other-tree")
+    project = tmp_path / ".leaf"
+    project.mkdir()
+    (project / "shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
+    neighbour = tmp_path / "other"
+    (neighbour / "widgets").mkdir(parents=True)
+    (neighbour / "registry.json").write_text(json.dumps({"lf-other-tree": other}))
+    (neighbour / "widgets" / "lf-other-tree.js").write_text(other_module)
+    url = serve(
+        leaf_page(
+            "t",
+            '<h1>t</h1><lf-own-tree id="own"></lf-own-tree>'
+            '<lf-other-tree id="other"></lf-other-tree>',
+        ),
+        packages=("./other",),
+        layer_registry={"lf-own-tree": own},
+        layer_widgets={"lf-own-tree.js": own_module},
+    )
+    page = open_page(browser, url)
+    colors = page.evaluate("""() => Object.fromEntries(['own', 'other'].map(id => [id,
+        getComputedStyle(document.getElementById(id).shadowRoot.querySelector('span'))
+            .color]))""")
+    assert colors["own"] == "rgb(0, 128, 0)", colors
+    assert colors["other"] != "rgb(0, 128, 0)", colors
+
+
+def test_a_theme_packages_shadow_rules_outrank_the_widget_packages_own(
+    browser, serve, tmp_path
+):
+    """A theme package's `shadow.css` reaches every declared shadow tree from the
+    `lf-theme` tier, above the shadow rules of the package that owns the widget: its
+    bare `span` beats the owner's more specific rule for the same span."""
+    own, own_module = _shadow_tree_widget("lf-own-tree")
+    project = tmp_path / ".leaf"
+    project.mkdir()
+    (project / "shadow.css").write_text(":scope span { color: rgb(255, 0, 0); }\n")
+    theme = tmp_path / "theme"
+    theme.mkdir()
+    (theme / "shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
+    url = serve(
+        leaf_page("t", '<h1>t</h1><lf-own-tree id="own"></lf-own-tree>'),
+        packages=("./theme",),
+        layer_registry={"lf-own-tree": own},
+        layer_widgets={"lf-own-tree.js": own_module},
+    )
+    page = open_page(browser, url)
+    color = page.evaluate(
+        """() => getComputedStyle(document.getElementById('own').shadowRoot
+            .querySelector('span')).color"""
+    )
+    assert color == "rgb(0, 128, 0)", color
+
+
+def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
+    """The chrome's private rules live in one @scope block rooted at the runtime's
+    own container, so whatever name a widget or a page coins, it matches none of
+    them: lf-tabs once marked itself lf-live — the chrome's name for its
+    visually-hidden live region — and every tabbed page clipped to a pixel. An
+    element in the page wearing every private class at once must render exactly as
+    its unclassed twin.
+
+    The chrome sheet reaches the page only through the classes its owner declares
+    shared (`chromeSharedClasses`, runtime/stylesheets.js): a rule written outside the
+    block that names any other class is a private rule leaking out, not a widening.
+    Those classes, and the faces the authored theme states for a private name at
+    document level, stay off the probe, since the movement their rules cause is the
+    reach they were given on purpose."""
+    page = open_page(
+        browser,
+        serve(leaf_page("t", "<h1>t</h1><section id=s><p>words</p></section>")),
+    )
+    surface = page.evaluate("""async () => {
+        const {chromeSheet: sheet, chromeSharedClasses: declared} =
+            await window.__lfCheckApi();
+        const classes = sel => [...(sel || "").matchAll(/\\.([A-Za-z0-9_-]+)/g)].map(m => m[1]);
+        const scoped = new Set(), unscoped = new Set(), themed = new Set();
+        const collect = (rules, into, privateRules = null) => { for (const r of rules) {
+            if (r instanceof CSSScopeRule) {
+                if (privateRules) collect(r.cssRules, privateRules, privateRules);
+            }
+            else if (r.selectorText) classes(r.selectorText).forEach(c => into.add(c));
+            else if (r.cssRules) collect(r.cssRules, into, privateRules); } };
+        collect(sheet.cssRules, unscoped, scoped);
+        for (const other of [...document.styleSheets, ...document.adoptedStyleSheets]
+                 .filter(s => s !== sheet))
+            collect(other.cssRules, themed);
+        const probe = document.createElement("div"), plain = document.createElement("div");
+        const worn = [...scoped].filter(c => !declared.includes(c) && !themed.has(c));
+        probe.className = worn.join(" ");
+        probe.textContent = plain.textContent = "probe";
+        // A block after both, so neither twin stands at the section's edge, where the
+        // theme trims a margin whichever classes it wears.
+        const after = document.createElement("p");
+        after.textContent = "after";
+        document.getElementById("s").append(plain, probe, after);
+        const cs = el => { const c = getComputedStyle(el), out = {};
+                           for (const p of c) out[p] = c.getPropertyValue(p); return out; };
+        const a = cs(probe), b = cs(plain);
+        const body = document.createElement("div");
+        body.className = "lf-msg-body";
+        body.textContent = "Authored thread words";
+        document.getElementById("s").append(body);
+        return { worn, unscoped: [...unscoped], declared: [...declared],
+                 moved: Object.keys(a).filter(p => a[p] !== b[p]),
+                 bodySelection: getComputedStyle(body).userSelect,
+                 plainSelection: getComputedStyle(plain).userSelect };
+    }""")
+    unscoped, declared = set(surface["unscoped"]), set(surface["declared"])
+    assert not unscoped - declared, (
+        "chrome rules outside its @scope block name classes the sheet does not declare "
+        f"shared, so a page element wearing one meets them: {sorted(unscoped - declared)}"
+        " — move the rule into the block, or add the class to chromeSharedClasses"
+    )
+    assert not declared - unscoped, (
+        "chromeSharedClasses declares classes no rule outside the @scope block names: "
+        f"{sorted(declared - unscoped)}"
+    )
+    assert surface["worn"], (
+        "the probe wears no private class — the @scope block is missing or empty, so "
+        "this compares two unclassed twins"
+    )
+    assert surface["moved"] == [], (
+        f"scoped chrome rules reached an element in the page: {surface['moved']}"
+    )
+    # The shared message body gets selectable-island rules only inside chrome.
+    # Its authored copy keeps the document's selection behavior.
+    assert surface["bodySelection"] == surface["plainSelection"]
+
+
+# Whose name the card's top row shows, and who wrote the words just under it. The row
+# is the first name painted in the card: where the top falls in the gap before a
+# message, a pushed-off head leaves only its blank foot above that message's name.
+CARD_TOP_AUTHORS = """transcript => {
+  const box = transcript.getBoundingClientRect();
+  const x = box.left + 30;
+  const messages = [...transcript.querySelectorAll('.lf-msg')];
+  const shown = message => {
+    const name = message.querySelector(':scope > .lf-msg-head b').getBoundingClientRect();
+    const y = name.top + name.height / 2;
+    return y > box.top && y < box.bottom
+      && document.elementFromPoint(name.left + 1, y)?.closest('.lf-msg') === message;
+  };
+  const named = messages.find(shown);
+  const head = named?.querySelector(':scope > .lf-msg-head').getBoundingClientRect();
+  const under = document.elementFromPoint(x, (head?.bottom ?? box.top) + 6)
+    ?.closest('.lf-msg');
+  return {named: messages.indexOf(named), under: messages.indexOf(under),
+          row: head ? head.top - box.top < head.height : false,
+          scrolled: transcript.scrollTop > 0};
+}"""
+
+
+def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser, serve):
+    """A card opened on a long thread shows its latest message, as a walk to it in the
+    Threads list does, and its top row names whoever wrote the words under it. The
+    card pinned the root's name beside its actions, so it opened at the top to keep
+    that name true, leaving the newest turn out of view."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
+    )
+    for turn in range(1, 12):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent" if turn % 2 else "user",
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS,
+            },
+        )
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    selector = (
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-thread-transcript"
+    )
+    transcript = page.locator(selector)
+    expect(transcript).to_be_visible()
+    rendered(page)
+    scroll_settled(page, selector)
+    assert transcript.evaluate("box => box.scrollHeight > box.clientHeight")
+    latest = transcript.locator(".lf-msg").last.bounding_box()
+    shown = transcript.bounding_box()
+    assert latest["y"] + latest["height"] <= shown["y"] + shown["height"] + 1
+    landed = transcript.evaluate(CARD_TOP_AUTHORS)
+    assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
+    assert landed["under"] == landed["named"], landed
+    # Reading back up, the row names each message whose words stand under it.
+    for index in (3, 2, 1, 0):
+        transcript.evaluate(
+            """(box, index) => {
+              const message = box.querySelectorAll('.lf-msg')[index];
+              const offset = message.getBoundingClientRect().top
+                - box.getBoundingClientRect().top;
+              // The message's middle stands just under the row.
+              box.scrollTop += index
+                ? offset + message.offsetHeight / 2 - 30
+                : -box.scrollTop;
+            }""",
+            index,
+        )
+        rendered(page)
+        reading = transcript.evaluate(CARD_TOP_AUTHORS)
+        assert reading["named"] == reading["under"] == index and reading["row"], reading
+
+
+@pytest.mark.parametrize(("width", "touch"), [(1200, False), (311, True)])
+def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
+    browser, serve, width, touch
+):
+    """Reading down a long reply in the thread card, its head keeps the writer's name
+    and the time at the top, while its annotations, the progress disclosure and the
+    edited label, leave with the reply's first line as the words do. They stuck with
+    the name, so the row went on offering the reply's earlier updates over every line
+    of it. A narrow card wraps the disclosure onto a second row, and it rises under
+    the name rather than over it. A focused disclosure stays in the stuck row."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Explain with examples?", {"section": "how-store"}
+    )
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "I'm capturing both widths.",
+        ephemeral=True,
+    )
+    answer = thread_model.post_reply(
+        serve.page_dir, {"to": root, "for": root}, LANDING_WORDS * 8
+    )["id"]
+    thread_model.cmd_edit(serve.page_dir, answer, "Edited. " + LANDING_WORDS * 8)
+    # Later turns leave room to scroll the answer past the top in either direction.
+    for turn, author in enumerate(("user", "agent")):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                "parent": root,
+                "text": f"Turn {turn}. " + LANDING_WORDS * 4,
+            },
+        )
+    context = browser.new_context(
+        viewport={"width": width, "height": 900}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, url, context=context)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    selector = (
+        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]'
+        " > .lf-thread-transcript"
+    )
+    transcript = page.locator(selector)
+    expect(transcript).to_be_visible()
+    rendered(page)
+    scroll_settled(page, selector)
+    message = transcript.locator(f'.lf-msg[data-event="{answer}"]')
+    toggle = message.get_by_role("button", name="Show 1 progress message", exact=True)
+    expect(toggle).to_be_visible()
+    expect(message.locator(".lf-edited")).to_be_visible()
+
+    def scrolled_past(distance):
+        """Each part's top against the transcript's, once the answer's opening stands
+        `distance` pixels above it and a rendering update has moved what scroll moves,
+        and what the user sees at the name's middle."""
+        transcript.evaluate(
+            """(box, [selector, distance]) => {
+              const message = box.querySelector(selector);
+              box.scrollTop += message.getBoundingClientRect().top
+                - box.getBoundingClientRect().top + distance;
+            }""",
+            [f'.lf-msg[data-event="{answer}"]', distance],
+        )
+        rendered(page)
+        return transcript.evaluate(
+            """(box, selector) => {
+              const message = box.querySelector(selector);
+              const head = message.querySelector(':scope > .lf-msg-head');
+              const name = head.querySelector('b');
+              const from = box.getBoundingClientRect().top;
+              const top = node => node.getBoundingClientRect().top - from;
+              const at = name.getBoundingClientRect();
+              const time = head.querySelector('time');
+              const middle = at.top + at.height / 2;
+              // The name itself, and the gap between it and the time.
+              const seen = [at.left + 4, time.getBoundingClientRect().left - 4]
+                .map(x => document.elementFromPoint(x, middle));
+              const toggle = head.querySelector('.lf-summary-expand');
+              return {message: top(message), name: top(name),
+                      time: top(time),
+                      edited: top(head.querySelector('.lf-edited')),
+                      toggle: top(toggle),
+                      toggleBottom: toggle.getBoundingClientRect().bottom - from,
+                      nameShown: seen.every(node => name.contains(node)),
+                      head: head.offsetHeight};
+            }""",
+            f'.lf-msg[data-event="{answer}"]',
+        )
+
+    rest = scrolled_past(0)
+    assert abs(rest["message"]) <= 1, rest
+    for distance in (6, 12, 20, 30):
+        reading = scrolled_past(distance)
+        assert abs(reading["message"] + distance) <= 1, reading
+        # The name and time stay where they stood and stay on top; the annotations
+        # move with the words.
+        assert abs(reading["name"] - rest["name"]) <= 1, (rest, reading)
+        assert abs(reading["time"] - rest["time"]) <= 1, (rest, reading)
+        assert reading["nameShown"], reading
+        for part in ("toggle", "edited"):
+            moved = reading[part] - (rest[part] - distance)
+            assert abs(moved) <= 1, (part, rest, reading)
+    gone = scrolled_past(2 * rest["head"])
+    assert abs(gone["name"] - rest["name"]) <= 1, (rest, gone)
+    assert gone["toggleBottom"] <= 0, gone
+
+    page.keyboard.press("Shift")
+    toggle.focus()
+    assert toggle.evaluate("node => node.matches(':focus-visible')")
+    rendered(page)
+    focused = transcript.evaluate(
+        """(box, toggle) => toggle.getBoundingClientRect().top
+             - box.getBoundingClientRect().top""",
+        toggle.element_handle(),
+    )
+    # Native focus reveals the offscreen disclosure below the stuck head; the
+    # exact offset depends on the space the scrollport has for that reveal.
+    assert focused >= rest["head"] - 1, (rest, focused)
+    expect(toggle).to_be_in_viewport(ratio=1)
+
+
+def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
+    """Every bordered box in the Threads panel stands on one column: the find box, and
+    an open thread's messages and its reply box. The reply box once stood 7px wider on each side, so its words started at the messages'
+    text edge while its border overhung the column everything else keeps. The View
+    button beside the find box wears the chrome's own button type, as the rest of the
+    panel's buttons do."""
+    page = open_page(browser, serve(LONG_PAGE, comments=1))
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread").first
+    if thread.get_attribute("open") is None:
+        thread.locator(":scope > .lf-thread-summary").click()
+    expect(thread.locator(".lf-compose-field")).to_be_visible()
+    boxes = page.evaluate(
+        """() => {
+          const box = (selector, end = selector) => [
+            document.querySelector(selector).getBoundingClientRect().left,
+            document.querySelector(end).getBoundingClientRect().right,
+          ];
+          return {
+            message: box('.lf-thread[open] .lf-thread-transcript'),
+            reply: box('.lf-thread[open] > .lf-thread-reply .lf-compose-field'),
+            find: box('.lf-find-box', '.lf-thread-filter-toggle'),
+          };
+        }"""
+    )
+    left, right = boxes["message"]
+    for name, (at, to) in boxes.items():
+        # The find box stands on the panel's padding, a thread's boxes one transparent
+        # border inside the list's; a pixel is that border.
+        assert at == pytest.approx(left, abs=1.01), (name, boxes)
+        assert to == pytest.approx(right, abs=1.01), (name, boxes)
+    message_start = page.evaluate(
+        """() => {
+          const message = document.querySelector('.lf-thread[open] .lf-msg');
+          const reply = document.querySelector('.lf-thread[open] > .lf-thread-reply .lf-compose-field');
+          const field = reply.querySelector('leaf-text');
+          const style = getComputedStyle(field);
+          return {
+            message: message.getBoundingClientRect().left,
+            reply: field.getBoundingClientRect().left + parseFloat(style.paddingLeft),
+          };
+        }"""
+    )
+    assert message_start["message"] == pytest.approx(message_start["reply"], abs=1), (
+        message_start
+    )
+    faces = page.evaluate(
+        """() => ['.lf-thread-filter-toggle', '.lf-threads-toggle'].map((selector) => {
+          const style = getComputedStyle(document.querySelector(selector));
+          return [style.fontSize, style.lineHeight];
+        })"""
+    )
+    assert faces[0] == faces[1], faces
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_a_short_thread_panel_keeps_its_list_and_grip_reachable(browser, serve, touch):
+    """Panel controls take their room before the list takes what remains.
+
+    View once exhausted a short panel, and an exhausted window needs a native scroll
+    route without clipping the panel's separate resize grip. The page comment card's
+    own fit in a short window is `test_comment_on_the_page_starts_a_thread_from_a_card_
+    under_the_banner`'s.
+    """
+    context = browser.new_context(
+        has_touch=touch, viewport={"width": 1200, "height": 600}
+    )
+    page = open_page(browser, serve(LONG_PAGE, comments=12), context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    grip = page.locator(".lf-thread-panel > .lf-edge")
+    assert grip.evaluate("""el => {
+      const b = el.getBoundingClientRect();
+      return [b.left + 1, b.right - 1].every(x =>
+        el.contains(document.elementFromPoint(x, b.top + b.height / 2)));
+    }"""), "the panel's scrolling body clipped its resize grip"
+    assert page.locator(".lf-threads").evaluate(
+        "el => el.scrollHeight > el.clientHeight"
+    )
+    page.locator(".lf-threads > .lf-thread").first.locator(
+        ":scope > .lf-thread-summary"
+    ).focus()
+    page.keyboard.press("d")
+    page.wait_for_function("document.querySelector('.lf-threads').scrollTop > 0")
+
+    resized(page, 390, 600)
+    page.get_by_role("button", name="View", exact=True).click()
+    rendered(page)
+    assert page.locator(".lf-threads").evaluate("el => el.clientHeight > 30")
+    page.get_by_role("button", name="View", exact=True).click()
+
+    # The list may lie below the viewport while View is open. Reading keys must
+    # then move its visible containing body, and reverse that same move.
+    resized(page, 390, 280)
+    page.get_by_role("button", name="View", exact=True).click()
+    body = page.locator(".lf-thread-panel-body")
+    before = body.evaluate("el => el.scrollTop")
+    page.keyboard.press("d")
+    page.wait_for_function(
+        "before => document.querySelector('.lf-thread-panel-body').scrollTop > before",
+        arg=before,
+    )
+    after = body.evaluate("el => el.scrollTop")
+    page.keyboard.press("u")
+    page.wait_for_function(
+        "after => document.querySelector('.lf-thread-panel-body').scrollTop < after",
+        arg=after,
+    )
+
+
+@pytest.mark.parametrize("scaled", [False, True])
+def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
+    browser, serve, scaled
+):
+    """A whole-frame cap reserves the image, choices and Send before text scrolls."""
+    source = LONG_PAGE
+    if scaled:
+        source = source.replace(
+            "</head>",
+            """<style>
+              div.lf-chrome { position:fixed; inset:0; pointer-events:none;
+                transform:scale(1.2); transform-origin:0 0; }
+              .lf-fab-bar, .lf-margin-preview { zoom:1.2; }
+            </style></head>""",
+        )
+    page = open_page(browser, serve(source))
+    width, height = (315, 450) if scaled else (390, 300)
+    resized(page, width, height)
+    page.locator("#p1").click(click_count=3)
+    bar = page.locator(".lf-fab-bar")
+    field = bar.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    paste_image(field, pixels)
+    expect(bar.locator(".lf-composer-media img")).to_be_visible()
+    content = "\n".join(
+        f"Line {n}: the draft shares room with its picture and response choices."
+        for n in range(80)
+    )
+    write(field, content)
+    field.press("Tab")
+    expect(bar.locator(".lf-react:visible")).to_have_count(6)
+    rendered(page)
+    expect(field).to_have_js_property("value", content)
+    assert field.evaluate("el => el.scrollHeight > el.clientHeight")
+    bounds = bar.evaluate("el => el.getBoundingClientRect().toJSON()")
+    banner_bottom = page.locator(".lf-banner").evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    )
+    assert bounds["top"] >= banner_bottom + 6
+    assert bounds["bottom"] <= height - 8
+    parts = bar.locator(
+        ".lf-compose-field, .lf-fab-input, .lf-compose-submit, .lf-composer-media, "
+        ".lf-response-options, .lf-response-action:visible"
+    ).evaluate_all("nodes => nodes.map(node => node.getBoundingClientRect().toJSON())")
+    for part in parts:
+        assert bounds["left"] <= part["left"] < part["right"] <= bounds["right"], (
+            bounds,
+            parts,
+        )
+        assert bounds["top"] <= part["top"] < part["bottom"] <= bounds["bottom"], (
+            bounds,
+            parts,
+        )
+    resized(page, width, 200)
+    expect(bar).to_be_hidden()
+    resized(page, width, height)
+    expect(field).to_be_visible()
+    expect(field).to_have_js_property("value", content)
+    expect(bar.locator(".lf-composer-media img")).to_be_visible()
+    expect(bar.locator(".lf-react:visible")).to_have_count(6)
+
+
+def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, serve):
+    """Held insets use the surface's units in both window and element blocks."""
+    page = open_page(browser, serve(leaf_page("Placement", "<p>Reference</p>")))
+    resized(page, 605, 898)
+    readings = page.evaluate(
+        """async () => {
+          document.documentElement.style.zoom = '1.25';
+          const {floatingPlacement, floatingUi} = await window.__lfOverlayApi();
+          const {computePosition, shift} = await floatingUi();
+          const readings = [];
+          for (const [transform, border] of [
+            ['none', 0], ['scale(1.2,0.8)', 0], ['scale(1.2,0.8)', 8],
+          ]) {
+            const holder = document.createElement('div');
+            holder.style.cssText = 'position:fixed;left:10px;top:20px;width:500px;height:600px;'
+              + `transform:${transform};transform-origin:0 0;border:${border}px solid transparent`;
+            document.body.append(holder);
+            for (const left of [200, 440]) {
+              const reference = document.createElement('div');
+              reference.style.cssText = `position:fixed;left:${left}px;top:200px;width:20px;height:20px`;
+              holder.append(reference);
+              for (const zoom of [1, 1.2]) {
+                const floating = document.createElement('div');
+                floating.style.cssText = `position:fixed;width:100px;height:50px;zoom:${zoom}`;
+                holder.append(floating);
+                const driver = floatingPlacement({floating, update() {}});
+                const answer = await driver.position(computePosition, reference,
+                  {placement:'top-end', middleware:[shift({
+                    boundary:[], rootBoundary:new DOMRect(8,8,589,882), padding:0,
+                  })]}, () => 'window', reference);
+                driver.stand(answer);
+                await new Promise(requestAnimationFrame);
+                const target = reference.getBoundingClientRect();
+                const actual = floating.getBoundingClientRect();
+                readings.push({transform, border, left, zoom, right:actual.right, bottom:actual.bottom,
+                  targetRight:Math.min(target.right,597), targetTop:target.top});
+                driver.stop();
+                floating.remove();
+              }
+              reference.remove();
+            }
+            holder.remove();
+          }
+          return readings;
+        }"""
+    )
+    for reading in readings:
+        assert reading["right"] == pytest.approx(reading["targetRight"], abs=0.5), (
+            reading
+        )
+        assert reading["bottom"] == pytest.approx(reading["targetTop"], abs=0.5), (
+            reading
+        )
+
+
+@pytest.mark.parametrize("surface", ["card", "composer"])
+def test_a_dropped_surface_keeps_its_box_until_placement_commits(
+    browser, serve, surface
+):
+    """Release transfers the carried box without a visit to its old placement.
+
+    Firefox drops hover during that visit, then restarts the delayed border tint.
+    Read when the carry ends, before asynchronous placement can hide a gap.
+    The comment box shares the same handoff even where hover happens to survive.
+    """
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Keep this explanation.", {"section": "how-store"})
+    page = open_page(browser, url)
+    if surface == "card":
+        page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+        holder = page.locator(".lf-margin-preview")
+        expect(holder).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    else:
+        select_words(page, "#how-cap")
+        page.keyboard.press("c")
+        holder = page.locator(".lf-fab-bar")
+        expect(holder.locator(".lf-fab-input")).to_be_focused()
+    grip = holder.locator(":scope > .lf-surface-grip")
+    box = grip.bounding_box()
+    x, y = box["x"] + 25, box["y"] + (6 if surface == "card" else 2)
+    page.mouse.move(x, y)
+    page.mouse.down()
+    expect(holder).to_have_attribute("data-lf-carried", "")
+    page.mouse.move(x - 100, y - 30, steps=6)
+    one_frame(page)
+    held = holder.bounding_box()
+    holder.evaluate(
+        """surface => {
+          const observer = new MutationObserver(() => {
+            if (surface.hasAttribute('data-lf-carried')) return;
+            surface.lfDroppedBox = surface.getBoundingClientRect().toJSON();
+            observer.disconnect();
+          });
+          observer.observe(surface, {attributes:true, attributeFilter:['data-lf-carried']});
+        }"""
+    )
+    page.mouse.up()
+    released = holder.evaluate("surface => surface.lfDroppedBox")
+    assert released is not None, "the release never reached the grip"
+    for axis in ("x", "y"):
+        assert released[axis] == pytest.approx(held[axis], abs=0.5), (
+            f"{surface} returned to its old {axis} at release: {held} -> {released}"
+        )
+    expect(holder).not_to_have_attribute("data-lf-carried", "")
+    landed = holder.bounding_box()
+    for axis in ("x", "y"):
+        assert landed[axis] == pytest.approx(held[axis], abs=0.5), (held, landed)
+
+
+@pytest.mark.parametrize(
+    ("zoom_home", "width"),
+    [("root", 605), ("transformed-holder", 315)],
+)
+def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
+    browser, serve, zoom_home, width
+):
+    """Root and local zoom keep the draft and sent card in their available room."""
+    source = (
+        LONG_PAGE
+        if zoom_home == "root"
+        else leaf_page(
+            "Zoomed comments",
+            """<style>
+              div.lf-chrome { position:fixed; inset:0; pointer-events:none;
+                transform:scale(1.2); transform-origin:0 0; }
+              .lf-fab-bar, .lf-margin-preview { zoom:1.2; }
+            </style>
+            <h1>Fictional planning note</h1>
+            <p id="p1">We will combine the setup steps into one operation, then
+              check the result before continuing.</p>""",
+        )
+    )
+    page = open_page(browser, serve(source))
+    resized(page, width, 898)
+    if zoom_home == "root":
+        page.evaluate("document.documentElement.style.zoom = '1.25'")
+    one_frame(page)
+    page.locator("#p1").click(click_count=3)
+    page.keyboard.press("c")
+    bar = page.locator(".lf-fab-bar")
+    field = bar.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    content = "better; is there a way of shortening? or maybe we just remove it??"
+    page.keyboard.insert_text(content)
+    rendered(page)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", content)
+    bounds = bar.bounding_box()
+    assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= width + 0.1, bounds
+    for part in bar.locator(
+        ".lf-compose-field, .lf-fab-input, .lf-compose-submit"
+    ).all():
+        box = part.bounding_box()
+        assert bounds["x"] <= box["x"] and box["x"] + box["width"] <= (
+            bounds["x"] + bounds["width"] + 0.1
+        ), (bounds, box)
+    with sending(page, "the zoomed narrow-window comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    expect(card.locator(".lf-msg-text").first).to_contain_text(content)
+    bounds = card.bounding_box()
+    assert 0 <= bounds["x"] and bounds["x"] + bounds["width"] <= width + 0.1, bounds
+    resized(page, 1440, 900)
+    rendered(page)
+    text = card.locator(".lf-msg-text").first
+    assert text.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+
+
+def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
+    browser, serve
+):
+    """A scaled draft keeps its allocation and native editor until Resume reveals it."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.locator(".lf-fab-bar").evaluate(
+        """bar => {
+          const holder = document.createElement('div');
+          holder.style.cssText = 'position:fixed;inset:0;pointer-events:none;'
+            + 'transform:scale(1.2);transform-origin:0 0';
+          const home = bar.parentElement;
+          home.before(holder); holder.append(home);
+        }"""
+    )
+    resized(page, 390, 620)
+    page.locator("#p1").click(click_count=3)
+    bar = page.locator(".lf-fab-bar")
+    field = bar.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    field.click()
+    content = "\n".join(
+        f"Line {n}: every word stays in the scaled editor." for n in range(80)
+    )
+    write(field, content)
+    rendered(page)
+    native_field = field.element_handle()
+    before = bar.bounding_box()
+    scale = bar.evaluate(
+        "el => el.getBoundingClientRect().width / parseFloat(getComputedStyle(el).width)"
+    )
+    assert scale == pytest.approx(1.2, abs=0.001)
+    page.mouse.move(20, 100)
+    page.mouse.wheel(0, 1000)
+    page.wait_for_function(
+        "document.querySelector('#p1').getBoundingClientRect().bottom < 0"
+    )
+    scroll_settled(page)
+    resized(page, 390, 600)
+    rendered(page)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", content)
+    after = bar.bounding_box()
+    assert field.evaluate("(node, original) => node === original", native_field)
+    assert after["y"] + after["height"] < 0, after
+    assert after["height"] <= before["height"] + 0.1, (before, after)
+    assert 8 <= after["x"] and after["x"] + after["width"] <= 382.1, (before, after)
+    assert after["width"] <= before["width"] + 0.1, (before, after)
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+    scroll_settled(page)
+    rendered(page)
+    expect(field).to_have_js_property("value", content)
+    assert field.evaluate("(node, original) => node === original", native_field)
+    resumed = bar.bounding_box()
+    banner_bottom = page.locator(".lf-banner").evaluate(
+        "el => el.getBoundingClientRect().bottom"
+    )
+    assert 8 <= resumed["x"] and resumed["x"] + resumed["width"] <= 382.1, resumed
+    assert banner_bottom + 6 <= resumed["y"] + 0.1, resumed
+    assert resumed["y"] + resumed["height"] <= 592.1, resumed

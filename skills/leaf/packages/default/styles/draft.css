@@ -1,29 +1,71 @@
 /* Drafts read as Markdown, with editor operations in their own stable footer.
    Reserve that footer before upgrade. The frame holds focus, and print retains saved
-   prose. */
-:scope:is(lf-draft) { display: block; border: 1px solid var(--border-2); border-radius: 6px;
-  padding: 10px 14px; margin: 12px 0; background: var(--card);
-  font-size: max(var(--entry-floor), 1em); }
-.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body { white-space: normal; }
-:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :first-child { margin-top: 0; }
-:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :last-child { margin-bottom: 0; }
+   prose. On screen it keeps the reading measure as its prose does (theme.css), its
+   outer width the measure. */
+:scope:is(lf-draft) {
+  display: block;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  background: var(--card);
+  font-size: max(var(--entry-floor), 1em);
+}
+@media screen {
+  :scope:is(lf-draft) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+}
+.lf-draft-body,
+:scope:is(lf-draft) > .lf-markdown-body {
+  white-space: normal;
+}
+:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :first-child {
+  margin-top: 0;
+}
+:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :last-child {
+  margin-bottom: 0;
+}
 /* The shared source primitive owns fallback presentation, which a draft's source
  * does not wear: it reads as prose lines. */
 :scope:is(lf-draft) > pre {
   white-space: pre-line;
-  background: none; border: 0; border-radius: 0; padding: 0; margin: 0;
-  font: inherit; line-height: inherit; overflow: visible;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  line-height: inherit;
+  overflow: visible;
 }
-.lf-draft-edit.lf-ui { display: block; width: auto; padding: 0; border: 0; background: none;
-  font: inherit; min-height: 0; max-height: none; overflow: hidden; }
-.lf-draft-edit.lf-ui[data-lf-focus] { outline: none; box-shadow: none;
-  --lf-focus-ring: none; }
-.lf-draft-footer { display: none; }
+.lf-draft-edit.lf-ui {
+  display: block;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+}
+.lf-draft-edit.lf-ui[data-lf-focus] {
+  outline: none;
+  box-shadow: none;
+}
+.lf-draft-footer {
+  display: none;
+}
 @media screen {
   @scope (html[data-lf-interactive] :scope) {
     :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
       display: grid;
-      grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
+      grid-template-rows: minmax(min-content, auto) minmax(
+          max(32px, var(--aim-floor)),
+          auto
+        );
       gap: 8px;
     }
     /* At rest Copy floats over the corner as a code block's does, taking no room. The
@@ -31,23 +73,50 @@
        the caret never runs under it: the control's size and inset, and a 6px gap, less
        the box's own padding and border. */
     :scope:is(lf-draft) > .lf-draft-edit {
-      margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px);
+      margin-right: calc(
+        var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px
+      );
     }
   }
-  :scope:is(lf-draft):has(.lf-draft-edit) { border-color: var(--muted); }
-  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) { outline: var(--focus-ring);
-    --lf-focus-ring: draft-editor;
-    outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
-  :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body { display: none; }
-  .lf-draft-footer { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px 12px;
-    min-width: 0; font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
-  .lf-draft-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-inline-start: auto; }
-  .lf-draft-action { min-height: max(32px, var(--aim-floor)); }
-  .lf-draft-status { color: var(--danger-ink); align-self: center; }
-  .lf-draft-status:empty { display: none; }
+  :scope:is(lf-draft):has(.lf-draft-edit) {
+    border-color: var(--muted);
+  }
+  :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
+    outline: var(--focus-ring);
+    outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap)));
+  }
+  :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body {
+    display: none;
+  }
+  .lf-draft-footer {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    min-width: 0;
+    font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+  }
+  .lf-draft-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-inline-start: auto;
+  }
+  .lf-draft-action {
+    min-height: max(32px, var(--aim-floor));
+  }
+  .lf-draft-status {
+    color: var(--danger-ink);
+    align-self: center;
+  }
+  .lf-draft-status:empty {
+    display: none;
+  }
 }
 @media (forced-colors: active) {
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
-    outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
+    outline: 2px solid Highlight;
+    outline-offset: -5px;
+    box-shadow: none;
   }
 }

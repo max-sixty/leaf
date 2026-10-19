@@ -1,9 +1,11 @@
 # Goal: the floating Leaf panel
 
-> **Status (2026-10-13): rebuilt and opt-in (TODO #28).** Checkpoints 1–3 landed
+> **Status (2026-10-16): the default chrome (TODO #28).** Checkpoints 1–3 landed
 > on `main` behind the preference, off by default. The user disliked their look, so
 > a second round redesigned it from a sketch they tried and configured (below, "The
-> overhaul"). The rebuilt panel remains non-default while its remaining work is done.
+> overhaul"). On 16 October the user made the rebuilt panel the default, with **Use
+> the banner** in the leaf's menu, and **Use the Leaf panel** in the banner's More
+> menu, to switch between them (`chrome-choice.js`).
 >
 > On 13 October the user retired the Codex reference: the panel is judged by Leaf's
 > own aesthetic and the user's eye, not against the Codex app. The phone waits until
@@ -56,23 +58,6 @@ icon.
 
 ### Follow-ups the user named
 
-- **A nicer way to fold to the leaf.** "We need a nicer way to 'Fold to the leaf',
-  probably something that appears on hover that looks like a minimize." Today it is a
-  row at the foot of the leaf's menu and the `.` key. The user recalls Codex's panel
-  having one, and the Codex study bears that out: a minimize button its header reveals
-  on hover (`codex-app-study.md`, "Chrome appears only while you engage").
-- **About's contents are orphaned.** The Leaf version and the share link (and, where
-  they apply, the session reference and preview diagnostics) "are both a bit
-  orphaned": find more that belongs in About, or move them elsewhere and drop the
-  group.
-- **One general kind of small notice in the row.** On 14 October the user accepted a
-  chip in the row while an older version is shown ("v2 of 3 · Latest"), on the
-  condition that it be "one general case" of "a way to generally add small notices
-  to the user". The chip stands in the row's one notice slot (`floating-panel.js`,
-  `rowNotice`), where the older version is its only case. Grow the slot into the
-  mechanism: what a notice says, who raises it, what press it offers, how it ends,
-  and which other states use it (a stale page, offline, a page opened from a share
-  link).
 - **Selected words go to the anchored comment box, not the field.** The fresh review
   found that clicking the panel's field with words selected drops the selection and
   comments on the page as a whole. The user declined carrying the selection into the
@@ -83,7 +68,8 @@ icon.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both
-the banner and the bottom bar. Classic chrome stays the default. Build it on
+the banner and the bottom bar. Classic chrome stayed the default until 16 October.
+Build it on
 current `main` in the Leaf repository, behind a user preference, and land it
 there in steps, so the user can keep developing it from `main` without
 changing what anyone else sees.
@@ -118,7 +104,6 @@ env LEAF_PREVIEWS_ROOT=$HOME/.tmp/leaf/approved-prototype-446de2cb2/.tmp/preview
 Choose **Leaf** in the tabs at the sample's top, and Minimal or Moderate beside
 them. **Full view** fits the sample to the window. The prototype runs on its own
 2026-10-10 runtime, which is why it is served from that tree rather than this one.
-
 
 Reference images are in `~/.tmp/leaf/floating-controls-reference/`:
 
@@ -239,33 +224,51 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   the Leaf arrangement: the mark, its menu, and how everything opens above the
   row.
 - **The box resizes from its foot, in one step, and its surface follows.** The row
-  stays put; the leaving view fades out (80 ms) before the arriving one fades in, and
-  the surface layer follows the box's outline by a clip on the Codex panel's 300 ms
-  `cubic-bezier(.23,1,.32,1)`. (The first build tweened the card's height; a layout
-  tween's last frame landed outside CI's input window as a shift.)
+  stays put; the leaving view fades out (60 ms) before the arriving one fades in (90
+  ms), and the surface layer follows the box's outline by a clip on the Codex panel's
+  `cubic-bezier(.23,1,.32,1)`: 300 ms as the field grows a line, 120 ms as a view
+  opens or closes, since the user found views slow to appear (15 October). (The first
+  build tweened the card's height; a layout tween's last frame landed outside CI's
+  input window as a shift.)
 - **The focused field shows no frame and no ground**: one quiet line opens above it,
   with the keys that send. A dark frame around the field was the previous attempt's
   "form" look.
-- **While the user types, Send stands in the counts' place;** the counts come back
-  when the caret leaves, and the line naming where the words go stays while the field
-  holds words. (Replaces the first build's counts on the destination line.)
+- **While the user types, Send floats in the field's end corner,** as an anchored
+  comment box's does, and the counts step aside for the field; they come back when
+  the caret leaves, and the line naming where the words go stays while the field holds
+  words. Every line but the last runs the field's width. (The user chose the corner on
+  15 October over Send standing beside the words, which kept its width empty beside
+  every line.)
+- **A long draft offers more room at a press:** past three lines a mark over the
+  field's end widens the panel to 760px and lets the field take most of the window;
+  it folds back when the field empties. The user chose this on 15 October over the
+  panel widening by itself, which re-wraps every line under the caret.
 - **The line over the field names where the words go only once they hide the
-  placeholder that said it,** in the placeholder's words ("Comment on the page",
-  "Reply in this thread"), and never who reads them: the page has one agent. The
-  thread's own name heads its view.
-- **A short thread reserves its "New reply · Show" slot,** so arriving news moves
-  nothing.
+  placeholder that said it,** in the placeholder's words ("Comment on the page"), and
+  never who reads them: the page has one agent. It shows only with no view open; over
+  a view it repeated the view's head, so the user dropped it there (#2913).
+- **The answer the user waits for grows the thread's view,** up to its height limit,
+  with New reply only past it; other news in an open thread still moves nothing. The
+  user chose growth over a reserved New reply slot on 14 October (#2916).
 - **Answers are the widget's own choices** (a multiple-choice ask shows its options and
   Done), recorded exactly as on the page; the On view has On me / On {agent} / Done.
 - **Messages draw with Leaf's own reader** (the panel is a registered thread
   presentation), so asks, reactions and HTML replies work in the panel.
 - **The menu carries the banner's inventory,** drawn from each contributor's declared
   row, less what the row and its views already hold (Threads, On me, the page
-  comment, approval); Navigate, Annotations and About open as views of their rows.
+  comment, approval). Navigate, Annotations, About and Versions take the menu's place
+  in the same box, sliding in from the right under a head that goes back; Threads and
+  On, which are read rather than chosen from, open as views. The user chose this on 15
+  October ("expecting it to feel like it's navigating right … and then there's no way
+  to go back"), over the view keeping its place with a "‹ Menu /" crumb.
 - **On a phone, a count at rest is its number beside an icon,** so the agent's status
   keeps the field ("numbers next to icons rather than saying whole words").
 - **Passing notices are said in the empty field** (the overhaul); a walk's position
   still stands centred at the window's head.
+- **The panel shows no key hints**, neither the bottom bar's resting hints nor the
+  `g` sequence's destination list: the menu's rows carry their shortcuts and `?` opens
+  the full reference. The user chose this over one or two hints in the line above the
+  field on 13 October, to keep the panel quietest.
 
 ## What went wrong last time
 

@@ -1,18 +1,20 @@
-"""One reconnect notice per outage of a session's previously served page.
+"""Tell a session once when a page it served needs reconnecting.
 
-A session ending invalidates ownership without deleting its last claim or disabling
-its desired service. Resume and prompt hooks inspect those retained claims, including
-older generations that the hook transport's owned-page reading no longer covers.
-Either lost ownership or a dead serving incarnation needs reconnecting; the old
-server may still answer during its orphan grace period.
+When a session ends, its claim on a page stops being active, but Leaf keeps the
+claim and leaves the page's service enabled. The resume `SessionStart` hook and each
+prompt hook call `publishing_notices`, which reads those kept claims, older
+generations included. For each page whose claim is no longer active or whose server
+is not running, it tells the agent to run `leaf server start`, once per outage. It
+skips a page the session released or stopped, a persistent service, a preview, and
+a page another session has since claimed.
 
-Explicit releases, stops, persistent services, previews, and successor claims are not
-outages this session should repair. Inspection holds the service and page locks, then
-the session lock, so a notice cannot race a transfer or explicit stop. Notification
-state lives outside the page log, persists across SessionEnd, and resets only after
-matching active ownership and the exact serving lease prove recovery. Reservation
-and output share one lifecycle decision. A stale hook reserves nothing. Output is
-at-most-once, not proof of receipt of timed-out hook context.
+It takes the service and page locks and then the session lock, so a notice can't
+race a transfer or a stop. The pages already reported are kept in a session file
+outside the page log, which survives SessionEnd. A page leaves that file once its
+claim is active and its server running, when the hook sees that or when a committed
+start calls `recovered`. A hook whose session record has moved on reports nothing.
+A harness drops the output of a hook that timed out, so a notice sent once may still
+go unread.
 """
 
 import shlex

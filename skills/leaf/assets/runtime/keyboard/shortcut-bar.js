@@ -50,7 +50,7 @@
    are announced because the revealed hint chips themselves remain visual. When there is
    no additional current row, the first activation opens the reference directly. The
    native control also opens it directly. */
-import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
+import { html, nothing, render } from "/vendor/browser-runtime.js";
 
 import {
   activeRows,
@@ -93,11 +93,15 @@ import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareWindowChrome } from "../geometry.js";
 import { pageUpgraded } from "../page-paint.js";
-import { closeLayer, focusDestination } from "../focus.js";
+import { closeLayer } from "../focus.js";
+import { isNativeLayer } from "../shadow-tree.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
+  bannerStanding,
+  restoreBannerStanding,
   dismissBannerControls,
+  overflowMenu,
   registerBannerControl,
 } from "../banner-toolbar.js";
 
@@ -142,10 +146,10 @@ const bottomStatusTemplate = (model) => html`
   >
 `;
 
+// Hint cells carry no local state. More keeps its native node after the list, while
+// each cell draws the current command scene regardless of declaration identity.
 const shortcutBarTemplate = (model) =>
-  html`${repeat(
-      model.items,
-      (item) => item.key,
+  html`${model.items.map(
       (item) => html`
         <span
           class=${`lf-shortcut${item.sequenceControl ? " lf-sequence-command" : ""}`}
@@ -177,15 +181,25 @@ const shortcutBarTemplate = (model) =>
     }`;
 
 let bottomStatusContext = EMPTY_STATUS_CONTEXT;
-let placeBottomStatus = null;
+// What the status line says between notices, the Go-to filter's word or the walk's
+// position, for a chrome that says it in a seat of its own (floating-panel.js), which
+// registers to hear when it changes, as a notice's seats do.
+const contextPresenters = new Set();
+export const statusContextReading = () => bottomStatusContext;
+export function registerStatusContextPresentation(invalidate) {
+  contextPresenters.add(invalidate);
+}
+const shownWalk = ({ walk }) => (walk?.shown ? walk : null);
+const sameContext = (a, b) =>
+  a.goTo === b.goTo &&
+  shownWalk(a)?.text === shownWalk(b)?.text &&
+  shownWalk(a)?.boundary === shownWalk(b)?.boundary;
 const renderBottomStatus = () => {
   const model = Object.freeze({
     ...bottomStatusContext,
     notice: noticeReading(),
   });
   render(bottomStatusTemplate(model), bottomStatusEl);
-  // Feedback reaches its geometry owner before this turn can paint it.
-  placeBottomStatus?.();
 };
 renderBottomStatus();
 render(shortcutBarTemplate(EMPTY_BAR), shortcutBarEl);
@@ -225,14 +239,6 @@ declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 // page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;
-const rowPresentationKeys = new WeakMap();
-let nextRowPresentationKey = 1;
-const rowPresentationKey = (row) => {
-  const source = sourceRow(row);
-  if (!rowPresentationKeys.has(source))
-    rowPresentationKeys.set(source, nextRowPresentationKey++);
-  return rowPresentationKeys.get(source);
-};
 const effectiveRow = (row, declared, active) => {
   if (active.length === declared.length) return row;
   const routes = commandRoutes(row).filter((route) => active.includes(route.binding));
@@ -329,18 +335,20 @@ const completeLine = (scopes, candidates) => {
     rows,
   };
 };
-const openCompleteReference = () =>
-  openCommandReference((id) => executeCommand(id, beforeShortcutCommand));
+const openCompleteReference = (returnTo = null) =>
+  openCommandReference((id) => executeCommand(id, beforeShortcutCommand), returnTo);
 const keyboardSettings = el("button", "lf-btn", "Keyboard shortcuts");
 keyboardSettings.type = "button";
 keyboardSettings.addEventListener("click", () => {
-  // Closing the More menu lands the user back on its door, which the complete
-  // reference returns them to (focus.js, `closeLayer`).
-  closeLayer(dismissBannerControls, () => {
-    const door = bannerControlDoor(keyboardSettings);
-    if (door) focusDestination(door, "return");
-  });
-  openCompleteReference();
+  // More borrows the reader's place, while the floating panel presses this control
+  // after returning focus to its own leaf. Only More owes a borrowed-place return.
+  if (isNativeLayer(overflowMenu)) {
+    const held = bannerStanding();
+    closeLayer(dismissBannerControls, () => restoreBannerStanding(held));
+    openCompleteReference(bannerControlDoor(keyboardSettings));
+  } else {
+    openCompleteReference();
+  }
 });
 registerBannerControl({
   key: "keyboard",
@@ -398,6 +406,7 @@ export function renderShortcutBar(goToStatus) {
       text: position.text,
       boundary: position.boundary,
     });
+  const before = bottomStatusContext;
   bottomStatusContext = Object.freeze({
     goTo: goToReading,
     // A retired walk hides but keeps its last wording, matching the native status
@@ -408,6 +417,8 @@ export function renderShortcutBar(goToStatus) {
   });
   setNoticeContext(Boolean(goToReading));
   renderBottomStatus();
+  if (!sameContext(bottomStatusContext, before))
+    for (const invalidate of contextPresenters) invalidate();
   // Keep the two contextual hints together at the front of the ordinary line. The
   // expanded bar and a sequence retain registry order because each is a fuller reading of
   // one scene rather than a ranked shortlist.
@@ -442,7 +453,6 @@ export function renderShortcutBar(goToStatus) {
     const states = inSequence ? progressStates(steps, sequence) : neutralStates(steps);
     const active = bindings(row);
     return Object.freeze({
-      key: rowPresentationKey(row),
       sequenceControl: Boolean(row.sequenceControl),
       sequence: keySequenceModel(steps, states),
       said: lineOf(row),
@@ -567,13 +577,7 @@ const shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable
 
 // Boot supplies the two transient interactions More closes. The bar renderer and its
 // reference rows never import those command owners to draw their current declarations.
-export function mountShortcutBar({
-  setGoToSequence,
-  setReact,
-  placeBottomStatus: place,
-}) {
-  placeBottomStatus = place;
-  placeBottomStatus();
+export function mountShortcutBar({ setGoToSequence, setReact }) {
   activateShortcutMore = () => {
     setGoToSequence(false);
     setReact(false);

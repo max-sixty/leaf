@@ -2,21 +2,37 @@
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
  * are one ask. */
-:scope:is(lf-ask) { display: block; }
-/* An Ask allocated the column around a block of its own that breaks out of it (`wide`
- * or `available`) spans the reach that block lends it (layouts.css), and its padding
- * gives everything else it holds the column back. Nothing in it moves, since its content
- * box is still its holder's, and the block still breaks out exactly as it did; what changes
- * is the box, so the ring the user stands in (chrome.css, `[data-lf-ask]`) goes round
- * the block rather than cutting across it at the column's edges. Where the block does
- * not break out, the Ask does not either: in a box that draws a frame the room is the
- * frame's (layouts.css, `--lf-block-frame`), and where the page arranged the Ask or a
- * box above it, as a grid track, the block keeps to its holder (`data-lf-arranged`,
- * prepaint.js). The runtime reads how far the Ask stands in from the column with its
- * block's (prepaint.js, `indents`). Only its own children count, as for the measure it
- * widens to (theme.css). */
+:scope:is(lf-ask) {
+  display: block;
+}
+/* An Ask frames prose, so it keeps the reading measure as its text does (theme.css),
+ * its outer width the measure, and in a flow wider than the column (a sidebar page's
+ * body) its ring stands round the prose rather than the flow. It widens to the widest
+ * allocation among its own blocks, so a chart or table of its own that declares `wide`
+ * or `available` stands inside it rather than clipped to the measure. Only its children
+ * count.
+ *
+ * On a column page such a block breaks out of the column (layouts.css), and the Ask
+ * spans the reach the block lends it, its padding giving everything else it holds the
+ * column back. Nothing in it moves, since its content box is still its holder's, and
+ * the block still breaks out exactly as it did; what changes is the box, so the ring
+ * the user stands in (chrome.css, `[data-lf-ask]`) goes round the block rather than
+ * cutting across it at the column's edges. Where the block does not break out, the Ask
+ * does not either: in a box that draws a frame the room is the frame's (layouts.css,
+ * `--lf-block-frame`), and where the block keeps to its holder (`data-lf-kept`,
+ * prepaint.js) it lends no reach. An Ask granted room itself is a breakout already. */
 @media screen {
-  :scope:is(lf-ask)[data-lf-space="column"]:has(> :is([data-lf-space="wide"], [data-lf-space="available"]):not([data-lf-arranged])) {
+  :scope:is(lf-ask) {
+    box-sizing: border-box;
+    max-inline-size: var(--lf-measure);
+  }
+  :scope:is(lf-ask):has(> [data-lf-space="wide"]) {
+    max-inline-size: max(var(--lf-measure), var(--wide));
+  }
+  :scope:is(lf-ask):has(> [data-lf-space="available"]) {
+    max-inline-size: none;
+  }
+  :scope:is(lf-ask):not([data-lf-space]):has(> [data-lf-space]:not([data-lf-kept])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);
@@ -45,18 +61,30 @@
   --lf-options-across: 1;
 }
 /* An Ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
- * full-height workspace's body is, that is a heading and one answer gives the answer
- * what the heading leaves and tells it so, so a widget composing its own regions there,
- * such as a playground, fills the window. With context between the two there is no one
- * box to give the height to, so every part keeps its own. */
+ * full-height workspace's body is, gives its answer, the last of its children, what its
+ * heading and context leave, and tells it so, so a widget composing its own regions
+ * there, such as a playground, fills the window below a premise as well as straight
+ * under the heading. The context keeps its own height, and the answer keeps at least
+ * its own: a list of options takes its content's height below a long premise, and the
+ * body scrolls, where a playground, which fits its parts to any height it is given,
+ * says it may shrink (playground/theme.css). */
 @container style(--lf-full-height: 1) {
-  :scope:is(lf-ask) { display: flex; flex-direction: column; }
-  :scope:is(lf-ask):has(> :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+  :scope:is(lf-ask) {
+    display: flex;
+    flex-direction: column;
+  }
+  :scope:is(lf-ask):has(
+      > :nth-last-child(1 of :not(script, style, template)):not(
+          :nth-child(1 of :not(script, style, template))
+        )
+    ) {
     --lf-full-height: inherit;
   }
-  :scope:is(lf-ask) > :nth-child(2 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)) {
+  :scope:is(lf-ask)
+    > :nth-last-child(1 of :not(script, style, template)):not(
+      :nth-child(1 of :not(script, style, template))
+    ) {
     flex: 1 1 0;
-    min-block-size: 0;
-    margin-block-end: 0;
+    margin-block: 0;
   }
 }

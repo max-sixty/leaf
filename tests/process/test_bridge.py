@@ -5,7 +5,8 @@ import shutil
 import subprocess
 
 import pytest
-from interact_support import ROOT
+from interact_support import ROOT, STATED_TIMEOUT
+from leaf import bridge as bridge_model
 from leaf import hooks as hooks_model
 from leaf import service as service_model
 
@@ -14,14 +15,16 @@ LAUNCHER = str(ROOT / "bin" / "leaf")
 
 @pytest.fixture
 def bridged(monkeypatch):
-    """A Claude Code session whose start hook ran and whose shell is sandboxed."""
+    """A Claude Code session whose hook before a `leaf` command ran and whose
+    shell is sandboxed."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bridged")
     hooks_model.cmd_hook(
         "claude-code",
         {
-            "hook_event_name": "SessionStart",
+            "hook_event_name": "PreToolUse",
             "session_id": "bridged",
-            "source": "startup",
+            "tool_name": "Bash",
+            "tool_input": {"command": "leaf page claim page"},
         },
     )
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
@@ -34,7 +37,7 @@ def bridged(monkeypatch):
 @pytest.mark.usefixtures("bridged")
 def test_a_sandboxed_command_runs_outside_the_sandbox(page_dir):
     """Claude Code's sandbox refuses a command the state home, where a claim is
-    written. The launcher hands the command to the bridge the start hook left
+    written. The launcher hands the command to the bridge the hook left
     running outside it, so the claim takes. This sandbox lets a command reach
     127.0.0.1 directly, as Claude Code's does through its proxy."""
     state = os.path.realpath(os.environ["XDG_STATE_HOME"])
@@ -76,8 +79,40 @@ def test_a_bridged_command_ends_though_its_stdin_never_does():
         text=True,
     )
     try:
-        assert held.wait(timeout=30) == 0
+        assert held.wait(timeout=STATED_TIMEOUT) == 0
         assert held.stdout.read().startswith("leaf ")
     finally:
         held.stdin.close()
         held.stdout.close()
+
+
+def test_a_background_job_keeps_the_bridge_while_the_job_stands(
+    tmp_path, monkeypatch, dead_pid
+):
+    """A background job's next sitting runs on a fresh worker and may run `leaf`
+    from a script, before which no hook runs, so the bridge serves the job for its
+    lifetime rather than the worker's, and lets it go once the job is deleted."""
+    job = tmp_path / "job"
+    job.mkdir()
+    (job / "state.json").write_text('{"sessionId": "bg-job"}')
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
+    monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "PreToolUse", "session_id": "bg-job"}
+    )
+    assert bridge_model.live_sessions()
+    (job / "state.json").unlink()
+    assert not bridge_model.live_sessions()
+
+
+def test_a_session_that_runs_no_leaf_command_starts_no_bridge():
+    """Claude Code runs Leaf's start and prompt hooks in every session, and only
+    the hook before a `leaf` command starts the bridge, so a session that never
+    uses Leaf keeps no process of Leaf's running."""
+    for payload in (
+        {"hook_event_name": "SessionStart", "source": "resume"},
+        {"hook_event_name": "UserPromptSubmit", "turn_id": "t1", "prompt": "hi"},
+    ):
+        hooks_model.cmd_hook("claude-code", {"session_id": "unbridged", **payload})
+    assert not bridge_model.bridge_path("lock").exists()

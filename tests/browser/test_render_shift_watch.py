@@ -70,10 +70,10 @@ def field_page(browser, key=""):
 
 
 def within(node, place):
-    """Whether the watch's name for a node places it at `place` or inside it, as it
-    names a text node (`#text in button#control`) or a node in a shadow tree
-    (`div.cm-line in shadow of leaf-text#field`)."""
-    return node == place or node.endswith((f" in {place}", f" of {place}"))
+    """Whether a node the watch placed, by its steps innermost first, is the element
+    `place` or inside it, as a text node in it (`["#text", "button#control"]`) or a
+    node in its shadow tree (`["div.cm-line", "#shadow-root", "leaf-text#field"]`)."""
+    return place in node
 
 
 def moved_within(place, by=None):
@@ -90,7 +90,7 @@ def names_move(errors, node, *, typing_in=None):
     """Whether the watch reported a node at `node` or inside it moving: without input,
     or carried by typing in the field `typing_in`."""
     expected = (
-        {"code": "typing-moved", "field": typing_in, "node": node}
+        {"code": "typing-moved", "field": [typing_in], "node": [node]}
         if typing_in
         else moved_within(node)
     )
@@ -123,7 +123,11 @@ def test_typing_that_carries_its_field_fails_at_the_last_keystroke(browser):
     judge_watches()
     errors = consume_browser_errors(
         page,
-        {"code": "typing-moved", "field": "textarea#field", "node": "textarea#field"},
+        {
+            "code": "typing-moved",
+            "field": ["textarea#field"],
+            "node": ["textarea#field"],
+        },
     )
     evidence = shift_evidence(errors[0])
     assert evidence["kind"] == "typing"
@@ -343,8 +347,8 @@ def test_editcontext_growth_keeps_input_credit_with_its_actual_field(
             page,
             {
                 "code": "typing-moved",
-                "field": "leaf-text#field",
-                "node": "leaf-text#field",
+                "field": ["leaf-text#field"],
+                "node": ["leaf-text#field"],
             },
         )
     else:
@@ -396,14 +400,18 @@ def test_typing_protects_subjects_through_a_coordinate_carrier_rebase(
             page,
             {
                 "code": "typing-moved",
-                "field": "textarea#field",
-                "node": "textarea#field",
+                "field": ["textarea#field"],
+                "node": ["textarea#field"],
             },
         )
     elif holder != "inert":
         consume_browser_errors(
             page,
-            {"code": "typing-moved", "field": "textarea#field", "node": "div#carrier"},
+            {
+                "code": "typing-moved",
+                "field": ["textarea#field"],
+                "node": ["div#carrier"],
+            },
         )
 
 
@@ -829,6 +837,77 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         assert names_move(errors, protected), errors
 
 
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
+        ("", None),
+        ("carried_words", None),
+        ("undeclared", "button#head"),
+        ("unstanding", "button#head"),
+        ("extra_head", "button#head"),
+        ("overrisen_port", "button#head"),
+        ("outside_runtime", "button#head"),
+    ],
+)
+def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, protected):
+    """A scrollport declared to stand on its foot (`data-lf-rises`), as the floating
+    panel's thread view stands on its row, may rise at its head with its append source's growth, carrying all it holds
+    and its head up by that rise while the row beneath stays put; and no further. A text
+    it carries may change its words as it goes, as a message's state does."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<section id="stand" data-lf-runtime style="position:fixed;bottom:0;left:0;'
+            'width:360px"><header><button id="head">Close</button></header>'
+            '<div id="port" data-lf-rises '
+            'style="max-height:300px;overflow:auto;overflow-anchor:none">'
+            '<div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div></div>'
+            '<button id="field">Comment</button></section></body>'
+        )
+    )
+    if fault == "undeclared":
+        page.locator("#source").evaluate(
+            "node => node.removeAttribute('data-lf-reflow')"
+        )
+    if fault == "unstanding":
+        page.locator("#port").evaluate("node => node.removeAttribute('data-lf-rises')")
+    if fault == "outside_runtime":
+        page.locator("#stand").evaluate(
+            "node => node.removeAttribute('data-lf-runtime')"
+        )
+    paint(page)
+    boxes = """() => Object.fromEntries(['head', 'old', 'field'].map((id) =>
+      [id, document.getElementById(id).getBoundingClientRect().top]))"""
+    before = page.evaluate(boxes)
+    page.evaluate(
+        """fault => {
+          const next = document.createElement('p');
+          next.textContent = 'The answer.';
+          next.style.cssText = 'margin:0;height:40px';
+          document.getElementById('source').append(next);
+          if (fault === 'carried_words')
+            document.getElementById('old').firstChild.data = 'Read, and longer than it was.';
+          if (fault === 'extra_head')
+            document.querySelector('header').style.marginBottom = '7px';
+          if (fault === 'overrisen_port')
+            document.getElementById('port').style.paddingTop = '7px';
+        }""",
+        fault,
+    )
+    judge_watches()
+    after = page.evaluate(boxes)
+    assert after["field"] == before["field"]
+    if not protected:
+        assert after["head"] == before["head"] - 40
+        assert after["old"] == before["old"] - 40
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, protected), errors
+
+
 @pytest.mark.parametrize("overflow", ["visible", "auto"])
 def test_boxless_overflow_does_not_hide_carried_reading(browser, overflow):
     """Overflow on a display:contents wrapper cannot clip its visible descendants."""
@@ -941,7 +1020,11 @@ def test_append_reflow_does_not_credit_typing_that_carries_its_editor(browser):
     judge_watches()
     consume_browser_errors(
         page,
-        {"code": "typing-moved", "field": "textarea#field", "node": "textarea#field"},
+        {
+            "code": "typing-moved",
+            "field": ["textarea#field"],
+            "node": ["textarea#field"],
+        },
     )
 
 
@@ -1178,7 +1261,11 @@ def test_a_marked_page_watches_typing_and_unasked_shifts(browser):
     judge_watches()
     consume_browser_errors(
         carried,
-        {"code": "typing-moved", "field": "textarea#field", "node": "textarea#field"},
+        {
+            "code": "typing-moved",
+            "field": ["textarea#field"],
+            "node": ["textarea#field"],
+        },
     )
 
 
@@ -1352,7 +1439,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     judge_watches()
     moved = consume_browser_errors(page, {"code": "moved-without-input"})
     assert any(
-        "in shadow of lf-diff#patch" in error.values["node"] for error in moved
+        within(error.values["node"], "lf-diff#patch.lf-rendered") for error in moved
     ), moved
 
 
@@ -1739,7 +1826,11 @@ def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
             {
                 "code": "unchanged-write",
                 "what": "open",
-                "node": "details.lf-diff-fold in shadow of lf-diff#patch.lf-rendered",
+                "node": [
+                    "details.lf-diff-fold",
+                    "#shadow-root",
+                    "lf-diff#patch.lf-rendered",
+                ],
             },
         )
     assert page.lf_errors == []
@@ -1904,11 +1995,12 @@ def test_native_shift_evidence_survives_a_controlled_timer_clock(browser):
     consume_browser_errors(page, moved_within("textarea#field", by=[0, 40]))
 
 
-def test_a_native_resize_seals_typing_before_its_layout_even_with_controlled_time(
-    browser,
+@pytest.mark.parametrize("presentation", ["resize", "print", "color-scheme"])
+def test_a_native_presentation_change_seals_typing_before_its_layout(
+    browser, presentation
 ):
-    """Resize owns its new viewport layout; subsequent passive carry still fails."""
-    context = browser.new_context()
+    """Browser presentation owns its layout; subsequent passive carry still fails."""
+    context = browser.new_context(color_scheme="light")
     context.clock.set_fixed_time(datetime(2026, 10, 3, tzinfo=UTC).timestamp())
     page = context.new_page()
     page.set_viewport_size({"width": 900, "height": 600})
@@ -1919,14 +2011,20 @@ def test_a_native_resize_seals_typing_before_its_layout_even_with_controlled_tim
                 '<div id="above">',
                 '<div style="width:60%;margin:auto"><div id="above">',
             )
-            + "</div>"
+            + "</div><style>@media print, (prefers-color-scheme:dark) "
+            "{body > div {margin-left:0!important}}</style>"
         )
     )
     paint(page)
     page.clock.run_for(5000)
-    page.locator("#field").fill("Typed before resizing")
+    page.locator("#field").fill("Typed before presentation changes")
     before = page.locator("#field").bounding_box()
-    page.set_viewport_size({"width": 500, "height": 600})
+    if presentation == "resize":
+        page.set_viewport_size({"width": 500, "height": 600})
+    elif presentation == "print":
+        page.emulate_media(media="print")
+    else:
+        page.emulate_media(color_scheme="dark")
     paint(page)
     assert page.locator("#field").bounding_box()["x"] < before["x"] - 40
     judge_watches()
@@ -2241,7 +2339,7 @@ STARTUP</script></body>""".replace(
         assert any(
             term["branch"]
             == ("animation" if timeline == "document" else "scroll_animation")
-            and term["owner"] == "div#attachment"
+            and term["owner"] == ["div#attachment"]
             and term["axis"] == "top"
             and term["amount"] < 0
             for comparison in evidence["comparisons"]
@@ -2425,7 +2523,7 @@ def test_disposing_a_frame_releases_parent_input_without_unwatching_its_sibling(
     live.evaluate("element => { element.style.height = '40px'; }")
     judge_watches()
     consume_browser_errors(
-        page, {"code": "moved-without-input", "node": "#text in p#below"}
+        page, {"code": "moved-without-input", "node": ["#text", "p#below"]}
     )
 
 
@@ -2549,7 +2647,11 @@ def test_typing_keeps_its_field_when_chrome_reports_only_larger_sources(browser)
     judge_watches()
     consume_browser_errors(
         page,
-        {"code": "typing-moved", "field": "textarea#field", "node": "textarea#field"},
+        {
+            "code": "typing-moved",
+            "field": ["textarea#field"],
+            "node": ["textarea#field"],
+        },
     )
 
 
@@ -2577,7 +2679,9 @@ def test_a_retained_landmark_keeps_its_pose_when_a_new_sticky_owner_adopts_it(
     page.evaluate(PAINTED)
     judge_watches()
     errors = take_browser_errors(page)
-    assert any(f"{subject}#action" in error.values["node"] for error in errors), errors
+    assert any(within(error.values["node"], f"{subject}#action") for error in errors), (
+        errors
+    )
     assert {error.code for error in errors} == {"moved-without-input"}, errors
 
 
@@ -2707,8 +2811,8 @@ const scroller=host.shadowRoot.getElementById('scroller');</script>"""
             page,
             {
                 "code": "typing-moved",
-                "field": "textarea#field",
-                "node": "textarea#field",
+                "field": ["textarea#field"],
+                "node": ["textarea#field"],
             },
         )
         evidence = shift_evidence(errors[0])
@@ -2753,8 +2857,8 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
             page,
             {
                 "code": "typing-moved",
-                "field": "textarea#field",
-                "node": "textarea#field",
+                "field": ["textarea#field"],
+                "node": ["textarea#field"],
             },
         )
 
@@ -3456,8 +3560,8 @@ def test_a_delayed_native_frame_keeps_the_typing_origins_camera(browser, fault, 
             page,
             {
                 "code": "typing-moved",
-                "field": "textarea#field",
-                "node": "textarea#field",
+                "field": ["textarea#field"],
+                "node": ["textarea#field"],
             },
         )
 
@@ -3504,14 +3608,16 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
         error = next(
             e
             for e in errors
-            if is_problem(e, {"code": "moved-without-input", "node": "textarea#field"})
+            if is_problem(
+                e, {"code": "moved-without-input", "node": ["textarea#field"]}
+            )
         )
         evidence = shift_evidence(error)
         comparisons = evidence["comparisons"]
         assert any(
             term["branch"] == "native_anchor"
-            and term["owner"] == "textarea#field"
-            and term["inputs"]["anchor"] == "div#target"
+            and term["owner"] == ["textarea#field"]
+            and term["inputs"]["anchor"] == ["div#target"]
             and term["inputs"]["after"]["top"] - term["inputs"]["before"]["top"] == -20
             and term["inputs"]["layout_stable"]
             and term["axis"] == "top"
@@ -3597,14 +3703,16 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
         error = next(
             e
             for e in errors
-            if is_problem(e, {"code": "moved-without-input", "node": "textarea#field"})
+            if is_problem(
+                e, {"code": "moved-without-input", "node": ["textarea#field"]}
+            )
         )
         evidence = shift_evidence(error)
         if fault == "child":
             assert any(
                 abs(comparison["animation_credit"]["left"]) >= 1
                 and any(
-                    term["owner"] == "div#panel"
+                    term["owner"] == ["div#panel"]
                     and term["inputs"]["before"]["values"]
                     != term["inputs"]["after"]["values"]
                     for term in comparison["animation_terms"]
@@ -3705,7 +3813,7 @@ def test_an_unchanged_frame_misses_no_restyle(browser):
                 page,
                 {
                     "code": "shift-watch-missed",
-                    "node": "#text in p#unheard",
+                    "node": ["#text", "p#unheard"],
                     "changed": ["opacity"],
                     "others": 1,
                 },
@@ -3739,7 +3847,7 @@ def test_the_verdict_checks_a_change_the_test_ends_on(browser):
         page,
         {
             "code": "shift-watch-missed",
-            "node": "#text in p#unheard",
+            "node": ["#text", "p#unheard"],
             "changed": ["opacity"],
         },
     )

@@ -28,7 +28,6 @@ import {
   releaseFocus,
   renderedParent,
   renderedUnder,
-  sampleVisibility,
   shadowHost,
   sizeObserver,
   takesLetters,
@@ -76,9 +75,8 @@ var PAGE_PAINT_ATTRIBUTE = Object.freeze({
   goto: "data-lf-go-to-active",
   traffic: "data-lf-traffic",
   indicated: "data-lf-indicated",
-  // A breakout in a box the page arranged itself, which keeps to that box
-  // (prepaint.js, `indents`).
-  arranged: "data-lf-arranged",
+  // A breakout that keeps to its holder (prepaint.js, `breakouts`).
+  kept: "data-lf-kept",
   // Delivery's, not a runtime writer's: the size of the page media an element names
   // (revision_delivery.py, `mark_declared`).
   mediaWidth: "data-lf-media-width",
@@ -157,7 +155,6 @@ var nextNodeId = 0;
 var sending = false;
 var inFlightCount = 0;
 var scheduled = null;
-var retryTimer = null;
 var timestamp = () => (/* @__PURE__ */ new Date()).toISOString();
 var pagePath = (pathname) => pathname === root || pathname === `${root}/` ? "/" : pathname.startsWith(`${root}/`) ? pathname.slice(root.length) : pathname;
 function locator(node) {
@@ -188,7 +185,7 @@ function targetValue(target) {
   return {};
 }
 function describe(event) {
-  const path = event.composedPath?.() ?? [event.target];
+  const path = event.composedPath();
   const elements = path.filter((node) => node instanceof Element).slice(0, 8);
   const entry = {
     type: event.type,
@@ -279,95 +276,64 @@ function describe(event) {
     } : null;
   return entry;
 }
-function schedule() {
-  if (scheduled !== null || sending || retryTimer !== null || !queue.length) return;
+function schedule(delay = 250) {
+  if (scheduled !== null || sending || !queue.length) return;
   scheduled = setTimeout(() => {
     scheduled = null;
     void flush();
-  }, 250);
+  }, delay);
 }
-function groupEnd(start) {
-  const row = queue[start];
-  if (row.type !== "interaction_part") return start + 1;
-  let end = start + 1;
-  while (end < queue.length && queue[end].partOf === row.partOf) end++;
-  return end;
-}
-function evictableGroup(repetitiveOnly) {
-  let start = 0;
-  while (start < queue.length) {
-    const end = groupEnd(start);
-    if (start >= inFlightCount && (!repetitiveOnly || repetitive.has(queue[start].originalType ?? queue[start].type)))
-      return [start, end];
-    start = end;
+function append(row) {
+  if (queue.length >= MAX_PENDING_ENTRIES) {
+    let evict = queue.findIndex(
+      (entry, index) => index >= inFlightCount && entry.repetitive
+    );
+    if (evict < 0) {
+      if (row.repetitive) return;
+      evict = inFlightCount;
+      if (evict >= queue.length) return;
+    }
+    queue.splice(evict, 1);
   }
-  return null;
-}
-function append(rows) {
-  if (rows.length > MAX_PENDING_ENTRIES) return;
-  const repetitiveIncoming = repetitive.has(rows[0].originalType ?? rows[0].type);
-  while (queue.length + rows.length > MAX_PENDING_ENTRIES) {
-    const group = evictableGroup(true) ?? (!repetitiveIncoming && evictableGroup(false));
-    if (!group) return;
-    queue.splice(group[0], group[1] - group[0]);
-  }
-  queue.push(...rows);
+  queue.push(row);
 }
 function enqueue(entry) {
   if (!enabled) return;
-  const ts = timestamp();
-  const row = { ...entry, ts, sequence: nextSequence + 1 };
-  const serialized = JSON.stringify(row);
-  if (encoder.encode(serialized).length <= 4e4) {
-    nextSequence++;
-    append([row]);
-  } else {
-    const partOf = nextSequence + 1;
-    const parts = Math.ceil(serialized.length / 8e3);
-    if (parts > MAX_PENDING_ENTRIES) {
-      nextSequence += parts;
-      append([
-        {
-          type: "interaction_omitted",
-          originalType: entry.type,
-          ts,
-          sequence: ++nextSequence,
-          reason: "record_exceeds_backlog",
-          characters: serialized.length
-        }
-      ]);
-      schedule();
-      return;
-    }
-    const rows = [];
-    for (let part = 0; part < parts; part++)
-      rows.push({
-        type: "interaction_part",
-        originalType: entry.type,
-        ts,
-        sequence: ++nextSequence,
-        partOf,
-        part,
-        parts,
-        json: serialized.slice(part * 8e3, (part + 1) * 8e3)
-      });
-    append(rows);
+  const common = {
+    observed_at: timestamp(),
+    monotonic_ms: performance.now(),
+    visibility: document.visibilityState,
+    sequence: ++nextSequence
+  };
+  let body = JSON.stringify({ ...entry, ...common });
+  let bytes = encoder.encode(body).length;
+  if (bytes > 4e4) {
+    body = JSON.stringify({
+      ...common,
+      type: "interaction_omitted",
+      originalType: entry.type,
+      bytes,
+      reason: "record_exceeds_limit"
+    });
+    bytes = encoder.encode(body).length;
   }
+  append({ body, bytes, repetitive: repetitive.has(entry.type) });
   schedule();
 }
 function batch(start, maxBytes) {
-  const entries2 = [];
-  let body = "";
-  while (start + entries2.length < queue.length && entries2.length < 100) {
-    const candidate = JSON.stringify({
-      session,
-      entries: [...entries2, queue[start + entries2.length]]
-    });
-    if (entries2.length && encoder.encode(candidate).length > maxBytes) break;
-    entries2.push(queue[start + entries2.length]);
-    body = candidate;
+  const prefix = `{"session":${JSON.stringify(session)},"entries":[`;
+  let bytes = encoder.encode(prefix).length + 2;
+  let count = 0;
+  while (start + count < queue.length && count < 100) {
+    const size = queue[start + count].bytes + (count ? 1 : 0);
+    if (count && bytes + size > maxBytes) break;
+    bytes += size;
+    count++;
   }
-  return { entries: entries2, body };
+  return {
+    count,
+    body: `${prefix}${queue.slice(start, start + count).map((row) => row.body).join(",")}]}`
+  };
 }
 function post(body) {
   return fetch(url, {
@@ -381,28 +347,26 @@ function post(body) {
 async function flush() {
   if (sending || !queue.length) return;
   sending = true;
-  const { entries: entries2, body } = batch(0, 1e5);
-  inFlightCount = entries2.length;
+  const { count, body } = batch(0, 1e5);
+  inFlightCount = count;
+  let delay = 250;
   try {
     const response = await post(body);
     if (response.status >= 400 && response.status < 500) {
       console.error(
-        `Leaf interaction log rejected ${entries2.length} records: ${response.status}`
+        `Leaf interaction log rejected ${count} records: ${response.status}`
       );
-      queue.splice(0, entries2.length);
+      queue.splice(0, count);
       return;
     }
     if (!response.ok) throw new Error(`interaction log returned ${response.status}`);
-    queue.splice(0, entries2.length);
+    queue.splice(0, count);
   } catch {
-    retryTimer = setTimeout(() => {
-      retryTimer = null;
-      schedule();
-    }, 2e3);
+    delay = 2e3;
   } finally {
     inFlightCount = 0;
     sending = false;
-    schedule();
+    schedule(delay);
   }
 }
 function recordInteraction(type, detail = {}) {
@@ -481,28 +445,27 @@ if (enabled) {
       scroll: [window.scrollX, window.scrollY]
     });
   });
-  if (typeof window.PerformanceObserver !== "undefined") {
-    const observer = new window.PerformanceObserver((list) => {
-      for (
-        const resource of
-        /** @type {PerformanceResourceTiming[]} */
-        list.getEntries()
-      ) {
-        if (resource.name.startsWith(url)) continue;
-        const resourceUrl = new URL(resource.name);
-        if (pagePath(resourceUrl.pathname) === "/api/news") continue;
-        enqueue({
-          type: "resource",
-          path: pagePath(resourceUrl.pathname),
-          initiator: resource.initiatorType,
-          durationMs: resource.duration,
-          responseStatus: resource.responseStatus ?? null,
-          transferSize: resource.transferSize
-        });
-      }
-    });
-    observer.observe({ type: "resource", buffered: true });
-  }
+  const observer = new window.PerformanceObserver((list) => {
+    for (
+      const resource of
+      /** @type {PerformanceResourceTiming[]} */
+      list.getEntries()
+    ) {
+      if (resource.name.startsWith(url)) continue;
+      const resourceUrl = new URL(resource.name);
+      if (pagePath(resourceUrl.pathname) === "/api/news") continue;
+      enqueue({
+        type: "resource",
+        path: pagePath(resourceUrl.pathname),
+        initiator: resource.initiatorType,
+        durationMs: resource.duration,
+        // WebKit has no responseStatus.
+        responseStatus: resource.responseStatus ?? null,
+        transferSize: resource.transferSize
+      });
+    }
+  });
+  observer.observe({ type: "resource", buffered: true });
   enqueue({
     type: "session_start",
     location: `${pagePath(location.pathname)}${location.hash}`,
@@ -513,8 +476,8 @@ if (enabled) {
     "pagehide",
     () => {
       for (let start = 0; start < queue.length; ) {
-        const { entries: entries2, body } = batch(start, 48e3);
-        start += entries2.length;
+        const { count, body } = batch(start, 48e3);
+        start += count;
         void post(body).catch(() => {
         });
       }
@@ -528,7 +491,14 @@ var registry = runtime.registry;
 var tokenEntry = (name) => registry.$reactions.tokens[name];
 var elementDeclarations = () => Object.entries(registry).filter(([tag]) => isElementName(tag));
 function adoptRegistry(declarations) {
+  for (const [name, value] of Object.entries(declarations))
+    if (name.startsWith("$")) freeze(value);
   Object.assign(registry, declarations);
+}
+function freeze(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return;
+  for (const child of Object.values(value)) freeze(child);
+  Object.freeze(value);
 }
 var stateIndex;
 var recordSlot = (record) => JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
@@ -557,10 +527,7 @@ function indexedState() {
 }
 var stateSpecs = () => indexedState().specs;
 var recordedWidgetSelector = (record) => indexedState().recordSelectors.get(recordSlot(record)) ?? "";
-function layerFact(name) {
-  const value = registry[name];
-  return value === void 0 ? void 0 : structuredClone(value);
-}
+var layerFact = (name) => registry[name];
 var declarationFor = (el2, key) => registry[el2?.localName]?.[key];
 var decisionFor = (tag) => registry.$decisions[tag] ?? null;
 var elementsDeclaring = (root2, key, { direct = false } = {}) => {
@@ -672,10 +639,11 @@ var contextualRoute = (route, command) => ({
 var routedCommand = (route) => route?.[ROUTED_COMMAND] ?? null;
 var quickShortcuts = () => document.documentElement.lfKeyboard.quick;
 var setQuickShortcuts = (on) => document.documentElement.lfKeyboard.setQuick(on);
-var bindingEnabled = (binding) => {
+var bindingEnabledFor = (binding, quick) => {
   const { key, mods } = parsed(binding);
-  return quickShortcuts() || key.length !== 1 || key === " " || mods.some((mod) => mod !== "Shift");
+  return quick || key.length !== 1 || key === " " || mods.some((mod) => mod !== "Shift");
 };
+var bindingEnabled = (binding) => bindingEnabledFor(binding, quickShortcuts());
 var bindings = (row) => declaredBindings(row).filter(bindingEnabled);
 var commandEntries = (row, active = bindings(row), { includeUnavailable = false } = {}) => {
   const routes = commandRoutes(row);
@@ -1788,25 +1756,35 @@ function prune() {
   }
 }
 function pushNativeLayer(node, source = null) {
-  const at = entries.findIndex((entry) => entry.root === node);
+  const at = entries.findIndex((entry2) => entry2.root === node);
   const existing = at < 0 ? null : entries[at];
-  if (existing?.active()) return;
+  if (existing?.active()) return existing;
   prune();
   const holding = focused();
-  entries.push({
+  const entry = {
     root: node,
+    opening: !isNativeLayer(node),
     get kind() {
       return nativeLayerKind(node);
     },
-    active: () => isNativeLayer(node),
+    active() {
+      return this.opening || isNativeLayer(node);
+    },
     fromNowhere: !holding || holding === document.body,
     opener: holding && holding !== document.body ? holding : null,
     source
-  });
+  };
+  if (entry.opening)
+    queueMicrotask(() => {
+      entry.opening = false;
+    });
+  entries.push(entry);
+  return entry;
 }
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
+  if (entry) entry.opening = false;
   if (entry?.kind === "popover") {
     for (const layer of nativeLayers().toReversed())
       if (layer.kind === "modal" && renderedUnder(layer.root, event.target))
@@ -1816,14 +1794,21 @@ function closing(event) {
     releaseFocus();
 }
 HTMLDialogElement.prototype.showModal = function() {
-  if (nativeLayerKind(this) !== "modal") pushNativeLayer(this);
-  return nativeDialogShowModal.call(this);
+  const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
+  try {
+    return nativeDialogShowModal.call(this);
+  } finally {
+    if (entry) entry.opening = false;
+  }
 };
 HTMLElement.prototype.showPopover = function(options) {
   const opening = nativeLayerKind(this) !== "popover";
-  if (opening) pushNativeLayer(this);
-  nativePopoverShow.call(this, options);
-  const entry = opening && entries.find((candidate) => candidate.root === this);
+  const entry = opening ? pushNativeLayer(this) : null;
+  try {
+    nativePopoverShow.call(this, options);
+  } finally {
+    if (entry) entry.opening = false;
+  }
   if (entry && options?.source) entry.source = options.source;
 };
 function showNativeLayer(layer, { source, modal = true } = {}) {
@@ -2301,6 +2286,18 @@ function visibleBand(scroller, item = null) {
   const bottom = band.bottom - footerInset(item, scroller);
   return bottom > top ? { ...band, top, bottom } : null;
 }
+var OPEN = 1e5;
+function headerCuts(item, clips = /* @__PURE__ */ new Map()) {
+  return clipWalk(item, clips, false).cuts.filter(({ covered, footed }) => covered || footed).reverse().map(({ box, band, covered, footed }) => ({
+    box,
+    band: band && {
+      left: band.left - OPEN,
+      right: band.right + OPEN,
+      top: covered ? band.top : band.top - OPEN,
+      bottom: footed ? band.bottom : band.bottom + OPEN
+    }
+  }));
+}
 function stuckBox(node, within = null) {
   for (let el2 = node; el2?.nodeType === 1 && el2 !== within; el2 = renderedParent(el2))
     if (getComputedStyle(el2).position === "sticky" && sticks(el2)) return el2;
@@ -2400,25 +2397,8 @@ function frameView(frame2, within) {
     bottom: y2(shown.bottom)
   };
 }
-var FRAME_VIEW = /* @__PURE__ */ Symbol.for("leaf.frameView");
-Object.defineProperty(document, FRAME_VIEW, {
-  value: (frame2) => {
-    const within = presented(frame2) && containingView();
-    return within ? frameView(frame2, within) : null;
-  }
-});
-var holdingFrame = () => sampleVisibility() ? null : window.frameElement;
-function containingView() {
-  const frame2 = holdingFrame();
-  if (!frame2) return window === window.top ? layoutWindow() : null;
-  return frame2.ownerDocument[FRAME_VIEW]?.(frame2) ?? null;
-}
 var ROOM_MOVED = "lf-room-moved";
 var announceRoom = (target) => target.dispatchEvent(new Event(ROOM_MOVED, { bubbles: true, composed: true }));
-var WATCH_ROOM = /* @__PURE__ */ Symbol.for("leaf.watchRoom");
-Object.defineProperty(document, WATCH_ROOM, {
-  value: (callback) => watchRoom(callback)
-});
 function watchRoom(callback) {
   const viewport = window.visualViewport;
   const listening = [
@@ -2437,25 +2417,6 @@ function watchRoom(callback) {
         target.removeEventListener(type, callback, capture);
     }
   ];
-  const frame2 = holdingFrame();
-  const holder = frame2?.ownerDocument[WATCH_ROOM];
-  if (holder) {
-    const moves = new frame2.ownerDocument.defaultView.IntersectionObserver(callback, {
-      threshold: [0, 1]
-    });
-    moves.observe(frame2);
-    const unhold = holder(callback);
-    const leave = (event) => {
-      if (!event.persisted) stopHolding();
-    };
-    const stopHolding = () => {
-      moves.disconnect();
-      unhold();
-      window.removeEventListener("pagehide", leave);
-    };
-    window.addEventListener("pagehide", leave);
-    stops.push(stopHolding);
-  }
   return () => {
     for (const stop of stops) stop();
   };
@@ -2617,6 +2578,7 @@ function clipWalk(item, clips, held) {
         axes: c.axes,
         scrolls: c.scrolls,
         covered: c.axes.y && covered > c.band.top,
+        footed: c.axes.y && footed < c.band.bottom,
         band: c.axes.y && covered >= footed ? null : c.axes.y ? { ...c.band, top: covered, bottom: footed } : c.band
       });
     }
@@ -2819,7 +2781,6 @@ function el(tag, cls, text) {
   if (text !== void 0) node.textContent = text;
   return node;
 }
-var HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 var hands = M(/* @__PURE__ */ new Set());
 var dragHeld = () => hands.value.size > 0;
 var dragging = (el2, on) => {
@@ -3029,9 +2990,9 @@ var presentNotice = (message, visible) => {
   else afterScript(presentAll);
 };
 function announce(msg) {
-  liveEl.replaceChildren();
+  if (liveEl.firstChild) liveEl.replaceChildren();
   setTimeout(() => {
-    liveEl.replaceChildren();
+    if (liveEl.firstChild) liveEl.replaceChildren();
     liveEl.append(msg);
   }, 30);
 }
@@ -3172,6 +3133,8 @@ function layerHeaders(headers = {}) {
     ...headers
   };
 }
+var dataHeaders = (held) => held.version === null ? {} : { "Leaf-Data-Version": held.version };
+var completeData = (state, held) => state && !state.data.sources ? { ...state, data: held } : state;
 var LayerRefused = class extends Error {
 };
 async function requestJson(url2, init, what) {
@@ -3217,7 +3180,7 @@ function admitResponse(response) {
   return true;
 }
 var sessionMode = release ? "unknown" : "active";
-var sessionChannel = release && !document.documentElement.lfSample && typeof window.BroadcastChannel !== "undefined" ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`) : null;
+var sessionChannel = release && !document.documentElement.lfSample ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`) : null;
 function activateSession(broadcast) {
   const activated = sessionMode !== "active";
   sessionMode = "active";
@@ -3240,7 +3203,7 @@ function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
 var { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
-var postEvent = async (event) => {
+var postEvent = async (event, held = runtime.data) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
@@ -3251,7 +3214,8 @@ var postEvent = async (event) => {
     response = await fetch(pageUrl("api/event"), {
       method: "POST",
       headers: layerHeaders({
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        ...dataHeaders(held)
       }),
       body: JSON.stringify(event)
     });
@@ -3391,6 +3355,7 @@ export {
   routedCommand,
   quickShortcuts,
   setQuickShortcuts,
+  bindingEnabledFor,
   bindingEnabled,
   bindings,
   commandEntries,
@@ -3501,6 +3466,7 @@ export {
   scrollsContent,
   headerInset,
   visibleBand,
+  headerCuts,
   stuckBox,
   landingBand,
   landingInsets,
@@ -3512,7 +3478,6 @@ export {
   seenRect,
   presented,
   frameView,
-  containingView,
   announceRoom,
   watchRoom,
   growthIsSeen,
@@ -3538,7 +3503,6 @@ export {
   iconElement,
   reveal,
   el,
-  HIDDEN,
   dragHeld,
   dragging,
   LAYOUT,
@@ -3565,6 +3529,8 @@ export {
   holdStatus,
   setNoticeContext,
   layerHeaders,
+  dataHeaders,
+  completeData,
   LayerRefused,
   requestJson,
   sameLayer,

@@ -41,10 +41,12 @@ const packageVendor = (name) => `skills/leaf/packages/${name}/vendor`;
 const input = (file) => path.join(root, "build", file);
 
 /** Expose selected installed exports without sharing a broad barrel's unused imports. */
-function selectedExports(source, entry) {
+function selectedExports(source, entries, specifier) {
   const options = { ecmaVersion: "latest", sourceType: "module" };
-  const names = parse(readFileSync(entry, "utf8"), options).body.flatMap((node) =>
-    node.specifiers.map((item) => item.local.name),
+  const names = entries.flatMap((entry) =>
+    parse(readFileSync(entry, "utf8"), options)
+      .body.filter((node) => node.source?.value === specifier)
+      .flatMap((node) => node.specifiers.map((item) => item.local.name)),
   );
   const body = parse(source, options).body;
   const published = body
@@ -157,6 +159,16 @@ const bundles = {
   // there answers `host` with its URL's host string. SnapDOM 3.3.0 to 3.3.3 then use
   // that string as a WeakMap key, so a removed link throws from the observer, an
   // uncaught page error. Climb only from an element whose parent is a shadow root.
+  //
+  // A fixed or sticky box keeps its place in the capture because SnapDOM rewrites its
+  // clone to an absolute box at the place it is painted. SnapDOM 3.3.0 to 3.3.4 rewrite
+  // only HTML elements, so an outer `<svg>`, which is a CSS box like any other, keeps
+  // `position: fixed` and lands at its viewport offset from the top of the document,
+  // outside a crop of the scrolled page. Rewrite an outer `<svg>` too.
+  //
+  // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
+  // SnapDOM then warns on the console that text may wrap differently. The capture's own
+  // `warnings` keep that notice; the console copy would read as a page problem.
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -165,10 +177,20 @@ const bundles = {
         file: /@zumer\/snapdom\/dist\/snapdom\.mjs$/,
         edit: (source) =>
           seam(
-            source,
-            "for(;r;r=r.parentElement||r.getRootNode?.()?.host)",
-            "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))",
-            "SnapDOM mutation-ancestor",
+            seam(
+              seam(
+                source,
+                "for(;r;r=r.parentElement||r.getRootNode?.()?.host)",
+                "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))",
+                "SnapDOM mutation-ancestor",
+              ),
+              "for(let[a,c]of n){if(!Rt(a)||c?.nodeType!==1",
+              'for(let[a,c]of n){if(!(Rt(a)||It(a)&&a.localName==="svg"&&!It(c?.parentNode))||c?.nodeType!==1',
+              "SnapDOM fixed-box rewrite",
+            ),
+            'I.warnedReconcile||(I.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
+            "I.warnedReconcile=!0",
+            "SnapDOM reconcile console warning",
           ),
       },
     ],
@@ -213,6 +235,58 @@ const bundles = {
     entry:
       'export { default as MarkdownIt } from "markdown-it";\n' +
       'export { default as taskLists } from "markdown-it-task-lists";\n',
+    // Record block syntax where native rules consume it. Public maps expose only
+    // lines; guessing delimiters again disagrees with containers and code content.
+    adapt: [
+      {
+        file: /markdown-it\/dist\/markdown-it\.mjs$/,
+        edit: (source) =>
+          [
+            [
+              "var StateBlock = class {",
+              `function sourceSpan(state, line, from, to) {
+                const start = state.src.lastIndexOf("\\n", from - 1) + 1;
+                return [line, from - start, to - start];
+              }
+              var StateBlock = class {`,
+            ],
+            [
+              'const token = state.push("fence", "code", 0);',
+              `const token = state.push("fence", "code", 0);
+          token.meta = { markers: [sourceSpan(state, startLine, state.bMarks[startLine] + state.tShift[startLine], state.eMarks[startLine])] };
+          if (haveEndMarker) token.meta.markers.push(sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], state.eMarks[nextLine]));`,
+            ],
+            [
+              'token_o.markup = "########".slice(0, level);',
+              `token_o.meta = { markers: [sourceSpan(state, startLine, state.bMarks[startLine] + state.tShift[startLine], state.skipSpaces(pos)), sourceSpan(state, startLine, max, state.eMarks[startLine])] };
+          token_o.markup = "########".slice(0, level);`,
+            ],
+            [
+              "token_o.markup = String.fromCharCode(marker);",
+              `token_o.meta = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], state.eMarks[nextLine])] };
+          token_o.markup = String.fromCharCode(marker);`,
+            ],
+            ["const oldBMarks = [];", "const markers = []; const oldBMarks = [];"],
+            [
+              "oldBMarks.push(state.bMarks[nextLine]);\n\t\t\tstate.bMarks[nextLine] = pos;",
+              "markers.push(sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], pos));\n\t\t\toldBMarks.push(state.bMarks[nextLine]);\n\t\t\tstate.bMarks[nextLine] = pos;",
+            ],
+            [
+              'token_o.markup = ">";',
+              'token_o.meta = { markers }; token_o.markup = ">";',
+            ],
+            [
+              'token = state.push("list_item_open", "li", 1);',
+              `token = state.push("list_item_open", "li", 1);
+          token.meta = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], Math.min(posAfterMarker + 1, contentStart))] };`,
+            ],
+          ].reduce(
+            (text, [original, replacement]) =>
+              seam(text, original, replacement, "Markdown block source"),
+            source,
+          ),
+      },
+    ],
   }),
 
   // Load the viewer with its own styles in one optional, exportable module.
@@ -433,48 +507,6 @@ const bundles = {
     entry: 'export { default as DBSCAN } from "density-clustering/lib/DBSCAN.js";\n',
   }),
 
-  // The optional DOM renderer loaded when a composer first carries a drawing.
-  //
-  // Every source needs computed styles and the requested crop. Upstream skips both
-  // for resource-free SVG roots, returning the live SVG before any clone hook runs;
-  // removing that shortcut sends SVG down the dependency's ordinary foreignObject
-  // path. A sample's opaque origin cannot read the nested scratch iframe; the
-  // dependency already uses an empty default-style map when no iframe exists, and
-  // copying all computed properties is the same safe fallback there.
-  "drawing-context": () => ({
-    out: `${assets}/vendor/drawing-context.esm.js`,
-    entry: 'export { domToCanvas } from "modern-screenshot";',
-    adapt: [
-      {
-        file: /modern-screenshot\/dist\/index\.mjs$/,
-        edit: (source) =>
-          seam(
-            seam(
-              source,
-              "  if (isElementNode(context.node) && isSVGElementNode(context.node) && !svgHasExternalResources(context.node))\n    return context.node;\n",
-              "",
-              "modern-screenshot's SVG shortcut",
-            ),
-            "  const sandboxDocument = sandboxWindow?.document;\n",
-            `  let sandboxDocument;
-  try {
-    sandboxDocument = sandboxWindow?.document;
-  } catch (error) {
-    if (error?.name !== "SecurityError") throw error;
-    // A sample's opaque origin cannot read the nested scratch iframe. The
-    // dependency already uses an empty default-style map when no iframe exists;
-    // copying all computed properties is the same safe fallback here.
-    const styles = new Map();
-    defaultComputedStyles.set(key, styles);
-    return styles;
-  }
-`,
-            "modern-screenshot's scratch iframe",
-          ),
-      },
-    ],
-  }),
-
   // Observable Plot, which lf-chart hands a page's author. Nothing published is
   // loadable as it stands: `src/index.js` imports d3 by bare specifier,
   // `dist/plot.umd.min.js` reads a `d3` global the page would have to load first, and
@@ -500,22 +532,71 @@ const bundles = {
   // `syntax.esm.js`, and Pierre's theme registry binds to Leaf's theme shim.
   // The unused WASM import carries no binary or separate module.
   pierre: () => ({
-    out: `${packageVendor("diff")}/pierre-diffs.esm.js`,
+    out: `${packageVendor("default")}/pierre-diffs.esm.js`,
     entryPoints: {
       "pierre-diffs.esm": input("pierre/entry.mjs"),
       "pierre-parser.esm": input("pierre/parser.mjs"),
     },
-    outdir: packageVendor("diff"),
+    outdir: packageVendor("default"),
+    place: {
+      [`${packageVendor("default")}/pierre-parser.esm.js`]: `${packageVendor("diff")}/pierre-parser.esm.js`,
+    },
     splitting: true,
     chunkNames: "pierre/[name]-[hash]",
     adapt: [
       {
+        file: /@pierre\/diffs\/dist\/managers\/ResizeManager\.js$/,
+        // Leaf seats wrapping conversations in Pierre's code grid. Its column
+        // widths can change those conversations' height, including the observed
+        // code/gutter boxes. Apply them in Leaf's next frame, outside ResizeObserver
+        // delivery, so readiness includes the resulting layout. The manager lookup
+        // at delivery drops retired nodes, so a file
+        // removed before that frame receives no writes. This is Leaf's integration
+        // adaptation, not an upstream backport.
+        edit: (source) => {
+          source = seam(
+            source,
+            "\t\tif (columnCount > 1 && !disableAnnotations) {",
+            `		// Pierre's code and gutter have no inline padding or border: their CSS
+		// widths are the content widths the observer will report. Initialize
+		// through the same update path before a wrapping conversation paints.
+		// No layout box has zero content width, as in ResizeObserver's reading;
+		// computed width can be "auto" while a file's ancestor is hidden.
+		const columnInlineSize = element => element == null || !element.getClientRects().length
+			? 0 : parseFloat(getComputedStyle(element).width);
+		this.applyColumnUpdates(new Map([...new Set(this.observedNodes.values())]
+			.filter(item => item.type === "code")
+			.map(item => [item, {
+				codeInlineSize: columnInlineSize(item.codeElement),
+				numberInlineSize: columnInlineSize(item.numberElement)
+			}])));
+		if (columnCount > 1 && !disableAnnotations) {`,
+            "Pierre initial column sizing",
+          );
+          return (
+            'import {nextFrame as leafNextFrame} from "/runtime/widget-api.js";\n' +
+            seam(
+              source,
+              "new ResizeObserver(ResizeManager.handleSharedResizeEntries)",
+              "new ResizeObserver((entries) => leafNextFrame(() => ResizeManager.handleSharedResizeEntries(entries)))",
+              "Pierre resize delivery phase",
+            )
+          );
+        },
+      },
+      {
         file: /@pierre\/diffs\/dist\/index\.js$/,
-        edit: (source) => selectedExports(source, input("pierre/parser.mjs")),
+        edit: (source) =>
+          selectedExports(
+            source,
+            [input("pierre/parser.mjs"), input("pierre/entry.mjs")],
+            "@pierre/diffs",
+          ),
       },
       {
         file: /@pierre\/diffs\/dist\/ssr\/index\.js$/,
-        edit: (source) => selectedExports(source, input("pierre/entry.mjs")),
+        edit: (source) =>
+          selectedExports(source, [input("pierre/entry.mjs")], "@pierre/diffs/ssr"),
       },
       {
         file: /@pierre\/diffs\/dist\/highlighter\/shared_highlighter\.js$/,
@@ -529,6 +610,7 @@ const bundles = {
       },
     ],
     platform: "browser",
+    external: ["/runtime/widget-api.js"],
     target: "chrome105",
     banner: {
       js: `/*! @pierre/diffs ${version("@pierre/diffs")} — Apache-2.0 — licenses: pierre-diffs.LICENSES.txt */`,
@@ -574,6 +656,34 @@ const bundles = {
             'this.#searchMode !== "hide-non-matches"',
             "Trees empty search-result visibility",
           ),
+      },
+      {
+        file: /@pierre\/trees\/dist\/render\/FileTreeView\.js$/,
+        // Retain is the persistent-filter policy: blur, pointer activation, and
+        // Enter keep the query; Escape remains its explicit dismissal route.
+        edit: (source) => {
+          source = seam(
+            source,
+            'if (searchBlurBehavior === "retain" && !searchInputUserInteractedRef.current) return;',
+            'if (searchBlurBehavior === "retain") return;',
+            "Trees retained search on blur",
+          );
+          source = seam(
+            source,
+            "if (plan.closeSearch) controller.closeSearch();",
+            'if (plan.closeSearch && searchBlurBehavior !== "retain") controller.closeSearch();',
+            "Trees retained search on pointer activation",
+          );
+          // A retained filter is hosted navigation: yield Enter to the exact
+          // control's declared command instead of swallowing it in the model.
+          // Search arrows and Escape keep their ordinary upstream behavior.
+          return seam(
+            source,
+            'if (isSearchOpen) {\n\t\t\tif (event.key === "Escape")',
+            'if (isSearchOpen) {\n\t\t\tif (event.key === "Enter" && searchBlurBehavior === "retain") return;\n\t\t\tif (event.key === "Escape")',
+            "Trees retained-search Enter delegation",
+          );
+        },
       },
       {
         file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,

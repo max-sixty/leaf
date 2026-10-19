@@ -6,8 +6,9 @@ name: ci
 # - a pull request runs `model`, `process` and `smoke`, plus the `browser` and
 #   `journeys` tests it edits, and the website gate;
 # - a push to main adds `browser`;
-# - the daily schedule and a manual dispatch run every test, and their summary lists
+# - the daily schedule and a manual dispatch run every product test, and their summary lists
 #   the tests over their directory's budget.
+# Developer-tool tests live in dev/tests and are opt-in, outside every CI selection.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
   push:
@@ -101,7 +102,7 @@ jobs:
 
       # The bundles build from the installed lock, so a rebuild reproduces the
       # tracked bytes exactly and any difference is a lock nobody rebuilt from.
-      - name: Check bundles, browser, runtime, Worker and eval assertions
+      - name: Check bundles, browser, runtime and Worker
         run: pnpm run check
 
       - uses: actions/cache@v6
@@ -146,7 +147,7 @@ jobs:
           trap '' INT
           export PYTHONUNBUFFERED=1
           # Each worker charges its tests' CPU to a cgroup of its own under this one
-          # (`dev/leaf_dev/suite_profile.py`). Owning it lets the workers make and join
+          # (`dev/leaf_dev/commands/suite_profile.py`). Owning it lets the workers make and join
           # theirs without root, and this shell joins it so pytest starts inside.
           export SUITE_PROFILE_CGROUP=/sys/fs/cgroup/leaf-suite
           sudo mkdir "$SUITE_PROFILE_CGROUP"

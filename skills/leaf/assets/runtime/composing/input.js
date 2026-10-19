@@ -47,20 +47,24 @@ import {
   PRESS,
 } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
-import { announce, notice } from "../notifications.js";
+import { announce } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
-import { LitElement, html } from "/vendor/browser-runtime.js";
+import { LitElement, html, render as renderHint } from "/vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
 import { whileConnected } from "../arrivals.js";
 import { move } from "../dom-move.js";
 import { applicationState } from "../semantic-state.js";
+import { raiseError } from "../errors.js";
 
 const inputDrafts = new WeakMap();
 
 const MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
+// Another tab's copy of a drawing is a different object holding the same strokes.
+const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+let thumbnailVersion = 0;
 
 // What the draft carries beside its words: the drawing a stroke attached, then each attached
 // image. Each shows itself rather than its transport and each comes off with its own
@@ -81,12 +85,24 @@ class AttachedMediaShelf extends LitElement {
     this.removeIcon = iconElement("cross", "lf-action-icon");
     // The picture is rebuilt only when the drawing changes, so a repaint that changes
     // nothing about it leaves its node in place.
-    this.pictured = { drawing: null, node: null };
+    this.pictured = { drawing: null, target: null, node: null };
   }
 
   picture(drawing) {
-    if (drawing !== this.pictured.drawing)
-      this.pictured = { drawing, node: drawingThumbnail(drawing, this.model.target) };
+    if (
+      !sameDrawing(drawing, this.pictured.drawing) ||
+      this.model.target !== this.pictured.target
+    ) {
+      const node = drawingThumbnail(drawing, this.model.target);
+      // A canvas's changed pixels are not reflected in its markup. Give each rebuilt
+      // picture an identity so DOM readers can distinguish its new ink from the old.
+      node.dataset.lfDrawingVersion = String(++thumbnailVersion);
+      this.pictured = {
+        drawing,
+        target: this.model.target,
+        node,
+      };
+    }
     return this.pictured.node;
   }
 
@@ -231,6 +247,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     ta,
     {
       hint,
+      // A structured visual hint can mark the exact words its owner observes. It
+      // shares the existing placeholder slot and send key; null keeps the plain hint.
+      hintParts = null,
       accessibleName = null,
       save,
       send,
@@ -240,7 +259,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       altBtn = null,
       altSend = null,
       // `true` to take an attached image; otherwise the sentence the user is told instead.
-      allowsMedia = () => true,
+      // True, or why the box takes no image.
+      allowsMedia = /** @type {() => true | string} */ (() => true),
       busy = () => false,
       hasContent = (raw) => Boolean(raw),
       // The caller's own rendering of what the box holds, run in the box's paint.
@@ -277,6 +297,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     visibleHint.append(hintLabel, hintKey);
     field.append(ta);
     (submitIn ?? field).append(sendBtn);
+    // Firefox lacks speech recognition; WebKit has it only under its prefix.
     const Recognition =
       globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
     const mic =
@@ -337,8 +358,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // reaches across drafts or takes back another tab's change.
     let shelfSeen = null;
     let arrivals = 0;
-    // Another tab's copy of the same drawing is a different object holding the same one.
-    const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
     const putDrawing = (drawn) => {
       shelfSeen = { ...shelfSeen, drawing: drawn };
       drawing.replace(drawn);
@@ -415,6 +434,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const label = () => (typeof hint === "function" ? hint() : hint);
     const name = () =>
       typeof accessibleName === "function" ? accessibleName() : accessibleName;
+    // The field can become visible before its first scheduled paint. Give a static
+    // name to the native control in the task that constructs it.
+    const initialName = name();
+    if (initialName) keeps(ta, "aria-label", initialName);
     const sendWord = () => (typeof sends === "function" ? sends() : sends);
     const sendLabel = () => {
       const word = sendWord();
@@ -442,8 +465,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const word = status || label();
       const placeholder = suffix && !status ? `${word} ${suffix}` : word;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-      if (suffix && !status) {
-        keepsText(hintLabel, word);
+      const parts = status ? null : hintParts?.();
+      if (hintParts) renderHint(parts ?? word, hintLabel);
+      if ((suffix && !status) || (parts !== null && parts !== undefined)) {
+        if (!hintParts) keepsText(hintLabel, word);
         keepsText(hintKey, suffix);
         if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();
@@ -557,12 +582,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (sending || uploading || busy()) return;
       cancelDictation();
       // A send key on an empty box answered with silence reads as a send that
-      // happened — the blind drive believed exactly that. Say the nothing out loud
-      // (the notice announces too).
+      // happened — the blind drive believed exactly that. Say the nothing out loud; the
+      // empty box already shows it to anyone who sees it.
       const raw = draftValue();
       const text = raw.trim();
       if (!hasContent(raw))
-        return notice(`Nothing to ${sendWord()} — the box is empty`);
+        return announce(`Nothing to ${sendWord()} — the box is empty`);
       sending = true;
       refresh();
       try {
@@ -663,7 +688,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       cancelDictation();
       const allowed = allowsMedia();
       if (allowed !== true) {
-        notice(allowed);
+        raiseError(allowed, { subject: ta });
         return false;
       }
       rememberWriting(ta);
@@ -672,22 +697,29 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       ta.readOnly = true;
       ta.setAttribute("aria-busy", "true");
       refresh();
-      notice(images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`);
+      // The thumbnail arriving in the shelf is the attachment's result, so only a
+      // listener is told; a failure, which shows nothing, is a notice.
+      announce(
+        images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`,
+      );
       const attachedAt = arrivals;
       try {
         const paths = await Promise.all(images.map((image) => uploadMedia(image)));
         if (paths.some((path) => path === null)) return false;
         if (arrivals !== attachedAt) {
-          notice("Image not added — the comment moved before it finished uploading");
+          raiseError(
+            "Image not added — the comment moved before it finished uploading",
+            { subject: ta },
+          );
           return false;
         }
         attachedMedia.push(...paths);
         renderMedia();
         draftChanged();
-        notice(images.length === 1 ? "Image added" : `${images.length} images added`);
+        announce(images.length === 1 ? "Image added" : `${images.length} images added`);
         return true;
       } catch (error) {
-        notice(`Could not add image — ${error?.message ?? error}`);
+        raiseError(`Could not add image — ${error?.message ?? error}`, { subject: ta });
         return false;
       } finally {
         uploading = false;

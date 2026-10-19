@@ -4,10 +4,10 @@ metadata:
   purpose: Compose and revise a document; inspect its rendered output against the
     request and, on Leaf, read and preserve a user choice on that page.
   tags:
-  - workflow
+    - workflow
   conditions:
-  - leaf
-  - html
+    - leaf
+    - html
   executor: leaf_dev.arrangement_eval
   scenario: document
 variants:
@@ -17,39 +17,39 @@ variants:
       scenario: resume
       purpose: Resume a document with decisions in force.
       conditions:
-      - leaf
+        - leaf
   decision:
     metadata:
       executor: leaf_dev.usability_eval
       scenario: cold-decision
       purpose: Offer one evidence-backed decision.
       conditions:
-      - leaf
+        - leaf
   handoff:
     metadata:
       executor: leaf_dev.usability_eval
       scenario: handoff
       purpose: Hand off and answer successive user rounds.
       conditions:
-      - leaf
+        - leaf
   elided:
     metadata:
       executor: leaf_dev.usability_eval
       scenario: elided
       purpose: Recover the premise of an elided thread.
       conditions:
-      - leaf
+        - leaf
   idle:
     metadata:
       executor: leaf_dev.delivery_eval
       scenario: idle
       purpose: Answer feedback arriving between turns.
       conditions:
-      - leaf
+        - leaf
   mid-turn:
     metadata:
       executor: leaf_dev.delivery_eval
       scenario: mid-turn
       purpose: Answer feedback arriving during work.
       conditions:
-      - leaf
+        - leaf

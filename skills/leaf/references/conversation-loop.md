@@ -7,12 +7,12 @@ event's `handling`. A chat response does not change the page.
 
 The user follows your work on the page:
 
-| Surface | What it shows | Written by |
-| --- | --- | --- |
-| Banner | one sentence for the whole page: the line of the item you started last, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
+| Surface                   | What it shows                                                                                                   | Written by                                                                |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Banner                    | one sentence for the whole page: the line of the item you started last, or what you want back                   | `leaf task start`, `leaf status <page> waiting "<detail>"`                |
 | Beside a thread or widget | **Working** and your line: the thread's working message above its reply box, or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread | your answer to the user's message, with the progress before it folded behind it | the response operation named by delivered `handling` |
-| Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
+| Thread                    | your answer to the user's message, with the progress before it folded behind it                                 | the response operation named by delivered `handling`                      |
+| Page                      | the revised content in place, and a stamp's changelog                                                           | saving `index.html`, `leaf page stamp`                                    |
 
 Leaf marks each update **Sent**, **Queued**, and **Picked up** by itself. Your
 harness may add its current step to the banner.
@@ -180,19 +180,18 @@ On me also lists any update of the user's that failed to send. Your own list sho
 press lands where the item is answered; on a widget ask, its numbered actions
 (`1`–`9`) answer it there.
 
-| Request | Register it | What answers it |
-| --- | --- | --- |
-| A decision or input recorded by a widget | Author a decision widget (`authoring-asks.md`); optional `lf-ask` frames its question and evidence | The widget's declared answer; a multiple-choice ask also needs the user's Done |
-| A conversational answer | Open an agent thread with the question, or add `--ask` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
-| Required version sign-off | Declare sign-off and stamp the version (`authoring-asks.md`, "Sign-off") | That version's banner approval |
+| Request                                                                         | Register it                                                                                                     | What answers it                                                                       |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| A decision or input recorded by a widget                                        | Author a decision widget (`authoring-asks.md`); optional `lf-ask` frames its question and evidence              | The widget's declared answer; a multiple-choice ask also needs the user's Done        |
+| A conversational answer                                                         | An `lf-ask` holding the question, with no widget inside, in a reply's or new thread's markup (`threads.md`)     | The user's next message there or a settling reaction                                  |
+| Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-asks.md`, "Sign-off")                                        | That version's banner approval                                                        |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
-Ask ids are `widget:<widget-id>` for a widget ask, `reply:<message-id>` for a prose
-ask, and `approval:v<version>` for a version's sign-off. A to-do on the user keeps
-the id `task open` printed. It cannot sit on a thread, so in a thread ask with
-`--ask`. When a thread holds several prose asks, the latest unanswered one is the
-current request, and the user's next reply there answers all of them. Ask a
-dependent question only once its prerequisite is answered. The user's Done on a
+Ask ids are `widget:<widget-id>` for a widget, `lf-ask` included, and
+`approval:v<version>` for a version's sign-off. A to-do on the user keeps the id
+`task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
+The user's next message in a thread answers every question asked before it there.
+Ask a dependent question only once its prerequisite is answered. The user's Done on a
 to-do says they did it; it grants nothing its question did not ask.
 
 Read the lists before a handoff, before waiting for the user, and after taking in an
@@ -219,9 +218,10 @@ unblock it, and leave questions about another session's work to that session.
 
 When the user answers in chat or elsewhere, use the answer and retire the page's ask
 in a revision (`authoring-revisions.md`), or end their to-do with `leaf task end`. End
-a prose ask answered elsewhere `done`, or `dropped` when it no longer applies:
+a question in a thread answered elsewhere `done`, or `dropped` when it no longer
+applies:
 
 ```bash
-leaf task end <page> reply:<message-id> done "<where the answer is>"
-leaf task end <page> reply:<message-id> dropped "<why>"
+leaf task end <page> widget:<lf-ask-id> done "<where the answer is>"
+leaf task end <page> widget:<lf-ask-id> dropped "<why>"
 ```

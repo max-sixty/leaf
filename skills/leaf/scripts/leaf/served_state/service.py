@@ -141,15 +141,15 @@ class LivePage:
     def news(self) -> str:
         """The token, after renewing the user lease: only this explicit attention
         door proves a user is looking."""
+        files = served_reading.page_reading(self.page_dir)
         reading = served_reading.join_reading(
-            served_reading.page_reading(self.page_dir),
-            presence_model.presence_reading(self.page_dir),
+            files, presence_model.presence_reading(self.page_dir, files)
         )
         presence_model.renew_viewed(self.page_dir)
         return reading
 
     def other_pages(self) -> list[dict]:
-        return presence_model.other_leaves(self.page_dir)
+        return presence_model.neighbor_reading(self.page_dir)
 
     @contextmanager
     def state_read(self, *, with_token: bool = False):
@@ -229,7 +229,7 @@ class PageStateService:
         ):
             work = context.work
             title = (
-                context.revision(context.active["revision"]).document.title
+                context.revision(context.active["revision"]).document.authoring.title
                 if context.active is not None
                 else ""
             )

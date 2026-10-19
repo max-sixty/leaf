@@ -279,8 +279,8 @@ export const showsWords = (block) =>
 // marks itself `data-lf-runtime`, so the reading travels with the node rather than with
 // the place it stands. A press mode that comments on or chooses the page leaves these
 // working.
-export const leafSurface = (node) =>
-  node ? closestAcross(node, ".lf-chrome, [data-lf-runtime]") : null;
+export const LEAF_SURFACE = ".lf-chrome, [data-lf-runtime]";
+export const leafSurface = (node) => (node ? closestAcross(node, LEAF_SURFACE) : null);
 // The two together, which is what an affordance acting on where the pointer or the caret
 // is actually needs: the page's own words, as against the layer over them and as against
 // the apparatus inside them. Either half alone leaves a hole, and the hole `.lf-ui` left
@@ -668,6 +668,10 @@ export const elementById = (id, root = document) => {
 // here, so markup a message quotes neither answers for the page nor reaches into it.
 // `doc` is a parsed revision's document, where a version reads its authored `main`.
 export const pageDocument = (doc = document) => doc.querySelector("body > main");
+// The box the page's Layout arranges: `main`, or the shown child of a `main` that carries
+// no Layout itself (layouts.css, `--lf-layout-box`). The margin, the rail and the
+// Layout's regions read this box; the authored content is still `pageDocument`.
+export const layoutBox = () => document.documentElement.lfInitial.layoutBox();
 export const authoredScope = (node) =>
   closestAcross(node, ".lf-msg-body") ?? pageDocument();
 
@@ -715,11 +719,9 @@ export const pageQueryAll = (selector) =>
 // from the page's prose into a widget's shadow is exactly what the fences already refuse.
 export function pageRange(sel) {
   const plain = sel.getRangeAt(0);
-  if (typeof sel.getComposedRanges !== "function") return plain;
   const shadowRoots = pageShadowRoots();
   if (!shadowRoots.length) return plain;
   const [composed] = sel.getComposedRanges({ shadowRoots });
-  if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
   if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
   const range = document.createRange();

@@ -39,7 +39,7 @@ import {
 import {
   PRESSABLE,
   clippedContents,
-  exceptionText,
+  headerCuts,
   hostIn,
   inUi,
   layoutChanged,
@@ -88,7 +88,6 @@ function registerVisualParts(source, read, { reveal = null, label = null } = {})
   registrations.set(source, { read, reveal, label });
   return { update: () => layoutChanged(source) };
 }
-var hasVisualParts = (source) => registrations.has(source);
 function visualPartAdmission(visual, declaration) {
   if (!declaration || typeof declaration !== "object") return null;
   const { prefixes } = declaration;
@@ -104,15 +103,11 @@ function revealRegisteredVisualPart(source, id) {
 }
 function visualPartProblems(source, declaration) {
   if (!declaration || typeof declaration !== "object") return [];
-  if (!hasVisualParts(source)) return [{ kind: "unregistered" }];
-  try {
-    const parts = registeredVisualParts(source);
-    const admission = visualPartAdmission(source, declaration);
-    const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
-    return outside.length ? [{ kind: "unadmitted-parts", parts: outside }] : [];
-  } catch (error) {
-    return [{ kind: "unreadable", error: exceptionText(error) }];
-  }
+  if (!registrations.has(source)) return [{ kind: "unregistered" }];
+  const parts = registeredVisualParts(source);
+  const admission = visualPartAdmission(source, declaration);
+  const outside = declaration.prefixes ? parts.filter((part) => !admission(part.id)).map((part) => part.id) : [];
+  return outside.length ? [{ kind: "unadmitted-parts", parts: outside }] : [];
 }
 function registeredVisualParts(source) {
   const read = registrations.get(source)?.read;
@@ -122,11 +117,11 @@ function registeredVisualParts(source) {
   const seenSurfaces = /* @__PURE__ */ new Set();
   return [...read()].map((part, index) => {
     const number = index + 1;
-    const id = words(part?.id);
-    const element = part?.element;
-    const label = words(part?.label);
-    const surface = part?.surface ?? element;
-    if (!id || /\s/.test(id))
+    const id = part.id;
+    const element = part.element;
+    const label = words(part.label);
+    const surface = part.surface ?? element;
+    if (typeof id !== "string" || !id || /\s/.test(id))
       throw new TypeError(`Visual part ${number} has no single-token id`);
     if (!(element instanceof Element) || element === source || !under(element, source))
       throw new TypeError(`Visual part ${id} has no descendant Element`);
@@ -145,13 +140,6 @@ function registeredVisualParts(source) {
     return { id, element, label, surface };
   });
 }
-function usableVisualParts(source) {
-  try {
-    return registeredVisualParts(source);
-  } catch {
-    return [];
-  }
-}
 var registeredVisualPart = (source, id) => registeredVisualParts(source).find((part) => part.id === id) ?? null;
 var registeredVisualPartLabel = (source, id) => {
   const current = registeredVisualPart(source, id)?.label;
@@ -159,9 +147,9 @@ var registeredVisualPartLabel = (source, id) => {
   const label = registrations.get(source)?.label?.(id);
   return words(label) || null;
 };
-function usableVisualPartAt(source, target, admits = () => true) {
+function registeredVisualPartAt(source, target, admits = () => true) {
   const byElement = new Map(
-    usableVisualParts(source).filter(admits).map((part) => [part.element, part])
+    registeredVisualParts(source).filter(admits).map((part) => [part.element, part])
   );
   for (let current = target; current && current !== source; current = upFrom(current)) {
     const part = byElement.get(current);
@@ -201,15 +189,16 @@ var HTML_WORDS = {
 function addressableWord(addressable) {
   if (!addressable) return "";
   const tag = addressable.tagName.toLowerCase();
-  if (registry[tag]?.["x-word"] === "module") {
-    const own = addressable.lfWord?.();
-    if (own) return own;
-  }
-  if (registry[tag]?.["x-ask-context"]) return "ask";
-  if (tag.startsWith("lf-")) return tag.slice(3);
+  const word = widgetWord(tag, addressable);
+  if (word) return word;
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
   return HTML_WORDS[tag] ?? tag;
+}
+function widgetWord(tag, element = null) {
+  const declared2 = registry[tag]?.["x-word"];
+  const own = declared2 === "module" ? element?.lfWord?.() : declared2;
+  return own || (tag.startsWith("lf-") ? tag.slice(3) : "");
 }
 function addressableSays(addressable) {
   if (!addressable) return "";
@@ -294,11 +283,13 @@ var targetRange = (resolved) => {
 };
 function rangeGeometry(range) {
   return {
+    range,
     contextNode: range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer : range.startContainer.childNodes[range.startOffset] ?? range.startContainer,
     box: range.getBoundingClientRect(),
     attachment: [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ?? null
   };
 }
+var passageBoxes = (resolved) => targetRange(resolved) ? targetSegments(resolved).flatMap((segment) => [...rangeOf([segment]).getClientRects()]).filter((box) => box.width && box.height) : [];
 function passageGeometry(resolved) {
   const range = targetRange(resolved);
   return range && rangeGeometry(range);
@@ -361,12 +352,10 @@ function revealAddressed(source, key) {
 }
 var visualAdmission = (visual) => visual ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"]) : null;
 var wholeVisualSurface = (element) => registry[element?.localName]?.["x-visual"] ? element : null;
-function visualParts(visual, { strict = false } = {}) {
+function visualParts(visual) {
   const admits = visualAdmission(visual);
   if (!admits) return [];
-  return (strict ? registeredVisualParts(visual) : usableVisualParts(visual)).filter(
-    (part) => admits(part.id)
-  );
+  return registeredVisualParts(visual).filter((part) => admits(part.id));
 }
 var admitsVisualPart = (visual, part) => visualAdmission(visual)?.(part) ?? false;
 function visualPart(visual, part) {
@@ -377,7 +366,7 @@ function revealVisualPart(visual, part) {
 }
 function visualPartAt(visual, target) {
   const admits = visualAdmission(visual);
-  return admits ? usableVisualPartAt(visual, target, (part) => admits(part.id)) : null;
+  return admits ? registeredVisualPartAt(visual, target, (part) => admits(part.id)) : null;
 }
 var visualPartLabel = (visual, part) => admitsVisualPart(visual, part) ? registeredVisualPartLabel(visual, part) : null;
 var declaredVisualSelector = () => [...tagsDeclaring((entry) => entry["x-visual"])].join(",");
@@ -1060,10 +1049,31 @@ function localScrollBy(source, { x, y }) {
   if (!horizontal) return { left: 0, top: vertical ? along(axes.y) : 0 };
   if (!vertical) return { left: along(axes.x), top: 0 };
   const determinant = axes.x.x * axes.y.y - axes.x.y * axes.y.x;
-  return {
-    left: (x * axes.y.y - y * axes.y.x) / determinant,
-    top: (y * axes.x.x - x * axes.x.y) / determinant
-  };
+  const left = (x * axes.y.y - y * axes.y.x) / determinant;
+  const top = (y * axes.x.x - x * axes.x.y) / determinant;
+  const reach = (offset, current, minimum, maximum) => Math.max(minimum - current, Math.min(maximum - current, offset));
+  const horizontalLimit = source.scrollWidth - source.clientWidth;
+  const rtl = getComputedStyle(source).direction === "rtl";
+  const reachLeft = (offset) => reach(
+    offset,
+    source.scrollLeft,
+    rtl ? -horizontalLimit : 0,
+    rtl ? 0 : horizontalLimit
+  );
+  const reachTop = (offset) => reach(offset, source.scrollTop, 0, source.scrollHeight - source.clientHeight);
+  const reachableLeft = reachLeft(left);
+  const reachableTop = reachTop(top);
+  if (reachableLeft !== left && axes.y.y)
+    return {
+      left: reachableLeft,
+      top: reachTop((y - reachableLeft * axes.x.y) / axes.y.y)
+    };
+  if (reachableTop !== top && axes.x.x)
+    return {
+      left: reachLeft((x - reachableTop * axes.y.x) / axes.x.x),
+      top: reachableTop
+    };
+  return { left, top };
 }
 
 // runtime/css-anchors.js
@@ -1133,14 +1143,11 @@ function nameable(el) {
   const authored = getComputedStyle(el).anchorName;
   return !authored || authored === "none";
 }
-var SCOPES = CSS.supports("anchor-scope", "all");
 function outsideScopes(target) {
   let el = target;
-  if (SCOPES) {
-    for (let at = target; at instanceof Element; at = renderedParent(at))
-      if (at.getRootNode() === document && !at.contains(chromeRoot) && getComputedStyle(at).anchorScope === "all")
-        el = renderedParent(at) ?? at;
-  }
+  for (let at = target; at instanceof Element; at = renderedParent(at))
+    if (at.getRootNode() === document && !at.contains(chromeRoot) && getComputedStyle(at).anchorScope === "all")
+      el = renderedParent(at) ?? at;
   return el;
 }
 function anchorElement(target) {
@@ -1229,7 +1236,70 @@ function contentStart(scroller) {
 }
 var anchorHolder = (anchor) => contentStarts.get(anchor)?.scroller ?? anchor;
 var anchorName = (el) => nameAnchor(anchorReading(el));
-function anchorAt(node, anchor, box, at = anchor?.getBoundingClientRect(), visibility = "always") {
+var dropsTransforms;
+function anchorDropsTransforms() {
+  if (dropsTransforms !== void 0) return dropsTransforms;
+  const moved = document.createElement("div");
+  const anchored = document.createElement("div");
+  moved.style.cssText = "position: fixed; left: 0; top: 0; translate: 8px 0; anchor-name: --lf-moved";
+  anchored.style.cssText = "position: fixed; top: 0; position-anchor: --lf-moved; left: anchor(left, 8px)";
+  chromeRoot.append(moved, anchored);
+  dropsTransforms = anchored.getBoundingClientRect().left < 4;
+  moved.remove();
+  anchored.remove();
+  return dropsTransforms;
+}
+function laidOut(el) {
+  const parent = el.offsetParent;
+  let left = el.offsetLeft;
+  let top = el.offsetTop;
+  if (!parent) {
+    if (getComputedStyle(el).position !== "fixed") return null;
+    return { left, top };
+  }
+  if (parent === document.body && getComputedStyle(parent).position === "static") {
+    left -= scrollX;
+    top -= scrollY;
+  } else {
+    const from = parent.getBoundingClientRect();
+    left += from.left + parent.clientLeft - parent.scrollLeft;
+    top += from.top + parent.clientTop - parent.scrollTop;
+  }
+  for (let box = renderedParent(el); box !== parent; box = renderedParent(box)) {
+    if (!(box instanceof Element)) return null;
+    left -= box.scrollLeft;
+    top -= box.scrollTop;
+  }
+  return { left, top };
+}
+function movement(style) {
+  const matrix = style.transform === "none" ? null : new window.DOMMatrixReadOnly(style.transform);
+  const moves = Boolean(matrix) || style.translate !== "none" || style.rotate !== "none" || style.scale !== "none" || style.offsetPath !== "none";
+  const slides = style.rotate === "none" && style.scale === "none" && (style.offsetPath === "none" || style.offsetRotate === "0deg") && (!matrix || matrix.is2D && matrix.a === 1 && matrix.b === 0 && matrix.c === 0 && matrix.d === 1);
+  return { moves, slides };
+}
+function translationOf(el) {
+  let x = 0;
+  let y = 0;
+  for (let at = el; at instanceof Element; at = renderedParent(at)) {
+    const { moves, slides } = movement(getComputedStyle(at));
+    if (!moves) continue;
+    if (!slides || !(at instanceof HTMLElement) || at.currentCSSZoom !== 1) return null;
+    const layout = laidOut(at);
+    if (!layout) return null;
+    const shown = at.getBoundingClientRect();
+    x += shown.left - layout.left;
+    y += shown.top - layout.top;
+  }
+  return { x, y };
+}
+function anchorBox(anchor) {
+  const box = anchor.getBoundingClientRect();
+  if (!anchorDropsTransforms()) return box;
+  const shift = translationOf(anchorHolder(anchor));
+  return shift && (shift.x || shift.y) ? new DOMRect(box.left - shift.x, box.top - shift.y, box.width, box.height) : box;
+}
+function anchorAt(node, anchor, box, at = anchor && anchorBox(anchor), visibility = "always") {
   const from = (side, length) => anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);
   Object.assign(node.style, {
     position: "fixed",
@@ -1243,10 +1313,25 @@ function anchorAt(node, anchor, box, at = anchor?.getBoundingClientRect(), visib
     }
   });
 }
-var cutPath = ({ x, y }) => {
-  const open = (clips) => clips ? "0" : "-100000px";
-  return `inset(${open(y)} ${open(x)})`;
+var cutPath = ({ x, y }, band) => {
+  const open = 1e5;
+  const width = band.right - band.left;
+  const height = band.bottom - band.top;
+  return `inset(${layoutPx(y ? 0 : -open)} ${layoutPx(-width - (x ? 0 : open))} ${layoutPx(-height - (y ? 0 : open))} ${layoutPx(x ? 0 : -open)})`;
 };
+var nowhere = { left: 0, top: 0, right: 0, bottom: 0 };
+function headerLevels(item, clips = /* @__PURE__ */ new Map()) {
+  return headerCuts(item, clips).map(({ box, band }) => {
+    const anchor = box === box.ownerDocument.scrollingElement ? null : anchorElement(box);
+    return {
+      anchor,
+      reading: anchor && anchorReading(anchor),
+      at: anchor && anchorBox(anchor),
+      band: band ?? nowhere,
+      axes: { x: false, y: true }
+    };
+  });
+}
 function cutFrames(levels, frames, make) {
   const kept = frames.slice(Math.max(0, frames.length - levels.length));
   const chain = [...Array.from({ length: levels.length - kept.length }, make), ...kept];
@@ -1256,9 +1341,15 @@ function cutFrames(levels, frames, make) {
   for (let i = 1; i < chain.length; i++)
     if (chain[i].parentNode !== chain[i - 1]) move(chain[i - 1], chain[i], null);
   for (const dropped of frames.slice(0, frames.length - kept.length)) dropped.remove();
-  levels.forEach(({ anchor, band, axes, at }, i) => {
-    anchorAt(chain[i], anchor, band, at);
-    chain[i].style.clipPath = cutPath(axes);
+  levels.forEach(({ anchor, band, axes, at, reading }, i) => {
+    if (reading) nameAnchor(reading);
+    anchorAt(
+      chain[i],
+      anchor,
+      { left: band.left, top: band.top, right: band.left, bottom: band.top },
+      at
+    );
+    chain[i].style.clipPath = cutPath(axes, band);
   });
   return chain;
 }
@@ -1345,12 +1436,14 @@ export {
   exactTarget,
   targetRange,
   rangeGeometry,
+  passageBoxes,
   passageGeometry,
   targetSurface,
   targetParts,
   registerVisualParts,
   visualPartProblems,
   addressableWord,
+  widgetWord,
   addressableSays,
   addressableName,
   addressableLabel,
@@ -1394,7 +1487,9 @@ export {
   carriedAnchor,
   anchorFor,
   anchorName,
+  anchorBox,
   anchorAt,
+  headerLevels,
   cutFrames,
   refreshAnchorView,
   anchorView

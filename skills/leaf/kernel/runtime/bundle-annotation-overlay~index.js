@@ -36,6 +36,7 @@ import {
   readingKey,
   readingLabel,
   readingState,
+  spokenContext,
   spokenSubject,
   syncContributionSelection,
   syncContributionUnread,
@@ -47,7 +48,6 @@ import {
   ANNOTATIONS_KEY
 } from "./bundle-auxiliary-surfaces.js";
 import {
-  allThreads,
   anchorLabel,
   bannerControlDoor,
   beginWalk,
@@ -73,13 +73,14 @@ import {
   strongestWorkflow,
   tabStore,
   threadFocusDestination,
+  threadIdNamed,
+  threadNamed,
   writingIn
 } from "./bundle-user-intent.js";
+import "./bundle-errors.js";
 import "./bundle-widget-upgrade.js";
 import "./bundle-media.js";
-import {
-  motion
-} from "./bundle-motion.js";
+import "./bundle-motion.js";
 import {
   THREAD_CARD,
   cardMeasure,
@@ -123,6 +124,7 @@ import "./bundle-initial-render.js";
 import {
   atScrollEnd,
   effectiveScroller,
+  moveScrollerBy,
   readingRegionFor,
   registerReadingRegion,
   scrollToEnd
@@ -208,7 +210,6 @@ import {
   html,
   render,
   sameAnchor,
-  threadNames,
   turns
 } from "./bundle-queued-work.js";
 import "./bundle-__export.js";
@@ -380,82 +381,6 @@ function createThreadPreview({
     floating: preview,
     update: () => scheduleThreadPreviewPosition()
   });
-  function threadTransitionOrigin(element, frame) {
-    if (!frame) return null;
-    const box = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    return {
-      frame,
-      left: box.left,
-      top: box.top,
-      width: box.width,
-      height: box.height,
-      messageMeasure: element.writingInlineSize,
-      // A clipped editor owns a reading viewport to carry through Send. A fitting
-      // editor's height is only its current wrapping, which a new card width may
-      // change; imposing that old height would make short words scroll needlessly.
-      messageHeight: element.scrollHeight > element.clientHeight ? parseFloat(style.height) : null,
-      endRoom: element.endRoom ?? "none",
-      writingEndRoom: element.writingEndRoom,
-      scroll: element.scrollTop
-    };
-  }
-  function transitionThread(origin) {
-    const target = preview.getBoundingClientRect();
-    const style = getComputedStyle(preview);
-    const scale = {
-      x: target.width / parseFloat(style.width),
-      y: target.height / parseFloat(style.height)
-    };
-    const inset = [
-      (origin.top - target.top) / scale.y,
-      (target.right - origin.left - origin.width) / scale.x,
-      (target.bottom - origin.top - origin.height) / scale.y,
-      (origin.left - target.left) / scale.x
-    ];
-    return motion(
-      preview,
-      [
-        { clipPath: `inset(${inset.map(layoutPx).join(" ")} round 6px)` },
-        { clipPath: preview.style.clipPath || "inset(0px round 10px)" }
-      ],
-      240
-    );
-  }
-  function revealThread(origin, positioned) {
-    const session = previewSession;
-    session.transition?.motion?.cancel();
-    const transition = { motion: null };
-    session.transition = transition;
-    return positioned.then((placed) => {
-      if (!placed || previewSession !== session || session.transition !== transition)
-        return false;
-      transition.motion = transitionThread(origin);
-      return true;
-    });
-  }
-  function carryCommentFrame(origin) {
-    previewSession.messageViewport?.stopRegion?.();
-    previewSession.messageViewport = origin && {
-      scroll: origin.scroll,
-      body: null,
-      stopRegion: null
-    };
-    keeps(
-      preview,
-      "data-lf-comment-frame",
-      previewSession.messageViewport && origin.endRoom
-    );
-    const properties = {
-      "--lf-comment-width": previewSession.messageViewport && `${origin.frame.width}px`,
-      "--lf-comment-message-measure": previewSession.messageViewport && `${origin.messageMeasure}px`,
-      "--lf-comment-message-height": previewSession.messageViewport && origin.messageHeight !== null ? `${origin.messageHeight}px` : null,
-      "--lf-comment-send-room": previewSession.messageViewport && `${origin.writingEndRoom}px`
-    };
-    for (const [name, value] of Object.entries(properties))
-      if (value) preview.style.setProperty(name, value);
-      else preview.style.removeProperty(name);
-  }
   const placedThreadPreview = () => {
     previewSession.positionResult ??= Promise.withResolvers();
     cancelRender(previewSession.positionFrame);
@@ -474,8 +399,6 @@ function createThreadPreview({
     carry.placed();
     const session = previewSession;
     if (!session) return;
-    carryCommentFrame(null);
-    session.transition?.motion?.cancel();
     session.positionResult?.resolve(false);
     cancelRender(session.positionFrame);
     placementDriver.supersede();
@@ -516,9 +439,14 @@ function createThreadPreview({
     ].some((box) => box && box.scrollHeight > box.clientHeight + 0.5);
     if (!(worn >= 0) || cap < height - 0.5 || overflow && cap > height + 0.5)
       preview.style.setProperty("--lf-thread-max-height", layoutPx(cap));
-    if (reading?.latest) showLatestTurn(previewSession.transcript);
+    if (reading?.latest) showArrival(previewSession);
     else if (reading?.end) scrollToEnd(previewSession.transcript);
     return preview.getBoundingClientRect().height;
+  }
+  function showArrival(session) {
+    if (!session.sent) return showLatestTurn(session.transcript);
+    scrollToEnd(session.transcript);
+    moveScrollerBy(session.transcript, -session.sent.fromEnd);
   }
   function measureTranscript() {
     return previewSession.transcript ? parseFloat(getComputedStyle(previewSession.transcript).height) + previewSession.transcript.scrollHeight - previewSession.transcript.clientHeight : 0;
@@ -625,7 +553,7 @@ function createThreadPreview({
         column: place.column,
         margin: place.margin,
         boundary,
-        fit({ width, height, scale }) {
+        fit({ width, height, stood, scale }) {
           if (!stillCurrent()) return;
           reading ??= session.transcript && {
             end: !fresh && atScrollEnd(session.transcript),
@@ -641,8 +569,7 @@ function createThreadPreview({
             "--lf-thread-min-width",
             layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room)
           );
-          const minimum = session.side.heldHeight() / scale.y;
-          const fitted = measureThreadCard(room, Math.max(minimum, height), reading);
+          const fitted = measureThreadCard(room, Math.max(stood, height), reading);
           if (fresh && (side === "top" || side === "bottom") && makeRoom(side, place.clear, place.extent, fitted, boundary, scroller)) {
             session.side.scrolled();
             placeThreadPreview();
@@ -661,21 +588,6 @@ function createThreadPreview({
     }).then((position) => {
       if (!position || !stillCurrent()) return;
       session.arriving = false;
-      if (session.messageViewport) {
-        const body = previewList.querySelector(
-          ".lf-msg > .lf-msg-body > .lf-msg-text"
-        );
-        if (body && body !== session.messageViewport.body) {
-          session.messageViewport.stopRegion?.();
-          body.scrollTop = session.messageViewport.scroll;
-          session.messageViewport.body = body;
-          session.messageViewport.stopRegion = registerReadingRegion({
-            id: `${THREAD_CARD}:submitted`,
-            host: body,
-            body
-          });
-        }
-      }
       const { scale } = session.side.landed(position);
       placementDriver.stand(position);
       session.width ??= preview.getBoundingClientRect().width;
@@ -741,13 +653,13 @@ function createThreadPreview({
       preparing: false,
       latest: null,
       arriving: true,
+      // The box Send replaced, whose reading the card keeps (`showArrival`).
+      sent: origin && { fromEnd: origin.fromEnd },
       away: false,
       positionFrame: 0,
       positionResult: null,
       focusPending: null,
       withheldFocus: null,
-      transition: null,
-      messageViewport: null,
       transcript: null,
       place: null,
       stopRegion: null,
@@ -759,8 +671,7 @@ function createThreadPreview({
       // The user's latest press in the card, while it is their latest input (`holding`).
       pressed: null
     };
-    carryCommentFrame(origin);
-    if (origin) previewSession.side.adopt(origin.frame);
+    if (origin) previewSession.side.adopt(origin);
     return previewSession;
   }
   function buildThreadCard(entry, requestedItem = null) {
@@ -808,7 +719,7 @@ function createThreadPreview({
     else {
       present();
       session.arriving = Boolean(session.transcript);
-      if (session.arriving) showLatestTurn(session.transcript);
+      if (session.arriving) showArrival(session);
     }
     session.latest = latest && { id: latest.id, text: latest.text };
     if (follow) scrollToEnd(session.transcript);
@@ -925,8 +836,7 @@ function createThreadPreview({
     }
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
-    const positioned = placedThreadPreview();
-    return origin ? revealThread(origin, positioned) : positioned;
+    return placedThreadPreview();
   }
   function refresh(entry, control, carry2 = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;
@@ -954,7 +864,7 @@ function createThreadPreview({
     });
   }
   function focusTarget(id, { part = null } = {}) {
-    id = threadNames(allThreads()).get(id)?.id ?? id;
+    id = threadIdNamed(id);
     const thread = [...previewList.querySelectorAll(".lf-page-thread")].find(
       (candidate) => candidate.dataset.thread === id
     );
@@ -993,7 +903,6 @@ function createThreadPreview({
     thread: () => previewList.querySelector(".lf-page-thread"),
     accompanied: () => previewSession && !previewSession.away ? previewList.querySelector(".lf-page-thread") : null,
     closeFocused: () => focused() === previewClose,
-    threadTransitionOrigin,
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount
@@ -1263,6 +1172,7 @@ function createMarginProjection({
     targetFor,
     entryPoint,
     entryPlace,
+    entryPassage,
     sourceItem,
     workflowReceipt,
     threadIdsAt,
@@ -1275,7 +1185,7 @@ function createMarginProjection({
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
-    "Changes, threads, asks, delivery status, and activity"
+    "Changes, threads, items on me, delivery status, and activity"
   );
   nav.append(toolbar);
   const card = createThreadPreview({
@@ -1405,6 +1315,7 @@ function createMarginProjection({
     return {
       anchor: () => targetFor(row.lfEntry),
       point: () => entryPoint(row.lfEntry),
+      passage: () => entryPassage(row.lfEntry),
       order,
       fold: {
         able: () => canFold(row.lfEntry, {
@@ -1445,8 +1356,7 @@ function createMarginProjection({
     const choice = primaryReading(entry);
     const face = markerFace(entry).face;
     const count = choice?.items.length ?? 0;
-    const items = choice?.items ?? [];
-    const userContext = awaitingUser(items) || unreadIn(items) ? readingContext(choice) : null;
+    const userContext = spokenContext(choice);
     const reading = `${face.label}${count > 1 ? `s (${count})` : ""}${userContext ? `, ${userContext}` : ""}`;
     const subject = count === 1 && choice.items[0].workflowFace ? choice.text : entry.title;
     return `${reading}, ${index + 1} of ${anchored}${position == null ? "" : `, ${Math.max(0, Math.min(100, position))} percent down`}, ${spokenSubject(subject)}`;
@@ -1778,7 +1688,7 @@ function createMarginProjection({
     const face = readingFace(choice);
     const count = choice.items.length;
     const kind = count > 1 ? `${face.label}s` : face.label;
-    const userContext = awaitingUser(choice.items) || unreadIn(choice.items) ? readingContext(choice) : null;
+    const userContext = spokenContext(choice);
     const behavior = presentReading(node, entry, choice, {
       accessibleLabel: `${kind} for ${spokenSubject(entry.title)}${count > 1 ? `, ${count} items` : ""}${userContext ? `, ${userContext}` : ""}`
     });
@@ -2202,8 +2112,8 @@ function createMarginProjection({
     }
     togglePinned(entry, button);
   }
-  function openInlineThread(id, { transition = null, unfold = true } = {}) {
-    const itemId = marginThreadItem(threadNames(allThreads()).get(id));
+  function openInlineThread(id, { origin = null, unfold = true } = {}) {
+    const itemId = marginThreadItem(threadNamed(id));
     const entry = pageInventory.find(
       (candidate) => candidate.items.some((item) => item.id === itemId)
     );
@@ -2216,7 +2126,7 @@ function createMarginProjection({
     if (!unfold && !marker && !shown(host)) return null;
     const button = marker ?? threadMarginEntry(entry);
     const positioned = showPreview(entry, button, itemId, {
-      origin: transition,
+      origin,
       accompanies: !unfold,
       forced: true
     });
@@ -2247,9 +2157,9 @@ function createMarginProjection({
   ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   const threadEntryAt = (node) => {
     const ids = threadIdsAt(node);
-    return pageInventory.find(
-      (entry) => threadReading(entry) && threadIdsOf(entry).some((id) => ids.includes(id)) && !seatedOnPage(threadIdOf(entry))
-    ) ?? null;
+    const here = (entry) => threadReading(entry) && threadIdsOf(entry).some((id) => ids.includes(id)) && !seatedOnPage(threadIdOf(entry));
+    const shown = previewOpen() && card.selection()?.entry?.key;
+    return pageInventory.find((entry) => entry.key === shown && here(entry)) ?? pageInventory.find(here) ?? null;
   };
   let standingUnfolded = null;
   const byKeyboard = () => !pressLed();
@@ -2441,7 +2351,6 @@ function createMarginProjection({
     targetFor,
     paint: renderNow,
     flushLayout: layoutMarginRows,
-    threadTransitionOrigin: card.threadTransitionOrigin,
     scheduleThreadPreviewPosition: card.schedulePosition,
     marginTargetAt,
     marginEntryContextContains,
@@ -2871,7 +2780,10 @@ function createFloatingResponsePlacement({
         height * scaleY
       ).toJSON(),
       width,
-      placement: fabPlacement.capture()
+      placement: fabPlacement.capture(),
+      // How far the words stand above their end: where the user was reading them,
+      // which the card Send opens keeps (thread-preview.js, `showArrival`).
+      fromEnd: fabInput.scrollHeight - fabInput.clientHeight - fabInput.scrollTop
     };
   };
   const nativeRowEnd = () => {
@@ -2888,7 +2800,6 @@ function createFloatingResponsePlacement({
   function stopFabPositioning({ reset = false } = {}) {
     carry.placed();
     nativeAttachment = false;
-    if (fabBar.style.height) fabBar.style.removeProperty("height");
     fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
@@ -3112,7 +3023,6 @@ function createFloatingResponsePlacement({
       fabPlacement.landed(position);
       editingAttachment = response.open ? attachment : null;
       keeps(fabBar, "data-lf-placement", position.placement);
-      fabBar.style.height = response.open ? "max-content" : "";
       fabPosition.stand(position);
       carry.placed();
       nativeAttachment = response.open && fabPosition.follows();

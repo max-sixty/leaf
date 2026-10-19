@@ -23,6 +23,7 @@ import {
 } from "./bundle-user-intent.js";
 import {
   anchorAt,
+  anchorBox,
   anchorElement,
   anchorReaches,
   anchorReading,
@@ -41,6 +42,7 @@ import {
   coarsePointer,
   el,
   hasArea,
+  headerCuts,
   iconTemplate,
   intersect,
   keys,
@@ -128,7 +130,7 @@ function geometryClone(source, left, top, property) {
   clone.style.removeProperty("stroke-opacity");
   for (const attribute of [...clone.attributes]) {
     const length = source[attribute.localName];
-    if (attribute.value.includes("%") && typeof SVGAnimatedLength !== "undefined" && length instanceof SVGAnimatedLength)
+    if (attribute.value.includes("%") && length instanceof SVGAnimatedLength)
       clone.setAttribute(attribute.name, String(length.animVal.value));
   }
   clone.setAttribute(
@@ -239,7 +241,7 @@ function standIn(stand, placed, anchored) {
     origin: anchored ? null : { x: band?.left ?? 0, y: band?.top ?? 0 }
   };
 }
-function standBox(box, rect, stood, anchor, at = anchor?.getBoundingClientRect()) {
+function standBox(box, rect, stood, anchor, at = anchor && anchorBox(anchor)) {
   if (stood.anchored) {
     anchorAt(box, anchor, rect, at, stood.visibility ?? "always");
     return;
@@ -258,7 +260,7 @@ function standBox(box, rect, stood, anchor, at = anchor?.getBoundingClientRect()
 }
 function standOver(stand, placed, borderRadius) {
   const anchor = anchoredBy(placed.surface, stand.root);
-  const at = anchor?.getBoundingClientRect();
+  const at = anchor && anchorBox(anchor);
   const stood = standIn(stand, placed, Boolean(anchor));
   standBox(stand.box, placed.rect, stood, anchor, at);
   Object.assign(stand.box.style, { display: "block", borderRadius });
@@ -354,7 +356,15 @@ function paintSet(root, { onNear = () => {
         if (nearWindow(target, clips)) near.add(target);
       }
       const carriedBy = anchor === void 0 ? anchoredBy(target, root) : anchor && anchorReaches(anchor, root) ? anchor : null;
-      if (!framed) placed = { ...placed, levels: [] };
+      if (!framed)
+        placed = {
+          ...placed,
+          levels: headerCuts(target, clips).map(({ box: box2, band }) => ({
+            holder: box2 === box2.ownerDocument.scrollingElement ? null : box2,
+            band: band ?? { left: 0, top: 0, right: 0, bottom: 0 },
+            axes: { x: false, y: true }
+          }))
+        };
       for (const { holder } of placed.levels)
         if (holder && !holders.has(holder))
           holders.set(holder, holder.getBoundingClientRect());
@@ -373,7 +383,7 @@ function paintSet(root, { onNear = () => {
         plane,
         framed,
         anchor: carriedBy,
-        at: carriedBy?.getBoundingClientRect(),
+        at: carriedBy && anchorBox(carriedBy),
         key: keyOf(placed, carriedBy, plane, framed)
       };
     });
@@ -943,14 +953,7 @@ function createPageMapDialog({
     if (!dialog.open) showNativeLayer(dialog);
     const index = entry ? entries.findIndex((candidate) => candidate.key === entry.key) : -1;
     const group = index < 0 ? null : dialogList.children[index];
-    if (group) {
-      const listBox = dialogList.getBoundingClientRect();
-      const groupBox = group.getBoundingClientRect();
-      if (groupBox.top < listBox.top)
-        dialogList.scrollTop -= listBox.top - groupBox.top;
-      else if (groupBox.bottom > listBox.bottom)
-        dialogList.scrollTop += groupBox.bottom - listBox.bottom;
-    }
+    if (group) scrollIntoView(group, { block: "nearest", within: dialogList });
     const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
     const spilledAction = focusSpill ? groups[index]?.actions.find(
       (action) => action.kind === "control" && action.record.key === spilled?.record?.key && action.record.owner === spilled?.record?.owner || action.kind === "item" && spilled?.choice?.items.some(

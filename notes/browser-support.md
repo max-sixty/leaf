@@ -12,6 +12,8 @@ feature and code owner, browser versions and check date, user-visible effect,
 evidence or reproduction, and disposition. Distinguish an observed failure from
 published compatibility data and an old test engine from a current browser gap.
 Update or remove the entry when the implementation or browser support changes.
+`uv run leaf-dev probe SOURCE --firefox` runs a probe or journey in Playwright's
+Firefox, the one other engine installed beside the suite's Chromium.
 
 Minor visual differences, including a small layout shift confined to one browser,
 are acceptable when content remains readable and controls remain usable. Record
@@ -21,7 +23,99 @@ gesture are functional failures and need a fix or an explicit support decision.
 An unsupported API alone does not justify blocking the whole browser: record
 what fails and what still works.
 
+## Tooling limitations
+
+### Print-media emulation can leave screen container styles stale
+
+- **Owners:** `styles/chrome.css`'s banner container query and
+  `styles/theme.css`'s screen-only phone posture; the observed boundary is CSS
+  invalidation, reproduced without Leaf runtime or banner measurement code.
+- **Observed 2026-10-15:** pinned, installed Playwright Chromium
+  153.0.8010.12. At 390px, print→screen media emulation leaves a hidden chrome
+  subtree's two-row styles applied after its queried property returns to one.
+  Leaf's More control is then clipped. A code page and a plain prose page
+  reproduce it; this is not established as a current-stable
+  browser or user print failure.
+- **Print distinction:** emulation emits `matchMedia` changes but no
+  `beforeprint`/`afterprint`. Headless `page.pdf()` (printToPDF) emits those
+  events and restores the measured layout. The native print dialog was not
+  tested. Restricting the banner query to screen prevents stale wrapping but
+  does not repair all full-page geometry left by emulation.
+- **Disposition:** no product fallback or new automated test. No currently
+  failing maintained gate was identified. Some tests intentionally interact
+  after emulation; retain their media-change claims, but do not interpret them
+  as print-event coverage. For a confirmed false positive, isolate print-style
+  inspection from unrelated subsequent screen interaction and check printing
+  separately.
+
+Standalone reproduction from the checkout (no Leaf page or server needed):
+
+```sh
+uv run python - <<'PYCODE'
+from leaf_dev.browser import headless_shell
+
+with headless_shell() as browser:
+    page = browser.new_page(viewport={"width": 390, "height": 844})
+    page.set_content('''
+      <style>
+      @property --rows { syntax: "<integer>"; inherits: true; initial-value: 1; }
+      :root { --rows: 2; }
+      body { container-type: inline-size; }
+      header { display: flex; flex-wrap: nowrap; }
+      @media screen and (width <= 480px) { :root { --rows: 1; } }
+      @media print { .chrome { display: none; } }
+      @container style(--rows: 2) { header { flex-wrap: wrap; } }
+      </style><div class="chrome"><header>Status <button>More</button></header></div>
+    ''')
+    page.evaluate("""() => {
+      window.changes = [];
+      matchMedia('print').addEventListener('change', e => changes.push(e.matches));
+    }""")
+    for media, printing in [("print", True), ("screen", False)]:
+        page.emulate_media(media=media)
+        page.wait_for_function("value => changes.at(-1) === value", arg=printing)
+        print(media, page.evaluate("""() => [
+          getComputedStyle(document.documentElement).getPropertyValue('--rows'),
+          getComputedStyle(document.querySelector('header')).flexWrap
+        ]"""))
+    # Observed screen result: ['1', 'wrap']; expected wrap is 'nowrap'.
+PYCODE
+```
+
 ## Supported APIs checked
+
+### Adaptive contents disclosure
+
+- **Owners:** default package `lf-toc.js` and `styles/toc.css`. In-flow contents
+  use native `details`/`summary`; margin and print expose the same links by
+  opening the native disclosure, then restore the reader's in-flow choice.
+- **Observed 2026-10-15:** installed Playwright Chromium 153.0.8010.12,
+  Firefox 155 and WebKit 26.6 pass closed/open flow at 390px, Enter and touch
+  activation, exposed links in the 1440px margin, focused-link preservation
+  when moving into flow, and all links in print. Returning from margin or
+  print restores the previous flow choice; a focused link remains exposed.
+  The touch summary measures 44px (Firefox 44.03px).
+- **Keyboard and evidence:** Chromium and Firefox traverse links with Tab.
+  WebKit uses Alt+Tab; its ordinary Tab skips links in the baseline too.
+  Rendered captures, DOM role queries and real keyboard routes are recorded in
+  `.tmp/ux-research/experiments/68/`; this is an installed-engine check, not a
+  current stable-browser survey or native accessibility-tree audit.
+- **Disposition:** native open state governs exposed contents; no
+  browser-specific fallback is needed for these checked routes.
+
+### Feedback clearance above a covering thread panel
+
+- **Owner:** `styles/chrome.css`. Native `anchor-size()` reads the panel foot and
+  selected reply, while `anchor()` reads the list's foot; feedback keeps one
+  clearance through list scrolling and draft growth. The list opens one chosen
+  thread, so it supplies one visible reply anchor.
+- **Observed 2026-10-14:** installed Playwright Chromium 153.0.8010.12, Firefox 155
+  and WebKit 26.6 match the former measured placement within one pixel for short
+  and multiline replies at both scroll ends, reply selection changes, an empty
+  list, a multiline page-mode foot composer, and the panel beside the page.
+  Empty lists use the foot anchor alone; a reply's presence adds its clearance.
+- **Disposition:** adopted without a fallback. These are installed engine checks,
+  rather than a current stable-browser compatibility survey.
 
 ### Help search result relationships
 
@@ -37,7 +131,7 @@ what fails and what still works.
 - **Observed:** Chrome 155's native accessibility tree exposes the named
   combobox, its controlled grid, and the selected row after filtering and Arrow
   navigation. Desktop and touch journeys retain native editor focus and caret
-  selection. The browser tests in `test_render_navigation.py` check the
+  selection. The browser tests in `navigation/test_command_reference.py` check the
   relationships through the native editor's element-reference properties.
 - **Disposition:** adopted without a fallback; no current browser support gap
   was found in the compatibility data. Native accessibility behavior in Firefox
@@ -98,7 +192,62 @@ what fails and what still works.
   and runs the pseudo-element's transition, so nothing visible differs.
 - **Disposition:** adopted without a fallback.
 
+### Folds, composed selections and anchor scopes without a feature check
+
+- **Owners:** widgets that fold with `hidden="until-found"` (`lf-tabs`,
+  `lf-options`, `lf-trace-compare`); `runtime/passages.js` (`pageRange`, through
+  `Selection.getComposedRanges`); `runtime/css-anchors.js` (`anchor-scope`) and the
+  Page Map toggle in `styles/chrome.css` (anchor positioning).
+- **Compatibility checked 2026-10-14:** `hidden="until-found"` and `beforematch`
+  support Chrome 102+, Firefox 139+ and Safari 26.2+; `getComposedRanges` Chrome
+  137+, Firefox 142+ and Safari 17+; `anchor-name` Chrome 125+ and `anchor-scope`
+  Chrome 131+, both Firefox 147+ and Safari 26+, according to
+  [MDN's compatibility data](https://github.com/mdn/browser-compat-data) 8.1.5.
+  It marks Safari's `until-found` partial: find-in-page reveals the match but
+  [does not scroll to it correctly](https://webkit.org/b/304174).
+- **Observed:** installed Playwright Chromium 153.0.8010.12, Firefox 155 and
+  WebKit 26.6 each expose `onbeforematch`, `getComposedRanges`, `anchor-name` and
+  `anchor-scope`.
+- **Disposition:** adopted without a fallback. An engine without `until-found`
+  reads the unknown value as plain `hidden`, which is what the removed check chose.
+
+### The sheen over a line cut short
+
+- **Owner:** `@keyframes lf-sheen` in `styles/components/surfaces.css`, run by the
+  floating panel's field (`floating-panel.css`), the thread card's working words
+  (`surfaces.css`) and a pending thread title (`chrome.css`). It paints the words in
+  ink and dims them with a moving `mask-image` to each box's rest face.
+- **Observed 2026-10-15:** the sheen it replaced, a background clipped to the glyphs
+  under a transparent fill, hid a cut line's ellipsis in Playwright Firefox 155, and
+  the user saw it in Firefox 157: Firefox draws the ellipsis outside the clipped
+  background. With the mask, Firefox 155 and Chromium 153 both draw the ellipsis in
+  every frame of the pass.
+- **Disposition:** adopted without a fallback.
+
 ## Known gaps
+
+### Intrinsic block retirement motion
+
+- **Owner:** `runtime/motion.js` (`foldBlock`), used by resolved thread cards and
+  block suggestion slots. The browser interpolates the ordinary intrinsic block
+  size to zero with `calc-size(auto, size)`; the other block metrics start at their
+  underlying CSS values. Neither caller measures or reconstructs the starting box.
+- **Checked 2026-10-14:** installed Playwright Chromium 153.0.8010.12 supports
+  `calc-size()` and `interpolate-size`; Firefox 155 and WebKit 26.6 expose neither.
+  These are installed test engines, not a current stable Firefox/Safari survey.
+  [Chrome's documentation](https://developer.chrome.com/docs/css-ui/animate-to-height-auto)
+  describes native intrinsic interpolation and its progressive enhancement model.
+- **Observed:** card, native details and block-slot probes preserve their exact
+  first size, shrink to zero, and restore their ordinary size when canceled in
+  Chromium. Retired-slot styling applies padding changes only to the survivor, so
+  the outgoing slot starts at its actual pre-decision shape. Inline suggestions
+  do not animate. Reduced motion skips the effect, and the shared motion owner
+  finishes a running fold when that preference changes.
+- **Disposition:** accepted visual difference. Without `calc-size()` the same
+  semantic retirement completes immediately, as it does under reduced motion.
+  The runtime explicitly declines the animation rather than letting unsupported
+  intrinsic-size interpolation jump halfway through a fade. Content, Undo and
+  Reopen remain available through their ordinary paths.
 
 ### Browser dictation in comment boxes
 
@@ -268,6 +417,24 @@ what fails and what still works.
   `test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it` hold the required
   wrapper and row behavior. Parser support alone does not establish it.
 
+### Scroll-state containers
+
+- **Disposition: scroll-state is progressive.** A `container-type` naming
+  `scroll-state` is written after the same declaration without it, so an engine
+  without scroll-state keeps the size container.
+- **Owner:** the table rules in
+  [`reading.css`](../skills/leaf/assets/styles/components/reading.css) and the
+  granted-room table in [`layouts.css`](../skills/leaf/assets/layouts.css).
+- **Observed, 2026-10-14:** Firefox 157 (a user's page) and Playwright's Firefox and
+  WebKit 26.6 drop `container-type: inline-size scroll-state` whole, so the table was
+  no size container and the 100cqi a caption read measured the window: an Ask's
+  two-column table laid its rows out 1728px wide in a 720px column and cut off its
+  second column. Chrome 155 keeps it. Firefox also never widens a table grid to a
+  caption wider than its columns' natural width, so Leaf no longer widens a table's
+  columns to its frame in any engine.
+- **Recheck:** `test_a_table_of_prose_wraps_inside_its_box_in_every_engine` holds
+  the size container in all three engines.
+
 ### State-preserving content reordering (review #22)
 
 - **Impact: state preservation; functional fallback implemented.** Retained-node
@@ -404,7 +571,7 @@ application. Recheck the affected Leaf journey when resolving this entry.
 - **Recheck:** run
   `test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor`
   and `test_touch_capture_can_cancel_and_reopen_before_attaching` in
-  `tests/*/test_render_threads.py`. Compare the rasterizer's same crop with a
+  `tests/browser/threads/test_media.py` and `tests/journeys/test_render_threads.py`. Compare the rasterizer's same crop with a
   native screenshot in each installed engine when updating SnapDOM.
 
 ### Anchoring from a shadow root to the outer document
@@ -452,7 +619,7 @@ document, and the runtime relies on it (next entry).
   which resolves the same `attr()` outside a `::part()` rule, so the runtime writes
   one rule per name. Words alone in a shadow scroller anchor to the start of what it
   holds the same way, through `::part(lf-a7)::before { content: ""; anchor-name:
-  --lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
+--lf-a7 }`, which anchors and follows the scroller's scroll in all three engines.
 - **Recheck:** attach a shadow root holding a scroller with a `part`-named child,
   declare `#host::part(name) { anchor-name: --x }` in the document, and compare a
   fixed `position-anchor: --x` box's rectangle with the child's after scrolling the
@@ -506,3 +673,47 @@ document, and the runtime relies on it (next entry).
   `--t`, a `position: fixed` box with `position-anchor: --t; top: anchor(top)`
   after it, and a document tall enough to scroll; scroll the document and the panel
   and compare the two rectangles' tops.
+
+### An anchor's transforms in Firefox
+
+- **Disposition: answered for translations.** `anchorBox` (`runtime/css-anchors.js`)
+  is where every inset Leaf writes against an anchor is measured from. In an engine
+  that leaves transforms out, read once, it takes off how far each translation on
+  the anchor or an ancestor moves its box, read from offsets, which leave
+  transforms out too. A scale, rotation or CSS zoom moves each point differently and
+  stays unanswered. Remove it when Firefox counts transforms. A probe anchored to
+  the same name was rejected: read straight after a scroll between it and the
+  anchor, it returns where the anchor stood before.
+- **Affected:** every box anchored in a table granted room, which `layouts.css`
+  translates into place, and in any box a page transforms: margin rows and pins,
+  the Alt outline, key chips, the comment box, the thread card, and a code block's
+  Copy, whose CSS-only anchor takes the shift on each reveal (`code-copy.js`).
+- **Observed, 2026-10-16, Firefox 155:** `anchor()` resolves to the anchor's box
+  as laid out, before the `transform`, `translate`, `rotate`, `scale` or
+  `offset-path` on it or an ancestor; relative positioning is counted. The spec counts transforms, as
+  Chromium 153 and WebKit 26.6 do. At 1728 px a `data-width="wide"` table stood
+  translated 300 px from its layout box, so the comment box for its header opened
+  over the row headers and the Alt outline stood 300 px left of the table.
+- **Recheck:** a box with `translate: 50px 0` named `--t`, and a `position: fixed`
+  box with `position-anchor: --t; left: anchor(left)` after it; compare the two
+  rectangles' lefts.
+
+### Native reveal bounded to its scroller
+
+- **Disposition: worked around in Leaf.** Leaf reveals an item inside one box
+  through `scrollIntoView(node, {within})` in `runtime/landing-scroll.js`, which
+  moves only that box and the boxes inside it, in all three engines (Chromium 153,
+  Firefox 155, WebKit 26.6, checked 2026-10-14 on a stuck tab strip and a contents
+  outline). Revisit if every engine honours `container` and Leaf's walk could
+  hand the bounded case to it.
+- **Affected:** a tab strip, contents outline or page map list bringing its item
+  into view while the page stays where the user reads.
+- **Observed, 2026-10-14:** `scrollIntoView({block: "nearest", inline: "nearest",
+container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
+  below its scroller's band scrolls the strip alone in Chromium 153 and WebKit 26.6,
+  and the outer scroller by 2 px as well in Firefox 155, whether the outer scroller
+  is the root or a nested box. An earlier check on another page also saw WebKit
+  scroll the outer box.
+- **Recheck:** a 600 px scroller holding a 300 px `overflow-x: auto` strip of
+  twenty 120 px buttons; scroll so the strip's foot is just past the band, call
+  the native reveal on the sixteenth button, and read both scroll offsets.

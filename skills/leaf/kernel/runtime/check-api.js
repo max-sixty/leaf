@@ -47,6 +47,7 @@ import {
   walkPosition,
   whereDraft
 } from "./bundle-user-intent.js";
+import "./bundle-errors.js";
 import {
   domValue
 } from "./bundle-widget-upgrade.js";
@@ -92,6 +93,7 @@ import {
   elementById,
   fencePassageParts,
   findQuote,
+  layoutBox,
   pageDocument,
   pageRange,
   pageText,
@@ -218,6 +220,7 @@ export {
   heldAsk,
   heldThreadId,
   landingBand,
+  layoutBox,
   live,
   markBannerControl,
   marksSheet,

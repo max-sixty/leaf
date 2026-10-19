@@ -4,8 +4,8 @@ Leaf on Pi is a highly experimental trial.
 
 ## Launcher
 
-Leaf's Pi extension sets `$LEAF` to the launcher and puts it on `PATH`, so `leaf`
-runs it in every shell-tool command.
+Leaf's Pi extension sets `$LEAF` to the launcher and puts it on `PATH`, so `leaf` works
+in every shell command.
 
 ## Serve the page
 
@@ -14,30 +14,25 @@ leaf server start <page>
 ```
 
 It prints a JSON object whose `url` is the page's keyed URL, and returns. Follow
-`references/conversation-loop.md`, "Status and handoff".
-`references/serving-pages.md` owns the key, the address it binds, and a URL the
-user cannot reach.
+`conversation-loop.md`, "Status and handoff". `serving-pages.md` covers the address and
+what to do when the user can't reach the URL.
 
 ## Wait loop
 
-Leaf's extension watches for you. As each run settles, it watches every page this
-session holds until one has new input, then puts the whole delivery in your
-context (`references/event-batches.md`, "One envelope on every transport"): in a
-new run when Pi is idle, or after your current tool calls when a run is going. So
-once the page is handed over, end the run: start no `leaf wait`. Input that
-arrives as a run is about to end comes into that run the same way, and keeps it
-going.
+Leaf's extension watches for you. When a run ends, it watches every page this session
+holds until one has new input, then puts the whole delivery in your context
+(`event-batches.md`, "One envelope on every transport"): in a new run if Pi is idle, or
+after your current tool calls if a run is going. So once you have handed the page over,
+end the run and start no `leaf wait`.
 
-The extension confirms an envelope it puts in your context, so the user's updates
-read **Picked up** and its `acknowledge` is null: run no acknowledgement command.
-Input it could not confirm, large input among it, arrives instead as a pointer,
-`leaf delivery read <id>`. Run it before
-working or replying, and once you have read every part, follow its confirmation
+The extension acknowledges each delivery it puts in your context, so `acknowledge` is
+null and you run no acknowledgement command. Input it couldn't confirm, such as a large
+delivery, arrives as a pointer instead: run the `leaf delivery read <id>` it names
+before working or replying, and after reading every part, follow its confirmation
 instruction.
 
-To pick up a page this session did not serve, run `leaf page claim <page>`; the
-extension watches it from the end of the run.
+To take over a page this session didn't serve, run `leaf page claim <page>`; the
+extension starts watching it when the run ends.
 
-If a run ends without answering a delivered update, the next prompt carries that
-obligation back into context. Under `pi --print` the session ends with its run,
-and nothing carries later input back to it.
+If a run ends without answering a delivered update, the next prompt brings it back. Under
+`pi --print` the session ends with its run, and nothing brings later input back to it.

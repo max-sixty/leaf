@@ -56,7 +56,25 @@ from render_harness import (
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-from browser.test_render_widgets import MOTION_SAMPLE_CONTENT, PLAYGROUND_PAGE
+from browser.widgets import PLAYGROUND_PAGE
+
+MOTION_SAMPLE_CONTENT = """
+<lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
+<pre id="card-tree">root/
+└── retained.txt</pre>
+<lf-sample id="card-sample" label="Current sample">
+  <template id="card-sample-page" data-sample>
+    <h2>Painted sample</h2>
+    <lf-ask id="sample-choice-ask"><h3>Choose a sample</h3>
+      <lf-options id="sample-choice" choose>
+        <lf-option id="sample-alpha"><strong>Alpha</strong></lf-option>
+        <lf-option id="sample-beta"><strong>Beta</strong></lf-option>
+      </lf-options>
+    </lf-ask>
+    <lf-draft id="sample-draft"><pre>Original sample draft.</pre></lf-draft>
+  </template>
+</lf-sample>
+"""
 
 
 def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
@@ -156,11 +174,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     clearance = tabs.first.evaluate("""tab => {
       const name = tab.querySelector('.lf-tab-name');
       const style = getComputedStyle(name);
-      return {ringRight: name.getBoundingClientRect().right
+      return {ringBottom: name.getBoundingClientRect().bottom
         + parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
-        answerLeft: tab.querySelector('.lf-tab-answer').getBoundingClientRect().left};
+        answerTop: tab.querySelector('.lf-tab-answer').getBoundingClientRect().top};
     }""")
-    assert clearance["ringRight"] <= clearance["answerLeft"], clearance
+    assert clearance["ringBottom"] <= clearance["answerTop"], clearance
 
     moved = page.locator("#queue").evaluate(
         """async queue => {
@@ -173,8 +191,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
             });
             observer.observe(parent, {childList: true});
             queue.remove();
-            parent.insertBefore(queue, next);
           });
+          parent.insertBefore(queue, next);
           return firstTab === queue.querySelector('.lf-tab-btn');
         }"""
     )
@@ -436,14 +454,11 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
 
     Section rows divide the available height according to the content they lead, a
     moving lens shows the visible band, and late content growth redraws both. Labels
-    reveal without moving the map or changing the item under the pointer. The same
-    links remain an ordinary open outline where the margin posture is unavailable.
+    reveal without moving the map or changing the item under the pointer. Outside
+    the margin posture, the same links open through a native disclosure.
 
-    The map runs to the window's foot, so the shortcut bar stands over the last section it
-    names — always the last, the map being sized to the viewport rather than scrolled.
-    The line is a hover here and the map is not one of the regions that ends above it;
-    `lf-toc`'s own rule in the default theme carries that decision and its TODO. This
-    holds the map to the window so the cutoff cannot close a region at a time."""
+    The map fills the space between the banner and shortcut bar. Its rows keep the
+    last section in view while the document scrolls."""
     source = leaf_page(
         "contents map",
         """
@@ -509,15 +524,17 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         "timing": "ease-out, ease-out",
     }
     nav_box = nav.bounding_box()
+    rows_box = nav.locator(".lf-toc-rows").bounding_box()
     toc_box = toc.bounding_box()
     banner_box = page.locator(".lf-banner").bounding_box()
     assert nav_box is not None
+    assert rows_box is not None
     assert toc_box is not None
     assert banner_box is not None
     assert 23 <= nav_box["x"] <= 25
-    assert 64 <= nav_box["y"] <= 68
+    assert nav_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
     assert nav_box["height"] >= 740, f"the reading map used only {nav_box['height']}px"
-    padding = toc.evaluate(
+    padding = nav.evaluate(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
     assert toc_box["y"] == pytest.approx(banner_box["y"] + banner_box["height"], abs=1)
@@ -525,21 +542,22 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert toc_box["y"] + toc_box["height"] == pytest.approx(
         page.locator(".lf-shortcut-bar").bounding_box()["y"], abs=1
     )
-    assert nav_box["y"] == pytest.approx(toc_box["y"] + padding, abs=1)
+    assert nav_box["y"] == pytest.approx(toc_box["y"], abs=1)
     assert nav_box["y"] + nav_box["height"] == pytest.approx(
-        toc_box["y"] + toc_box["height"] - padding, abs=1
+        toc_box["y"] + toc_box["height"], abs=1
     )
+    assert rows_box["y"] == pytest.approx(nav_box["y"] + padding, abs=1)
 
     # At rest the map takes the pointer on its spine alone, so the words beside it stay
     # the page's; once entered, the whole map keeps the pointer across its labels and
     # the padding that keeps it clear of the banner.
-    page.mouse.move(nav_box["x"] + 100, nav_box["y"] + 20)
+    page.mouse.move(rows_box["x"] + 100, rows_box["y"] + 20)
     assert not toc.evaluate("node => node.matches(':hover')")
-    page.mouse.move(nav_box["x"] + 2, nav_box["y"] + 20, steps=4)
+    page.mouse.move(rows_box["x"] + 2, rows_box["y"] + 20, steps=4)
     assert toc.evaluate("node => node.matches(':hover')")
     expect(prepare).to_have_css("opacity", "1")
     expect(prepare).to_have_css("pointer-events", "auto")
-    page.mouse.move(nav_box["x"] + 100, nav_box["y"] - 8, steps=8)
+    page.mouse.move(nav_box["x"] + 100, rows_box["y"] - 8, steps=8)
     assert toc.evaluate("node => node.matches(':hover')")
     page.mouse.move(nav_box["x"] + 100, toc_box["y"] - 2)
     assert page.evaluate(
@@ -554,12 +572,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert nav_box["y"] + nav_box["height"] <= line_box["y"] + 1, (
         f"the bottom bar stands over the map's foot: map {nav_box}, band {line_box}"
     )
-    assert nav_box["width"] == pytest.approx(320, abs=1)
+    assert nav_box["width"] == pytest.approx(24, abs=1)
 
     resized(page, 1800, 900)
-    expect(nav).to_have_css("width", "320px")
+    expect(nav).to_have_css("width", "24px")
     resized(page, 1188, 900)
-    expect(nav).to_have_css("width", "320px")
+    expect(nav).to_have_css("width", "24px")
     underlying = page.locator("#underlying")
     underlying.evaluate(
         "node => node.addEventListener('pointerdown', "
@@ -702,11 +720,11 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert nav.bounding_box() == nav_box
     hidden_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-        "return [r.x, r.y, r.width, r.height]; })"
+        "return [r.x, r.y, r.height]; })"
     )
     resting_rows = nav.locator(".lf-toc-start, li").evaluate_all(
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-        "return [r.x, r.y, r.width, r.height]; })"
+        "return [r.x, r.y, r.height]; })"
     )
     resting_marker_centers = nav.locator(".lf-toc-start, li").evaluate_all(
         "items => items.map(item => { const s = getComputedStyle(item, '::before'); "
@@ -715,8 +733,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         "+ parseFloat(s.height) / 2; })"
     )
 
-    # The go-to menu can address the complete route without moving its geometry or focus
-    # into the rail.
+    # The go-to menu reveals the labels without moving their position or focus into the rail.
     page.keyboard.press("g")
     for link in nav.locator("a").all():
         expect(link).to_have_css("opacity", "1")
@@ -728,7 +745,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert (
         nav.locator(".lf-toc-start, li").evaluate_all(
             "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-            "return [r.x, r.y, r.width, r.height]; })"
+            "return [r.x, r.y, r.height]; })"
         )
         == resting_rows
     )
@@ -791,7 +808,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     expect(capacity).to_have_css("color", current_hover_color)
     revealed_boxes = nav.locator(".lf-toc-start, li, a").evaluate_all(
         "nodes => nodes.map(node => { const r = node.getBoundingClientRect(); "
-        "return [r.x, r.y, r.width, r.height]; })"
+        "return [r.x, r.y, r.height]; })"
     )
     assert revealed_boxes == hidden_boxes
 
@@ -830,7 +847,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
             "top => document.scrollingElement.scrollTo({top, behavior: 'instant'})",
             position,
         )
-        assert nav.bounding_box() == nav_box
+        assert [nav.bounding_box()[key] for key in ("x", "y", "height")] == [
+            nav_box[key] for key in ("x", "y", "height")
+        ]
 
     # A wheel over the rail stays in the document's native scroll chain.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
@@ -893,7 +912,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     scroll_settled(page)
     after_navigation = nav.bounding_box()
     assert after_navigation is not None
-    assert after_navigation == nav_box, "following a link moved the contents rail"
+    assert [after_navigation[key] for key in ("x", "y", "height")] == [
+        nav_box[key] for key in ("x", "y", "height")
+    ], "following a link moved the contents rail"
     assert prepare.evaluate("node => node.matches(':hover')")
     current_alignment = prepare.evaluate(
         "node => ({label: node.getBoundingClientRect().top "
@@ -947,6 +968,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     toggle_queue(page, open=False)
 
     resized(page, 700, 900)
+    toc.locator("summary").click()
     expect(prepare).to_have_css("opacity", "1")
     expect(prepare).to_have_css("pointer-events", "auto")
     expect(start).to_be_hidden()
@@ -1014,6 +1036,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     coarse = open_page(browser, url, context=context)
     expect(coarse.locator("aside.sidebar")).to_have_css("position", "sticky")
     expect(coarse.locator("#contents")).to_have_css("position", "static")
+    coarse.locator("#contents summary").click()
     expect(
         coarse.get_by_role("navigation", name="On this page").get_by_role(
             "link", name="Prepare the copy", exact=False
@@ -1179,48 +1202,23 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         },
         "limit": 4,
     }
-    assert (
-        playground.evaluate(
-            """root => {
-          const returned = root.values;
-          returned.filters.rows[0].value = 'tampered';
-          return root.values.filters.rows[0].value;
-        }"""
-        )
-        == "europe"
-    )
-    assert playground.evaluate(
-        """root => {
-          const errors = [];
-          for (const [name, value] of [
-            ['limit', {}],
-            ['filters', {}],
-            ['bad-date', new Date()],
-          ]) {
-            try {
-              root.registerContributor(name, value, {read: () => value, apply: () => {}});
-            } catch (error) {
-              errors.push(error.message);
-            }
-          }
-          try {
-            root.registerInstructionProvider(() => 'A second provider');
-          } catch (error) {
-            errors.push(error.message);
-          }
-          return errors;
-        }"""
-    ) == [
-        "contributor limit collides with a control",
-        "repeats contributor filters",
-        "contributor bad-date must be JSON-safe",
-        "playground already has an instruction provider",
-    ]
     expect(page.locator(".query-result-count")).to_have_text("2 releases shown")
 
     rows.nth(1).get_by_label("Value").fill("80")
     expect(page.locator(".query-result-count")).to_have_text("1 release shown")
-    rows.nth(1).get_by_role("button", name="Move filter 2 up").click()
+    # Moving a sibling row must retain the native field, caret and edit history.
+    editor = page.locator('input[name="filter-1-value"]')
+    editor.focus()
+    editor.press("End")
+    editor.press_sequentially("x")
+    editor.press("ArrowLeft")
+    rows.nth(1).get_by_role("button", name="Move filter 2 up").evaluate(
+        "button => button.click()"
+    )
+    expect(editor).to_be_focused()
+    assert editor.evaluate("input => input.selectionStart") == len("europe")
+    editor.press("ControlOrMeta+z")
+    expect(editor).to_have_value("europe")
     assert playground.evaluate("root => root.values.filters.order") == [
         "filter-2",
         "filter-1",
@@ -1299,7 +1297,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
 
 
 def test_built_code_comparison_drives_both_candidates(browser, serve):
-    """Candidate measurements follow rendered readers through sizing and reconnection."""
+    """Candidate measurements follow rendered readers through sizing and edits."""
     source = Path(__file__).parents[2] / "examples" / "code-comparison.html"
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, serve(source), context=context)
@@ -1328,11 +1326,6 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     initial_viewport = page.viewport_size
     resized(page, 390, 844)
     measurements_match_readers()
-    page.locator("#code-reader-comparison").evaluate("""owner => {
-      const parent = owner.parentNode, next = owner.nextSibling;
-      owner.remove();
-      parent.insertBefore(owner, next);
-    }""")
     resized(page, initial_viewport["width"], initial_viewport["height"])
     measurements_match_readers()
     assert playground.evaluate("root => root.values") == {

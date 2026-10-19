@@ -616,6 +616,10 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     # The date belongs to the line, so a stream renewing every few seconds cannot
     # make an old start read as current work.
     assert activity["ts"] == start["ts"]
+    assert activity["detail_source"] == {
+        "event_id": start["id"],
+        "item": start["item"],
+    }
 
     # With nothing in hand, the step is all there is, and it is the sentence.
     ended = CliRunner().invoke(
@@ -629,6 +633,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
         "Running the tests",
         "Running the tests",
     )
+    assert waiting["detail_source"] is None
 
     session_model.cmd_waiting(claimed, "which store should own it")
 
@@ -1281,12 +1286,17 @@ def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir)
     assert started.exit_code == 0, started.output
     activity = page_state(page_dir)["activity"]
     assert (activity["kind"], activity["detail"]) == ("working", "reading the traces")
+    assert activity["detail_source"]["item"] == comment["id"]
 
-    working(page_dir, "drafting v2")
+    task = working(page_dir, "drafting v2")
     state = page_state(page_dir)
     assert (state["activity"]["kind"], state["activity"]["detail"]) == (
         "working",
         "drafting v2",
     )
+    assert state["activity"]["detail_source"] == {
+        "event_id": task["id"],
+        "item": task["item"],
+    }
     [workflow] = [w for w in state["workflows"] if w["input"] == comment["id"]]
     assert workflow["at_work"]

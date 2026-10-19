@@ -10,8 +10,9 @@ var asDataUrl = (blob) => new Promise((resolve, reject) => {
   reader.onerror = () => reject(reader.error);
   reader.readAsDataURL(blob);
 });
+var pageRenderer = () => import("/vendor/snapdom.esm.js");
 async function pageImage(clip, { exclude = [] } = {}) {
-  const { snapdom } = await import("/vendor/snapdom.esm.js");
+  const { snapdom } = await pageRenderer();
   const warnings = /* @__PURE__ */ new Set();
   async function sampleContent(frame) {
     const box = document.createElement("div");
@@ -54,9 +55,9 @@ async function pageImage(clip, { exclude = [] } = {}) {
     clip,
     dpr: window.devicePixelRatio,
     exclude,
-    excludeMode: "remove",
+    excludeMode: "hide",
     invalidate: true,
-    reconcile: true,
+    reconcile: false,
     plugins: [
       {
         name: "leaf-sample-frames",
@@ -71,5 +72,6 @@ async function pageImage(clip, { exclude = [] } = {}) {
 }
 
 export {
+  pageRenderer,
   pageImage
 };

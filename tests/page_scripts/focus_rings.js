@@ -17,6 +17,13 @@
     return e;
   }
 
+  // The box a node is laid out and painted inside: its slot where it is slotted, else its
+  // parent, else the host of the shadow tree it is the top of. A control slotted into a
+  // field stands inside the field's own shadow tree, whose frame draws the ring for it
+  // (`::part(base lf-focus-within)`); the DOM parent skips that frame for the host.
+  const flatParent = (n) =>
+    n.assignedSlot ?? n.parentElement ?? n.getRootNode().host ?? null;
+
   // The focus ring where a box casts it as a shadow rather than drawing it as an outline,
   // and how far past its edge that band reaches. Two rules in the layer draw it that way —
   // the anchored response bar, which writes `outline: none` so its states keep one
@@ -81,80 +88,14 @@
     return { accent, mixed, markInk };
   }
 
-  // Every rule in the page's composed layer that draws the focus ring, under the name that
-  // rule gives it (--lf-focus-ring, theme.css), so the ring samples can hold every such
-  // rule to naming the ring it draws; the sweep below answers for what is painted.
-  //
-  // Flat, because nothing re-runs a selector any more. The reading this replaced resolved
-  // nesting, joined @scope roots onto their descendants and split `:host(...)` on a matched
-  // paren so it could match the rules itself, and a throw in any of that came back looking
-  // exactly like a rule nothing on the page matched. theme.css carries why that went.
-  //
-  // What it cannot see is a rule drawing the ring some other way — as longhands, or as
-  // `2px solid var(--accent)` written out. "Draws the focus ring" is not decidable from a
-  // declaration's text, and this asks the one question that is: does the value name the
-  // layer's own token. The paint is where the rest is decidable, and the samples read
-  // both, so a ring the layer draws without saying so is caught there rather than excused
-  // here.
-  //
-  // Two tokens, because the band has two carriers. `--focus-ring` is the outline the great
-  // majority of the rules draw; `--focus-shadow` is the same band cast as a shadow, for the
-  // boxes that cannot spend an outline on it. Asking for the token and not for the shape
-  // is what keeps the status dots out: a milestone's active dot is `0 0 0 3px` of the
-  // accent and is not a ring, and no reading of a declaration could tell the two apart by
-  // looking at them.
-  //
-  // Conditions are not read. This reading is taken on screen, in the scheme the walk uses.
-  // A ring that painted only in some other medium is one no sample shows, and nothing
-  // here should say otherwise.
-  function ringNames() {
-    const rings = new Map();
-    const eaten = new Set();
-    const eat = (sheet) => {
-      if (!sheet || eaten.has(sheet)) return;
-      eaten.add(sheet);
-      let list;
-      try {
-        list = sheet.cssRules;
-      } catch {
-        return;
-      } // a sheet from another origin
-      const walk = (from) => {
-        for (const rule of from) {
-          // Every rule is asked for its style, because a declaration written after a
-          // nested rule is hoisted into a CSSNestedDeclarations, which has one and no
-          // selector. The context comes off the parent for the same reason: the layer's
-          // one nested ring says
-          // `&:has(> lf-option > .lf-pick[data-lf-focus])`
-          // and nothing else, which names no rule anybody can find.
-          if (
-            rule.style &&
-            (rule.style.getPropertyValue("outline").includes("--focus-ring)") ||
-              rule.style.getPropertyValue("box-shadow").includes("--focus-shadow)"))
-          ) {
-            const name = rule.style.getPropertyValue("--lf-focus-ring").trim();
-            const own = rule.selectorText;
-            const up = rule.parentRule?.selectorText;
-            const said =
-              own && up ? `${up} { ${own}` : (own ?? up ?? "(a declaration)");
-            if (!rings.has(name)) rings.set(name, []);
-            if (!rings.get(name).includes(said)) rings.get(name).push(said);
-          }
-          if (rule.cssRules) walk(rule.cssRules);
-        }
-      };
-      walk(list);
-    };
-    // The same walk the sweep makes, so the two readings meet the same sheets: a root one
-    // root deeper carries rules a single pass over the document's own hosts never sees.
-    const roots = [document];
-    for (const root of roots) {
-      for (const sheet of root.styleSheets) eat(sheet);
-      for (const sheet of root.adoptedStyleSheets) eat(sheet);
-      for (const el of root.querySelectorAll("*"))
-        if (el.shadowRoot) roots.push(el.shadowRoot);
-    }
-    return [...rings].map(([name, said]) => ({ name, said }));
+  // Which rule drew a ring is the browser's answer, not the page's: the readings below
+  // decide from the paint that a box wears the band, and leave the boxes here for
+  // `ring_rules` (render_cases_layout.py), which asks the DevTools protocol which matched
+  // rule won the outline or shadow. A page script cannot hand an element to the protocol
+  // by value, so each reading leaves its boxes on this one global, in the order of the
+  // answers it returns, and the Python side takes them off again.
+  function stash(boxes) {
+    globalThis.__lfRingBoxes = boxes;
   }
 
   // Every focus ring the page is showing right now, and what is wrong with each.
@@ -168,7 +109,7 @@
   // cut planted on one of those carriers passed the entire example corpus.
   //
   // The focused element is a candidate too, whatever paints its outline, so a ring the
-  // platform draws and the layer never named is still measured.
+  // platform draws and the layer never drew is still measured.
   //
   // Both carriers of the band are read. Most of the layer's rules draw it as an outline;
   // two cast it as a shadow instead, and a reading that knew only the outline reported the
@@ -183,54 +124,39 @@
     // padding box with the scrollbar's gutter still in it.
     const { shownBand } = await window.__lfCheckApi();
     const holds = (a, b) => {
-      for (let n = b; n; n = n.parentNode || n.host) if (n === a) return true;
+      for (let n = b; n; n = flatParent(n)) if (n === a) return true;
       return false;
     };
     const { accent, mixed } = accentSwatch();
     // The band this box casts as a shadow, where it draws one, in the width it draws it
     // at. Its own comment carries what makes a shadow that band rather than a lift.
     const hereShadow = (cs) => shadowBand(cs, accent, mixed);
-    // Whether the outline on this element is the layer's ring: `--focus-ring` is
+    // Whether this box paints the layer's ring: `--focus-ring` is
     // `var(--focus-ring-w) solid var(--accent)`, so style, width and colour are all what
     // the element computes them to.
     //
-    // Element feedback now deliberately shares the ring's weight and accent while the
-    // pointer is over it or its thread is current. Its role is the distinction the paint
-    // no longer carries: an unnamed contour on a non-focused element mark is feedback,
-    // while the focused element or a named focus state on that same mark wears a ring.
-    // Keep that one semantic exclusion here; treating every accent contour as a ring
-    // reports the page painting a ring no rule named, and naming the feedback contour
-    // would put it in a population the keyboard can never light.
-    // The control the user is standing on is measured whatever paints its outline, since
-    // a visible ring cut in half is a fault whoever drew it.
-    //
     // Or the same band cast as a shadow, which is the same ring to the user and so the
     // same ring here: the anchored response bar and the browsed target hint draw it that
-    // way. Left out, the bar's own controls came back wearing `pressable` — the name of
-    // the floor rule whose outline this one takes away — and the hint's band went
-    // unmeasured wherever it stood.
-    // Which focus ring this is, where a rule said. An unset registered property and an
-    // unregistered one both answer `none` and neither is a name, so both come back empty.
-    const ringName = (cs) => {
-      const n = cs.getPropertyValue("--lf-focus-ring").trim();
-      return n === "none" ? "" : n;
-    };
+    // way. Left out, the bar's own controls came back drawn by the floor rule whose
+    // outline this one takes away, and the hint's band went unmeasured wherever it stood.
     const focused = deepFocus();
-    const isFocusRing = (el, cs) =>
+    const isFocusRing = (cs) =>
       (cs.outlineStyle === "solid" &&
         cs.outlineWidth === cs.getPropertyValue("--focus-ring-w").trim() &&
-        cs.outlineColor === accent &&
-        (el === focused || !el.matches(".lf-mark-el") || Boolean(ringName(cs)))) ||
+        cs.outlineColor === accent) ||
       hereShadow(cs) > 0;
     // Every box painting the ring, read off the composed page. Whether a ring is there is
-    // what the paint says, so this asks the paint. An unnamed ring is found exactly as
-    // readily unless it is the visually identical feedback contour on a non-focused
-    // element mark; no paint reading can separate those two. The name answers the other
-    // question — which rule drew it — and is read only to credit.
+    // what the paint says, so this asks the paint; which rule drew it is the protocol's
+    // answer, taken after (`ring_rules`).
     //
-    // The focused element joins them whatever paints its outline. It is also exempt from
-    // the feedback-contour exclusion, so an unnamed ring on a focused element mark is
-    // still recognized and measured.
+    // Element feedback deliberately shares the ring's weight and accent while the pointer
+    // is over a marked element or its thread is current, and no paint reading separates
+    // the two. Each answer says whether its box is an element mark, so the reading of
+    // the rule can keep that one contour out: on a non-focused mark, only a rule drawing
+    // with the ring's token is a ring.
+    //
+    // The focused element joins them whatever paints its outline, since a visible ring
+    // cut in half is a fault whoever drew it.
     //
     // Roots are collected as the sweep goes. Pushing onto the array being walked carries
     // it into a shadow tree another shadow tree opened, which a pass over the document's
@@ -241,22 +167,21 @@
       for (const el of root.querySelectorAll("*")) {
         if (el.shadowRoot) roots.push(el.shadowRoot);
         const cs = getComputedStyle(el);
-        if (isFocusRing(el, cs)) claimed.push({ el, cs, name: ringName(cs) });
+        if (isFocusRing(cs)) claimed.push({ el, cs });
         const after = getComputedStyle(el, "::after");
-        if (after.content !== "none" && isFocusRing(el, after))
-          claimed.push({ el, cs: after, name: ringName(after), pseudo: true });
+        if (after.content !== "none" && isFocusRing(after))
+          claimed.push({ el, cs: after, pseudo: true });
       }
     if (
       focused &&
       focused !== document.body &&
       focused !== document.documentElement &&
       !claimed.some((claim) => claim.el === focused)
-    ) {
-      const cs = getComputedStyle(focused);
-      claimed.push({ el: focused, cs, name: ringName(cs) });
-    }
+    )
+      claimed.push({ el: focused, cs: getComputedStyle(focused) });
     const answers = [];
-    for (const { el, cs, name, pseudo } of claimed) {
+    const boxes = [];
+    for (const { el, cs, pseudo } of claimed) {
       // A ring on something the browser is not rendering is not on screen, and its box is
       // whatever the last layout left behind. An inactive lf-tab is the case: it carries
       // `hidden="until-found"`, so the UA gives it `content-visibility: hidden`, its
@@ -306,7 +231,7 @@
       // the whole of what this says about them.
       const cuts = [];
       let scrolled = false;
-      const above = (n) => n.parentElement || n.getRootNode().host || null;
+      const above = flatParent;
       // One side, one message, named for the innermost box that took it. A scroll region's
       // edge is often the window's to the pixel — .lf-threads' right edge is .lf-thread-panel's is
       // innerWidth — and one ring reported twice reads as two defects. The innermost box is
@@ -373,11 +298,22 @@
       took({ top: 0, left: 0, bottom: innerHeight, right: innerWidth }, "the window");
       for (const side of ["top", "left", "bottom", "right"])
         if (taken[side]) cuts.push(taken[side]);
-      const paints = (n) => {
+      // Whether a box paints at a ring sample: its fill anywhere, or its border where the
+      // sample lies on it. A face drawn by its border alone, such as a playground choice,
+      // covered 1px of its neighbour's ring unseen while this read only fills.
+      const clear = (colour) => /^(transparent$|rgba\(.*,\s*0\))/.test(colour);
+      const paints = (n, x, y) => {
         const s = getComputedStyle(n);
-        return (
-          s.backgroundImage !== "none" ||
-          !/^(transparent$|rgba\(.*,\s*0\))/.test(s.backgroundColor)
+        if (s.backgroundImage !== "none" || !clear(s.backgroundColor)) return true;
+        const o = n.getBoundingClientRect();
+        return Object.entries({
+          Left: x - o.left,
+          Right: o.right - x,
+          Top: y - o.top,
+          Bottom: o.bottom - y,
+        }).some(
+          ([side, by]) =>
+            by < parseFloat(s[`border${side}Width`]) && !clear(s[`border${side}Color`]),
         );
       };
       const mid = (x, y) => (x + y) / 2;
@@ -477,7 +413,7 @@
           if (over === el || holds(over, el)) break;
           if (holds(el, over)) {
             if (!lifted(over)) break;
-            if (!paints(over)) continue;
+            if (!paints(over, x, y)) continue;
             covers.push(
               `its ${side} edge is under ` +
                 named(over) +
@@ -486,7 +422,7 @@
             );
             break;
           }
-          if (!paints(over)) continue;
+          if (!paints(over, x, y)) continue;
           if (!scrolledTo && fixedOver(over)) break;
           // Is the control itself under this too? Where a control stands partly behind
           // something, the ring's run on that side is behind whatever the control is behind,
@@ -497,20 +433,31 @@
           // of the window under the banner, which stopped being true in 3a8f16f0, the commit
           // that added this comment and the handle's top inset together.
           //
-          // The step in has to clear the ring's own band, and `grow + w` from the ring's
-          // edge is what lands `w + 1` inside the box whichever side of it the ring is
-          // drawn on. Written as `grow + 1` it cleared an outward ring, where grow is
-          // already at least w, and landed inside an inset one, where grow is nought:
-          // every covered inset ring answered that the control was behind the same thing
-          // and was dropped without a word. The rings the panel's own list draws are all
-          // inset, so this went blind in the same commit that made them so — a thread
-          // lying two pixels under a cover is a card with three sides, and the gate
-          // written to catch exactly that reported nothing.
-          const step = grow + w + 1;
+          // The step in has to clear the ring's own band. Past an outward ring, `grow + 1`
+          // lands on the control's own outermost pixels, so a control whose edge stands
+          // behind the cover counts as behind it: a button whose last 4px ran under the
+          // open Threads panel was reported for the ring's run there. An inset ring, where
+          // grow is nought, needs `grow + w + 1` to land `w + 1` inside the box. With
+          // `grow + 1` there, every covered inset ring answered that the control was behind
+          // the same thing and was dropped without a word. The rings the panel's own list
+          // draws are all inset, so this went blind in the same commit that made them so —
+          // a thread lying two pixels under a cover is a card with three sides, and the
+          // gate written to catch exactly that reported nothing.
+          const step = grow > 0 ? grow + 1 : grow + w + 1;
           const inx = x + (side === "left" ? step : side === "right" ? -step : 0);
           const iny = y + (side === "top" ? step : side === "bottom" ? -step : 0);
           const inside = document.elementsFromPoint(inx, iny);
           if (inside.includes(over)) break;
+          // The same surface counts, not only the same box: a page control under the open
+          // Threads panel, where it overlays a narrow window, had its ring's run under one
+          // card's title while the stepped-in point landed on the card's body.
+          const front = inside.findIndex((n) => n === el || holds(el, n));
+          if (
+            inside
+              .slice(0, front < 0 ? inside.length : front)
+              .some((n) => holds(n, over) && !holds(n, el))
+          )
+            break;
           // Or the other way about: a box the control itself paints over. An outline is
           // painted by its control at its control's level, so a box the control stands in
           // front of cannot stand over the ring around it — and the sample lands on one of
@@ -565,10 +512,29 @@
               parseFloat(s.opacity) < 1
             );
           };
+          // The level a box's side paints at inside the box holding both sides: the
+          // outermost stacking context on its way up, at its z-index, or at nought for a
+          // context that names none.
+          const level = (n) => {
+            let z = 0;
+            for (let a = n; a && !(holds(a, el) && holds(a, over)); a = above(a)) {
+              const s = getComputedStyle(a);
+              if (stacked(s, above(a))) z = parseFloat(s.zIndex) || 0;
+              else if (forms(a)) z = 0;
+            }
+            return z;
+          };
           let under = false;
           let hoisted = false;
           for (let a = over; a && control >= 0;) {
-            if (holds(a, el)) break;
+            // Neither side ranked at the stepped-in point, so their order is that of the
+            // two sides inside the box holding both: a control whose side paints at a
+            // higher level paints over the cover. A shot's rail, sticky at z-index 1, is
+            // the case: its buttons' rings run onto the image the rail stands above.
+            if (holds(a, el)) {
+              under = level(el) > level(over);
+              break;
+            }
             const acs = getComputedStyle(a);
             const ranked = inside.indexOf(a);
             if (ranked >= 0) {
@@ -620,10 +586,13 @@
           break;
         }
       }
+      boxes.push(el);
       answers.push({
         who: named(el),
-        here: isFocusRing(el, cs),
-        ring: name,
+        here: isFocusRing(cs),
+        mark: el.matches(".lf-mark-el"),
+        pseudo: pseudo ? "after" : null,
+        carrier: outlined ? "outline" : "box-shadow",
         focused: el === focused,
         sample:
           el === focused ||
@@ -635,13 +604,16 @@
         covers,
       });
     }
+    stash(boxes);
     return answers;
   }
 
   // A keyboard stop this sweep has not reached, one it has, or the document boundary.
-  // This deliberately waits for no settled geometry: focus paint is synchronous, and the
-  // ring samples (RING_CASES) own ring geometry. Avoiding a layout-settlement probe at
-  // every Tab is what makes a complete native-stop sweep cheap.
+  // This deliberately waits for no settled geometry: focus paint, and the scroll that
+  // brings a stop into view, are synchronous, so the rings a stop lights read as it
+  // lands, and only a stop whose rings read faulty waits for the page to come to rest
+  // before it is read again. Avoiding a layout-settlement probe at every Tab keeps a
+  // complete native-stop sweep affordable.
   function newStop() {
     const e = deepFocus();
     if (!e || e === document.body || e === document.documentElement) return "empty";
@@ -675,9 +647,9 @@
   // report, and the samples make no gesture — so nothing here is being excused today. A
   // reading of the wash has to come with the corpus case that shows it.
   //
-  // A marked element answers the keyboard with the same named accent ring as any other
-  // focusable passage. Its hover and current-thread contours have no focus-ring
-  // declaration, so they cannot be mistaken for focus.
+  // A marked element answers the keyboard with the same accent ring as any other
+  // focusable passage. Its hover and current-thread contours are written out rather
+  // than drawn with the ring's token, so they cannot be mistaken for focus.
   //
   // The band cast as a shadow is the third. The anchored response bar draws it that way —
   // its focused states take the outline off so the field and its choices keep one
@@ -704,66 +676,55 @@
       cs.outlineColor === accent;
     // A box whose own content paints over its outline draws the same ring on a later
     // pseudo-element instead: the scrolling thread list's frame, a page thread over its
-    // pinned reply row, a code block's host over its sticky notes. That ring is only ever
-    // named, so it answers under the same rule as a named ancestor's outline.
+    // pinned reply row, a code block's host over its sticky notes. It answers under the
+    // same rule as an ancestor's outline.
+    //
+    // Off the stop itself, a ring answers only where the rule that drew it draws with
+    // the ring's token. Every ancestor on this chain contains the focus by construction,
+    // so containing it says nothing; what separates a ring drawn because the user is here
+    // from one drawn for another reason is that the layer's focus rules draw the token
+    // and the pointer's feedback does not. An element mark's contour is the case. Which
+    // rule drew a box's ring is the protocol's answer (`seen_stop`), so the boxes that
+    // need it are left for it and returned beside what to say if none of them does.
+    const carriers = [];
     const overlaid = (el) => {
       const cs = getComputedStyle(el, "::after");
-      return (
-        cs.content !== "none" &&
-        ringed(cs) &&
-        cs.getPropertyValue("--lf-focus-ring").trim() !== "none"
-      );
+      if (cs.content !== "none" && ringed(cs)) carriers.push([el, "after"]);
     };
-    const shown = (el) => {
-      const cs = getComputedStyle(el);
-      return cs.outlineStyle === "auto" || ringed(cs);
-    };
-    // An ancestor answers only for a ring whose rule named it. Every ancestor on this
-    // chain contains the focus by construction, so containing it says nothing; what
-    // separates a ring drawn because the user is here from one drawn for another
-    // reason is that the layer's focus rules say which ring they are and the pointer's
-    // do not. An element mark's contour is the case: it is not a named
-    // outline, so neither answers the keyboard's question for every stop underneath it.
-    const named = (el) =>
-      getComputedStyle(el).getPropertyValue("--lf-focus-ring").trim() !== "none";
-    if (shown(e) || overlaid(e)) return null;
-    // Tabs draw focus on their label inside the larger hit target. Only a named ring
-    // counts here, for the same reason as on an ancestor below.
+    const cs = getComputedStyle(e);
+    if (cs.outlineStyle === "auto" || ringed(cs)) return null;
+    if (shadowBand(cs, accent, mixed) > 0) return null;
+    overlaid(e);
+    // Tabs draw focus on their label inside the larger hit target.
     for (const child of e.querySelectorAll("*"))
-      if (
-        child.checkVisibility({ visibilityProperty: true, opacityProperty: true }) &&
-        ((shown(child) && named(child)) || overlaid(child))
-      )
-        return null;
-    for (
-      let el = e.parentElement ?? e.getRootNode().host ?? null;
-      el;
-      el = el.parentElement ?? el.getRootNode().host ?? null
-    )
-      if (
-        (shown(el) && (getComputedStyle(el).outlineStyle === "auto" || named(el))) ||
-        overlaid(el)
-      )
-        return null;
-    if (shadowBand(getComputedStyle(e), accent, mixed) > 0) return null;
+      if (child.checkVisibility({ visibilityProperty: true, opacityProperty: true })) {
+        if (ringed(getComputedStyle(child))) carriers.push([child, null]);
+        overlaid(child);
+      }
+    for (let el = flatParent(e); el; el = flatParent(el)) {
+      const up = getComputedStyle(el);
+      if (up.outlineStyle === "auto") return null;
+      if (ringed(up)) carriers.push([el, null]);
+      overlaid(el);
+    }
     const cls =
       typeof e.className === "string" && e.className.trim()
         ? "." + e.className.trim().split(/\s+/).join(".")
         : "";
-    return (
+    const lost =
       e.tagName.toLowerCase() +
       (e.id ? "#" + e.id : "") +
       cls +
       " [outline " +
-      getComputedStyle(e).outlineStyle +
+      cs.outlineStyle +
       ", shadow " +
-      getComputedStyle(e).boxShadow +
-      "]"
-    );
+      cs.boxShadow +
+      "]";
+    stash(carriers.map(([el]) => el));
+    return { lost, carriers: carriers.map(([, pseudo]) => pseudo) };
   }
 
   return {
-    ringNames,
     ringsDrawn,
     newStop,
     seenStop,

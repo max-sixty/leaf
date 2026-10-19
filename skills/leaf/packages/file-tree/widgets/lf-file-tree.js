@@ -6,7 +6,7 @@
  * One upstream model survives updates and departures. Identical paths leave the
  * model untouched; changed paths retain surviving focus, selection, active search, and the
  * folders the reader expanded, including expanded descendants of a closed folder.
- * Leaving the search field follows Trees' own blur behavior and ends its query.
+ * A search filter survives navigation so several related files can be visited.
  * Trees draws into the widget's one declared shadow stage, sharing it with Leaf's
  * focus and arrival observers. No nested, unregistered shadow root holds controls.
  *
@@ -18,19 +18,20 @@
 import {
   PRESS,
   commands,
+  commandScope,
   focused,
   keeps,
   keepsHidden,
   keepsText,
   navigateToDatum,
   offer,
-  once,
+  LeafElement,
+  nothing,
   onStanding,
   paintKeys,
   plainPress,
   scrollIntoView,
   shadowStage,
-  watchData,
   whileConnected,
 } from "/runtime/widget-api.js";
 
@@ -39,9 +40,11 @@ const loadTrees = () => (library ??= import("/vendor/pierre-trees.esm.js"));
 
 customElements.define(
   "lf-file-tree",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
+  class extends LeafElement {
+    #snapshot;
+    #shown;
+
+    setup() {
       const empty = offer("p", "lf-file-tree-empty", "No files available.");
       const root = shadowStage(this, [empty]);
       const theme = root.firstChild;
@@ -94,12 +97,18 @@ customElements.define(
         const search = root.querySelector("input");
         keeps(search, "aria-label", `Search ${label}`);
         keeps(search, "name", "files");
+        commands(search, fileActions);
         stopModel = tree.subscribe(rememberExpansion);
         mounted = true;
       };
       const focusedRow = () => {
         const element = focused();
         return element?.getAttribute("role") === "treeitem" && root.contains(element);
+      };
+      const selectOnly = (path) => {
+        for (const selected of tree.getSelectedPaths())
+          if (selected !== path) tree.getItem(selected)?.deselect();
+        tree.getItem(path)?.select();
       };
       const activate = (toggleDirectory) => {
         const item = tree?.getFocusedItem();
@@ -108,7 +117,7 @@ customElements.define(
           if (toggleDirectory) item.toggle();
           return;
         }
-        item.select();
+        selectOnly(item.getPath());
         const file = files.find((entry) => entry.path === item.getPath());
         if (this.hasAttribute("for") && file?.key)
           void navigateToDatum(this, "for", file.key, {
@@ -116,12 +125,15 @@ customElements.define(
             missing: `${file.path} is no longer available.`,
           });
       };
-      commands(this, "In files", [
+      const fileActions = commandScope("In files", [
         {
           id: "files.open",
           title: "Open file or toggle folder",
-          keys: PRESS,
-          when: focusedRow,
+          keys: () => (focusedRow() ? PRESS : ["Enter"]),
+          when: () =>
+            focusedRow() ||
+            (focused() === root.querySelector("input") &&
+              Boolean(tree?.getFocusedItem())),
           run: () => activate(true),
         },
         {
@@ -131,14 +143,19 @@ customElements.define(
           when: focusedRow,
         },
       ]);
+      commands(this, fileActions);
       whileConnected(this, (signal) => {
         mount();
         // Trees scrolls its virtualized list and focuses with preventScroll. The
         // row can still lie outside Leaf's outer reading viewport, so hand that
         // remaining reveal to the same scrolling owner every widget uses.
         const stopStanding = onStanding((row) => {
-          if (row?.getAttribute("role") === "treeitem" && root.contains(row))
+          if (row?.getAttribute("role") === "treeitem" && root.contains(row)) {
+            // Each upstream row is a native button. Its exact scope precedes
+            // native activation; an ancestor scope cannot own that press.
+            commands(row, fileActions);
             scrollIntoView(row, { block: "nearest" });
+          }
         });
         this.addEventListener(
           "click",
@@ -159,6 +176,8 @@ customElements.define(
         );
         return () => {
           stopStanding();
+          generation++;
+          this.#shown = undefined;
           stopModel?.();
           stopModel = null;
           rememberExpansion();
@@ -166,7 +185,7 @@ customElements.define(
           mounted = false;
         };
       });
-      watchData(this, "files", async (snapshot) => {
+      this.applyFiles = async (snapshot) => {
         const current = ++generation;
         files = snapshot?.value.files ?? [];
         available = snapshot !== null;
@@ -201,6 +220,7 @@ customElements.define(
             .filter((file) => file.status)
             .map(({ path, status }) => ({ path, status })),
         );
+        if (snapshot?.value.current) selectOnly(snapshot.value.current);
         if (!files.length) {
           stopModel?.();
           stopModel = null;
@@ -209,7 +229,19 @@ customElements.define(
           shadowStage(this, [empty]);
         } else mount();
         paintEmpty();
-      });
+      };
+    }
+
+    render() {
+      this.#snapshot = this.data("files");
+      return nothing;
+    }
+
+    updated(changed) {
+      super.updated(changed);
+      if (this.#snapshot === this.#shown) return;
+      const snapshot = (this.#shown = this.#snapshot);
+      this.drawing(this.applyFiles(snapshot));
     }
   },
 );

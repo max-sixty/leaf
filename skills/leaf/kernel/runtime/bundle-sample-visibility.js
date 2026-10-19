@@ -1082,6 +1082,8 @@ function handBack(...destinations) {
 
 // runtime/dom-move.js
 function move(parent, node, before) {
+  if (node.parentNode === parent && (before === node || node.nextSibling === before))
+    return node;
   if (parent.isConnected) watchStandingIn(parent.getRootNode());
   if (parent.moveBefore && node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true }))
     parent.moveBefore(node, before);

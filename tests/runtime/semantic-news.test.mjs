@@ -41,11 +41,12 @@ const ask = (id, thread = null) => ({
   message: thread,
   source: { kind: "widget", id },
 });
-const replyAsk = (id, version = id) => ({
+// A question asked in words, an lf-ask in the agent's message `id`.
+const replyAsk = (id) => ({
   id,
   thread: "t",
   message: id,
-  source: { kind: "reply", id, version },
+  source: { kind: "widget", id, tag: "lf-ask" },
 });
 const activity = (kind = "away", extra = {}) => ({
   kind,
@@ -535,18 +536,6 @@ test("news is ordered by when each message last moved", () => {
       ["a", "edited", "e"],
     ],
   );
-});
-
-test("editing a prose ask creates news for its new content version", () => {
-  const first = reading({ threadAsks: [replyAsk("same", "original")] });
-  const baseline = observeSemanticNews(null, first);
-  const edited = reading({ threadAsks: [replyAsk("same", "edit")] });
-  const changed = observeSemanticNews(baseline.observed, edited);
-  assert.deepEqual(
-    changed.news.map(({ kind, source, thread }) => [kind, source, thread]),
-    [["user_obligation", "same", "t"]],
-  );
-  assert.deepEqual(observeSemanticNews(changed.observed, edited).news, []);
 });
 
 test("held producer batches preserve interrupted news and merge later arrivals", async (t) => {

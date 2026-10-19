@@ -1,4 +1,4 @@
-/* Generated from skills/leaf/packages/diff/styles/shadow.css by build/styles.mjs. */
+/* @noformat Generated from skills/leaf/packages/diff/styles/shadow.css by build/styles.mjs. */
 /* skills/leaf/packages/diff/styles/palette.css */
 :where(:scope, :scope:host) {
   --lf-code-add-fill: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
@@ -15,9 +15,12 @@
   border: 1px solid var(--code-border);
   border-radius: var(--r);
 }
+:scope:host(.lf-rendered) {
+  --lf-diff-head-inset: 10px;
+}
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
 :scope:host(.lf-rendered) .lf-diff-metadata {
-  padding: 7px 10px;
+  padding: 7px var(--lf-diff-head-inset);
   font-size: var(--t-5);
   font-family: var(--sans);
   color: var(--code-ink);
@@ -26,7 +29,8 @@
 :scope:host(.lf-rendered) .lf-diff-fold > .lf-error {
   padding: 10px;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -35,19 +39,24 @@
   white-space: nowrap;
   overflow: hidden;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before,
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary::before {
   content: "▶" / "";
   flex: none;
-  font-size: .7em;
+  font-size: calc(0.7 * var(--t-5));
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before,
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads[open] > .lf-resolved-summary::before {
   content: "▼" / "";
+}
+.lf-diff-path {
+  white-space: pre-wrap;
 }
 .lf-diff-head > .lf-diff-path {
   display: flex;
   flex: 1;
   min-width: 0;
-  white-space: nowrap;
+  white-space: pre;
 }
 .lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) {
   display: contents;
@@ -55,7 +64,7 @@
 .lf-diff-head .lf-diff-arrow {
   flex: none;
   white-space: normal;
-  margin-inline: .4ch;
+  margin-inline: 0.4ch;
 }
 .lf-diff-head wbr {
   display: none;
@@ -117,12 +126,12 @@
   position: absolute;
   z-index: 3;
   inset-block-start: calc(100% + 4px);
-  padding: 4px 7px;
-  border-radius: 4px;
-  background: var(--ink);
-  color: var(--paper);
-  box-shadow: 0 2px 8px var(--shade);
-  white-space: normal;
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  box-shadow: var(--raise-1);
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
   pointer-events: none;
 }
@@ -176,7 +185,7 @@
   --lf-diff-head-h: 35px;
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
-  --lf-diff-head-h: max(35px, calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)));
+  --lf-diff-head-h: max( 35px, calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)) );
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
   margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));
@@ -259,17 +268,14 @@
 }
 .lf-diff-comment[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: diff-tools;
   outline-offset: 1px;
 }
 :scope:host(.lf-rendered) .lf-diff-file > details > summary[data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: code-summary;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 :scope:host(.lf-rendered) [data-content] > [data-line][data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: code-line;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media screen {
@@ -295,7 +301,7 @@
   scroll-margin-top: var(--lf-diff-head-h);
 }
 :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file .lf-text-scroller {
-  scroll-margin-top: calc(var(--lf-diff-head-h) + var(--focus-ring-room));
+  scroll-margin-top: calc(var(--lf-diff-head-h) + var(--focus-ring-landing));
 }
 .lf-diff-path {
   font-family: var(--mono);
@@ -362,7 +368,6 @@
 }
 :scope:host(.lf-rendered) code[data-code][data-lf-focus] {
   outline: var(--focus-ring);
-  --lf-focus-ring: code-pre-shadow;
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-diff-thread-outlet,
@@ -382,19 +387,26 @@
 .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
   box-sizing: border-box;
   position: sticky;
-  inset-inline-start: var(--lf-diff-gutter-width);
-  max-inline-size: var(--lf-diff-thread-width);
+  inset-inline-start: var(--diffs-column-number-width);
+  max-inline-size: var(--diffs-column-content-width);
 }
 .lf-diff-file-thread-outlet {
+  padding: 0;
   margin-top: 8px;
   border: 1px solid var(--rule);
   border-radius: var(--r);
+}
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary {
+  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-diff-thread-outlet > :is(.lf-page-thread, .lf-resolved-threads) {
   max-width: 760px;
 }
 .lf-diff-thread-outlet .lf-page-thread {
   padding: var(--sp-2) 0;
+}
+.lf-diff-file-thread-outlet :is(.lf-resolved-summary, .lf-page-thread) {
+  padding-inline: var(--lf-diff-head-inset);
 }
 @media print {
   .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) {
@@ -418,7 +430,7 @@
   }
   .lf-diff-head > .lf-diff-path {
     display: block;
-    white-space: normal;
+    white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
   .lf-diff-head .lf-diff-dir[data-folder-hidden] {

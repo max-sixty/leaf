@@ -2587,8 +2587,9 @@ def _thread(page_dir):
             "author": "agent",
             "agent": "Claude",
             "parent": root,
+            "revision": 1,
             "text": "Forty is what the slowest device we ship on can hold.",
-            "ask": True,
+            "markup": '<lf-ask id="forty-enough">Is forty enough?</lf-ask>',
         },
     )
     return root, reply["id"]

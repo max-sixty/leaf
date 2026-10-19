@@ -203,6 +203,7 @@ import {
   restorePlace,
   textBlocks,
 } from "./reading-place.js";
+import { holdingError, raiseError } from "./errors.js";
 
 const PRIVATE_REVISION_PARAM = "_leaf-revision";
 
@@ -405,6 +406,10 @@ function pickerModel(state) {
         : currentLabel,
     }),
     latest: Object.freeze({
+      // The agent's latest save failed its check, so the page shows the last one that
+      // passed; `error` is what the check said.
+      failed: sourceFailed,
+      error: sourceFailed ? state.source_error : null,
       disabled: sourceFailed,
       keyTitle: sourceFailed ? state.source_error : "Open the current page",
       label: latestVersionLabel({
@@ -430,8 +435,17 @@ function pickerModel(state) {
 
 // The page before its first accepted state has a null `runtime.state`. Version controls
 // read the immutable document revision and the accepted root.
+// The agent's latest save failing its check is an error the user should see wherever
+// they are (errors.js), held while the page shows the last one that passed; Versions
+// says what the check found.
+const holdFailedSave = holdingError();
 function paintPicker() {
   const model = pickerModel(runtime.state);
+  holdFailedSave(
+    model.latest.failed
+      ? "Latest edit not shown: it failed its check (see Versions)"
+      : null,
+  );
   versionPicker.present(model);
   showNews(latestChip, model.latest.news);
   repaint();
@@ -914,7 +928,7 @@ async function showComparison(base) {
   if (baseRevision == null) {
     diffPendingBase = null;
     presentPicker();
-    notice(`Couldn't load v${base}`);
+    raiseError(`Couldn't load v${base}`);
     return;
   }
   const documentRequest = authoredDocument(baseVersion.url);
@@ -939,7 +953,7 @@ async function showComparison(base) {
     if (mine === diffRequest) {
       diffPendingBase = null;
       presentPicker();
-      notice(`Couldn't load v${base}`);
+      raiseError(`Couldn't load v${base}`);
     }
     return;
   }
@@ -1316,18 +1330,24 @@ export function createVersionController({
   // The chrome's sheets are adopted, not head nodes, so they cascade after everything
   // the head holds whatever order it is written in; the authored share goes at the end.
   function activateHead(doc, revision) {
-    for (const node of authoredHeadNodes) node.remove();
-    const next = new Set();
-    for (const node of doc.head.children) {
-      if (!versionedHeadNode(node)) continue;
-      const imported = document.importNode(node, true);
-      // A linked sheet, or one that imports, is complete only once it has loaded.
-      if (imported.localName === "link" || imported.localName === "style")
-        imported.addEventListener("load", keepPageRulesOffLayer, { once: true });
-      document.head.append(imported);
-      next.add(imported);
+    const source = [...doc.head.children].filter(versionedHeadNode);
+    const current = [...document.head.children].filter((node) =>
+      authoredHeadNodes.has(node),
+    );
+    if (
+      current.length !== authoredHeadNodes.size ||
+      current.length !== source.length ||
+      current.some((node, index) => !node.isEqualNode(source[index]))
+    ) {
+      for (const node of authoredHeadNodes) node.remove();
+      const next = new Set();
+      for (const node of source) {
+        const imported = document.importNode(node, true);
+        document.head.append(imported);
+        next.add(imported);
+      }
+      authoredHeadNodes = next;
     }
-    authoredHeadNodes = next;
     /** @type {HTMLMetaElement | null} */
     let marker = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
     if (!marker) {
@@ -1673,9 +1693,11 @@ export function createVersionController({
   // The move a state asks of the live root, prepared ahead of the commit that makes it.
   // Null where there is nothing to follow — no newer revision, or a document that failed
   // to load, which is reported; the commit's own render then lights the chip as the way
-  // to try again. A re-vendored layer never reaches here: the state names the active
-  // revision's layer, which this tab refuses, and the refusal's probe of the document
-  // source reloads it (layer-client.js, `sourceMovedOn`).
+  // to try again. A re-vendored layer arrives here as a revision whose executable
+  // changed, since the server answers this tab in its revision's layer (http.py,
+  // `_named_layer`); only one this Leaf can no longer admit input against is refused
+  // instead, and the refusal's probe of the document source reloads it at once
+  // (layer-client.js, `sourceMovedOn`).
   // Whether the move happens now is asked at the commit: an unresolved delivery,
   // `midComposition`, or an open menu defers it, unless the chip was pressed (goActive)
   // — the one override, spent by the install it forced.

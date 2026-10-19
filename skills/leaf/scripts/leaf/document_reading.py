@@ -26,7 +26,7 @@ class DocumentReading(NamedTuple):
     floors: dict
 
 
-def read_document(page: PageReading, threads: dict) -> DocumentReading:
+def read_document(page: PageReading, threads: dict, ends: dict) -> DocumentReading:
     """Resolve a document's durable state and its user's outstanding asks.
 
     `spoken` retains authored words because retractions and action ownership are
@@ -51,6 +51,7 @@ def read_document(page: PageReading, threads: dict) -> DocumentReading:
         dropped,
         threads,
         page.within,
+        ends,
         settled_away=set(passages.gone),
         prior=page.prior,
         revision=revision,

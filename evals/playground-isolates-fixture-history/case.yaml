@@ -13,10 +13,11 @@
 # the old harness's turn limit on both baseline samples and measured no baseline.
 description: playground-isolates-fixture-history
 metadata:
-  purpose: 'Playground: live Leaf candidates own fictional history and practice interactions; the outer
-    page owns feedback.'
+  purpose:
+    "Playground: live Leaf candidates own fictional history and practice interactions; the outer
+    page owns feedback."
   tags:
-  - playground
+    - playground
 vars:
   prompt: |
     We are studying two thread-panel treatments in Leaf. The user says:
@@ -39,23 +40,23 @@ vars:
     Write the playground HTML with real operable Leaf candidates, including their
     initial exchange. The page directory is not reachable, so reply with the HTML.
 assert:
-- type: llm-rubric
-  metric: authored-isolation
-  value: |
-    Pass only if the HTML uses two lf-sample window elements with data-sample
-    templates inside an lf-playground-preview, and each template names the same
-    inline application/json script through data-sample-events. The script holds
-    a comment command and a reply command linked to it by explicit id and parent,
-    with kind and text fields, and the comment's anchor names content inside each
-    child template. Comparison controls and the implementation Ask stay outside
-    the child templates. Fail if it relies on data-sample-threads, a companion
-    JSONL or posting fixture events from JavaScript, or duplicates fixture anchor
-    paragraphs outside the templates to attach fictional parent threads.
-- type: llm-rubric
-  metric: selects-live-conversation-view
-  value: |
-    Pass only if outer controls call the lf-sample element's showThread method
-    with a fixture root id and select page versus panel with its surface option,
-    and lf-sample-ready reapplies the chosen view after Reset. Fail if controls
-    query private thread chrome, click its buttons, observe its DOM to finish
-    selecting a view, or import a child window's runtime themselves.
+  - type: llm-rubric
+    metric: authored-isolation
+    value: |
+      Pass only if the HTML uses two lf-sample window elements with data-sample
+      templates inside an lf-playground-preview, and each template names the same
+      inline application/json script through data-sample-events. The script holds
+      a comment command and a reply command linked to it by explicit id and parent,
+      with kind and text fields, and the comment's anchor names content inside each
+      child template. Comparison controls and the implementation Ask stay outside
+      the child templates. Fail if it relies on data-sample-threads, a companion
+      JSONL or posting fixture events from JavaScript, or duplicates fixture anchor
+      paragraphs outside the templates to attach fictional parent threads.
+  - type: llm-rubric
+    metric: selects-live-conversation-view
+    value: |
+      Pass only if outer controls call the lf-sample element's showThread method
+      with a fixture root id and select page versus panel with its surface option,
+      and lf-sample-ready reapplies the chosen view after Reset. Fail if controls
+      query private thread chrome, click its buttons, observe its DOM to finish
+      selecting a view, or import a child window's runtime themselves.

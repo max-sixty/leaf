@@ -2,7 +2,6 @@
  * always read from the host; the row never becomes a second record of selection. */
 import {
   DISCLOSE,
-  HIDDEN,
   commands,
   comparisonChanges,
   keeps,
@@ -42,7 +41,7 @@ export class SettledOptions {
     this.#row.append(this.#title, this.#count);
     this.#row.setAttribute("aria-expanded", "false");
     this.#row.onclick = () => this.#open(!this.#isOpen, true);
-    commands(this.#row, "In a settled ask", [
+    commands(this.#row, "In settled options", [
       {
         id: "option.toggle-settled",
         keys: () => DISCLOSE(this.#row),
@@ -75,7 +74,7 @@ export class SettledOptions {
       ...options,
       ...this.#host.querySelectorAll(":scope > :is(.lf-another, lf-options-done)"),
     ])
-      keeps(el, "hidden", this.#isOpen ? null : HIDDEN);
+      keeps(el, "hidden", this.#isOpen ? null : "until-found");
 
     const names = options
       .filter((option) => option.hasAttribute("chosen"))

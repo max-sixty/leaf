@@ -5,8 +5,8 @@ description: view-reveal-arrival
 metadata:
   purpose: A widget distinguishes replacing a view from expanding the current view during navigation.
   tags:
-  - packages
-  - navigation
+    - packages
+    - navigation
 vars:
   prompt: |
     I'm writing a Leaf widget with two mutually exclusive panels. It listens for
@@ -20,13 +20,13 @@ vars:
     scrolling from the old panel's reading position. The disclosure should keep
     ordinary scrolling through the current view. Return the handlers in your reply.
 assert:
-- type: llm-rubric
-  metric: distinguishes-view-replacement
-  value: |
-    Pass only if the mutually exclusive panel's lf-reveal handler calls the event
-    detail's replacedView() when it changes the active visible panel, while the
-    expanding disclosure does not report replacement. Both handlers join any
-    asynchronous layout completion through detail.present(promise). Fail if the
-    handlers implement scrolling themselves, delay replacement until layout
-    finishes, treat every reveal as a replacement, or claim the replacement's
-    initial placement waits for those layout promises.
+  - type: llm-rubric
+    metric: distinguishes-view-replacement
+    value: |
+      Pass only if the mutually exclusive panel's lf-reveal handler calls the event
+      detail's replacedView() when it changes the active visible panel, while the
+      expanding disclosure does not report replacement. Both handlers join any
+      asynchronous layout completion through detail.present(promise). Fail if the
+      handlers implement scrolling themselves, delay replacement until layout
+      finishes, treat every reveal as a replacement, or claim the replacement's
+      initial placement waits for those layout promises.

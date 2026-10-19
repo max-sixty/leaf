@@ -6,7 +6,7 @@
       name="description"
       content="An interactive film of Worktrunk's wt merge, drawn live from flags and a scenario, beside the steps it runs. Flip a flag to re-plot the run, and comment on any commit, branch or hook."
     />
-    <style>
+    <style data-controls>
       /* The film beside the steps it plays, stacked where the workspace flows. */
       #merge-regions {
         display: grid;
@@ -215,7 +215,9 @@
       }
       lf-merge-film .film-inspect {
         position: absolute;
-        max-width: 300px;
+        box-sizing: border-box;
+        width: max-content;
+        max-width: min(300px, calc(100% - 20px));
         padding: 10px 12px;
         display: grid;
         gap: 4px;
@@ -226,9 +228,6 @@
         border-radius: var(--r);
         box-shadow: 0 8px 24px var(--shade);
         pointer-events: none;
-      }
-      lf-merge-film[data-phone] .film-inspect {
-        max-width: calc(100% - 20px);
       }
       lf-merge-film .film-inspect strong {
         font-family: var(--mono);
@@ -308,9 +307,9 @@
       }
       lf-merge-steps li {
         margin: 0;
-        padding: 6px 10px 6px 12px;
-        border-left: 3px solid transparent;
-        border-radius: 0 var(--r) var(--r) 0;
+        padding: 5px 9px 5px 11px;
+        border: 1px solid transparent;
+        border-radius: var(--r);
         cursor: pointer;
       }
       lf-merge-steps h3 {
@@ -370,7 +369,7 @@
       }
       lf-merge-steps li[data-now] {
         background: var(--accent-tint);
-        border-left-color: var(--accent);
+        border-color: var(--accent);
       }
       lf-merge-steps li[data-now] p {
         display: block;

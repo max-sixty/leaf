@@ -5,7 +5,6 @@ loads the HTTP server only to revive a dead one. Status writes use those same
 projections without importing a server. Receipt remains `delivery`'s."""
 
 import contextlib
-import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -36,10 +35,9 @@ from .service import (
     PageTransaction,
     owned_pages,
     read_status,
-    session_claims,
     unacknowledged,
 )
-from .state import SESSION_SUFFIX, session_file, still_named
+from .state import SESSION_SUFFIX, session_claims, session_file, still_named
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
@@ -451,14 +449,16 @@ def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
 
 
 def delivery_json(reading: PageTick, harness: Harness | None) -> str:
-    """Freeze a watcher reading and present its bounded first part."""
+    """Freeze a watcher reading and present its bounded first part, as `delivery
+    read` prints it."""
     from .delivery import batch_data, delivery_reading, freeze_delivery
+    from .event_log import jsonl_line
 
     payload = freeze_delivery(
         [batch_data(reading.page_dir, reading.transaction, reading.batch)],
         acknowledge=wait_acknowledgement(harness),
     )
-    return json.dumps(delivery_reading(payload), indent=2, ensure_ascii=False)
+    return jsonl_line(delivery_reading(payload))
 
 
 def read_watch_pass[DeliveryResult](
@@ -679,12 +679,18 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             watch.await_news(mark)
     finally:
         watch.release()
-    from .delivery import deliverable
-
     # Input admitted while this watch held the lease was not nudged, so now the
     # lease is gone, any such input is nudged as admission would have.
-    for page_dir in owned_pages(harness.session):
+    nudge_pending(harness.session)
+    return None
+
+
+def nudge_pending(session: str) -> None:
+    """Nudge the session for each page it holds whose input could wake it, as
+    admission would have with no watch holding the lease (`nudge_unwatched`)."""
+    from .delivery import deliverable
+
+    for page_dir in owned_pages(session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
             if wake_inputs(page, deliverable(page)):
                 nudge_unwatched(page)
-    return None

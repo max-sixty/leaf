@@ -2,19 +2,20 @@
 fields from.
 
 Every check behind `page check` and `package check` reports through this one type: the
-registry's validation, the markup checks, the page-code run, the render gate in each
-color scheme and viewport, its width sweep and advice, and the widget quality report.
-The suite's browser fixture reports through it too: what the browser said, and what its
-health sensors (`tests/*_watch.js`) found. So does every gate that refuses one event at
-the append door (`event_contracts.admitted_event`). A refusal raised with what a check
-found (`Rejected`, such as `RegistryError` or `event_log.EventRefused`) carries the
-records, so a command that reports it reads them from it. So does every note a command
-gives beside its result, such as the advice `task end` gives on the to-do it ends
-(`todos.finished_in_view`) or why a `leaf wait` ended. Each is produced where it is
-detected, the browser probes and sensors included, which return records rather than
-sentences, and its words are written here and nowhere else. A command prints
-`finding.json()`, its words as `text`, in its result or as a note on stderr (`note`), as
-the event door's refusal answer carries it, and a failing test prints the words; every
+registry's validation, the markup checks, a sample's initial history, the capture of a
+revision, the page-code run, the render gate in each color scheme and viewport, its
+width sweep and advice, and the widget quality report. The suite's browser fixture
+reports through it too: what the browser said, and what its health sensors
+(`tests/*_watch.js`) found. So does every gate that refuses one event at the append
+door (`event_contracts.admitted_event`). A refusal raised with what a check found
+(`Rejected`, such as `RegistryError`, `ArtifactError` or `event_log.EventRefused`)
+carries the records, so a command that reports it reads them from it. So does every
+note a command gives beside its result, such as why a `leaf wait` ended. Each is
+produced where it is detected, the browser probes and sensors included, which return
+records rather than sentences, and its words are written here and nowhere else. A
+command prints `finding.json()`, its words as `text`, in its result or as a note on
+stderr (`note`), as the event door's refusal answer carries it, and a failing test
+prints the words; every
 other reader, the gate's retry policy and the suite among them, reads the fields.
 
 - `code` names what was found, and decides the words (`_TEXT`).
@@ -165,8 +166,6 @@ def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
         return "did not call registerVisualParts"
-    if kind == "unreadable":
-        return f"could not read visual parts: {problem['error']}"
     return f"registered parts its prefixes do not admit {', '.join(problem['parts'])}"
 
 
@@ -274,7 +273,9 @@ def _ask_context(at: str, v: dict) -> str:
         for w in v["widgets"]
     )
     return f"{_line(at, v)}: an ask context registers no ask: " + (
-        widgets or "it holds no widget that declares x-awaits"
+        widgets
+        or "it holds no widget that declares x-awaits; a question with no widget is"
+        " its words alone, with no heading"
     )
 
 
@@ -374,10 +375,17 @@ def _box(box: dict) -> str:
     return f"{round(box['left'])},{round(box['top'])} {_size(box)}"
 
 
+def placed(steps: list[str] | None) -> str:
+    """The words for where a suite sensor found a node: its steps innermost first
+    (`tests/write_watch.js`, `place`), or that the node has gone."""
+    return "a node since removed" if steps is None else " in ".join(steps)
+
+
 def _by(v: dict) -> str:
     """How far a shift sensor's node moved, and what else its frame moved."""
     left, top = v["by"]
-    beside = f"; the same frame moved {', '.join(v['beside'])}" if v["beside"] else ""
+    moved = ", ".join(map(placed, v["beside"]))
+    beside = f"; the same frame moved {moved}" if moved else ""
     return f" by ({left}, {top})px{beside}"
 
 
@@ -385,14 +393,48 @@ def _shift_evidence(v: dict) -> str:
     return f"\nshift evidence: {json.dumps(v['evidence'], ensure_ascii=False)}"
 
 
+def _captured(words):
+    """A capture finding's words: the file it read (`file`) and the reference in it
+    (`specifier`), where it names them, then `words`."""
+
+    def said(at: str, v: dict) -> str:
+        where = "".join(
+            [
+                f"{v['file']}: " if "file" in v else "",
+                f"{v['specifier']!r}: " if "specifier" in v else "",
+            ]
+        )
+        return where + words(v)
+
+    return said
+
+
+def _fixture(words):
+    """A sample history finding's words: the script it read (`reference`) and, for
+    one of its events, which (`event`), then `words`."""
+
+    def said(at: str, v: dict) -> str:
+        where = f"data-sample-events {v['reference']!r}"
+        if "event" in v:
+            return f"{where}, event {v['event']}: {words(v)}"
+        return f"{where}{words(v)}"
+
+    return said
+
+
+def _listed(findings: list[dict]) -> str:
+    return "\n".join(f"  - {Finding.loads(found)}" for found in findings)
+
+
 # The words for each code, from the finding's `at` and `values`. A console code's
 # words are what the console said; read by the gate in a color scheme, beside findings
 # of its own, it says "console: " first.
 _TEXT = {
     # What the browser's console and the page's window reported.
-    "console-error": lambda at, v: v["text"],
+    "console-error": lambda at, v: (
+        f"{v['text']} — {v['url']}" if v.get("url") else v["text"]
+    ),
     "console-warning": lambda at, v: f"warning: {v['text']}",
-    "failed-load": lambda at, v: f"{v['status']} {v['url']}",
     "page-exception": lambda at, v: v["text"],
     "window-error": lambda at, v: f"window error: {v['text']}",
     "resize-loop": lambda at, v: (
@@ -413,19 +455,20 @@ _TEXT = {
     "main-unlaid": lambda at, v: (
         "pre-upgrade: authored main has no measurable pre-upgrade layout"
     ),
-    # The suite's health sensors (`tests/*_watch.js`), each naming a node as the
-    # sensors do (`textarea#field`).
+    # The suite's health sensors (`tests/*_watch.js`), each placing a node by its
+    # steps (`placed`).
     "moved-without-input": lambda at, v: (
-        f"{v['node']} moved without input{_by(v)}{_shift_evidence(v)}"
+        f"{placed(v['node'])} moved without input{_by(v)}{_shift_evidence(v)}"
     ),
     "typing-moved": lambda at, v: (
-        f"typing in {v['field']} moved {v['node']}{_by(v)}; the key found"
-        f" {_box(v['found'])}, the frame painted {_box(v['painted'])}"
+        f"typing in {placed(v['field'])} moved {placed(v['node'])}{_by(v)};"
+        f" the key found {_box(v['found'])}, the frame painted {_box(v['painted'])}"
         f"{_shift_evidence(v)}"
     ),
     "shift-watch-missed": lambda at, v: (
-        f"shift watch missed a change to {v['node'] or "the page's nodes"}"
-        f" ({', '.join(v['changed'])})"
+        "shift watch missed a change to "
+        + (placed(v["node"]) if v["node"] else "the page's nodes")
+        + f" ({', '.join(v['changed'])})"
         + (
             f" and to {v['others']} other node{'' if v['others'] == 1 else 's'}"
             if v["others"]
@@ -435,13 +478,13 @@ _TEXT = {
         ' (shift_watch.js, "Unchanged frames")'
     ),
     "unchanged-write": lambda at, v: (
-        f"unchanged write: children of {v['node']}"
+        f"unchanged write: children of {placed(v['node'])}"
         if v["what"] == "children"
-        else f"unchanged write: {v['what']} on {v['node']}"
+        else f"unchanged write: {v['what']} on {placed(v['node'])}"
     ),
     "words-left-screen": lambda at, v: (
         "typed words left the screen without a key or press:"
-        f" {json.dumps(v['words'], ensure_ascii=False)} in {v['place']}"
+        f" {json.dumps(v['words'], ensure_ascii=False)} in {placed(v['place'])}"
     ),
     # The gate's own run, where it could not read the page.
     "gate-failed": lambda at, v: (
@@ -524,23 +567,23 @@ _TEXT = {
         " it, or write the state on the chrome the module built"
     ),
     "settlement-mark": lambda at, v: (
-        f"{at} wears data-lf-state={_json(v['mark'])} where the log records "
+        f"{at} has data-lf-state={_json(v['mark'])} where the log records "
         + (f"`{v['outcome']}`" if v["outcome"] else "no decision")
-        + " — the mark is the layer's paint of a logged decision, so a module may say"
-        " only what the log decided"
+        + " — Leaf sets data-lf-state from the decision in the log, so a widget's"
+        " module must not set it to anything else"
     ),
     "retired-slot": lambda at, v: (
-        f"{at} settled `{v['outcome']}` and its <{v['slot']}> still shows"
-        f" {_json(v['words'])} — those words have left the page's reading, so"
-        " the user can select what no comment can anchor to; the layer hides a"
-        " retired slot by default, so something in this family is showing it anyway"
+        f"{at} is settled `{v['outcome']}`, but its <{v['slot']}> still shows"
+        f" {_json(v['words'])}. Leaf hides a retired slot by default, so this"
+        " widget's styles or module show it anyway, and the user can select words no"
+        " comment can anchor to"
     ),
     "render-threw": lambda at, v: (
-        f"{at} renderState threw when the complete state was rendered a second time:"
+        f"{at} render() threw when the complete state was rendered a second time:"
         f" {v['error']}"
     ),
     "relative-render": lambda at, v: (
-        f"{at} renderState is relative — rendering the same complete state changed"
+        f"{at} render() is relative — rendering the same complete state changed"
         f" {', '.join(v['changed'])}. Render the supplied values without stepping"
         " from the DOM."
     ),
@@ -561,8 +604,8 @@ _TEXT = {
         f"{at} stands {v['past']}px past the room the page has for a wide widget"
     ),
     "over-margin": lambda at, v: (
-        f"{at} is drawn over {v['resident']}, which stands in the margin it grew into"
-        " — the side that holds it gives no room"
+        f"{at} grows into the margin and is drawn over {v['resident']}, which already"
+        " sits there; that side of the page has no free room for it"
     ),
     "off-axis": lambda at, v: (
         f"{at} is drawn {v['drawn']}px wide where its width grants {v['granted']}px"
@@ -584,9 +627,6 @@ _TEXT = {
         + f" is drawn {v['lost']}px outside the {v['by']} that clips it, where nothing"
         " can scroll to reach it — the page offers a press it does not show"
     ),
-    "painted-words": lambda at, v: (
-        f'{at} paints {v["attr"]}="{v["value"]}" rather than saying it'
-    ),
     "chrome-words": lambda at, v: (
         f"{at} puts {_json(v['words'])} under .lf-ui, where no comment can reach it"
     ),
@@ -595,7 +635,9 @@ _TEXT = {
         " can reach it"
     ),
     "apparatus-among-authored": lambda at, v: (
-        f"{at} stands among the children of {v['parent']}"
+        f"{at}, which Leaf adds, stands among the page's own elements inside"
+        f" {v['parent']}, so the page's rules that read its structure, such as"
+        " :first-child or h2 + p, match differently"
     ),
     "unread-syntax": lambda at, v: (
         f"code styled {_json(v['style'])} reads at {v['ratio']:.1f}:1 against the"
@@ -641,8 +683,40 @@ _TEXT = {
     "not-utf8": lambda at, v: f"{v['path']} is not UTF-8: {v['error']}",
     # A layer this Leaf can neither serve nor write under (`layer.incompatible_layer`).
     "invalid-registry": lambda at, v: v["error"],
-    "capture-failed": lambda at, v: v["error"],
-    "sample-history": lambda at, v: v["error"],
+    # A sample's initial history, read from the JSON script its template names.
+    "sample-source-both": lambda at, v: (
+        "use either data-sample-events or data-sample-threads, not both"
+    ),
+    "sample-script": _fixture(
+        lambda v: " must name one script in the markup declaring its template"
+    ),
+    "sample-script-type": _fixture(
+        lambda v: " needs an inline application/json script"
+    ),
+    "sample-json": _fixture(lambda v: f": invalid JSON: {v['error']}"),
+    "sample-array": _fixture(lambda v: " must contain an array of event objects"),
+    "fixture-publication": _fixture(
+        lambda v: "publication is owned by the checked source publisher"
+    ),
+    "fixture-kind": _fixture(lambda v: f"kind must be one of {_json(v['kinds'])}"),
+    "fixture-ts": _fixture(lambda v: "ts must be an ISO timestamp with a time zone"),
+    "fixture-id-repeated": _fixture(lambda v: f"event id {v['id']!r} already exists"),
+    "fixture-id-taken": _fixture(
+        lambda v: f"event id {v['id']!r} is already a document or message widget id"
+    ),
+    "fixture-media": _fixture(
+        lambda v: "; ".join(str(Finding.loads(found)) for found in v["findings"])
+    ),
+    "fixture-markup": _fixture(
+        lambda v: f"{v['kind']} markup doesn't validate:\n{_listed(v['findings'])}"
+    ),
+    "fixture-ids-taken": _fixture(
+        lambda v: f"message widget ids already taken by events: {_json(v['ids'])}"
+    ),
+    "fixture-event": _fixture(
+        lambda v: "; ".join(str(Finding.loads(found)) for found in v["findings"])
+    ),
+    "fixture-refused": _fixture(lambda v: v["error"]),
     "missing-vendored": lambda at, v: (
         f"{v['file']} missing from the page directory; run `leaf page init` to vendor"
         " the layer"
@@ -703,11 +777,6 @@ _TEXT = {
             if v["allowed"] is None
             else f"one of {', '.join(v['allowed'])}"
         )
-    ),
-    "css-unclosed": lambda at, v: (
-        f"{v['sheet']}: {v['depth']} block(s) left open at end of file — every rule"
-        " after the unclosed brace, this stylesheet's or a later layer's, lands inside"
-        " its scope"
     ),
     "css-syntax": lambda at, v: (
         f"{v['sheet']} syntax error at {v['row']}:{v['column']}: {v['message']}"
@@ -886,9 +955,6 @@ _TEXT = {
         f"unpointable — {_line(at, v)} has no id, so a comment aimed at it lands on"
         f" the whole of #{v['enclosing']}"
     ),
-    "dropped-ids": lambda at, v: (
-        f"ids dropped from revision r{v['revision']}: {_json(v['ids'])}"
-    ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
         f" run {v['run']}, but that source now holds run {v['current_run']}"
@@ -957,7 +1023,7 @@ _TEXT = {
     "idiom-fields": _declared(
         lambda v: (
             f"idiom {v['selector']!r} must carry a non-empty description and"
-            " x-example, with optional x-instructions and " + ", ".join(v["marks"])
+            " x-example, with optional x-instructions"
         )
     ),
     "idiom-value": _declared(
@@ -1221,14 +1287,15 @@ _TEXT = {
     "unoverruled": _declared(
         lambda v: (
             "declares agent-written x-state verbs"
-            f" {_json(v['verbs'])} but not the boolean `overruled` attribute a"
-            " version overrules a report in force with"
+            f" {_json(v['verbs'])} but no boolean `overruled` attribute, which a"
+            " version sets to overrule a worker's report"
         )
     ),
     "unrestated": _declared(
         lambda v: (
-            "declares user x-state verbs that fold on the widget but not the"
-            " boolean `restated` attribute a version retracts a decision with"
+            "declares user x-state verbs on the whole widget but no boolean"
+            " `restated` attribute, which a version sets to retract the user's"
+            " decision"
         )
     ),
     "reserved-resolves": _declared(
@@ -1413,6 +1480,54 @@ _TEXT = {
             f" its schema does not admit: {v['reason']}",
         )
     ),
+    # Capturing the page and the files it loads as an immutable revision: `file` is
+    # the file a finding concerns, and `specifier` the reference in it.
+    "dependency-url": _captured(lambda v: f"invalid dependency URL: {v['error']}"),
+    "dependency-not-local": _captured(
+        lambda v: (
+            "dependency must be a local URL (module URLs have no query or"
+            " fragment), or an http(s) URL"
+        )
+    ),
+    "dependency-encoded": _captured(lambda v: "encoded dependency path is not allowed"),
+    "dependency-escapes": _captured(lambda v: "dependency escapes the page"),
+    "dependency-outside-page": _captured(
+        lambda v: "dependency escapes /page/ and /media/"
+    ),
+    "dependency-symlink": _captured(
+        lambda v: "dependency escapes its source directory through a symlink"
+    ),
+    "dependency-unreadable": _captured(
+        lambda v: f"cannot capture dependency: {v['error']}"
+    ),
+    "dependency-type": _captured(lambda v: "unsupported dependency MIME type"),
+    "module-not-local": _captured(
+        lambda v: "a module import must name a relative or absolute local URL"
+    ),
+    "module-type": _captured(
+        lambda v: "a module dependency must have JavaScript MIME type"
+    ),
+    "module-outside-page": _captured(
+        lambda v: "module imports may use /page/ or a public layer entry point"
+    ),
+    "script-not-utf8": _captured(lambda v: "JavaScript is not UTF-8"),
+    "script-outside-page": _captured(lambda v: "authored scripts must be under /page/"),
+    "stylesheet-type": _captured(
+        lambda v: "a stylesheet dependency must have CSS MIME type"
+    ),
+    "css-not-utf8": _captured(lambda v: "CSS is not UTF-8"),
+    "css-invalid": _captured(lambda v: f"invalid CSS: {v['error']}"),
+    "css-url": _captured(lambda v: "CSS url() requires one literal URL"),
+    "css-import": _captured(
+        lambda v: "CSS @import requires a stylesheet with CSS MIME type"
+    ),
+    "revision-exists": _captured(lambda v: f"revision r{v['revision']} already exists"),
+    "digest-collision": _captured(lambda v: "immutable artifact digest collision"),
+    "manifest-digest": _captured(
+        lambda v: "captured manifest digest does not match revision"
+    ),
+    "layer-import-remote": _captured(lambda v: "captured layer import is not local"),
+    "layer-import-missing": _captured(lambda v: "captured layer import is missing"),
     # The package check's refusal.
     "package": lambda at, v: v["text"],
     "leaf-version": lambda at, v: (
@@ -1450,6 +1565,15 @@ _TEXT = {
         f"was vendored by a Leaf at page protocol {v['vendored']}, and this Leaf"
         f" ({v['leaf']}) speaks protocol {v['protocol']}",
         "Update the page's Leaf runtime",
+    ),
+    "newer-layer": lambda at, v: (
+        f"{v['page']} was vendored at page protocol {v['vendored']} by a newer Leaf"
+        f" ({v['vendored_by']}), and this Leaf ({v['leaf']}) speaks protocol"
+        f" {v['protocol']}, so it cannot serve the page or write its log, nor"
+        " re-vendor it to an older protocol. Use a Leaf at protocol"
+        f" {v['vendored']} or later. An agent session keeps the Leaf plugin it"
+        " loaded until it reloads it; in Claude Code, `/reload-plugins` loads an"
+        " installed update."
     ),
     "retired-layer": lambda at, v: _unservable_layer(
         v,
@@ -1644,12 +1768,14 @@ _TEXT = {
     ),
     # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
     "progress-parent": lambda at, v: (
-        "progress must start the reply input its parent addresses"
+        f"this progress line replies to {v['parent']!r} but starts an update you owe"
+        f" no reply to {v['parent']!r} for; it may already be answered"
     ),
     "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
     "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
     "hidden-widget": lambda at, v: (
-        f"{v['widget']} is not visible under the page's outcomes in force"
+        f"{v['widget']} no longer shows on the page: a decision in the log retired it"
+        " or left it empty; open the to-do on another element or on `page`"
     ),
     "quoted-seat": lambda at, v: (
         f"{v['widget']} is quoted exhibit content, not a live page widget"
@@ -1662,6 +1788,16 @@ _TEXT = {
         f"{v['widget']!r} already has ask {v['ask']!r}; use that ask instead of"
         " opening duplicate work"
     ),
+    "plan-depth": lambda at, v: (
+        f"plan step {v['step']!r} is at depth {v['depth']}, more than one below the"
+        " step before it; the first step is at depth 0 and each step is at most one"
+        " deeper than the one above"
+    ),
+    "unknown-plan-item": lambda at, v: (
+        f"{v['item']!r} names no to-do or ask on this page; name an id `leaf task"
+        " open` printed or an ask id from `leaf page state`, or write a plain step"
+        " with a title and state"
+    ),
     "unowed-start": lambda at, v: (
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task open` gave you"
@@ -1671,16 +1807,15 @@ _TEXT = {
         " at the page's Approval control"
     ),
     "widget-ask": lambda at, v: (
-        f"{v['todo']!r} is a widget ask; its source owns the answer, so retire it in"
-        " the document"
+        f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
     ),
     "users-prose-ask": lambda at, v: (
-        "the user's reply or settling reaction answers a prose ask"
+        "the user's message or settling reaction answers a question asked in words"
     ),
     "ended-ask": lambda at, v: f"ask {v['todo']!r} is already {v['status']}",
     "failed-prose-ask": lambda at, v: (
-        "a prose ask ends `done` when the user answered it elsewhere, or `dropped`"
-        " when it no longer applies"
+        "a question asked in words ends `done` when the user answered it elsewhere,"
+        " or `dropped` when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
     "todo-execution": lambda at, v: (
@@ -1696,13 +1831,6 @@ _TEXT = {
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
-    ),
-    # Advice on a to-do ended `done` (`todos.finished_in_view`).
-    "finished-in-view": lambda at, v: (
-        f"Your work on `{v['element']}` is done, and it still stands among the open"
-        " work. Unless it is the page's current content, move it, cut to its outcome,"
-        " to the finished work collapsed after the open work, and let what comes next"
-        ' take its place (authoring-revisions.md, "Keep the current page current").'
     ),
     # What other commands note beside their result (`note`). `status waiting` over
     # updates it still owes an answer, each named by the command that answers it:
@@ -1732,7 +1860,7 @@ _TEXT = {
         f"{v['page']}'s server was stopped while it was re-vendored, so it stays"
         " stopped."
     ),
-    # A server just started (`hosting.announce_server`).
+    # A server just started (`hosting.started_server`).
     "loopback-only": lambda at, v: (
         "the URL reaches only this machine; re-serve with --host NAME for a user"
         " elsewhere"
@@ -1835,15 +1963,16 @@ _TEXT = {
         "--detach cannot be combined with --quote, --section, or --part"
     ),
     "held-anchor": lambda at, v: (
-        f"thread {v['thread']!r} holds the command goal named by its opening comment,"
-        " so its anchor cannot be changed"
+        f"thread {v['thread']!r} holds the widget its first comment was sent from, so"
+        " its anchor cannot be moved or detached"
     ),
     "no-anchor": lambda at, v: (
         f"thread {v['thread']!r} has no current anchor to detach"
     ),
-    "widget-ask-markup": lambda at, v: (
-        "--ask is for a prose ask; reply markup already declares a widget ask"
-        f" ({', '.join(f'<{tag}>' for tag in v['tags'])})"
+    "undeclared-answer": lambda at, v: (
+        "say what the answer leaves: --done when it delivers what was asked, --todo"
+        " TITLE when it promises work it doesn't deliver, or a question for the user"
+        " as an <lf-ask> in --markup"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
 }
@@ -1858,7 +1987,6 @@ _USER = {
 _CONSOLE = {
     "console-error",
     "console-warning",
-    "failed-load",
     "page-exception",
     "window-error",
     "resize-loop",

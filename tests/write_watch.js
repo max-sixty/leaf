@@ -9,8 +9,10 @@
 // the observer delivers: the writes one script makes to one place (an attribute, a text
 // node's data) change nothing when the place ends the script holding the value it
 // started with, whether the script restated it or took it away and put it back, and a
-// child-list write changes nothing when it puts back nodes equal to the ones it took
-// out. Such a write still costs a style pass and a repaint, of the whole document while
+// child-list write changes nothing when it puts back rendered nodes equal to the ones
+// it took out. Comments draw no content; renderers such as Lit replace their ownership
+// markers while updating real content, so comment-only restoration is not judged.
+// Such a rendered write still costs a style pass and a repaint, of the whole document while
 // a CSS highlight holds a range, so code writes only what changed
 // (skills/leaf/assets/AGENTS.md).
 //
@@ -20,20 +22,24 @@
 // While `window.lfWrites` is an array, every write is also appended to it, numbered by
 // `window.lfWriteStep`, for a test that reads what a gesture wrote (scroll_writes).
 (() => {
-  // An element by its tag, id and classes, one with neither by where it stands, and one
-  // in a shadow tree by the tree's host too.
+  // Where a node stands, as the steps a reader finds it by, innermost first: an element
+  // by its tag, id and classes (`div#id.class`), any other node by its name (`#text`).
+  // A step with neither id nor class is followed by its parent, and the last step in a
+  // shadow tree by `#shadow-root` and the tree's host, so `div.cm-line` in a
+  // `leaf-text#field` is `["div.cm-line", "#shadow-root", "leaf-text#field"]`.
+  // Findings carry the steps; `leaf/findings.py` writes their words.
   const place = (node) => {
-    if (node.nodeType !== 1)
-      return `${node.nodeName} in ${node.parentElement ? place(node.parentElement) : "nothing"}`;
-    const named =
-      `${node.localName}${node.id ? "#" + node.id : ""}` +
-      `${node.classList.length ? "." + [...node.classList].join(".") : ""}`;
-    if (!node.id && !node.classList.length && node.parentElement)
-      return `${named} in ${place(node.parentElement)}`;
+    const element = node.nodeType === 1;
+    const step = element
+      ? `${node.localName}${node.id ? "#" + node.id : ""}` +
+        `${node.classList.length ? "." + [...node.classList].join(".") : ""}`
+      : node.nodeName;
+    if ((!element || (!node.id && !node.classList.length)) && node.parentElement)
+      return [step, ...place(node.parentElement)];
     const root = node.getRootNode();
     return root instanceof ShadowRoot
-      ? `${named} in shadow of ${place(root.host)}`
-      : named;
+      ? [step, "#shadow-root", ...place(root.host)]
+      : [step];
   };
   // Naming is shared with the shift sensor, including in opaque child frames.
   window.lfPlace = place;
@@ -44,65 +50,228 @@
   const leafSample = /\/api\/samples\/[a-f0-9]{32}(?:\/|$)/.test(location.pathname);
   if (window !== window.top && globalThis.origin === "null" && !leafSample) return;
 
-  // Nodes put back as the ones taken out: the same count, each equal to its twin.
-  const restored = ({ removedNodes, addedNodes }) =>
-    removedNodes.length > 0 &&
-    removedNodes.length === addedNodes.length &&
-    [...removedNodes].every((node, at) => node.isEqualNode(addedNodes[at]));
+  // Read one script's child-list changes together: remove() followed by append()
+  // delivers two records, unlike replaceChildren(), but can restate the same list.
+  // Nodes in native records stay live. Read only the compared subtree at a record
+  // boundary, undoing its later native changes rather than treating today's node as
+  // its earlier value. Attribute order does not affect equality.
+  const batchReadings = (records) => {
+    const changes = new Map();
+    const positions = new Map();
+    const shadows = new Map(
+      [...trees]
+        .filter((tree) => tree instanceof ShadowRoot)
+        .map((root) => [root.host, root]),
+    );
+    records.forEach((record, position) => {
+      positions.set(record, position);
+      if (!changes.has(record.target)) changes.set(record.target, []);
+      changes.get(record.target).push({ record, position });
+    });
+    const valueAt = (node, boundary) => {
+      const children = [...node.childNodes];
+      const attributes = new Map(
+        [...(node.attributes ?? [])].map((attribute) => [
+          JSON.stringify([attribute.namespaceURI, attribute.localName]),
+          attribute.value,
+        ]),
+      );
+      let text = node.nodeValue;
+      for (const { record, position } of [...(changes.get(node) ?? [])].reverse()) {
+        if (position < boundary) break;
+        if (record.type === "childList") {
+          for (const added of record.addedNodes)
+            children.splice(children.indexOf(added), 1);
+          const at = record.nextSibling
+            ? children.indexOf(record.nextSibling)
+            : children.length;
+          children.splice(at, 0, ...record.removedNodes);
+        } else if (record.type === "attributes") {
+          const key = JSON.stringify([record.attributeNamespace, record.attributeName]);
+          if (record.oldValue === null) attributes.delete(key);
+          else attributes.set(key, record.oldValue);
+        } else text = record.oldValue;
+      }
+      return [
+        node.nodeType,
+        node.namespaceURI,
+        node.nodeName,
+        text,
+        [...attributes].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+        children.map((child) => valueAt(child, boundary)),
+        shadows.has(node) ? valueAt(shadows.get(node), boundary) : null,
+      ];
+    };
+    return {
+      position: (record) => positions.get(record),
+      read: (nodes, boundary) =>
+        JSON.stringify(nodes.map((node) => valueAt(node, boundary))),
+    };
+  };
+  // Detaching an iframe retires its browsing context even if the same element is
+  // reinserted before observer delivery; DOM equality cannot see that change.
+  const hasFrame = (node) =>
+    node instanceof HTMLIFrameElement ||
+    [...node.childNodes].some(hasFrame) ||
+    [...trees].some(
+      (tree) => tree instanceof ShadowRoot && tree.host === node && hasFrame(tree),
+    );
+  const renderedChildren = (nodes) =>
+    [...nodes].filter((node) => node.nodeType !== Node.COMMENT_NODE);
+  const restored = (target, records, readings) => {
+    const frameRecords = new Set(
+      records.filter((record) =>
+        [...record.removedNodes, ...record.addedNodes].some(hasFrame),
+      ),
+    );
+    const ordinary = records.filter((record) => !frameRecords.has(record));
+    if (!ordinary.some((record) => renderedChildren(record.removedNodes).length))
+      return false;
+    // Preserve the atomic check even when unrelated changes share its delivery.
+    if (
+      ordinary.some((record) => {
+        const removed = renderedChildren(record.removedNodes);
+        const position = readings.position(record);
+        return (
+          removed.length &&
+          readings.read(removed, position) ===
+            readings.read(renderedChildren(record.addedNodes), position + 1)
+        );
+      })
+    )
+      return true;
+    // Undo the native records once, then replay their actual sequence. A restored
+    // interval is still redundant when a later record adds meaningful content.
+    const current = [...target.childNodes];
+    for (const record of [...records].reverse()) {
+      for (const node of record.addedNodes) current.splice(current.indexOf(node), 1);
+      const at = record.nextSibling
+        ? current.indexOf(record.nextSibling)
+        : current.length;
+      current.splice(at, 0, ...record.removedNodes);
+    }
+    // A freshly introduced measuring node can come and go without rewriting a
+    // resident. Snapshots live only in this callback and compare equal lengths.
+    const residents = new Set(renderedChildren(current));
+    const pending = new Map();
+    for (const record of records) {
+      if (
+        !frameRecords.has(record) &&
+        [...record.removedNodes].some((node) => residents.has(node))
+      ) {
+        const before = renderedChildren(current);
+        if (!pending.has(before.length)) pending.set(before.length, []);
+        pending
+          .get(before.length)
+          .push(readings.read(before, readings.position(record)));
+      }
+      for (const node of record.removedNodes) current.splice(current.indexOf(node), 1);
+      const at = record.nextSibling
+        ? current.indexOf(record.nextSibling)
+        : current.length;
+      current.splice(at, 0, ...record.addedNodes);
+      const after = renderedChildren(current);
+      if (
+        !frameRecords.has(record) &&
+        (pending.get(after.length) ?? []).includes(
+          readings.read(after, readings.position(record) + 1),
+        )
+      )
+        return true;
+    }
+    return false;
+  };
   let count = 0;
   const numbered = new WeakMap();
   const number = (node) => {
     if (!numbered.has(node)) numbered.set(node, ++count);
     return numbered.get(node);
   };
-  // Writes that restate a value for a reason of their own, by the report they make.
+  // Writes that restate a value for a reason of their own, each a test of what was
+  // written (an attribute, `text`, or `children`) and the live node it was written on.
+  const is = (node, selector) => node.nodeType === 1 && node.matches(selector);
+  // The hosts of the shadow trees holding a node, innermost first.
+  const hosts = (node) => {
+    const found = [];
+    for (let root = node.getRootNode(); root instanceof ShadowRoot;) {
+      found.push(root.host);
+      root = root.host.getRootNode();
+    }
+    return found;
+  };
   const EXPECTED = [
+    // A repeated live announcement replaces its text node so assistive technology
+    // hears a fresh arrival even when the words match the previous announcement.
+    (what, node) => what === "children" && is(node, "div.lf-ui.lf-live"),
+    // Lit's keyed repeat moves equivalent marker nodes when a visual action in
+    // the group changes identity, while the rendered controls update in place.
+    (what, node) => what === "children" && is(node, "div.lf-visual-actions"),
     // Mermaid's diagram renderers and their shared viewport helper both assign the SVG's
     // width while measuring the same drawing. Its upstream-owned paint is separate
     // from Leaf's adapter, which uses keeps when setting the final natural width.
-    /^width on svg#lf-diagram-\d+(?:\.|$)/,
+    (what, node) => what === "width" && is(node, "svg[id^='lf-diagram-']"),
+    // Mermaid's layout pass reapplies the same transform to a label group while
+    // measuring it. The diagram module does not own that SVG write.
+    (what, node) => what === "transform" && is(node, "g.label"),
     // Mermaid's timeline wraps and measures labels by restating tspan text. Its
     // measurement groups have already detached by the observer's reading.
-    /^children of tspan in text in g(?: in g\.timeline-node\.section--?\d+)?$/,
+    (what, node) => what === "children" && is(node, "g > text > tspan"),
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
-    /^style on div\.cm-content/,
+    (what, node) => what === "style" && is(node, "div.cm-content"),
     // CodeMirror reapplies this line decoration when the editor view updates, even
     // when the last line still holds the same words and the class is unchanged.
-    /^class on div\.cm-line\.lf-field-last in shadow of leaf-text/,
+    (what, node) =>
+      what === "class" &&
+      is(node, "div.cm-line.lf-field-last") &&
+      hosts(node)[0]?.localName === "leaf-text",
+    // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
+    // editor updates, including equivalent line-break nodes in either editor host.
+    (what, node) =>
+      what === "children" && is(node, "div.cm-line") && hosts(node).length > 0,
     // CodeMirror's GutterElement.setMarkers restates its class as marker sets
     // change, including when the resulting gutter class remains the same.
-    /^class on div\.cm-gutterElement(?:\.| in shadow|$)/,
+    (what, node) => what === "class" && is(node, "div.cm-gutterElement"),
+    // CodeMirror's syncGutters reinserts the gutter beside unchanged content when
+    // its editor view updates.
+    (what, node) =>
+      what === "children" &&
+      is(node, "div.cm-scroller") &&
+      hosts(node)[0]?.localName === "lf-file-editor",
     // Web Awesome's components reflect each property onto the attribute it came from
     // as they update, and restate what their own shadow trees hold.
-    /^[\w-]+ on wa-/,
-    / in shadow of wa-[\w-]+/,
-    // Vis Timeline reuses axis labels and grid nodes but restates their classes
-    // and contents during redraw. Viewer.js similarly reapplies image/canvas
-    // classes and magnifier visibility when an inspected image changes. These
-    // are upstream-owned renderers; Leaf's adapter controls remain watched.
-    /^(?:class|style|title|aria-hidden|children|text) (?:on|of) (?:div|img)\.(?:vis-|viewer-)/,
+    (what, node) => what !== "children" && node.localName?.startsWith("wa-"),
+    (what, node) => hosts(node).some((host) => host.localName.startsWith("wa-")),
+    // Viewer.js reapplies image/canvas classes and magnifier visibility when an
+    // inspected image changes. It is an upstream-owned renderer; Leaf's adapter
+    // controls remain watched.
+    (what, node) =>
+      ["class", "style", "title", "aria-hidden", "children"].includes(what) &&
+      is(node, ":is(div, img):is([class^='viewer-'], [class*=' viewer-'])"),
     // The contents map decides which face it needs, roomy, compact or an open outline,
     // by measuring its labels in each; a label's height is where it wraps in that face.
-    /^data-lf-(compact|outline) on lf-toc/,
+    (what, node) =>
+      ["data-lf-compact", "data-lf-outline"].includes(what) && is(node, "lf-toc"),
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
-    /^class on .*\.lf-ghost/,
+    (what, node) => what === "class" && is(node, ".lf-ghost"),
     // PhotoSwipe reasserts its root's zoom and pointer classes while handling
     // gestures and viewport changes, including when those classes already stand.
-    /^class on div\.pswp(?:\.|$)/,
+    (what, node) => what === "class" && is(node, "div.pswp"),
   ];
   const reported = new Set();
-  // `what` is the attribute written, `text`, or `children`, and `node` the place.
+  // `what` is the attribute written, `text`, or `children`, and `node` the node written.
   const report = (what, node) => {
-    const words = what === "children" ? `children of ${node}` : `${what} on ${node}`;
-    if (reported.has(words) || EXPECTED.some((known) => known.test(words))) return;
-    reported.add(words);
-    window.__leafWatchFinding({ code: "unchanged-write", what, node });
+    if (EXPECTED.some((expected) => expected(what, node))) return;
+    const finding = { code: "unchanged-write", what, node: place(node) };
+    const key = JSON.stringify(finding);
+    if (reported.has(key)) return;
+    reported.add(key);
+    window.__leafWatchFinding(finding);
   };
   const valueOf = (record) =>
     record.type === "attributes"
-      ? record.target.getAttribute(record.attributeName)
+      ? record.target.getAttributeNS(record.attributeNamespace, record.attributeName)
       : record.target.data;
   // Writes that take a value away and put it back for a reason of their own, by the
   // values they passed through. An arrival lends an element a tab stop to move where the
@@ -211,17 +380,24 @@
         !nativeTransition(record) &&
         !(through.length && putBack(write))
       )
-        report(record.attributeName ?? "text", place(record.target));
+        report(record.attributeName ?? "text", record.target);
     }
     started.clear();
     dialogTransitions = new WeakSet();
     focusGuards = new WeakSet();
   };
   const watch = (records) => {
+    const children = new Map();
     for (const record of records) {
-      const key = `${number(record.target)} ${record.type} ${record.attributeName}`;
+      const key = JSON.stringify([
+        number(record.target),
+        record.type,
+        record.attributeNamespace,
+        record.attributeName,
+      ]);
       if (record.type === "childList") {
-        if (restored(record)) report("children", place(record.target));
+        if (!children.has(record.target)) children.set(record.target, []);
+        children.get(record.target).push(record);
       } else if (started.has(key)) started.get(key).through.push(record.oldValue);
       else {
         started.set(key, { record, through: [] });
@@ -233,7 +409,15 @@
           type: record.type,
           attribute: record.attributeName,
           target: place(record.target),
+          ...(record.type === "childList"
+            ? { nodes: [...record.removedNodes, ...record.addedNodes].map(number) }
+            : {}),
         });
+    }
+    if (children.size) {
+      const readings = batchReadings(records);
+      for (const [target, changed] of children)
+        if (restored(target, changed, readings)) report("children", target);
     }
     judge();
   };

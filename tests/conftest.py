@@ -211,7 +211,7 @@ def compiled_installation():
     Preparation is serialized by content identity, so xdist workers reuse one build.
     Source-only model tests need no compiler; the browser tiers request it lazily.
     """
-    from leaf_dev.distribution import cached_installation
+    from leaf_dev.commands.distribution import cached_installation
 
     return cached_installation()
 
@@ -331,7 +331,7 @@ def pytest_runtest_call(item):
 # first tier, None, runs in every selection: a pull request, `wt merge`, and broad
 # discovery. A `main` test can land without running and runs on each push to main
 # (`--run-main`); a `nightly` one runs only in the daily schedule and a manual
-# dispatch (`--run-nightly`), which run every tier. `leaf_dev.suite_profile.BUDGETS`
+# dispatch (`--run-nightly`), which run every tier. `leaf_dev.commands.suite_profile.BUDGETS`
 # holds what a test in each directory may cost.
 TESTS = Path(__file__).parent
 TIERS = {
@@ -392,11 +392,9 @@ def pytest_collection_modifyitems(config, items):
         or config.getoption("lf")
         or any(_names_tests(Path(arg.split("::", 1)[0])) for arg in config.args)
     )
-    # Every collected test names its tier, whatever runs it, so a module outside
-    # every tier directory is refused by each selection.
-    tiers = [run_tier(item) for item in items]
     if config.getoption("--run-nightly") or selected:
         return
+    tiers = [run_tier(item) for item in items]
     reached = {"main"} if config.getoption("--run-main") else set()
     changed = None
     if since := config.getoption("--changed-since"):
@@ -412,10 +410,12 @@ def pytest_collection_modifyitems(config, items):
 
 
 def _names_tests(path):
-    """Whether an argument names tests inside `tests/`, a tier directory or a file in
-    one, rather than the whole suite."""
+    """Whether an argument selects product tests narrowly or opts into dev tests."""
     path = path.resolve()
-    return path.exists() and path.is_relative_to(TESTS) and path != TESTS
+    return path.exists() and (
+        (path.is_relative_to(TESTS) and path != TESTS)
+        or path.is_relative_to(TESTS.parent / "dev" / "tests")
+    )
 
 
 def _base_sources(root, since):
@@ -439,7 +439,7 @@ def _base_sources(root, since):
         for path in git("ls-tree", "-r", "--name-only", base, "--", "tests")
         .decode()
         .split()
-        if re.fullmatch(r"tests/(\w+/)?test_\w+\.py", path)
+        if re.fullmatch(r"tests/(\w+/)*test_\w+\.py", path)
     ]
     batch = git(
         "cat-file", "--batch", stdin="".join(f"{base}:{p}\n" for p in paths).encode()

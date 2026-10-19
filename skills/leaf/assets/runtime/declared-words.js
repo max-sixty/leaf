@@ -18,7 +18,7 @@
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
-     does and the poll replays it the same way, so the premise that every `renderState`
+     does and the poll replays it the same way, so the premise that every widget's `render()`
      is absolute binds it too.
 
    A module owns only its choreography and semantics that no declaration can express. For
@@ -255,8 +255,8 @@ export function paintDeclaredWords(root) {
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
 // the widget declares its capacity (x-space) and the theme spends the room the layout
-// resolved by the CSS shell (--lf-room). `column` keeps the prose measure in a wider
-// flow; `wide` uses the shared evidence cap; `available` uses all remaining room.
+// resolved by the CSS shell (--lf-room): `wide` uses the shared evidence cap, and
+// `available` uses all remaining room.
 // Internal arrangement remains package-owned.
 //
 // Whether the widget is set among the words around it is the second (x-inline). What
@@ -312,7 +312,7 @@ export function markDeclared(root) {
     for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el of elementsIn(root, tag))
-        keeps(el, paint, declared === true ? "" : declared);
+        keeps(el, paint, declared === true || mark.presence ? "" : declared);
     }
     // Message markup is all content (`authored_on`, schema.DECLARED_MARKS), so only a
     // mark held to declaring tags asks which tag an occurrence is.

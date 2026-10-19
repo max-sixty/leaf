@@ -1,4 +1,9 @@
-"""Append-only event log storage, raw readings, locking, and attempt identity."""
+"""Append-only event storage, application readings, locking, and attempt identity.
+
+Stored events carry private native session context. It shares the event's durable
+append and is stripped from application readings, returned records and attempt
+comparisons.
+"""
 
 import json
 import os
@@ -9,7 +14,7 @@ from collections.abc import Iterator
 from copy import deepcopy
 from pathlib import Path
 
-from leaf.files import file_stamp, next_reading, read_json
+from leaf.files import file_stamp, read_json
 from leaf.findings import Finding, Rejected
 from leaf.refusals import Refused
 from leaf.registry.kernel import kernel_event_ownership
@@ -115,7 +120,9 @@ def new_event_id(events: list[dict]) -> str:
             return candidate
 
 
-def _append_event_unlocked(f, event: dict, events: list[dict]) -> dict:
+def _append_event_unlocked(
+    f, event: dict, events: list[dict], *, context: dict | None = None
+) -> dict:
     """Append while the caller holds this log file's exclusive lease.
 
     Attempt identity is the append door's (`event_contracts.append_admitted`): it
@@ -136,7 +143,10 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> dict:
         f.seek(-1, os.SEEK_END)
         if f.read(1) != b"\n":
             f.write(b"\n")
-    f.write((jsonl_line(event) + "\n").encode())
+    f.seek(0)
+    seq = f.read().count(b"\n") + 1
+    stored = event if context is None else {**event, "context": context}
+    f.write((jsonl_line(stored) + "\n").encode())
     # To the platter before the caller is told it landed: an event is a
     # decision, the sender's 200 (or a CLI exit 0) is the claim it is kept,
     # and events are rare enough that a flush per append costs nothing.
@@ -144,19 +154,22 @@ def _append_event_unlocked(f, event: dict, events: list[dict]) -> dict:
     os.fsync(f.fileno())
     # The record as every reader reads it back: seq is its line number, which the
     # stored line does not carry.
-    f.seek(0)
-    return {**event, "seq": f.read().count(b"\n")}
+    return {**event, "seq": seq}
 
 
 def append_event(page_dir: Path, event: dict) -> dict:
     # This low-level fixture seam can start a log in an existing directory.
+    from .interaction_log import session_context
+
     log = page_dir / EVENTS_FILE
     with open(log, "a", encoding="utf-8"):
         pass
     with flocked(log) as f:
         f.seek(0)
         events = _parse_events(f.read())
-        return _append_event_unlocked(f, event, events)
+        return _append_event_unlocked(
+            f, event, events, context=session_context(event.get("session"))
+        )
 
 
 def _parse_events(data: bytes, before: int = 0) -> list[dict]:
@@ -185,6 +198,7 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
             # and there is nothing anyone could do with a fragment — so it is
             # skipped, not raised over, and the page keeps reading.
             continue
+        event.pop("context", None)
         event["seq"] = before + i + 1
         events.append(event)
     return events
@@ -210,13 +224,13 @@ def _line_start(data: bytes, n: int) -> int:
 def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
     """Every event after seq `after`, then each one appended from here on, forever.
 
-    The trigger is the log's own stamp (`next_reading`), the look the browser's news
-    stream makes over the whole page, narrowed to the one file a follower reads. A
-    moved stamp reads only the bytes past what was already read, and only through the
-    last newline: the line after it is an append mid-flush, whose rest moves the stamp
-    again. Seq is the line number, so the lines read are counted whether or not they
-    parse, exactly as `_parse_events` counts them; the lines at or before `after` are
-    counted without being parsed.
+    It waits on the page's native subscription (`file_changes.page_changes`), so an
+    event any process appends wakes it, and each wake compares the log's own stamp
+    with the one taken before the last read. A moved stamp reads only the bytes past
+    what was already read, and only through the last newline: the line after it is
+    an append mid-flush, whose rest moves the stamp again. Seq is the line number, so
+    the lines read are counted whether or not they parse, exactly as `_parse_events`
+    counts them; the lines at or before `after` are counted without being parsed.
 
     The offset read so far is a position in the file first opened, and appends
     only ever grow that file. A log that is another file now (a rename put a new
@@ -224,6 +238,9 @@ def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
     followed, and reading on from the old offset would print its middle under the
     wrong seqs, so the follower ends there, as it does when the log is removed.
     """
+    # file_changes reads the page's inputs, which reach back here through `service`.
+    from leaf.file_changes import page_changes
+
     log = page_dir / EVENTS_FILE
     gone = FileNotFoundError(f"{log} is gone")
     read = lines = 0
@@ -249,7 +266,14 @@ def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
         )
         read += len(complete)
         lines += complete.count(b"\n")
-        stamp = next_reading(lambda: file_stamp(log), stamp)
+        seen = stamp
+        while (stamp := file_stamp(log)) == seen:
+            # The generation is taken before the stamp it confirms, so an append
+            # between the two still ends the wait.
+            changes = page_changes(page_dir)
+            generation = changes.mark()
+            if file_stamp(log) == seen:
+                changes.wait(generation, None)
 
 
 def cmd_events(page_dir: Path, after: int, *, follow: bool = False) -> None:

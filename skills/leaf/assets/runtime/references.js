@@ -42,5 +42,8 @@ export function referencedProjection(
   }
   const scope = authoredScope(owner);
   const page = pageDocument();
-  return elementById(id, scope) ?? (scope === page ? null : elementById(id, page));
+  return (
+    (scope ? elementById(id, scope) : null) ??
+    (scope === page || !page ? null : elementById(id, page))
+  );
 }

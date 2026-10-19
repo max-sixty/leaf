@@ -1,6 +1,9 @@
 import {
   dismissBannerControls,
-  scrollIntoView
+  progressFace,
+  scrollIntoView,
+  threadAttention,
+  workflowLabel
 } from "./bundle-user-intent.js";
 import {
   agentArrivalDuration,
@@ -109,7 +112,7 @@ var KINDS = Object.freeze(
         indication: true
       },
       comment: { label: "Thread", icon: "comment", priority: 1 },
-      ask: { label: "Ask", icon: "question", priority: 2 },
+      ask: { label: "On me", icon: "question", priority: 2 },
       sent: {
         label: "Sent",
         icon: "sent",
@@ -439,6 +442,7 @@ function agentWorkflowDescription(control) {
       description: control.getAttribute("aria-description"),
       title: control.getAttribute("title"),
       stage: null,
+      word: null,
       detail: null
     };
     agentWorkflowDescriptions.set(control, reading);
@@ -479,7 +483,7 @@ function paintAgentDescription(control) {
     }
     return;
   }
-  const work = [reading.stage === "working" ? "Working" : "Picked up", reading.detail].filter(Boolean).join(" \xB7 ");
+  const work = [reading.word, reading.detail].filter(Boolean).join(" \xB7 ");
   const record = records.get(control);
   keeps(
     control,
@@ -501,9 +505,7 @@ function syncAgentDescriptionBase(control, description, title) {
   paintAgentDescription(control);
 }
 function syncContributionAgentWorkflow(control, receipt) {
-  const workflowStage = receipt?.stage ?? null;
-  const stage = workflowStage === "replying" ? "working" : workflowStage;
-  const paintedStage = !receipt?.condition && ["picked_up", "working"].includes(stage) ? stage : null;
+  const paintedStage = progressFace(receipt);
   syncAgentArrival(
     control,
     receipt && JSON.stringify([receipt.subject.kind, receipt.subject.id, receipt.id]),
@@ -513,7 +515,7 @@ function syncContributionAgentWorkflow(control, receipt) {
   keeps(control, "data-lf-agent-workflow", paintedStage || null);
   Object.assign(
     reading,
-    paintedStage ? { stage: paintedStage, detail: receipt.detail } : { stage: null, detail: null }
+    paintedStage ? { stage: paintedStage, word: workflowLabel(receipt), detail: receipt.detail } : { stage: null, word: null, detail: null }
   );
   paintAgentDescription(control);
 }
@@ -1229,14 +1231,32 @@ var userAttention = (items) => {
 };
 var awaitingUser = (items) => Boolean(userAttention(items));
 var unreadIn = (items) => items.reduce((sum, item) => sum + (item.unread ?? 0), 0);
-function readingContext(choice) {
-  const attention = userAttention(choice?.items ?? []);
-  if (attention) return attention.label;
-  const unread = unreadIn(choice?.items ?? []);
-  if (unread) return `${unread} unread`;
-  if (choice?.items.length !== 1) return null;
-  return choice.items[0].context ?? null;
+function threadMarks(thread) {
+  const attention = threadAttention(thread);
+  const onUser = attention?.kind === "needs_user";
+  const receipt = attention?.kind === "waiting" ? attention.workflow : null;
+  const unread = thread.unread.length;
+  const line = attention && (!receipt || receipt.condition) && attention.label || (unread ? `${unread} unread` : null);
+  return {
+    userAttention: onUser ? { label: attention.label, reason: thread.attention?.reason ?? "workflow" } : null,
+    unread,
+    context: line,
+    mapContext: line,
+    workflowReceipt: receipt
+  };
 }
+function readingContext(choice) {
+  const items = choice?.items ?? [];
+  const attention = userAttention(items);
+  if (attention) return attention.label;
+  if (items.length === 1) return items[0].context ?? null;
+  const unread = unreadIn(items);
+  return unread ? `${unread} unread` : null;
+}
+var spokenContext = (choice) => {
+  const items = choice?.items ?? [];
+  return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items) ? readingContext(choice) : null;
+};
 function kindsIn(entry, { markerOnly = false } = {}) {
   const counts = /* @__PURE__ */ new Map();
   for (const item of entry.items) {
@@ -1432,7 +1452,9 @@ export {
   readingBehavior,
   awaitingUser,
   unreadIn,
+  threadMarks,
   readingContext,
+  spokenContext,
   focusedOfferOf,
   canFold,
   clusterProjection,

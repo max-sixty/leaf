@@ -25,6 +25,7 @@ import { savedReadingSettled } from "./keyboard/bindings.js";
 import { undoSentence } from "./reactions.js";
 import { PENDING } from "./thread/identity.js";
 import { retainUserIntent } from "./user-intent.js";
+import { raiseError } from "./errors.js";
 
 const WAIT = "Wait for the current change to finish before undoing";
 
@@ -84,7 +85,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
   // otherwise the delivery, which yields the admitted undo or null.
   function withdraw(event) {
     if (!withdrawable(event)) {
-      notice(WAIT);
+      raiseError(WAIT);
       return null;
     }
     const reverse = reversals.get(event.attempt);
@@ -114,7 +115,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
   // replace the list.
   function undoLast() {
     if (stateApplying() || unaccountedGesture()) {
-      notice(WAIT);
+      raiseError(WAIT);
       return null;
     }
     const event = undoable();

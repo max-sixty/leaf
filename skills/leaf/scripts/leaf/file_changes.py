@@ -1,12 +1,13 @@
 """Native filesystem subscriptions for quiet page and session maintenance.
 
 The files remain authority; notifications only schedule another canonical read.
-A subscription is installed before its first observation, and a generation taken
-before that observation retains writes arriving during it. Clock-only lifetime
-and activity transitions still have bounded timed reads. A page's subscription
-accepts exactly the inputs its reading stamps (`served_state.reading`), so
-diagnostics never wake it. watchfiles owns platform notifications and polling
-fallback.
+Every follower of page files waits on a subscription from here rather than
+polling stamps. A subscription is installed before its constructor returns, and a
+generation taken before an observation retains writes arriving during it.
+Clock-only lifetime and activity transitions still have bounded timed reads. A
+page's subscription accepts exactly the inputs its reading stamps
+(`served_state.reading`), so diagnostics never wake it. watchfiles' public
+`watch` owns platform notifications and polling fallback.
 """
 
 import os
@@ -14,16 +15,27 @@ import threading
 import weakref
 from pathlib import Path
 
-from watchfiles.main import (
-    RustNotify,
-    _default_debug,
-    _default_force_polling,
-    _default_ignore_permission_denied,
-    _default_poll_delay_ms,
-)
+from watchfiles import watch
 
 from .page_memory import memo
 from .served_state.reading import outside_inputs, page_input
+
+
+class _Started:
+    """The stop event a `watch` generator reads, which also says it has started.
+
+    `watch` installs its native watcher when the generator first runs and only then
+    looks up its stop event's `is_set`, so that first lookup marks the subscription
+    installed, a step sooner than its first call would."""
+
+    def __init__(self, stop: threading.Event):
+        self.stop = stop
+        self.installed = threading.Event()
+
+    @property
+    def is_set(self):
+        self.installed.set()
+        return self.stop.is_set
 
 
 class FileChanges:
@@ -36,7 +48,6 @@ class FileChanges:
         self.pending = set() if collect else None
         self.stop = threading.Event()
         self.threads = []
-        self.watchers = []
         self.roots = {}
         try:
             # Keep the directory objects alive for exactly their subscription.
@@ -47,25 +58,24 @@ class FileChanges:
                     recursive,
                     os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC),
                 )
-            polling = _default_force_polling(None)
+            starts = []
             for recursive in (False, True):
                 paths = [path for path, nested in roots.items() if nested == recursive]
                 if not paths:
                     continue
-                watcher = RustNotify(
-                    [str(path) for path in paths],
-                    _default_debug(None),
-                    polling,
-                    _default_poll_delay_ms(300),
-                    recursive,
-                    _default_ignore_permission_denied(None),
-                )
-                self.watchers.append(watcher)
+                started = _Started(self.stop)
                 thread = threading.Thread(
-                    target=self._run, args=(watcher, accepts), daemon=True
+                    target=self._run,
+                    args=(paths, recursive, accepts, started),
+                    daemon=True,
                 )
                 thread.start()
                 self.threads.append(thread)
+                starts.append(started)
+            for started in starts:
+                started.installed.wait()
+            if self.error:
+                raise self.error
         except BaseException:
             self.close()
             raise
@@ -86,27 +96,31 @@ class FileChanges:
                 return False
         return True
 
-    def _run(self, watcher, accepts):
+    def _run(self, paths, recursive, accepts, started):
         try:
-            while not self.stop.is_set():
-                changes = watcher.watch(25, 50, 0, self.stop)
-                if changes == "stop":
-                    return
-                if changes == "signal":
-                    raise RuntimeError("the filesystem subscription was interrupted")
-                if changes == "timeout":
-                    continue
+            for changes in watch(
+                *paths,
+                watch_filter=lambda _change, path: accepts(Path(path)),
+                debounce=25,
+                step=50,
+                stop_event=started,
+                rust_timeout=0,
+                raise_interrupt=False,
+                recursive=recursive,
+            ):
                 with self.condition:
-                    paths = {path for _change, path in changes if accepts(Path(path))}
-                    if paths:
-                        if self.pending is not None:
-                            self.pending.update(paths)
-                        self.generation += 1
-                        self.condition.notify_all()
+                    if self.pending is not None:
+                        self.pending.update(path for _change, path in changes)
+                    self.generation += 1
+                    self.condition.notify_all()
+            if not self.stop.is_set():
+                raise RuntimeError("the filesystem subscription was interrupted")
         except Exception as error:  # noqa: BLE001 - propagate watcher failures to its owner
             with self.condition:
                 self.error = error
                 self.condition.notify_all()
+        finally:
+            started.installed.set()
 
     def mark(self) -> int:
         with self.condition:
@@ -114,7 +128,7 @@ class FileChanges:
                 raise self.error
             return self.generation
 
-    def wait(self, generation: int, timeout: float) -> bool:
+    def wait(self, generation: int, timeout: float | None) -> bool:
         with self.condition:
             changed = self.condition.wait_for(
                 lambda: (
@@ -134,8 +148,6 @@ class FileChanges:
             self.condition.notify_all()
         for thread in self.threads:
             thread.join()
-        for watcher in self.watchers:
-            watcher.close()
         while self.roots:
             _path, (_recursive, descriptor) = self.roots.popitem()
             os.close(descriptor)

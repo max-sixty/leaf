@@ -35,9 +35,6 @@
  * the clipboard's text, including text carried beside a picture.
  * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
  * before the host's block size or its minimum and maximum constrain the writing room.
- * `writingInlineSize` reads the editor's allocated writing measure, including room
- * reserved for its trailing action, in CSS pixels. `writingEndRoom` reads that room's
- * exact width so a sent message can keep the same writing measure.
  *
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
@@ -85,6 +82,7 @@
  * reading pane the user scrolled away from it.
  */
 import { scrollIntoView } from "../landing-scroll.js";
+import { landingInsets } from "../geometry.js";
 import {
   EditorView,
   EditorState,
@@ -146,8 +144,8 @@ sheet.replaceSync(`
     .lf-field-placeholder { padding-inline-end: 0; }
     .cm-line.lf-field-last::after { content: none; }
   }
-  :host(:state(scrolls)) .lf-field { padding-inline-end: var(--lf-field-end-room); }
-  :host(:state(scrolls)) .cm-line.lf-field-last::after { content: none; }
+  :host([data-scrolls]) .lf-field { padding-inline-end: var(--lf-field-end-room); }
+  :host([data-scrolls]) .cm-line.lf-field-last::after { content: none; }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -163,6 +161,15 @@ sheet.replaceSync(`
     text-underline-offset: var(--link-underline-offset); }
   .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
     padding-inline-start: var(--quote-inset); color: var(--muted); }
+  /* A bullet item's marker is drawn as the message's bullet, in a box as wide as the
+     marker and its space, which the item's wrapped lines hang under. The dash it stands
+     for keeps that box while the caret touches it, so revealing it moves no word. */
+  .lf-md-item { padding-inline-start: 1.25em; text-indent: -1.25em; }
+  .lf-md-bullet { display: inline-block; inline-size: 1.25em; text-indent: 0;
+    white-space: pre; }
+  .lf-md-bullet:not(.lf-md-mark) { color: transparent; position: relative; }
+  .lf-md-bullet:not(.lf-md-mark)::before { content: "•"; position: absolute;
+    inset-inline-start: 0; color: var(--ink); }
   .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
     line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
     font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
@@ -180,6 +187,8 @@ const ownerStep = StateEffect.define();
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
 const link = Decoration.mark({ class: "lf-md-link" });
+const bullet = Decoration.mark({ class: "lf-md-bullet" });
+const shownBullet = Decoration.mark({ class: "lf-md-bullet lf-md-mark" });
 const line = (cls) => Decoration.line({ class: cls });
 
 // The inline constructs the preview draws, by the renderer's token type: each as the
@@ -216,11 +225,17 @@ function decorate(state, placed) {
       at = current.to + 1;
     }
   };
-  for (const { token, from, to, contentFrom, contentTo, escapes } of placed) {
+  for (const {
+    token,
+    from,
+    to,
+    contentFrom,
+    contentTo,
+    escapes,
+    markers,
+    contentLines,
+  } of placed) {
     const syntax = touches(state, from, to) ? dim : hide;
-    // The construct as it stands in the draft, which a container may have rewritten
-    // before the renderer read it.
-    const text = state.doc.sliceString(from, to);
     if (token.type === "code_inline" || contentFrom !== undefined) {
       const words =
         token.type === "code_inline"
@@ -236,38 +251,32 @@ function decorate(state, placed) {
       for (const at of escapes ?? [])
         add(at, at + 1, touches(state, at, at + 2) ? dim : hide);
     } else if (token.type === "heading_open") {
-      const end = from + text.trimEnd().length;
-      const atx = text.match(/^ {0,3}#{1,6}(?:[ \t]+|$)/);
-      lines(from, end, (each) => {
-        const underline = !atx && each.to >= end;
-        if (underline) add(each.from, each.to, dim);
-        else out.push(line("lf-md-heading").range(each.from));
+      lines(...contentLines, (each) => {
+        out.push(line("lf-md-heading").range(each.from));
       });
-      if (atx) add(from, from + atx[0].length, syntax);
+      for (const [a, b] of markers)
+        add(a, b, token.markup.startsWith("#") ? syntax : dim);
     } else if (token.type === "fence" || token.type === "code_block") {
-      const end = from + text.trimEnd().length;
-      const fenced = /^ {0,3}(`{3,}|~{3,})/.test(text);
-      lines(from, end, (each) => {
+      lines(from, to, (each) => {
         const ends = [
           each.from <= from ? " lf-md-code-first" : "",
-          each.to >= end ? " lf-md-code-last" : "",
+          each.to + 1 >= to ? " lf-md-code-last" : "",
         ].join("");
         out.push(line(`lf-md-code-block${ends}`).range(each.from));
-        if (
-          fenced &&
-          (each.from === from || /^ {0,3}(`{3,}|~{3,})\s*$/.test(each.text))
-        )
-          add(each.from, each.to, dim);
       });
+      for (const [a, b] of markers ?? []) add(a, b, dim);
     } else if (token.type === "blockquote_open") {
-      lines(from, from + text.trimEnd().length, (each) => {
+      lines(from, to, (each) => {
         out.push(line("lf-md-quote").range(each.from));
-        const mark = each.text.match(/^ {0,3}> ?/);
-        if (mark) add(each.from, each.from + mark[0].length, dim);
       });
+      for (const [a, b] of markers) add(a, b, dim);
     } else if (token.type === "list_item_open") {
-      const mark = text.match(/^ {0,3}(?:[*+-]|\d{1,9}[.)])/);
-      if (mark) add(from, from + mark[0].length, dim);
+      const [at, end] = markers[0];
+      if (token.info) add(at, end, dim);
+      else {
+        out.push(line("lf-md-item").range(state.doc.lineAt(from).from));
+        add(at, end, touches(state, at, end) ? shownBullet : bullet);
+      }
     }
   }
   return Decoration.set(out, true);
@@ -347,20 +356,34 @@ class LeafText extends HTMLElement {
           const caret = view.coordsAtPos(view.state.selection.main.head);
           const box = this.getBoundingClientRect();
           const { scaleX, scaleY } = view;
+          // The caret's whole line, its leading as well as the caret, lands inside
+          // the host's `scroll-padding`, as a landing does.
+          const inset = landingInsets(this);
+          const leading = caret
+            ? Math.max(
+                0,
+                (parseFloat(getComputedStyle(this).lineHeight) * scaleY -
+                  (caret.bottom - caret.top)) /
+                  2,
+              )
+            : 0;
           return {
             caret,
             scaleX,
             scaleY,
-            top: box.top + this.clientTop * scaleY,
-            left: box.left + this.clientLeft * scaleX,
+            top: box.top + (this.clientTop + inset.top) * scaleY + leading,
+            left: box.left + (this.clientLeft + inset.left) * scaleX,
             // client dimensions round fractional CSS sizes. Keep the trailing
             // edges on the actual box, inset by its native border and scrollbar.
             bottom:
               box.bottom -
-              (this.offsetHeight - this.clientTop - this.clientHeight) * scaleY,
+              (this.offsetHeight - this.clientTop - this.clientHeight + inset.bottom) *
+                scaleY -
+              leading,
             right:
               box.right -
-              (this.offsetWidth - this.clientLeft - this.clientWidth) * scaleX,
+              (this.offsetWidth - this.clientLeft - this.clientWidth + inset.right) *
+                scaleX,
           };
         },
         write: ({ caret, top, left, bottom, right, scaleX, scaleY }) => {
@@ -386,17 +409,41 @@ class LeafText extends HTMLElement {
 
   // Host overflow holds the action's room on every line. The host stops at the page's
   // height limit while words grow inside it, so the reading watches the editor's
-  // scroller too. Editor updates and size changes share its read/write phase: the room
-  // changes layout there, rather than feeding back into resize observer delivery.
+  // content too. Editor updates and size changes share its read/write phase: the room
+  // changes layout there, rather than feeding back into resize observer delivery. The
+  // same reading says which edges words run past (`more-above`, `more-below`), read
+  // again as the host scrolls, so an owner can show there is more without a scrollbar.
+  // A scroll timeline would say it in CSS alone, but Firefox lacks scroll timelines.
   #overflow = sizeObserver(() => this.#measureOverflow());
 
   #measureOverflow() {
     this.#view?.requestMeasure({
       key: this.#overflow,
-      read: () => this.scrollHeight > this.clientHeight,
-      write: (scrolls) => {
-        if (scrolls) this.#internals.states.add("scrolls");
-        else this.#internals.states.delete("scrolls");
+      // Words, not the host's padding, run past an edge.
+      read: () => {
+        const style = getComputedStyle(this);
+        return {
+          scrolls: this.scrollHeight > this.clientHeight,
+          above: this.scrollTop > Number.parseFloat(style.paddingTop) + 1,
+          below:
+            this.scrollTop + this.clientHeight <
+            this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1,
+        };
+      },
+      write: (reading) => {
+        // WebKit can retain style from a removed custom state after the words shrink.
+        // An attribute invalidates the field's CSS at the same layout boundary.
+        if (this.hasAttribute("data-scrolls") !== reading.scrolls)
+          this.toggleAttribute("data-scrolls", reading.scrolls);
+        for (const [state, on] of [
+          ["more-above", reading.scrolls && reading.above],
+          ["more-below", reading.scrolls && reading.below],
+        ]) {
+          // Adding a state already set restyles all the same, on every scrolled frame.
+          if (this.#internals.states.has(state) === on) continue;
+          if (on) this.#internals.states.add(state);
+          else this.#internals.states.delete(state);
+        }
       },
     });
   }
@@ -418,6 +465,7 @@ class LeafText extends HTMLElement {
     this.#root.append(this.#frame);
     this.#model = this.#create("");
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
+    this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
     this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
       capture: true,
     });
@@ -460,9 +508,19 @@ class LeafText extends HTMLElement {
               insertNewline(view),
           },
           { key: "Shift-Enter", run: insertNewlineContinueMarkup },
+          // Outside a list or quote, a plain new line, which asks to be seen as typing
+          // does, so a field at its height limit scrolls to it.
           {
             key: "Shift-Enter",
-            run: (view) => (view.dispatch(view.state.replaceSelection("\n")), true),
+            run: (view) => (
+              view.dispatch(
+                view.state.update(view.state.replaceSelection("\n"), {
+                  scrollIntoView: true,
+                  userEvent: "input",
+                }),
+              ),
+              true
+            ),
           },
           ...standardKeymap.filter(
             ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter",
@@ -530,7 +588,9 @@ class LeafText extends HTMLElement {
     this.#model = null;
     this.#sizes.observe(this);
     this.#overflow.observe(this);
-    this.#overflow.observe(this.#view.scrollDOM);
+    // The host can keep the same height when a long draft shrinks. Watch the words'
+    // box too: its height changes even when the scroller's viewport does not.
+    this.#overflow.observe(this.#view.contentDOM);
     // The scroller is focusable only so a press on it keeps focus in the editor, and
     // the field's scroller never scrolls; left focusable it is the node the root
     // delegates focus to, which holds no caret.
@@ -560,7 +620,7 @@ class LeafText extends HTMLElement {
 
   #describe() {
     const content = this.#view?.contentDOM;
-    if (!content || !("ariaDescribedByElements" in content)) return;
+    if (!content) return;
     const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
     content.ariaDescribedByElements = (this.getAttribute("aria-describedby") ?? "")
       .split(/\s+/)
@@ -627,16 +687,11 @@ class LeafText extends HTMLElement {
   }
 
   // Where the field holds its action's room now: `every-line`, `last-line` after its
-  // last words, or `none` while its last line is blank. A sent message keeping the
-  // draft's wrapping holds the same.
+  // last words, or `none` while its last line is blank.
   get endRoom() {
     if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0)
       return "every-line";
     return lastWithWords(this.#state) ? "last-line" : "none";
-  }
-
-  get writingEndRoom() {
-    return parseFloat(getComputedStyle(this).getPropertyValue("--lf-field-end-room"));
   }
 
   get value() {
@@ -679,11 +734,6 @@ class LeafText extends HTMLElement {
       parseFloat(host.borderBlockStartWidth) +
       parseFloat(host.borderBlockEndWidth)
     );
-  }
-
-  get writingInlineSize() {
-    const frame = getComputedStyle(this.#frame);
-    return parseFloat(frame.inlineSize) + parseFloat(frame.paddingInlineEnd);
   }
 
   set value(text) {

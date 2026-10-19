@@ -9,6 +9,7 @@
 
 import {
   anchorAt,
+  anchorBox,
   anchorElement,
   anchorReaches,
   anchorReading,
@@ -17,6 +18,7 @@ import {
   scrollsWith,
 } from "./css-anchors.js";
 import {
+  headerCuts,
   nearObserver,
   nearWindow,
   paintClips,
@@ -71,11 +73,7 @@ function geometryClone(source, left, top, property) {
   // length before moving the primitive into the overlay's different viewport.
   for (const attribute of [...clone.attributes]) {
     const length = source[attribute.localName];
-    if (
-      attribute.value.includes("%") &&
-      typeof SVGAnimatedLength !== "undefined" &&
-      length instanceof SVGAnimatedLength
-    )
+    if (attribute.value.includes("%") && length instanceof SVGAnimatedLength)
       clone.setAttribute(attribute.name, String(length.animVal.value));
   }
   clone.setAttribute(
@@ -233,13 +231,7 @@ function standIn(stand, placed, anchored) {
 // `at` as `rect` was, or from `stood.origin`, the client point its containing frame's
 // corner stands at. Without a size, `rect` is a point, the box's corner, and the box
 // keeps its own size.
-export function standBox(
-  box,
-  rect,
-  stood,
-  anchor,
-  at = anchor?.getBoundingClientRect(),
-) {
+export function standBox(box, rect, stood, anchor, at = anchor && anchorBox(anchor)) {
   if (stood.anchored) {
     anchorAt(box, anchor, rect, at, stood.visibility ?? "always");
     return;
@@ -263,7 +255,7 @@ export function standBox(
 // Answers the stand and the anchor, read as `placed` was, for what stands beside it.
 export function standOver(stand, placed, borderRadius) {
   const anchor = anchoredBy(placed.surface, stand.root);
-  const at = anchor?.getBoundingClientRect();
+  const at = anchor && anchorBox(anchor);
   const stood = standIn(stand, placed, Boolean(anchor));
   standBox(stand.box, placed.rect, stood, anchor, at);
   Object.assign(stand.box.style, { display: "block", borderRadius });
@@ -274,9 +266,11 @@ export function standOver(stand, placed, borderRadius) {
 // (`placement`), anchored to it where the anchor reaches (`anchoredBy`), the boxes the
 // same frames cut sharing a stand, so no scroll writes any of them. A box not `cut`, as
 // a chip hung off its target's corner wherever the room around it seats it, or ink
-// still being drawn past its target's edge, stands in no frame where it is anchored,
-// and hides once its target is scrolled out of sight (`position-visibility:
-// anchors-visible`). A box with no target stands where the window holds it.
+// still being drawn past its target's edge, is cut by no scroller's edge where it is
+// anchored, and hides once its target is scrolled out of sight (`position-visibility:
+// anchors-visible`); it still passes under the sticky headers declared over its target
+// (geometry.js, `headerCuts`), as every box following scrolled content does. A box
+// with no target stands where the window holds it.
 //
 // Only a box whose target is near (geometry.js, `nearWindow`) is in the document.
 // `onNear` hears where that changed, once the boxes come near are seated.
@@ -402,8 +396,17 @@ export function paintSet(root, { onNear = () => {} } = {}) {
           : anchor && anchorReaches(anchor, root)
             ? anchor
             : null;
-      // A box no frame cuts is carried by its anchor alone.
-      if (!framed) placed = { ...placed, levels: [] };
+      // A box no scroller's edge cuts is carried by its anchor alone, under the frames
+      // its target's headers cut.
+      if (!framed)
+        placed = {
+          ...placed,
+          levels: headerCuts(target, clips).map(({ box, band }) => ({
+            holder: box === box.ownerDocument.scrollingElement ? null : box,
+            band: band ?? { left: 0, top: 0, right: 0, bottom: 0 },
+            axes: { x: false, y: true },
+          })),
+        };
       // Each level's band from its holder's corner (`from`), which no scroll moves.
       for (const { holder } of placed.levels)
         if (holder && !holders.has(holder))
@@ -423,7 +426,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
         plane,
         framed,
         anchor: carriedBy,
-        at: carriedBy?.getBoundingClientRect(),
+        at: carriedBy && anchorBox(carriedBy),
         key: keyOf(placed, carriedBy, plane, framed),
       };
     });

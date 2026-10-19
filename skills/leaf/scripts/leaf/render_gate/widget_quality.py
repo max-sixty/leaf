@@ -18,8 +18,8 @@ an example may point at data or an element a package cannot carry, and what the 
 reads is the widget, not the page. A package carries no media either, so a blank
 image stands in for each one an example names.
 
-Each check has one name in `CHECKS`, which is the code of the finding
-(`findings.Finding`) it reports, with the widget's tag in its values:
+Each check reports its code in a finding (`findings.Finding`), with the widget's
+tag in its values:
 
 - `example`: each of the package's tags appears in some worked example, since a tag no
   example shows is one no other check reads.
@@ -72,8 +72,6 @@ from .scheme import (
     served,
     start_with_pre_upgrade_proof,
 )
-
-CHECKS = ("example", "keeps-first-box", "grows-with-content", "shows-context-keys")
 
 MEDIA_REFERENCE = re.compile(f"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}")
 
@@ -212,7 +210,7 @@ def _page_findings(
         candidate = read_page_registry(page_dir)
         (page_dir / MEDIA_DIR).mkdir(exist_ok=True)
         for layout, document in pages:
-            for reference in sorted(document.media_refs):
+            for reference in sorted(document.authoring.media_refs):
                 # Only a name the server serves gets a stand-in, which also keeps
                 # every write inside the page: a name cannot hold a directory.
                 if not MEDIA_REFERENCE.fullmatch(reference):

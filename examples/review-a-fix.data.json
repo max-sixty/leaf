@@ -1,0 +1,12 @@
+{
+  "$captures": {
+    "draft-image-before": {
+      "asset": "traces/2d131afa2b4c0f0b270d4151aa38c41d0fe1e0d7eb5ec06b38738d0ef9c4af48.json",
+      "format": "json"
+    },
+    "draft-image-after": {
+      "asset": "traces/215fbb37d871d88b1072aa3904fd9acc94d15818a455b162b8ce63b2fec3d575.json",
+      "format": "json"
+    }
+  }
+}

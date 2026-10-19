@@ -390,9 +390,6 @@ describe("product-site delivery", () => {
           headers: {
             Cookie: `__Host-leaf-page=${sessionId}; ${activeMarker("/examples/triage-board")}`,
             "Content-Type": "text/plain;charset=UTF-8",
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-              "AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
           },
           body: JSON.stringify(startupReport()),
         }),
@@ -408,9 +405,6 @@ describe("product-site delivery", () => {
         reference: "318445474579",
         route: "/examples/triage-board",
         currentRelease: RELEASE,
-        browser: "chrome",
-        browserVersion: 140,
-        platform: "windows",
         presentedMs: 310,
         firstContentfulPaintMs: 115,
         upgradedMs: 180,
@@ -446,7 +440,9 @@ describe("product-site delivery", () => {
     });
     const entries = [
       {
-        ts: "2026-10-10T12:00:00.000Z",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:00.000Z",
         sequence: 1,
         type: "sample",
         phase: "failed",
@@ -454,7 +450,9 @@ describe("product-site delivery", () => {
         error: { name: "AuthoredSampleError", status: 503, stack: "stack-secret" },
       },
       {
-        ts: "2026-10-10T12:00:01.000Z",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:01.000Z",
         sequence: 1,
         type: "click",
         target: ["button#private-secret"],
@@ -492,7 +490,9 @@ describe("product-site delivery", () => {
           session: "0".repeat(32),
           entries: [
             {
-              ts: entries[0].ts,
+              monotonic_ms: 123,
+              visibility: "visible",
+              observed_at: entries[0].observed_at,
               sequence: 1,
               type: "sample",
               phase: "failed",
@@ -509,7 +509,14 @@ describe("product-site delivery", () => {
           sampleReference: "380479911687",
           session: "1".repeat(32),
           entries: [
-            { ts: entries[1].ts, sequence: 1, type: "click", target: ["button"] },
+            {
+              monotonic_ms: 123,
+              visibility: "visible",
+              observed_at: entries[1].observed_at,
+              sequence: 1,
+              type: "click",
+              target: ["button"],
+            },
           ],
         },
       ]);
@@ -540,7 +547,13 @@ describe("product-site delivery", () => {
         get: vi.fn(() => ({ fetch: containerFetch })),
       } as unknown as Env["PAGES"],
     });
-    const entry = { ts: "2026-10-10T12:00:00.000Z", sequence: 1, type: "click" };
+    const entry = {
+      monotonic_ms: 123,
+      visibility: "visible",
+      observed_at: "2026-10-10T12:00:00.000Z",
+      sequence: 1,
+      type: "click",
+    };
     const batch = { session: "1".repeat(32), entries: [entry] };
     const cases = [
       { status: 404, body: JSON.stringify(batch), expected: 404 },
@@ -588,7 +601,9 @@ describe("product-site delivery", () => {
     const sample = `/api/samples/${"04".repeat(16)}~${"06".repeat(32)}`;
     const entries = [
       {
-        ts: "2026-10-10T12:00:00.000Z",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:00.000Z",
         sequence: 1,
         type: "sample",
         phase: "admission",
@@ -603,7 +618,9 @@ describe("product-site delivery", () => {
         leafDocument: "4",
       },
       {
-        ts: "2026-10-10T12:00:01.000Z",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:01.000Z",
         sequence: 2,
         type: "sample",
         phase: "failed",
@@ -625,7 +642,9 @@ describe("product-site delivery", () => {
         },
       },
       {
-        ts: "2026-10-10T12:00:02.000Z",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:02.000Z",
         sequence: 3,
         type: "sample",
         phase: "retired",
@@ -639,7 +658,9 @@ describe("product-site delivery", () => {
         leafDocument: null,
       },
       {
-        ts: "2026-10-10T12:00:03.000Z",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:03.000Z",
         sequence: 4,
         type: "sample",
         phase: "phase secret",
@@ -655,7 +676,9 @@ describe("product-site delivery", () => {
         error: { name: "name-secret", status: "503", message: "message-secret" },
       },
       {
-        ts: "2026-10-10T12:00:04.000Z",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:04.000Z",
         sequence: 5,
         type: "sample",
         phase: "recovering",
@@ -664,7 +687,9 @@ describe("product-site delivery", () => {
         error: { name: "QuotaExceededError" },
       },
       {
-        ts: "2026-10-10T12:00:05.000Z",
+        monotonic_ms: 123,
+        visibility: "visible",
+        observed_at: "2026-10-10T12:00:05.000Z",
         sequence: 6,
         type: "sample",
         phase: "retrying",
@@ -685,7 +710,9 @@ describe("product-site delivery", () => {
       const batch = logged.mock.calls[0][0] as { entries: unknown[] };
       expect(batch.entries).toStrictEqual([
         {
-          ts: entries[0].ts,
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[0].observed_at,
           sequence: 1,
           type: "sample",
           phase: "admission",
@@ -699,7 +726,9 @@ describe("product-site delivery", () => {
           leafDocument: 4,
         },
         {
-          ts: entries[1].ts,
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[1].observed_at,
           sequence: 2,
           type: "sample",
           phase: "failed",
@@ -715,7 +744,9 @@ describe("product-site delivery", () => {
           error: { name: "TypeError", status: 503 },
         },
         {
-          ts: entries[2].ts,
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[2].observed_at,
           sequence: 3,
           type: "sample",
           phase: "retired",
@@ -728,9 +759,17 @@ describe("product-site delivery", () => {
           reason: "destroyed",
           leafDocument: null,
         },
-        { ts: entries[3].ts, sequence: 4, type: "sample" },
         {
-          ts: entries[4].ts,
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[3].observed_at,
+          sequence: 4,
+          type: "sample",
+        },
+        {
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[4].observed_at,
           sequence: 5,
           type: "sample",
           phase: "recovering",
@@ -739,7 +778,9 @@ describe("product-site delivery", () => {
           error: { name: "QuotaExceededError" },
         },
         {
-          ts: entries[5].ts,
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: entries[5].observed_at,
           sequence: 6,
           type: "sample",
           phase: "retrying",
@@ -767,7 +808,9 @@ describe("product-site delivery", () => {
       session: "a".repeat(32),
       entries: [
         {
-          ts: "2026-09-25T12:00:00.000Z",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:00.000Z",
           sequence: 1,
           type: "click",
           target: ["button#save", "div"],
@@ -777,7 +820,9 @@ describe("product-site delivery", () => {
           pointer: { x: 12, y: 24, button: 0, secret: "pointer-secret" },
         },
         {
-          ts: "2026-09-25T12:00:01.000Z",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:01.000Z",
           sequence: 2,
           type: "input",
           target: ['input[name="private-token"]:nth-of-type(2)'],
@@ -795,7 +840,9 @@ describe("product-site delivery", () => {
           arbitrarySecret: "arbitrary-secret",
         },
         {
-          ts: "2026-09-25T12:00:02.000Z",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:02.000Z",
           sequence: 3,
           type: "command",
           id: "navigation.back",
@@ -803,7 +850,9 @@ describe("product-site delivery", () => {
           label: "command-secret",
         },
         {
-          ts: "2026-09-25T12:00:03.000Z",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:03.000Z",
           sequence: 4,
           type: "event_response",
           kind: "action",
@@ -812,14 +861,30 @@ describe("product-site delivery", () => {
           error: "response-secret",
         },
         {
-          ts: "2026-09-25T12:00:04.000Z",
+          monotonic_ms: 123,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:04.000Z",
           sequence: 5,
-          type: "interaction_part",
+          type: "interaction_omitted",
           originalType: "input",
-          partOf: 2,
-          part: 0,
-          parts: 2,
+          bytes: 50_200,
+          reason: "record_exceeds_limit",
           json: "part-secret",
+        },
+        {
+          monotonic_ms: 234,
+          visibility: "visible",
+          observed_at: "2026-09-25T12:00:05.000Z",
+          sequence: 6,
+          type: "reply_visible",
+          input_id: "abcdef01",
+          reply_id: "12345678",
+          attempt: "b".repeat(32),
+          presentation_kind: "message_words",
+          reply_kind: "failure",
+          surface: "panel",
+          text: "reply-secret",
+          targetId: "authored-secret",
         },
       ],
     };
@@ -839,7 +904,9 @@ describe("product-site delivery", () => {
         session: "a".repeat(32),
         entries: [
           {
-            ts: "2026-09-25T12:00:00.000Z",
+            monotonic_ms: 123,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:00.000Z",
             sequence: 1,
             type: "click",
             target: ["button", "div"],
@@ -849,33 +916,53 @@ describe("product-site delivery", () => {
             pointer: { x: 12, y: 24, button: 0 },
           },
           {
-            ts: "2026-09-25T12:00:01.000Z",
+            monotonic_ms: 123,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:01.000Z",
             sequence: 2,
             type: "input",
             target: ["input:nth-of-type(2)"],
           },
           {
-            ts: "2026-09-25T12:00:02.000Z",
+            monotonic_ms: 123,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:02.000Z",
             sequence: 3,
             type: "command",
             id: "navigation.back",
             binding: "Mod+ArrowLeft",
           },
           {
-            ts: "2026-09-25T12:00:03.000Z",
+            monotonic_ms: 123,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:03.000Z",
             sequence: 4,
             type: "event_response",
             kind: "action",
             status: 200,
           },
           {
-            ts: "2026-09-25T12:00:04.000Z",
+            monotonic_ms: 123,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:04.000Z",
             sequence: 5,
-            type: "interaction_part",
+            type: "interaction_omitted",
             originalType: "input",
-            partOf: 2,
-            part: 0,
-            parts: 2,
+            bytes: 50_200,
+            reason: "record_exceeds_limit",
+          },
+          {
+            monotonic_ms: 234,
+            visibility: "visible",
+            observed_at: "2026-09-25T12:00:05.000Z",
+            sequence: 6,
+            type: "reply_visible",
+            input_id: "abcdef01",
+            reply_id: "12345678",
+            attempt: "b".repeat(32),
+            presentation_kind: "message_words",
+            reply_kind: "failure",
+            surface: "panel",
           },
         ],
       });
@@ -1735,9 +1822,6 @@ describe("page faults", () => {
           // A tab still on the release before a deploy, so the record tells the
           // document's release apart from the edge's.
           "Leaf-Release": "b".repeat(64),
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-            "AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
         },
         body: JSON.stringify(body),
       }),
@@ -1771,8 +1855,6 @@ describe("page faults", () => {
         release: "b".repeat(64),
         currentRelease: RELEASE,
         revision: 3,
-        browser: "chrome",
-        platform: "windows",
       });
       expect(record.reason).toHaveLength(300);
       expect(record.reason.startsWith("syntax highlight failed: x")).toBe(true);

@@ -1,6 +1,6 @@
 """Registry-declared markup instance validation."""
 
-from leaf.asks import asking, local_ask_entry, quoted_in
+from leaf.asks import asking, local_ask_entry, quoted_in, replied
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import leading_title_node
 from leaf.projection import enclosing_widgets, recorded_owner
@@ -213,14 +213,16 @@ def unasked(rec: dict, entry: dict) -> dict:
     }
 
 
-def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
+def ask_context_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     """A context supplies a leading title and arrival region for nested asks.
 
     Context never owns ask identity or registration. Any number of sources
     can select it, and each source retains its independent answer and lifecycle.
-    A context framing no source asks nothing: the page shows a question the banner
+    A context framing widgets none of which asks shows a question the On me list
     never counts and the user can't answer, so the error names what each framed
-    widget lacks to ask (`unasked`).
+    widget lacks to ask (`unasked`). A context framing no widget asks only if it
+    declares its own reply-answered ask (`x-awaits.reply`), and then needs no
+    heading: its words are the question.
     """
 
     def context_of(rec):
@@ -233,6 +235,7 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
             None,
         )
 
+    lf_elements = document.lf_elements
     regions = [
         rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask-context")
     ]
@@ -244,10 +247,18 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
             framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
+        held = framed[id(region)]
+        # The ask's title is what the shared name rule reads, so this asks that rule
+        # rather than restating a shape it accepts. It must be a heading as well, the
+        # question's place in the outline and in heading navigation.
+        title = leading_title_node(document.authoring.node_of(region))
+        titled = bool(title) and title["tag"] in {f"h{n}" for n in range(1, 7)}
+        # A question is its words alone. A heading over no widget is a frame whose
+        # widget is missing, as when a revision drops the decision it framed.
+        if not held and replied(registry[region["tag"]]) and not titled:
+            continue
         # A quoted context is a mention whose widgets ask nothing by design.
-        if not quoted_in(region, registry) and all(
-            lacks for _, lacks in framed[id(region)]
-        ):
+        if not quoted_in(region, registry) and all(lacks for _, lacks in held):
             widgets = [
                 {
                     "at": element_at(rec["tag"], rec["attrs"].get("id", "")),
@@ -257,11 +268,7 @@ def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 for rec, lacks in framed[id(region)]
             ]
             errors.append(found_at("empty-ask-context", region, widgets=widgets))
-        # The ask's title is what the shared name rule reads, so this asks that rule
-        # rather than restating a shape it accepts. It must be a heading as well, the
-        # question's place in the outline and in heading navigation.
-        title = leading_title_node(region["node"])
-        if not title or title["tag"] not in {f"h{n}" for n in range(1, 7)}:
+        if not titled:
             errors.append(found_at("ask-context-title", region))
     return errors
 
@@ -544,14 +551,15 @@ def suggestion_errors(
     return errors
 
 
-def instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
+def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     """Every instance check that needs only the registry, no id namespace, so a new
     check of that kind reaches page source and message markup alike."""
+    lf_elements = document.lf_elements
     return (
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + ask_context_errors(lf_elements, registry)
+        + ask_context_errors(document, registry)
         + declared_word_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
     )
@@ -564,4 +572,4 @@ def fragment_errors(parser: SourceDocument, registry: dict) -> list[Finding]:
     <lf-code language=…> is colored by the same tokenizer a version's is, and its chips
     are tinted by the same theme, and nothing else would now refuse either a word its
     layer doesn't know."""
-    return structure_errors(parser) + instance_errors(parser.lf_elements, registry)
+    return structure_errors(parser) + instance_errors(parser, registry)

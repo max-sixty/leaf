@@ -15,55 +15,128 @@
    native :scope must not make this margin reset outrank the action row's placement,
    for either textual evidence or file metadata. */
 :where(:scope:host(.lf-rendered)) :where(.lf-diff-file) > details,
-:where(:scope:host(.lf-rendered)) .lf-diff-metadata { margin: 0; padding: 0; overflow: clip;
-                              background: var(--pre-bg); border: 1px solid var(--code-border);
-                              border-radius: var(--r); }
+:where(:scope:host(.lf-rendered)) .lf-diff-metadata {
+  margin: 0;
+  padding: 0;
+  overflow: clip;
+  background: var(--pre-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--r);
+}
+:scope:host(.lf-rendered) {
+  --lf-diff-head-inset: 10px;
+}
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
-:scope:host(.lf-rendered) .lf-diff-metadata { padding: 7px 10px; font-size: var(--t-5);
-                                     font-family: var(--sans); color: var(--code-ink);
-                                     background: var(--code-chrome); }
-:scope:host(.lf-rendered) .lf-diff-fold > .lf-error { padding: 10px; }
+:scope:host(.lf-rendered) .lf-diff-metadata {
+  padding: 7px var(--lf-diff-head-inset);
+  font-size: var(--t-5);
+  font-family: var(--sans);
+  color: var(--code-ink);
+  background: var(--code-chrome);
+}
+:scope:host(.lf-rendered) .lf-diff-fold > .lf-error {
+  padding: 10px;
+}
 /* The file's row pins over the rows it names (below), so it is one line of a stated
    height (`--lf-diff-head-h`, at .lf-diff-file), which is what the rows under it add
    to `--lf-top` and to the room a landing leaves above them. A path too long for the
    line gives way from its folders first, which end in an ellipsis, and the file's own
    name is cut only where it alone is too long; the path's title then holds it whole.
-   A flex row draws no disclosure marker, so the triangle is the row's own first mark. */
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
-                                     display: flex; align-items: center; gap: 6px;
-                                     box-sizing: border-box;
-                                     block-size: var(--lf-diff-head-h);
-                                     white-space: nowrap; overflow: hidden; }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before {
-                                     content: "▶" / ""; flex: none; font-size: .7em; }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before {
-                                     content: "▼" / ""; }
+   A flex row draws no disclosure marker, so the triangle is the row's own first mark.
+   File and conversation labels have different type sizes; their triangles share one size. */
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
+:scope:host(.lf-rendered)
+  .lf-diff-file-thread-outlet
+  > .lf-resolved-threads
+  > .lf-resolved-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  block-size: var(--lf-diff-head-h);
+  white-space: nowrap;
+  overflow: hidden;
+}
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before,
+:scope:host(.lf-rendered)
+  .lf-diff-file-thread-outlet
+  > .lf-resolved-threads
+  > .lf-resolved-summary::before {
+  content: "▶" / "";
+  flex: none;
+  font-size: calc(0.7 * var(--t-5));
+}
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before,
+:scope:host(.lf-rendered)
+  .lf-diff-file-thread-outlet
+  > .lf-resolved-threads[open]
+  > .lf-resolved-summary::before {
+  content: "▼" / "";
+}
 /* Source paths may change with new evidence; their region gives way while the
    statistics and adjacent actions keep their trailing columns. */
-.lf-diff-head > .lf-diff-path { display: flex; flex: 1; min-width: 0; white-space: nowrap; }
+.lf-diff-path {
+  white-space: pre-wrap;
+}
+.lf-diff-head > .lf-diff-path {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  white-space: pre;
+}
 /* Both names share one allocation: folders receive only the room left by the
    basenames and arrow. Side wrappers retain their meaning without dividing width. */
 .lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) {
-                                     display: contents; }
-.lf-diff-head .lf-diff-arrow { flex: none; white-space: normal; margin-inline: .4ch; }
+  display: contents;
+}
+.lf-diff-head .lf-diff-arrow {
+  flex: none;
+  white-space: normal;
+  margin-inline: 0.4ch;
+}
 /* Chrome breaks at a <wbr> even where nothing may wrap. */
-.lf-diff-head wbr { display: none; }
-.lf-diff-head .lf-diff-dir { flex: 0 1 auto; min-width: 0; max-width: max-content; overflow: hidden;
-                             text-overflow: ellipsis; }
-.lf-diff-head .lf-diff-dir-ancestor { flex: 1 1 0; }
+.lf-diff-head wbr {
+  display: none;
+}
+.lf-diff-head .lf-diff-dir {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: max-content;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-diff-head .lf-diff-dir-ancestor {
+  flex: 1 1 0;
+}
 .lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) .lf-diff-dir {
-  flex: 1 1 0; }
+  flex: 1 1 0;
+}
 /* The path observer reads this font's native ellipsis width without adding words
    or allocating another column. It paints the folder only where that glyph fits. */
-.lf-diff-head .lf-diff-dir::before { content: "…" / ""; position: absolute;
-                                     visibility: hidden; inline-size: max-content; }
-.lf-diff-head .lf-diff-dir[data-folder-hidden] { opacity: 0; }
-.lf-diff-head .lf-diff-base { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden;
-                              text-overflow: ellipsis; }
+.lf-diff-head .lf-diff-dir::before {
+  content: "…" / "";
+  position: absolute;
+  visibility: hidden;
+  inline-size: max-content;
+}
+.lf-diff-head .lf-diff-dir[data-folder-hidden] {
+  opacity: 0;
+}
+.lf-diff-head .lf-diff-base {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* One basename takes its full width before folders. A rename shares its two
    basenames instead, so neither can take the whole path allocation. */
-.lf-diff-head > .lf-diff-path > .lf-diff-base { flex-shrink: 0; }
-.lf-diff-head > .lf-diff-stat { flex: none; }
+.lf-diff-head > .lf-diff-path > .lf-diff-base {
+  flex-shrink: 0;
+}
+.lf-diff-head > .lf-diff-stat {
+  flex: none;
+}
 /* The whole path, while the row has focus or a press is held on it
    (held-word.js), since the path's title shows only to a pointer resting on it. Only a
    row that cuts its path short says it (`data-path-cut`, lf-diff.js), since a path the
@@ -77,50 +150,80 @@
    frame's clip rounded them. The file stands over the files after it meanwhile, whose
    rows and presses would otherwise cover a folded file's box, and keeps its own press
    over its row. */
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary { position: relative; }
-.lf-diff-file:has(> .lf-diff-fold > .lf-diff-head[data-path-cut]:is([data-lf-held-word],
-                                                   [data-lf-focus])) {
-                                     z-index: 4; }
-.lf-diff-fold:has(> .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus],
-                                                    [data-lf-focus])) {
-                                     overflow: visible; }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+  position: relative;
+}
+.lf-diff-file:has(
+  > .lf-diff-fold
+    > .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus])
+) {
+  z-index: 4;
+}
+.lf-diff-fold:has(
+  > .lf-diff-head[data-path-cut]:is(
+      [data-lf-held-word],
+      [data-lf-focus],
+      [data-lf-focus]
+    )
+) {
+  overflow: visible;
+}
+:scope:host(.lf-rendered)
+  :where(.lf-diff-file)
+  > details
   > summary[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
-                                     overflow: visible;
-                                     border-start-start-radius: calc(var(--r) - 1px);
-                                     border-start-end-radius: calc(var(--r) - 1px); }
+  overflow: visible;
+  border-start-start-radius: calc(var(--r) - 1px);
+  border-start-end-radius: calc(var(--r) - 1px);
+}
 .lf-diff-fold:not([open])
   > .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
-                                     border-radius: calc(var(--r) - 1px); }
+  border-radius: calc(var(--r) - 1px);
+}
 .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus])
   > .lf-diff-path::after {
-                                     content: attr(data-path) / ""; position: absolute;
-                                     z-index: 3; inset-block-start: calc(100% + 4px);
-                                     padding: 4px 7px; border-radius: 4px;
-                                     background: var(--ink); color: var(--paper);
-                                     box-shadow: 0 2px 8px var(--shade);
-                                     white-space: normal; overflow-wrap: anywhere;
-                                     pointer-events: none; }
-.lf-diff-head[data-lf-held-word]:not([data-lf-focus])
-  > .lf-diff-path::after { animation: lf-diff-held-word 1ms 300ms backwards; }
-@keyframes lf-diff-held-word { from { visibility: hidden; } }
+  content: attr(data-path) / "";
+  position: absolute;
+  z-index: 3;
+  inset-block-start: calc(100% + 4px);
+  padding: var(--tip-pad);
+  border-radius: var(--tip-r);
+  background: var(--tip-bg);
+  color: var(--tip-ink);
+  box-shadow: var(--raise-1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.lf-diff-head[data-lf-held-word]:not([data-lf-focus]) > .lf-diff-path::after {
+  animation: lf-diff-held-word 1ms 300ms backwards;
+}
+@keyframes lf-diff-held-word {
+  from {
+    visibility: hidden;
+  }
+}
 /* A finger's press on the row reads its path rather than selecting it or opening the
    platform's long-press menu. */
 @media (pointer: coarse) {
-  .lf-diff-head { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+  .lf-diff-head {
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
 }
 /* The row leaves the bar of presses its column, the bar's width and 14px between it
    and the path. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head {
-                                     padding-right: calc(10px + var(--lf-diff-actions)
-                                                         + 14px); }
+  padding-right: calc(10px + var(--lf-diff-actions) + 14px);
+}
 /* A metadata row is not pinned, so it wraps. The press is out of its flow, so the row
    reaches at least as far down as the bar's foot: under a finger the bar is the taller
    and the row follows it rather than letting it hang over the patch. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-metadata {
-                                     box-sizing: border-box;
-                                     min-height: calc(var(--lf-diff-action-top)
-                                                      + var(--lf-diff-action-h)); }
+  box-sizing: border-box;
+  min-height: calc(var(--lf-diff-action-top) + var(--lf-diff-action-h));
+}
 /* And the bar's room is taken only beside the bar: a float as wide and as tall as it,
    so a long path wraps before the presses and then takes the row's whole width under
    them. The width is the bar's 11px inset less the 1px border it stands inside and the
@@ -129,10 +232,11 @@
    of leading above a line's ink, so the line whose ink starts under the bar takes the
    full width. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-metadata::before {
-                                     content: ""; float: right;
-                                     width: calc(var(--lf-diff-actions) + 14px);
-                                     height: calc(var(--lf-diff-action-top)
-                                                  + var(--lf-diff-action-h) - 12px); }
+  content: "";
+  float: right;
+  width: calc(var(--lf-diff-actions) + 14px);
+  height: calc(var(--lf-diff-action-top) + var(--lf-diff-action-h) - 12px);
+}
 /* The drawing's spacing runs between its parts and never past its edges: the toolbar
    has no margin above it and a file none below it (.lf-diff-file). The host states how
    far the diff stands off, and an edge margin in here collapses out through the host
@@ -141,79 +245,145 @@
    followed it 8px at upgrade.
    The canonical search is the tools row itself. Its count stays inside that field's
    end slot, so the same single frame holds at desktop and phone widths. */
-.lf-diff-tools { display: block; width: 100%; min-width: 0; margin: 0 0 8px; }
-.lf-diff-progress { color: var(--code-muted); font: var(--t-6) var(--sans);
-                    font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lf-diff-tools {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 8px;
+}
+.lf-diff-progress {
+  color: var(--code-muted);
+  font: var(--t-6) var(--sans);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 /* The file comment is a sibling of its disclosure, so each keeps its own action.
    Both follow the sticky header; the shared height reserves the comment's square. */
-.lf-diff-file { position: relative; display: flow-root; margin: 8px 0 0;
-                /* How tall the bar of presses on the file's name line stands, and how far
+.lf-diff-file {
+  position: relative;
+  display: flow-root;
+  margin: 8px 0 0;
+  /* How tall the bar of presses on the file's name line stands, and how far
                    down the name it starts. Both are said here because the pull below is
                    the same distance in the other direction: the bar is laid out above the
                    file's body and the body is drawn back over it, so a number restated
                    there would put the presses off the name the moment either changed. A
                    finger raises the floor and the pull follows on its own. */
-                --lf-diff-action-h: max(26px, var(--aim-floor));
-                --lf-diff-action-top: 6px;
-                --lf-diff-actions: var(--lf-diff-action-h);
-                /* The file's row: 7px above and below a path's line, 35px in all, or the
+  --lf-diff-action-h: max(26px, var(--aim-floor));
+  --lf-diff-action-top: 6px;
+  --lf-diff-actions: var(--lf-diff-action-h);
+  /* The file's row: 7px above and below a path's line, 35px in all, or the
                    bar of presses where that stands taller, as under a finger. */
-                --lf-diff-head-h: 35px; }
+  --lf-diff-head-h: 35px;
+}
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
-                --lf-diff-head-h: max(35px, calc(var(--lf-diff-action-top)
-                                                 + var(--lf-diff-action-h))); }
+  --lf-diff-head-h: max(
+    35px,
+    calc(var(--lf-diff-action-top) + var(--lf-diff-action-h))
+  );
+}
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
-                margin-top: calc(-1 * (var(--lf-diff-action-h)
-                                       + var(--lf-diff-action-top))); }
-.lf-diff-file-actions { position: relative; z-index: 3; display: flex;
-                        align-items: center; justify-content: flex-end;
-                        gap: 6px;
-                        width: fit-content; height: var(--lf-diff-action-h);
-                        margin: var(--lf-diff-action-top) 11px 0 auto;
-                        font-family: var(--sans); }
+  margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));
+}
+.lf-diff-file-actions {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  width: fit-content;
+  height: var(--lf-diff-action-h);
+  margin: var(--lf-diff-action-top) 11px 0 auto;
+  font-family: var(--sans);
+}
 /* An inline patch without comment controls has no action row to pull over. */
-.lf-diff-file-actions:empty { display: none; }
-:is(.lf-diff-comment, .lf-diff-fold-all) { border-color: transparent; background: transparent;
-                                           color: var(--muted); }
-.lf-diff-file-comment { --lf-icon-action-hit: var(--lf-diff-action-h); }
+.lf-diff-file-actions:empty {
+  display: none;
+}
+:is(.lf-diff-comment, .lf-diff-fold-all) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.lf-diff-file-comment {
+  --lf-icon-action-hit: var(--lf-diff-action-h);
+}
 :is(.lf-diff-file-comment, .lf-diff-fold-all):is(:hover, [data-lf-focus]) {
-  background: var(--chip); color: var(--ink); }
+  background: var(--chip);
+  color: var(--ink);
+}
 /* An auxiliary control of the filter field, like its Clear: the field's frame carries
    the focus band for the group, and the press shows it is the one focused by its fill.
    It is no taller than the count, so the field keeps the height it has without it, and
    a finger's floor raises it as it does every other press. */
-.lf-diff-fold-all { --lf-icon-action-hit: max(24px, var(--aim-floor)); margin-inline-end: -3px; }
-.lf-diff-fold-all[data-lf-focus] { outline: none; }
-.lf-diff-fold-all[inert] { visibility: hidden; }
+.lf-diff-fold-all {
+  --lf-icon-action-hit: max(24px, var(--aim-floor));
+  margin-inline-end: -3px;
+}
+.lf-diff-fold-all[data-lf-focus] {
+  outline: none;
+}
+.lf-diff-fold-all[inert] {
+  visibility: hidden;
+}
 /* Keep Pierre's compact gutter and row height. The whole number row is a press,
    while its hover mark fits the existing 2ch blank margin, clear of the number.
    Touch can tap that same number; keyboard commenting also has the target picker. */
-[data-gutter] > :has(> .lf-diff-line-comment) { position: relative; }
-.lf-diff-line-comment { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%;
-  --aim-floor: 0px; cursor: pointer;
-  min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0;
-  background: transparent; color: var(--accent); opacity: 0; }
-.lf-diff-line-plus { position: absolute; inset-inline-start: 1px;
-  inset-block-start: 50%; translate: 0 -50%; width: calc(2ch - 2px);
-  border-radius: 3px; background: var(--accent-tint);
-  font: 700 13px/1.2 var(--mono); text-align: center; }
+[data-gutter] > :has(> .lf-diff-line-comment) {
+  position: relative;
+}
+.lf-diff-line-comment {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  --aim-floor: 0px;
+  cursor: pointer;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--accent);
+  opacity: 0;
+}
+.lf-diff-line-plus {
+  position: absolute;
+  inset-inline-start: 1px;
+  inset-block-start: 50%;
+  translate: 0 -50%;
+  width: calc(2ch - 2px);
+  border-radius: 3px;
+  background: var(--accent-tint);
+  font: 700 13px/1.2 var(--mono);
+  text-align: center;
+}
 [data-gutter] > :hover > .lf-diff-line-comment,
 [data-gutter] > .lf-diff-line-hover > .lf-diff-line-comment,
-.lf-diff-line-comment[data-lf-focus] { opacity: 1; }
-.lf-diff-filtered { display: none !important; }
+.lf-diff-line-comment[data-lf-focus] {
+  opacity: 1;
+}
+.lf-diff-filtered {
+  display: none !important;
+}
 /* The filter field is not listed here. It is a vendored text field, whose Tab stop and
    ringed box are both inside its own shadow root, so a rule on this host would reach
-   neither; the shared Web Awesome theme draws and names that band once for every
-   package. */
-.lf-diff-comment[data-lf-focus] { outline: var(--focus-ring);
-                                                         --lf-focus-ring: diff-tools;
-                                                         outline-offset: 1px; }
+   neither; the shared Web Awesome theme draws that band once for every package. */
+.lf-diff-comment[data-lf-focus] {
+  outline: var(--focus-ring);
+  outline-offset: 1px;
+}
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
    is inset — theme.css's rule for a control packed into something rather than standing
    on its own. Outside, its top run was drawn into the border the details draws and lost
    with it. */
-:scope:host(.lf-rendered) .lf-diff-file > details > summary[data-lf-focus] { outline: var(--focus-ring); --lf-focus-ring: code-summary;
-                                            outline-offset: calc(-1 * var(--focus-ring-w)); }
+:scope:host(.lf-rendered) .lf-diff-file > details > summary[data-lf-focus] {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 /* A row a hunk step lands on (lf-diff.js, `land`), inset for three reasons at once. The
    code box clips what it holds (Pierre's overflow and containment), and a row runs the
    box's whole width, so the outset band the layer draws for any other stop lost both its
@@ -221,9 +391,9 @@
    a landing puts the row flush under the pinned header, which covered its upper run.
    Outset, a landed row showed no ring at all. */
 :scope:host(.lf-rendered) [data-content] > [data-line][data-lf-focus] {
-                                            outline: var(--focus-ring);
-                                            --lf-focus-ring: code-line;
-                                            outline-offset: calc(-1 * var(--focus-ring-w)); }
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 /* The file header pins at the top of what scrolls it while its own rows go past, which is
    the thread list's answer to the same question — the name of the part you are reading has
    to be on screen for the whole of it, not only at its start. Forty-six files at
@@ -240,41 +410,69 @@
    one underneath — a diff in a reply scrolls in the panel's list rather than in the
    document. */
 @media screen {
-  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file { --lf-top-outer: var(--lf-top); }
+  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file {
+    --lf-top-outer: var(--lf-top);
+  }
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details {
-                              --lf-top: calc(var(--lf-top-outer) + var(--lf-diff-head-h)); }
-  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
-                              --lf-top: var(--lf-top-outer);
-                              top: var(--lf-top, 0px); z-index: 2; }
+    --lf-top: calc(var(--lf-top-outer) + var(--lf-diff-head-h));
+  }
+  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary {
+    position: sticky;
+    --lf-top: var(--lf-top-outer);
+    top: var(--lf-top, 0px);
+    z-index: 2;
+  }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap
      less the 1px border the summary's box starts inside. */
-  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions { position: sticky;
-                              top: calc(var(--lf-top, 0px)
-                                        + var(--lf-diff-action-top) - 1px);
-                              --lf-head-inset: calc(var(--lf-diff-action-top) - 1px); }
+  :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions {
+    position: sticky;
+    top: calc(var(--lf-top, 0px) + var(--lf-diff-action-top) - 1px);
+    --lf-head-inset: calc(var(--lf-diff-action-top) - 1px);
+  }
 }
 /* The room that header takes, so a landing arrives below it rather than behind it. The
    scroller's `scroll-padding` clears what stands over the whole of it, the banner and a
    page tab strip; this is the rest of the same sum. Only where the header pins: unpinned,
    it covers nothing. The code's sideways scroller is a tab stop of its own, and its focus
-   clears the header and the ring's room beside it; as a box that scrolls it starts
+   clears the header and the ring's landing room beside it; as a box that scrolls it starts
    `--lf-top` again for what it holds, so the layer's reading of the headers over it
    cannot reach it there. */
-:scope:host(.lf-rendered[data-lf-diff-pinned]) [data-line] { scroll-margin-top: var(--lf-diff-head-h); }
+:scope:host(.lf-rendered[data-lf-diff-pinned]) [data-line] {
+  scroll-margin-top: var(--lf-diff-head-h);
+}
 :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file .lf-text-scroller {
-  scroll-margin-top: calc(var(--lf-diff-head-h) + var(--focus-ring-room)); }
+  scroll-margin-top: calc(var(--lf-diff-head-h) + var(--focus-ring-landing));
+}
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
-.lf-diff-path { font-family: var(--mono); font-size: var(--t-6);
-                overflow-wrap: anywhere; }
-.lf-diff-additions { color: var(--ok-ink); }
-.lf-diff-deletions { color: var(--danger-ink); }
-.lf-diff-metadata > .lf-diff-stat { white-space: normal; }
-.lf-diff-evidence { padding: 7px 10px; color: var(--code-muted);
-                    font: var(--t-6)/1.5 var(--sans); background: var(--code-chrome); }
-.lf-diff-stat { color: var(--code-muted); font-weight: 400; margin-left: 8px;
-                font-size: var(--t-6); font-variant-numeric: tabular-nums;
-                white-space: nowrap; }
+.lf-diff-path {
+  font-family: var(--mono);
+  font-size: var(--t-6);
+  overflow-wrap: anywhere;
+}
+.lf-diff-additions {
+  color: var(--ok-ink);
+}
+.lf-diff-deletions {
+  color: var(--danger-ink);
+}
+.lf-diff-metadata > .lf-diff-stat {
+  white-space: normal;
+}
+.lf-diff-evidence {
+  padding: 7px 10px;
+  color: var(--code-muted);
+  font: var(--t-6)/1.5 var(--sans);
+  background: var(--code-chrome);
+}
+.lf-diff-stat {
+  color: var(--code-muted);
+  font-weight: 400;
+  margin-left: 8px;
+  font-size: var(--t-6);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 :scope:host(.lf-rendered) {
   /* Pierre's sheets style `:host` as one file's box, and here the host is the whole
      diff, so what they paint on it is restated for the diff. Each file's box and code
@@ -318,27 +516,40 @@
    fills the box rather than ending at its longest line. Print drops that floor so
    lines wrap within the paper. */
 :scope:host(.lf-rendered) code[data-code] {
-                          /* A file can sit inside another horizontal reader. Pierre's
+  /* A file can sit inside another horizontal reader. Pierre's
                              overscroll trap swallows that reader's gesture even when
                              every line fits this file, so let the native scroll chain
                              reach the enclosing box when this one has no more room. */
-                          overscroll-behavior-x: auto;
-                          --diffs-code-grid: var(--diffs-grid-number-column-width)
-                                             minmax(var(--lf-diff-row-fill, max-content), 1fr); }
-:scope:host(.lf-rendered) .lf-diff-fold > pre { margin: 0; border: none; border-top: 1px solid var(--code-border);
-                          border-radius: 0; overflow-x: auto; color: var(--code-ink); }
+  overscroll-behavior-x: auto;
+  --diffs-code-grid: var(--diffs-grid-number-column-width)
+    minmax(var(--lf-diff-row-fill, max-content), 1fr);
+}
+:scope:host(.lf-rendered) .lf-diff-fold > pre {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--code-border);
+  border-radius: 0;
+  overflow-x: auto;
+  color: var(--code-ink);
+}
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to
    show where it landed, or the stop reads as Tab going nowhere. */
-:scope:host(.lf-rendered) code[data-code][data-lf-focus] { outline: var(--focus-ring);
-                          --lf-focus-ring: code-pre-shadow;
-                          outline-offset: calc(-1 * var(--focus-ring-w)); }
+:scope:host(.lf-rendered) code[data-code][data-lf-focus] {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 /* A Thread occupies one additional Pierre subgrid row. The widget inserts a content
    outlet and a paired gutter spacer at the same line index; matching fills and borders
    make them one full-width review row while preserving the renderer's two columns. */
-.lf-diff-thread-outlet, .lf-diff-thread-gutter {
-                          min-width: 0; border-block: 1px solid var(--rule);
-                          background: var(--paper); }
-.lf-diff-thread-gutter { border-inline-end: 1px solid var(--rule); }
+.lf-diff-thread-outlet,
+.lf-diff-thread-gutter {
+  min-width: 0;
+  border-block: 1px solid var(--rule);
+  background: var(--paper);
+}
+.lf-diff-thread-gutter {
+  border-inline-end: 1px solid var(--rule);
+}
 /* The outlet stands in the code column with the lines, so the floor above measures it
    too, and what it measures is not the remark's own length: the thread inside caps
    itself at 760px (below), which with this padding is a 796px contribution from any
@@ -347,40 +558,92 @@
    its box set it scrolling sideways, 843px of content in 718px of room. Inline-size
    containment takes the outlet out of the measure; it still stretches to whatever the
    code settles on, and wraps inside it. */
-.lf-diff-thread-outlet { padding: 10px clamp(10px, 2vw, 18px); white-space: normal;
-                          contain: inline-size; }
+.lf-diff-thread-outlet {
+  padding: 10px clamp(10px, 2vw, 18px);
+  white-space: normal;
+  contain: inline-size;
+}
 .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
-                          box-sizing: border-box; position: sticky;
-                          inset-inline-start: var(--lf-diff-gutter-width);
-                          max-inline-size: var(--lf-diff-thread-width); }
-.lf-diff-file-thread-outlet { margin-top: 8px; border: 1px solid var(--rule);
-                              border-radius: var(--r); }
+  box-sizing: border-box;
+  position: sticky;
+  inset-inline-start: var(--diffs-column-number-width);
+  max-inline-size: var(--diffs-column-content-width);
+}
+.lf-diff-file-thread-outlet {
+  padding: 0;
+  margin-top: 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+}
+/* The boundary has no padding: its disclosure is a full-width row like the file's.
+   The disclosure and conversation cards each own their inset once; message layout
+   remains with the shared thread renderer. */
+:scope:host(.lf-rendered)
+  .lf-diff-file-thread-outlet
+  > .lf-resolved-threads
+  > .lf-resolved-summary {
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
 /* The outlet owns the review row's boundary. Shared conversation separators and
    focus treatment distinguish its threads without another card around each one. */
 .lf-diff-thread-outlet > :is(.lf-page-thread, .lf-resolved-threads) {
-                          max-width: 760px; }
-.lf-diff-thread-outlet .lf-page-thread { padding: var(--sp-2) 0; }
+  max-width: 760px;
+}
+.lf-diff-thread-outlet .lf-page-thread {
+  padding: var(--sp-2) 0;
+}
+.lf-diff-file-thread-outlet :is(.lf-resolved-summary, .lf-page-thread) {
+  padding-inline: var(--lf-diff-head-inset);
+}
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */
 @media print {
-  .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) { margin-top: 0 !important; }
-  :scope:host(.lf-rendered) .lf-diff-file > details > summary { padding-right: 10px; }
-  :scope:host(.lf-rendered) .lf-diff-metadata { padding-right: 0; }
+  .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) {
+    margin-top: 0 !important;
+  }
+  :scope:host(.lf-rendered) .lf-diff-file > details > summary {
+    padding-right: 10px;
+  }
+  :scope:host(.lf-rendered) .lf-diff-metadata {
+    padding-right: 0;
+  }
   .lf-diff-file > .lf-diff-fold > .lf-diff-head::before,
-  .lf-diff-file .lf-diff-metadata::before { display: none; }
+  .lf-diff-file .lf-diff-metadata::before {
+    display: none;
+  }
   /* A file's row cuts its path to one line only because the screen can give the whole
      path back (its title, focus, a held press) and pins that line at a stated height.
      Paper does neither, so the row grows to hold the whole path, breaking after its
      slashes, and inside a name only where one name alone outruns the line. */
   :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
-                          block-size: auto; min-block-size: var(--lf-diff-head-h);
-                          align-items: baseline; white-space: normal; }
-  .lf-diff-head > .lf-diff-path { display: block; white-space: normal;
-                                  overflow-wrap: anywhere; }
-  .lf-diff-head .lf-diff-dir[data-folder-hidden] { opacity: 1; }
-  .lf-diff-head wbr { display: inline; }
-  .lf-diff-filtered { display: block !important; }
-  [data-line] { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }
-  code[data-code] { overflow-x: visible !important; --lf-diff-row-fill: 0; }
+    block-size: auto;
+    min-block-size: var(--lf-diff-head-h);
+    align-items: baseline;
+    white-space: normal;
+  }
+  .lf-diff-head > .lf-diff-path {
+    display: block;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .lf-diff-head .lf-diff-dir[data-folder-hidden] {
+    opacity: 1;
+  }
+  .lf-diff-head wbr {
+    display: inline;
+  }
+  .lf-diff-filtered {
+    display: block !important;
+  }
+  [data-line] {
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+  }
+  code[data-code] {
+    overflow-x: visible !important;
+    --lf-diff-row-fill: 0;
+  }
   .lf-diff-thread-outlet:not(.lf-diff-file-thread-outlet) {
-                          position: static; max-inline-size: none; }
+    position: static;
+    max-inline-size: none;
+  }
 }

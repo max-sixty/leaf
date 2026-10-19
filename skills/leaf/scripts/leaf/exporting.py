@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 import uuid
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -378,7 +377,7 @@ def export_document(
     )
     # The readable record is the outer document, not raw text inside a noscript
     # wrapper: authored noscript elements keep native semantics in both parser modes.
-    body = SourceDocument(fallback).wrapper_tags["body"][1]
+    body = SourceDocument(fallback).authoring.wrapper_tags["body"][1]
     note = (
         '<noscript><p role="note">This file needs JavaScript to display embedded '
         "images, fonts, and recordings. The captured text is shown below.</p></noscript>"
@@ -386,7 +385,7 @@ def export_document(
     return fallback[:body] + note + fallback[body:]
 
 
-def cmd_export(page_dir: Path, out: Path, version) -> int:
+def cmd_export(page_dir: Path, out: Path, version) -> dict:
     """One stamped version as a standalone HTML file that opens offline.
 
     The file carries the captured revision and Leaf's normal runtime, which boots from
@@ -431,7 +430,4 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html, encoding="utf-8")
-    print(
-        json.dumps({"file": str(out), "version": version, "bytes": out.stat().st_size})
-    )
-    return 0
+    return {"file": str(out), "version": version, "bytes": out.stat().st_size}

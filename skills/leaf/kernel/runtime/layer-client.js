@@ -1,6 +1,8 @@
 import {
   LayerRefused,
   admitResponse,
+  completeData,
+  dataHeaders,
   exceptionText,
   layerHeaders,
   postEvent,
@@ -19,6 +21,8 @@ import "./bundle-__export.js";
 export {
   LayerRefused,
   admitResponse,
+  completeData,
+  dataHeaders,
   exceptionText,
   layerHeaders,
   postEvent,

@@ -1,0 +1,83 @@
+# Exploratory observations have no winner or fitness score.
+prompt: |-
+  Explore this page for observations that would help improve the user's work with
+  an agent. Desktop fullscreen work is the priority. This is discovery, separate
+  from the fixed pairwise benchmark; report what you learn, not a comparison score.
+
+  The original authoring task and phase roles are frozen here:
+  {comparison}
+
+  Focus:
+  {focus}
+
+  Start with the required desktop view, then choose the sizes and interactions
+  that seem informative. Look for both strengths and problems in understanding
+  evidence, navigation, making decisions, editing and returning to the record.
+  Follow an interesting observation into nearby variations. Window height and
+  width, available content controls, item counts and action sequences may matter
+  together; try combinations when there is a reason. Use phone as a secondary
+  check when it seems useful or the focus asks for it.
+
+  The page named page is the authored final record. When page_before_decision is
+  supplied, use it to explore making the prescribed decision. Distinguish saved
+  state from your exploratory changes. Use ordinary page controls to vary content;
+  don't edit source or manufacture defects by altering the DOM. A changed request
+  needs new authoring runs, not a claim about these saved samples. You can propose
+  such a case as a next experiment.
+
+  Support observations with the page and state, CSS viewport size, repeatable steps
+  and screenshots or traces you actually inspected. Each evidence entry is an exact
+  file path, absolute or relative to the supplied evidence directory. For a problem, try to simplify
+  its trigger and explain the consequence for the task. Useful positive behavior
+  and unresolved questions are observations too. Distinguish observed behavior
+  from an explanation you have not established. Stop when further exploration is
+  unlikely to add a materially different observation; no fixed matrix is owed.
+
+  Report complete when the exploration you describe was completed, even if it
+  found no problems. Use insufficient_evidence when that chosen investigation
+  remains unsettled, and name the gap. The unverified list states those gaps;
+  neither status claims exhaustive coverage or supplies a reliability rate.
+output_schema:
+  type: object
+  properties:
+    status:
+      type: string
+      enum: [complete, insufficient_evidence]
+    explored:
+      type: string
+    observations:
+      type: array
+      items:
+        type: object
+        properties:
+          kind:
+            type: string
+            enum: [problem, strength, question]
+          summary:
+            type: string
+          impact:
+            type: string
+          viewport:
+            type: array
+            items:
+              type: integer
+            minItems: 2
+            maxItems: 2
+          steps:
+            type: array
+            items:
+              type: string
+          evidence:
+            type: array
+            items:
+              type: string
+          next:
+            type: string
+        required: [kind, summary, impact, viewport, steps, evidence, next]
+        additionalProperties: false
+    unverified:
+      type: array
+      items:
+        type: string
+  required: [status, explored, observations, unverified]
+  additionalProperties: false

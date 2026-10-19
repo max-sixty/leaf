@@ -2,11 +2,11 @@
 
 ## Biggest current challenges
 
-- **Improve our outputs against a standard HTML output.** Agents given plain
-  HTML wrote pages judges preferred on every configuration and some queues, at a
-  third to a half of Leaf's cost ([comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)).
-  Make Leaf's pages at least as good, and find which widgets and instructions
-  help an author rather than constrain one.
+- **Improve our outputs against a standard HTML output.** The
+  [recovered comparison](notes/agent-usability-evals.md#recovered-codex-comparison-2026-10-14)
+  measures complete authoring and feedback cycles on saved Leaf and HTML pages.
+  Use task-specific evidence to decide which compositions help, and measure current
+  authoring time before adding more widgets or instructions.
 - **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
   agent wake-up reliable, including Codex's message back into the session and
   Claude Code's potentially overcomplicated state machine.
@@ -73,13 +73,13 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across On me,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#28 — Finish the floating panel.** The opt-in floating panel
-  (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
-  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
-  through its remaining list (status in the field, opened sizes, the menu's rows, the
-  On me count, motion) before making it the default or removing the banner,
+- **#28 — Finish the floating panel.** The floating panel, rebuilt on 12 October to
+  the sketch the user configured ([its goal](notes/floating-panel/GOAL.md), "The
+  overhaul"), is the default chrome since 16 October; **Use the banner** in the leaf's
+  menu switches back. Work through its remaining list before removing the banner,
   bottom bar, and preference. The phone waits until the desktop design is firm, and
-  where a passage thread opens from Threads waits until later.
+  where a passage thread opens from Threads waits until later. The suite and the
+  `leaf-dev` tools that drive the banner still pin it (`CLASSIC_CHROME`).
 - **Give "update" one meaning on screen.** It names the user's input ("Undo the
   latest update", "Stalled update", "1 update to send again", the On panel's
   Update rows) and, since the floating card's held-news notice, the agent's progress
@@ -113,31 +113,45 @@ has tried; settle that before building it.
   `leaf` with the arguments it is given, have a sandboxed refusal name it, and
   drop the README's Codex rule. Codex asks before each MCP tool call unless the
   user approves the tool or sets the server's `default_tools_approval_mode =
-  "approve"`; find whether a plugin can declare that itself.
+"approve"`; find whether a plugin can declare that itself. A session that never
+  runs `leaf` should pay nothing for this, as Claude Code's do for the bridge, so
+  find whether Codex starts a plugin's MCP server in every session or only on first
+  use.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
   adding one.
 
 - **#20 — Act on the plain HTML comparison.** The
-  [comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
-  found Leaf authors write much less CSS and script but spend 2–3 times the cost,
-  over more turns with the skill and references in context. Judges preferred
-  plain HTML's configurations, which put each alert's controls beside its evidence,
-  and Leaf's documents, which put decisions on the page.
-  [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
-  starting with progress through a queue; per-item controls for configuration
-  landed in #2711.
+  [recovered Codex rerun](notes/agent-usability-evals.md#recovered-codex-comparison-2026-10-14)
+  split six pairs into two Leaf wins, two HTML wins and two order-sensitive splits.
+  Judging now separates making decisions from reading the final record; the
+  ask-authoring reference also distinguishes user requests from agent-proposed asks.
+  [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
+  using current code and an unfamiliar author; two samples per task do not settle
+  which compositions work generally.
 - **Give a recommendation's reason beside the options, not in its card.** The
   default registry's `lf-options` example writes the reason into the recommended
   card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
   options on 2026-10-12. Score the change with `evals/` before and after.
+- **Draw the agent's plan, and tell agents to write one.** `leaf task plan` records
+  the agent's breakdown as one outline whose steps are plain or name a to-do or ask
+  (`plans.py`), served as `plan` in the browser state and `page state`. Nothing draws
+  it yet. Draw it on the floating panel's On view: the goal, its steps in order with
+  done ones ticked in place, the current one marked, "2 of 5" and its elapsed time,
+  and an item on On me with its plan as context. In the same change, add the
+  instruction to write a plan to `conversation-loop.md` and score it with `evals/`,
+  since a plan nobody draws shows the user nothing. affectUI's
+  [Agent Plan](https://www.affectui.com/components/agent-plan) is the reference.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
 - **#24 — Measure time to an initial reviewable page and the value of review.**
+  Retrospective replay now proves one usable Leaf candidate and one usable HTML
+  candidate before their authors finished. Their observation triggers differ;
+  earliest usability and the value of review still need a separate study.
   Measure from the user's request to the first browser-reachable page handed over
   for review. Separate preparation and reference reads, authoring, markup and
   render checks, the author's navigation task, independent reading, revisions,
@@ -281,6 +295,7 @@ and its chrome coordinate.
   edit reaches every surface, how the matrix stays small enough to run and to read,
   and which measurements become thresholds a test enforces rather than numbers a
   person reads.
+
 - **Offer the Page Map with the first paint.** The margin pass marks where markers are
   pins (`data-lf-pins`), and the banner's Map toggle follows it, so on a phone the
   toggle appears one pass after the banner rather than with it.
@@ -340,6 +355,27 @@ that changes size after first paint, with its cause.
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
   frame and then moved would fail nothing. Read `leaf-dev probe`'s startup readings on
   a page with margin markers at a few widths.
+- **Fold a thread summary without moving the messages it covers.** Folding moves
+  the covered messages into `.lf-summary-originals` (`thread-card.js`), so a text
+  selection inside them is lost in Chromium, Firefox and WebKit, and WebKit, which
+  lacks `moveBefore`, reloads any frame among them: once when the summary arrives
+  and twice when it is retracted. A prototype of a flat transcript, which folds by
+  hiding the covered messages where they stand, kept both in every engine and drew
+  the same picture. It changes how screen readers group the folded messages and how
+  a checkpoint's frame is drawn, so it needs the user's go-ahead. Build it on current
+  `main`, move the tests off `.lf-summary-originals`, and check margin and page
+  captures and a screen reader.
+- **Let the shift watch see the runtime's own scrolls.** `tests/shift_watch.js`
+  measures in layout coordinates, which remove scrolling, so a scroll the runtime
+  makes during a gesture can move the control under the user's aim and fail
+  nothing; #2895's reply box moved 9–14px on a send that way. The proposed rule:
+  only a gesture that takes the user somewhere (the `t` and `q` walks, links,
+  Go-to) may move its control, and every other gesture keeps it still. Declare the
+  exemption on the command, not in a list in the watch. Then fix what it catches,
+  starting with the landings that choose where a gesture's control ends up:
+  `standOnThread`, the Threads list's landing, and `scrollThreadIntoView`. This
+  needs the user's go-ahead, and its per-frame cost measured at 4x CPU throttling
+  (`notes/shift-watch-cost.md`).
 
 ### Queues
 
@@ -347,11 +383,6 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-layout.md`, "A
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `m` from the open item's ask.** From a row, `m` goes to the queue's first
-  open ask, and `1` then picks for an item the user isn't looking at. The walk
-  measures from focus (`queue-walk.js`), and the row precedes every
-  panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
-  the walks (`standing-target.js`), while `c` on a row still names the row.
 - **Keep the open item's group named on a phone.** In the one-row strip a group's
   label stands before its run's first tab, so opening a later item in a long run
   (`alert-review`'s "Ledger consumer lag" at 390px) scrolls the label out of view. A
@@ -454,18 +485,6 @@ on 2026-10-07.
 
 ### Development velocity
 
-- **Format authored browser-framework TypeScript.** Extend Prettier's scope to
-  `build/browser/`, keeping the generated event and protocol declarations under
-  their generator. Rebuild the vendored JavaScript in the same change: the
-  compiler preserves source formatting, and the build gate compares its bytes.
-- **Format authored JSON and YAML.** Expand Prettier's scope while keeping
-  generated corpus files, media pins, pnpm lockfiles, Tend workflows, test
-  snapshots, and frozen captures under their producers. Verify that regeneration
-  leaves the formatted tree unchanged.
-- **Set formatter conventions for authored CSS and Markdown.** Review what
-  Prettier changes in compact CSS rules and Markdown lists and tables, then
-  enable the formats where that layout is useful. Format CSS source entries
-  rather than the distribution sheets `build/styles.mjs` generates.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -490,7 +509,7 @@ on 2026-10-07.
   drift again, such as `wt merge`'s macOS pre-merge when the thread runtime or theme
   changes.
 - **Guard thread appearance on CI again.** The thread snapshot gate compares images
-  on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
+  on macOS only (`dev/leaf_dev/commands/thread_snapshots.py`), so a pull request's Linux CI
   checks the delivery journey but not how it looks. Fonts and antialiasing differ by
   OS, so Mac and Linux images never match. A Linux image could only be made on CI's
   own runner, which meant pushing, downloading the run's images and accepting them
@@ -546,21 +565,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
-- **Model how work breaks into pieces.** A to-do links only to its thread, widget or
-  page. Most real work forms a fuzzy hierarchy: much of planning is breaking a goal into
-  pieces, and the breakdown changes as the work teaches what the goal needs, with
-  pieces split, merged, dropped or moved under another parent. Fixed trees, like Pi's
-  owned subtasks or a tracker's parent and child tickets, are too brittle for that.
-  Find a shape that holds a changing breakdown, and say what it means for the queues:
-  whether a parent ends when its children do, and whose queue shows a child. Two links
-  are already planned: none for a to-do answering the user's comment, and one back to
-  the dispatcher for work handed to another session (step 7 of
-  [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
-  whose work the user wants to see broken down.
 - **Tell the agent when to ask before ending its own to-do.** The agent ends its to-dos
-  itself, and asks first, with a widget ask or a prose ask in a thread, when the result
-  needs the user's sign-off
-  ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
+  itself, and asks first, with a widget ask or a question in a thread, when the result
+  needs the user's sign-off, as the user decided. The shipped
   instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.
 - **Let the user edit items in the On panel.** The user's only edit today is Done
@@ -609,7 +616,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Other harnesses:** add a blocking `leaf wait` route when another agent harness needs
   foreground handoff.
 - **Decide whether an exported page carries its threads.** `leaf page
-  export` writes a file that boots the page's own runtime offline, and that file
+export` writes a file that boots the page's own runtime offline, and that file
   embeds the page's threads in its state reading. The runtime turns the
   thread surface off offline (`threadAvailable: !offlineInteractive`
   in `leaf.js`), so a reader of the file sees no comments or agent replies.
@@ -629,6 +636,16 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Remove the early-key hold once startup is fast.** Keys pressed before the
+  runtime upgrades or the first saved state lands are queued, a "Page still
+  loading" chip appears after 150 ms, and the keyboard controller replays them
+  (`holdEarlyKeys` in `runtime/bootstrap.js`, `takeHeldKeys` in
+  `keyboard/controller.js`, `INPUT_PENDING` in `keyboard/dispatch.js`, the pending
+  clause of `scopeAvailable` in `keyboard/bindings.js`). It is worth keeping while
+  startup takes up to a couple of seconds. Trigger: a page presents in about 250 ms
+  consistently, measured with `leaf-dev probe`'s startup phases on the examples;
+  then delete the hold, which a 2026-10-14 trial measured at 240 runtime and 540
+  test lines.
 - **Unconfirmed — Let Lit follow what a widget reads.** `LeafElement`
   (`runtime/leaf-element.js`) collects what `render()` reads with Leaf's own
   `collectReads` over Preact signals and outside readings such as the clock, because
@@ -636,10 +653,18 @@ Revisit these when their stated trigger becomes real; they are not an active que
   (`signal-polyfill`). Were the publication and those readings TC39 signals,
   `SignalWatcher` would draw again on a read's move, and the base class would keep
   only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
-  and data delivery. Settle first that `SignalWatcher` schedules its own updates
-  outside the coordinator's ordered pass (`notes/browser-reactivity.md`, "LitElement
-  and microtask updates"), and that TC39 signals are still a proposal. Trigger: every
-  widget draws as a `LeafElement`, so the change lands in one class.
+  and data delivery. Every widget draws as a `LeafElement` now, so the change would
+  land in one class, but assessed on 2026-10-14 it is no simplification yet. Ordering
+  no longer stands in the way: `LeafElement.scheduleUpdate` puts every update in the
+  parent-ordered widget queue (`queueWidgetUpdate`), `SignalWatcher`'s included. What
+  does: a move must claim the widget's region inside the publication that made it,
+  which `SignalWatcher`'s watcher gives no hook for, so the base class would keep a
+  watcher of its own; and `collectReads` and `outsideReading` (`snapshot.ts`) also
+  drive `watchProjection` and version paints, so adopting TC39 signals means moving
+  the publication itself (`snapshot.ts`, `presentation.ts`, and the runtime modules
+  importing `signal`/`effect`) off Preact signals, to save the fifteen lines of
+  `#follow`. TC39 signals are also still a proposal. Trigger: the proposal reaches a
+  stage browsers ship, or Lit's signal integration exposes the notify a claim needs.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
   experimental and about 500 lines in the core runtime, consumed by `lf-shot`,

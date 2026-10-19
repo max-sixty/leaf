@@ -58,6 +58,7 @@ import {
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
+import { drawnThreadId } from "../thread/selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import {
   BANNER_CONTROL_RANK,
@@ -76,7 +77,6 @@ import {
 import {
   composerOpen,
   createSelectionComposer,
-  fab,
   fabBar,
   fabInput,
   pendingAbout,
@@ -170,7 +170,6 @@ export function createResponseSurface({
   pageComment,
   responseHome,
   revealResponseHome = null,
-  threadTransitionOrigin,
   createComment,
   landSent,
   wireInput,
@@ -406,11 +405,6 @@ export function createResponseSurface({
   // chosen, the button is the affordance; once Comment is open, the input replaces it.
   function paintFab() {
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
-    fabBar.style.display = fabAnchor
-      ? "var(--lf-response-display, inline-flex)"
-      : "none";
-    fabInput.style.display = fabAnchor && composerOpen ? "block" : "none";
-    fab.style.display = fabAnchor ? "" : "none";
     composer.syncResponseOptions(fabAnchor);
     if (!fabAnchor) return;
     const label = anchorLabel(fabAnchor, pendingAbout).replace(/^§\s*/, "");
@@ -963,7 +957,6 @@ export function createResponseSurface({
     reactionAvailable,
     designModeActive,
     openPageThread,
-    threadTransitionOrigin,
     anchorTravelAt,
     bringForward,
     fabAnchorAt,
@@ -1259,7 +1252,7 @@ export function createResponseSurface({
     const target = threadId && threadTarget(threadId);
     const inlineBox =
       inline &&
-      (inline.dataset.thread ?? inline.dataset.id) === threadId &&
+      drawnThreadId(inline) === threadId &&
       (!here ||
         standingIn(inline) ||
         (target && under(target, heldAsk() ?? here.element))) &&

@@ -16,7 +16,7 @@ import { leafSurface, closestAcross } from "../passages.js";
 import { pressIsKeyboardActivation } from "../pointer.js";
 import { onStanding } from "../focus.js";
 import { bannerControlDoor } from "../banner-toolbar.js";
-import { notice } from "../notifications.js";
+import { raiseError } from "../errors.js";
 
 export function createRegionCapture({
   parent,
@@ -144,7 +144,7 @@ export function createRegionCapture({
         await selector.done;
       } catch (error) {
         selector?.cancel();
-        notice(`Could not open area capture — ${error.message}`);
+        raiseError(`Could not open area capture — ${error.message}`);
       } finally {
         document.removeEventListener("touchstart", claimTouch, true);
         selector = null;

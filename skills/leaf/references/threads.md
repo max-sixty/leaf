@@ -1,15 +1,20 @@
 # Threads
 
-Open a thread when the answer depends on the user. Anchor it with a quote for a
-passage, a section id for a diagram or image, a declared part for one box within a
-visual, or nothing for the page as a whole:
+Open a thread when the answer depends on the user. Put the question in an `lf-ask`
+in its `--markup`, which keeps it on the user's On me list until they answer; words
+in `--text` alone wait on nobody. Anchor it with a quote for a passage, a section id
+for a diagram or image, a declared part for one box within a visual, or nothing for
+the page as a whole:
 
 ```bash
-leaf thread open <page> --quote "<passage in the current page>" --text "…"
+leaf thread open <page> --quote "<passage in the current page>" --text "…" --markup '<lf-ask id="<new-id>">…?</lf-ask>'
 leaf thread open <page> --section <element-id> --text "…"
 leaf thread open <page> --section <diagram-id> --part node:<source-id> --text "…"
 leaf thread open <page> --text "…"
 ```
+
+For a diagram, percent-encode the entire source id in the part token:
+`node:Line%20Item` names `Line Item`, and `node:%CE%A9` names `Ω`.
 
 `leaf thread open` anchors in the active revision as the user sees it. Quote exact
 words from the page's HTML that the user can see, within one widget part. The
@@ -123,25 +128,27 @@ reopens it, it points at something the page no longer shows.
 Every answer declares what it leaves the thread with:
 
 - `--done`: it delivers what the message asked for.
-- `--ask`: its prose asks the user something back. The reply becomes an ask,
-  `reply:<message-id>` in `page state`'s `asks`, until they answer in the thread or
-  you end it ([The On lists](conversation-loop.md#the-on-lists)).
 - `--todo "<what you owe>"`: it promises work it does not deliver, and opens that
   to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
   ([Long-running work](conversation-loop.md#long-running-work)).
+- A question back: put it in an `lf-ask` in `--markup`. It is an item on the user's
+  On me list, `widget:<its id>` in `page state`'s `asks`, until their next message in
+  the thread answers it or you end it
+  ([The On lists](conversation-loop.md#the-on-lists)). An answer that asks this way
+  needs no flag.
 
 ```bash
-leaf response reply <answer.ref> --ask --text "Which store should own it?"
+leaf response reply <answer.ref> --text "One choice first." --markup '<lf-ask id="store-owner">Which store should own it?</lf-ask>'
 leaf response reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
 ```
 
-The answer's head shows the declaration: **Waiting on me** while its ask is open, and
-**To-do open** until you end the to-do. A promise declared `--done` reads as
+The answer's head shows what it leaves: **Waiting on me** while its question is open,
+and **To-do open** until you end the to-do. A promise declared `--done` reads as
 finished work.
 
 To post in a thread that owes no reply, use
 `leaf thread reply <page> <message-id>`. It takes the same content and anchor
-options, and `--ask` or `--todo`. While the thread owes a reply, Leaf refuses an
+options, and `--todo`. While the thread owes a reply, Leaf refuses an
 ordinary `leaf thread reply`; answer with `leaf response reply <answer.ref>`, and
 post progress on that input the same way.
 
@@ -158,14 +165,16 @@ its text becomes the **Working** line in the banner, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply --ephemeral`.
 
-The thread shows the latest progress as one dim working message above its reply box;
-progress never counts as unread. Your next ordinary reply takes its place, with the
-progress folded behind it. Progress carries only text; asks, to-dos, markup, anchor
+The thread shows the latest progress as one dim working message above its reply box,
+with its author and posting time. Progress never counts as unread. Your next ordinary
+reply takes its place, with the progress folded behind it. Progress carries only text;
+asks, to-dos, markup, anchor
 moves and failure receipts each need a reply of their own.
 
-A widget in a reply's markup whose registry entry declares `x-awaits` is already an
-ask, and keeps its thread "My turn" until the user answers it. Leaf refuses `--ask`
-on a reply that carries one.
+Any widget in a reply's markup whose registry entry declares `x-awaits`, such as an
+`lf-options` or an `lf-ask`, waits on the user and keeps its thread "My turn" until
+they answer it. A thread you open asks nothing by itself either: to wait on the
+user's answer, its markup holds an `lf-ask`.
 
 Correct a message you or an earlier agent wrote, without adding a turn:
 

@@ -23,6 +23,7 @@ import {
   keepsHidden,
   keepsText,
   layoutChanged,
+  layoutPx,
   offer,
   once,
   preserveReadingRegions,
@@ -32,6 +33,7 @@ import {
   sizeObserver,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { computePosition, offset, shift } from "/vendor/floating-ui.esm.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
 import { PhonePainter } from "../phone.js";
@@ -64,6 +66,7 @@ customElements.define(
     #raf = 0;
     #focus = null;
     #inspected = null;
+    #inspectorPaint = 0;
 
     connectedCallback() {
       if (!once(this)) return;
@@ -291,9 +294,10 @@ customElements.define(
       } else this.#placeInspector();
     }
 
-    // The inspector sits beside its part, in stage pixels, and follows it while the
-    // film plays; it closes when the part leaves the frame.
-    #placeInspector() {
+    // The film's existing paint loop follows the part; Floating UI owns its offset
+    // and stage/viewport bounds, including SVG parts that cannot be CSS anchors.
+    async #placeInspector() {
+      const paint = ++this.#inspectorPaint;
       const parts = this.painter.parts();
       const part = this.#inspected && parts.find((p) => p.id === this.#inspected);
       for (const p of parts)
@@ -303,27 +307,25 @@ customElements.define(
         if (this.#inspected) this.#inspect(null);
         return;
       }
-      const box = part.element.getBoundingClientRect();
-      const stage = this.stage.getBoundingClientRect();
       keepsText(this.inspectorTitle, part.label);
       keepsText(this.inspectorBody, part.info);
       keepsHidden(this.inspector, false);
-      const left = Math.min(
-        box.right - stage.left + 10,
-        stage.width - this.inspector.offsetWidth - 10,
-      );
-      const bottom = this.hasAttribute("data-phone")
-        ? Math.min(stage.bottom, window.innerHeight)
-        : stage.bottom;
-      const top = Math.min(
-        box.top - stage.top,
-        bottom - stage.top - this.inspector.offsetHeight - 10,
-      );
-      this.inspector.style.left = `${Math.max(10, left)}px`;
-      const visibleTop = this.hasAttribute("data-phone")
-        ? Math.max(10, 10 - stage.top)
-        : 10;
-      this.inspector.style.top = `${Math.max(visibleTop, top)}px`;
+      const { x, y } = await computePosition(part.element, this.inspector, {
+        placement: "right-start",
+        middleware: [
+          offset(10),
+          shift({
+            boundary: this.stage,
+            rootBoundary: this.hasAttribute("data-phone") ? "viewport" : "document",
+            padding: 10,
+            crossAxis: true,
+          }),
+        ],
+      });
+      // A later frame, inspection or disconnection retires this pending placement.
+      if (paint !== this.#inspectorPaint || !this.isConnected) return;
+      this.inspector.style.left = layoutPx(x);
+      this.inspector.style.top = layoutPx(y);
     }
 
     // Film keys work from any of the film's controls. Keys a focused control already

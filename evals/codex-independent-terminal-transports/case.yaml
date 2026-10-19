@@ -4,11 +4,12 @@
 # candidate passed 1/1; this is one measured contrast, not an error-rate estimate.
 description: codex-independent-terminal-transports
 metadata:
-  purpose: 'Codex terminal setup: separate App Server and CLI processes remain independent across
-    simultaneous task pairs.'
+  purpose:
+    "Codex terminal setup: separate App Server and CLI processes remain independent across
+    simultaneous task pairs."
   tags:
-  - harness-codex
-  - concurrency
+    - harness-codex
+    - concurrency
 vars:
   prompt: |
     I am starting two independent Codex terminal tasks on the same machine. For
@@ -18,13 +19,13 @@ vars:
     you need, then give the commands for each pair and explain how I connect the
     right client to its server. Only Skill and Read run here.
 assert:
-- type: llm-rubric
-  metric: independent-transports
-  value: |
-    Pass only if the commands allocate a fresh private Unix socket directory for
-    each App Server, rather than sharing a fixed socket or requiring the user to
-    allocate fixed ports. Each remote client uses the endpoint printed or passed
-    from its own server shell. The task's `leaf codex start` uses that same
-    endpoint, either through inherited LEAF_CODEX_APP_SERVER or --app-server.
-    The commands must start App Server and the remote terminal client separately,
-    as requested. A single leaf codex launch command does not satisfy that request.
+  - type: llm-rubric
+    metric: independent-transports
+    value: |
+      Pass only if the commands allocate a fresh private Unix socket directory for
+      each App Server, rather than sharing a fixed socket or requiring the user to
+      allocate fixed ports. Each remote client uses the endpoint printed or passed
+      from its own server shell. The task's `leaf codex start` uses that same
+      endpoint, either through inherited LEAF_CODEX_APP_SERVER or --app-server.
+      The commands must start App Server and the remote terminal client separately,
+      as requested. A single leaf codex launch command does not satisfy that request.

@@ -90,19 +90,31 @@ function prune() {
 function pushNativeLayer(node, source = null) {
   const at = entries.findIndex((entry) => entry.root === node);
   const existing = at < 0 ? null : entries[at];
-  if (existing?.active()) return;
+  if (existing?.active()) return existing;
   prune();
   const holding = focused();
-  entries.push({
+  // `beforetoggle` announces a declarative opening before :popover-open applies.
+  // A synchronous layer read in that interval must not prune its new entry; the
+  // native transition has completed by the next microtask.
+  const entry = {
     root: node,
+    opening: !isNativeLayer(node),
     get kind() {
       return nativeLayerKind(node);
     },
-    active: () => isNativeLayer(node),
+    active() {
+      return this.opening || isNativeLayer(node);
+    },
     fromNowhere: !holding || holding === document.body,
     opener: holding && holding !== document.body ? holding : null,
     source,
-  });
+  };
+  if (entry.opening)
+    queueMicrotask(() => {
+      entry.opening = false;
+    });
+  entries.push(entry);
+  return entry;
 }
 
 // A layer opened while nothing held focus has nobody to hand focus back to as it closes,
@@ -118,6 +130,7 @@ function pushNativeLayer(node, source = null) {
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
+  if (entry) entry.opening = false;
   if (entry?.kind === "popover")
     for (const layer of nativeLayers().toReversed())
       if (layer.kind === "modal" && renderedUnder(layer.root, event.target))
@@ -133,15 +146,22 @@ function closing(event) {
 }
 
 HTMLDialogElement.prototype.showModal = function () {
-  if (nativeLayerKind(this) !== "modal") pushNativeLayer(this);
-  return nativeDialogShowModal.call(this);
+  const entry = nativeLayerKind(this) !== "modal" ? pushNativeLayer(this) : null;
+  try {
+    return nativeDialogShowModal.call(this);
+  } finally {
+    if (entry) entry.opening = false;
+  }
 };
 
 HTMLElement.prototype.showPopover = function (options) {
   const opening = nativeLayerKind(this) !== "popover";
-  if (opening) pushNativeLayer(this);
-  nativePopoverShow.call(this, options);
-  const entry = opening && entries.find((candidate) => candidate.root === this);
+  const entry = opening ? pushNativeLayer(this) : null;
+  try {
+    nativePopoverShow.call(this, options);
+  } finally {
+    if (entry) entry.opening = false;
+  }
   if (entry && options?.source) entry.source = options.source;
 };
 

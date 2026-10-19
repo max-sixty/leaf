@@ -143,7 +143,7 @@ def test_context_paste_after_rewrap_keeps_the_previous_panel_turn_visible(
     from render_cases_interaction import PANEL_PAGE, panel_comment
     from render_harness import scroll_settled
 
-    from browser.test_render_threads import open_threads_list, reply_by_keyboard
+    from browser.threads import open_threads_list, reply_by_keyboard
 
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep this review visible.")
@@ -178,7 +178,7 @@ def test_context_paste_after_rewrap_keeps_the_previous_panel_turn_visible(
     # wheeling back to test how paste growth keeps the latest turn visible.
     page.locator(".lf-threads").evaluate("list => list.scrollTop = list.scrollHeight")
     page.locator(".lf-threads").hover()
-    page.mouse.wheel(0, -40)
+    page.mouse.wheel(0, -8)
     scroll_settled(page, ".lf-threads")
     latest = card.locator(".lf-msg.agent").last
     before = editor.bounding_box()

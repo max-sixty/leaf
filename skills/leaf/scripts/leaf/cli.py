@@ -8,17 +8,32 @@ merges the streams still parses every line, one that pipes stdout alone still se
 what was said beside it, and a refusal never reads as a result. `--help`, `--version`
 and `--root` print text, as `page transcript` prints Markdown and `package run` prints
 what its script does.
+
+A command returns its result and never prints it: `LeafGroup.main` prints what it
+returns, so every result has one presentation and a `cmd_*` function answers its
+caller directly. Only output that cannot wait for the command to end prints where it
+arises: a stream such as `page events`, the URL a foreground server prints before
+serving, a hook's answer, and a wait's delivery, printed while the wait still holds
+its watch.
 """
 
 import json
 import shlex
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 import click
 
 from leaf.schema import SKILL_ROOT, WAIT_BATCH_OUTPUT_INSTRUCTION
 from leaf.state import EVENTS_FILE
+
+
+class Reported(NamedTuple):
+    """A result that also sets the exit status, as a check's report does."""
+
+    result: dict
+    status: int
 
 
 def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) -> Path:
@@ -32,6 +47,10 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     page_dir = canonical_path(Path(dir_arg).expanduser())
     if not must_exist:
         return page_dir
+    if page_dir.is_file():
+        raise click.ClickException(
+            f"{page_dir} is a file; a page command takes the page's directory"
+        )
     if not (page_dir / EVENTS_FILE).is_file():
         raise click.ClickException(
             f"{page_dir} is not an initialized page; "
@@ -48,13 +67,19 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     return page_dir
 
 
-def _print_records(*records: dict | None) -> None:
-    """Print what a write appended, each record as `page events` prints it."""
+def _print_result(result) -> None:
+    """Print what a command returned: text as it is, a dict as one JSON line, and
+    each item of a list, such as the records a write appended, as a line of its own,
+    the way `page events` prints a record."""
     from leaf.event_log import jsonl_line
 
-    for record in records:
-        if record is not None:
-            print(jsonl_line(record))
+    if result is None:
+        return
+    if isinstance(result, str):
+        click.echo(result)
+        return
+    for value in result if isinstance(result, list) else [result]:
+        click.echo(jsonl_line(value))
 
 
 def _leaf_version(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
@@ -93,7 +118,9 @@ class _Refusal(click.ClickException):
 
 
 class LeafGroup(click.Group):
-    """End a command that cannot do what it was asked with one JSON object on stderr,
+    """Print what a command returns (`_print_result`) and exit 0, or exit with the
+    status it returns as an integer or as a `Reported` beside its result. End a
+    command that cannot do what it was asked with one JSON object on stderr,
     `{"error", "findings"}`, and its exit status.
 
     A domain refusal (`refusals.Refused`) gives `Refused.json`, whose `findings` carry
@@ -130,7 +157,7 @@ class LeafGroup(click.Group):
         if not standalone_mode:
             return super().main(args, prog_name, complete_var, False, **extra)
         try:
-            status = super().main(args, prog_name, complete_var, False, **extra)
+            result = super().main(args, prog_name, complete_var, False, **extra)
         except click.exceptions.NoArgsIsHelpError as error:
             error.show()
             sys.exit(error.exit_code)
@@ -146,7 +173,13 @@ class LeafGroup(click.Group):
         except click.Abort:
             print(json.dumps({"error": "interrupted", "findings": []}), file=sys.stderr)
             sys.exit(1)
-        sys.exit(status if isinstance(status, int) else 0)
+        status = 0
+        if isinstance(result, Reported):
+            result, status = result
+        elif isinstance(result, int):
+            result, status = None, result
+        _print_result(result)
+        sys.exit(status)
 
 
 @click.group(cls=LeafGroup)
@@ -177,14 +210,14 @@ def codex() -> None:
 
 @codex.command("launch", short_help="Launch an experimental streaming Codex terminal.")
 @click.option("--codex-path", hidden=True)
-def codex_launch(codex_path: str | None) -> None:
+def codex_launch(codex_path: str | None) -> int:
     """Run Codex with a private local App Server for Leaf delivery and activity.
 
     This integration is experimental.
     """
     from leaf.codex_adapter import cmd_codex_launch
 
-    sys.exit(cmd_codex_launch(codex_path))
+    return cmd_codex_launch(codex_path)
 
 
 @codex.command("start", short_help="Keep PAGE connected after this turn ends.")
@@ -199,11 +232,11 @@ def codex_start(
     dir: str,
     codex_path: str | None,
     app_server: str | None,
-) -> None:
+) -> dict:
     """Start one task-wide delivery adapter and claim PAGE for it."""
     from leaf.codex_adapter import cmd_codex_start
 
-    print(json.dumps(cmd_codex_start(resolve_dir(dir), codex_path, app_server)))
+    return cmd_codex_start(resolve_dir(dir), codex_path, app_server)
 
 
 @codex.command("run", hidden=True)
@@ -221,6 +254,7 @@ def codex_run(
     from leaf.leases import release_on_termination
 
     release_on_termination()
+    # Exiting inside the handshake tells a parent still waiting on it the status.
     with Handshake(handshake) as answer:
         sys.exit(run_adapter(codex_path, answer, app_server))
 
@@ -250,7 +284,7 @@ def page() -> None:
     is_flag=True,
     help="report whether re-vendoring would change an initialized page",
 )
-def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) -> None:
+def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) -> dict:
     """Create or re-vendor a page directory.
 
     Creates PAGE/revisions/, then vendors the widget layer.
@@ -270,7 +304,7 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) 
     if len(set(selected)) != len(selected):
         raise click.UsageError("each --package selection may appear only once")
     selections = () if no_packages else selected or None
-    cmd_init(resolve_dir(dir, must_exist=False), selections, dry_run=dry_run)
+    return cmd_init(resolve_dir(dir, must_exist=False), selections, dry_run=dry_run)
 
 
 @cli.group(short_help="Create, check, install, and run packages.")
@@ -289,14 +323,14 @@ def package() -> None:
     metavar="TAG",
     help="add one upgraded content widget starter",
 )
-def package_init(package_path: Path, widget: str | None) -> None:
+def package_init(package_path: Path, widget: str | None) -> dict:
     """Create the package layout without replacing existing files.
 
     With --widget, add one checked upgraded content widget starter.
     """
     from leaf.packages import cmd_package_init
 
-    cmd_package_init(package_path, widget)
+    return cmd_package_init(package_path, widget)
 
 
 @package.command("check", short_help="Check a package as one unit.")
@@ -310,7 +344,7 @@ def package_init(package_path: Path, widget: str | None) -> None:
     is_flag=True,
     help="also report on the package's widgets as its worked examples render",
 )
-def package_check(package_path: Path, render: bool) -> None:
+def package_check(package_path: Path, render: bool) -> Reported:
     """Check the package as one composed unit.
 
     --render also draws each worked example the package's own widgets declare in
@@ -321,7 +355,8 @@ def package_check(package_path: Path, render: bool) -> None:
     """
     from leaf.packages import cmd_package_check
 
-    sys.exit(cmd_package_check(package_path, render))
+    report = cmd_package_check(package_path, render)
+    return Reported(report, report["status"])
 
 
 @package.command("install", short_help="Install a package for selection by name.")
@@ -330,7 +365,7 @@ def package_check(package_path: Path, render: bool) -> None:
     type=click.Path(path_type=Path, file_okay=False),
     metavar="SOURCE",
 )
-def package_install(package_path: Path) -> None:
+def package_install(package_path: Path) -> dict:
     """Check SOURCE and copy it into this user's package store.
 
     `page init --package NAME` then selects it by its directory name, on the
@@ -338,7 +373,7 @@ def package_install(package_path: Path) -> None:
     """
     from leaf.packages import cmd_package_install
 
-    cmd_package_install(package_path)
+    return cmd_package_install(package_path)
 
 
 @package.command(
@@ -366,7 +401,7 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
 @click.option(
     "--render", is_flag=True, help="also check the rendered page in the host's browser"
 )
-def check(dir: str, render: bool) -> None:
+def check(dir: str, render: bool) -> Reported:
     """Check PAGE/index.html.
 
     Runs deterministic markup checks. --render also checks the drawn page in the
@@ -378,7 +413,8 @@ def check(dir: str, render: bool) -> None:
     """
     from leaf.validation.command import cmd_check
 
-    sys.exit(cmd_check(resolve_dir(dir), render))
+    report = cmd_check(resolve_dir(dir), render)
+    return Reported(report, report["status"])
 
 
 @page.command()
@@ -390,7 +426,7 @@ def check(dir: str, render: bool) -> None:
     type=click.Path(exists=True, dir_okay=False),
     metavar="FILE...",
 )
-def media(dir: str, files) -> None:
+def media(dir: str, files) -> list[dict]:
     """Add images, video, or audio and print their page paths.
 
     Copies each file into the page under a content-addressed name and prints
@@ -398,8 +434,10 @@ def media(dir: str, files) -> None:
     """
     from leaf.media import cmd_media
 
-    for src, url in cmd_media(resolve_dir(dir), [Path(f) for f in files]):
-        print(json.dumps({"path": url, "source": str(src)}, ensure_ascii=False))
+    return [
+        {"path": url, "source": str(src)}
+        for src, url in cmd_media(resolve_dir(dir), [Path(f) for f in files])
+    ]
 
 
 @page.command(short_help="Read selected-component instructions by audience as JSON.")
@@ -408,16 +446,17 @@ def media(dir: str, files) -> None:
 @click.option("--contract", "contracts", multiple=True, metavar="ID")
 def instructions(
     dir: str, entries: tuple[str, ...], contracts: tuple[str, ...]
-) -> None:
-    """Print a JSON object mapping each audience to its composed instructions.
+) -> dict[str, str]:
+    """Print a JSON object mapping each audience, such as `author`, to its instructions.
 
-    With no component selection, read only shared package instructions. Select
-    vocabulary entries before writing markup; their examples and data
-    contracts bring their own instructions into the same reading.
+    Alone, it prints the packages' shared instructions. Before writing markup, name
+    each element or idiom you will use with --use, and each data contract with
+    --contract; the output then adds their instructions, and those of the entries
+    their examples use.
     """
-    from leaf.page import cmd_instructions
+    from leaf.page import page_instructions
 
-    cmd_instructions(resolve_dir(dir), entries=entries, contracts=contracts)
+    return page_instructions(resolve_dir(dir), entries=entries, contracts=contracts)
 
 
 @page.command(short_help="Print where the page, a thread, or a widget stands.")
@@ -434,7 +473,7 @@ def instructions(
     type=click.IntRange(min=1, max=100),
     help="how many of a thread's messages to print (default: 50)",
 )
-def state(dir: str, target: str | None, after: int | None, limit: int | None) -> None:
+def state(dir: str, target: str | None, after: int | None, limit: int | None) -> dict:
     """Print the page as it is now, as one JSON object: the active revision's
     file, the current widget actions and workers' reports, the user's On me list and
     yours, thread summaries, versions, presence, and bound data. Read the active
@@ -449,7 +488,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
 
     if target is None and (after is not None or limit is not None):
         raise click.UsageError("--after and --limit page a thread; name one as ID")
-    cmd_page_state(resolve_dir(dir), target, after=after, limit=limit)
+    return cmd_page_state(resolve_dir(dir), target, after=after, limit=limit)
 
 
 @page.command(short_help="Stamp the current source as the next version.")
@@ -462,7 +501,8 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
 )
 @click.option(
     "--if-source",
-    help="expected authored-input digest, required with --from-directory",
+    help="the page's current index.html and page/ digest "
+    "(leaf.publishing.authored_digest), required with --from-directory",
 )
 @click.option(
     "--completes",
@@ -476,26 +516,26 @@ def stamp(
     completes: tuple[str, ...],
     from_directory: Path | None,
     if_source: str | None,
-) -> None:
+) -> dict:
     """Stamp PAGE/index.html with a changelog.
 
-    Checks the exact source first, then records it as the next public version. Repeat
-    --completes for each widget whose open to-dos this version completes, which ends
-    them done, citing the version. A to-do otherwise remains open, including when a
-    revision removes its widget. --from-directory replaces index.html and the
-    complete page/ tree atomically with stamping; --if-source is the authored-input
-    digest read through leaf.publishing, refusing a competing edit.
+    Checks the source first, then records it as the next public version. Repeat
+    --completes for each widget whose open to-dos this version completes; it ends
+    them done, citing the version. Other to-dos stay open, even when the version
+    removes their widget.
+
+    --from-directory replaces index.html and the whole page/ tree and stamps them in
+    one step. Pass --if-source with the digest of the files you started from; if
+    they have changed since, the stamp is refused and the page is left as it was.
     """
     from leaf.publishing import cmd_stamp
 
-    _print_records(
-        cmd_stamp(
-            resolve_dir(dir),
-            text,
-            completes,
-            from_directory=from_directory,
-            if_source=if_source,
-        )
+    return cmd_stamp(
+        resolve_dir(dir),
+        text,
+        completes,
+        from_directory=from_directory,
+        if_source=if_source,
     )
 
 
@@ -514,7 +554,7 @@ def stamp(
     metavar="N",
     help="stamped version to export (default: latest)",
 )
-def export(dir: str, out: Path, version: int) -> None:
+def export(dir: str, out: Path, version: int) -> dict:
     """Export a stamped version to one HTML file that opens offline.
 
     The file runs the page's own runtime against its captured state, with no Leaf
@@ -522,13 +562,13 @@ def export(dir: str, out: Path, version: int) -> None:
     """
     from leaf.exporting import cmd_export
 
-    sys.exit(cmd_export(resolve_dir(dir), out, version))
+    return cmd_export(resolve_dir(dir), out, version)
 
 
 @page.command(short_help="Picture a drawing comment as the user saw it.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("message", metavar="ID")
-def picture(dir: str, message: str) -> None:
+def picture(dir: str, message: str) -> dict:
     """Draw comment ID's drawing over the page as the user saw it, and print the
     PNG's path as `file`.
 
@@ -539,7 +579,7 @@ def picture(dir: str, message: str) -> None:
     """
     from leaf.render_gate.picture import cmd_picture
 
-    sys.exit(cmd_picture(resolve_dir(dir), message))
+    return cmd_picture(resolve_dir(dir), message)
 
 
 @page.command(
@@ -549,17 +589,18 @@ def picture(dir: str, message: str) -> None:
 @click.argument("widget", metavar="WIDGET")
 @click.argument("verb", metavar="VERB")
 @click.argument("fields", metavar="[NAME=VALUE]...", nargs=-1)
-def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
+def report(dir: str, widget: str, verb: str, fields: tuple) -> dict:
     """Report a state change onto a page widget, as a worker.
 
-    The verb and its fields are the widget's own agent-written x-state verb —
-    `leaf page report <page> t-parser status value=review text="Ready for review"`
-    moves a task. The page paints the report live as provisional news; it stands until a
-    version absorbs or overrules it, and the page's watcher wakes to fold it in.
+    VERB is one of the widget's agent-written x-state verbs, and each NAME=VALUE one of
+    its fields: `leaf page report <page> t-parser status value=review text="Ready for
+    review"` moves a task. The page shows the report at once, marked provisional,
+    until a stamped version writes it into the markup or overrules it. The page's
+    watcher wakes so the agent can do that.
     """
     from leaf.thread import cmd_report
 
-    _print_records(cmd_report(resolve_dir(dir), widget, verb, fields))
+    return cmd_report(resolve_dir(dir), widget, verb, fields)
 
 
 @page.command(short_help="Print the event log as JSON lines.")
@@ -615,12 +656,12 @@ def interactions(
     since: str | None,
     until: str | None,
     types: tuple[str, ...],
-) -> None:
+) -> list[dict]:
     """Read diagnostics chronologically, one JSON record per line, without
     acknowledging user input.
 
-    Retries are deduplicated, split records are reconstructed, and gaps remain
-    visible even with a type filter.
+    Retries are deduplicated and sequence gaps remain visible even with a type
+    filter. Stored timestamps use the host clock.
     """
     from leaf.interaction_log import interaction_time, read_interactions
 
@@ -631,18 +672,16 @@ def interactions(
         raise click.ClickException(str(error)) from error
     if start is not None and stop is not None and start >= stop:
         raise click.ClickException("--since must precede --until")
-    rows = read_interactions(
+    return read_interactions(
         resolve_dir(dir), session=session, since=start, until=stop, types=types
     )
-    for row in rows:
-        print(json.dumps(row, ensure_ascii=False))
 
 
 @page.command(short_help="Take a page this session did not serve.")
 @click.argument("dir", metavar="PAGE")
 def claim(dir: str) -> None:
-    """Make PAGE this session's, for a harness whose own hook watches between
-    turns. A watch another session runs stops watching it."""
+    """Make PAGE this session's, so the user's updates on it come to this session.
+    A watch another session runs on PAGE stops watching it."""
     from leaf.service import claim_page
 
     if not claim_page(resolve_dir(dir)):
@@ -651,11 +690,11 @@ def claim(dir: str) -> None:
 
 @page.command(short_help="Print the page's exchange as Markdown.")
 @click.argument("dir", metavar="PAGE")
-def transcript(dir: str) -> None:
+def transcript(dir: str) -> str:
     """Print the page's exchange as Markdown."""
     from leaf.transcript import cmd_transcript
 
-    cmd_transcript(resolve_dir(dir))
+    return cmd_transcript(resolve_dir(dir))
 
 
 @cli.group(short_help="Read a delivery by its id, and confirm you received it.")
@@ -676,14 +715,14 @@ def delivery() -> None:
     default=1,
     help="Read this numbered part of a large delivery.",
 )
-def delivery_read(delivery_id: str, part: int) -> None:
+def delivery_read(delivery_id: str, part: int) -> dict:
     """Print DELIVERY_ID, or one part of a large one, without confirming it.
 
     Each part except the last gives the command for the next part in `next`; the
     last gives in `acknowledge` how to confirm the delivery."""
     from leaf.delivery import cmd_delivery_read
 
-    cmd_delivery_read(delivery_id, part=part)
+    return cmd_delivery_read(delivery_id, part=part)
 
 
 @delivery.command("ack", short_help="Confirm you have read a whole delivery.")
@@ -718,7 +757,7 @@ def thread_summarize(
     through_message: str,
     text: str | None,
     label: str | None,
-) -> None:
+) -> dict:
     """Replace --from through --through in the panel with a Markdown summary.
 
     Both name messages in one thread, which is the thread summarized. The original
@@ -727,10 +766,8 @@ def thread_summarize(
     """
     from leaf.thread import cmd_summarize
 
-    _print_records(
-        cmd_summarize(
-            resolve_dir(dir), from_message, through_message, text, label=label
-        )
+    return cmd_summarize(
+        resolve_dir(dir), from_message, through_message, text, label=label
     )
 
 
@@ -743,23 +780,18 @@ def file() -> None:
 @click.argument("dir", metavar="PAGE")
 @click.argument("binding", metavar="ID")
 @click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
-def file_bind(dir: str, binding: str, path: Path) -> None:
+def file_bind(dir: str, binding: str, path: Path) -> dict:
     """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH. Prints the binding,
     the file it grants, and its size in bytes."""
     from leaf.file_bindings import bind_file, bound_paths
 
     page_dir = resolve_dir(dir)
     snapshot = bind_file(page_dir, binding, path)
-    print(
-        json.dumps(
-            {
-                "binding": binding,
-                "path": str(bound_paths(page_dir)[binding]),
-                "bytes": snapshot["bytes"],
-            },
-            ensure_ascii=False,
-        )
-    )
+    return {
+        "binding": binding,
+        "path": str(bound_paths(page_dir)[binding]),
+        "bytes": snapshot["bytes"],
+    }
 
 
 @cli.group(short_help="Set or clear page-bound external data.")
@@ -777,7 +809,7 @@ def data() -> None:
     default="-",
     help="JSON value to read (default: stdin)",
 )
-def data_set(dir: str, source: str, input_file) -> None:
+def data_set(dir: str, source: str, input_file) -> dict:
     """Validate and replace SOURCE with one complete JSON value."""
     from leaf.data import cmd_data_set
 
@@ -787,17 +819,17 @@ def data_set(dir: str, source: str, input_file) -> None:
         raise click.ClickException(
             f"invalid JSON ({error.msg}, line {error.lineno})"
         ) from error
-    cmd_data_set(resolve_dir(dir), source, value)
+    return cmd_data_set(resolve_dir(dir), source, value)
 
 
 @data.command("clear", short_help="Remove one source's current value.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("source", metavar="SOURCE")
-def data_clear(dir: str, source: str) -> None:
+def data_clear(dir: str, source: str) -> dict:
     """Remove SOURCE's current value; its next write uses the current binding."""
     from leaf.data import cmd_data_clear
 
-    cmd_data_clear(resolve_dir(dir), source)
+    return cmd_data_clear(resolve_dir(dir), source)
 
 
 @cli.group(short_help="Start, run, or stop the local server.")
@@ -831,7 +863,7 @@ def serve_flags(command):
 @server.command(short_help="Start a page's server and print its URL.")
 @click.argument("dir", metavar="PAGE")
 @serve_flags
-def start(dir: str, host: str | None, persistent: bool) -> None:
+def start(dir: str, host: str | None, persistent: bool) -> dict:
     """Start a page's server and print its URL.
 
     Returns once the server and this harness's watcher are ready; the server
@@ -841,12 +873,12 @@ def start(dir: str, host: str | None, persistent: bool) -> None:
     URL. `--persistent` claims no page and prepares no agent delivery. Beside the
     URL it prints the server's lifetime, the page's layer and the Leaf serving it.
     """
-    from leaf.hosting import announce_server, claim_and_start
+    from leaf.hosting import claim_and_start, started_server
 
     page_dir = resolve_dir(dir)
     with claim_and_start(page_dir, host, persistent) as started:
         pass
-    announce_server(page_dir, started.url)
+    return started_server(page_dir, started.url)
 
 
 @server.command(short_help="Serve a page in the foreground until stopped.")
@@ -925,18 +957,18 @@ def _serve(
 
 @server.command(short_help="Stop a page's server.")
 @click.argument("dir", metavar="PAGE")
-def stop(dir: str) -> None:
+def stop(dir: str) -> dict:
     """Stop a page's server."""
     from leaf.hosting import cmd_stop
 
-    print(json.dumps({"stopped": cmd_stop(resolve_dir(dir, renew=False))}))
+    return {"stopped": cmd_stop(resolve_dir(dir, renew=False))}
 
 
 @cli.command(short_help="Say the page waits on its user, or is done.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("state", type=click.Choice(["waiting", "idle"]))
 @click.argument("detail", required=False, default="")
-def status(dir: str, state: str, detail: str) -> None:
+def status(dir: str, state: str, detail: str) -> dict:
     """Say the page waits on its user, or that you are done with it.
 
     Use waiting with DETAIL naming the answer you want from the user; waiting
@@ -957,10 +989,10 @@ def status(dir: str, state: str, detail: str) -> None:
         written = cmd_idle(page_dir, detail)
     else:
         written, owed = cmd_waiting(page_dir, detail)
-    print(json.dumps(written, ensure_ascii=False))
     if owed:
         answers = [answer_command(item["answer"], page_dir) for item in owed]
         note(Finding("waiting-owes", values={"answers": answers}, severity="advice"))
+    return written
 
 
 @cli.command(
@@ -977,7 +1009,7 @@ def status(dir: str, state: str, detail: str) -> None:
     metavar="DELIVERY_ID",
     help="Confirm receipt of this complete delivery before waiting.",
 )
-def wait(dir: str | None, ack: str | None) -> None:
+def wait(dir: str | None, ack: str | None) -> int:
     """Confirm a delivery, if given, then wait for the next batch."""
     from leaf.leases import release_on_termination
     from leaf.session import cmd_wait
@@ -985,7 +1017,7 @@ def wait(dir: str | None, ack: str | None) -> None:
     if dir is not None and ack is not None:
         raise click.UsageError("PAGE and --ack cannot be used together")
     release_on_termination()
-    sys.exit(cmd_wait(resolve_dir(dir) if dir else None, ack=ack))
+    return cmd_wait(resolve_dir(dir) if dir else None, ack=ack)
 
 
 def _title_option(command):
@@ -1016,19 +1048,20 @@ def thread_open(
     text: str,
     markup: str,
     title: str | None,
-) -> None:
+) -> dict:
     """Open a thread as the agent (--text or stdin): anchored where --quote or
     --section points at a passage, general where neither does — a question about
     the work as a whole.
 
-    The user answers it in the browser. Refuses a quote the active revision does
-    not hold, or holds more than once. The comment's id is the thread's.
+    The user answers it in the browser; a question in an `<lf-ask>` in --markup
+    waits on them until they do. Refuses a quote the active revision does not
+    hold, or holds more than once. The comment's id is the thread's.
     """
     from leaf.thread import cmd_comment
 
-    page_dir = resolve_dir(dir)
-    accepted = cmd_comment(page_dir, quote, section, part, text, markup, title=title)
-    _print_records(accepted)
+    return cmd_comment(
+        resolve_dir(dir), quote, section, part, text, markup, title=title
+    )
 
 
 def _reply_options(command):
@@ -1045,11 +1078,6 @@ def _reply_options(command):
         click.option("--text", help="reply text (default: stdin)"),
         click.option(
             "--markup", default="", help="frozen HTML fragment after the text"
-        ),
-        click.option(
-            "--ask",
-            is_flag=True,
-            help="the reply asks the user something, which waits on them as an ask",
         ),
         click.option(
             "--todo",
@@ -1090,20 +1118,20 @@ def response() -> None:
 @_reply_options
 def response_reply(
     reference: str, attempt: str | None, failure: str | None, done: bool, **options
-) -> None:
+) -> dict | None:
     """Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
 
-    An answer says what it leaves the thread with: --done when it delivers what the
-    message asked for, --ask when it asks the user something back, or --todo
-    TITLE when it promises work it doesn't deliver, which stays on you as a to-do.
-    Progress (--ephemeral) and failure receipts (--failure) take none of them.
+    Mark every answer with --done (it delivers what the message asked for) or
+    --todo TITLE (it promises work it doesn't deliver, which stays on you as a
+    to-do), or ask the user something back with an `<lf-ask>` in its --markup,
+    which waits on them until their next message in the thread. A progress line
+    (--ephemeral) or a failure (--failure) takes none of them.
 
-    The same command sets text, frozen HTML, the thread's title and a new anchor.
-    It validates and activates saved page edits, then posts the reply at once. Once
-    an answer posts, your turn's final message is not posted as a second reply;
-    progress (--ephemeral) does not stop that. Rerunning a reply
-    that posted prints the earlier reply instead of posting again; give a retried
-    --ephemeral progress line an --attempt so it posts once.
+    The reply can also set frozen HTML, the thread's title and a new anchor. Saved
+    page edits are checked and made live before it posts. After an answer posts,
+    your turn's final message is not posted as a second reply; an --ephemeral line
+    does not change that. Rerunning a reply that already posted prints the earlier
+    one; give a retried --ephemeral line an --attempt so it posts once.
     """
     from leaf.thread import post_response
 
@@ -1111,7 +1139,6 @@ def response_reply(
         flag
         for flag, given in (
             ("--done", done),
-            ("--ask", options["ask"]),
             ("--todo", options["todo"] is not None),
         )
         if given
@@ -1124,22 +1151,23 @@ def response_reply(
             f"{declared[0]} declares what an answer leaves; progress and failure "
             "receipts answer nothing"
         )
-    if not declared and answers:
+    if not declared and answers and not options["markup"]:
         raise click.UsageError(
             "say what the answer leaves: --done when it delivers what was asked, "
-            "--ask when it asks the user something back, or --todo TITLE when "
-            "it promises work it doesn't deliver"
+            "--todo TITLE when it promises work it doesn't deliver, or a question "
+            "for the user as an <lf-ask> in --markup"
         )
+    options["asks_back"] = not declared and answers
     if attempt is not None:
         options["attempt"] = attempt
-    _print_records(post_response(reference, failure=failure, **options))
+    return post_response(reference, failure=failure, **options)
 
 
 @thread.command("reply", short_help="Add an agent-initiated reply to a thread.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("thread", metavar="THREAD")
 @_reply_options
-def thread_reply(dir: str, thread: str, **options) -> None:
+def thread_reply(dir: str, thread: str, **options) -> dict | None:
     """Post a new agent message to THREAD (--text or stdin).
 
     A message is refused while the thread owes a response; answer it with
@@ -1148,9 +1176,7 @@ def thread_reply(dir: str, thread: str, **options) -> None:
     """
     from leaf.thread import post_reply
 
-    _print_records(
-        post_reply(resolve_dir(dir), {"to": thread}, validate_source=True, **options)
-    )
+    return post_reply(resolve_dir(dir), {"to": thread}, validate_source=True, **options)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")
@@ -1161,7 +1187,9 @@ def thread_reply(dir: str, thread: str, **options) -> None:
     "--title",
     help="rename MESSAGE's thread for the panel: a few words, at most 80 characters",
 )
-def thread_edit(dir: str, message: str, text: str | None, title: str | None) -> None:
+def thread_edit(
+    dir: str, message: str, text: str | None, title: str | None
+) -> list[dict]:
     """Replace the visible text of MESSAGE, an agent-authored comment or reply,
     or with --title rename the thread MESSAGE is in, whoever opened it.
 
@@ -1171,13 +1199,13 @@ def thread_edit(dir: str, message: str, text: str | None, title: str | None) -> 
     """
     from leaf.thread import cmd_edit
 
-    _print_records(*cmd_edit(resolve_dir(dir), message, text, title=title))
+    return cmd_edit(resolve_dir(dir), message, text, title=title)
 
 
 @thread.command("resolve", short_help="Close a thread as the agent.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("thread", metavar="THREAD")
-def thread_resolve(dir: str, thread: str) -> None:
+def thread_resolve(dir: str, thread: str) -> dict:
     """Close THREAD, by any message in it, as the agent.
 
     The user ordinarily closes a thread; the Leaf skill's
@@ -1187,12 +1215,13 @@ def thread_resolve(dir: str, thread: str) -> None:
     """
     from leaf.thread import cmd_resolve
 
-    _print_records(cmd_resolve(resolve_dir(dir), thread))
+    return cmd_resolve(resolve_dir(dir), thread)
 
 
-@cli.group(short_help="Open or end to-dos, and start work on your list.")
+@cli.group(short_help="Open or end to-dos, start work on your list, and plan.")
 def task() -> None:
-    """Open and end to-dos, and say which item on your list you are working on.
+    """Open and end to-dos, say which item on your list you are working on, and
+    lay out your plan.
 
     Your list, which the user sees as On <your name>, holds each user update you owe
     an answer, named by the update's event id, and each to-do you opened. Before
@@ -1201,8 +1230,9 @@ def task() -> None:
     stays on your list through replies, resolutions, versions and the end of the
     session that opened it, until `leaf task end` or a stamp that `--completes` its
     widget ends it. A to-do you open `--on user` goes on the user's On me list
-    instead, until they press its Done or you end it. Every write prints the record
-    it appended, one JSON line, as `page events` prints it.
+    instead, until they press its Done or you end it. `leaf task plan` arranges
+    to-dos, asks and plain steps into one outline of the work. Every write prints
+    the record it appended, one JSON line, as `page events` prints it.
     """
 
 
@@ -1218,16 +1248,18 @@ def task() -> None:
     show_default=True,
     help="Whose list the to-do is on: yours, or the user's On me.",
 )
-def task_open(dir: str, subject: str, title: str, owner: str) -> None:
-    """Open a to-do titled TITLE on SUBJECT: a page widget, which for your own to-do
-    must declare x-work or hold an unsettled update; any other element of the page by
-    its id, such as a section; or `page` for the page as a whole. With `--on user`
-    the to-do is on the user: it ends at their Done, and you can end it too. Its id is
-    the printed record's `id`. In a thread, the reply that promises work opens it
-    (`--todo`), and one that asks the user is their ask (`--ask`)."""
+def task_open(dir: str, subject: str, title: str, owner: str) -> dict:
+    """Open a to-do titled TITLE on SUBJECT and print it; its `id` names it later.
+
+    SUBJECT is an element's id, such as a section's, or `page` for the whole page.
+    Your own to-do on a widget needs a widget that declares x-work or holds an
+    unsettled update. With `--on user` the to-do is the user's: their Done ends it,
+    and you can end it too. In a thread, open a to-do with `leaf response reply
+    --todo`, and ask the user something with an `<lf-ask>` in the reply's
+    `--markup`."""
     from leaf.todos import cmd_open
 
-    _print_records(cmd_open(resolve_dir(dir), subject, title, owner))
+    return cmd_open(resolve_dir(dir), subject, title, owner)
 
 
 @task.command(
@@ -1236,7 +1268,7 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> None:
 @click.argument("dir", metavar="PAGE")
 @click.argument("item", metavar="ID")
 @click.argument("text", metavar="LINE")
-def task_start(dir: str, item: str, text: str) -> None:
+def task_start(dir: str, item: str, text: str) -> dict:
     """Mark ID Working for this turn, with LINE saying what you are doing.
 
     ID is the event id of a user update you owe, as its delivery names it, or an
@@ -1246,7 +1278,7 @@ def task_start(dir: str, item: str, text: str) -> None:
     until you answer it or start it again."""
     from leaf.todos import cmd_start
 
-    _print_records(cmd_start(resolve_dir(dir), item, text))
+    return cmd_start(resolve_dir(dir), item, text)
 
 
 @task.command("end", short_help="End a to-do: done, failed, or dropped.")
@@ -1254,20 +1286,53 @@ def task_start(dir: str, item: str, text: str) -> None:
 @click.argument("task_id", metavar="TODO")
 @click.argument("outcome", type=click.Choice(["done", "failed", "dropped"]))
 @click.argument("detail", metavar="[DETAIL]", required=False)
-def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
+def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> dict:
     """End TODO with OUTCOME. DETAIL says where the result is, such as the
-    version or reply holding it, or why there is none. TODO may be a to-do on
-    either side. A prose ask's id (`reply:<message-id>`) ends that request
-    without creating a user answer: `done` records it answered elsewhere, DETAIL
-    saying where, and `dropped` records it withdrawn. Widget asks end through
-    their declared state or an authored withdrawal. Ending a to-do on an element
-    `done` while that element still stands among the open work, with nothing on it
-    or inside it left on either list, notes so."""
-    from leaf.findings import note
-    from leaf.todos import cmd_end, finished_in_view
+    version or reply holding it, or why there is none. TODO may be yours or the
+    user's.
 
-    page_dir = resolve_dir(dir)
-    end = cmd_end(page_dir, task_id, outcome, detail)
-    _print_records(end)
-    if advice := finished_in_view(page_dir, end):
-        note(advice)
+    TODO may also be the id of a question the user answers in words, such as an
+    `lf-ask` in a reply (`widget:<id>`): `done` records that the user answered it
+    elsewhere, DETAIL saying where, and `dropped` withdraws it. Neither records an
+    answer from the user. An ask a widget's state answers ends through that state
+    or an authored withdrawal."""
+    from leaf.todos import cmd_end
+
+    return cmd_end(resolve_dir(dir), task_id, outcome, detail)
+
+
+@task.command("plan", short_help="Write your plan for the page's work as one outline.")
+@click.argument("dir", metavar="PAGE")
+@click.option(
+    "--file",
+    "input_file",
+    type=click.File("r", encoding="utf-8"),
+    default="-",
+    help="JSON outline to read (default: stdin)",
+)
+def task_plan(dir: str, input_file) -> dict:
+    """Replace the page's plan with the JSON list of steps given, in order.
+
+    Each step has a `depth`, 0 for a goal and one more for each level under it.
+    A plain step has a `title` and a `state`: open, working, done or dropped.
+    A step can instead name an `item`, a to-do's id or an ask's id, and shows
+    that item's title and state, so work that stays owed past your turn is a
+    to-do the plan names:
+
+    \b
+    [{"depth": 0, "title": "Review the pull request", "state": "working"},
+     {"depth": 1, "title": "Check the snapshot diffs", "state": "done"},
+     {"depth": 1, "item": "<to-do id>"},
+     {"depth": 1, "item": "widget:<widget-id>"}]
+
+    Write the whole plan each time it changes. Leaving out an open to-do ends
+    nothing; it stays on its list. `[]` clears the plan."""
+    from leaf.plans import cmd_plan
+
+    try:
+        steps = json.loads(input_file.read())
+    except json.JSONDecodeError as error:
+        raise click.ClickException(
+            f"invalid JSON ({error.msg}, line {error.lineno})"
+        ) from error
+    return cmd_plan(resolve_dir(dir), steps)

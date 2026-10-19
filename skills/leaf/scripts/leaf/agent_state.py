@@ -1,18 +1,19 @@
 """Agent-facing page state: the On me and On <agent> lists, and the asks and to-dos
 they select from.
 
-The reading uses one transaction and prints the two lists the active view serves
+The reading uses one transaction and holds the two lists the active view serves
 (`served_state.queues`): On me (`on_user`) holds open asks, to-dos on the user and
 resends; On <agent> (`on_agent`) holds the answers the agent owes, its work in hand
 and its to-dos. The ask inventory (`asks`) also retains finished records, whatever
 their `status`. `source` states whether a document is live and whether an invalid
-source save leaves the last valid version active. A page this Leaf cannot serve as
+source save leaves the last valid version active. Before the first valid revision,
+an invalid candidate registry leaves no active document or readable vocabulary; its
+source error still remains readable. A page this Leaf cannot serve as
 vendored (`layer.incompatible_layer`) is still read, its `source.error` the refusal
 naming the re-vendor: the reading gives the agent the page's context, and the error
 says not to act on it before `page init`.
 """
 
-import json
 from pathlib import Path
 
 from .construction import constructed_content
@@ -25,7 +26,7 @@ from .files import revision_path
 from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
 from .refusals import Refused
-from .registry.storage import layer_metadata, require_registry
+from .registry.storage import layer_metadata
 from .revision_artifact import active_enclosing
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
@@ -66,13 +67,13 @@ def cmd_page_state(
     *,
     after: int | None = None,
     limit: int | None = None,
-) -> None:
-    """Print the agent-side state from one transaction-consistent snapshot: the
-    page's, or the part `target` names — a thread with a page of its history, or a
+) -> dict:
+    """The agent-side state from one transaction-consistent snapshot: the page's,
+    or the part `target` names — a thread with a page of its history, or a
     widget."""
     with PageTransaction(page_dir) as page:
         activation = activate_source(page_dir, transaction=page)
-        _write_page_state(
+        return _page_state(
             page_dir,
             page.events,
             activation.error,
@@ -91,7 +92,7 @@ def _base_state(
     presence_reading: dict,
     threads: dict,
     stored_data: dict,
-    registry: dict,
+    registry: dict | None,
 ) -> dict:
     return {
         "page": str(page_dir),
@@ -121,13 +122,19 @@ def _base_state(
             "dir": DATA_DIR,
             "errors": data_errors(stored_data),
         },
-        "data_bindings": page_data_binding_inventory(page_dir, registry, events),
+        "data_bindings": (
+            page_data_binding_inventory(page_dir, registry, events)
+            if registry is not None
+            else {}
+        ),
         "measurement_lag": [],
         # What is on the user (On me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
-        # side; and the complete canonical ask inventory those lists select from.
+        # side; the agent's plan, which arranges them (`plans`); and the complete
+        # canonical ask inventory those lists select from.
         "queues": {"on_user": [], "on_agent": []},
         "todos": [],
+        "plan": None,
         "asks": [],
         # Current semantic facts only. A thread's history belongs to
         # `page state PAGE THREAD`; keeping its sequence list here would make this
@@ -175,7 +182,7 @@ def _apply_document_state(
 ) -> None:
     parser = document.document
     projection = document.projection
-    state["title"] = parser.title.strip()
+    state["title"] = parser.authoring.title.strip()
     state["elements"] = [
         {
             "tag": record["tag"],
@@ -286,7 +293,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
     }
 
 
-def _write_page_state(
+def _page_state(
     page_dir: Path,
     events: list,
     source_error: str | None = None,
@@ -294,11 +301,11 @@ def _write_page_state(
     target: str | None = None,
     after: int = 0,
     limit: int | None = None,
-) -> None:
+) -> dict:
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
     the same reading; doing it in-head over `leaf page events` is how a decision
-    in force gets missed. So this prints the active revision's elements, the projection of
+    in force gets missed. So this holds the active revision's elements, the projection of
     the user's current state and the reports in force on the agent channel,
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
@@ -316,8 +323,9 @@ def _write_page_state(
     appears under `source.error` while that revision remains active. The document
     itself is not repeated here: `active.file` is its HTML, which an agent reads
     beside `state`."""
-    registry = require_registry(page_dir)
-    served, reading, stored_data = read_served_page(read_page(page_dir, events))
+    context = read_page(page_dir, events)
+    registry = context.registry
+    served, reading, stored_data = read_served_page(context)
     active = served["active"]
     if active is not None:
         active["file"] = (
@@ -383,7 +391,8 @@ def _write_page_state(
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
         state["asks"] = view["document"]["asks"]["all"] + view["thread"]["asks"]["all"]
-        state["todos"] = browser["todos"]
+        state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
+        state["plan"] = browser["plan"]
         served_queues = view["queues"]
         state["queues"] = {
             side: served_queues[side] for side in ("on_user", "on_agent")
@@ -527,4 +536,4 @@ def _write_page_state(
             "todos": [todo for todo in state["todos"] if todo["thread"] == thread_id],
             "asks": [ask for ask in state["asks"] if ask["thread"] == thread_id],
         }
-    print(json.dumps(state, indent=2, ensure_ascii=False))
+    return state

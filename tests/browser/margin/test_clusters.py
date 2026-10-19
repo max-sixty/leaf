@@ -56,8 +56,8 @@ COMMENT_ON_SECOND_SUGGESTION = {
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_ask_binding_badges_follow_the_visible_margin_entries(browser, serve, width):
-    """Ask travel shows hoisted answers above fixed chrome, with binding badges."""
+def test_item_binding_badges_follow_the_visible_margin_entries(browser, serve, width):
+    """Item travel shows hoisted answers above fixed chrome, with binding badges."""
     context = browser.new_context(
         viewport={"width": width, "height": 900}, reduced_motion="reduce"
     )
@@ -110,7 +110,7 @@ def test_ask_binding_badges_follow_the_visible_margin_entries(browser, serve, wi
         }"""
     )
     assert len(geometry["controls"]) == 2, geometry
-    # Inside the window across too: where the pin stands folded, Ask travel standing at
+    # Inside the window across too: where the pin stands folded, item travel standing at
     # it opens it leftward from its toggle.
     for control in geometry["controls"]:
         assert 0 <= control["x"] < control["right"] <= width, geometry

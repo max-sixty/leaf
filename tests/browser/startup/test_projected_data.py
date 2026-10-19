@@ -561,13 +561,13 @@ def test_an_older_data_response_cannot_replace_a_newer_reading(browser, serve):
 # loaded machine to produce that overlap.
 QUEUED_STATE_READS = """() => {
   window.__leafStateReads = [];
-  window.__leafStateAsks = 0;
+  window.__leafStateItems = 0;
   const native = window.fetch.bind(window);
   window.fetch = async (...args) => {
     const input = args[0];
     const url = typeof input === 'string' ? input : input.url;
     if (new URL(url, location.href).pathname !== '/api/state') return native(...args);
-    window.__leafStateAsks += 1;
+    window.__leafStateItems += 1;
     while (!window.__leafStateReads.length)
       await new Promise((resolve) => setTimeout(resolve, 5));
     const [body, headers] = window.__leafStateReads.shift();
@@ -615,7 +615,7 @@ def test_a_source_that_returns_under_an_unfinished_reading_stays_current(
     away = page.request.get(urljoin(page.url, "/api/state"))
     # The page is inside that read before the source returns, so the reading it takes is
     # the one that moved the source and the trailing read is answered at once.
-    page.wait_for_function("() => window.__leafStateAsks >= 1")
+    page.wait_for_function("() => window.__leafStateItems >= 1")
     data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     back = page.request.get(urljoin(page.url, "/api/state"))
     assert away.json()["data"]["version"] != back.json()["data"]["version"]
@@ -965,7 +965,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
             failed[name] = 0;
             stops.push(api.watchProjection(owner, () => {
               failed[name] += 1;
-              api.readAsks();
+              api.readItems();
               // A paint that fails later is told the same way as one that throws.
               if (name === 'rejecting')
                 return Promise.reject(new Error(`${name} paint failed`));
@@ -980,7 +980,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           const finished = new Promise((resolve) => { finish = resolve; });
           stops.push(api.watchProjection(owner, () => {
             paints += 1;
-            api.readAsks();
+            api.readItems();
             return finished;
           }));
           await settle();

@@ -12,10 +12,10 @@
    panel shows the other list turns it to the door's (drawers.js, `views`). Which tab is
    open is the panel's own view state, which the log never holds.
 
-   On me holds asks, to-dos on the user and resends; On <agent> holds answers the agent
-   owes, its work in hand and its to-dos. Each ask carries its source and answer; only a
+   On me holds items, to-dos on the user and resends; On <agent> holds answers the agent
+   owes, its work in hand and its to-dos. Each item carries its source and answer; only a
    to-do on the user offers Done. This view renders the publisher's selections and
-   never recreates asks from to-do rows.
+   never recreates items from to-do rows.
 
    EXPERIMENTAL. Expect its groups, rows, wording and routes to change as the panel
    is used, and change them freely.
@@ -24,14 +24,14 @@
    `queues.on_user` and `queues.on_agent` (the server's `served_state.queues`, with this
    tab's sends placed against it), the same lists the `m` walk steps through and the
    banner counts; what is done is `done`, served beside them from ended to-dos,
-   answered or withdrawn asks and the agent's sent replies. So a reply the user sends
+   answered or withdrawn items and the agent's sent replies. So a reply the user sends
    joins On <agent> in the turn it is sent, and leaves On me when the server's reading
    of it arrives, as the banner's counts do.
 
    Each row says what kind of item it is, the item's title or opening words, and where it
    is: the passage or section it stands at, and its age, stage or outcome. A press or
    Enter on a row arrives exactly as `m` does (`queue-walk.js`, `arriveAtItem`), so the
-   panel and the walk cannot disagree about where an item is. An ask's row, and the row
+   panel and the walk cannot disagree about where an item is. An item's row, and the row
    of a page widget action the user must send again, stands at that element
    (`declareSide`), so a walk or a comment from a focused row starts there. A row whose
    to-do the user ends with Done carries that Done (`queue-list.js`), the walk's own
@@ -62,7 +62,7 @@ import { shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
-import { itemNoun, itemOutcome } from "./queues.js";
+import { carriesItem, itemNoun, itemOutcome } from "./queues.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -73,19 +73,19 @@ import {
   PresentationRetentionError,
 } from "./semantic-state.js";
 import { renderedOrder, under } from "./shadow.js";
-import { askEnding, askWord } from "./asks/answer.js";
-import { readAsks } from "./asks/model.js";
-import { askPlace } from "./asks/place.js";
+import { itemEnding, itemWord } from "./items/answer.js";
+import { readItems } from "./items/model.js";
+import { itemPlace } from "./items/place.js";
 import { readThreads } from "./thread/state.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
-import { askHolding, declareSide } from "./standing-target.js";
+import { itemHolding, declareSide } from "./standing-target.js";
 import { anchorLabel } from "./thread/messages.js";
 import { queueTitle } from "./queue-title.js";
 import { lastMovedAt } from "./thread/model.js";
 import { workflowLabel } from "./thread/workflow.js";
 import { walkPositionLabel } from "./walk-position.js";
 
-// An item a source registered says its source's word (`askWord`); a to-do on either
+// An item a source registered says its source's word (`itemWord`); a to-do on either
 // side says To-do. Response obligations keep their own Reply or Answer wording.
 const WORDS = Object.freeze({
   resend: "Resend",
@@ -98,7 +98,7 @@ const wordOf = (item, noun) => WORDS[noun];
 const HEADINGS = "h1, h2, h3, h4, h5, h6";
 
 // The section a page element stands in: the last heading before it whose parent also
-// holds it, so a heading inside an earlier ask, or one closing an earlier section, is
+// holds it, so a heading inside an earlier item, or one closing an earlier section, is
 // not this element's.
 function sectionWords(element) {
   if (!element || inChrome(element)) return "";
@@ -150,10 +150,10 @@ export function createQueuePanel({
         : "";
     if (itself) return `§ ${itself}`;
     if (!thread) {
-      // A widget answering an ask is where that ask is.
+      // A widget answering an item is where that item is.
       const own = elementById(item.subject.id);
-      const ask = own && askHolding(readAsks().all, own);
-      return sectionWords(ask ? askPlace(ask).context : own);
+      const record = own && itemHolding(readItems().all, own);
+      return sectionWords(record ? itemPlace(record).context : own);
     }
     if (!thread.anchor?.section) return "Whole page";
     const about = elementById(thread.anchor.section);
@@ -164,8 +164,7 @@ export function createQueuePanel({
   // place; and before it, how a finished item ended, which is what a Done row is for.
   const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
-    if (itemNoun(item) === "ask")
-      return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
+    if (carriesItem(item)) return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
     // Agent-authored detail has its own span and exact input identity. A generic
     // stage or a to-do title is never evidence of visible agent words.
     const feedback =
@@ -188,29 +187,29 @@ export function createQueuePanel({
       return [wherePart(item.running.text), wherePart(shortAgo(item.running.ts))];
     return [];
   }
-  // An ask names how it ended, a to-do its outcome, and a reply that it was sent.
+  // An item names how it ended, a to-do its outcome, and a reply that it was sent.
   function ended(item) {
-    if (item.kind === "ask") return askEnding(item.ask);
+    if (carriesItem(item)) return itemEnding(item.item);
     return [itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ");
   }
   function row(item, list) {
     const thread = threadOf(item.thread);
     const noun = itemNoun(item);
-    const word = noun === "ask" ? askWord(item.ask) : wordOf(item, noun);
+    const word = carriesItem(item) ? itemWord(item.item) : wordOf(item, noun);
     const where = (
       list === "done"
         ? [wherePart(ended(item)), wherePart(place(item, thread))]
         : [wherePart(place(item, thread)), ...when(item, thread)]
     ).filter((part) => part.text);
     const words = queueTitle(item);
-    // The element a row stands at: an ask, or a page widget whose action the user must send
-    // again. A reply the agent owes an update stands nowhere, so an ask's own row is the one
+    // The element a row stands at: an item, or a page widget whose action the user must send
+    // again. A reply the agent owes an update stands nowhere, so an item's own row is the one
     // row standing at it.
     const at =
-      noun === "ask" ||
+      carriesItem(item) ||
       (item.kind === "resend" && item.subject.kind === "widget" && item.thread === null)
-        ? item.kind === "ask"
-          ? item.ask.id
+        ? carriesItem(item)
+          ? item.item.id
           : item.subject.id
         : null;
     return Object.freeze({
@@ -388,8 +387,8 @@ export function createQueuePanel({
   // A row stands at the element it names rather than in the panel.
   declareSide((node) => {
     const at = standsAt(node);
-    const ask = readAsks().all.find((ask) => ask.id === at);
-    return ask ? askPlace(ask).node : at ? elementById(at) : null;
+    const item = readItems().all.find((item) => item.id === at);
+    return item ? itemPlace(item).node : at ? elementById(at) : null;
   });
 
   function mount() {

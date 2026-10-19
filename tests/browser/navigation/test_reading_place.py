@@ -282,7 +282,7 @@ def test_same_passage_and_controls_keep_a_mixed_travel_group(
     browser, serve, concealment
 ):
     """Reading choices have passage grain: touching the current words or operating
-    controls does not turn consecutive thread/Ask travel into separate Back stops."""
+    controls does not turn consecutive thread/item travel into separate Back stops."""
     concealed = {
         "none": "",
         "hidden": "<div hidden><p>Concealed source background.</p></div>",
@@ -484,11 +484,11 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(
     assert result["before"] == result["after"]
 
 
-def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
-    """The Ask walk records the same history the thread walk does: one entry for a
-    journey to Asks somewhere else however far it goes, so Back returns to where the
-    user was reading before it, and a journey that crosses from threads to Asks is still
-    one journey."""
+def test_back_returns_from_an_item_the_walk_travelled_to(browser, serve):
+    """The item walk records the same history the thread walk does: one entry for a
+    journey to items somewhere else however far it goes, so Back returns to where the
+    user was reading before it, and a journey that crosses from threads to items is
+    still one journey."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(60))
     url = serve(
         leaf_page(
@@ -553,7 +553,7 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
         "top => Math.abs(document.scrollingElement.scrollTop - top) <= 2", arg=reading
     )
 
-    # From the bottom again: `t` travels to the thread just below the first Ask, and
+    # From the bottom again: `t` travels to the thread just below the first item, and
     # `m` from there to the second continues that journey rather than starting another,
     # so one Back skips the thread's landing and returns to the bottom.
     page.evaluate("document.scrollingElement.scrollTo({top: 1e6, behavior: 'instant'})")
@@ -569,8 +569,8 @@ def test_back_returns_from_an_ask_the_walk_travelled_to(browser, serve):
     )
 
 
-def test_back_returns_from_an_ask_whose_context_the_arrival_brings_in(browser, serve):
-    """An Ask in front of the user whose arrival region is not still moves the page,
+def test_back_returns_from_an_item_whose_context_the_arrival_brings_in(browser, serve):
+    """An item in front of the user whose arrival region is not still moves the page,
     since the arrival puts the region's start at the top of the window, and a press
     that moves the page records where the user was reading. A draft declares no region,
     so its region runs up from the heading its context starts under."""
@@ -689,7 +689,7 @@ def _expect_aligned(page, target, scroller="document.scrollingElement"):
     )
 
 
-def test_align_current_item_keeps_ask_control_heading_selection_and_history(
+def test_align_current_item_keeps_item_control_heading_selection_and_history(
     browser, serve
 ):
     page = open_page(browser, serve(ALIGN_CURRENT_PAGE))
@@ -1114,7 +1114,7 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     )
 
 
-def test_align_current_ask_in_a_reply_keeps_its_question_extent(browser, serve):
+def test_align_current_item_in_a_reply_keeps_its_question_extent(browser, serve):
     url = serve(ALIGN_CURRENT_PAGE, anchored=[("remembered", "amber")] * 8)
     roots = [
         event["id"]

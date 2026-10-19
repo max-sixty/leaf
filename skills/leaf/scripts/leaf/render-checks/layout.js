@@ -19,7 +19,7 @@ export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.client
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // A box the theme lets stand past its holder, which says so where it lets it
 // (`--lf-breakout`, layouts.css): a block granted a wider room than the measure, and an
-// Ask spanning such a block (ask.css). Every other box keeps to the column, as text
+// lf-ask spanning such a block (ask.css). Every other box keeps to the column, as text
 // does. The theme lets only a box it allocates room (`data-lf-space`) or a widget
 // holding authored blocks (`data-lf-content="markup"`) break out.
 const breaksOut = (el) =>

@@ -998,32 +998,32 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   placeKept(box, ...standing2 ? scrollersOf(standing2) : []);
 }
 
-// runtime/asks/model.js
-var readAsks = readPart((root) => root.effective.asks);
-var askEntry = (ask) => registry[ask?.source.tag]?.["x-awaits"];
-var askedInWords = (ask) => Boolean(askEntry(ask)?.reply);
-var approvalBlockingAsks = readPart((root) => {
-  const { asks, view } = root.effective;
-  if (asks.phase !== "ready" || !view) return null;
+// runtime/items/model.js
+var readItems = readPart((root) => root.effective.items);
+var itemEntry = (item) => registry[item?.source.tag]?.["x-awaits"];
+var answeredInWords = (item) => Boolean(itemEntry(item)?.reply);
+var approvalBlockingItems = readPart((root) => {
+  const { items, view } = root.effective;
+  if (items.phase !== "ready" || !view) return null;
   const held = new Set(view.approval_blocking);
-  return asks.all.filter((ask) => held.has(ask.id));
+  return items.all.filter((item) => held.has(item.id));
 });
 
-// runtime/asks/place.js
-function askPlace(ask, asks = readAsks().all) {
-  if (!ask || ask.source.kind !== "widget")
+// runtime/items/place.js
+function itemPlace(item, items = readItems().all) {
+  if (!item || item.source.kind !== "widget")
     return { source: null, context: null, node: null };
-  const source = elementById(ask.source.id);
-  const context = elementById(ask.prompt.target);
-  const shared = asks.some(
-    (other) => other.id !== ask.id && other.source.kind === "widget" && other.prompt.target === ask.prompt.target
+  const source = elementById(item.source.id);
+  const context = elementById(item.prompt.target);
+  const shared = items.some(
+    (other) => other.id !== item.id && other.source.kind === "widget" && other.prompt.target === item.prompt.target
   );
   return { source, context, node: shared ? source : context };
 }
-function asksIn(region, asks = readAsks().all) {
-  return asks.filter((ask) => {
-    if (ask.source.kind !== "widget" || ask.status === "withdrawn") return false;
-    const source = elementById(ask.source.id);
+function itemsIn(region, items = readItems().all) {
+  return items.filter((item) => {
+    if (item.source.kind !== "widget" || item.status === "withdrawn") return false;
+    const source = elementById(item.source.id);
     return Boolean(source && under(source, region));
   });
 }
@@ -1034,14 +1034,14 @@ function declareSide(bridge) {
   sides.add(bridge);
   return () => sides.delete(bridge);
 }
-function askHolding(asks, node) {
+function itemHolding(items, node) {
   if (!node) return null;
-  const places2 = asks.filter((ask) => ask.source.kind === "widget").map((ask) => ({ ask, ...askPlace(ask, asks) }));
+  const places2 = items.filter((item) => item.source.kind === "widget").map((item) => ({ item, ...itemPlace(item, items) }));
   const holds = (element) => element && (element === node || under(node, element));
   const source = places2.findLast((place2) => holds(place2.source));
-  if (source) return source.ask;
+  if (source) return source.item;
   const contexts = places2.filter((place2) => holds(place2.node));
-  return contexts.length === 1 ? contexts[0].ask : null;
+  return contexts.length === 1 ? contexts[0].item : null;
 }
 function sideOf(node) {
   for (const side of sides) {
@@ -1053,11 +1053,11 @@ function sideOf(node) {
 function placeOf(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || at === document.body) return null;
-  if (askHolding(readAsks().all, at)) return at;
+  if (itemHolding(readItems().all, at)) return at;
   for (const side of sides) {
     const place2 = side(at);
     if (place2)
-      return inChrome(place2) && !askHolding(readAsks().all, place2) ? null : place2;
+      return inChrome(place2) && !itemHolding(readItems().all, place2) ? null : place2;
   }
   return inChrome(at) ? null : at;
 }
@@ -1089,9 +1089,9 @@ function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   const row2 = dir > 0 ? reach[0] : reach.at(-1);
   return row2 ? { row: row2, wrapped: false } : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
 }
-function heldAsk(node = focused()) {
-  const ask = askHolding(readAsks().all, placeOf(node));
-  return askPlace(ask).node;
+function heldItem(node = focused()) {
+  const item = itemHolding(readItems().all, placeOf(node));
+  return itemPlace(item).node;
 }
 
 // runtime/history.js
@@ -3497,7 +3497,7 @@ function threadAttention(thread) {
     (candidate) => candidate.id === thread.attention.workflow
   ) ?? null : null;
   if (thread.attention?.kind === "needs_user") {
-    const answering = thread.attention.reason === "ask";
+    const answering = thread.attention.reason === "widget";
     const nextMove = answering ? "answer" : workflow?.subject.kind === "thread" ? "resend" : "retry";
     const secondary = strongestWorkflow(
       thread.workflows.filter(
@@ -8204,19 +8204,19 @@ export {
   hasLandmark,
   rawOffsetFits,
   restorePlace,
-  readAsks,
-  askEntry,
-  askedInWords,
-  approvalBlockingAsks,
-  askPlace,
-  asksIn,
+  readItems,
+  itemEntry,
+  answeredInWords,
+  approvalBlockingItems,
+  itemPlace,
+  itemsIn,
   declareSide,
-  askHolding,
+  itemHolding,
   sideOf,
   placeOf,
   walkOrigin,
   stepFrom,
-  heldAsk,
+  heldItem,
   readPlace,
   pushEntry,
   replaceEntry,

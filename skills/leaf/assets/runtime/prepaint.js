@@ -689,7 +689,7 @@
   // so a page whose Layout's box requests no column shell (`seat`) holds none, and a breakout
   // inside another takes its holder's width and is not read. In a column, a breakout
   // grows only from a holder whose content box is the column's own: the column, a section,
-  // an Ask standing in it. Every other one wears `data-lf-kept` and keeps to the box it
+  // an item standing in it. Every other one wears `data-lf-kept` and keeps to the box it
   // is laid out in, since the room beside that box is not the page's to give, and the
   // holder's axis is not the prose's:
   //

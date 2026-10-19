@@ -15,12 +15,12 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
     LIVE_V1,
-    SEATED_ASK_PAGE,
+    SEATED_ITEM_PAGE,
     live_url,
 )
 from render_harness import (
     consume_browser_errors,
-    expect_asks_answered,
+    expect_items_answered,
     holding,
     http_error_console,
     is_problem,
@@ -633,11 +633,11 @@ APPROVAL_PAGE = leaf_page(
 
 
 def test_approval_waits_for_a_reading_of_the_log(browser, serve):
-    """An offline page that never read its log cannot say its Asks are answered.
+    """An offline page that never read its log cannot say its items are answered.
 
     The first state read is refused, so presentation releases the authored page under the
-    offline banner with no admitted reading. Nothing then says whether the authored Ask
-    still stands, and approval stays shut rather than reading that silence as every Ask
+    offline banner with no admitted reading. Nothing then says whether the authored item
+    still stands, and approval stays shut rather than reading that silence as every item
     answered."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.route("**/api/state*", refuse)
@@ -659,7 +659,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     """An answer the log has not taken in cannot open the irreversible approval.
 
     The pick is the user's at once — that is their own gesture drawn on their own
-    widget. Which Asks still stand is the server's fold, so the count and the gate
+    widget. Which items still stand is the server's fold, so the count and the gate
     move when the state this POST returns is adopted, and not before."""
     page = open_page(browser, serve(APPROVAL_PAGE))
     approval = page.locator(".lf-signoff")
@@ -673,7 +673,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     expect(page.locator("#release-ship .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
-    expect_asks_answered(page, "0/1")
+    expect_items_answered(page, "0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
         "title", "Answer every open widget before approving this work"
@@ -692,7 +692,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect_asks_answered(page, "1/1")
+    expect_items_answered(page, "1/1")
     expect(approval).to_be_enabled()
     expect(approval).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
@@ -1691,7 +1691,7 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
     """A compact reader's button addresses message content, not its own reply row."""
     target = "jobs" if surface == "outlet" else "notes"
     source = (
-        SEATED_ASK_PAGE
+        SEATED_ITEM_PAGE
         if surface == "outlet"
         else leaf_page("Native reply", '<h1>Native reply</h1><p id="notes">Notes</p>')
     )
@@ -1742,7 +1742,7 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
 
 
 @pytest.mark.parametrize("owner", ["root", "middle"])
-def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
+def test_frozen_item_reveals_its_exact_message_in_a_selective_primary(
     browser, serve, owner
 ):
     """A message-only primary materializes the widget's turn, including later replies."""
@@ -1802,7 +1802,7 @@ def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
         expect(reader.locator("#channel")).to_have_count(0)
     assert page.evaluate("""async () => {
       const api = await window.__lfWidgetApi();
-      return await api.askActions.open('widget:channel');
+      return await api.itemActions.open('widget:channel');
     }""")
     assert reader.evaluate("node => node.message") == f"key-{owner}"
     expect(reader.locator(f'.lf-msg[data-event="{owner}"]')).to_be_visible()
@@ -1880,7 +1880,7 @@ def package_workspace(serve, *, before_reader="", primary=True):
 
 
 def test_package_answer_summary_waits_for_widget_completion(browser, serve):
-    """A selected value remains partial until the multiple-choice ask is done."""
+    """A selected value remains partial until the multiple-choice item is done."""
     url = package_workspace(serve)
     append_carried_log_record(
         serve.page_dir,
@@ -1898,12 +1898,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("2 asks on me")
+    expect(counts).to_have_text("2 waiting on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: these picks are complete", exact=True
         ).click()
-    expect(counts).to_have_text("1 asks on me · 1 answered · Chat")
+    expect(counts).to_have_text("1 waiting on me · 1 answered · Chat")
 
 
 def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):
@@ -1913,7 +1913,7 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
         "api.queueItemKey(api.readQueues().on_user.find(item => item.id === 'proofread'))"
     )
     assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().on_user.find(item => item.ask?.source.kind === 'widget'))) === null"
+        "api.queueActions.done(api.queueItemKey(api.readQueues().on_user.find(item => item.item?.source.kind === 'widget'))) === null"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -1956,7 +1956,7 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
     ] == ["todo_end"]
 
 
-def test_failed_primary_reader_restores_the_same_native_ask_in_core(browser, serve):
+def test_failed_primary_reader_restores_the_same_native_item_in_core(browser, serve):
     page = open_page(browser, package_workspace(serve))
     expect(page.locator("#workspace lf-option#email")).to_be_visible()
     page.evaluate("""() => {
@@ -2041,13 +2041,13 @@ def test_primary_native_content_survives_sibling_preparation_faults(
     expect(page.locator("#workspace .counts")).to_contain_text("Email")
 
 
-def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
+def test_queue_item_arrival_selects_the_primary_reader(browser, serve):
     page = open_page(browser, package_workspace(serve))
     workspace = page.locator("#workspace")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
     page.evaluate("async () => { window.api = await window.__lfWidgetApi(); }")
     assert page.evaluate(
-        "async () => { const item = api.readQueues().on_user.find(item => item.ask?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().on_user.find(item => item.item?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(

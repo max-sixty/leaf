@@ -12,8 +12,8 @@ When `source.live` is false, `index.html` differs from the live revision and
 the rest of the output may be wrong until you do.
 
 `data_bindings` names each external data source and the widgets that read it; change a
-source's value with `leaf data set`. `leaf page state <page> <id>` shows one widget, with
-its actions, asks and workflows, or one thread with its messages.
+source's value with `leaf data set`. `leaf page state <page> <id>` shows one widget,
+with its actions, items and workflows, or one thread with its messages.
 
 ## Publish several authored files together
 
@@ -57,7 +57,7 @@ registry's `$restated`.
 When you move cards in a board, place each card in the column and rank `state` gives
 it (`$state` defines ranks).
 
-Take in a user's answer to a page ask in a stamped version. Where the widget's
+Take in a user's answer to a page's item in a stamped version. Where the widget's
 `x-state` declares a `record` form, write that form: `chosen` on exactly the picked
 `lf-option` elements you wrote, or the user's words as the body of a `needed`
 `lf-draft`. Leave an option the user added out of the markup; the log keeps it. Where
@@ -93,13 +93,13 @@ members. Remove material the current state replaces, such as a concluded run or 
 superseded section; keep older material, collapsed, only where current work needs its
 context. Keep deferred work in the list with enough context to resume it.
 
-An ask the user answered and you have acted on becomes a decision record. Give its
+A decision the user answered and you have acted on becomes a record. Give its
 `lf-options` group the `settled` attribute, which collapses it to the pick, and say
 beside it what came of the choice. Keep the result and its evidence in the current
 reading flow while the reader still needs them (`page-authoring.md`, "Reading cost");
 retire the superseded interaction as finished work. Pose anything still worth asking
-as a new ask with new ids. Use `$restated` to withdraw the decision and ask again.
-Don't mark an ask `settled` until you have finished applying it, and keep a section
+as a new decision with new ids. Use `$restated` to withdraw the decision and ask again.
+Don't mark a decision `settled` until you have finished applying it, and keep a section
 open while the user is still commenting there.
 
 Before handing the page back, check that its status, open to-dos and outstanding work

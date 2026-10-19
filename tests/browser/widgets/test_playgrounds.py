@@ -547,7 +547,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
           === playground.querySelector('.lf-playground-presets'),
         controlsSize: [controls.clientHeight, controls.scrollHeight],
         pageScrolls: document.scrollingElement.scrollHeight > innerHeight,
-        askDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
+        itemDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
         authoredWords: leaf.wrote(playground).includes('Concurrent release events'),
         spokenWords: leaf.says(playground).includes('Concurrent release events'),
       };
@@ -566,7 +566,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "sideBySide": True,
         "presetsHeadControls": True,
         "pageScrolls": False,
-        "askDisplay": "flex",
+        "itemDisplay": "flex",
         "authoredWords": True,
         "spokenWords": True,
     }
@@ -686,7 +686,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
             "postures": ["flow", "flow", "flow"],
             "scrollers": ["page", "page", "page"],
             "pageScrolls": True,
-            "askDisplay": "block",
+            "itemDisplay": "block",
         }, (width, height)
         # Too short to hold the regions is not too narrow to set them side by side.
         assert flow["stacked"] is (width < 1100), (width, height, flow)

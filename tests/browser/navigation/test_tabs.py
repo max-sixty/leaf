@@ -44,9 +44,9 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     A preview can name a gallery section directly: arriving at a fragment held in a
     closed tab is one runtime path whichever section it names, so one arrival proves
     it, and the same page answers which tab holds every other destination. Each core
-    surface then opens and shows the gallery's own content: its Ask in the On panel, its
-    open, resolved, and media threads in Threads, its earlier version, the other open
-    page, and at phone width its Page Map. Live external data, the Threads tab's
+    surface then opens and shows the gallery's own content: its item in the On panel,
+    its open, resolved, and media threads in Threads, its earlier version, the other
+    open page, and at phone width its Page Map. Live external data, the Threads tab's
     presets operating a sample's panel, sign-off gating, design comments and transport
     refusal are real journeys on it too.
 
@@ -118,16 +118,16 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     resized(page, 1600, 900)
     expect(page.locator(".lf-banner-status")).not_to_be_empty()
     banner_control(page, ".lf-queue").click()
-    map_ask = page.locator("button.lf-queue-row").filter(
+    map_item = page.locator("button.lf-queue-row").filter(
         has_text="Which map should the sample team carry?"
     )
-    expect(map_ask).to_have_count(1)
-    expect(map_ask).to_have_attribute("data-lf-kind", "ask")
-    map_ask.click()
+    expect(map_item).to_have_count(1)
+    expect(map_item).to_have_attribute("data-lf-kind", "widget")
+    map_item.click()
     expect(page.locator("#bg-choice-ask")).to_be_focused()
     banner_control(page, ".lf-queue").click()
     page.locator("#bg-question-api > summary").click()
-    page.get_by_role("button", name="Read current ask", exact=True).click()
+    page.get_by_role("button", name="Read current item", exact=True).click()
     reading = json.loads(page.locator("#bg-question-reading").inner_text())
     assert reading["id"] == "widget:bg-choice"
     assert reading["source"]["id"] == "bg-choice"

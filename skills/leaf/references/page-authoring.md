@@ -28,8 +28,8 @@ have to picture from a description, and put that thing on the page in its own fo
   show that effect in one of the forms above, with the code beside it.
 
 Pages that decide, plan or review show their subject the same way: a work item that
-fixes a visible fault shows the fault, and an ask's options show what each answer gives
-the user (`authoring-asks.md`). A table or list whose rows say where things sit, how
+fixes a visible fault shows the fault, and a decision's options show what each answer gives
+the user (`authoring-decisions.md`). A table or list whose rows say where things sit, how
 large they are or what connects to what should be a drawing.
 
 A drawing or chart makes its point through its geometry: where its marks sit, their
@@ -98,7 +98,7 @@ table (`page-layout.md`, "Bounds and widths"). Compose the page from these:
 - **Several views of one subject**, such as a playground to try beside the proposal it
   argues for and the reasoning behind it, are a page of views: one `lf-tabs` set in a
   `main` with no Layout, each view with a Layout of its own (`page-layout.md`, "A page
-  of views"). The views share one history, Threads panel and set of asks. A tab set
+  of views"). The views share one history, Threads panel and On me list. A tab set
   inside a view holds local alternatives within it.
 
 A page can grow without changing its Layout: a report that gains live status gains a

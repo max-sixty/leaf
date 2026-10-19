@@ -7185,7 +7185,6 @@ function createFloatingPanel({
   let queueTab = "you";
   let seated = null;
   const seatHeights = /* @__PURE__ */ new Map();
-  const planSketch = new URLSearchParams(location.search).has("plan-sketch");
   const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
   const queueTabs = () => readPlan()?.steps.length || queueTab === "plan" ? [...Object.keys(QUEUE_TABS), "plan"] : Object.keys(QUEUE_TABS);
   const chooseQueueTab = (tab) => {
@@ -7353,7 +7352,7 @@ function createFloatingPanel({
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
-    const place3 = planSketch && list === "you" ? planPlace(item.id) : null;
+    const place3 = list === "you" ? planPlace(item.id) : null;
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}

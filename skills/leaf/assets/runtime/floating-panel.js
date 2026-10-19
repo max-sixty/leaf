@@ -2067,9 +2067,6 @@ export function createFloatingPanel({
   // The height each seated card first stood at, which it keeps while seated, so an
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
-  // Exploration only, until the user decides it: whether an On me item names its
-  // place in the plan (`?plan-sketch`).
-  const planSketch = new URLSearchParams(location.search).has("plan-sketch");
   const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
   // The agent's plan has a tab of its own beside the two lists, while there is a plan,
   // or while the view stands on it. The lists stay as they are, a planned to-do
@@ -2299,7 +2296,9 @@ export function createFloatingPanel({
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
-    const place = planSketch && list === "you" ? planPlace(item.id) : null;
+    // An item the plan names says where it stands in it, so the user answers it
+    // knowing which run it unblocks.
+    const place = list === "you" ? planPlace(item.id) : null;
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}

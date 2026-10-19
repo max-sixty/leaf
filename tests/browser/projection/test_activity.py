@@ -29,7 +29,7 @@ def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, 
             '<lf-activity id="feed"></lf-activity></section>',
         )
 
-    def ask(fast, restated=""):
+    def item(fast, restated=""):
         return f"""<lf-ask id="route-ask"><h2>Which route?</h2>
   <lf-options id="route" choose>
     <lf-option id="route-fast"{restated}>{fast}</lf-option>
@@ -37,14 +37,14 @@ def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, 
   </lf-options>
 </lf-ask>"""
 
-    page = open_page(browser, live_url(serve(page_with(ask("Fast path")))))
+    page = open_page(browser, live_url(serve(page_with(item("Fast path")))))
     page.locator("#route-fast .lf-pick").click()
     round_trip(page)
     page.locator("#feed .lf-activity-news").click()
     row = page.locator("#feed .lf-activity-row", has_text="chose")
     expect(row).to_contain_text("chose “Fast path” in")
 
-    reworded = page_with(ask("Quick route", " restated"))
+    reworded = page_with(item("Quick route", " restated"))
     stamp_page(serve.page_dir, reworded, "reword the option")
     wait_for_revision(page, 2)
     expect(row).to_contain_text("chose “Fast path” in")

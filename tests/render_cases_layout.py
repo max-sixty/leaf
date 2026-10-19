@@ -19,7 +19,7 @@ from leaf.render_gate import scheme as render_gate_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASKS_PAGE,
+    ITEMS_PAGE,
 )
 from render_harness import (
     LONG_PAGE,
@@ -618,7 +618,7 @@ EDGE_IDS = [edge.name for edge in EDGES]
 # The On panel, which stands on the Threads panel's edge at its width.
 ON_PANEL = SimpleNamespace(
     name="on",
-    html=lambda: ASKS_PAGE,
+    html=lambda: ITEMS_PAGE,
     comments=0,
     fixtures=(),
     stand=lambda page: banner_control(page, ".lf-queue").click(),
@@ -635,8 +635,8 @@ def edge_world(request, edge):
         request.getfixturevalue(name)
 
 
-# One Ask, so a page offers the On panel.
-ONE_ASK = (
+# One item, so a page offers the On panel.
+ONE_ITEM = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
     '<lf-option id="go-yes"><strong>Yes</strong></lf-option>'
@@ -645,12 +645,12 @@ ONE_ASK = (
 )
 
 
-def with_one_ask(html):
-    """The page with `ONE_ASK` at the foot of its main, where it moves nothing above it."""
+def with_one_item(html):
+    """The page with `ONE_ITEM` at the foot of its main, where it moves nothing above it."""
     assert html.count("</main>") == 1, (
-        "the fixture has no single main to add the Ask to"
+        "the fixture has no single main to add the item to"
     )
-    return html.replace("</main>", ONE_ASK + "</main>")
+    return html.replace("</main>", ONE_ITEM + "</main>")
 
 
 def toggle_queue(page, open=True):
@@ -1297,7 +1297,7 @@ def mark_edges(page, ident, ink):
 
 # Twenty-four things waiting, which is more than any shipped example asks and the point: the
 # room a list reserves at its foot is invisible until the list is longer than the drawer.
-MANY_ASKS_PAGE = leaf_page(
+MANY_ITEMS_PAGE = leaf_page(
     "many decisions",
     """
 <h1>Many decisions</h1>

@@ -22,8 +22,6 @@ import {
   MAX_DRAWING_SAYS_LENGTH,
   MAX_DRAWING_STROKES,
   acceptData,
-  askEnding,
-  askWord,
   beginRead,
   composerOpen,
   composerQuote,
@@ -38,12 +36,14 @@ import {
   inPageOrder,
   inRecentOrder,
   initializeServedDocument,
+  itemEnding,
+  itemWord,
   keepPageRulesOffLayer,
   landWalkedThread,
   leavesBox,
   mountApplication,
   notifyDataSubscribers,
-  ownedAskControl,
+  ownedItemControl,
   pageOutline,
   paintBarReactions,
   pendingAbout,
@@ -112,12 +112,8 @@ import {
   allButCommandReference,
   allThreads,
   anchorLabel,
-  approvalBlockingAsks,
-  askEntry,
-  askHolding,
-  askPlace,
-  askedInWords,
-  asksIn,
+  answeredInWords,
+  approvalBlockingItems,
   bannerActions,
   bannerControlDoor,
   bannerRows,
@@ -143,11 +139,15 @@ import {
   forwardToThread,
   gesturedOn,
   hasFolding,
-  heldAsk,
+  heldItem,
   heldThread,
   holdToRead,
   isExternalPageLink,
   isFolding,
+  itemEntry,
+  itemHolding,
+  itemPlace,
+  itemsIn,
   landingPlace,
   landingRoom,
   leftThePage,
@@ -168,8 +168,8 @@ import {
   passOn,
   placeKeeper,
   placeOf,
-  readAsks,
   readBoxPlace,
+  readItems,
   readPlace,
   readThreads,
   readingBlock,
@@ -559,6 +559,7 @@ import {
   awaitsUser,
   bareReaction,
   bindQueuedWork,
+  carriesItem,
   classMap,
   createRef,
   discussed,
@@ -1857,7 +1858,7 @@ function commandReferenceItemTemplate(item) {
   </tbody>`;
 }
 function commandReferenceTemplate() {
-  const items = commandReferenceItems();
+  const items2 = commandReferenceItems();
   return html`
     <div class="lf-command-reference-head">
       <div class="lf-command-reference-title">Command reference</div>
@@ -1900,7 +1901,7 @@ function commandReferenceTemplate() {
           <col class="lf-command-reference-key-column" />
           <col />
         </colgroup>
-        ${repeat(items, (item) => item.key, commandReferenceItemTemplate)}
+        ${repeat(items2, (item) => item.key, commandReferenceItemTemplate)}
       </table>
       <div role="row" ?hidden=${commandReferenceView.shown !== 0}>
         <div class="lf-command-reference-empty" role="gridcell">
@@ -2786,9 +2787,9 @@ function createResponseSurface({
     const threadId = threadAtStanding();
     const replyId = replyThreadAtStanding();
     const target = threadId && threadTarget(threadId);
-    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldAsk() ?? here.element)) && threadInput(inline);
+    const inlineBox = inline && drawnThreadId(inline) === threadId && (!here || standingIn(inline) || target && under(target, heldItem() ?? here.element)) && threadInput(inline);
     const said = standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
-    const subject = threadId && (!here || target && under(target, heldAsk() ?? here.element));
+    const subject = threadId && (!here || target && under(target, heldItem() ?? here.element));
     const replySubject = subject && replyId;
     if (anchor && (pageSelection() || fabHoldsCapturedPassage() || !said && !subject && (!here || here.element === fabTargetAt())))
       return {
@@ -4919,7 +4920,7 @@ ${searchCount(maximum, maximum)}`
 }
 
 // runtime/composing/standing.js
-function createStandingTarget({ isAskControl, standingIn: standingIn2 }) {
+function createStandingTarget({ isItemControl, standingIn: standingIn2 }) {
   return function standingTarget2() {
     const held = focused();
     if (!held || held === document.body) return null;
@@ -4927,7 +4928,7 @@ function createStandingTarget({ isAskControl, standingIn: standingIn2 }) {
     const place2 = placeOf(held);
     if (!place2 || inChrome(place2)) return null;
     if (place2 !== held) return aimTargetAt(place2);
-    const working = isAskControl(held) ? standingIn2() : null;
+    const working = isItemControl(held) ? standingIn2() : null;
     return aimTargetAt(working ?? held);
   };
 }
@@ -5999,7 +6000,7 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   };
 }
 var QUEUE_WORDS = Object.freeze({
-  ask: ["ask", "asks"],
+  widget: ["item", "items"],
   approval: ["approval", "approvals"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
@@ -6007,9 +6008,9 @@ var QUEUE_WORDS = Object.freeze({
   work: ["update with work started", "updates with work started"],
   todo: ["to-do", "to-dos"]
 });
-function queueKinds(items) {
+function queueKinds(items2) {
   const byKind = /* @__PURE__ */ new Map();
-  for (const item of items)
+  for (const item of items2)
     byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
@@ -6018,7 +6019,7 @@ function queueKinds(items) {
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
   const short = agent.length > 12 ? `${agent.slice(0, 11)}\u2026` : agent;
-  const named = (items, whom) => items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
+  const named = (items2, whom) => items2.length ? `Waiting on ${whom}: ${queueKinds(items2).join(", ")}.` : "";
   return {
     summary: onAgent.length ? `On ${short}: ${onAgent.length}` : "",
     explanation: [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" "),
@@ -6029,7 +6030,7 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
 }
 var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "refused", "unreachable", "publication"]);
 function statusModel(status, queues, agent) {
-  const { kind, tone, summary, asks: asks2 = false, publication = null } = status;
+  const { kind, tone, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
   let explanationParts = [...status.explanationParts ?? textParts(explanation)];
   let addsParts = [...status.addsParts ?? textParts(adds)];
@@ -6062,7 +6063,7 @@ function statusModel(status, queues, agent) {
     summaryParts: status.summaryParts ?? textParts(summary),
     explanationParts,
     addsParts,
-    asks: asks2,
+    asks,
     queues: counted.summary,
     queuesWidest: counted.widest,
     explanation,
@@ -7344,14 +7345,14 @@ function stateSignoff(next, syncLayout) {
 }
 var approving = false;
 var versionApproved = readPart(
-  (root2) => root2.effective.asks.all.some(
-    (ask) => ask.source.kind === "approval" && ask.status === "answered"
+  (root2) => root2.effective.items.all.some(
+    (item) => item.source.kind === "approval" && item.status === "answered"
   )
 );
 function approvalWords() {
   const approved = versionApproved();
-  const blockingAsks = approvalBlockingAsks();
-  const reason = approved ? "Approved. Press z to undo while approval is still the latest update" : runtime.currentStamp === null ? "There is no stamped version to approve yet" : !signoff || !pagePresented() || blockingAsks === null ? AWAITING_STATE : blockingAsks.length ? "Answer every open widget before approving this work" : null;
+  const blockingItems = approvalBlockingItems();
+  const reason = approved ? "Approved. Press z to undo while approval is still the latest update" : runtime.currentStamp === null ? "There is no stamped version to approve yet" : !signoff || !pagePresented() || blockingItems === null ? AWAITING_STATE : blockingItems.length ? "Answer every open widget before approving this work" : null;
   return {
     reason: reason ?? (approving ? "Approving this version" : null),
     text: approved ? "\u2713 Version approved" : "Approve version",
@@ -7788,7 +7789,7 @@ function createFloatingPanel({
   threadActions,
   registerChromeThreadPresentation,
   observeFeedback,
-  asks: askView,
+  items: itemView,
   queueActions,
   withdraw,
   settlement
@@ -8339,6 +8340,7 @@ function createFloatingPanel({
     );
     const press = view.querySelector(".lf-fp-new-reply");
     if (!node || !press) return;
+    if (press === focused()) return;
     if (node.getBoundingClientRect().top >= press.getBoundingClientRect().top) return;
     waiting = null;
     paint();
@@ -8860,8 +8862,8 @@ function createFloatingPanel({
       done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab])
     };
   };
-  const answerGesture = (ask) => {
-    const id = ask?.answer?.event?.id ?? ask?.answer?.event;
+  const answerGesture = (item) => {
+    const id = item?.answer?.event?.id ?? item?.answer?.event;
     if (!id) return null;
     const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id
@@ -8870,17 +8872,17 @@ function createFloatingPanel({
   };
   const tabLabel = (tab) => tab === "agent" ? `On ${agentName()}` : "On me";
   function onItemCard(item, list) {
-    const ask = item.kind === "ask" ? item.ask : null;
+    const record = carriesItem(item) ? item.item : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
-    const inWords = ask !== null && askedInWords(ask);
-    const asking = inWords && thread ? thread.msgs.find((candidate) => candidate.id === ask.message) : null;
+    const inWords = record !== null && answeredInWords(record);
+    const asking = inWords && thread ? thread.msgs.find((candidate) => candidate.id === record.message) : null;
     const message = asking && presentation?.primary !== false ? asking : null;
     const title = message ? thread.title ?? (thread.root.id === message.id ? "" : threadName(thread)) : asking ? threadName(thread) : queueTitle(item);
-    const said = message ? "" : asking ? messageReading(asking, { panel: false, reactions: [], workflows: [] }).body.plainText : ask?.prompt?.text;
+    const said = message ? "" : asking ? messageReading(asking, { panel: false, reactions: [], workflows: [] }).body.plainText : record?.prompt?.text;
     const prompt = said && said.trim() !== title.trim() ? said : "";
-    const answered = ask && ask.status !== "open";
-    const choices = ask && !answered && ask.source.kind === "widget" && !inWords ? askView.choicesOf(ask) : null;
-    const gesture = answered ? answerGesture(ask) : null;
+    const answered = record && record.status !== "open";
+    const choices = record && !answered && record.source.kind === "widget" && !inWords ? itemView.choicesOf(record) : null;
+    const gesture = answered ? answerGesture(record) : null;
     const discuss = thread ? html`<button
           type="button"
           class="lf-fp-quiet"
@@ -8893,13 +8895,13 @@ function createFloatingPanel({
       class="lf-fp-quiet"
       @click=${() => {
       close();
-      void (ask ? askView.open(ask.id) : queueActions.open(queueItemKey(item)));
+      void (record ? itemView.open(record.id) : queueActions.open(queueItemKey(item)));
     }}
     >
       Show
     </button>`;
     let answers;
-    if (list === "done" && !ask)
+    if (list === "done" && !record)
       answers = html`<span class="lf-fp-said"
           >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
         >${thread ? discuss : nothing}`;
@@ -8908,14 +8910,14 @@ function createFloatingPanel({
           >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said">${askEnding(ask)}</span>${gesture ? html`<button
+      answers = html`<span class="lf-fp-said">${itemEnding(record)}</span>${gesture ? html`<button
                 type="button"
                 class="lf-fp-quiet"
                 @click=${() => withdraw(gesture)}
               >
                 Undo
               </button>` : nothing}`;
-    else if (ask?.source.kind === "approval") {
+    else if (record?.source.kind === "approval") {
       const approval2 = approvalReading();
       answers = html`<button
         type="button"
@@ -8958,7 +8960,7 @@ function createFloatingPanel({
       </button>`;
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
-    const approval = ask?.source.kind === "approval";
+    const approval = record?.source.kind === "approval";
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
@@ -9000,9 +9002,9 @@ function createFloatingPanel({
       ...current.filter((key) => !(seated ?? []).includes(key))
     ];
     const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
-    const items = seated.map((key) => byKey.get(key));
+    const items2 = seated.map((key) => byKey.get(key));
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
-    return html`${items.length ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
+    return html`${items2.length ? repeat(items2, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
             Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
           </p>`}${finished.length ? html`<h3 class="lf-fp-on-done">Done</h3>
             ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}` : nothing}`;
@@ -10414,9 +10416,9 @@ var ThreadListView = class extends RetainedFace {
     const row = this.#rows.find(
       (row2) => row2.kind === "thread" && this.#views.get(row2.key).ownsMessage(id)
     );
-    if (!row || row.node.hidden) return;
+    if (!row) return;
     this.#select(row.key);
-    this.#showExpanded();
+    if (!row.node.hidden) this.#showExpanded();
   }
   incomingTail(reading, card) {
     const prior = this.committed.rows.find(
@@ -10848,9 +10850,9 @@ function createThreadPanelElements({
   };
 }
 
-// runtime/asks/banner-controls.js
-var FACE_TAG2 = "lf-ask-banner-face";
-var AskBannerFace = class extends RetainedFace {
+// runtime/items/banner-controls.js
+var FACE_TAG2 = "lf-item-banner-face";
+var ItemBannerFace = class extends RetainedFace {
   // The widest words the control reaches below a thousand, so a count changing moves
   // nothing on the row.
   room = "";
@@ -10865,10 +10867,10 @@ var AskBannerFace = class extends RetainedFace {
     return html`<span data-lf-room=${this.room}><span>${this.model.text}</span></span>`;
   }
 };
-if (!customElements.get(FACE_TAG2)) customElements.define(FACE_TAG2, AskBannerFace);
+if (!customElements.get(FACE_TAG2)) customElements.define(FACE_TAG2, ItemBannerFace);
 var face = (control, initial, room) => {
   const owner = (
-    /** @type {AskBannerFace} */
+    /** @type {ItemBannerFace} */
     document.createElement(FACE_TAG2)
   );
   owner.room = room;
@@ -10877,7 +10879,7 @@ var face = (control, initial, room) => {
   control.append(owner);
   return owner;
 };
-function createAskBannerControls(activateBulk) {
+function createItemBannerControls(activateBulk) {
   const bulk = /* @__PURE__ */ new Map();
   function registerBulk(outcome, label2) {
     if (bulk.has(outcome)) return bulk.get(outcome).control;
@@ -10926,11 +10928,11 @@ function createAskBannerControls(activateBulk) {
   });
 }
 
-// runtime/asks/view-elements.js
-var ASK_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
+// runtime/items/view-elements.js
+var ITEM_CONTROL = ":is(button[data-lf-offer], [data-lf-offer][tabindex])";
 
-// runtime/asks/view.js
-function createAskView({
+// runtime/items/view.js
+function createItemView({
   prepareTrip,
   arrive,
   openPageThread,
@@ -10939,62 +10941,62 @@ function createAskView({
   announce: announce2,
   repaint: repaint2
 }) {
-  const askNode = (ask) => askPlace(ask).node;
-  const askRow = (ask) => ask ? rowAt(queueList, ask.id) : null;
-  const sourceNode = (ask) => askPlace(ask).source;
-  const hasAsk = (asks2, candidate) => Boolean(candidate && asks2.some((ask) => ask.id === candidate.id));
-  const unansweredIds = () => new Set(readAsks().unanswered.map(({ id }) => id));
-  const askNodes = (ask) => ({
-    target: askNode(ask),
-    source: sourceNode(ask)
+  const itemNode = (item) => itemPlace(item).node;
+  const itemRow = (item) => item ? rowAt(queueList, item.id) : null;
+  const sourceNode = (item) => itemPlace(item).source;
+  const hasItem = (items2, candidate) => Boolean(candidate && items2.some((item) => item.id === candidate.id));
+  const unansweredIds = () => new Set(readItems().unanswered.map(({ id }) => id));
+  const itemNodes = (item) => ({
+    target: itemNode(item),
+    source: sourceNode(item)
   });
-  const reachAsk = (ask) => {
-    if (ask.thread && !askNode(ask)) showHeld(ask.thread);
-    return askNodes(ask);
+  const reachItem = (item) => {
+    if (item.thread && !itemNode(item)) showHeld(item.thread);
+    return itemNodes(item);
   };
-  const unbuilt = (ask, { target, source }) => (!target || !source) && ask.thread;
-  async function materializeAsk(ask, intent = null) {
-    reachAsk(ask);
-    await openPageThread(ask.message, {
+  const unbuilt = (item, { target, source }) => (!target || !source) && item.thread;
+  async function materializeItem(item, intent = null) {
+    reachItem(item);
+    await openPageThread(item.message, {
       part: "message",
       focus: false,
       travel: false,
       ...intent && { intent }
     });
-    return askNodes(ask);
+    return itemNodes(item);
   }
   const presentedActionControl = (control) => presentedControl?.(control) ?? control;
   const answeringAll = /* @__PURE__ */ new Set();
   const bulkAnswers = /* @__PURE__ */ new Map();
-  const bannerControls = createAskBannerControls(async (outcome) => {
+  const bannerControls = createItemBannerControls(async (outcome) => {
     if (answeringAll.has(outcome)) return;
     answeringAll.add(outcome);
-    void syncAsks();
+    void syncItems();
     try {
-      for (const ask of readAsks().user) {
-        if (askEntry(ask)?.all !== outcome) continue;
-        const nodes = reachAsk(ask);
-        const { source } = unbuilt(ask, nodes) ? await materializeAsk(ask) : nodes;
+      for (const item of readItems().user) {
+        if (itemEntry(item)?.all !== outcome) continue;
+        const nodes = reachItem(item);
+        const { source } = unbuilt(item, nodes) ? await materializeItem(item) : nodes;
         const { tag } = (
           /** @type {{tag?: string}} */
-          ask.source
+          item.source
         );
         await source?.[decisionFor(tag)?.verb]?.(outcome);
       }
     } finally {
       answeringAll.delete(outcome);
-      void syncAsks();
+      void syncItems();
     }
   });
-  const asksRenderer = Object.freeze({ banner: bannerControls });
+  const itemsRenderer = Object.freeze({ banner: bannerControls });
   let mounted = false;
   const presenter = applicationPresenter({
-    region: "asks",
-    renderer: asksRenderer,
-    order: PRESENTATION_ORDER.asks,
+    region: "items",
+    renderer: itemsRenderer,
+    order: PRESENTATION_ORDER.items,
     reading: () => mounted ? true : null,
-    failSoft: failSoftAfterRetention(asksRenderer),
-    paint: (owed, current) => paintAsks(current)
+    failSoft: failSoftAfterRetention(itemsRenderer),
+    paint: (owed, current) => paintItems(current)
   });
   function buildBulkAnswers() {
     for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
@@ -11005,9 +11007,9 @@ function createAskView({
       bulkAnswers.set(outcome, label2);
     }
   }
-  function blanketAnswers(asks2) {
+  function blanketAnswers(items2) {
     return [...bulkAnswers].map(([outcome, label2]) => {
-      const n = asks2.filter((ask) => askEntry(ask)?.all === outcome).length;
+      const n = items2.filter((item) => itemEntry(item)?.all === outcome).length;
       return Object.freeze({
         busy: answeringAll.has(outcome),
         offered: Boolean(n),
@@ -11017,9 +11019,9 @@ function createAskView({
       });
     });
   }
-  async function paintAsks(current) {
+  async function paintItems(current) {
     const bannerModel = Object.freeze({
-      bulk: Object.freeze(blanketAnswers(readAsks().user))
+      bulk: Object.freeze(blanketAnswers(readItems().user))
     });
     repaint2();
     try {
@@ -11034,13 +11036,13 @@ function createAskView({
       } catch (retaining) {
         throw new PresentationRetentionError(
           [error, retaining],
-          "Ask presentation and retention failed"
+          "Item presentation and retention failed"
         );
       }
       throw error;
     }
   }
-  function syncAsks() {
+  function syncItems() {
     return presenter.present();
   }
   let reviewedThrough = null;
@@ -11049,26 +11051,26 @@ function createAskView({
     reviewedThrough = null;
     return false;
   }
-  const askAt = (asks2, node) => askHolding(asks2, placeOf(node));
-  function standingAsk(held = focused()) {
+  const itemAt = (items2, node) => itemHolding(items2, placeOf(node));
+  function standingItem(held = focused()) {
     if (!held || held === document.body) return null;
-    const record = askAt(readAsks().all, held);
+    const record = itemAt(readItems().all, held);
     if (!record) return null;
-    if (readAsks().unanswered.some((ask2) => ask2.id === record.id)) return record;
+    if (readItems().unanswered.some((item2) => item2.id === record.id)) return record;
     const answered = record;
-    const ask = askNode(answered);
-    return held === ask || inChrome(held) && sideOf(held) === ask || hasReviewedFocus() ? answered : null;
+    const item = itemNode(answered);
+    return held === item || inChrome(held) && sideOf(held) === item || hasReviewedFocus() ? answered : null;
   }
-  const standingIn2 = () => askNode(standingAsk());
-  const actionsFor = (source) => decisionControls(commandsWithin(source), `Ask ${source.id}`).filter(
-    ({ source: commandSource, control }) => ownedAskControl(source, commandSource) && control.getAttribute("aria-busy") !== "true"
+  const standingIn2 = () => itemNode(standingItem());
+  const actionsFor = (source) => decisionControls(commandsWithin(source), `Item ${source.id}`).filter(
+    ({ source: commandSource, control }) => ownedItemControl(source, commandSource) && control.getAttribute("aria-busy") !== "true"
   );
-  const actionsOf = (ask) => {
-    const source = ask && sourceNode(ask);
+  const actionsOf = (item) => {
+    const source = item && sourceNode(item);
     return source ? actionsFor(source) : [];
   };
-  function choicesOf(ask) {
-    const source = sourceNode(ask);
+  function choicesOf(item) {
+    const source = sourceNode(item);
     if (!source) return null;
     return actionsFor(source).map(
       ({ id, label: label2, control }) => Object.freeze({
@@ -11079,11 +11081,11 @@ function createAskView({
       })
     );
   }
-  function askContext(origin) {
-    const record = askAt(readAsks().all, hostIn(origin, document));
+  function itemContext(origin) {
+    const record = itemAt(readItems().all, hostIn(origin, document));
     let root2 = null;
     for (let node = origin; record && node; node = upFrom(node)) {
-      if (askAt(readAsks().all, node)?.id !== record.id) break;
+      if (itemAt(readItems().all, node)?.id !== record.id) break;
       root2 = node;
       if (node.hasAttribute("data-lf-thread-surface")) break;
     }
@@ -11093,77 +11095,77 @@ function createAskView({
       declarations: () => {
         const source = sourceNode(record);
         return source ? commandDeclarationsWithin(source).filter(
-          ({ source: commandSource }) => ownedAskControl(source, commandSource)
+          ({ source: commandSource }) => ownedItemControl(source, commandSource)
         ) : [];
       }
     };
   }
   function markHere() {
-    const record = standingAsk();
-    const here = askNode(record);
-    const row = askRow(record);
+    const record = standingItem();
+    const here = itemNode(record);
+    const row = itemRow(record);
     const wearing = new Set(
       here ? [here, ...shownParts(here), ...row ? [row] : []] : []
     );
-    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
-      if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
-    for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.ask, "1");
+    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.item}]`))
+      if (!wearing.has(marked)) marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.item);
+    for (const marked of wearing) keeps(marked, PAGE_PAINT_ATTRIBUTE.item, "1");
   }
   function arrivalFocus(record, review = false) {
-    const ask = askNode(record);
+    const item = itemNode(record);
     const source = sourceNode(record);
-    if (!ask || !source) return null;
-    const target = [...ask.getClientRects()].some((rect2) => rect2.width && rect2.height) ? ask : source.querySelector(ASK_CONTROL) ?? actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ?? source;
+    if (!item || !source) return null;
+    const target = [...item.getClientRects()].some((rect2) => rect2.width && rect2.height) ? item : source.querySelector(ITEM_CONTROL) ?? actionsFor(source).map(({ control }) => presentedActionControl(control))[0] ?? source;
     reviewedThrough = review ? target : null;
     return target;
   }
   function captureStanding() {
     const held = focused(document);
     if (!held || held === document.body || inChrome(held)) return null;
-    return standingAsk()?.id ?? null;
+    return standingItem()?.id ?? null;
   }
-  function restoreStanding(ask) {
-    if (!ask || standingAsk()?.id === ask) return;
-    const record = readAsks().all.find((candidate) => candidate.id === ask);
+  function restoreStanding(item) {
+    if (!item || standingItem()?.id === item) return;
+    const record = readItems().all.find((candidate) => candidate.id === item);
     const target = record && arrivalFocus(record);
     if (target) focusForNavigation2(target, "return");
   }
   const HEADING = "h1,h2,h3,h4,h5,h6";
-  function arrivalRegion(ask, context, standing2) {
-    const declared = context && registry[context.localName]?.["x-ask-context"];
+  function arrivalRegion(item, context, standing2) {
+    const declared = context && registry[context.localName]?.["x-awaits"]?.encloses;
     if (declared && context === standing2) return context;
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
-      const target = shownBox(ask);
-      return start.height > 0 && start.top <= target.top && target.bottom - start.top <= landingRoom(region, ask).height;
+      const target = shownBox(item);
+      return start.height > 0 && start.top <= target.top && target.bottom - start.top <= landingRoom(region, item).height;
     };
-    const seenBy = (block) => hostIn(ask, block.getRootNode());
+    const seenBy = (block) => hostIn(item, block.getRootNode());
     const before = [...document.querySelectorAll(TEXT_BLOCK)].filter((block) => {
       const from = seenBy(block);
-      return from && !inChrome(block) && showsWords(block) && !under(ask, block) && block.parentElement && under(ask, block.parentElement) && from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING;
+      return from && !inChrome(block) && showsWords(block) && !under(item, block) && block.parentElement && under(item, block.parentElement) && from.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_PRECEDING;
     });
     const heading = before.findLast((block) => block.matches(HEADING));
     return [
       declared ? context : null,
       heading,
-      closestAcross(ask, TEXT_BLOCK) ?? before.at(-1)
-    ].find(fits) ?? ask;
+      closestAcross(item, TEXT_BLOCK) ?? before.at(-1)
+    ].find(fits) ?? item;
   }
-  function framed(record, region, ask, box, readable) {
-    return readable(ask) && shownBox(region).top >= landingBand(box).top && actionsOf(record).every(
+  function framed(record, region, item, box, readable) {
+    return readable(item) && shownBox(region).top >= landingBand(box).top && actionsOf(record).every(
       ({ control }) => readable(presentedActionControl(control))
     );
   }
-  async function arriveAtAskNow(next) {
+  async function arriveAtRecordNow(next) {
     const mayArrive = retainUserIntent({
-      available: () => hasAsk(readAsks().all, next)
+      available: () => hasItem(readItems().all, next)
     });
-    const arriveAtAsk2 = bindQueuedWork(arrive);
-    const { target } = next.thread ? await materializeAsk(next, mayArrive) : reachAsk(next);
+    const arriveAtRecord2 = bindQueuedWork(arrive);
+    const { target } = next.thread ? await materializeItem(next, mayArrive) : reachItem(next);
     if (!mayArrive() || !target) return false;
     const destination = () => {
-      const { node: target2, source, context } = askPlace(next);
+      const { node: target2, source, context } = itemPlace(next);
       if (!target2 || !source) return null;
       const box = !inChrome(target2) && scrollerFor(target2);
       return {
@@ -11176,7 +11178,7 @@ function createAskView({
     const initial = destination();
     if (!initial) return false;
     const departure = prepareTrip({
-      landing: () => askNode(next),
+      landing: () => itemNode(next),
       intent: mayArrive
     });
     const moving = Boolean(
@@ -11185,7 +11187,7 @@ function createAskView({
         there: (readable) => framed(next, initial.region, initial.target, initial.box, readable)
       })
     );
-    const arrived = await arriveAtAsk2(
+    const arrived = await arriveAtRecord2(
       () => {
         const here = destination();
         if (!here) return null;
@@ -11194,8 +11196,8 @@ function createAskView({
           where: target2,
           reveal: next.source.id !== next.prompt.target ? [sourceNode(next)] : [],
           focus: arrivalFocus(next, !unansweredIds().has(next.id)),
-          // Reveal the ask through its own inner scrollports before aligning its
-          // context, which may stand outside them. A framed ask requests no motion.
+          // Reveal the item through its own inner scrollports before aligning its
+          // context, which may stand outside them. A framed item requests no motion.
           scroll: !box ? [{ at: target2, behavior: scrollBehavior(), block: "center" }] : moving ? [
             {
               at: target2,
@@ -11213,22 +11215,22 @@ function createAskView({
       }
     );
     if (!arrived) return false;
-    scrollIntoView(askRow(next), { block: "nearest" });
+    scrollIntoView(itemRow(next), { block: "nearest" });
     return true;
   }
-  function arriveAtAsk(next) {
+  function arriveAtRecord(next) {
     if (next.source.kind !== "widget") return Promise.resolve(false);
-    const ready = arriveAtAskNow(next);
+    const ready = arriveAtRecordNow(next);
     void ready.catch(() => {
     });
     return ready;
   }
-  function goToAsk(next, asks2) {
-    const ready = arriveAtAsk(next).then((arrived) => {
+  function goToItem(next, items2) {
+    const ready = arriveAtRecord(next).then((arrived) => {
       if (!arrived) return false;
       const state = unansweredIds().has(next.id) ? "waiting on me" : "answered";
-      const index = asks2.findIndex((ask) => ask.id === next.id);
-      announce2(walkPositionLabel(askWord(next), index + 1, asks2.length, state));
+      const index = items2.findIndex((item) => item.id === next.id);
+      announce2(walkPositionLabel(itemWord(next), index + 1, items2.length, state));
       return true;
     });
     void ready.catch(() => {
@@ -11236,12 +11238,12 @@ function createAskView({
     return ready;
   }
   let stopContextScopes = null;
-  const actionsChanged = () => mounted && void syncAsks();
+  const actionsChanged = () => mounted && void syncItems();
   function mount() {
     if (mounted) return;
     mounted = true;
-    stopContextScopes = contextScopes("While answering", askContext);
-    void syncAsks();
+    stopContextScopes = contextScopes("While answering", itemContext);
+    void syncItems();
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint2);
   }
@@ -11254,20 +11256,20 @@ function createAskView({
     stopContextScopes?.();
     stopContextScopes = null;
     presenter.disconnect();
-    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.ask}]`))
-      marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.ask);
+    for (const marked of document.querySelectorAll(`[${PAGE_PAINT_ATTRIBUTE.item}]`))
+      marked.removeAttribute(PAGE_PAINT_ATTRIBUTE.item);
   }
   return {
     mount,
     destroy,
     buildBulkAnswers,
-    syncAsks,
+    syncItems,
     standingIn: standingIn2,
     captureStanding,
     restoreStanding,
     markHere,
-    arriveAtAsk,
-    goToAsk,
+    arriveAtRecord,
+    goToItem,
     choicesOf
   };
 }
@@ -11281,12 +11283,12 @@ var NOUNS = Object.freeze({
   page: "To-do",
   approval: "Approval"
 });
-var nounOf = (item, stop) => item.kind === "ask" && stop.kind !== "approval" ? askWord(item.ask) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
-var stopOf = (item) => item.kind === "ask" && item.ask.source.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "ask" && item.ask.source.kind === "widget" && !(item.thread !== null && askedInWords(item.ask)) ? { kind: "ask", id: item.id, thread: item.thread, ask: item.ask } : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
+var nounOf = (item, stop) => carriesItem(item) && stop.kind !== "approval" ? itemWord(item.item) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+var stopOf = (item) => item.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.item)) ? { kind: "item", id: item.id, thread: item.thread, item: item.item } : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
 var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 var pageHead = () => [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ?? pageDocument() ?? document.body.firstElementChild;
 function createQueueWalk({
-  arriveAtAsk,
+  arriveAtRecord,
   arriveAtThread: arriveAtThread2,
   threadHere,
   threadPlace,
@@ -11296,7 +11298,7 @@ function createQueueWalk({
   announce: announce2,
   actions
 }) {
-  const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "ask" ? stop.thread !== null ? threadPlace(stop.thread) : askPlace(stop.ask).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
+  const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "item" ? stop.thread !== null ? threadPlace(stop.thread) : itemPlace(stop.item).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
   function stops() {
     const list = [];
     const listed2 = /* @__PURE__ */ new Set();
@@ -11315,8 +11317,8 @@ function createQueueWalk({
     return byRenderedOrder(list, (stop) => stop.place);
   }
   function stopsWithin(region) {
-    const held = new Set(asksIn(region).map((ask) => ask.id));
-    return stops().filter((stop) => stop.kind === "ask" && held.has(stop.id));
+    const held = new Set(itemsIn(region).map((item) => item.id));
+    return stops().filter((stop) => stop.kind === "item" && held.has(stop.id));
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
   function standingStop(list, { place: here, kind } = walkOrigin()) {
@@ -11332,10 +11334,10 @@ function createQueueWalk({
       if (stop) return stop;
     }
     if (!here) return null;
-    const ask = askHolding(readAsks().all, placeOf(here));
-    if (ask) {
+    const item = itemHolding(readItems().all, placeOf(here));
+    if (item) {
       const stop = list.find(
-        (candidate) => candidate.kind === "ask" && candidate.id === ask.id
+        (candidate) => candidate.kind === "item" && candidate.id === item.id
       );
       if (stop) return stop;
     }
@@ -11371,9 +11373,9 @@ function createQueueWalk({
     );
   }
   function arriveAt(stop) {
-    if (stop.kind === "ask") {
-      const record = readAsks().all.find((ask) => ask.id === stop.id);
-      return record ? arriveAtAsk(record) : Promise.resolve(false);
+    if (stop.kind === "item") {
+      const record = readItems().all.find((item) => item.id === stop.id);
+      return record ? arriveAtRecord(record) : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread2(stop.id);
     if (stop.kind === "approval" && presentedApproval())
@@ -11492,20 +11494,20 @@ function createQueueWalk({
   onStanding((node, cause) => {
     if (cause === "step") return;
     const place2 = node && placeOf(node);
-    wentTo = (place2 && askHolding(readAsks().all, place2)?.id) ?? null;
+    wentTo = (place2 && itemHolding(readItems().all, place2)?.id) ?? null;
   });
   function nextWithin({ within, dir = 1 }) {
     if (!(within instanceof Element))
-      throw new TypeError("leaf: askActions.next needs an element `within`");
+      throw new TypeError("leaf: itemActions.next needs an element `within`");
     const here = walkOrigin();
-    const asks2 = asksIn(within);
-    const kept = asks2.find((ask) => ask.id === wentTo);
+    const items2 = itemsIn(within);
+    const kept = items2.find((item) => item.id === wentTo);
     const toward = dir < 0 ? -1 : 1;
     if (under(here.place, within)) return walk(toward, within, here);
     if (kept)
-      return walk(toward, within, { place: askPlace(kept).source, kind: "standing" });
+      return walk(toward, within, { place: itemPlace(kept).source, kind: "standing" });
     const clips = /* @__PURE__ */ new Map();
-    const shown = asks2.map((ask) => askPlace(ask).node).find((node) => node && seenRect(node, clips));
+    const shown = items2.map((item) => itemPlace(item).node).find((node) => node && seenRect(node, clips));
     return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
   }
   return { mount, arriveAtItem, next, nextWithin };
@@ -11551,8 +11553,8 @@ function createQueuePanel({
     if (itself) return `\xA7 ${itself}`;
     if (!thread) {
       const own = elementById(item.subject.id);
-      const ask = own && askHolding(readAsks().all, own);
-      return sectionWords(ask ? askPlace(ask).context : own);
+      const record = own && itemHolding(readItems().all, own);
+      return sectionWords(record ? itemPlace(record).context : own);
     }
     if (!thread.anchor?.section) return "Whole page";
     const about = elementById(thread.anchor.section);
@@ -11561,8 +11563,7 @@ function createQueuePanel({
   }
   const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
-    if (itemNoun(item) === "ask")
-      return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
+    if (carriesItem(item)) return [wherePart(thread && shortAgo(lastMovedAt(thread)))];
     const feedback = item.workflow?.detail && item.workflow.input ? {
       input_id: item.workflow.input,
       reply_id: null,
@@ -11581,16 +11582,16 @@ function createQueuePanel({
     return [];
   }
   function ended(item) {
-    if (item.kind === "ask") return askEnding(item.ask);
+    if (carriesItem(item)) return itemEnding(item.item);
     return [itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ");
   }
   function row(item, list) {
     const thread = threadOf(item.thread);
     const noun = itemNoun(item);
-    const word2 = noun === "ask" ? askWord(item.ask) : wordOf(item, noun);
+    const word2 = carriesItem(item) ? itemWord(item.item) : wordOf(item, noun);
     const where = (list === "done" ? [wherePart(ended(item)), wherePart(place2(item, thread))] : [wherePart(place2(item, thread)), ...when(item, thread)]).filter((part) => part.text);
     const words = queueTitle(item);
-    const at = noun === "ask" || item.kind === "resend" && item.subject.kind === "widget" && item.thread === null ? item.kind === "ask" ? item.ask.id : item.subject.id : null;
+    const at = carriesItem(item) || item.kind === "resend" && item.subject.kind === "widget" && item.thread === null ? carriesItem(item) ? item.item.id : item.subject.id : null;
     return Object.freeze({
       key: `${list}:${noun}:${item.id}`,
       item,
@@ -11736,8 +11737,8 @@ function createQueuePanel({
   queueNextBtn.onclick = () => next();
   declareSide((node) => {
     const at = standsAt(node);
-    const ask = readAsks().all.find((ask2) => ask2.id === at);
-    return ask ? askPlace(ask).node : at ? elementById(at) : null;
+    const item = readItems().all.find((item2) => item2.id === at);
+    return item ? itemPlace(item).node : at ? elementById(at) : null;
   });
   function mount() {
     if (mounted) return;
@@ -12998,7 +12999,7 @@ function declareStanding({ pageState }) {
     if (inChrome(focused(document))) return null;
     const thread = heldThread();
     if (pageSelection() || pageState()) return null;
-    return thread || heldAsk() || !inUi(focused()) ? document.body : null;
+    return thread || heldItem() || !inUi(focused()) ? document.body : null;
   };
   pageScope("standing", {
     title: "Standing on something",
@@ -13349,8 +13350,8 @@ function createNavigation({
 }) {
   const currentItem = () => {
     const at = bannerStanding()?.focus?.deref() ?? focused();
-    const ask = heldAsk(at);
-    if (ask && under(at, ask)) return ask;
+    const item = heldItem(at);
+    if (item && under(at, item)) return item;
     const thread = closestAcross(at, THREAD);
     if (thread) return thread;
     const region = readingRegionFor(at) ?? userReadingRegion();
@@ -13530,7 +13531,7 @@ var drawers2;
 var layout;
 var landing;
 var pageMapDialog;
-var asks;
+var items;
 var panelKeys;
 var pageComment;
 var responseSurface;
@@ -13691,8 +13692,8 @@ var version = createVersionController({
   syncLayout: () => layout.syncLayout(),
   captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
   restoreRetainedStanding: (standing2) => app?.overlay?.restoreStanding(standing2) ?? false,
-  captureAskStanding: () => asks.captureStanding(),
-  restoreAskStanding: (standing2) => asks.restoreStanding(standing2)
+  captureItemStanding: () => items.captureStanding(),
+  restoreItemStanding: (standing2) => items.restoreStanding(standing2)
 });
 var inputs = createCompositionInputs({
   uploadMedia,
@@ -13700,7 +13701,7 @@ var inputs = createCompositionInputs({
 });
 app = mountApplication({
   arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-  nextAskWithin: (options) => queueWalk.nextWithin(options),
+  nextItemWithin: (options) => queueWalk.nextWithin(options),
   panel,
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
@@ -13746,7 +13747,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
-    goToAsk: (...args) => asks.goToAsk(...args)
+    goToItem: (...args) => items.goToItem(...args)
   },
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
@@ -13790,7 +13791,7 @@ pageMapDialog = createPageMapDialog({
   releaseAnnotations: app.overlay?.releaseForMap,
   annotationFocus: app.overlay?.mapFocusTarget
 });
-asks = createAskView({
+items = createItemView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
   prepareTrip: anchorTravel.prepareTrip,
@@ -13801,7 +13802,7 @@ asks = createAskView({
 });
 var queueWalk = createQueueWalk({
   actions: app.queueActions,
-  arriveAtAsk: asks.arriveAtAsk,
+  arriveAtRecord: items.arriveAtRecord,
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
   threadPlace: (id) => app.threadDestinations.threadPlace(id),
@@ -13821,8 +13822,8 @@ var commandHints = createCommandHints({
   presentedControl: (control) => app.overlay?.presentedControl(control) ?? control
 });
 var standingTarget = createStandingTarget({
-  isAskControl: (node) => node?.matches?.(ASK_CONTROL),
-  standingIn: asks.standingIn
+  isItemControl: (node) => node?.matches?.(ITEM_CONTROL),
+  standingIn: items.standingIn
 });
 panelKeys = createThreadPanelKeys({
   elements: panelElements,
@@ -13845,9 +13846,9 @@ var floatingPanel = document.documentElement.lfChrome?.mode === "floating" ? cre
   observeFeedback: app.read.observeFeedback,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-  asks: {
-    choicesOf: asks.choicesOf,
-    open: (id) => app.openAsk(id)
+  items: {
+    choicesOf: items.choicesOf,
+    open: (id) => app.openItem(id)
   },
   queueActions: app.queueActions,
   withdraw: app.withdraw,
@@ -14044,10 +14045,10 @@ goToSequence = createGoToSequence({
   coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface
 });
 var standingPainters = {
-  markHere: asks.markHere,
+  markHere: items.markHere,
   paintStanding: anchorPaint?.paintStanding,
   paintSelectedMarginEntries: () => app.overlay?.paintSelectedMarginEntries([
-    { kind: "ask", target: asks.standingIn() },
+    { kind: "on-me", target: items.standingIn() },
     {
       kind: "comment",
       target: anchorPlacement.placedAt(standingThreadId())?.place
@@ -14120,7 +14121,7 @@ if (!offlineInteractive) {
   anchorControls.mount();
   pageGeometry.mount();
   pageMapDialog.mount(chromeForeground);
-  asks.mount();
+  items.mount();
   queueWalk.mount();
   queue.mount();
   commandHints.mount();
@@ -14229,8 +14230,8 @@ async function startPage() {
   openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {
     layout.syncLayout();
-    asks.buildBulkAnswers();
-    asks.syncAsks();
+    items.buildBulkAnswers();
+    items.syncItems();
   }
   await settlePageInterface();
   landFragment();

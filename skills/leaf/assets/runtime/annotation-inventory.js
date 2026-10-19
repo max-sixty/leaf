@@ -36,7 +36,7 @@ import {
 } from "./thread/workflow.js";
 import { renderedOrder, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
-import { askPlace } from "./asks/place.js";
+import { itemPlace } from "./items/place.js";
 import { scrollBehavior } from "./motion.js";
 import {
   comparisonBase,
@@ -52,17 +52,17 @@ import {
 // commits.
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
-  asks: root.effective.asks,
+  items: root.effective.items,
   workflows: root.effective.workflows,
   revision: root.document.revision,
   todos: root.authoritative?.browser.todos ?? null,
 });
 
 export function createAnnotationInventory({
-  readAsks,
+  readItems,
   placedAt,
   openThread,
-  goToAsk,
+  goToItem,
   scrollToElement,
 }) {
   const humanized = (value) =>
@@ -164,7 +164,7 @@ export function createAnnotationInventory({
   // One group per target, one more for each row inside it that pointing gestures stood
   // threads at (pointed-place.js), and one more for each passage threads quote: those
   // threads stand there together, by what they are about, and everything else about the
-  // target (its other threads, an ask's marker, a widget's actions) keeps the target's
+  // target (its other threads, an item's marker, a widget's actions) keeps the target's
   // own row. `pointed` is `{ key, element, passage, words }`: the row's key (a pointed
   // row's its first comment gave it, a passage's from its words, `passageRow`), the
   // element it is or the passage it stands by (a resolved anchor), and its words, which
@@ -326,24 +326,26 @@ export function createAnnotationInventory({
       );
     }
 
-    // Only a widget ask has a place on the page; the rest have no node.
-    for (const ask of readAsks().user) {
-      const id = ask.id;
-      const target = askPlace(ask).node;
+    // Only a widget item has a place on the page; the rest have no node.
+    for (const item of readItems().user) {
+      const id = item.id;
+      const target = itemPlace(item).node;
       if (!target) continue;
       add(groups, target, {
-        kind: "ask",
-        id: `ask:${id}`,
-        // The group this row stands in already names the ask; the row says why it is
-        // there, since these are the asks the user owes.
+        kind: "on-me",
+        id: `on-me:${id}`,
+        // The group this row stands in already names the item; the row says why it is
+        // there, since these are the items the user owes.
         text: "Waiting on me",
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const asks = readAsks().user.filter((ask) => ask.source.kind === "widget");
-          const next = asks.find((candidate) => candidate.id === id);
-          if (next) goToAsk(next, asks);
+          const items = readItems().user.filter(
+            (item) => item.source.kind === "widget",
+          );
+          const next = items.find((candidate) => candidate.id === id);
+          if (next) goToItem(next, items);
         },
       });
     }

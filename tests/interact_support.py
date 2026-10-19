@@ -195,7 +195,7 @@ def model_layer(*packages: str) -> dict:
 
 
 def queue_board_registry(registry: dict) -> dict:
-    """A page-owned queue asks until all cards leave its Queued column.
+    """A page-owned queue stays an item until all cards leave its Queued column.
 
     Extend the board's position verb with a completion condition to exercise
     answers spanning units without a presentation-specific package.
@@ -504,20 +504,20 @@ def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
     return foreign
 
 
-def vendored_before_the_ask_rename(page_dir: Path) -> None:
-    """Spell `x-ask-context` as `x-question-context`, its name before the rename, in
-    the page's layer and in every registry its revisions captured: in `$keys` and in
-    each entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
+def vendored_before_a_key_rename(page_dir: Path) -> None:
+    """Spell `x-word` as `x-noun`, as if that were its name before a rename, in the
+    page's layer and in every registry its revisions captured: in `$keys` and in each
+    entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
     a page in, at the same protocol; files are replaced rather than written through."""
     for path in [
         page_dir / "registry.json",
         *page_dir.glob("revisions/*/resources/registry.json"),
     ]:
         registry = json.loads(path.read_text(encoding="utf-8"))
-        assert "x-ask-context" in registry["$keys"]
+        assert "x-word" in registry["$keys"]
         for entry in [registry["$keys"], *registry.values()]:
-            if isinstance(entry, dict) and "x-ask-context" in entry:
-                entry["x-question-context"] = entry.pop("x-ask-context")
+            if isinstance(entry, dict) and "x-word" in entry:
+                entry["x-noun"] = entry.pop("x-word")
         path.unlink()
         cleanup_model.write_json(path, registry)
 
@@ -723,7 +723,7 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     registry = files_model.read_json(page_dir / "registry.json")
     registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
     cleanup_model.write_json(page_dir / "registry.json", registry)
-    # An Ask, so a pick answers it; the markup already records that pick, so the
+    # An item, so a pick answers it; the markup already records that pick, so the
     # answer owes no version of its own and only the thread is left to settle.
     source = page_dir / "index.html"
     source.write_text(
@@ -1014,18 +1014,18 @@ def state_json(d):
     return json.loads(result.output)
 
 
-def asks_on_user(state):
-    """Widget asks on the user's list, On me, retaining source and prompt identity."""
+def items_on_user(state):
+    """Widget items on the user's list, On me, retaining source and prompt identity."""
     return [
         {
             "id": item["id"],
-            "tag": item["ask"]["source"]["tag"],
-            "widget": item["ask"]["source"]["id"],
-            "widget_tag": item["ask"]["source"]["tag"],
+            "tag": item["item"]["source"]["tag"],
+            "widget": item["item"]["source"]["id"],
+            "widget_tag": item["item"]["source"]["tag"],
             "thread": item["thread"],
         }
         for item in state["queues"]["on_user"]
-        if item["kind"] == "ask" and item["ask"]["source"]["kind"] == "widget"
+        if item["kind"] == "widget"
     ]
 
 

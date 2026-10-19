@@ -253,7 +253,7 @@ contracts with a deferred record field expose the manifest plus the value file a
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
 element, the `state` and `reports` in force on it, the open `todos` on it,
-the canonical `asks` sourced by it, and the `workflows` it is the subject of, with
+the canonical `items` sourced by it, and the `workflows` it is the subject of, with
 their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored
 id shaped like an event id. Default `page state` thread entries stay compact. Raw

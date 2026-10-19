@@ -7,7 +7,7 @@ import pytest
 from interact_support import append_carried_log_record
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ASK_PAGE, PANEL_PAGE, panel_comment
+from render_cases_interaction import ITEM_PAGE, PANEL_PAGE, panel_comment
 from render_cases_layout import ring_faults, rings_drawn
 from render_harness import (
     example_media,
@@ -26,7 +26,7 @@ from render_harness import (
 
 from browser.margin import (
     CARD_AND_REPLY,
-    COMMENT_ON_ASK,
+    COMMENT_ON_ITEM,
     DRAFTING_CARD,
     LONG_THREAD,
     LONG_THREAD_PAGE,
@@ -544,7 +544,7 @@ def test_the_margin_reply_keeps_its_shape_when_the_user_enters_it(browser, serve
     color_scheme = "light"
     page = open_page(
         browser,
-        serve(ASK_PAGE, events=[COMMENT_ON_ASK]),
+        serve(ITEM_PAGE, events=[COMMENT_ON_ITEM]),
         color_scheme=color_scheme,
     )
     resized(page, 1440, 900)
@@ -710,7 +710,7 @@ def test_anchored_thread_reading_keys_and_page_return(browser, serve):
 )
 def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
     """Sharing the editor's measure, the card holds the sent words inside its scrollport."""
-    page = open_page(browser, serve(ASK_PAGE), init_script=MARGIN_EDITOR_ROOTS)
+    page = open_page(browser, serve(ITEM_PAGE), init_script=MARGIN_EDITOR_ROOTS)
     resized(page, 1200, 900)
     page.evaluate("zoom => document.documentElement.style.zoom = zoom", zoom)
     send_anchored_comment(page, text.rstrip())
@@ -725,12 +725,12 @@ def test_a_sent_comment_keeps_its_text_viewport(browser, serve, text, zoom):
 
 def test_open_reply_keeps_its_top_after_card_moves_to_right_rail(browser, serve):
     """A draft opened below its target keeps its card's top once the rail widens."""
-    sidebar_page = ASK_PAGE.replace(
+    sidebar_page = ITEM_PAGE.replace(
         '<main class="layout-column">',
         '<main class="layout-column"><aside class="sidebar">Page reference</aside>',
         1,
     )
-    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ASK]))
+    page = open_page(browser, serve(sidebar_page, events=[COMMENT_ON_ITEM]))
     resized(page, 1200, 900)
     page.locator('.lf-margin-marker[data-lf-kinds="comment"]').click()
     preview = page.locator(".lf-margin-preview")

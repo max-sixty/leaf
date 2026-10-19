@@ -1,4 +1,4 @@
-"""`WorkReading`: the to-dos, asks, plan and workflows one document and its log hold.
+"""`WorkReading`: the to-dos, items, plan and workflows one document and its log hold.
 
 Its readings come from the event log and one revision's document and registry.
 Admission builds it against the newest revision, under the registry of the page that
@@ -12,9 +12,9 @@ state. A `WorkReading` lasts for one transaction and is never written to disk.
 
 from functools import cached_property
 
-from .asks import collection, replied, thread_ask_readings
 from .document_reading import read_document
 from .events import approvals_in_force, build_threads
+from .items import collection, replied, thread_item_readings
 from .plans import plan_reading
 from .projection import frozen_thread_reading
 from .read_state import content_version
@@ -46,8 +46,8 @@ class WorkReading:
     def viewing(self, page) -> "WorkReading":
         """This log read beside another revision's document, as a view pinned to that
         revision shows it. That revision captured its frozen thread widgets under its
-        own registry, so their decisions, the asks they answer and the attention those
-        asks give a thread are classified under it, as the page's own are. The threads
+        own registry, so their decisions, the items they answer and the attention those
+        items give a thread are classified under it, as the page's own are. The threads
         themselves fold as every reading of them does, under the published page's
         containment (`events.build_threads`)."""
         if page is self.page:
@@ -71,8 +71,8 @@ class WorkReading:
         )
 
     @cached_property
-    def widget_asks(self) -> dict:
-        return thread_ask_readings(
+    def widget_items(self) -> dict:
+        return thread_item_readings(
             self.events,
             self.registry,
             self.threads,
@@ -81,37 +81,37 @@ class WorkReading:
         )
 
     @property
-    def asks(self) -> dict:
-        return self.widget_asks
+    def items(self) -> dict:
+        return self.widget_items
 
     @cached_property
     def prompts(self) -> dict:
         """Each thread's question the user owes words to: the latest open
-        reply-answered ask on them there, by its message and that message's content
+        reply-answered item on them there, by its message and that message's content
         version, which the thread's head marks Waiting on me."""
         prompts = {}
-        for ask in self.widget_asks["user"]:
-            if not replied(self.registry[ask["source"]["tag"]]):
+        for item in self.widget_items["user"]:
+            if not replied(self.registry[item["source"]["tag"]]):
                 continue
             message = next(
                 message
-                for message in self.threads[ask["thread"]]["msgs"]
-                if message["id"] == ask["message"]
+                for message in self.threads[item["thread"]]["msgs"]
+                if message["id"] == item["message"]
             )
-            held = prompts.get(ask["thread"])
+            held = prompts.get(item["thread"])
             if held is None or held[0]["seq"] < message["seq"]:
-                prompts[ask["thread"]] = (message, ask)
+                prompts[item["thread"]] = (message, item)
         return {
             thread: {"message": message["id"], "version": content_version(message)}
-            for thread, (message, _ask) in prompts.items()
+            for thread, (message, _item) in prompts.items()
         }
 
     @cached_property
-    def all_asks(self) -> dict:
+    def all_items(self) -> dict:
         return collection(
             [
-                *(self.document.asks["all"] if self.document is not None else []),
-                *self.asks["all"],
+                *(self.document.items["all"] if self.document is not None else []),
+                *self.items["all"],
             ]
         )
 
@@ -137,13 +137,13 @@ class WorkReading:
             page=self.page,
             events=self.events,
             todo_reading=self.log,
-            asks=self.all_asks,
+            items=self.all_items,
         )
 
     @cached_property
     def plan(self) -> dict | None:
         return plan_reading(
-            self.events, self.log.withdrawn, self.log.todos, self.all_asks["all"]
+            self.events, self.log.withdrawn, self.log.todos, self.all_items["all"]
         )
 
     def page_todos(self, aged: list[dict]) -> list[dict]:

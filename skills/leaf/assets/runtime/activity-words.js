@@ -91,7 +91,7 @@ const publicationWords = (published) => [
 ];
 
 // The updates an open turn picked up, by kind: a comment in a thread, or an answer to an
-// ask. A lone update is the user's own; several are counted.
+// item. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "the comment" : "the answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -338,7 +338,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
 // as the Threads control is for "Threads: 999", and only grows, so a count changing
 // moves none of its words.
 const QUEUE_WORDS = Object.freeze({
-  ask: ["ask", "asks"],
+  widget: ["item", "items"],
   approval: ["approval", "approvals"],
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],

@@ -230,7 +230,7 @@ test("attention names the outstanding question rather than the latest message", 
     seq: 2,
   });
   const source = servedThread([question, followup], {
-    attention: { kind: "needs_user", reason: "ask", workflow: null },
+    attention: { kind: "needs_user", reason: "widget", workflow: null },
     user_prompt: { message: "question", version: "question" },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
@@ -340,12 +340,12 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(transition(resolved, "waiting", "user").status, "open");
   assert.equal(transition(DEFAULT_INTENT, "status", "open"), DEFAULT_INTENT);
 
-  const onUser = { kind: "needs_user", reason: "ask" };
+  const onUser = { kind: "needs_user", reason: "widget" };
   // A thread the agent has started a move in: the card says Working, so the agent
   // filter lists it.
   const claimed = { kind: "waiting", reason: "workflow", workflow: "working" };
   const threads = [
-    { ...recentThread("asks", "2026-03-01T00:00:00Z"), attention: onUser },
+    { ...recentThread("items", "2026-03-01T00:00:00Z"), attention: onUser },
     { ...recentThread("working", "2026-03-01T00:00:00Z"), attention: claimed },
     {
       ...recentThread("closed", "2026-03-01T00:00:00Z"),
@@ -358,7 +358,7 @@ test("narrowing transitions reset what they contradict and counts name each subs
   const model = narrowingReading(DEFAULT_INTENT, threads, places);
   assert.deepEqual(
     model.shown.map((thread) => thread.id),
-    ["asks", "working"],
+    ["items", "working"],
   );
   const amounts = Object.fromEntries(
     model.presentation.groups.flatMap((group) =>

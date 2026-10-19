@@ -142,7 +142,7 @@
 #    This comment fits in one reading, shown here as the wait prints it:
 #
 #      {
-#        "format": "leaf-delivery/8",
+#        "format": "leaf-delivery/9",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
 #        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's updates read Sent rather than Picked up. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
@@ -825,7 +825,7 @@ pick on the page:
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
-        It answers the page's ask, which shows as waiting on you until the markup
+        It answers the page's item, which shows as waiting on you until the markup
         records the answer. Name the work it selects or unblocks with `leaf task
         start <page> <event-id> "<the work, in a line>"` before starting it; then
         do it, write the answer in, and stamp a version. An option the user added
@@ -855,7 +855,7 @@ option the user added:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This action owes no answer of its own: it answers no ask, a later action
+        This action owes no answer of its own: it answers no item, a later action
         on the same widget carries the answer, or the answer is not complete yet,
         as with a pick before the Done its group waits for.
 
@@ -878,7 +878,7 @@ pick before Done:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This action owes no answer of its own: it answers no ask, a later action
+        This action owes no answer of its own: it answers no item, a later action
         on the same widget carries the answer, or the answer is not complete yet,
         as with a pick before the Done its group waits for.
 
@@ -904,7 +904,7 @@ decided suggestion:
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
-        It answers the page's ask, which shows as waiting on you until the markup
+        It answers the page's item, which shows as waiting on you until the markup
         records the answer. Name the work it selects or unblocks with `leaf task
         start <page> <event-id> "<the work, in a line>"` before starting it; then
         do it, write the answer in, and stamp a version. An option the user added

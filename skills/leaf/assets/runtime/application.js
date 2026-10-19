@@ -14,7 +14,7 @@ import {
   readPart,
 } from "./semantic-state.js";
 import { announce } from "./notifications.js";
-import { askedInWords, readAsks } from "./asks/model.js";
+import { answeredInWords, readItems } from "./items/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
@@ -96,7 +96,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "asks", "queue"],
+        ["projection:chrome", "thread", "items", "queue"],
         stillCurrent,
       ),
     ]);
@@ -105,7 +105,7 @@ export function mountApplication(dependencies) {
     const released = ledger
       .releasable()
       .filter((entry) => attempts.has(entry.event.attempt));
-    // Widget updates and the thread, projection, and ask owners have now committed
+    // Widget updates and the thread, projection, and item owners have now committed
     // this surviving semantic reading; removing an accounted record is a semantic no-op,
     // and a key whose liveness read the record hears it leave through its own reading.
     if (!released.length) return false;
@@ -247,10 +247,10 @@ export function mountApplication(dependencies) {
   };
 
   const annotations = createAnnotationInventory({
-    readAsks,
+    readItems,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
-    goToAsk: dependencies.annotationCommands.goToAsk,
+    goToItem: dependencies.annotationCommands.goToItem,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -613,21 +613,21 @@ export function mountApplication(dependencies) {
     threadActions,
     queueActions,
     settlement: settlementView,
-    openAsk(id) {
-      const ask = readAsks().all.find((item) => item.id === id);
-      if (!ask) return Promise.resolve(false);
-      if (ask.source.kind === "approval")
-        return queueActions.open(JSON.stringify(["ask", ask.id]));
-      if (ask.thread !== null && askedInWords(ask)) {
-        showHeld(ask.thread);
-        return threadDestinations.openPageThread(ask.message, {
+    openItem(id) {
+      const item = readItems().all.find((item) => item.id === id);
+      if (!item) return Promise.resolve(false);
+      if (item.source.kind === "approval")
+        return queueActions.open(JSON.stringify(["approval", item.id]));
+      if (item.thread !== null && answeredInWords(item)) {
+        showHeld(item.thread);
+        return threadDestinations.openPageThread(item.message, {
           part: "message",
         });
       }
-      return dependencies.annotationCommands.goToAsk(ask, readAsks().all);
+      return dependencies.annotationCommands.goToItem(item, readItems().all);
     },
     // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
-    nextAsk: (options) => dependencies.nextAskWithin(options),
+    nextItem: (options) => dependencies.nextItemWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
   };
@@ -656,9 +656,9 @@ export const threadActions = Object.freeze({
   reopen: (...args) => app().threadActions.reopen(...args),
   setReaction: (...args) => app().threadActions.setReaction(...args),
 });
-export const askActions = Object.freeze({
-  open: (...args) => app().openAsk(...args),
-  next: (...args) => app().nextAsk(...args),
+export const itemActions = Object.freeze({
+  open: (...args) => app().openItem(...args),
+  next: (...args) => app().nextItem(...args),
 });
 export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),

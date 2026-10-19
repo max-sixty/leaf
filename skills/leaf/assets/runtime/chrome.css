@@ -1318,8 +1318,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-[data-lf-ask] {
-  outline: var(--lf-ask-ring, var(--focus-ring));
+[data-lf-item] {
+  outline: var(--lf-item-ring, var(--focus-ring));
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-landing);
 }
@@ -1340,7 +1340,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
 }
 @scope (.lf-chrome) {
-  lf-ask-banner-face,
+  lf-item-banner-face,
   lf-leaves-banner-face {
     display: contents;
   }
@@ -2084,7 +2084,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     flex: none;
     margin: 4px 6px 0 0;
   }
-  .lf-queue-row:is([data-lf-focus], [data-lf-ask]),
+  .lf-queue-row:is([data-lf-focus], [data-lf-item]),
   .lf-queue-done > summary[data-lf-focus] {
     outline: var(--focus-ring);
     outline-offset: calc(-1 * var(--focus-ring-w));

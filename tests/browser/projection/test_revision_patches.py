@@ -8,8 +8,8 @@ from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
 from render_cases_layout import banner_control
 from render_harness import (
     EXAMPLE_PACKAGES,
-    expect_asks_answered,
     expect_banner_control_offered,
+    expect_items_answered,
     leaf_page,
     open_page,
     round_trip,
@@ -994,9 +994,10 @@ def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
     expect(editor).to_have_attribute("placeholder", "New instruction")
 
 
-def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, serve):
-    """Retained Ask descriptors follow the incoming document's order, and plain declared
-    elements a revision removes leave the semantic document with their upgraded owner."""
+def test_a_live_revision_reorders_the_page_and_item_inventory_together(browser, serve):
+    """Retained item descriptors follow the incoming document's order, and plain
+    declared elements a revision removes leave the semantic document with their upgraded
+    owner."""
 
     def question(identity, label):
         return f"""<lf-ask id="{identity}-ask"><h2>{label}?</h2>
@@ -1018,7 +1019,7 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
         "<p>The third decision is gone.</p>",
     )
     page = open_page(browser, live_url(serve(first)))
-    expect_asks_answered(page, "0/3")
+    expect_items_answered(page, "0/3")
     banner_control(page, ".lf-queue").click()
     rows = page.locator(".lf-queue-row")
     expect(rows).to_have_count(3)

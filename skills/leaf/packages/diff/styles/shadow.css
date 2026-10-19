@@ -142,7 +142,7 @@
    row that cuts its path short says it (`data-path-cut`, lf-diff.js), since a path the
    row shows whole would read twice. It is drawn in a box under the row, over the rows
    the row names, so nothing moves and the row keeps its stated height. Under the row,
-   the box stays clear of the banner when the row is pinned, and of a finger pressing
+   the box stays clear of the window's top when the row is pinned, and of a finger pressing
    the row from below. It wraps after the path's slashes (`data-path`, lf-diff.js) and
    ends at the row's end. A press shows it once held; focus shows it at once,
    whether the user arrived by pointer or keyboard. The row and the file's frame clip
@@ -394,19 +394,18 @@
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-/* The file header pins at the top of what scrolls it while its own rows go past, which is
-   the thread list's answer to the same question — the name of the part you are reading has
-   to be on screen for the whole of it, not only at its start. Forty-six files at
-   thirty-two thousand pixels is that list's four-thousand-pixel run with a nought on it:
-   opening one file and reading down it left nothing on screen saying which file it was.
-   The slot is `--lf-top`, inherited through this boundary: below the banner and any
+/* The file header pins at the top of what scrolls it while its own rows go past: the name
+   of the part you are reading has to be on screen for the whole of it, not only at its
+   start. At forty-six files over thirty-two thousand pixels, opening one file and reading
+   down it left nothing on screen saying which file it was.
+   The slot is `--lf-top`, inherited through this boundary: below the head room and any
    sticky header under it where the window scrolls, and the pane's own top edge where a workspace
    pane does (layouts.css), so the header stops where the box holding it starts showing
    rows. The header stacks too, so the file's fold, which does not itself scroll, takes
    `--lf-top` past it from the value the file met (`--lf-top-outer`), and the header
    keeps that value. Opaque already (the summary's
    background), because the rows pass underneath it.
-   Screen only: paper has no banner and no scroll to pin against. And only where the module says the page's own scroller is the
+   Screen only: paper has no scroll to pin against. And only where the module says the page's own scroller is the
    one underneath — a diff in a reply scrolls in the panel's list rather than in the
    document. */
 @media screen {
@@ -431,8 +430,8 @@
   }
 }
 /* The room that header takes, so a landing arrives below it rather than behind it. The
-   scroller's `scroll-padding` clears what stands over the whole of it, the banner and a
-   page tab strip; this is the rest of the same sum. Only where the header pins: unpinned,
+   scroller's `scroll-padding` clears what stands over the whole of it, the head room and
+   a page tab strip; this is the rest of the same sum. Only where the header pins: unpinned,
    it covers nothing. The code's sideways scroller is a tab stop of its own, and its focus
    clears the header and the ring's landing room beside it; as a box that scrolls it starts
    `--lf-top` again for what it holds, so the layer's reading of the headers over it

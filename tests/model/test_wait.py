@@ -131,7 +131,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     assert page_state(page_dir)["activity"]["detail"] == "revising the plan"
 
     # A worker's report wakes the watcher like a user event — it is the
-    # orchestrator's to fold into a version — but the user's banner count
+    # orchestrator's to fold into a version — but the user's On me count
     # deliberately leaves it out: a report is news the agent owes the page, not
     # something the user owes an answer.
     append_carried_log_record(

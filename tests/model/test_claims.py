@@ -164,7 +164,7 @@ def test_a_codex_session_id_with_no_codex_above_it_is_refused(page_dir, monkeypa
 
 
 def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkeypatch):
-    """What tells one leaf from another on the drawer is the work behind it, which
+    """What tells one leaf from another in All pages is the work behind it, which
     neither the title somebody wrote nor the state directory nobody chose says — so
     the claim records the directory the claiming command ran in, the same reading
     `layer_dirs` already takes cwd to be. Every seat gets it through `presence`, and a
@@ -423,7 +423,7 @@ def test_the_codex_environment_defaults_the_name_but_a_worker_keeps_its_own(
 def test_hook_remedies_follow_the_harness_not_the_display_name(
     tmp_path, under_codex, codex_env, capsys
 ):
-    """LEAF_AGENT names the voice the banner and threads show; which
+    """LEAF_AGENT names the voice the panel and threads show; which
     machinery the hook prescribes (unified exec vs background tasks) keys on the
     recorded harness, so a renamed Codex worker still gets Codex remedies."""
     page = tmp_path / "worker-page"

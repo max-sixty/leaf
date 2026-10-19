@@ -70,7 +70,7 @@ const STACK = [
   "draw mode",
   "design mode",
   PAGE,
-  // Outermost, so a page command still ranks ahead of the way out on the line.
+  // Outermost, so a page command still ranks ahead of the way out.
   RUNGS,
 ];
 
@@ -101,14 +101,13 @@ const PAGE_COMMANDS = [
   "reading.align.top",
   "thread.unread.first",
   "navigation.panel.threads",
-  "navigation.drawer.queue",
-  "navigation.drawer.leaves",
+  "navigation.panel.queue",
+  "navigation.panel.leaves",
   "navigation.page-map",
   "version.open",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
-  // them: on a narrow window the sequence hides a second way to somewhere the user can
-  // already get to, where a walk it crowded out would be the only one.
+  // them: a second way to somewhere the user can already get to.
   "navigation.go-to.open",
   "draw.mode.enter",
   "capture.region.open",
@@ -116,8 +115,7 @@ const PAGE_COMMANDS = [
   "annotations.toggle",
   "panel.floating.fold",
   COMMAND_REFERENCE,
-  // A real key the browser owns, and one gesture that is not a key at all. Neither says a
-  // word for the line, so neither is ever promised as the next press.
+  // A real key the browser owns, and one gesture that is not a key at all.
   "browser.caret",
   "aim.comment",
 ];
@@ -202,10 +200,10 @@ function rung() {
   const holds = (step) => renderedUnder(step.root ?? document, surface);
   return (surface && steps.find(holds)) ?? steps[0] ?? null;
 }
-// The page's own Escape, said and run off that one object: each rung states the act, the
-// word the line paints over it, and the sentence the reference lists. The sentence is the
-// rung's for the reason `c`'s is the destination's — the user can see which branch they
-// are in, so a word covering all of them tells them nothing.
+// The page's own Escape, said and run off that one object: each rung states the act, its
+// word, and the sentence the reference lists. The sentence is the rung's for the reason
+// `c`'s is the destination's — the user can see which branch they are in, so a word
+// covering all of them tells them nothing.
 const BACK_OUT = {
   id: "navigation.back",
   keys: ["Escape"],

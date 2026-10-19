@@ -701,7 +701,7 @@ LONG_LINE_DIFF_PAGE = leaf_page(
 )
 
 # The same review as the body of a workspace pane, where the pane's body is the box that
-# scrolls the rows rather than the window under the banner.
+# scrolls the rows rather than the window.
 PANE_DIFF_PAGE = leaf_page(
     "pane patch",
     "<header><h1 id='t'>Review</h1></header>"

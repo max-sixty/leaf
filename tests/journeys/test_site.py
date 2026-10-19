@@ -294,7 +294,7 @@ def active_revision_directory(page_dir):
 def opened(page, url):
     """A navigation this module makes for itself, waiting on what `open_page` waits
     on — the document's stamp and the log's — since a page at the first alone has a
-    banner the user would not recognize (tests/AGENTS.md)."""
+    chrome the user would not recognize (tests/AGENTS.md)."""
     navigate(page, url, wait_until="load")
 
 
@@ -525,7 +525,7 @@ def test_a_crawler_is_given_one_page_per_route(site):
         if page["kind"] == "product":
             # Whoever draws the card draws it at 1.91:1 and centre-crops whatever it
             # is given, so a picture of another shape arrives with a band off the top
-            # and the bottom. The product shot lost its banner that way: the version
+            # and the bottom. The product shot lost its chrome that way: the version
             # control, the approval, the thread count, every part of the picture that
             # says the page is live.
             with Image.open(assets / page["image"].lstrip("/")) as card:

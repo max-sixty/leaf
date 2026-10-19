@@ -56,11 +56,11 @@ export function keyBadgePlacement() {
 
   // What the user can see of a box: the window.
   //
-  // Chrome at the foot stays in it, so a map's members are never decided by it: the bar
-  // states the armed map's own keys and changes width as the user filters them, so a map
-  // that read it would lose members as it armed and swap codes as its own legend grew. A
-  // chip that would land there is moved by the placement pass instead (`spreadHints`,
-  // hints.js), which keeps the route where dropping the member loses it.
+  // Chrome at the foot stays in it, so a map's members are never decided by it: the
+  // floating panel's row states the armed map's filter and changes as the user types it,
+  // so a map that read it would lose members as it armed and swap codes as its own
+  // legend grew. A chip that would land there is moved by the placement pass instead
+  // (`spreadHints`, hints.js), which keeps the route where dropping the member loses it.
   const clearBox = (box, sourceTop = box?.top) => {
     if (!box) return null;
     const { left, top, right, bottom } = intersect(box, room);
@@ -136,11 +136,10 @@ export function keyBadgePlacement() {
   // a panel, a fixed sheet or an ordinary page box covers a member without clipping
   // its rectangle. Ask the rendered stack inside the box, and make the member itself answer,
   // a cover being exactly the case where something else does. Most chrome answers, which is
-  // how a card behind the open panel leaves the map; the bar and the status line take no
-  // presses, so they never do, which is why a member behind them keeps its letter and its
-  // chip moves clear. A hint layer takes none either, so a chip cannot answer for the
-  // member under it. A box with no member of its own — a Range's, which may run across
-  // several blocks — takes any page element, no one element owning the whole box.
+  // how a card behind the open panel leaves the map. A hint layer takes no presses, so a
+  // chip cannot answer for the member under it. A box with no member of its own — a
+  // Range's, which may run across several blocks — takes any page element, no one element
+  // owning the whole box.
   const exposes = (member, box, exposure = "across") => {
     if (!box) return false;
     // Ask inside a box the member actually paints. Its bounds are not always one of them:

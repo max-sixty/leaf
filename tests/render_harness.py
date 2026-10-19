@@ -2177,7 +2177,7 @@ def live_leaf(tmp_path, monkeypatch):
             "t",
         )
         declare_work(d, "running the suite")
-        # A live leaf has a session behind it, and what the drawer's hover says about a
+        # A live leaf has a session behind it, and what All pages says on hover about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
         record_claim(

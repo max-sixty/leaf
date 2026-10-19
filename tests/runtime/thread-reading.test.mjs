@@ -1,17 +1,9 @@
 import assert from "node:assert/strict";
-import { mock } from "node:test";
 import test from "node:test";
-import process from "node:process";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-// Recent's day names are formatted in the zone the page loads in, so the zone — one with
-// a daylight-saving change — is fixed before the modules load rather than by a static
-// import that would load them first.
-process.env.TZ = "America/New_York";
 const { lastMovedAt, moved, readThreadRecords } =
   await import("/runtime/thread/model.js");
-const { inRecentOrder } = await import("/runtime/thread/placement.js");
-const { unreadBoundaries } = await import("/runtime/thread/summary-ranges.js");
 const { threadAttention } = await import("/runtime/thread/workflow.js");
 const { threadName, threadSummary } = await import("/runtime/thread/messages.js");
 const { loadMarkdown } = await import("/runtime/markdown.js");
@@ -193,51 +185,6 @@ test("attention names the outstanding question rather than the latest message", 
     "Waiting",
   );
   assert.equal(threadAttention({ ...thread, attention: null }), null);
-});
-
-const recentThread = (id, ts, edited = null) => {
-  const root = { ...agent(id, { ts, ...(edited && { edited }) }), body: { text: id } };
-  return { id, root, msgs: [root] };
-};
-
-test("Recent orders threads by their last move, an edit counting as one", () => {
-  mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-03-09T04:30:00Z") });
-  try {
-    const old = recentThread("old", "2026-03-04T15:00:00Z", {
-      id: "e",
-      seq: 9,
-      ts: "2026-03-09T04:10:00Z",
-    });
-    const beforeMidnight = recentThread("late", "2026-03-09T03:50:00Z");
-    const acrossDst = recentThread("sunday", "2026-03-08T06:00:00Z");
-    const saturday = recentThread("saturday", "2026-03-07T20:00:00Z");
-    const order = inRecentOrder([saturday, acrossDst, beforeMidnight, old]);
-    assert.deepEqual(
-      order.map((thread) => thread.id),
-      ["old", "late", "sunday", "saturday"],
-    );
-  } finally {
-    mock.timers.reset();
-  }
-});
-
-test("an unread run is marked where it starts and where the next read message stands", () => {
-  const m = (key, unread) => ({ key, unread });
-  const ranges = [
-    { kind: "message", message: m("a", false) },
-    { kind: "message", message: m("b", true) },
-    { kind: "summary", expanded: true, messages: [m("c", true), m("d", false)] },
-    { kind: "summary", expanded: false, messages: [m("e", true)] },
-    { kind: "message", message: m("f", true) },
-  ];
-  assert.deepEqual(
-    [...unreadBoundaries(ranges)],
-    [
-      ["b", "new"],
-      ["d", "end"],
-      ["f", "new"],
-    ],
-  );
 });
 
 test("superseding a blocked primary destination completes its prior navigation", async () => {

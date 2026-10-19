@@ -162,7 +162,7 @@ def test_the_prompt_hook_opens_the_turn_on_every_page_the_session_holds(
     claimed, tmp_path, capsys
 ):
     """A delivery is not the only observable opening, and it is not the one the
-    banner sends the user to. The `quiet` banner says to nudge in the terminal;
+    panel sends the user to. The `quiet` status says to nudge in the terminal;
     a user who does that answers where no batch is written, so no transport ever
     hands one over and nothing would clear the stamp — the page would go on telling
     them to do the thing they just did.

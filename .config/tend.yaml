@@ -6,8 +6,8 @@ codex:
 merge: yolo
 
 # Use the same toolchain and dependency setup as the test job and local checkouts.
-# This runs on the trusted checkout before the agent starts; the action keeps
-# Worktrunk on the job's PATH so the agent can run `wt setup` again after edits.
+# This runs on the trusted checkout before the sandbox starts: system package
+# installation needs privileges the agent does not have.
 setup:
   - uses: ./.github/actions/setup
   # The `tend` environment's Cloudflare token reads every Worker's logs and

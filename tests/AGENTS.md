@@ -49,13 +49,16 @@ arrangements, not probabilities**), and fix that cause.
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22.18 or newer, and the pnpm
 version `package.json` pins. `wt setup` installs the browsers, their Linux
 libraries and fonts, the example assets and the Node dependencies; `uv run` syncs
-Python. Worktrunk starts setup in the background when it creates a worktree; run
-`wt setup` before testing to wait for it and see failures. A plain clone starts
-it with `wt setup` too. CI and Tend install the host tools and run the same alias
-through `.github/actions/setup/action.yaml` before tests or the agent start.
+Python. CI and Tend install the host tools and run the same alias through
+`.github/actions/setup/action.yaml` before tests or the agent start.
+
+In local checkouts, run `wt setup` before testing to wait for any background
+preparation and see failures. Worktrunk starts it when creating a worktree; a
+plain clone uses the same alias. Tend agents run the selected tests directly in
+their prepared environment: setup's system package installation needs privileges
+unavailable inside the sandbox.
 
 ```sh
-wt setup
 uv run pytest tests/browser/widgets/test_boards.py -q -n0 -k lifecycle  # the tests a change needs
 pnpm run test:runtime                 # tests/runtime/, under Node
 uv run pytest tests                  # broad selection; the landing gate runs it (root AGENTS.md, "Working on the repository")

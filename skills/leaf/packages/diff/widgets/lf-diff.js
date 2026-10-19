@@ -103,7 +103,8 @@ const OPTIONS = Object.freeze({
 // Prose files usually keep a paragraph on one source line. Let the file path choose
 // the reading mode unless the page author chose one for the entire patch.
 const overflowFor = (path, authored) =>
-  authored ?? (langForPath(path) === "markdown" || /\.txt$/i.test(path) ? "wrap" : "scroll");
+  authored ??
+  (langForPath(path) === "markdown" || /\.txt$/i.test(path) ? "wrap" : "scroll");
 
 // The records every source form renders from, in the shape of the contract's file
 // manifest. A patch text is parsed once, strictly, so a malformed hunk never becomes

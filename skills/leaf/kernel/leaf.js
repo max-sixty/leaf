@@ -4285,7 +4285,20 @@ pageSearchStatus.setAttribute("role", "status");
 pageSearchStatus.slot = "end";
 var pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
-pageSearchInput.append(pageSearchStatus);
+var matchStep = (icon, name2) => {
+  const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
+  control.type = "button";
+  control.tabIndex = -1;
+  control.slot = "end";
+  control.append(iconElement(icon, "lf-action-icon"));
+  control.setAttribute("aria-label", name2);
+  control.title = name2;
+  control.addEventListener("mousedown", (event) => event.preventDefault());
+  return control;
+};
+var previousMatchControl = matchStep("up", "Previous match");
+var nextMatchControl = matchStep("down", "Next match");
+pageSearchInput.append(pageSearchStatus, previousMatchControl, nextMatchControl);
 pageSearchSurface.append(pageSearchInput);
 var noMatches = "No matches";
 var searchCount = (position, total) => `${position} of ${total}`;
@@ -4736,18 +4749,19 @@ ${searchCount(maximum, maximum)}`
       {
         id: "page.search.match.walk",
         keys: ["Tab", "Shift+Tab"],
+        touch: false,
         routes: [
           {
             id: "page.search.match.previous",
             binding: "Shift+Tab",
             title: "Go to the previous search match",
-            touch: "Previous"
+            control: previousMatchControl
           },
           {
             id: "page.search.match.next",
             binding: "Tab",
             title: "Go to the next search match",
-            touch: "Next"
+            control: nextMatchControl
           }
         ],
         title: "matches",

@@ -1,10 +1,10 @@
 /* What a visible control says about the key that reaches it.
 
    A control the keyboard reaches names its shortcut from the row, never from a sentence
-   written beside it: `control` is where a row says which control it duplicates, and this
-   projection follows liveness too, so a disabled obligation does not advertise a shortcut the
-   dispatcher has withdrawn. A row inside a sequence scope carries that sequence's steps,
-   so a destination reached through `g` says the whole shortcut.
+   written beside it: `control` is where a row, or one route of it, says which control it
+   duplicates, and this projection follows liveness too, so a disabled obligation does not
+   advertise a shortcut the dispatcher has withdrawn. A row inside a sequence scope carries
+   that sequence's steps, so a destination reached through `g` says the whole shortcut.
 
    This pass is the one writer of such a control's `title`. The control's owner names it
    in `data-lf-key-title`, and a static control's first title is taken as that name, so
@@ -14,7 +14,16 @@
    `keeps` and says nothing where the control already says it. Restated title or shortcut
    metadata is news to whatever is reading the page — the mutation stream a screen reader
    rebuilds its buffer from. */
-import { ariaShortcuts, bindings, labelOf, live, word } from "./bindings.js";
+import {
+  ariaShortcuts,
+  bindings,
+  commandAvailable,
+  commandRoutes,
+  labelOf,
+  live,
+  spell,
+  word,
+} from "./bindings.js";
 import { pageScopes } from "./register.js";
 import { buttonCommand } from "./scopes.js";
 import { keeps } from "../keeps.js";
@@ -23,7 +32,6 @@ const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ??
 // The presses that reach a row, each spelled as a key chip spells it: a step is one
 // press, so a label's own words never split into steps.
 const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boolean);
-const shortcutIn = (scope, row) => stepsIn(scope, row).join(" ");
 
 /** The complete shortcut one command advertises, each press a step as a key chip
  * spells it, for a presentation that draws a command as words with its keys
@@ -38,41 +46,53 @@ export function commandSteps(id) {
   return [];
 }
 
-// Each visible control a page row names, with the row that reaches it.
+// Each visible control a page row names, or one of its routes does, with the press that
+// reaches it: a route's control names that route's binding alone.
+function* namedControls(row) {
+  if (row.control)
+    yield {
+      control: row.control,
+      active: live(row) && bindings(row).length > 0,
+      press: labelOf(row),
+      shortcuts: () => ariaShortcuts([row], false),
+    };
+  for (const route of commandRoutes(row))
+    if (route.control)
+      yield {
+        control: route.control,
+        active: commandAvailable(row, route) && bindings(row).includes(route.binding),
+        press: spell(route.binding),
+        shortcuts: () => ariaShortcuts([{ keys: [route.binding] }], false),
+      };
+}
+
 function controlRows() {
   const controls = new Map();
   for (const scope of pageScopes())
-    for (const row of scope?.rows ?? []) {
-      const control = word(row.control);
-      if (!control) continue;
-      const active = live(row) && bindings(row).length > 0;
-      const prior = controls.get(control);
-      // One native control may also have an unbound semantic route for reference
-      // activation. Project it once, preferring the live keyboard presentation;
-      // the unbound row must not erase that route or rewrite its title each frame.
-      if (!prior || (!prior.active && active))
-        controls.set(control, { scope, row, active });
-    }
+    for (const row of scope?.rows ?? [])
+      for (const named of namedControls(row)) {
+        const control = word(named.control);
+        if (!control) continue;
+        const prior = controls.get(control);
+        // One native control may also have an unbound semantic route for reference
+        // activation. Project it once, preferring the live keyboard presentation;
+        // the unbound row must not erase that route or rewrite its title each frame.
+        if (!prior || (!prior.active && named.active))
+          controls.set(control, { scope, ...named });
+      }
   return controls;
 }
 
 export function paintCoreControls() {
-  for (const [control, { scope, row, active }] of controlRows()) {
+  for (const [control, { scope, active, press, shortcuts }] of controlRows()) {
     if (!("lfKeyTitle" in control.dataset)) control.dataset.lfKeyTitle = control.title;
-    keeps(
-      control,
-      "title",
-      control.dataset.lfKeyTitle + (active ? ` (${shortcutIn(scope, row)})` : ""),
-    );
+    const steps = [...stepsBefore(scope), press].filter(Boolean).join(" ");
+    keeps(control, "title", control.dataset.lfKeyTitle + (active ? ` (${steps})` : ""));
     // Native command buttons receive exact reachable shortcuts from command-hints.
     if (buttonCommand(control)) continue;
     // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
     // alternatives. The complete sequence remains in the overlay, tooltip, and
     // accessible command reference instead of claiming its final press works alone.
-    keeps(
-      control,
-      "aria-keyshortcuts",
-      active && !scope.sequence ? ariaShortcuts([row], false) : null,
-    );
+    keeps(control, "aria-keyshortcuts", active && !scope.sequence ? shortcuts() : null);
   }
 }

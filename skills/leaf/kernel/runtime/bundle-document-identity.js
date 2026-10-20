@@ -265,6 +265,8 @@ import {
   clippedPlace,
   clipsPastSurfaces,
   closeNativeLayer,
+  commandAvailable,
+  commandRoutes,
   completeData,
   countTraffic,
   dataHeaders,
@@ -316,6 +318,7 @@ import {
   shownBox,
   shownWindow,
   skipped,
+  spell,
   tagsDeclaring,
   union,
   watchOwner,
@@ -2086,40 +2089,49 @@ function watchProjection(owner, paint, ready = null) {
 // runtime/keyboard/control-keys.js
 var stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
 var stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boolean);
-var shortcutIn = (scope, row) => stepsIn(scope, row).join(" ");
 function commandSteps(id) {
   for (const scope of pageScopes())
     for (const row of scope?.rows ?? [])
       if (row.id === id && bindings(row).length) return stepsIn(scope, row);
   return [];
 }
+function* namedControls(row) {
+  if (row.control)
+    yield {
+      control: row.control,
+      active: live(row) && bindings(row).length > 0,
+      press: labelOf(row),
+      shortcuts: () => ariaShortcuts([row], false)
+    };
+  for (const route of commandRoutes(row))
+    if (route.control)
+      yield {
+        control: route.control,
+        active: commandAvailable(row, route) && bindings(row).includes(route.binding),
+        press: spell(route.binding),
+        shortcuts: () => ariaShortcuts([{ keys: [route.binding] }], false)
+      };
+}
 function controlRows() {
   const controls = /* @__PURE__ */ new Map();
   for (const scope of pageScopes())
-    for (const row of scope?.rows ?? []) {
-      const control = word(row.control);
-      if (!control) continue;
-      const active = live(row) && bindings(row).length > 0;
-      const prior = controls.get(control);
-      if (!prior || !prior.active && active)
-        controls.set(control, { scope, row, active });
-    }
+    for (const row of scope?.rows ?? [])
+      for (const named of namedControls(row)) {
+        const control = word(named.control);
+        if (!control) continue;
+        const prior = controls.get(control);
+        if (!prior || !prior.active && named.active)
+          controls.set(control, { scope, ...named });
+      }
   return controls;
 }
 function paintCoreControls() {
-  for (const [control, { scope, row, active }] of controlRows()) {
+  for (const [control, { scope, active, press, shortcuts }] of controlRows()) {
     if (!("lfKeyTitle" in control.dataset)) control.dataset.lfKeyTitle = control.title;
-    keeps(
-      control,
-      "title",
-      control.dataset.lfKeyTitle + (active ? ` (${shortcutIn(scope, row)})` : "")
-    );
+    const steps = [...stepsBefore(scope), press].filter(Boolean).join(" ");
+    keeps(control, "title", control.dataset.lfKeyTitle + (active ? ` (${steps})` : ""));
     if (buttonCommand(control)) continue;
-    keeps(
-      control,
-      "aria-keyshortcuts",
-      active && !scope.sequence ? ariaShortcuts([row], false) : null
-    );
+    keeps(control, "aria-keyshortcuts", active && !scope.sequence ? shortcuts() : null);
   }
 }
 

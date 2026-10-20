@@ -40,8 +40,9 @@ def served(page, url: str, path: str, timeout_ms: int | None = None):
 
 
 def answer_reports(page, heard) -> None:
-    """Answer here each event the page sends without a gesture, so a reading neither
-    writes to the page's log nor draws the refusal a read-only server gives the post.
+    """Answer here the events the runtime sends on its own, an error report and a
+    bookkeeping event, so a reading neither writes to the page's log nor draws the
+    refusal a read-only server gives the post.
 
     An error the page reports to its agent hands its text to `heard`. A bookkeeping
     event, such as the `read` a page sends once it has shown an agent message whole,

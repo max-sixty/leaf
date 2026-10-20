@@ -231,7 +231,7 @@ ELEVATION_SHADOWS = """() => {
   // A height is written from its drop and blur tokens (theme.css), so those read as
   // the lengths they hold, and a rule spelling a lift from them is still a lift.
   const theme = getComputedStyle(document.documentElement);
-  const parts = (value) => value.replace(/var\((--raise-\d-(?:drop|blur))\)/g,
+  const parts = (value) => value.replace(/var\\((--raise-\\d-(?:drop|blur))\\)/g,
     (_, name) => theme.getPropertyValue(name).trim());
   const found = [];
   const eaten = new Set();

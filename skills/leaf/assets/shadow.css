@@ -1528,6 +1528,7 @@ button.lf-media-open {
   outline: var(--focus-ring);
   outline-offset: 0;
   border-color: transparent;
+  --lf-wears-ring: 1;
 }
 .lf-response-control {
   filter: drop-shadow(var(--raise-1));

@@ -457,7 +457,8 @@ def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
 
 def test_a_resolved_thread_can_be_reopened(browser, serve):
     """Reopening is a logged transition: the thread returns to the open list with
-    its reply and resolve controls."""
+    its reply and resolve controls, and the caret in its reply, so what the user types
+    next is their reply."""
     page = open_page(browser, serve(LONG_PAGE, comments=18))
     comment = next(
         e["id"]
@@ -475,7 +476,10 @@ def test_a_resolved_thread_can_be_reopened(browser, serve):
         settle.click()
     expect(view).to_be_visible()
     expect(settle).to_have_text("Resolve", use_inner_text=True)
-    expect(page.locator(PANEL_REPLY)).to_be_visible()
+    reply = page.locator(PANEL_REPLY)
+    expect(reply).to_be_focused()
+    page.keyboard.type("Back to this.")
+    expect(reply).to_have_js_property("value", "Back to this.")
     expect_open_threads(page, 18)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
 

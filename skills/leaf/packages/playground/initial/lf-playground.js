@@ -140,6 +140,27 @@ function render(host, { tabStore, offer, keeps }) {
   };
   const interactive = !host.closest("[data-lf-exhibit]");
   host.classList.toggle("lf-playground-quoted", !interactive);
+  // A quotation draws no controls, so a box the preview wrote around them alone, at
+  // any depth, would stand empty; it is marked to hide with them (theme.css). A box
+  // that also holds words or another element keeps them.
+  if (!interactive) {
+    const bare = new Set(controls);
+    const holdsOnlyBare = (box) =>
+      [...box.childNodes].every((child) =>
+        child.nodeType === Node.TEXT_NODE
+          ? !child.data.trim()
+          : child.nodeType === Node.COMMENT_NODE || bare.has(child),
+      );
+    for (const control of controls)
+      for (
+        let box = control.parentElement;
+        box !== preview && box !== host && !bare.has(box) && holdsOnlyBare(box);
+        box = box.parentElement
+      ) {
+        bare.add(box);
+        box.classList.add("lf-playground-control-box");
+      }
+  }
   const inputs = new Map(),
     presetButtons = new Map(),
     regions = [];
@@ -272,11 +293,13 @@ function render(host, { tabStore, offer, keeps }) {
     const split = node("div", "lf-playground-split");
     // The rail's controls pane holds the controls written there and the presets; a
     // playground whose every control stands in its preview and that offers no preset
-    // has none.
+    // has none. The rail is the Layout's track (`data-lf-track`, layouts.css) wherever
+    // the theme stands it beside the stage, so it scrolls as a region of its own.
     if (!railed.length && presetBar)
       split.append(pane("controls", "Controls", null, presetBar));
-    split.append(
-      pane("preview", "Preview", null, previewBody),
+    const rail = node("div", "lf-playground-rail");
+    rail.dataset.lfTrack = "";
+    rail.append(
       ...(railed.length ? [pane("controls", "Controls", presetBar, panel)] : []),
       pane(
         "instruction",
@@ -290,6 +313,8 @@ function render(host, { tabStore, offer, keeps }) {
         actions,
       ),
     );
+    regions.push({ name: "rail", host: rail, body: rail });
+    split.append(pane("preview", "Preview", null, previewBody), rail);
     host.append(split);
   }
   const setInput = (control, value) => {

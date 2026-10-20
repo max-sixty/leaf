@@ -56,7 +56,6 @@ import {
   paintKeys,
   quoted,
   sendDraft,
-  notice,
   raiseError,
   commands,
   copyBlock,
@@ -319,6 +318,7 @@ customElements.define(
         verb: "edit",
         detail: { value: text },
         ...(attempt && { attempt }),
+        says: `Edited “${this.id}”`,
       });
     }
 
@@ -413,9 +413,7 @@ customElements.define(
       this.#sending = false;
       this.removeAttribute("aria-busy");
       this.#paintTools();
-      if (ok) {
-        notice(`Edited “${this.id}” — sent`);
-      } else {
+      if (!ok) {
         const stored = loadEdit(this.id);
         // Null means the same shared generation was settled by the other tab while
         // this one waited to send. Its action will replay this body, so do

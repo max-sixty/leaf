@@ -88,7 +88,7 @@ import {
 } from "./margin-placement.js";
 import { clamp, clippingAxes, overlaps, union } from "../rect.js";
 import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js";
-import { residencyStarted } from "../content-layout.js";
+import { railStands } from "../content-layout.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { move } from "../dom-move.js";
 import { LAYOUT } from "../widget-elements.js";
@@ -260,9 +260,6 @@ function carrierAnchor(subject, sources, scroller) {
 // The margin follows `main` or, on a page without one, the body.
 export const marginColumn = () => layoutBox() || document.body;
 
-const railStands = (main) =>
-  (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
-
 // The rail lies beside the column, so it stands beside the rows of what flows in the
 // column: the document's own, and a bounded block's, which scrolls inside the document
 // as a paragraph does. A pane is not in that flow, so its rows pin wherever it stands.
@@ -365,19 +362,8 @@ function samePassage(passage, words) {
   );
 }
 
-// Said on the chrome root where the margin's residency is decided: where the markers are
-// pins, the floating panel offers the Page Map in their place. Until the residency
-// is decided it says nothing, rather than one answer the decision then takes back.
 export function syncMarginResidency(changed) {
-  paintPins();
   if (changed) scheduleMarginLayout();
-}
-function paintPins() {
-  if (!residencyStarted()) return;
-  const main = layoutBox();
-  layer?.root
-    .closest(".lf-chrome")
-    .toggleAttribute("data-lf-pins", !main || !railStands(main));
 }
 
 const labelRect = (name, left, top, label) => ({
@@ -482,7 +468,6 @@ export function scheduleMarginEntryLabels() {
 // here, rather than per lane: a table or a board scrolled sideways is no lane of its own.
 export function mountMarginLayer(root) {
   layer = { root, lanes: new Map(), sizes: sizeObserver(layoutMarginRows) };
-  paintPins();
   hearTargetChanges(document);
 }
 

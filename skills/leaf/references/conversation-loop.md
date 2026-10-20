@@ -79,13 +79,24 @@ refuses. Housekeeping such as re-vendoring, restarting the server, or merging ne
 no to-do.
 
 When the work runs to several steps, some of which may wait on the user, write your plan
-so the user can follow it in the panel's Plan tab: the goal, its steps in order, the one
-under way, and those waiting on them. `leaf task plan <page>` takes the whole outline as
-a JSON list of steps: the goal at depth 0, each step one deeper than the step it belongs
-to, and each either a `title` and `state` or the `item` it names. Make each step that
-stays owed past your turn a to-do or item the plan names by id, so it follows that
-item's state; a plain step's state is yours to keep current. Write the plan again when a
-step finishes or the breakdown changes.
+before you start the first step, so the user can follow it in the panel's Plan tab: the
+goal, its steps in order, the one under way, and those waiting on them.
+`leaf task plan <page>` reads the whole outline from stdin as a JSON list of steps: the
+goal at depth 0, each step one deeper than the step it belongs to, and each either a
+`title` with a `state` (`open`, `working`, `done` or `dropped`) or the `item` it names:
+
+```bash
+leaf task plan <page> <<'EOF'
+[{"depth": 0, "title": "Move the billing exports", "state": "working"},
+ {"depth": 1, "item": "<to-do id>"},
+ {"depth": 1, "item": "widget:<widget-id>"},
+ {"depth": 1, "title": "Retire the old export job", "state": "open"}]
+EOF
+```
+
+Make each step that stays owed past your turn a to-do or item the plan names by id, so
+it follows that item's state; a plain step's state is yours to keep current. Write the
+plan again when a step finishes or the breakdown changes.
 
 When input arrives:
 

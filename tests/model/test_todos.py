@@ -434,6 +434,13 @@ def test_a_plan_arranges_todos_items_and_plain_steps_without_owning_them(page_di
         outline.write_text(json.dumps(steps))
         [refused] = command_findings("task", "plan", page_dir, "--file", outline)
         assert refused.code == code
+    # A step close to one of the two shapes is refused at the field it gets wrong.
+    outline.write_text(json.dumps([{"depth": 0, "title": "Ship", "state": "active"}]))
+    [unknown] = command_findings("task", "plan", page_dir, "--file", outline)
+    assert (unknown.code, unknown.values["field"]) == (
+        "invalid-event",
+        "/steps/0/state",
+    )
     written(plan([]))
     assert state_json(page_dir)["plan"] is None
 

@@ -556,10 +556,7 @@
     padding-block: max(5px, (var(--aim-floor) - 1lh) / 2 - 4px)
       max(7px, (var(--aim-floor) - 1lh) / 2 - 2px);
   }
-  :scope:is(lf-tabs):not([list="side"])
-    > .lf-tabstrip
-    .lf-tab-btn
-    > .lf-tab-name {
+  :scope:is(lf-tabs):not([list="side"]) > .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom: 2px solid transparent;
     background: transparent;
   }

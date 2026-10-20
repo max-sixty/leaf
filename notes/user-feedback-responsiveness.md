@@ -112,8 +112,8 @@ says which route a run took, and `uv run leaf-dev profile corpus revision` gives
 the browser's tasks. Fifteen paired runs over three invocations at load 4–7 on 18
 cores, on `e440ca191` against its merge base `f38882d51`:
 
-| Route | Merge base  | Head        | Head's parts                                                   |
-| ----- | ----------- | ----------- | -------------------------------------------------------------- |
+| Route | Merge base  | Head        | Head's parts                                                     |
+| ----- | ----------- | ----------- | ---------------------------------------------------------------- |
 | Save  | 0.89–1.11 s | 0.64–0.79 s | state read and activation 285–310 ms, document 65, patch 215–255 |
 | Stamp | 1.77–2.09 s | 1.11–1.22 s | stamp's lock until 550–640 ms, state read 225–270, patch 230–265 |
 

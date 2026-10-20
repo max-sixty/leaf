@@ -1773,7 +1773,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
             {"parent": "comment", "responds": "comment"},
             service_model.delivery_reply_attempt("delivery-1"),
             None,
-            "",
+            "First visible",
             "active",
         )
         page.set_stream_reply(
@@ -1787,6 +1787,14 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
         )
         reply = page.status["stream"]["reply"]
 
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == "comment"
+    assert marker["attempt"] == reply["attempt"]
+    assert marker["turn"] == "turn-1"
+    assert "text" not in marker
+    assert reply["text"] == "Now visible"
     assert reply["ts"] == created.isoformat()
     assert reply["updated_at"] == refreshed.isoformat()
     projected = activity_model.canonical_stream_reply(

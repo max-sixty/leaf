@@ -519,7 +519,9 @@ class PageTransaction:
             {**stream, "reply_reservations": reservations}, previous, reply
         )
 
-    def _publish_stream_reply(self, stream: dict, previous: dict, reply: dict) -> None:
+    def _publish_stream_reply(
+        self, stream: dict, previous: dict | None, reply: dict
+    ) -> None:
         """Publish provisional words and record their availability, not visibility.
 
         A nonblank transition records no text. Reconnects may repeat it; readers
@@ -527,9 +529,10 @@ class PageTransaction:
         """
         self._write_stream({**stream, "reply": reply})
         if reply["text"].strip() and (
-            not previous.get("text", "").strip()
+            previous is None
+            or not previous["text"].strip()
             or any(
-                previous.get(key) != reply[key]
+                previous[key] != reply[key]
                 for key in ("session", "turn", "attempt", "responds")
             )
         ):

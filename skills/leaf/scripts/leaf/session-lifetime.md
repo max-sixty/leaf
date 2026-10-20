@@ -53,8 +53,13 @@ within the working grace. The harness's record adds the two things no hook sees,
 only when newer than what it contradicts: an `idle` newer than every renewal ends the
 open turn (an interrupt), and a `waiting` newer than the stamps is a dialog open now,
 observed as `awaiting_user` since the record does not say whether it asks for
-approval or an answer. Its `busy` is never read, since a background job's record
-keeps it across turn endings. Browser-event admission reads the same turn before it
+approval or an answer. Its `busy` never says a turn runs, since Claude Code's record
+keeps it across a turn's ending while the background subagents that turn left run
+(a background shell leaves it `shell`, read as `idle`). After a turn the stamps
+closed, `busy` says the session works on: the status reads working, observed as
+`working` in the background, for as long as the record stays `busy`. The record
+doesn't say which turn left that work, so the ended turn's starts are dropped as
+usual. Browser-event admission reads the same turn before it
 nudges a session (`presence.claimant_reading`), and nudges only after an ending
 something saw: a turn Leaf merely stopped believing in may still be running a long
 step.

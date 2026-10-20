@@ -402,7 +402,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
         Escape ends a turn without running the Stop hook, and the record turns
         `idle` at that moment (measured at Claude Code 2.1.283). `busy` is weaker:
         a background job's record stays `busy` across turn endings while its
-        background work runs, so it does not prove a turn is running. The record
+        background work runs, so it does not prove a turn is running; after a turn
+        ends, it says work continues (`activity.Turn.background`). The record
         belongs to the worker hosting the session's current sitting, so a
         background job whose worker has retired has none."""
         stamped = [

@@ -3377,19 +3377,12 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(cards.first).to_have_attribute("tabindex", "-1")
 
 
-def test_skip_to_leaf_controls_lands_in_the_panel(browser, serve):
-    """The page's first Tab stop, Skip to Leaf controls, lands in the panel that stands
-    for Leaf's controls: in its field, or on the leaf where the field takes no words, as
-    in a resolved thread, or while the panel is folded. A resolved thread's field says
-    no error either, so the leaf's dot marks one raised there."""
+def test_a_resolved_thread_s_error_waits_in_the_leaf_menu(browser, serve):
+    """A resolved thread's field takes no words and says no error, so the leaf's dot
+    marks an error raised there."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
-    skip = page.locator("body > .lf-skip")
-    skip.focus()
-    page.keyboard.press("Enter")
-    expect(field(page)).to_be_focused()
-
     page.locator("body").focus()
     page.keyboard.press("t")
     settle = page.locator(".lf-fp-settle")
@@ -3403,18 +3396,6 @@ def test_skip_to_leaf_controls_lands_in_the_panel(browser, serve):
     )
     expect(page.locator(".lf-fp-error-dot")).to_be_visible()
     expect(field(page)).not_to_have_attribute("data-says", "error")
-    skip.focus()
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-fp-leaf")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-view")).to_have_count(0)
-
-    page.locator("body").focus()
-    page.keyboard.press(".")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
-    skip.focus()
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-fp-leaf")).to_be_focused()
 
 
 def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser, serve):

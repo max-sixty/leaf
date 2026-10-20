@@ -34,12 +34,13 @@ may title an untitled thread from your opening message, and that title stays.
 If the user resolves the thread before the turn completes, your reply still posts and
 reopens it. Other updates in the slice take the commands their `handling` names.
 
-Before finishing a turn that changed `index.html`, run `leaf page check <page>` and fix
-every error. If Leaf refuses to post your final message, it starts a correction turn
-with the error and the same reply address; fix the problem and complete the answer.
-Leaf also withholds the final message of a turn that carries a message the user sent
-in Codex, since that answer was written for the user's message too, and starts a
-correction turn for the delivery the same way.
+Your final message publishes your saved page edits with it, so end the turn without
+running `leaf page check` first. If Leaf refuses to post it, as it does over a saved
+edit with errors, it starts a correction turn with the error and the same reply
+address; fix the problem and complete the answer. Leaf also withholds the final
+message of a turn that carries a message the user sent in Codex, since that answer
+was written for the user's message too, and starts a correction turn for the delivery
+the same way.
 
 A `leaf-delivery` pointer queued before Leaf saw the task can still arrive as a user
 message. Read it with `leaf delivery read <id>` and follow its instruction; its reply has

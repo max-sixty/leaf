@@ -54,20 +54,6 @@ def color_cue_markup():
     )
 
 
-# Where the user is standing, in the terms the next Tab is decided by: the document
-# position of the focused element, and whether it is the first stop in the document.
-STANDING = """() => {
-  const at = document.activeElement;
-  const first = document.querySelector('.lf-skip');
-  return {
-    name: at?.className || at?.tagName || 'nothing',
-    isFirstStop: at === first,
-    top: at ? at.getBoundingClientRect().top : null,
-    inChrome: Boolean(at?.closest?.('.lf-chrome')),
-  };
-}"""
-
-
 # The keyboard walk's position, the reading the panel says in its field's place
 # (walk-position.js, `walkPosition`): `{text, kind, boundary}`, or null with no walk
 # under way. Evaluating it leaves a synchronous reader for `wait_for_function`.

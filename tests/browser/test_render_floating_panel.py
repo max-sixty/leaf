@@ -3583,9 +3583,7 @@ def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     view = page.locator(".lf-fp-view[data-view=threads]")
     expect(view).to_be_visible()
     field(page).click()
-    for n in range(40):
-        page.keyboard.type(f"Line {n} of a long draft")
-        page.keyboard.press("Shift+Enter")
+    page.keyboard.insert_text("".join(f"Line {n} of a long draft\n" for n in range(40)))
     page.locator(".lf-fp-head .lf-fp-expand").click()
     settled(page)
     head = page.locator(".lf-fp-head").bounding_box()

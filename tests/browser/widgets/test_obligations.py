@@ -99,7 +99,7 @@ ACROSS_WIDE_OBLIGATION_PAGE = leaf_page(
 )
 
 
-PICTURED_ITEM = """
+PICTURED_OBLIGATION = """
   <lf-ask id="{id}">
     <h3>Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice" choose{width}>
@@ -119,21 +119,21 @@ PICTURED_ITEM = """
 """
 
 
-PICTURED_ITEM_PAGE = leaf_page(
+PICTURED_OBLIGATION_PAGE = leaf_page(
     "options holding their pictures",
     "<h1>Plan context</h1>"
-    + PICTURED_ITEM.format(id="pictured", width="")
-    + PICTURED_ITEM.format(id="widened", width=' data-width="wide"'),
+    + PICTURED_OBLIGATION.format(id="pictured", width="")
+    + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"'),
 )
 
 
 def test_options_holding_pictures_lay_across(browser, serve):
-    """An item whose options each hold a picture of what choosing it gives, with no
-    figure before them, sets the cards side by side, so each picture stands over its
-    own pick and the two compare in one row, though each is wrapped in a link. A group given
-    `data-width` lays them across its own width, where each picture draws at the size
-    it was written."""
-    page = open_page(browser, serve(PICTURED_ITEM_PAGE))
+    """An obligation whose options each hold a picture of what choosing it gives, with
+    no figure before them, sets the cards side by side, so each picture stands over its
+    own pick and the two compare in one row, though each is wrapped in a link. A group
+    given `data-width` lays them across its own width, where each picture draws at the
+    size it was written."""
+    page = open_page(browser, serve(PICTURED_OBLIGATION_PAGE))
     resized(page, 1440, 900)
     at = page.evaluate(
         """() => Object.fromEntries(['pictured', 'widened'].map((id) => {

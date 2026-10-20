@@ -6988,9 +6988,10 @@ function createFloatingPanel({
     if (press?.landed) queueMicrotask(() => judgePress(press));
   });
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
+  const overPanel = (node) => Boolean(node) && nativeModalAdmits(node) && !nativeModalAdmits(host);
   onStanding((node, cause) => {
     const top = trail.value.at(-1);
-    if (top?.view !== "thread" || cause === "drop") return;
+    if (top?.view !== "thread" || cause === "drop" || overPanel(node)) return;
     const view = openView();
     const writing2 = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
     if (writing2 === rewriting) return;
@@ -8661,6 +8662,7 @@ function createFloatingPanel({
     true
   );
   onStanding((node, _cause, left) => {
+    if (overPanel(node)) return;
     if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
       setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);

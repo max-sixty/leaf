@@ -3403,13 +3403,20 @@ def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
 
 
 def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
-    """Typing puts Send where the counts stood, and a press that takes the caret away
+    """Typing puts Send where the counts stood, wearing every composer's accent arrow
+    rather than the panel's own press face, and a press that takes the caret away
     brings the counts back while the words stay where they were."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
     page.keyboard.type("Could the rollback cover the weekend?")
     send = page.locator(".lf-fp-send")
     expect(send).to_be_visible()
+    accent = page.evaluate(
+        "() => { const probe = document.createElement('span'); probe.style.color = 'var(--accent)';"
+        " document.body.append(probe); const seen = getComputedStyle(probe).color;"
+        " probe.remove(); return seen; }"
+    )
+    expect(send).to_have_css("color", accent)
     expect(page.locator(".lf-fp-on-user")).to_be_hidden()
     settled(page)
     words = field(page).bounding_box()

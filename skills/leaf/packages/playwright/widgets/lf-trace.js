@@ -13,11 +13,12 @@
  * Viewer.js owns image inspection.
  *
  * Words at rest are the recording's facts, not how to read them. Times count from
- * the recording's start, which a reader assumes, so the point's heading says so only
- * on hover; a basis that departs from it, the first captured event or a clock per
- * stream, stands under the heading. The zoom readout is the scale alone, since the
- * image's grab cursor says it drags and its accessible name says how keys pan it.
- * Rejected (2026-10-19): a muted line saying each of these at rest.
+ * the recording's start, which a reader assumes, so nothing says so; a basis that
+ * departs from it, the first captured event or a clock per stream, stands under the
+ * point's heading. The zoom readout is the scale alone, since the image's grab
+ * cursor says it drags and its accessible name says how keys pan it. Rejected
+ * (2026-10-19): a muted line saying each of these at rest, and the default basis as
+ * the heading's hover title, which neither a key nor a finger reaches.
  *
  * The playhead is a time. The shown evidence is the latest capture at or before
  * it. A checkpoint with an image stands at that image's capture time, which ends
@@ -1840,7 +1841,8 @@ customElements.define(
           ? "Loading captured image…"
           : "No captured image at this point.";
       const playLabel = this.#playing ? "Pause" : "Play";
-      // What the times count from; the header's "Words at rest" says where it shows.
+      // What the times count from, said only where it departs from the recording's
+      // start (the header's "Words at rest").
       const fromStart =
         origin &&
         origin.recordedStart !== null &&
@@ -2130,11 +2132,7 @@ customElements.define(
                 ${ref(this.#actionDetails)}
                 .textContent=${metadataAction?.title ?? ""}
               ></p>
-              <h3
-                class="lf-trace-phase"
-                title=${origin ? clockLabel : nothing}
-                ${ref(this.#phaseHeading)}
-              >
+              <h3 class="lf-trace-phase" ${ref(this.#phaseHeading)}>
                 ${
                   metadataAction
                     ? `${PHASES[metadataPoint.phase]}${metadataAction.phases[metadataPoint.phase] ? " checkpoint" : ""} · ${this.#time(metadataPoint.timestamp, metadataAction.stream)}`

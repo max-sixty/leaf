@@ -69,9 +69,10 @@ has tried; settle that before building it.
 - **#28 — Finish the floating panel.** The floating panel, rebuilt on 12 October to
   the sketch the user configured ([its goal](notes/floating-panel/GOAL.md), "The
   overhaul"), is Leaf's only chrome since 16 October, when the banner, the bottom
-  bar and the switch between them went. Work through its remaining list. The phone
-  waits until the desktop design is firm, and where a passage thread opens from
-  Threads waits until later.
+  bar and the switch between them went. Every follow-up the user named has landed, so
+  the item waits on the user's review of the desktop design. The phone waits until
+  the desktop design is firm, and where a passage thread opens from Threads waits
+  until later.
 - **Say when a held-news notice holds more than it shows.** A notice in a seat's
   head row keeps the width of the news it first said (`data-lf-room`) and shows each
   fact whole or not at all (`newsNotice`), so "1 new reply" with a message arriving
@@ -293,10 +294,6 @@ and its chrome coordinate.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
-- **Unconfirmed: scrolling a live sample sometimes sticks.** A user reported it
-  while a sample still scrolled inside a fixed-height frame, with no reproduction.
-  The frame now takes its page's height, so nothing scrolls inside it; check that the
-  report no longer reproduces once the scrolling changes land.
 - **Decide whether a sidebar built from several blocks sticks.** A sidebar panel
   sticks only when it is a single block, so existing multi-panel pages keep
   flowing; dropping that condition makes every sidebar page's panel stick.

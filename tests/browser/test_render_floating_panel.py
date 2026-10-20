@@ -1987,7 +1987,8 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     first edit passes every error the field says to Errors in the leaf's menu, where a
     dot on the leaf marks them until the list is opened and each can be dismissed. Over
     words its editor holds, an error covers them until the first key there: an edit
-    lands in those words, and Enter only uncovers them, so nothing sends them unseen.
+    or a caret move lands in those words, and Enter only uncovers them, so nothing
+    sends them unseen.
     An error the field cannot say, such as one about nothing while the user has words
     there, goes straight to the list."""
     url = serve(LONG_PAGE)
@@ -2026,6 +2027,12 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     assert field(page).evaluate(value) == "Could"
     page.keyboard.type(" it")
     assert field(page).evaluate(value) == "Could it"
+    # A caret key uncovers them too, moving the caret as it would.
+    page.evaluate(raise_error, ["Could not add image — disk full", True])
+    expect(cover).to_be_visible()
+    page.keyboard.press("ArrowLeft")
+    expect(cover).to_be_hidden()
+    assert field(page).evaluate("node => node.selectionStart") == len("Could i")
     assert len(events_model.read_events(serve.page_dir)) == sent
     # One about nothing while the user has words goes straight to the list.
     page.evaluate(raise_error, ["Draw on or beside something on the page.", False])
@@ -2034,14 +2041,14 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
 
     page.locator(".lf-fp-leaf").click()
     errors = page.locator('.lf-fp-menu [data-row="errors"]')
-    expect(errors).to_contain_text("4")
+    expect(errors).to_contain_text("5")
     errors.click()
     listed = page.locator(".lf-fp-menu .lf-fp-error")
-    expect(listed).to_have_count(4)
+    expect(listed).to_have_count(5)
     expect(listed.first).to_contain_text("Draw on or beside something")
     expect(dot).to_be_hidden()
     listed.first.get_by_role("menuitem").click()
-    expect(listed).to_have_count(3)
+    expect(listed).to_have_count(4)
     expect(listed.first.get_by_role("menuitem")).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")

@@ -649,7 +649,7 @@ def test_capture_temporarily_owns_page_input_without_leaving_draw_mode(browser, 
 def test_a_capture_attaches_to_the_box_an_error_stood_over(browser, serve):
     """Attaching an image is the user coming back to the comment box, as typing is, so
     an error that stood over the box never swallows a capture: Escape puts the words
-    and the error away, and the capture lands in the box with its picture."""
+    and the error away, and the drag's lift lands the capture in the box."""
     page = open_page(browser, serve(LONG_PAGE))
     target = page.locator("#p3")
     target.scroll_into_view_if_needed()
@@ -672,9 +672,8 @@ def test_a_capture_attaches_to_the_box_an_error_stood_over(browser, serve):
     page.mouse.move(area["x"] + 20, area["y"] + 5)
     page.mouse.down()
     page.mouse.move(area["x"] + 220, area["y"] + 60, steps=5)
-    page.mouse.up()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.get_by_role("button", name="Attach capture", exact=True).click()
+        page.mouse.up()
     expect(surface).to_be_hidden()
     expect(page.locator(".lf-composer-media-item img")).to_be_visible()
     expect(cover).to_be_hidden()

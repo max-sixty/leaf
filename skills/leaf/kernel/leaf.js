@@ -1139,21 +1139,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       },
       { capture: true }
     );
-    ta.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.isComposing || !errorOver(ta) || [...MODIFIER_KEYS, "Tab", "Escape"].includes(event.key))
-          return;
-        const sends2 = event.key === "Enter" && !event.shiftKey && !event.altKey && submitBindings().includes(
-          event.metaKey || event.ctrlKey ? "Mod+Enter" : "Enter"
-        );
-        if (!sends2) return passErrorsAt(ta);
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        uncover();
-      },
-      { capture: true }
-    );
+    ta.addEventListener("lf-caret-move", () => passErrorsAt(ta));
     if (mic) {
       const activateDictation = async () => {
         if (dictationPhase() === "stopping" || sending || uploading || held()) return;

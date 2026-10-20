@@ -1249,6 +1249,8 @@ var LeafText = class extends HTMLElement {
         this.#paintEmpty();
         this.#measureOverflow();
         if (edited) this.dispatchEvent(new Event("input", { bubbles: true }));
+        else if (transactions.some((tr) => tr.isUserEvent("select")))
+          this.dispatchEvent(new Event("lf-caret-move", { bubbles: true }));
       }
     });
     this.#model = null;

@@ -65,7 +65,6 @@ import { LitElement, html, render as renderHint } from "/vendor/browser-runtime.
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
-import { MODIFIER_KEYS } from "../control-selectors.js";
 import { whileConnected } from "../arrivals.js";
 import { move } from "../dom-move.js";
 import { applicationState } from "../semantic-state.js";
@@ -703,35 +702,12 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       },
       { capture: true },
     );
-    // A key pressed in a covered box lifts the cover, as a press on it does, and keeps
-    // its meaning, an edit or a caret move landing as typed, except a send key: it
-    // only lifts, with the caret at the words' end, so nothing is sent unseen and the
-    // next press sends. A modifier alone is half a key, and Tab and Escape leave the
-    // box, so none of them lifts it. Heard on the host before its editor, which would
-    // otherwise take the send key.
-    ta.addEventListener(
-      "keydown",
-      (event) => {
-        if (
-          event.isComposing ||
-          !errorOver(ta) ||
-          [...MODIFIER_KEYS, "Tab", "Escape"].includes(event.key)
-        )
-          return;
-        const sends =
-          event.key === "Enter" &&
-          !event.shiftKey &&
-          !event.altKey &&
-          submitBindings().includes(
-            event.metaKey || event.ctrlKey ? "Mod+Enter" : "Enter",
-          );
-        if (!sends) return passErrorsAt(ta);
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        uncover();
-      },
-      { capture: true },
-    );
+    // A key in a covered box lifts the cover, as a press on it does, and keeps its
+    // meaning: an edit (`lf-before-edit` above) or a caret move lands as typed. A send
+    // key only lifts it, through the box's own send binding (`pressed`), so nothing is
+    // sent unseen and the next press sends. A modifier alone, Tab and Escape neither
+    // edit nor move the caret, so none of them lifts it.
+    ta.addEventListener("lf-caret-move", () => passErrorsAt(ta));
     if (mic) {
       const activateDictation = async () => {
         if (dictationPhase() === "stopping" || sending || uploading || held()) return;
@@ -911,7 +887,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     let composing = false;
     ta.addEventListener("compositionstart", () => (composing = true));
     ta.addEventListener("compositionend", () => (composing = false));
-    // A send control reached by the keyboard under a cover lifts it, as a send key does.
+    // A send key, or Send reached by the keyboard, in a covered box lifts the cover and
+    // sends nothing (`uncover`).
     const pressed = (sender) => {
       if (errorOver(ta)) return uncover();
       if (focused() !== ta) focusDestination(ta, "return");

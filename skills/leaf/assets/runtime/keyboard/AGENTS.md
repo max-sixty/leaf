@@ -93,9 +93,10 @@ the row's own `control` beside what it changes, as page search's arrows walk its
 matches from its box.
 
 The comment field has one primary action, Dictate while empty and Send once it has
-words; Suggest and reactions open by Tab from the field. The field deliberately has no
-ellipsis menu, on phones too; change that only with the user, through a rendered design
-comparison.
+words; where the browser can't dictate, an empty field has none, so Tab passes it
+(`composing/input.js`). Suggest and reactions open by Tab from the field. The field
+deliberately has no ellipsis menu, on phones too; change that only with the user,
+through a rendered design comparison.
 
 A command that should leave the user where they are declares `retainStanding`: the
 floating panel saves focus, caret and selection as the user steps into it, and the

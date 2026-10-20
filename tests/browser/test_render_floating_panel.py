@@ -2930,6 +2930,68 @@ def test_tab_from_the_field_reaches_dictate(browser, serve):
     expect(dictate).to_be_focused()
 
 
+def test_an_empty_box_offers_no_send_where_the_browser_cannot_dictate(
+    firefox_browser, serve
+):
+    """Firefox can't dictate, so an empty comment box shows no main press at all rather
+    than a Send that sends nothing, and Tab from the empty panel field goes on to the
+    row's next control. The first word shows Send in the field's corner, moving neither
+    the field nor a passage's box; a box holding only an image can send, so it shows
+    Send."""
+    page = floating(firefox_browser, serve(LONG_PAGE))
+    send = page.locator(".lf-fp-field .lf-compose-submit")
+    field(page).click()
+    expect(field(page)).to_be_focused()
+    expect(send).to_be_hidden()
+    page.keyboard.press("Tab")
+    expect(field(page)).not_to_be_focused()
+    assert page.evaluate(
+        "() => !!document.activeElement?.closest('.lf-floating-panel')"
+        " && !document.activeElement.closest('.lf-fp-field')"
+    )
+    field(page).click()
+    before = field(page).bounding_box()
+    page.keyboard.type("C")
+    expect(send).to_be_visible()
+    after = field(page).bounding_box()
+    assert (after["x"], after["y"], after["height"]) == (
+        before["x"],
+        before["y"],
+        before["height"],
+    ), (before, after)
+    page.keyboard.press("Backspace")
+    expect(send).to_be_hidden()
+
+    # A passage's comment box follows the same rule.
+    bar = page.locator(".lf-fab-bar")
+    select_words(page, "#p3")
+    page.keyboard.press("c")
+    box = bar.locator("leaf-text")
+    expect(box).to_be_focused()
+    expect(bar.locator(".lf-compose-submit")).to_be_hidden()
+    before = box.bounding_box()
+    page.keyboard.type("W")
+    expect(bar.locator(".lf-compose-submit")).to_be_visible()
+    assert box.bounding_box() == before
+    page.keyboard.press("Escape")
+
+    # The page's draft holding only an image, as a reload finds it.
+    key = page.evaluate(
+        "async () => (await window.__lfCheckApi()).whereDraft('general').key"
+    )
+    page.evaluate(
+        "key => localStorage.setItem(key, JSON.stringify({text:"
+        " '![Attached image](/media/051bee487bfb5d13.png)', attempt: 'seed',"
+        " base: null}))",
+        key,
+    )
+    page.reload()
+    field(page).click()
+    expect(page.locator(".lf-fp-box .lf-composer-media-item")).to_have_count(1)
+    expect(send).to_be_visible()
+    expect(send).to_have_attribute("aria-disabled", "false")
+
+
 ROW_CENTRES = """() => {
   const centre = (selector) => {
     const node = document.querySelector(selector);

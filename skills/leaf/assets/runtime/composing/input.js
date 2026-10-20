@@ -4,8 +4,12 @@
 // action button and placeholder current, prevent parallel submissions of one local
 // surface (an impatient second click), and submit with Enter on a physical keyboard. A
 // press on a submit control is that Enter, pressed from the box.
-// Where native speech recognition is available, an empty comment offers a microphone
-// in Send's place. Dictation uses the same draft and send contract in every surface:
+// A comment box has one main press (keyboard/AGENTS.md): Send once it holds something
+// to send, and while it is empty Dictate where the browser has speech recognition and
+// nothing where it has none, so an empty box never offers a Send that sends nothing.
+// The press floats in the field's corner over room the words keep, so whichever stands
+// there, or none, moves nothing. A box with another action, as a rewrite's Save or an
+// option's Add, keeps it. Dictation uses the same draft and send contract in every surface:
 // empty-field status stays in the placeholder, words keep their place, and the mic's
 // face carries listening. Sending and explicit closing retire capture before the
 // draft can change; Escape keeps its existing close-and-keep-draft meaning.
@@ -342,10 +346,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // Firefox lacks speech recognition; WebKit has it only under its prefix.
     const Recognition =
       globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
-    const mic =
-      Recognition && icon === "send" && !submitIn
-        ? document.createElement("button")
-        : null;
+    const commentBox = icon === "send" && !submitIn;
+    const mic = Recognition && commentBox ? document.createElement("button") : null;
     let dictation = null;
     let loadingDictation = false;
     let dictationGeneration = 0;
@@ -596,12 +598,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     let visibilityQueued = false;
     const paintSubmitVisibility = () => {
       visibilityQueued = false;
-      if (mic) {
-        const shown = dictationPhase() !== "idle" || !hasContent(draftValue());
-        keepsHidden(mic, !shown);
-        keepsHidden(sendBtn, shown);
-        if (shown && focused() === sendBtn) focusDestination(ta, "return");
-        if (!shown && focused() === mic) focusDestination(ta, "return");
+      if (commentBox) {
+        const empty = !hasContent(draftValue());
+        const dictates = Boolean(mic) && (dictationPhase() !== "idle" || empty);
+        const offersSend = !empty && !dictates;
+        if (mic) keepsHidden(mic, !dictates);
+        keepsHidden(sendBtn, !offersSend);
+        if (!offersSend && focused() === sendBtn) focusDestination(ta, "return");
+        if (mic && !dictates && focused() === mic) focusDestination(ta, "return");
       }
       // Which of its controls the box shows moves its own keys, not the page's.
       paintKeysWithin(field);

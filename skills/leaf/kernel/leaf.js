@@ -870,7 +870,8 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     field.append(ta);
     (submitIn ?? field).append(sendBtn);
     const Recognition = globalThis.SpeechRecognition ?? globalThis.webkitSpeechRecognition;
-    const mic = Recognition && icon === "send" && !submitIn ? document.createElement("button") : null;
+    const commentBox = icon === "send" && !submitIn;
+    const mic = Recognition && commentBox ? document.createElement("button") : null;
     let dictation = null;
     let loadingDictation = false;
     let dictationGeneration = 0;
@@ -1064,12 +1065,14 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     let visibilityQueued = false;
     const paintSubmitVisibility = () => {
       visibilityQueued = false;
-      if (mic) {
-        const shown = dictationPhase() !== "idle" || !hasContent(draftValue());
-        keepsHidden(mic, !shown);
-        keepsHidden(sendBtn, shown);
-        if (shown && focused() === sendBtn) focusDestination(ta, "return");
-        if (!shown && focused() === mic) focusDestination(ta, "return");
+      if (commentBox) {
+        const empty = !hasContent(draftValue());
+        const dictates = Boolean(mic) && (dictationPhase() !== "idle" || empty);
+        const offersSend = !empty && !dictates;
+        if (mic) keepsHidden(mic, !dictates);
+        keepsHidden(sendBtn, !offersSend);
+        if (!offersSend && focused() === sendBtn) focusDestination(ta, "return");
+        if (mic && !dictates && focused() === mic) focusDestination(ta, "return");
       }
       paintKeysWithin(field);
       if (submitIn) paintKeysWithin(submitIn);

@@ -33,7 +33,7 @@ state in a revision, which records the value itself."""
 import hashlib
 import json
 from functools import partial
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from leaf.events import (
     approvals_in_force,
@@ -61,6 +61,9 @@ from leaf.projection import (
 from leaf.registry.kernel import verb_writers
 from leaf.structure import review_mode
 from leaf.thread_context import widget_messages
+
+if TYPE_CHECKING:
+    from leaf.todos import TodoReading
 
 
 def local_obligation_entry(entry: dict) -> bool:
@@ -411,22 +414,31 @@ def obligation_answered(
     )
 
 
-def sections_with_agent(threads: dict) -> set[str]:
-    """The sections anchoring an open thread whose next word is the agent's.
+def sections_with_agent(threads: dict, owed: list[dict]) -> set[str]:
+    """The sections anchoring a thread the agent owes: an open one whose next word is
+    the agent's, or one holding an open to-do, the work a reply there promised
+    (`todos.todo_reading`). `owed` is `todos.TodoReading.owed`.
 
     An open obligation such a thread is about is the agent's turn rather than the user's:
-    the user has said something about it and waits on the reply, so it leaves
-    their list until the agent answers. That is not an answer, since the widget's
-    state is untouched, and the obligation stays open, its controls live. The browser
-    receives the lists this leaves rather than deciding again, so On me's
-    count and `page state` cannot disagree about whose turn it is.
+    the user has said something about it and waits on the answer, so it leaves
+    their list until the agent answers. A reply that promises work settles the
+    message but leaves the obligation the agent's until the agent ends the to-do,
+    through a resolution too, so a decision the user put off until other work lands
+    stays off their list. Neither is an answer, since the widget's state is untouched,
+    and the obligation stays open, its controls live. The browser receives the lists this leaves rather than deciding
+    again, so On me's count and `page state` cannot disagree about whose turn it is.
 
     Which kind of thread does not enter into it: a seat's, a quote on the obligation's
-    words, a design note, or one the agent opened that the user has answered."""
+    words, a design note, or one the agent opened that the user has answered. A to-do
+    the agent opened on an element is not a thread's and holds nothing: work on a
+    section doesn't say whether the user's decision there waits on it."""
+    promised = {
+        todo["subject"]["id"] for todo in owed if todo["subject"]["kind"] == "thread"
+    }
     return {
         anchor["section"]
-        for thread in threads.values()
-        if awaits_agent(thread)
+        for identity, thread in threads.items()
+        if (awaits_agent(thread) or identity in promised)
         and (anchor := thread["anchor"])
         and anchor.get("section")
     }
@@ -436,10 +448,12 @@ def discussed(records: list[dict], sections: set[str], within: dict) -> None:
     """Hand each open obligation a thread anchored on `sections` is about to the agent.
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
-    failing one, about every obligation whose prompt target (its enclosing
-    widget) is the innermost to enclose it. So a note on one obligation's
-    option leaves its framed sibling with the user, and one on the frame's heading
-    is about them all. `within` is the document's containment (`Passages.enclosing`).
+    failing one, about every obligation whose widget it encloses; failing those, about
+    every obligation whose prompt target (its enclosing widget) is the innermost to
+    enclose it. So a note on one obligation's option, or on a part of a frame holding
+    one obligation, leaves its framed sibling with the user, while one on the frame's
+    heading or on a section holding the frame is about them all. `within` is the
+    document's containment (`Passages.enclosing`).
     """
     items = {record["source"]["id"]: record for record in records}
     framed: dict[str, list[dict]] = {}
@@ -451,7 +465,12 @@ def discussed(records: list[dict], sections: set[str], within: dict) -> None:
         about = (
             [item]
             if item is not None
-            else next((framed[i] for i in reversed(chain) if i in framed), [])
+            else [
+                record
+                for record in records
+                if section in within.get(record["source"]["id"], ())
+            ]
+            or next((framed[i] for i in reversed(chain) if i in framed), [])
         )
         for record in about:
             if record["next_actor"] == "user":
@@ -848,7 +867,7 @@ def page_obligation_readings(
     dropped: set,
     threads: dict,
     within: dict,
-    ends: dict,
+    log: "TodoReading",
     *,
     settled_away: set[str] | None = None,
     prior=None,
@@ -860,7 +879,8 @@ def page_obligation_readings(
     A reply-answered obligation is the exception, since a message about it is its answer:
     the first user message in a thread opened inside it, after the stamped version
     that last restated it (`$restated`), so a rewritten question is asked again.
-    `ends` holds the agent's `todo_end` on each id."""
+    `log` is the page's `todos.TodoReading`: its `ends` hold the agent's `todo_end` on
+    each id, and its `owed` the work the agent's replies promised."""
     reducer = _ObligationReducer(
         source, projection, byid, spk, registry, dropped, revision, events
     )
@@ -894,8 +914,8 @@ def page_obligation_readings(
             key=lambda message: message["seq"],
             default=None,
         )
-        settle_by_words(record, answer, ends.get(record["id"]))
-    discussed(records, sections_with_agent(threads), within)
+        settle_by_words(record, answer, log.ends.get(record["id"]))
+    discussed(records, sections_with_agent(threads, log.owed), within)
     return collection(records)
 
 
@@ -903,16 +923,18 @@ def thread_obligation_readings(
     events: list,
     registry: dict,
     threads: dict,
-    ends: dict,
+    log: "TodoReading",
     *,
     reading: FrozenThreadReading | None = None,
 ) -> dict:
     """Frozen widget obligations retain inventory when their containing thread closes,
     with no next actor. While the thread is open, a user turn after the message
-    that asks hands the obligation to the agent until the agent answers that turn, as a
-    thread anchored on a page obligation does (`sections_with_agent`). That turn instead
-    answers a reply-answered obligation, as does a reaction on the message whose token
-    settles it; `ends` holds the agent's `todo_end` on each id."""
+    that asks hands the obligation to the agent until the agent answers that turn, and
+    until the work a reply after it promised ends, as a thread anchored on a page
+    obligation does (`sections_with_agent`). That turn instead answers a
+    reply-answered obligation, as does a reaction on the message whose token settles
+    it; `log` is the page's `todos.TodoReading`, whose `ends` hold the agent's
+    `todo_end` on each id."""
     reading = reading or frozen_thread_reading(events, registry)
     reducer = _ObligationReducer(
         reading.structure,
@@ -932,12 +954,12 @@ def thread_obligation_readings(
         record["message"] = message_by_widget[source]
         thread = threads[record["thread"]]
         in_words = replied(registry[record["source"]["tag"]])
+        asked = next(
+            message["seq"]
+            for message in thread["msgs"]
+            if message["id"] == record["message"]
+        )
         if record["status"] == "open" and in_words:
-            asked = next(
-                message["seq"]
-                for message in thread["msgs"]
-                if message["id"] == record["message"]
-            )
             answer = next(
                 (
                     message
@@ -952,7 +974,7 @@ def thread_obligation_readings(
                 ),
                 None,
             )
-            settle_by_words(record, answer, ends.get(record["id"]))
+            settle_by_words(record, answer, log.ends.get(record["id"]))
         if record["next_actor"] is None:
             continue
         owed = unanswered_agent_turn(thread)
@@ -960,14 +982,12 @@ def thread_obligation_readings(
             record["next_actor"] = None
         # Only the user's words answer a question asked in words, so a turn the agent
         # owes after it, such as one a user's edit up the thread opens, leaves it theirs.
-        elif (
-            not in_words
-            and owed is not None
-            and owed["seq"]
-            > next(
-                message["seq"]
-                for message in thread["msgs"]
-                if message["id"] == record["message"]
+        elif not in_words and (
+            (owed is not None and owed["seq"] > asked)
+            or any(
+                todo["seq"] > asked
+                for todo in log.owed
+                if todo["subject"] == {"kind": "thread", "id": record["thread"]}
             )
         ):
             record["next_actor"] = "agent"

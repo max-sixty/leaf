@@ -410,14 +410,15 @@ on 2026-10-07.
   keeps the answer, but needs a record that it reminded, or an agent that won't act
   is woken without end; dropping the reminder leaves the next prompt's one. Max to
   choose.
-- **Close the Codex delivery-start race.** App Server's `turn/start` steers into a
-  running turn. A follow-up the user queued in Codex starts just after Leaf's idle
-  check reads idle, so Leaf's delivery joins it and Leaf posts that turn's answer as
-  its reply to the comment. The [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
-  measurements, the reproduction and the two options. Queueing each delivery
-  (#3357) was reverted because it put every delivery into the Codex transcript as a
-  user message; the fix in progress keeps `turn/start` and checks the task's queue
-  first, starting only when the user has nothing queued.
+- **Decide how a Codex delivery avoids joining the user's follow-up turn.** App
+  Server's `turn/start` steers into a running turn. A follow-up the user queued in
+  the Codex TUI starts just after Leaf's idle check reads idle, so Leaf's delivery
+  joins it and Leaf posts that turn's answer as its reply to the comment. Queueing
+  each delivery (#3357) was reverted because it put every delivery into the Codex
+  transcript as a user message. Reading App Server's queue before starting can't
+  help either: the TUI keeps its queued follow-ups itself. The
+  [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
+  measurements, the reproduction and the options. Max to choose.
 - **Decide what a Codex delivery turn answers once the user steers into it.** Leaf
   starts each App Server delivery as a turn of its own and posts that turn's final
   message as the reply. Pressing Enter in the Codex TUI while that turn runs sends

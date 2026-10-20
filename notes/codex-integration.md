@@ -27,15 +27,33 @@ started after the other client's answer, that turn's `turn/started` reached Leaf
 socket first. With both starts sent back to back, Leaf's answer came first, the order
 Leaf's own start produces, so the order of messages cannot tell the two cases apart.
 
-The race needs no coincidence of milliseconds. When the user queues a follow-up in
-Codex behind a running turn, App Server reports the task idle as the turn completes
-and starts the follow-up shortly after, about 0.4 s later in the run that timed it.
+The race needs no coincidence of milliseconds. A follow-up queued behind a running
+turn starts just after that turn completes, and App Server reads idle until it does.
 In all three runs, a Leaf start sent right after `turn/completed` read idle on
 `thread/resume`, and its `turn/start` joined the user's follow-up turn. The model
 received the delivery as a `leaf_delivery` tool output partway through that turn.
 The adapter holds a delivery back while a turn runs and checks again at least once a
 second (`run_adapter`), so a delivery waiting behind the turn starts inside that gap
 some of the time; how often is inferred from the timing, not measured.
+
+Who starts the follow-up depends on where it was queued (measured 2026-10-20):
+
+- **The Codex TUI** keeps a follow-up queued with Tab in its own composer state
+  (`queued_user_messages` in `codex-rs/tui/src/chatwidget/input_queue.rs`) and sends
+  it with `turn/start` once the turn ends (`maybe_send_next_queued_input`). With the
+  TUI on `codex --remote` showing the follow-up queued, `thread/queue/list` on the
+  same task returned no items, and the TUI's `turn/start` came 17.5 ms after
+  `turn/completed`. So App Server's queue can't tell Leaf that the user is waiting.
+- **App Server's queue** holds what a client adds with `thread/queue/add`, as
+  `codex queue` does. App Server starts its head about 6 ms after the turn ends (six
+  runs; about 0.4 s in the 2026-10-19 run), and removes the item only once its turn
+  has started (`QueuedItemService::dispatch_if_idle`), so a reading of the queue,
+  then the status, never showed an empty queue on an idle task in that gap.
+
+To recheck the TUI on a later Codex, start a private App Server as the script below
+does, run `codex --remote <endpoint>` in a terminal, queue a follow-up with Tab while
+a turn runs, and call `thread/queue/list` for the task from a second connection that
+initialized with the `experimentalApi` capability.
 
 `TaskConnection._start_delivery` binds whatever turn the start returns to the
 delivery. Replaying the measured order against a fake App Server like those in
@@ -60,7 +78,10 @@ Two options were weighed:
   output, and Leaf's submissions would show in the user's queue in Codex. #3357 took
   this option and was reverted: every delivery then became a user message in the
   Codex transcript, the opening line and the envelope's JSON, which is noisy for the
-  user, and Max wants Leaf to add to the user's turn only when it must.
+  user, and Max wants Leaf to add to the user's turn only when it must. Against a
+  follow-up queued in the TUI it also left a race: a delivery Leaf queued in the
+  moments before the TUI sent its follow-up would start first, and the follow-up
+  would then steer into Leaf's turn (inferred from the timings above, not run).
 - **Keep `turn/start` and define a joined delivery.** Decide which message the
   final answer settles, where that answer appears, and what remains outstanding if
   the turn fails. Since the start's answer cannot say it steered, Leaf would detect

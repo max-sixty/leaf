@@ -421,6 +421,67 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
     assert code["top"] >= code["head"], code
 
 
+WIDE_TABLE_IN_A_FRAMED_SET = leaf_page(
+    "A wide table in a framed set",
+    '<h1>Framed</h1><section><lf-tabs id="views"><lf-tab id="table-tab" label="Table">'
+    + "<p>Reading before the table.</p>" * 30
+    + '<table id="wide"><thead><tr><th>Row</th>'
+    + "".join(f"<th>Column {c}</th>" for c in range(12))
+    + "</tr></thead><tbody>"
+    + "".join(
+        f'<tr><td><a id="row-{r}" href="#views">row {r}</a></td>'
+        + "".join(f"<td>column {c} with some words</td>" for c in range(12))
+        + "</tr>"
+        for r in range(30)
+    )
+    + "</tbody></table>"
+    + "<p>Reading after the table.</p>" * 30
+    + '</lf-tab><lf-tab id="other-tab" label="Other"><p>Other.</p></lf-tab>'
+    "</lf-tabs></section>" + "<p>After the set.</p>" * 30,
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_tab_onto_a_link_in_a_wide_table_under_a_framed_strip_clears_the_strip(
+    request, serve, engine
+):
+    """A wide table scrolls only sideways, so the browser's own focus scroll on a link in
+    it still counts the framed set's strip stuck over the table. Tab onto a link the
+    strip stands over brings the link and its ring out below the strip; where the table
+    also scrolled down, its links counted nothing over it and stood with their ring
+    under the strip."""
+    page = open_page(request.getfixturevalue(engine), serve(WIDE_TABLE_IN_A_FRAMED_SET))
+    resized(page, 1280, 720)
+    expect(page.locator("#views")).to_have_attribute("data-lf-tabs-flow", "box")
+    expect(page.locator("#wide")).to_have_attribute("data-lf-scrolls", "across")
+    # Stick the strip, then stand row 11's link 20px under the strip's top: inside the
+    # root's landing band, which the strip covers.
+    page.evaluate(
+        "scrollBy({top: document.getElementById('wide').getBoundingClientRect().top"
+        " - 100, behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    page.evaluate("""() => {
+      const strip = document.querySelector('#views > .lf-tabstrip').getBoundingClientRect();
+      const link = document.getElementById('row-11').getBoundingClientRect();
+      scrollBy({top: link.top - strip.top - 20, behavior: 'instant'});
+    }""")
+    scroll_settled(page)
+    page.locator("#row-10").evaluate("a => a.focus({preventScroll: true})")
+    page.keyboard.press("Tab")
+    expect(page.locator("#row-11")).to_be_focused()
+    scroll_settled(page)
+    read = page.evaluate("""() => {
+      const strip = document.querySelector('#views > .lf-tabstrip').getBoundingClientRect();
+      const link = document.getElementById('row-11');
+      const style = getComputedStyle(link);
+      const ring = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+      return {strip: [strip.top, strip.bottom], ringTop: link.getBoundingClientRect().top - ring};
+    }""")
+    assert read["strip"][0] == pytest.approx(0, abs=0.5), read
+    assert read["ringTop"] >= read["strip"][1], read
+
+
 def test_embedded_tab_selection_preserves_the_document_reading_position(browser, serve):
     source = (
         ROOT_TABS_PAGE.read_text()

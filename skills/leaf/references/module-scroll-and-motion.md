@@ -149,7 +149,10 @@ an `overflow: hidden` box scrolls away with the page.
 ### Sideways scrollers and container queries
 
 Give a box a package scrolls sideways the class `lf-text-scroller`, and Leaf leaves room
-below its last line for an overlay scrollbar.
+below its last line for an overlay scrollbar. Write its overflow as `auto hidden`: down,
+`visible` computes to `auto` beside a scrolling axis, and a box that scrolls down
+starts the landing band again, so a landing on what it holds no longer clears the
+sticky headers over the box.
 
 The page decides how big a Leaf element's box is; the package decides how its contents
 use that space, from the element's own width. Prefer intrinsic grid or flex layout. For

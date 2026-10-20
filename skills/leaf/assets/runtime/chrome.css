@@ -70,11 +70,11 @@
   .lf-fp-inner > :not(.lf-fp-opened) {
     flex-shrink: 0;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *, .lf-composer-media *)) {
+  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)) {
     font: inherit;
     color: inherit;
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-composer-media *)) {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)) {
     background: none;
     border: 0;
     border-radius: 6px;
@@ -83,27 +83,27 @@
     padding: 0 8px;
     min-height: var(--lf-fp-press);
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-composer-media *)) {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-fp-response *, .lf-composer-media *)) {
     position: relative;
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-composer-media *))::after {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-fp-response *, .lf-composer-media *))::after {
     content: "";
     position: absolute;
     inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-composer-media *)):hover {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)):hover {
     background: var(--lf-fp-hover);
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-composer-media *)):is(:disabled, [aria-disabled=true]) {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)):is(:disabled, [aria-disabled=true]) {
     color: var(--lf-fp-muted);
     cursor: default;
     background: none;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):where(:not(.lf-fp-outlet *, .lf-composer-media *)):focus-visible {
+  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
-  .lf-floating-panel .lf-action-icon:not(.lf-composer-media *) {
+  .lf-floating-panel .lf-action-icon:not(.lf-fp-response *, .lf-composer-media *) {
     width: 16px;
     height: 16px;
   }

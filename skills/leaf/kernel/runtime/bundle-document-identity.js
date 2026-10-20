@@ -2563,8 +2563,7 @@ var PAGE_CONTROL_RANK = Object.freeze({
   versions: 90,
   keyboard: 95,
   // The next steps in the mode or picker the user stands in, and its way out.
-  steps: 120,
-  commentSelection: 130
+  steps: 120
 });
 var GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
 var rows = /* @__PURE__ */ new Map();

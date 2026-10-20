@@ -19,10 +19,12 @@
    card's whole measure. No control stands beside it: the other responses are reached
    by key alone, on every pointer (composing/selection.js). An explicit addressable target
    opens and focuses that field. On desktop, selecting a passage leaves the field open
-   but unfocused. Selection observed outside a completed page gesture offers Comment
-   on selection in the floating panel, as does selection on touch screens;
-   its press captures the passage, clears the native selection menu, and opens the field.
-   Until that press the native handles and menu have the passage to themselves. The
+   but unfocused. Selection observed outside a completed page gesture, and selection on
+   touch screens, is offered in the floating panel's page field instead, whose
+   placeholder quotes it; a press on that field comments on the passage as it last
+   settled, which clears the native selection menu and opens this field
+   (`offerSelection`). Until that press the native handles and menu have the passage to
+   themselves. The
    field grows in place and never transfers text into a second composer card. A
    one-line note uses the shared action corner. A longer one widens within the thread
    card’s measure and then wraps. A transparent envelope fits the first message and
@@ -60,11 +62,6 @@ import { sameAnchor } from "../anchor-coordinate.js";
 import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { drawnThreadId } from "../thread/selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
-import {
-  PAGE_CONTROL_RANK,
-  pageControlsChanged,
-  registerPageControl,
-} from "../page-controls.js";
 import { seenRect, underOccluder } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
@@ -572,15 +569,22 @@ export function createResponseSurface({
   // carries the same trusted notification for a script's endpoint write. It can offer
   // the current passage, but cannot authorize replacing a composer or its draft.
   // That menu can stand on either side of the words; never compete with it by raising
-  // a second adjacent surface. The floating panel offers the current selection as a
-  // gesture's step; its explicit press captures it, after any source refresh that
-  // preserved those native endpoints.
-  let selectionOffered = false;
+  // a second adjacent surface. The floating panel's page field offers the current
+  // selection instead (floating-panel.js, `selectedWords`): its placeholder quotes the
+  // words, and a press there comments on them. The anchor is the one read when the
+  // selection last settled, never one read at that press, because the field taking
+  // focus is what drops the page's selection on iOS.
+  let offeredSelection = null;
   const offerSelection = (anchor) => {
-    if (selectionOffered === Boolean(anchor)) return;
-    selectionOffered = Boolean(anchor);
-    pageControlsChanged();
+    if (anchor === offeredSelection) return;
+    offeredSelection = anchor;
+    pageComment.offer(
+      anchor
+        ? { quote: anchor.quote, comment: () => commentOnSelection(anchor) }
+        : null,
+    );
   };
+  const commentOnOfferedSelection = () => commentOnSelection(offeredSelection);
   const commentOnSelection = (anchor) => {
     offerSelection(null);
     if (!hasQuote(anchor)) return;
@@ -588,19 +592,6 @@ export function createResponseSurface({
     selectionUpdate = null;
     openComment(anchor, "");
   };
-  const commentOnOfferedSelection = () => {
-    const selection = anchoringIsReady() ? pageSelection() : null;
-    commentOnSelection(selection ? selectionAnchor(selection) : null);
-  };
-  registerPageControl({
-    key: "comment-selection",
-    rank: PAGE_CONTROL_RANK.commentSelection,
-    gesture: true,
-    label: "Comment on selection",
-    group: "annotate",
-    offered: () => selectionOffered,
-    press: commentOnOfferedSelection,
-  });
 
   function observeSelection() {
     const selection = anchoringIsReady() ? pageSelection() : null;
@@ -835,7 +826,7 @@ export function createResponseSurface({
     // Opening or acting in chrome is a route away from the page, not a new selection
     // gesture. Keep the native touch passage verbatim while focus moves
     // through the floating panel, its popovers, and their controls.
-    if (selectionOffered && inChrome(ev.composedPath()[0])) {
+    if (offeredSelection && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -977,7 +968,7 @@ export function createResponseSurface({
         if (selection && pageRange(selection).intersectsNode(target))
           rememberPointerSelection();
         actionPress =
-          (selectionOffered && inChrome(target)) ||
+          (offeredSelection && inChrome(target)) ||
           Boolean(
             /** @type {Partial<Element>} */ (target).closest?.(
               ".lf-react-surface, .lf-composer",
@@ -1194,7 +1185,7 @@ export function createResponseSurface({
     title: `comment on the ${word}`,
   });
   function commentDestination() {
-    if (selectionOffered)
+    if (offeredSelection)
       return {
         ...commenting("selection"),
         box: null,

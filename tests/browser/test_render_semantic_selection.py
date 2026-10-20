@@ -24,6 +24,7 @@ from render_harness import (
     open_page,
     panel_control,
     resized,
+    selection_field,
     sending,
     write,
 )
@@ -82,7 +83,7 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
 
     for term in ("x", "id"):
         page.get_by_text(term, exact=True).select_text()
-        expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+        expect(selection_field(page)).to_be_visible()
         assert page.evaluate("() => getSelection().toString()") == term
         expect(page.locator(".lf-fab-input:focus")).to_have_count(0)
 
@@ -321,7 +322,7 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     prose = page.locator("#prose")
     prose.select_text()
     field = page.locator(".lf-fab-input")
-    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
     # The composer has not opened, so its field is not on the page to hold focus.
     expect(page.locator(".lf-fab-input:focus")).to_have_count(0)
     page.keyboard.press("c")

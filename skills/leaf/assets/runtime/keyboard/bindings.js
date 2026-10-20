@@ -78,7 +78,7 @@
    controls, and `DISCLOSE` reads the whole set a disclosure answers off the element it is
    asked about; links retain their platform distinction from buttons.
 
-   A label names this press, not the broad feature. Prefer "Comment on selection" or "Hide
+   A label names this press, not the broad feature. Prefer "Resume writing" or "Hide
    comments" to "Comment" or "Toggle". Compute the word through `word` when visible state
    chooses the sentence. Request a repaint when any fact used by a word or
    liveness predicate changes.

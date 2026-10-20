@@ -87,6 +87,7 @@ from render_harness import (
     scroll_settled,
     scroll_writes,
     select,
+    selection_field,
     sending,
     stamp_page,
     stored_draft_text,
@@ -3656,7 +3657,7 @@ def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     page.evaluate("window.phoneQuote = getSelection().getRangeAt(0).cloneRange()")
-    page.locator(".lf-fp-step", has_text="Comment on selection").tap()
+    selection_field(page).tap()
     expect(field).to_be_focused()
     rendered(page)
     geometry = page.evaluate("""() => {
@@ -3696,7 +3697,7 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
       getSelection().removeAllRanges();
       getSelection().addRange(range);
     }""")
-    page.locator(".lf-fp-step", has_text="Comment on selection").tap()
+    selection_field(page).tap()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     session = context.new_cdp_session(page)
     session.send("Emulation.setPageScaleFactor", {"pageScaleFactor": 1.25})

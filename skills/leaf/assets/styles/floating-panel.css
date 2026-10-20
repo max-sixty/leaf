@@ -398,6 +398,11 @@
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
+  /* Selected words the field comments on are the press it offers, so they read in ink
+     rather than a report's dim face. */
+  .lf-fp-field leaf-text[data-says="selection"]::part(placeholder) {
+    color: var(--ink);
+  }
   /* An error the field says stands in its status's place, in the danger's ink, until
      the user's first edit (errors.js). Over words its subject holds it covers them and
      Send, and a press on it brings the words back (floating-panel.js, `errorCover`). */

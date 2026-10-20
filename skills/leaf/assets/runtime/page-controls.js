@@ -13,7 +13,7 @@
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
  * A `gesture` row is the next step of something the user is doing right now, such as
- * commenting on the words a touch just selected, or walking a search's matches. It
+ * walking a search's matches or undoing a stroke in Draw mode. It
  * stands in the panel's row while that gesture holds it, and the higher rank is the
  * nearer gesture: one contributor's steps stand at a time. An `exit` row is the way out
  * of the stance the user stands in (keyboard/touch-controls.js), which stands at the
@@ -44,7 +44,6 @@ export const PAGE_CONTROL_RANK = Object.freeze({
   keyboard: 95,
   // The next steps in the mode or picker the user stands in, and its way out.
   steps: 120,
-  commentSelection: 130,
 });
 
 // What a row is about, which decides where a menu built from rows puts it: on the menu

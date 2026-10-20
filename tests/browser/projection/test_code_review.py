@@ -27,6 +27,7 @@ from render_harness import (
     root_overflow,
     round_trip,
     select,
+    selection_field,
     sending,
     suggestion_control,
     ticked,
@@ -246,7 +247,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
     )
     assert card.evaluate("el => el.__reviewIdentity") is True
     assert page.evaluate("() => getSelection().toString()") == selected
-    page.get_by_role("button", name="Comment on selection").click()
+    selection_field(page).click()
     expect(page.locator("#lf-composer-quote")).to_contain_text(f"“{selected}”")
     expect(page.locator(".lf-fab-input")).to_be_focused()
 

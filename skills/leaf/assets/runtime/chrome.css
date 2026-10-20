@@ -281,6 +281,9 @@
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
+  .lf-fp-field leaf-text[data-says=selection]::part(placeholder) {
+    color: var(--ink);
+  }
   .lf-fp-field leaf-text[data-says=error]::part(placeholder) {
     color: var(--danger-ink);
     font-weight: 500;

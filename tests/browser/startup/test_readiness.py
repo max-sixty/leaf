@@ -33,6 +33,7 @@ from render_harness import (
     panel_settled,
     refuse,
     reported_browser_errors,
+    selection_field,
     sending,
     watched,
 )
@@ -191,9 +192,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     authored_note.select_text()
     # A script-selected passage offers the explicit route; only a completed native
     # selection gesture raises the adjacent field automatically.
-    comment_selection = page.get_by_role(
-        "button", name="Comment on selection", exact=True
-    )
+    comment_selection = selection_field(page)
     expect(comment_selection).to_be_visible()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     comment_selection.click()

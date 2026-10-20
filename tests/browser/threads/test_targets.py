@@ -21,6 +21,7 @@ from render_harness import (
     open_page,
     resized,
     select_words,
+    selection_field,
     sending,
     stamp_page,
     told,
@@ -406,7 +407,7 @@ def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
     page = open_page(browser, live_url(url), context=context)
     select_words(page, "#passage")
     if touch:
-        page.get_by_role("button", name="Comment on selection", exact=True).tap()
+        selection_field(page).tap()
     write(page.locator(".lf-composer leaf-text"), "Please revisit this earlier plan.")
     with sending(page, "the long passage comment"):
         page.locator(".lf-composer button.lf-compose-submit").click()

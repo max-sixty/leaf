@@ -26,7 +26,12 @@
  *   doing or wants, in the status's words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a stance, such as Draw mode, it names the stance, whose way out is a ✕
- *   at the row's end; in a thread it says whose turn it is. A status that reports reads dimmer
+ *   at the row's end; in a thread it says whose turn it is. While words stand selected
+ *   on the page, the page's field quotes them, inside a stance too, and a press there
+ *   comments on them (`selectedWords`), the one route a finger has to them; the user
+ *   chose that on 19 October over a worded step standing in the marks' place, which
+ *   took a stance's steps away while it stood, accepting that a press on the field
+ *   addresses selected words whenever they stand. A status that reports reads dimmer
  *   than anything written, and while the agent works it carries the one sheen that marks
  *   work under way; one that asks the user to act reads in its tone's ink, and pointing
  *   at the field says any status in full. Clicking in gives the placeholder to where
@@ -190,6 +195,7 @@ import {
   standingIn,
 } from "./focus.js";
 import { rowWalk } from "./walk-position.js";
+import { excerptWords } from "./words.js";
 import { nextRender, sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { moveScrollerBy, SCROLL_SLACK, scrollLimit, scrollToEnd } from "./scrolling.js";
@@ -524,19 +530,29 @@ export function createFloatingPanel({
         !error.passed && (error.subject === input || (error.subject === null && empty)),
     );
   }
+  // The words selected on the page that a press on the page's field comments on, as
+  // the response surface offers them (composing/surface.js, `offerSelection`): their
+  // `quote`, and the `comment` that opens the comment on them. Null while none stand.
+  let selectedWords = null;
   // What the empty field says, and whose reading it is (`says`): the newest error it
-  // can say; once the caret is in a field that takes words, where they go; a passing
-  // notice while one stands; a resolved thread's way back; else on the page what the
-  // agent is doing or wants, in the status's words, and in a thread whose turn it is.
-  // On the page, the stance the user stands in, such as Draw mode, heads a passing
-  // notice and takes the status's place (keyboard/status-context.js); the leaf keeps
-  // the status's colour.
+  // can say; once the caret is in a field that takes words, where they go; on the page,
+  // the selected words a press there comments on; a passing notice while one stands; a
+  // resolved thread's way back; else on the page what the agent is doing or wants, in
+  // the status's words, and in a thread whose turn it is. On the page, the stance the
+  // user stands in, such as Draw mode, heads a passing notice and takes the status's
+  // place (keyboard/status-context.js); the leaf keeps the status's colour.
   function fieldReading(key, input) {
     const [error] = sayable();
     if (error) return { says: "error", words: error.message };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
+    // The words alone, in quotation marks: a 320px phone's row leaves the field room
+    // for about a dozen characters, so "Comment on" before them would leave none, and
+    // the field's own name says what a press does (`pageEditor`). The field's ellipsis
+    // cuts them to its room, which the excerpt's cap only bounds.
+    if (!key && selectedWords)
+      return { says: "selection", words: `“${excerptWords(selectedWords.quote, 60)}”` };
     const stance = key ? null : statusContextReading().stance;
     const notice = passing();
     if (notice.visible)
@@ -589,7 +605,8 @@ export function createFloatingPanel({
           ? statusParts(parts)
           : null;
       },
-      accessibleName: "Comment on the page",
+      accessibleName: () =>
+        selectedWords ? "Comment on the selection" : "Comment on the page",
       busy: () => !errorCover.hidden,
       sends: "send",
       sendBtn: send,
@@ -690,6 +707,29 @@ export function createFloatingPanel({
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
   field.addEventListener("input", retype);
+  // A press on the page's editor while words stand selected on the page comments on
+  // them, as its placeholder says, rather than writing on the page (`selectedWords`).
+  // The words are the ones offered as the press began: the editor taking focus drops
+  // the page's selection, and with it the offer, before the press ends. The comment
+  // opens as the press completes, since the press's own mousedown puts away whatever
+  // comment box it finds open (composing/surface.js, `standDown`). A Tab through the
+  // row, or the runtime putting the caret there, writes on the page.
+  let pressedWords = null;
+  field.addEventListener(
+    "pointerdown",
+    (event) => {
+      pressedWords =
+        event.isPrimary && event.composedPath().includes(general?.input)
+          ? selectedWords
+          : null;
+    },
+    true,
+  );
+  field.addEventListener("click", (event) => {
+    const words = pressedWords;
+    pressedWords = null;
+    if (words && event.composedPath().includes(general?.input)) words.comment();
+  });
   // The user's first edit in the field passes every error it could say to the menu's
   // list, read before the edit changes what it could say. Over words its subject
   // holds, an error covers them (`errorCover`), and the first edit or press there
@@ -2923,18 +2963,27 @@ export function createFloatingPanel({
       move(input.parentNode, errorCover, null);
     keepsText(errorCover, covering ? error.message : "");
     keepsHidden(errorCover, !covering);
-    // The line over the field says the passing notice the field cannot, while words
-    // hide its placeholder with the caret elsewhere and no view is open. While the
-    // caret is in the field nothing passing is said there: an error, the one thing
-    // the user must not miss while writing, stands in the field itself.
+    // The line over the field says what the field cannot while words hide its
+    // placeholder with the caret elsewhere and no view is open: the selected words a
+    // press there comments on, else the passing notice. While the caret is in the
+    // field nothing passing is said there: an error, the one thing the user must not
+    // miss while writing, stands in the field itself.
     const notice = passing();
-    const said =
-      notice.visible &&
+    const hidden =
       !top &&
       reading.says !== "destination" &&
       reading.says !== "error" &&
       draftOf(input) !== "";
-    keepsText(contextWords, said ? notice.message : "");
+    keepsText(
+      contextWords,
+      !hidden
+        ? ""
+        : reading.says === "selection"
+          ? reading.words
+          : notice.visible
+            ? notice.message
+            : "",
+    );
     keepsHidden(context, !contextWords.textContent);
     paintPeek();
 
@@ -2943,8 +2992,8 @@ export function createFloatingPanel({
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
 
     // The next step of what the user is doing now, such as walking a search's matches or
-    // commenting on the words a finger selected, stands in the counts' place while that
-    // gesture holds it (page-controls.js, `gesture`).
+    // undoing a stroke in Draw mode, stands in the counts' place while that gesture
+    // holds it (page-controls.js, `gesture`).
     const steps = rows().filter((entry) => entry.gesture);
     const exit = rows().find((entry) => entry.exit);
     render(
@@ -3413,7 +3462,8 @@ export function createFloatingPanel({
   }
 
   // The page's comment box in this chrome, as `c` and Resume writing find it
-  // (composing/surface.js, `commentDestination`).
+  // (composing/surface.js, `commentDestination`), and the selected words a press on it
+  // comments on (`offer`, `selectedWords`).
   const pageComment = Object.freeze({
     get box() {
       return pageEditor().input;
@@ -3421,6 +3471,11 @@ export function createFloatingPanel({
     open: writeOnPage,
     close: () => {},
     sync: () => pageEditor().sync(),
+    offer(passage) {
+      const moved = passage?.quote !== selectedWords?.quote;
+      selectedWords = passage;
+      if (moved) paint();
+    },
   });
 
   // Where Leaf's controls begin in this chrome, as the page's Skip to Leaf controls finds

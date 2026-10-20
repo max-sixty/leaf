@@ -2480,7 +2480,9 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     assert read_page_data(page_dir) == first
 
     # Any process may rewrite the value file, so a reading judges what it finds.
-    stored.write_text('{"api": "ready"}')
+    stored.write_text(
+        json.dumps({**json.loads(stored.read_text()), "value": {"api": "ready"}})
+    )
     [error] = state_json(page_dir)["data"]["errors"]
     assert "deployments" in error
     broken = read_page_data(page_dir)["sources"]["deployments"]

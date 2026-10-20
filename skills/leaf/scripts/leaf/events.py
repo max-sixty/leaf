@@ -317,11 +317,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 message["text"] = e["text"]
             continue
         if e["kind"] == "reply":
-            # Admission keeps a reply's parent in force, but a Leaf older than that
-            # rule could answer a withdrawn message; the reply then stands on nothing
-            # (root `AGENTS.md`, "Stage").
-            if (thread := thread_for.get(e["parent"])) is None:
-                continue
+            thread = thread_for[e["parent"]]
             message = dict(e)
             messages[e["id"]] = message
             thread["msgs"].append(message)

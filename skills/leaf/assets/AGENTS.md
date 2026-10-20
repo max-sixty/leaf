@@ -410,9 +410,10 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 
 A fact Python and the browser both use, such as an event kind or the languages a page
 can highlight, has one home. Either one language owns it and sends it to the other as
-data, as the server sends its state in `/api/state`, or the registry declares it and
-the browser's copy is generated, as `build/registry.mjs` writes
-`runtime/syntax-languages.js` from `$languages`. A parity fixture, or a test that scans
+data, as the server sends its state in `/api/state`, whose type the build generates
+from `served_state/state.schema.json`, or the registry declares it and the browser's
+copy is generated, as `build/registry.mjs` writes `runtime/syntax-languages.js` from
+`$languages`. A parity fixture, or a test that scans
 one language's source for the other's names, keeps two copies in step instead; in
 review, ask why that fact isn't generated.
 

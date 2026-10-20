@@ -182,55 +182,58 @@ REFERENCE_SCHEMA = {
 
 # Each verb declares its coordinate and a recorded effect or custom detail schema.
 # `writer: "agent"` makes it a report through `leaf page report`; otherwise the
-# user writes it. The writers differ in what their state may be, not its shape.
+# user writes it. The writers differ in what their state may be, not its shape. The
+# served state hands the browser each admitted event's verb in this shape, and the
+# browser build generates its type from this schema (`build/browser/contract-types.mjs`).
+VERB_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "detail": {"type": "object"},
+        "unit": {"type": "string", "minLength": 1},
+        "record": {
+            "oneOf": [
+                _RECORD_ATTRIBUTE,
+                _RECORD_POSITION,
+                _RECORD_BODY,
+                _RECORD_VALUE,
+            ]
+        },
+        "writer": {"const": "agent"},
+        "creates": ACTION_CREATES,
+        # The effect owns the payload; `text` adds a required non-empty detail.text.
+        "text": {"const": True},
+    },
+    "required": ["unit"],
+    "allOf": [
+        {
+            "if": {"required": ["record"]},
+            "then": {"properties": {"detail": False, "creates": False}},
+            "else": {"required": ["detail"]},
+        }
+    ],
+    "additionalProperties": False,
+    # An agent's verb moves declared state only, never body words — so the
+    # passage reading never has to model one — and never a part's place, which
+    # the stamped version owns and a rank reads between the neighbours a widget
+    # shows the user. Its record is required: the gate compares record forms,
+    # and a recordless report would be a claim nothing could check a version
+    # against. Only the user adds children, and only an agent verb
+    # declares `text`.
+    "if": {"required": ["writer"]},
+    "then": {
+        "required": ["record"],
+        "properties": {
+            "record": {"properties": {"kind": {"enum": ["attribute", "value"]}}},
+            "creates": False,
+        },
+    },
+    "else": {"properties": {"text": False}},
+}
 STATE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-    "additionalProperties": {
-        "type": "object",
-        "properties": {
-            "detail": {"type": "object"},
-            "unit": {"type": "string", "minLength": 1},
-            "record": {
-                "oneOf": [
-                    _RECORD_ATTRIBUTE,
-                    _RECORD_POSITION,
-                    _RECORD_BODY,
-                    _RECORD_VALUE,
-                ]
-            },
-            "writer": {"const": "agent"},
-            "creates": ACTION_CREATES,
-            # The effect owns the payload; `text` adds a required non-empty detail.text.
-            "text": {"const": True},
-        },
-        "required": ["unit"],
-        "allOf": [
-            {
-                "if": {"required": ["record"]},
-                "then": {"properties": {"detail": False, "creates": False}},
-                "else": {"required": ["detail"]},
-            }
-        ],
-        "additionalProperties": False,
-        # An agent's verb moves declared state only, never body words — so the
-        # passage reading never has to model one — and never a part's place, which
-        # the stamped version owns and a rank reads between the neighbours a widget
-        # shows the user. Its record is required: the gate compares record forms,
-        # and a recordless report would be a claim nothing could check a version
-        # against. Only the user adds children, and only an agent verb
-        # declares `text`.
-        "if": {"required": ["writer"]},
-        "then": {
-            "required": ["record"],
-            "properties": {
-                "record": {"properties": {"kind": {"enum": ["attribute", "value"]}}},
-                "creates": False,
-            },
-        },
-        "else": {"properties": {"text": False}},
-    },
+    "additionalProperties": VERB_SCHEMA,
 }
 # A widget's obligation is answered either by its own state (`value` and `answered`) or, with
 # `reply`, by the user's words about it, which it has no state to hold. `encloses`

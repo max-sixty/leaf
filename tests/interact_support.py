@@ -752,6 +752,69 @@ def stamp(d, text="stamped", completes=()):
     )
 
 
+@cache
+def _served_state_validators() -> dict:
+    """`served_state/state.schema.json` with the kernel's event records composed in
+    under the `leaf:event` names it refers to them by, each open so the objects that add
+    served fields to one close it again (the schema's own description), and the x-state
+    verb (`schema.VERB_SCHEMA`) as `leaf:verb`. Keyed by what
+    is checked: a complete `/api/state` answer (`answer`), the `Reading` a fold returns
+    before the serving route adds its neighbors and token, or a `/api/view` answer
+    (`ViewAnswer`)."""
+    from leaf.registry.kernel import kernel_event_kinds
+    from leaf.registry.schema import json_validator
+    from leaf.schema import VERB_SCHEMA
+
+    schema = json.loads(
+        Path(served_page.__file__).with_name("state.schema.json").read_text()
+    )
+    records = {
+        f"leaf:event/{kind}": {
+            "$id": f"leaf:event/{kind}",
+            **{
+                key: value
+                for key, value in contract["record"].items()
+                if key != "additionalProperties"
+            },
+        }
+        for kind, contract in kernel_event_kinds().items()
+    }
+    records["leaf:event"] = {
+        "$id": "leaf:event",
+        "anyOf": [{"$ref": identity} for identity in sorted(records)],
+    }
+    records["leaf:verb"] = {"$id": "leaf:verb", **VERB_SCHEMA}
+    defs = {**schema["$defs"], **records}
+
+    def definition(name: str) -> dict:
+        return {
+            "$id": schema["$id"],
+            "$defs": defs,
+            "$ref": f"#/$defs/{name}",
+            "unevaluatedProperties": False,
+        }
+
+    return {
+        "answer": json_validator({**schema, "$defs": defs}),
+        "Reading": json_validator(definition("Reading")),
+        "ViewAnswer": json_validator(definition("ViewAnswer")),
+    }
+
+
+def served_state_error(state: dict, against: str = "Reading") -> str | None:
+    """Where `state` breaks the served state's schema, or None: a fold's `Reading`, a
+    complete `/api/state` answer (`answer`), or a `/api/view` answer (`ViewAnswer`). A
+    channel only Leaf writes, so the tests hold its shape here rather than anything
+    validating it in flight."""
+    from jsonschema.exceptions import best_match
+
+    validator = _served_state_validators()[against]
+    error = best_match(validator.iter_errors(state))
+    if error is None:
+        return None
+    return f"{error.json_path}: {error.message[:400]}"
+
+
 def page_state(d):
     events = events_model.read_events(d)
     return served_page.full_state(d, events)

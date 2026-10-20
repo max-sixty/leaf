@@ -93,9 +93,10 @@ Within `served_state/`, `context` holds the live or captured inputs every readin
 `work` adds live activity and reply reservations to the durable work state, `wire`
 serializes one reading, `thread` and `document` own their scoped readings, `queues`
 selects the work queues each view serves and `page state` prints, `browser` assembles
-the requested views, `page` composes the response, `reading` names file changes for
-freshness reads, and `service` owns the page source every route reads (the live
-directory or a `page_snapshot` capture) and its transaction.
+the requested views, `page` composes the response, whose shape `state.schema.json`
+declares, `reading` names file changes for freshness reads, and `service` owns the page
+source every route reads (the live directory or a `page_snapshot` capture) and its
+transaction.
 
 Within `render_gate/`, `scheme` owns one browser and color-scheme run, `readings` the
 probe readings and the findings they become, `version` retries, `page_code` the run

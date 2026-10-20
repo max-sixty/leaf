@@ -586,6 +586,8 @@ function diffBlocks(root) {
   }
   return pairs;
 }
+/** One revision's browser reading at a log boundary, as `/api/view` answers it.
+ * @returns {Promise<import("../../../../build/browser/contract.js").ServedViewAnswer["browser"]>} */
 async function baseReading(baseRevision, throughSeq) {
   const params = new URLSearchParams({
     revision: String(baseRevision),

@@ -30,7 +30,7 @@ reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
-from interact_support import ModelPage, model_layer, served_thread
+from interact_support import ModelPage, model_layer, served_state_error, served_thread
 from leaf.event_contracts import admitted_event
 from leaf.files import document_descriptor, version_descriptors
 from leaf.passages import SourceReading
@@ -51,9 +51,12 @@ UNCLAIMED = {
     "pending": 0,
     "agent": "Agent",
     "session_alive": None,
+    "live_turn": None,
     "claim_session": None,
     "claim_turn": None,
     "turn_closed": None,
+    "turn_opened": None,
+    "turn_takes_input": False,
     "viewed": None,
     "session_cwd": None,
 }
@@ -108,6 +111,9 @@ def served_reading(
     `presence` is the claim and watcher reading the fold sees, `UNCLAIMED` unless
     the case needs a page someone holds.
 
+    Every reading is held to the served state's schema (`served_state_error`), so a
+    field the fold serves and the schema doesn't declare fails the test that folds it.
+
     Each one then goes through the same append door the server admits it through,
     so what this folds is a log the page could really have. A command the door
     would refuse raises `EventRefused` here rather than folding: the fixture cannot
@@ -153,7 +159,7 @@ def served_reading(
     readings = {
         rev: SourceReading(document, registry) for rev, document in parsed.items()
     }
-    return read_served_page(
+    state = read_served_page(
         PageRead(
             active=active,
             events=log,
@@ -171,6 +177,8 @@ def served_reading(
         ),
         view_revision=view_revision,
     ).state
+    assert (error := served_state_error(state)) is None, error
+    return state
 
 
 def reading(

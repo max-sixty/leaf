@@ -1,4 +1,5 @@
 import {
+  marks,
   resolveAnchor,
   targetSegments
 } from "./bundle-chrome.js";
@@ -45,7 +46,8 @@ function scheduleResidency() {
 function settleResidency() {
   if (residencyOpen) readResidency();
 }
-var BREAKOUT = "[data-lf-space]";
+var ROOM = marks["x-space"].paint;
+var BREAKOUT = `[${ROOM}]`;
 var bringsBreakout = (node) => node.nodeType === Node.ELEMENT_NODE && (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);
 function readBreakouts() {
   const { changed } = document.documentElement.lfInitial.breakouts();
@@ -74,7 +76,7 @@ function openResidency({ onRead }) {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["data-lf-space", "hidden", "open"]
+      attributeFilter: [ROOM, "hidden", "open"]
     });
   readResidency();
 }

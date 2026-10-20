@@ -6,14 +6,14 @@ import type {
   EventMap,
   BrowserCommand,
   CompleteUnion,
+  MessageKind,
   ServedState,
+  ServedVerb,
+  WidgetKind,
 } from "./contract.js";
 export type { Event, BrowserCommand };
 import type { Immutable } from "./snapshot.ts";
-export type StateRecord =
-  | { kind: "body" }
-  | { kind: "attribute" | "value"; attr: string }
-  | { kind: "position"; within: string };
+export type StateRecord = NonNullable<ServedVerb["record"]>;
 export interface ActionSpec {
   unit: string;
   record?: StateRecord;
@@ -32,7 +32,7 @@ export interface ContentVersion {
   message: string;
   version: string;
 }
-export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
+export type LocalMessage = Extract<Command, { kind: MessageKind }> & {
   id: string;
   content_version: string;
   author: string;
@@ -107,7 +107,7 @@ export interface Thread {
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
   localParent?: string;
 };
-type WidgetEvent = EventMap["action"] | EventMap["report"];
+type WidgetEvent = EventMap[WidgetKind];
 export type LocalAction = Extract<Command, { kind: "action" }> & {
   id: string;
   seq?: never;

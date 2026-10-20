@@ -136,12 +136,15 @@ Every composition writes these facts the browser reads instead of deriving
 - `$decisions`, each widget's deciding `x-state` verb and the member tags each of its
   outcomes retires;
 - `$states`, each `x-state` verb's writer and the operation definition an admitted
-  event records, which the browser compares a recorded definition with;
-- `$marks`, each declaration a stylesheet reads, with the attribute it is painted as,
-  the attribute an occurrence overrides it with, and whether it holds in a thread
-  message (`schema.DECLARED_MARKS`).
+  event records, which the browser compares a recorded definition with.
 
 `page init` stamps them into the layer, and a page's composition stamps them again
-over its own declarations, overwriting any declared `$decisions`, `$states` or
-`$marks`.
-Delivery paints a page document's marks from the same table.
+over its own declarations, overwriting any declared `$decisions` or `$states`.
+
+The kernel registry declares the rest of what both runtimes read, and the build
+generates the browser's copy of each (`build/registry.mjs`), so none is stamped and
+a layer that changes one is refused (`registry.layer.KERNEL_FACTS`):
+`$marks`, each declaration a stylesheet reads with the attribute it is painted as,
+which delivery paints into a page's document and the runtime into a message it
+renders; `$names`, the widget and attribute name grammars; and the classifications
+on each `$events.kinds` entry (`registry.kernel`).

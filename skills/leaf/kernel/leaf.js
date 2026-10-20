@@ -6239,6 +6239,7 @@ function createFloatingPanel({
         busy: () => !errorCover.hidden,
         sent: (flight) => {
           rooms.delete(routeKey(trail.at(-1)));
+          rewriting = false;
           landAtEnd = { key, after: drawnTurns() };
           waiting = null;
           queueMicrotask(paint);
@@ -6528,6 +6529,7 @@ function createFloatingPanel({
   const unplaced = /* @__PURE__ */ new Set();
   let stood = null;
   let stoodAt = null;
+  let rewriting = false;
   let spare = false;
   const holdThread = (height) => {
     const top = trail.at(-1);
@@ -6536,14 +6538,61 @@ function createFloatingPanel({
     rooms.set(routeKey(top), height);
     return true;
   };
-  const actedIn = (node) => {
+  let pressed = null;
+  const contentTop = (node, view) => node.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop;
+  function pressAt(node, landed = null) {
+    const top = trail.at(-1);
     const view = openView();
-    if (view && node && renderedUnder(node, view) && holdThread(stood)) paint();
-  };
-  stage.addEventListener("click", (event) => actedIn(event.target), { capture: true });
+    if (top?.view !== "thread" || !view || !(node instanceof Element)) return;
+    const inView = renderedUnder(node, view);
+    const press = {
+      node,
+      inView,
+      landed: Boolean(landed),
+      at: inView ? contentTop(node, view) : 0,
+      height: stood,
+      holds: view.scrollHeight
+    };
+    pressed = press;
+    if (landed)
+      void Promise.resolve(landed).finally(() => {
+        if (pressed === press) pressed = null;
+      });
+  }
+  function judgePress(press) {
+    if (!press || pressed !== press) return;
+    pressed = null;
+    const view = openView();
+    if (!view || !press.node.isConnected || view.scrollHeight - press.holds < 0.5)
+      return;
+    const cap = Number.parseFloat(getComputedStyle(view.parentElement).maxHeight);
+    const grows = Math.min(view.scrollHeight, cap) - press.height;
+    const moves = (press.inView ? contentTop(press.node, view) - press.at : 0) - grows;
+    if (Math.abs(moves) >= 0.5 && holdThread(press.height)) paint();
+  }
+  opened.addEventListener("click", (event) => pressAt(event.target), { capture: true });
+  opened.addEventListener("click", () => {
+    if (!pressed?.landed) judgePress(pressed);
+  });
+  stage.addEventListener("lf-reveal", () => {
+    const press = pressed;
+    if (press?.landed) queueMicrotask(() => judgePress(press));
+  });
+  const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
   onStanding((node, cause) => {
-    if (cause !== "drop" && node && closestAcross(node, ".lf-msg-editor"))
-      actedIn(node);
+    const top = trail.at(-1);
+    if (top?.view !== "thread" || cause === "drop") return;
+    const view = openView();
+    const writing2 = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
+    if (writing2 === rewriting) return;
+    if (writing2) {
+      rewriting = holdThread(stood);
+      if (!rewriting) return;
+    } else {
+      rewriting = false;
+      rooms.delete(routeKey(top));
+    }
+    paint();
   });
   function holdRoom() {
     const top = trail.at(-1);
@@ -6667,6 +6716,8 @@ function createFloatingPanel({
     const changed = (before ? routeKey(before) : null) !== (after2 ? routeKey(after2) : null);
     if (changed) {
       rooms.clear();
+      rewriting = false;
+      pressed = null;
       spare = false;
       quoteExpanded = false;
       waiting = null;
@@ -7556,7 +7607,7 @@ function createFloatingPanel({
                 class="lf-fp-next-unread"
                 ?disabled=${!thread.unread.length}
                 ?data-unoffered=${!thread.unread.length}
-                @click=${() => firstUnread(thread.key)}
+                @click=${(event) => pressAt(event.currentTarget, firstUnread(thread.key))}
               >
                 ${iconTemplate("down", "lf-action-icon")}Next unread
               </button>` : nothing}${onPageSeat ? html`<button

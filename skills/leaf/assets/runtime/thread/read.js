@@ -159,7 +159,9 @@ export function createReadTracking({ markRead, openThread }) {
     const target = actionableUnread()
       .filter((each) => thread === null || each.thread.key === thread)
       .sort((a, b) => moved(a.message).seq - moved(b.message).seq)[0];
-    if (target) void openThread(target.item.message, { part: "message" });
+    return target
+      ? openThread(target.item.message, { part: "message" })
+      : Promise.resolve();
   }
 
   const firstUnreadCommand = {
@@ -170,7 +172,7 @@ export function createReadTracking({ markRead, openThread }) {
     title: "first unread",
     touch: false,
     when: () => actionableUnread().length > 0,
-    run: () => firstUnread(),
+    run: () => void firstUnread(),
   };
 
   function scan(sampleBand) {

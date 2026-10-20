@@ -1334,17 +1334,22 @@ def test_a_thread_s_view_marks_unread_replies_and_goes_to_the_next(browser, serv
     expect(press).to_be_disabled()
 
 
-PRESS_AND_HEAD = """(toggle) => ({
-  toggle: document.querySelector(toggle).getBoundingClientRect().top,
-  head: document.querySelector('.lf-fp-head').getBoundingClientRect().top,
-})"""
+# Where a press and the view's head stand once the frame after it has drawn, so the
+# view's own reading of what the press grew has run.
+PRESS_AND_HEAD = """(toggle) => new Promise((done) =>
+  requestAnimationFrame(() => requestAnimationFrame(() => done({
+    toggle: document.querySelector(toggle).getBoundingClientRect().top,
+    head: document.querySelector('.lf-fp-head').getBoundingClientRect().top,
+  })))
+)"""
 
 
 def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve):
-    """A press in a thread's view holds the view's height, so what it opens goes on
-    inside the view: Show 2 earlier messages and Show 2 progress messages each stay
-    under the pointer, and the view's head stays where it stood, rather than the view
-    growing up the window to hold what opened."""
+    """A press keeps what it pressed under the pointer. Show 2 progress messages opens
+    above itself, so the view grows up the window to show both messages, the press
+    standing where it was. Show 2 earlier messages opens below itself, where the view
+    growing would carry the press and the head up, so the view holds its height and
+    what opened goes on inside it, the press and the head standing where they were."""
     from browser.threads import summarize_thread
 
     url = serve(LONG_PAGE)
@@ -1380,16 +1385,82 @@ def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve)
     view = page.locator(".lf-fp-view[data-view=thread]")
     expect(view.locator(".lf-progress-expand")).to_be_visible()
     settled(page)
-    for toggle in (
-        ".lf-fp-view .lf-summary-checkpoint .lf-summary-expand",
-        ".lf-fp-view .lf-progress-expand",
-    ):
-        stood = page.evaluate(PRESS_AND_HEAD, toggle)
-        page.locator(toggle).click()
-        expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
-        settled(page)
-        assert page.evaluate(PRESS_AND_HEAD, toggle) == stood, toggle
+    toggle = ".lf-fp-view .lf-progress-expand"
+    stood = page.evaluate(PRESS_AND_HEAD, toggle)
+    page.locator(toggle).click()
+    expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
+    settled(page)
+    after = page.evaluate(PRESS_AND_HEAD, toggle)
+    assert after["toggle"] == stood["toggle"], (stood, after)
+    for step in view.locator(".lf-msg", has_text="Checking").all():
+        expect(step).to_be_in_viewport(ratio=1)
+
+    toggle = ".lf-fp-view .lf-summary-checkpoint .lf-summary-expand"
+    stood = page.evaluate(PRESS_AND_HEAD, toggle)
+    page.locator(toggle).click()
+    expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
+    settled(page)
+    assert page.evaluate(PRESS_AND_HEAD, toggle) == stood
     expect(view.locator(".lf-msg:visible")).to_have_count(7)
+
+
+def test_an_answer_the_user_waits_for_grows_the_view_after_a_press_on_its_words(
+    browser, serve
+):
+    """A press that grows nothing holds nothing: the user clicking a message's words
+    while waiting for the agent's answer still sees the answer grow the view, as it
+    would without the click."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    agent_said(serve.page_dir, root, "The mounts come first.", responds=root)
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    messages = view.locator(".lf-msg")
+    expect(messages).to_have_count(2)
+    write(field(page), "And then?")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    expect(messages).to_have_count(3)
+    settled(page)
+    messages.first.locator(".lf-msg-text").click()
+    page.wait_for_timeout(200)
+    settled(page)
+    stood = view.bounding_box()["height"]
+    agent_said(
+        serve.page_dir, root, "Then the beds. " + "The frost dates hold them. " * 4
+    )
+    told(page)
+    expect(messages).to_have_count(4)
+    settled(page)
+    assert view.bounding_box()["height"] > stood + 40, stood
+
+
+def test_next_unread_into_a_closed_summary_stays_under_the_press(browser, serve):
+    """Next unread reaching a reply a closed summary holds opens the summary in the
+    view, which holds its height so the press and the head stay where they were, and
+    lands on the reply inside it."""
+    from browser.threads import summarize_thread
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which jobs come first?")
+    first = agent_said(serve.page_dir, root, "The mounts come first.", responds=root)
+    then = agent_said(serve.page_dir, root, "Then the beds, once the frost lifts.")
+    summarize_thread(serve.page_dir, first, then, "Mounts, then beds.")
+    agent_said(serve.page_dir, root, "That is the order.")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    press = page.locator(".lf-fp-head .lf-fp-next-unread")
+    expect(press).to_be_visible()
+    settled(page)
+    stood = page.evaluate(PRESS_AND_HEAD, ".lf-fp-head .lf-fp-next-unread")
+    press.click()
+    reply = page.locator(".lf-fp-view .lf-msg", has_text="The mounts come first.")
+    expect(reply).to_be_focused()
+    settled(page)
+    assert page.evaluate(PRESS_AND_HEAD, ".lf-fp-head .lf-fp-next-unread") == stood
 
 
 def test_next_unread_never_shows_for_a_reply_the_opening_reads(browser, serve):

@@ -27,8 +27,6 @@ import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress } from "./summary-ranges.js";
 import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
-import { scrollerFor } from "../reading-regions.js";
-import { moveScrollerBy, placeKept } from "../scrolling.js";
 
 // The working message's contents: the step of work in hand, drawn as a message is,
 // with who is working and when those words were posted at its head, but dimmed under
@@ -421,30 +419,19 @@ export class Transcript {
     </button>`;
   }
 
-  // A press on a fold's disclosure opens or closes it and stays under the pointer.
-  // Progress opens above the answer whose head holds its disclosure, so its scroller
-  // takes back what that carries the press down by. Scroll anchoring would, but not at
-  // a scroller's start, where a view opened on a short thread stands.
   #setSummaryExpanded(ids, expanded) {
-    const toggleOf = () =>
-      this.node.querySelector(
-        `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
-      );
-    const stood = toggleOf()?.getBoundingClientRect().top;
     for (const id of ids) {
       if (expanded) this.#expandedSummaries.add(id);
       else this.#expandedSummaries.delete(id);
     }
     this.#repaint();
-    const toggle = toggleOf();
-    if (!toggle) return;
-    if (stood !== undefined) {
-      const box = scrollerFor(toggle);
-      moveScrollerBy(box, toggle.getBoundingClientRect().top - stood);
-      placeKept(box);
+    const toggle = this.node.querySelector(
+      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
+    );
+    if (toggle) {
+      focusDestination(toggle, "return");
+      scrollThreadIntoView(this.#home(), toggle, "instant");
     }
-    focusDestination(toggle, "return");
-    scrollThreadIntoView(this.#home(), toggle, "instant");
   }
 
   commit() {

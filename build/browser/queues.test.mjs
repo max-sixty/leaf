@@ -20,23 +20,40 @@ const adopted = (name) => {
     ),
   );
   assert.equal(app.adopt(served, { ...app.read().document, messageBodies }), true);
-  return { app, served: view.queues, items: view.items };
+  return {
+    app,
+    served: view.queues,
+    obligations: view.obligations,
+    todos: served.browser.todos,
+  };
 };
 const published = (app) => app.read().effective.queues;
 const kinds = (items) => items.map(({ kind, id }) => [kind, id]);
-// A row as the server listed it, without the workflow, offers and item record this tab
-// joins to it.
-const listed = ({ workflow: _workflow, offers: _offers, item: _item, ...row }) => row;
+// A row as the server listed it, without the workflow, offers and obligation or to-do
+// record this tab joins to it.
+const listed = ({
+  workflow: _workflow,
+  offers: _offers,
+  obligation: _obligation,
+  todo: _todo,
+  ...row
+}) => row;
 
 test("the browser publishes the queues the server selected", () => {
-  const { app, served, items } = adopted("queues on both sides");
+  const { app, served, obligations, todos } = adopted("queues on both sides");
   const { on_user: onUser, on_agent: onAgent, done } = published(app);
   assert.deepEqual(onUser.map(listed), served.on_user);
-  // The server names an item's record by id, and this tab joins the row to it.
+  // The server names an obligation's record by id, and this tab joins the row to it.
   for (const row of [...onUser, ...done].filter(({ kind }) => kind === "widget"))
     assert.deepEqual(
-      row.item,
-      items.find(({ id }) => id === row.id),
+      row.obligation,
+      obligations.find(({ id }) => id === row.id),
+    );
+  // A to-do row names its to-do by id the same way.
+  for (const row of [...onUser, ...onAgent].filter(({ kind }) => kind === "todo"))
+    assert.deepEqual(
+      row.todo,
+      todos.find(({ id }) => id === row.id),
     );
   assert.deepEqual(onAgent.map(listed), served.on_agent);
   assert.deepEqual(done.map(listed), served.done);
@@ -55,7 +72,7 @@ test("the browser publishes the queues the server selected", () => {
 test("a start gone quiet holds nothing, so its to-do shows no line in hand", () => {
   const { app } = adopted("quiet start");
   const running = Object.fromEntries(
-    published(app).on_agent.map((item) => [item.title, item.running?.text ?? null]),
+    published(app).on_agent.map(({ todo }) => [todo.title, todo.running?.text ?? null]),
   );
   assert.deepEqual(running, {
     "Rebuild the chart": null,
@@ -109,7 +126,7 @@ test("a follow-up sent in a thread stands for the answer it was owed", () => {
 test("words sent to a question leave it on the user until the log answers", () => {
   const { app } = adopted("queues on both sides");
   const question = published(app).on_user.find(
-    (item) => item.kind === "widget" && item.item.source.tag === "lf-ask",
+    (item) => item.kind === "widget" && item.obligation.source.tag === "lf-ask",
   );
   app.enqueue(
     {
@@ -130,7 +147,7 @@ test("words sent to a question leave it on the user until the log answers", () =
   assert.ok(!published(app).on_agent.some((item) => item.id === "pending:a4"));
 });
 
-test("a pending widget gesture changes no item membership", () => {
+test("a pending widget gesture changes no obligation membership", () => {
   const { app } = adopted("queues on both sides");
   const before = published(app);
   app.enqueue(
@@ -175,15 +192,17 @@ test("a Done this tab sends ends its to-do at once, and its undo puts it back", 
   assert.ok(!published(later).done.some((item) => item.id === todo.id));
 });
 
-test("Done lists completed items and to-dos through their own records", () => {
+test("Done lists completed obligations and to-dos through their own records", () => {
   const { app } = adopted("done");
   const { done } = published(app);
   const answered = done.find((item) => item.kind === "widget");
-  assert.equal(answered.item.status, "answered");
-  assert.equal(answered.id, answered.item.id);
+  assert.equal(answered.obligation.status, "answered");
+  assert.equal(answered.id, answered.obligation.id);
   assert.equal(answered.state, "done");
   assert.ok(
-    done.some((item) => item.kind === "todo" && item.title === "Check the colours"),
+    done.some(
+      (item) => item.kind === "todo" && item.todo.title === "Check the colours",
+    ),
   );
 });
 
@@ -191,7 +210,7 @@ test("an item lands in the Done of the list it left, newest first", () => {
   const { app } = adopted("done");
   const { done } = published(app);
   const owners = Object.fromEntries(done.map((item) => [item.id, item.owner]));
-  // The answered item leaves On me; the ended to-do and the reply the agent sent leave
+  // The answered obligation leaves On me; the ended to-do and the reply the agent sent leave
   // On <agent>.
   assert.deepEqual(owners, { "widget:ship": "user", e4: "agent", e2: "agent" });
   // The reply keeps the key of the answer On <agent> listed for the comment it answers,

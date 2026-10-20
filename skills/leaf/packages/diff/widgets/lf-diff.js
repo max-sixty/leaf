@@ -1463,8 +1463,10 @@ customElements.define(
 
     // Each line outlet takes a grid row of its own beside its line, in the content and
     // the gutter columns alike. A file drawn anew sets its columns' rows from the fresh
-    // render alone, so the outlets it kept take theirs again here.
+    // render alone, so the outlets it kept take theirs again here. A file outlet ends
+    // its file's run (`markRuns`).
     layoutThreadOutlets() {
+      this.markRuns();
       const counts = new Map();
       for (const { outlet, pair } of this.threadSeats?.values() ?? [])
         if (pair && outlet.parentNode === pair.content)
@@ -1734,9 +1736,27 @@ customElements.define(
         entry.filtered = Boolean(needle && !paths.includes(needle));
         entry.node.classList.toggle("lf-diff-filtered", entry.filtered);
       }
+      this.markRuns();
       this.refreshDiffTools();
       layoutChanged(this);
       threadSurface(this).update();
+    }
+
+    // The files the filter shows are drawn as one bordered list, which a file's own
+    // conversations break: they hang under that file in a box of their own, so the list
+    // runs on from the next file the filter shows (shadow.css). Only this pass knows
+    // which file that is, since CSS reads a file's sibling before it, which may be
+    // hidden, and not the nearest shown one. It runs whenever the shown files or a
+    // file's conversations change: on filtering, and on each outlet layout.
+    markRuns() {
+      const shown = this.fileEntries?.filter((entry) => !entry.filtered) ?? [];
+      const talks = (entry) =>
+        entry?.node.querySelector(":scope > .lf-diff-file-thread-outlet") != null;
+      shown.forEach((entry, index) => {
+        const { classList } = entry.node;
+        classList.toggle("lf-diff-run-start", index === 0 || talks(shown[index - 1]));
+        classList.toggle("lf-diff-run-end", index === shown.length - 1 || talks(entry));
+      });
     }
 
     clearFilter() {

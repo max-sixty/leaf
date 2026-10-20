@@ -167,7 +167,6 @@ class AttachedMediaShelf extends LitElement {
               </button>
               <button
                 type="button"
-                class="lf-composer-media-remove"
                 aria-label="Remove drawing"
                 title="Remove drawing"
                 @mousedown=${(event) => event.preventDefault()}

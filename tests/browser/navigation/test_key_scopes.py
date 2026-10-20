@@ -6,7 +6,7 @@ from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import ITEMS_PAGE, panel_comment
+from render_cases_interaction import OBLIGATIONS_PAGE, panel_comment
 from render_cases_layout import ring_faults, ring_rule, rings_drawn
 from render_cases_navigation import (
     ADDRESSED_PAGE,
@@ -1123,7 +1123,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     browser, serve, live_leaf
 ):
     """A held key repeats keydown where a real button fires once. A walk wants that — t
-    down threads, q down items, arrows down a panel view — and a press that toggles or
+    down threads, q down obligations, arrows down a panel view — and a press that toggles or
     navigates does not: a held `]` was a page navigation per repeat, and a held pick a
     `choose` per repeat, each of them one decision the user made once. So a row says
     whether it repeats and the default is no, where before only `offer`'s own listener
@@ -1134,7 +1134,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page installed; the tap below it, dispatched the same way and answered, is what says
     so rather than leaving the held press to pass for want of reaching anything."""
     live_leaf("second", "A second leaf")
-    page = open_page(browser, serve(ITEMS_PAGE, comments=3))
+    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=3))
     press = """([key, repeat, shiftKey = false]) => document.dispatchEvent(
         new KeyboardEvent('keydown',
           {key, repeat, shiftKey, bubbles: true, cancelable: true}))"""
@@ -1148,9 +1148,9 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(walked).to_be_focused()
 
     page.keyboard.press("m")
-    expect(page.locator("#live-question-decision[data-lf-item]")).to_have_count(1)
-    page.evaluate(press, ["m", True])  # the same grammar repeats for items
-    expect(page.locator("#sug-refill[data-lf-item]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-obligation]")).to_have_count(1)
+    page.evaluate(press, ["m", True])  # the same grammar repeats for obligations
+    expect(page.locator("#sug-refill[data-lf-obligation]")).to_have_count(1)
 
     leaves = page.locator('.lf-fp-view[data-view="leaves"]')
     page.keyboard.press("g")
@@ -1217,7 +1217,7 @@ def test_escape_backs_out_from_a_control_nothing_is_typed_into(browser, serve):
 def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve):
     """A margin marker is placed in the document beside the words it marks, outside
     `.lf-chrome`, and the standing floor used to read that container to tell a
-    destination from a control. So a marker reached by Tab wore the let-go of an item
+    destination from a control. So a marker reached by Tab wore the let-go of an obligation
     or a heading — "let go" — where the Threads toggle beside it, which is a control
     of the same standing, backs out onto the page. The floor asks `inUi` now, the one
     reading of which layer a node is in, and a marker gets the same word as the toggle.
@@ -1236,12 +1236,12 @@ def test_a_margin_marker_backs_out_onto_the_page_like_the_toggle(browser, serve)
         assert page.evaluate("() => document.activeElement === document.body")
 
 
-def test_an_items_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
-    """A pick inside an item wears the chrome face, as a margin marker does, and is not
+def test_an_obligations_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
+    """A pick inside an obligation wears the chrome face, as a margin marker does, and is not
     a control of Leaf's for all that: it is inside a destination, so Escape lets go of
-    it onto the page. The item is the items view's own reading rather than the ring's
-    paint, which only the item the walk stands at wears, so the word does not change
-    under an unmoved focus when Space answers the item and the ring comes off."""
+    it onto the page. The obligation is the obligations view's own reading rather than the ring's
+    paint, which only the obligation the walk stands at wears, so the word does not change
+    under an unmoved focus when Space answers the obligation and the ring comes off."""
     page = open_page(browser, serve(BINDING_BADGE_PAGE))
     pick = page.locator("#cards .lf-pick").first
     pick.focus()
@@ -1356,7 +1356,9 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     words = page.locator("#frame-label span")
     first.focus()
     standing = offered_routes(page)
-    expect(page.locator("#first-question-decision[data-lf-item]")).to_have_count(1)
+    expect(page.locator("#first-question-decision[data-lf-obligation]")).to_have_count(
+        1
+    )
 
     # A secondary contact does not drive native label activation, so it must not
     # start the logical transaction either.
@@ -1400,9 +1402,9 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         }"""
     )
     assert offered_routes(page) == standing
-    held_item = page.locator("#first-question-decision[data-lf-item]")
-    expect(held_item).to_have_count(1)
-    assert "[data-lf-item]" in ring_rule(held_item)
+    held_obligation = page.locator("#first-question-decision[data-lf-obligation]")
+    expect(held_obligation).to_have_count(1)
+    assert "[data-lf-obligation]" in ring_rule(held_obligation)
     # Native label activation temporarily blurs the radio. Its logical input
     # destination, and therefore the fallback ring on this plain authored control,
     # remain in place until the label's click transfers focus.
@@ -1425,7 +1427,9 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.mouse.up()
     expect(control).to_be_checked()
     expect(control).to_be_focused()
-    expect(page.locator("#frame-question-decision[data-lf-item]")).to_have_count(1)
+    expect(page.locator("#frame-question-decision[data-lf-obligation]")).to_have_count(
+        1
+    )
 
     # The press has its own frame and the drag comes after it, so the line's only route
     # to the word is the selection the drag makes: the user is taking words out of a
@@ -1511,7 +1515,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
 @pytest.mark.parametrize("entry", ["walk", "option", "aim"])
 def test_comment_escape_returns_to_its_authored_parent(browser, serve, entry):
     """Closing a comment removes one layer: composer, then its authored subject.
-    The same item is the parent when walking, standing on an option, or aiming at
+    The same obligation is the parent when walking, standing on an option, or aiming at
     its heading; entry history cannot change its Escape route."""
     page = open_page(browser, serve(WHERE_I_STAND_PAGE))
     item = page.locator("#shape-decision")

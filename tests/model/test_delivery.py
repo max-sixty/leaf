@@ -305,7 +305,9 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     )["attention"]
 
 
-def test_delivery_distinguishes_composing_an_item_from_changing_input_in_hand(page_dir):
+def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_hand(
+    page_dir,
+):
     source = PAGE.replace(
         "<lf-options>", '<lf-options id="choice" choose multiple>'
     ).replace(
@@ -346,7 +348,7 @@ def test_delivery_distinguishes_composing_an_item_from_changing_input_in_hand(pa
         page_dir, {"kind": "undo", "author": "user", "undoes": completed["id"]}
     )
     assert undone["attention"]
-    # The item is unfinished again, but the agent is already acting on its pick.
+    # The obligation is unfinished again, but the agent is already acting on its pick.
     changed = action("choice", "choose", {"value": ["backfill-first"]})
     assert changed["attention"]
     assert append_command(

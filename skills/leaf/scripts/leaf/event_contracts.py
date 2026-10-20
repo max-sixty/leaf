@@ -21,12 +21,12 @@ from leaf.events import (
 )
 from leaf.files import version_revisions
 from leaf.findings import Finding
-from leaf.items import (
+from leaf.layer import incompatible_layer, incompatible_revision
+from leaf.obligations import (
     approval_blocking,
     asking,
     quoted_in,
 )
-from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
 from leaf.projection import (
@@ -553,12 +553,12 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     page = AdmissionReadings(view, events, registry).page(revision)
     work = WorkReading(events, registry, page)
     unanswered = approval_blocking(
-        [*work.document.items["all"], *work.widget_items["all"]]
+        [*work.document.items["all"], *work.widget_obligations["all"]]
     )
     if unanswered:
         return Finding(
-            "unanswered-items",
-            values={**version, "items": [item["id"] for item in unanswered]},
+            "unanswered-obligations",
+            values={**version, "obligations": [item["id"] for item in unanswered]},
         )
     return None
 
@@ -752,7 +752,7 @@ def _plan_error(event: dict, readings) -> Finding | None:
     holds (`plans.plan_error`)."""
     if event["kind"] != "plan":
         return None
-    return plan_error(event, readings.log.todos, readings.work.all_items["all"])
+    return plan_error(event, readings.log.todos, readings.work.all_obligations["all"])
 
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
@@ -802,7 +802,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         item = next(
             (
                 item
-                for item in readings.work.all_items["all"]
+                for item in readings.work.all_obligations["all"]
                 if item["source"]["kind"] == "widget"
                 and item["source"]["id"] == widget
                 and item["status"] == "open"
@@ -811,7 +811,8 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         )
         if item is not None:
             return Finding(
-                "duplicate-item", values={"widget": widget, "item": item["id"]}
+                "duplicate-obligation",
+                values={"widget": widget, "obligation": item["id"]},
             )
         return None
 
@@ -823,7 +824,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
         element_error=element_error,
         user_widget_error=user_widget_error,
         owed=owed,
-        items=lambda: readings.work.all_items["all"],
+        items=lambda: readings.work.all_obligations["all"],
         registry=readings.work.registry,
     )
 

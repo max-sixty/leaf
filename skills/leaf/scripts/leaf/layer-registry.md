@@ -112,12 +112,12 @@ declared, is refused until `leaf page init` re-vendors it, which the first comma
 hook of the session holding the page runs itself (`vendoring.renew_layer`).
 
 The number is also the only version of what Leaf keeps outside a page's log and
-document: the delivery envelope and the Codex record of one in the state home, which
-every installed Leaf on the machine shares, the page's `user-views.json`, and the
-composer's draft in browser storage, which outlives a re-vendor. Each carries
-`leaf-<kind>/<protocol>` in its `format` (`registry.kernel.record_format`, and
-`runtime/protocol.js` generated from the same number), and a reader at another number
-leaves it alone: it ignores the record, or keeps a draft's words without its drawing.
+document: every JSON record in a page directory or in the state home, which every
+installed Leaf on the machine shares (`state.Record`), and the composer's draft in
+browser storage, which outlives a re-vendor. Each carries `leaf-<kind>/<protocol>`
+in its `format` (`runtime/protocol.js` is generated from the same number), and a
+reader at another number leaves it alone: it reads the record as absent, or keeps
+a draft's words without its drawing.
 So a change to one of those shapes that an older reader would misread bumps the number
 too.
 
@@ -146,5 +146,6 @@ generates the browser's copy of each (`build/registry.mjs`), so none is stamped 
 a layer that changes one is refused (`registry.layer.KERNEL_FACTS`):
 `$marks`, each declaration a stylesheet reads with the attribute it is painted as,
 which delivery paints into a page's document and the runtime into a message it
-renders; `$names`, the widget and attribute name grammars; and the classifications
-on each `$events.kinds` entry (`registry.kernel`).
+renders; `$names`, the widget and attribute name grammars; `$authored`, the page-wide
+declarations an author writes for the runtime, whose values type the runtime's
+readers; and the classifications on each `$events.kinds` entry (`registry.kernel`).

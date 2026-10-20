@@ -1,11 +1,12 @@
 """Page-bound external data: one durable publication per source.
 
-`data.json` records the contract each source id was last set under;
-`data/<source>.json` holds one publication: its opaque `run` receipt, `updated`
-instant, and complete `value`. `leaf data set` validates the value and atomically
-writes all three together, and is the only writer: a reader trusts the files' shape
-and judges only the value, against the contract the source is bound to now, which a
-later document may have replaced.
+`data.json` (`CONTRACTS`) records the contract each source id was last set under;
+`data/<source>.json` (`PUBLICATION`) holds one publication: its opaque `run`
+receipt, `updated` instant, and complete `value`. `leaf data set` validates the value
+and writes all three together through `write_data`, which a sample's copy of its
+parent's data also uses: a reader trusts the files' shape and judges only the value,
+against the contract the source is bound to now, which a later document may have
+replaced.
 
 A source's revision identifies its encoded value; its run identifies the write,
 including a rerun with the same value. Both survive copying the page directory.
@@ -26,7 +27,22 @@ from .registry.schema import json_value
 from .registry.storage import read_page_registry
 from .schema import DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
-from .state import json_bytes, now_iso
+from .state import STRING, TIME, Record, json_bytes, now_iso, object_schema
+
+CONTRACTS = Record(
+    "data",
+    object_schema(
+        {
+            "sources": {
+                "type": "object",
+                "additionalProperties": object_schema({"contract": STRING}),
+            }
+        }
+    ),
+)
+PUBLICATION = Record(
+    "data-source", object_schema({"run": STRING, "updated": TIME, "value": {}})
+)
 
 
 class StaleDataError(DataError):
@@ -39,11 +55,30 @@ def source_file(page_dir: Path, source: str) -> Path:
 
 def read_contracts(page_dir: Path) -> dict[str, str]:
     """Source id → the contract `data.json` records for it."""
-    try:
-        stored = json.loads((page_dir / DATA_FILE).read_text(encoding="utf-8"))
-    except FileNotFoundError:
+    stored = CONTRACTS.read(page_dir / DATA_FILE)
+    if stored is None:
         return {}
     return {source: entry["contract"] for source, entry in stored["sources"].items()}
+
+
+def write_data(
+    page_dir: Path, contracts: dict[str, str] | None, publications: dict[str, dict]
+) -> None:
+    """Atomically replace these sources' publications, and the recorded contracts
+    where `contracts` is given: the one writer of both."""
+    (page_dir / DATA_DIR).mkdir(exist_ok=True)
+    writes = [
+        (source_file(page_dir, source), PUBLICATION.encode(publication), False)
+        for source, publication in publications.items()
+    ]
+    if contracts is not None:
+        index = {
+            "sources": {
+                name: {"contract": contracts[name]} for name in sorted(contracts)
+            }
+        }
+        writes.append((page_dir / DATA_FILE, CONTRACTS.encode(index), False))
+    replace_files(writes)
 
 
 # (source, contract declaration, revision) → validation error. Every state reading
@@ -72,13 +107,10 @@ def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> d
     """One source as readers receive it: its contract, and, once a value file
     exists, that file's revision, run receipt, `updated` instant, and `value` or
     `error`."""
-    path = source_file(page_dir, source)
-    try:
-        data = path.read_bytes()
-    except FileNotFoundError:
-        return {"contract": contract}
     reading = {"contract": contract}
-    publication = json.loads(data)
+    publication = PUBLICATION.read(source_file(page_dir, source))
+    if publication is None:
+        return reading
     value = publication["value"]
     reading.update(
         revision=hashlib.sha256(json_bytes(value)).hexdigest()[:16],
@@ -259,17 +291,11 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
         recorded = contracts.get(source)
         if error := payload_error(source, contract, value, registry):
             raise DataError(error)
-        publication = {"run": uuid4().hex, "updated": now_iso(), "value": value}
-        writes = [(source_file(page_dir, source), json_bytes(publication), False)]
-        if recorded != contract:
-            contracts[source] = contract
-            index = {
-                "sources": {
-                    name: {"contract": contracts[name]} for name in sorted(contracts)
-                }
-            }
-            writes.append((page_dir / DATA_FILE, json_bytes(index), False))
-        replace_files(writes)
+        write_data(
+            page_dir,
+            {**contracts, source: contract} if recorded != contract else None,
+            {source: {"run": uuid4().hex, "updated": now_iso(), "value": value}},
+        )
         return read_source(page_dir, source, contract, registry)
 
 

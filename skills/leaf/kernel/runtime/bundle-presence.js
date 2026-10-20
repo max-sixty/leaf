@@ -365,10 +365,9 @@ function sweep(root) {
 }
 function paintSlot(el, style) {
   const sticks = style.position === "sticky";
-  el.toggleAttribute(
-    PAGE_PAINT_ATTRIBUTE.scrolls,
-    scrollsBy(style) && !sticks && !el.matches(TEXT_BOX)
-  );
+  const scrolls2 = scrollsBy(style) && !sticks && !el.matches(TEXT_BOX);
+  const across = userScrollport(style.overflowX) && !userScrollport(style.overflowY);
+  keeps(el, PAGE_PAINT_ATTRIBUTE.scrolls, scrolls2 ? across ? "across" : "" : null);
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.sticks, sticks && style.top !== "auto");
 }
 function classify(el, style) {

@@ -53,13 +53,13 @@
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, then its items' state on a reserved line: an open mark
- * while any item the panel holds is unanswered, and once every one is answered a check, with
- * the answer's own words where the panel holds one item. So a queue shows each item's state
- * and how far the user has worked through it, and an undo that reopens an item puts the
- * open mark back. Which items a panel holds is `itemsIn` (items/place.js), read from the
- * admitted item inventory, so a tally of the queue counts the same items. A row whose panel
- * authors an item keeps the mark's room either way, so an answer moves no row. While the
+ * the panel's `summary` under the name, then its obligations' state on a reserved line: an open mark
+ * while any obligation the panel holds is unanswered, and once every one is answered a check, with
+ * the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
+ * and how far the user has worked through it, and an undo that reopens an obligation puts the
+ * open mark back. Which obligations a panel holds is `obligationsIn` (obligations/place.js), read from the
+ * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel
+ * authors an obligation keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
@@ -67,7 +67,7 @@
 import {
   afterScript,
   PRESS,
-  itemsIn,
+  obligationsIn,
   answerWords,
   under,
   backgroundFlash,
@@ -144,7 +144,7 @@ export class TabSet extends HTMLElement {
   static parts = false;
   #parts = /** @type {typeof TabSet} */ (this.constructor).parts;
   #buttons = new Map(); // panel → its strip button
-  #stopItems = null;
+  #stopObligations = null;
   #active = null;
   #root = false;
   #contextObserver = null;
@@ -229,7 +229,7 @@ export class TabSet extends HTMLElement {
         relabel(summary, panel.getAttribute("summary"), { says: true });
         btn.append(summary);
       }
-      // The row's item state (`#marks`) keeps a line where the panel authors an item.
+      // The row's obligation state (`#marks`) keeps a line where the panel authors an obligation.
       if (side && elementsDeclaring(panel, "x-awaits").length) {
         const answer = document.createElement("span");
         answer.className = "lf-tab-answer";
@@ -333,7 +333,7 @@ export class TabSet extends HTMLElement {
       this.#replaceLocation(this.#active);
     }
     // The Δ count follows the version diff; the runtime announces each toggle.
-    this.#listenForItems();
+    this.#listenForObligations();
     watchComparison(this, () => this.#marks());
     whileConnected(this, (signal) => {
       this.#watchRootContext();
@@ -390,7 +390,7 @@ export class TabSet extends HTMLElement {
   }
 
   // What each panel holds, said with its summary as the tab's description: the
-  // version diff's marked passages, and in a side list its items' state, with the answer
+  // version diff's marked passages, and in a side list its obligations' state, with the answer
   // once they are all answered.
   #marks() {
     for (const [panel, btn] of this.#buttons) {
@@ -400,7 +400,7 @@ export class TabSet extends HTMLElement {
         changed ? `Δ${changed}` : "",
       );
       const slot = btn.querySelector(":scope > .lf-tab-answer");
-      const items = slot ? itemsIn(panel) : [];
+      const items = slot ? obligationsIn(panel) : [];
       const done = items.filter((item) => item.status === "answered");
       const answered = items.length > 0 && done.length === items.length;
       const only = items.length === 1 ? items[0] : null;
@@ -408,7 +408,7 @@ export class TabSet extends HTMLElement {
       if (slot) {
         keeps(
           slot,
-          "data-lf-items",
+          "data-lf-obligations",
           answered ? "answered" : items.length ? "open" : null,
         );
         keepsText(slot.firstElementChild, answer);
@@ -436,10 +436,10 @@ export class TabSet extends HTMLElement {
     }
   }
 
-  // A side list's answers follow the page's item reading.
-  #listenForItems() {
-    if (!this.#side || !this.#buttons.size || this.#stopItems) return;
-    this.#stopItems = watchProjection(this, () => this.#marks());
+  // A side list's answers follow the page's obligation reading.
+  #listenForObligations() {
+    if (!this.#side || !this.#buttons.size || this.#stopObligations) return;
+    this.#stopObligations = watchProjection(this, () => this.#marks());
   }
 
   #activate(active, reason) {

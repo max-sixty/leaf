@@ -2161,7 +2161,7 @@ function loadMarkdown(onError = null) {
 var PLAYER = PAGE_PAINT_ATTRIBUTE.player;
 var SCOPE = /* @__PURE__ */ Symbol("recording");
 var STEP_SECONDS = 5;
-var players = /* @__PURE__ */ new WeakMap();
+var players = /* @__PURE__ */ new Map();
 var clock = (seconds) => {
   const whole = Math.floor(seconds);
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
@@ -2307,8 +2307,14 @@ function giveBack(video) {
   keeps(video, PLAYER, null);
 }
 function watchVideos() {
+  const root = document.documentElement;
+  const fallenBack = () => !root.hasAttribute("data-lf-interactive");
+  new MutationObserver(() => {
+    if (fallenBack()) for (const video of [...players.keys()]) giveBack(video);
+  }).observe(root, { attributes: true, attributeFilter: ["data-lf-interactive"] });
   watchArrivals(`video[controls], video[${PLAYER}]`, [], {
     arriveBatch(videos) {
+      if (fallenBack()) return;
       const read = videos.filter(nameable).map((video) => {
         const player = players.get(video) ?? prepare(video);
         return {

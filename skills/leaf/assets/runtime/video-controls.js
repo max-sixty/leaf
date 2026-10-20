@@ -53,7 +53,7 @@ const PLAYER = PAGE_PAINT_ATTRIBUTE.player;
 // The key this module projects its scope under, beside the video's other owners.
 const SCOPE = Symbol("recording");
 const STEP_SECONDS = 5;
-const players = new WeakMap();
+const players = new Map(); // video → player, while it stands
 
 const clock = (seconds) => {
   const whole = Math.floor(seconds);
@@ -226,8 +226,17 @@ function giveBack(video) {
 }
 
 export function watchVideos() {
+  // A page whose runtime cannot start falls back to its readable form, which takes
+  // `data-lf-interactive` off the root and gives every video its `controls` back
+  // (prepaint.js). The bars stand down with it, and no later arrival takes one.
+  const root = document.documentElement;
+  const fallenBack = () => !root.hasAttribute("data-lf-interactive");
+  new MutationObserver(() => {
+    if (fallenBack()) for (const video of [...players.keys()]) giveBack(video);
+  }).observe(root, { attributes: true, attributeFilter: ["data-lf-interactive"] });
   watchArrivals(`video[controls], video[${PLAYER}]`, [], {
     arriveBatch(videos) {
+      if (fallenBack()) return;
       // Read every video before any video is written, bar connected or anchor named.
       // A bar in chrome anchors only to a video the document can name: one in the
       // document or the first shadow stage in (css-anchors.js). A video staged deeper

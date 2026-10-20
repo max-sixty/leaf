@@ -193,9 +193,8 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(widget.locator(".lf-trace-phase")).to_have_text(
         f"After checkpoint · {(stop_time(record, phase) - origin) / 1000:.3f} s"
     )
-    expect(widget.locator(".lf-trace-clock")).to_have_text(
-        "Times are elapsed since the recording started"
-    )
+    # The basis every reader assumes goes unsaid; only a departure from it is.
+    expect(widget.locator(".lf-trace-clock")).to_be_hidden()
     widget.locator(".lf-trace-tree summary").click()
     rendered(user)
     nodes = widget.locator(".lf-trace-node").filter(has_text="button · Review")
@@ -350,6 +349,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         },
     )
     told(user)
+    expect(widget.locator(".lf-trace-clock")).to_be_visible()
     expect(widget.locator(".lf-trace-clock")).to_have_text(
         "Times are elapsed from the first captured event"
     )

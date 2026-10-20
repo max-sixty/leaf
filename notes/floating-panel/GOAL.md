@@ -1,6 +1,6 @@
 # Goal: the floating Leaf panel
 
-> **Status (2026-10-19): Leaf's only chrome (TODO #28).** Checkpoints 1–3 landed
+> **Status (2026-10-20): Leaf's only chrome (TODO #28).** Checkpoints 1–3 landed
 > on `main` behind a preference, off by default. The user disliked their look, so
 > a second round redesigned it from a sketch they tried and configured (below, "The
 > overhaul"). On 16 October the user made the rebuilt panel the default, and later
@@ -12,6 +12,8 @@
 > On 13 October the user retired the Codex reference: the panel is judged by Leaf's
 > own aesthetic and the user's eye, not against the Codex app. The phone waits until
 > the desktop design is firm, and gets no work before then.
+>
+> Every follow-up the user named has landed; the desktop design waits on their review.
 
 ## The overhaul
 
@@ -60,15 +62,13 @@ its recipient ("I don't think we need 'To Agent' (who else might we be sending i
 to??)"), menu rows drew their keys as key caps, and About's copy rows took Leaf's copy
 icon.
 
-### Follow-ups the user named
-
-- **Selected words go to the anchored comment box, not the field.** The fresh review
-  found that clicking the panel's field with words selected drops the selection and
-  comments on the page as a whole. The user declined carrying the selection into the
-  field (14 October): "at the moment we should encourage using the anchored comment
-  box; though we may change our mind", since that box becomes the anchored comment and
-  stands beside its passage. If the drop needs treating, steer toward that box rather
-  than giving the field a second way to anchor.
+On 14 October the user asked that comments on selected words go through the anchored
+comment box, which stands beside its passage, rather than the panel's field ("at the
+moment we should encourage using the anchored comment box; though we may change our
+mind"). On 20 October they accepted the field offering the words where no box opens
+beside them, as after a finger selects them (#3275): the empty field's placeholder
+quotes the words, and a press on the field opens the anchored comment box on them.
+Where a mouse selects words, the box opens beside them as before.
 
 Leaf's chrome is one panel that hovers over the bottom of the page, like the
 Codex app's floating chat panel, in place of the banner and the bottom bar it

@@ -18,7 +18,10 @@
    The same rendered-body and room observations record first visible agent words in
    the best-effort interaction trace. Those diagnostics need neither focus, unread
    status nor complete exposure; they require a visible document and an actually
-   painted text range. They never change semantic state or delay presentation.
+   painted text range. They never change semantic state or delay presentation. A
+   surface fading in, as the leaf's menu and a view arriving in the panel do, moves no
+   box and announces nothing, so words a pass finds hidden under a running animation
+   are read again when it ends.
 
    The first unread destination belongs to this reading too. Its Go-to route (`g u`)
    and Next unread at the head of the floating panel's view of a thread, which goes to
@@ -39,6 +42,7 @@ import { recordInteraction } from "../interaction-log.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
+import { renderedParent } from "../shadow-tree.js";
 
 import { savedReadingSettled } from "../keyboard/bindings.js";
 import {
@@ -188,6 +192,7 @@ export function createReadTracking({ markRead, openThread }) {
     const mayRead = threadsPresented && document.hasFocus();
     const clips = new Map();
     const completed = new Map();
+    const unseenWords = [];
     for (const [node, rendered] of renderedBodies) {
       const { body, id, version, feedback } = rendered;
       if (!node.isConnected || !body.isConnected) {
@@ -198,9 +203,11 @@ export function createReadTracking({ markRead, openThread }) {
       if (feedback) {
         const identity = feedback.reply_id ?? `input:${feedback.input_id}`;
         const key = `${identity}:${feedback.presentation_kind}:${feedback.surface}`;
-        if (!visibleReplies.has(key) && wordsAreVisible(body, clips, band)) {
-          visibleReplies.add(key);
-          recordInteraction("reply_visible", feedback);
+        if (!visibleReplies.has(key)) {
+          if (wordsAreVisible(body, clips, band)) {
+            visibleReplies.add(key);
+            recordInteraction("reply_visible", feedback);
+          } else unseenWords.push(body);
         }
       }
       const item = mayRead && candidates.get(id);
@@ -240,6 +247,7 @@ export function createReadTracking({ markRead, openThread }) {
         completed.set(key, item);
       }
     }
+    if (unseenWords.length) passAfterFades(unseenWords);
     if (completed.size) {
       const items = [...completed.values()];
       const visit = visitGeneration;
@@ -254,6 +262,24 @@ export function createReadTracking({ markRead, openThread }) {
     const waiting = passWaiters;
     passWaiters = [];
     for (const then of waiting) then();
+  }
+
+  // Neither the size observer nor the room announces a fade (the header). For words a
+  // pass found hidden, each animation or transition on their body, inside it, or on a
+  // box the body renders inside brings one more pass when that run ends or is
+  // cancelled. A replayed animation has a new `finished` promise and is awaited again.
+  const awaitedRuns = new WeakSet();
+  function passAfterFades(bodies) {
+    for (const body of bodies) {
+      const animations = body.getAnimations({ subtree: true });
+      for (let at = renderedParent(body); at; at = renderedParent(at))
+        animations.push(...at.getAnimations());
+      for (const { finished } of animations) {
+        if (awaitedRuns.has(finished)) continue;
+        awaitedRuns.add(finished);
+        finished.then(scheduleScan, scheduleScan);
+      }
+    }
   }
 
   // Runs `then` after the next pass over the presented threads, once what that pass

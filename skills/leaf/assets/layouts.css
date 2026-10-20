@@ -704,7 +704,6 @@
   :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
     > aside
     > :only-child {
-    overflow-anchor: none;
     --lf-reading-region: layout;
   }
   @media screen {
@@ -713,8 +712,8 @@
     }
     /* Sticking blocks: a column's sidebar in the margin and a sidebar page's track block
      * beside the body stand below the head room and scroll what they hold within the
-     * window, so each restarts `--lf-top` and its landing band (theme.css), and a
-     * focused link keeps the ring's room (`--lf-head-inset`). */
+     * window, so each restarts `--lf-top` and its landing band (theme.css), a focused
+     * link keeps the ring's room (`--lf-head-inset`), and it anchors no scroll. */
     :is(
         main,
         main > *,
@@ -732,6 +731,7 @@
       --lf-head-inset: initial;
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;
+      overflow-anchor: none;
     }
   }
   /* Tiles: equal cells, as many to a row as fit at 9rem, each row's cells one height.

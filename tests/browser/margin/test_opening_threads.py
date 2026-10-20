@@ -340,7 +340,8 @@ LONG_STRIP_PAGE = leaf_page(
     + """
     <lf-tab id="view-last" label="The last tab"><p id="last-words">Words.</p></lf-tab>
   </lf-tabs>
-  <p id="hidden-words" hidden>Words the page hides.</p>""",
+  <p id="hidden-words" hidden>Words the page hides.</p>
+  <p id="unseen-words" style="visibility: hidden">Words the page leaves unseen.</p>""",
 )
 
 
@@ -364,13 +365,17 @@ def open_where_the_user_stands(page, section, **options):
 def test_a_thread_whose_passage_stays_hidden_opens_in_the_panel(browser, serve):
     """Where the passage stays hidden, its card has no row to stand beside, so the
     floating panel shows the thread. A thread opened with `scroll: false` reveals no
-    closed tab, since a tab switch scrolls its strip, and a passage the page hides
-    can't be revealed at all."""
+    closed tab, since a tab switch scrolls its strip, and a passage the page hides,
+    with `hidden` or `visibility: hidden`, can't be revealed at all."""
     page = open_page(
         browser,
         serve(
             LONG_STRIP_PAGE,
-            events=[_comment_on("last-words"), _comment_on("hidden-words")],
+            events=[
+                _comment_on("last-words"),
+                _comment_on("hidden-words"),
+                _comment_on("unseen-words"),
+            ],
         ),
     )
     resized(page, 390, 844)
@@ -380,8 +385,8 @@ def test_a_thread_whose_passage_stays_hidden_opens_in_the_panel(browser, serve):
     expect(page.locator(PANEL)).to_have_attribute("data-open", re.compile(".+"))
     expect(page.locator("#view-last")).to_be_hidden()
     assert strip.evaluate("s => s.scrollLeft") == 0
-    assert open_where_the_user_stands(page, "hidden-words") is True
-    expect(page.locator(PANEL)).to_have_attribute("data-open", re.compile(".+"))
+    for section in ("hidden-words", "unseen-words"):
+        assert open_where_the_user_stands(page, section) is True, section
 
 
 def test_a_thread_in_view_opens_beside_it_and_leaves_the_tab_strip(browser, serve):

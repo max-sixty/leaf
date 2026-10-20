@@ -192,9 +192,6 @@ import {
   scrollBehavior
 } from "./runtime/bundle-motion.js";
 import {
-  visibleTargetParts
-} from "./runtime/bundle-visible-target-parts.js";
-import {
   PAGE_CONTROL_RANK,
   livePoint,
   openResidency,
@@ -205,6 +202,7 @@ import {
   railStands,
   registerPageControl,
   scheduleResidency,
+  visibleTargetParts,
   watchPageControls
 } from "./runtime/bundle-page-controls.js";
 import {

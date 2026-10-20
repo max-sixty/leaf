@@ -1763,13 +1763,17 @@ def test_a_capture_in_an_outer_column_keeps_its_frame(browser, serve, direction)
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_tables_outer_words_stand_on_the_prose_edges(browser, serve, direction):
-    """A table's outer columns keep no gutter on its outer sides, so a table as wide as
-    the column starts and ends its words where the prose does, in either direction. A
-    right-to-left table kept the left-to-right gutter on its first column's right."""
+    """A table's outer columns keep no gutter on its outer sides and set their words from
+    the table's start, so a table as wide as the column starts its first column's words,
+    a short heading's included, where the prose starts, and ends its last column where
+    the prose ends, in either direction. A right-to-left table kept the left-to-right
+    gutter on its first column's right and set its words from the left."""
     words = "Each column holds enough words to fill its share of the measure. "
     body = (
         f"<h1>Columns</h1><p id='prose'>{words * 4}</p>"
-        f'<table id="columns"><tr><td>{words}</td><td>{words}</td><td>{words}</td></tr>'
+        '<table id="columns"><thead><tr><th scope="col">Name</th>'
+        '<th scope="col">Note</th><th scope="col">More</th></tr></thead>'
+        f"<tbody><tr><td>{words}</td><td>{words}</td><td>{words}</td></tr></tbody>"
         "</table>"
     )
     source = leaf_page("Columns", body).replace(
@@ -1777,16 +1781,29 @@ def test_a_tables_outer_words_stand_on_the_prose_edges(browser, serve, direction
     )
     page = open_page(browser, serve(source))
     at = page.evaluate("""() => {
+      const rtl = getComputedStyle(document.getElementById('columns')).direction === 'rtl';
+      const ink = node => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const r = range.getBoundingClientRect();
+        return rtl ? r.right : r.left;
+      };
       const content = cell => {
         const r = cell.getBoundingClientRect(), cs = getComputedStyle(cell);
-        return [r.left + parseFloat(cs.paddingLeft), r.right - parseFloat(cs.paddingRight)];
+        return rtl ? r.left + parseFloat(cs.paddingLeft) : r.right - parseFloat(cs.paddingRight);
       };
       const prose = document.getElementById('prose').getBoundingClientRect();
-      const cells = [...document.querySelectorAll('#columns td')].map(content);
-      return {prose: [prose.left, prose.right],
-        words: [Math.min(...cells.map(c => c[0])), Math.max(...cells.map(c => c[1]))]};
+      const rows = [...document.querySelectorAll('#columns tr')];
+      return {
+        starts: rows.map(row => ink(row.firstElementChild)),
+        ends: rows.map(row => content(row.lastElementChild)),
+        prose: rtl ? [prose.right, prose.left] : [prose.left, prose.right],
+      };
     }""")
-    assert at["words"] == pytest.approx(at["prose"], abs=0.5), at
+    for start in at["starts"]:
+        assert start == pytest.approx(at["prose"][0], abs=0.5), at
+    for end in at["ends"]:
+        assert end == pytest.approx(at["prose"][1], abs=0.5), at
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])

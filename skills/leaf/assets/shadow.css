@@ -249,6 +249,7 @@ summary {
   --lf-msg-edit-save: max(40px, var(--aim-floor));
   --lf-msg-edit-gap: 4px;
   --lf-msg-edit-room: calc( var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save) );
+  --lf-primary-news-width: 5rem;
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -291,7 +292,7 @@ summary {
 }
 .lf-primary-message > .lf-msg-head:has(> .lf-primary-news) {
   position: relative;
-  --lf-msg-head-room: 5rem;
+  --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);
 }
 .lf-primary-part {
@@ -304,7 +305,7 @@ summary {
   position: absolute;
   inset-block-start: 0;
   inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
-  max-inline-size: var(--lf-msg-head-room);
+  max-inline-size: var(--lf-primary-news-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -652,7 +653,7 @@ button.lf-thread-notice[data-lf-focus] {
   font-size: 0.9em;
 }
 :where(:root, .lf-thread-transcript) caption {
-  text-align: left;
+  text-align: start;
   font-size: var(--t-6);
   color: var(--muted);
   margin-bottom: 6px;
@@ -661,7 +662,7 @@ button.lf-thread-notice[data-lf-focus] {
   max-inline-size: 100cqi;
 }
 :where(:root, .lf-thread-transcript) :is(th, td) {
-  text-align: left;
+  text-align: start;
   padding: 8px 14px;
   border-bottom: 1px solid var(--rule);
   vertical-align: top;

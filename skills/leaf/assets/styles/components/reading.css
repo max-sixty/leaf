@@ -202,7 +202,7 @@
    revision demonstrates and what rem…". It keeps to the part of the table on screen
    (the table is its own inline-size container) and stays there as the columns scroll. */
 :where(:root, .lf-thread-transcript) caption {
-  text-align: left;
+  text-align: start;
   font-size: var(--t-6);
   color: var(--muted);
   margin-bottom: 6px;
@@ -211,7 +211,7 @@
   max-inline-size: 100cqi;
 }
 :where(:root, .lf-thread-transcript) :is(th, td) {
-  text-align: left;
+  text-align: start;
   padding: 8px 14px;
   border-bottom: 1px solid var(--rule);
   vertical-align: top;
@@ -223,10 +223,10 @@
   }
 }
 /* The padding is a gutter, and the columns at the two ends have no neighbour to
-   keep away from: 10px of it there set every table's first word 10px right of
-   the prose above it, and stopped the last column short of the same edge. The ends are
-   the table's start and end, so a right-to-left table's first column stands on the
-   right edge with the prose. */
+   keep away from: a gutter there set every table's first word that far in from the
+   prose above it, and stopped the last column short of the same edge. The ends, like
+   each cell's alignment, are the table's start and end, so a right-to-left table's
+   first column stands on the right edge with the prose. */
 :where(:root, .lf-thread-transcript) tr > :first-child {
   padding-inline-start: 0;
 }

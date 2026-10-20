@@ -8,7 +8,6 @@ import re
 import shutil
 import threading
 import time
-from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
@@ -447,13 +446,13 @@ def test_codex_stop_leaves_quiet_input_but_delivers_the_whole_batch_with_owed_in
         )
         answer = json.loads(capsys.readouterr().out)
         assert answer["decision"] == "block"
-        [pointer_xml] = re.findall(r"<leaf-delivery\b[^>]*?/>", answer["reason"])
-        pointer = ElementTree.fromstring(pointer_xml)
-        read = CliRunner().invoke(
-            cli_model.cli, ["delivery", "read", pointer.attrib["id"]]
+        envelope = json.loads(answer["reason"])
+        assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
+        assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(
+            envelope["id"]
         )
-        assert read.exit_code == 0, read.output
-        [batch] = json.loads(read.output)["batches"]
+        assert events_model.read_cursor(page_dir) == cursor
+        [batch] = envelope["batches"]
         assert [event["id"] for event in batch["events"]] == [
             *(event["id"] for event in quiet),
             comment["id"],

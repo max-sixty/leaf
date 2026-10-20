@@ -70,12 +70,14 @@ def capture_evidence(page: Path, inputs: Path | None, shots: Path) -> dict:
     return {"inputs": sources, "media": media, "exact_inputs": exact_inputs}
 
 
-# Enough of one check's output to name its findings; the trace keeps all of it.
-CHECK_OUTPUT = 6000
+# Enough of one call to tell what it changed; a page write's full text is in the trace.
+CALL_TEXT = 2000
 
 
 def check_log(trace: list[dict]) -> list[dict]:
-    """Each tool call the author made, in order, with the output of its page checks."""
+    """Each tool call the author made, in order, with the whole output of its page
+    checks, so a reader can tell what a check reported and whether a later call
+    changed the page in answer."""
     results = {
         block["tool_use_id"]: block.get("content")
         for block in blocks(trace)
@@ -87,14 +89,14 @@ def check_log(trace: list[dict]) -> list[dict]:
             continue
         tool = block["input"]
         call = tool.get("command") or " ".join(
-            filter(None, [block["name"], tool.get("file_path")])
+            filter(None, [block["name"], tool.get("file_path"), tool.get("new_string")])
         )
-        entry = {"call": call[:300]}
+        entry = {"call": call[:CALL_TEXT]}
         if "page check" in call:
             output = results.get(block["id"])
             if isinstance(output, list):
                 output = "\n".join(part.get("text", "") for part in output)
-            entry["output"] = (output or "")[:CHECK_OUTPUT]
+            entry["output"] = output or ""
         log.append(entry)
     return log
 

@@ -396,7 +396,7 @@ uv run leaf-dev eval page-reads-at-every-width page-reads-at-every-width/dashboa
 ```
 
 The runs authored 37 pages at main `e1ed34cec`: 19 on Claude Code with Opus 5.5
-(mean $1.33 a page) and 18 on Codex with Sol 6.1. The last two commands ran with
+(mean $1.29 a page) and 18 on Codex with Sol 6.1. The last two commands ran with
 [#3328](https://github.com/max-sixty/leaf/pull/3328) in the tree, which changes only
 an ask that holds a playground before other content. Three more configuration pages,
 authored after that fix to check it, count in the defect table but not in the rates.
@@ -435,25 +435,26 @@ Of the 66 defects, the final render check reported 3 and the plain check none. T
 checks read neither the page's facts nor Leaf's own chrome (`render_gate/readings.py`
 leaves chrome to the suite), so their reach is the 20 rendering defects outside the
 chrome, of which they reported 3. Their value shows earlier: on 35 of the 40 pages the
-author's own checks reported 143 findings, and the final page still had 10 of them.
-The render check's were labels shrunk below 10px (52 on 10 pages, 9 kept on 4), tables
+author's own checks reported 137 distinct findings, as the matching turn groups repeats,
+and the final page still had 10 of them. The render check's were labels shrunk below
+10px (52 on 10 pages, 9 kept on 4), tables
 squeezed at 360px (7), labels drawn over each other in a chart (6), scrollbar
-clearance (3), content past the column (1), a verbatim mismatch (1) and a console
+clearance (3), content past the column (1), a verbatim mismatch (2) and a console
 error (1). The plain check's were markup: targets with no id (35 on 18 pages), schema
-refusals (27 on 7 pages), and 10 runs before `index.html` existed. Every author ran a
+refusals (20 on 7 pages), and 10 runs before `index.html` existed. Every author ran a
 check, and 27 of 40 ran `--render`; on the 13 pages whose authors did not, mostly
 queues and Codex pages, the final render check found nothing.
 
-For "Decide what plain `page check` runs in a browser" (TODO.md): no final page had a
-widget that failed to draw or a console error, and the one console error during
-authoring, an `lf-chart` transform reading `NaN`, came from the render check and was
-fixed. Every plain-check finding was markup.
+For "Decide what plain `page check` runs in a browser" (TODO.md): on no final page did
+the judge see a widget fail to draw or the render check report a console error. The
+one console error during authoring, an `lf-chart` transform reading `NaN`, came from
+the render check and was fixed. Every plain-check finding was markup.
 
 How far to trust these numbers:
 
-- The judge's recall is partial. Every judge opened a thread, yet it reported the
-  thread card over neighbouring text on 14 of the 40 pages; the rates are lower
-  bounds.
+- The rates are what this judge reported. It misses defects: every judge opened a
+  thread, yet it reported the thread card over neighbouring text on 14 of the 40
+  pages. How often it reports a defect that isn't there was not measured.
 - Four content defects checked against the requests were real: a backfill of
   "about 550k" sessions where the request says 312k, "holding keeps half its
   checkouts timing out" where 50% is the rollout stage and the error rate is 0.91%,
@@ -464,7 +465,9 @@ How far to trust these numbers:
   for word, and Claude Code pages added derived claims; the "half of eu-west's
   checkouts" claim appeared on 5 of 6 Claude Code dashboards.
 - The 3 render-reported defects match the check messages the matching turn quoted.
-  The other readings were not checked by hand.
+  A second matching turn, given each check's whole output where the first had its
+  first 6,000 characters, read all 66 defects the same way. The other readings were
+  not checked by hand.
 
 The overlap from a playground followed by a note came from `lf-ask`: its full-height
 rule gave every child the height signal, so a playground that was not the last child

@@ -17,7 +17,7 @@ so a run's defect rate and the checks' recall read from `results.json`.
 import json
 from pathlib import Path
 
-from leaf_dev.arms import run_agent, scratch, trace_result
+from leaf_dev.arms import observed_sum, run_agent, scratch, trace_result, trace_summary
 from leaf_dev.arrangement_eval import judge_pages
 from leaf_dev.eval_cases import definition
 
@@ -25,8 +25,9 @@ DEFINITION = definition("page_defects")
 SKILL_PREFIX = definition("eval")["skill_prefix"]
 
 
-def match(defects: list[dict], response: dict, evidence: Path) -> dict:
-    """Set each defect beside what the final and in-session checks reported."""
+def match(defects: list[dict], response: dict, evidence: Path) -> tuple[dict, dict]:
+    """Set each defect beside what the final and in-session checks reported, with
+    the turn's accounting."""
     metadata = response["metadata"]
     prompt = DEFINITION["match"].format(
         defects=json.dumps(list(enumerate(defects)), indent=1),
@@ -49,7 +50,7 @@ def match(defects: list[dict], response: dict, evidence: Path) -> dict:
     output = trace_result(trace).get("structured_output")
     if output is None:
         raise RuntimeError(f"the check matcher returned no reading; see {evidence}")
-    return output
+    return output, trace_summary(trace)
 
 
 def get_assert(output: str, context: dict) -> dict:
@@ -78,22 +79,39 @@ def get_assert(output: str, context: dict) -> dict:
     verdict = judged["output"]
     if verdict["status"] == "insufficient_evidence":
         return unscored(verdict["reason"])
-    readings = match(verdict["defects"], response, work / "defects" / "match")
-    by_index = {reading.pop("index"): reading for reading in readings["defects"]}
+    readings, matching = match(verdict["defects"], response, work / "defects" / "match")
+    indices = [reading.pop("index") for reading in readings["defects"]]
+    if sorted(indices) != list(range(len(verdict["defects"]))):
+        return unscored(
+            f"the check matcher read defects {sorted(indices)} of "
+            f"{len(verdict['defects'])}; see {work / 'defects' / 'match'}"
+        )
+    by_index = dict(zip(indices, readings["defects"]))
     defects = [
-        defect | {"checks": by_index.get(index)}
+        defect | {"checks": by_index[index]}
         for index, defect in enumerate(verdict["defects"])
     ]
+    turns = [judged["metadata"]["trace"], matching]
+    tokens = {
+        key: observed_sum(turn[f"{key}_tokens"] for turn in turns)
+        for key in ("input", "output")
+    }
     passed = not defects
     return {
         "pass": passed,
         "score": float(passed),
         "reason": f"{verdict['status']}: {verdict['reason']}",
+        "tokensUsed": {
+            "prompt": tokens["input"],
+            "completion": tokens["output"],
+            "total": observed_sum(tokens.values()),
+        },
         "metadata": {
             "page_defects": {
                 "defects": defects,
                 "session_findings": readings["session_findings"],
                 "judge": judged["metadata"]["trace"],
+                "matcher": matching,
             }
         },
     }

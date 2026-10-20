@@ -1950,7 +1950,8 @@ def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):
 def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     """Folding to the leaf, from the leaf's menu or its key, is a choice the panel
     keeps across a reload, until the leaf is pressed again; `c` still reaches the
-    page's field, and Go-to's Threads door opens the panel's own Threads."""
+    page's field, and Go-to's Threads door opens the panel's own Threads. Folded, the
+    leaf stands as far from the window's right edge as from its foot."""
     url = serve(LONG_PAGE, comments=1)
     page = floating(browser, url)
     page.locator(".lf-fp-leaf").click()
@@ -1959,6 +1960,11 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(panel).to_have_attribute("data-rest", "mark")
     expect(page.locator(".lf-fp-field")).to_be_hidden()
     expect(page.locator(".lf-fp-quick")).to_be_hidden()
+    leaf = page.locator(".lf-fp-leaf").bounding_box()
+    window = page.viewport_size
+    right = window["width"] - (leaf["x"] + leaf["width"])
+    foot = window["height"] - (leaf["y"] + leaf["height"])
+    assert right == pytest.approx(foot, abs=0.5), (right, foot)
 
     page.reload()
     expect(panel).to_have_attribute("data-rest", "mark")

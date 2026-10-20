@@ -1739,10 +1739,13 @@
     flex: none;
     color: var(--ok-ink);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-obligations=open]::before {
-    content: "○" / "";
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-obligations=open] {
     font-weight: 400;
     color: var(--muted);
+    &::before {
+      content: "○" / "";
+      color: inherit;
+    }
   }
   :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-obligations]) {
     visibility: hidden;

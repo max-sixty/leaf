@@ -168,7 +168,10 @@
         cursor: default;
         background: none;
       }
-      :is(button, input, textarea, a, .lf-fp-on-item):focus-visible {
+      /* The On me card the `m` walk stands on wears a focused card's ring, though focus
+         is at its ask on the page (floating-panel.js, `walkedStop`). */
+      :is(button, input, textarea, a, .lf-fp-on-item):focus-visible,
+      .lf-fp-on-item[data-walked] {
         outline: var(--focus-ring);
         outline-offset: -2px;
       }
@@ -1373,6 +1376,9 @@
     margin-top: 9px;
     min-height: var(--lf-fp-press);
   }
+  .lf-fp-show {
+    margin-inline-start: auto;
+  }
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
     padding-inline: 11px;
@@ -1493,7 +1499,7 @@
   }
   .lf-fp-plan-time,
   .lf-fp-plan-line,
-  .lf-fp-plan-place {
+  .lf-fp-on-kind {
     font-size: 12px;
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
@@ -1510,7 +1516,8 @@
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
     border-radius: 6px;
   }
-  .lf-fp-plan-place {
+  /* What an On me card's item is, and where the plan has it, over its question. */
+  .lf-fp-on-kind {
     margin: 0 0 2px;
   }
 

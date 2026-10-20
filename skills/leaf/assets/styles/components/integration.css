@@ -40,11 +40,11 @@ html[data-lf-draw-mode] main {
   position: absolute;
   /* Hidden sources have no anchor; their chrome controls stay outside the window. */
   top: calc(
-    anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-code-copy-dy, 0px)
+    anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-block-control-dy, 0px)
   );
   left: calc(
     anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) +
-      var(--lf-code-copy-dx, 0px)
+      var(--lf-block-control-dx, 0px)
   );
   width: var(--lf-code-copy-size);
   height: var(--lf-code-copy-size);
@@ -55,28 +55,31 @@ html[data-lf-draw-mode] main {
   opacity: 0;
   pointer-events: none;
 }
-.lf-code-copy.lf-code-copy-away {
-  display: none;
+/* A control the runtime stands over a page block (block-controls.js) draws only while
+   its block renders near the window, whatever display the control's own rules give
+   it. */
+.lf-block-control-away {
+  display: none !important;
 }
 /* Keep the document controls together without introducing a containing block for
    their CSS anchors or their fixed header-clipping frames. */
-.lf-code-copy-home {
+.lf-block-controls {
   display: contents;
 }
-/* The frames a block's sticky headers cut its control in (code-copy.js) take no presses
-   of their own and stack where the control would. A frame is the containing block of
-   an absolute box, which an anchor outside the frame cannot position, so the control
-   inside one is fixed. */
-.lf-code-copy-cut {
+/* The frames a block's sticky headers cut its control in take no presses of their own
+   and stack where the control would. A frame is the containing block of an absolute
+   box, which an anchor outside the frame cannot position, so the control inside one is
+   fixed. */
+.lf-block-control-cut {
   pointer-events: none;
   z-index: 1;
 }
-.lf-code-copy-cut > .lf-code-copy {
+.lf-block-controls .lf-block-control-cut > * {
   position: fixed;
 }
 /* A document block's control stands in chrome, which marks it; a widget's stands
    inside the widget, so the widget's hover or focus shows it. */
-:not(.lf-chrome, .lf-code-copy-home):is(:hover, [data-lf-focus-within]) > .lf-code-copy,
+:not(.lf-chrome, .lf-block-controls):is(:hover, [data-lf-focus-within]) > .lf-code-copy,
 .lf-code-copy-hover,
 .lf-code-copy-focused,
 .lf-code-copy:is(:hover, [data-lf-focus-within]) {
@@ -99,6 +102,82 @@ html[data-lf-draw-mode] main {
 }
 .lf-code-copy::part(lf-focus) {
   outline: var(--focus-ring);
+}
+/* A recording's bar lies over its foot, inset as Copy is from a code block's corner, in
+   a control's face: paper, a hairline and the theme's radius (video-controls.js). It
+   shows while the recording is paused, under the pointer or under the keyboard, and
+   otherwise leaves the picture whole, taking no presses so a press reaches the
+   picture. */
+:root {
+  --lf-video-bar-h: max(32px, var(--aim-floor));
+  --lf-video-bar-inset: 4px;
+}
+.lf-video-controls {
+  position: absolute;
+  top: calc(
+    anchor(bottom, -9999px) - var(--lf-video-bar-h) - var(--lf-video-bar-inset) +
+      var(--lf-block-control-dy, 0px)
+  );
+  left: calc(
+    anchor(left, -9999px) + var(--lf-video-bar-inset) + var(--lf-block-control-dx, 0px)
+  );
+  width: calc(anchor-size(width, 0px) - 2 * var(--lf-video-bar-inset));
+  height: var(--lf-video-bar-h);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding-inline: 0 var(--sp-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--paper);
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+}
+.lf-video-controls:is(
+  :not(.lf-video-playing),
+  .lf-video-hover,
+  .lf-video-keyed,
+  :hover,
+  :has(:focus-visible)
+) {
+  opacity: 1;
+  pointer-events: auto;
+}
+.lf-video-play {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: calc(var(--lf-video-bar-h) - 2px);
+  block-size: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r);
+  background: none;
+  color: var(--ink);
+  &:hover {
+    background: var(--chip);
+  }
+  &[data-lf-focus] {
+    outline: var(--focus-ring);
+    outline-offset: calc(-1 * var(--focus-ring-w));
+  }
+  & > .lf-video-icon {
+    grid-area: 1 / 1;
+    inline-size: 16px;
+    block-size: 16px;
+  }
+}
+.lf-video-controls:not(.lf-video-playing) .lf-video-icon[data-lf-icon="pause"],
+.lf-video-playing .lf-video-icon[data-lf-icon="play"] {
+  visibility: hidden;
+}
+.lf-video-time {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  accent-color: var(--accent);
 }
 .lf-msg-body a.detached {
   color: var(--muted-2);

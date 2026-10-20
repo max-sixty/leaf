@@ -616,6 +616,36 @@ document, and the runtime relies on it (next entry).
   `position-anchor: --t; top: anchor(top)` after the scroller; scroll the scroller
   past the header's start and compare the two rectangles' tops.
 
+### A stuck sticky column bounces with the page in Firefox
+
+- **Disposition: accepted.** The root keeps the platform's rubber band, which tells
+  the reader they reached the end. Revisit when Firefox fixes the bug below, or if
+  readers find the moving column disrupts a gesture.
+- **Affected:** every box stuck to the root's scroll, most visibly a page of parts'
+  title and list (layouts.css, "A page of parts"), and a column's margin sidebar.
+- **Observed, 2026-10-20, Firefox on macOS:** the user saw a fast trackpad scroll to
+  a page of parts' end bounce the column of parts with the page. Headless Playwright
+  Firefox draws no overscroll, so no probe reproduces it. The CSS Working Group
+  resolved that a sticky box, while stuck, takes no part in overscroll, as a fixed
+  one doesn't ([csswg-drafts#6299](https://github.com/w3c/csswg-drafts/issues/6299)).
+  Firefox 103 implemented that for fixed boxes
+  ([bug 1760368](https://bugzilla.mozilla.org/show_bug.cgi?id=1760368)); for
+  sticky boxes [bug 1772626](https://bugzilla.mozilla.org/show_bug.cgi?id=1772626)
+  is open, with Firefox's own sidebar as its duplicate
+  ([bug 1861880](https://bugzilla.mozilla.org/show_bug.cgi?id=1861880)). Chrome had
+  not implemented the sticky half as of 2023; current Chrome is unchecked.
+- **Alternatives rejected:** `position: fixed` keeps the column still in every
+  engine, but the runtime knows a box that rides along with the scroll only as a
+  stuck sticky one (`stuckBox` in geometry.js, the slot restart in reach.js). Made
+  fixed, the column's title was read as the reader's place in a part, so a part
+  reopened at its start instead of where the user left it
+  (`test_parts_switch_without_moving_the_list_and_follow_history`); each such reader
+  would have to learn fixed boxes for a transient effect in one browser.
+  `overscroll-behavior-y: none` on the root stops the column moving only by removing
+  the page's own bounce in every browser.
+- **Recheck:** on macOS with a trackpad, a document with a `position: sticky; top: 0`
+  column beside a long body; fling to the end and watch whether the column moves.
+
 ### An anchor under a fixed box in WebKit
 
 - **Disposition: accepted.** As above, no script or scroll-driven layer answers it.

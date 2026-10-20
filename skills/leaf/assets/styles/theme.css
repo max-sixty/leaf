@@ -758,7 +758,8 @@ html {
         var(--lf-landing-room)
     );
     /* The foot's room is the body's own end, where content growing above it only
-     * lengthens the body: a box standing after the content would move with each growth. */
+     * lengthens the body: a box standing after the content would move with each growth.
+     * A page of parts makes it the open part's end instead (layouts.css). */
     body {
       padding-bottom: var(--lf-foot-room);
     }

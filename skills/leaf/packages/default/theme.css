@@ -2054,11 +2054,11 @@
       position: sticky;
       top: calc(var(--lf-top) + var(--lf-parts-title-h, 0px));
       align-self: start;
-      block-size: calc(var(--lf-view-height) - var(--lf-parts-title-h, 0px));
+      block-size: calc(100dvh - var(--lf-head-room) - var(--lf-parts-title-h, 0px));
       min-block-size: 0;
       --lf-tabstrip-flow: column;
       gap: 0;
-      padding: var(--sp-4) 8px;
+      padding: var(--sp-4) 8px calc(var(--sp-4) + var(--lf-foot-room));
       overflow-x: hidden;
       overflow-y: auto;
       --lf-holds-height: 1;

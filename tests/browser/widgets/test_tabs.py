@@ -1407,8 +1407,9 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
 
 def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
     """A page of parts whose opening part is a workspace gives that workspace the
-    window's height before the runtime upgrades the parts, so nothing grows or moves when
-    it does."""
+    window's height above the floating panel's row before the runtime upgrades the parts,
+    so nothing grows or moves when it does. The row's room is the part's own end, so the
+    part and the page reach the window's foot with no band below them."""
     source = leaf_page(
         "Workspace part",
         '<header><h1>Review</h1></header><lf-parts id="parts">'
@@ -1430,15 +1431,20 @@ def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
         def heights():
             return page.evaluate("""() => {
               const block = document.querySelector('#surface').getBoundingClientRect();
-              const main = document.querySelector('main').getBoundingClientRect();
+              const part = document.querySelector('#work').getBoundingClientRect();
+              const room = parseFloat(getComputedStyle(document.querySelector('#work'))
+                .paddingBlockEnd);
               const scroller = document.scrollingElement;
               return {top: Math.round(block.top), height: Math.round(block.height),
-                      foot: Math.round(main.bottom - block.bottom),
+                      room: Math.round(room),
+                      under: Math.round(part.bottom - block.bottom - room),
+                      foot: Math.round(innerHeight - part.bottom),
                       scrolls: scroller.scrollHeight - scroller.clientHeight};
             }""")
 
         first = heights()
-        assert first["height"] > 400 and first["foot"] == 0, first
+        assert first["height"] > 400 and first["room"] > 0, first
+        assert first["under"] == first["foot"] == 0, first
         assert first["scrolls"] <= 0, first
         boot.pop().continue_()
         wait_until_ready(page)

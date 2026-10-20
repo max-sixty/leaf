@@ -10,7 +10,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psutil
@@ -48,6 +48,7 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
+from leaf import interaction_log as interaction_log_model
 from leaf import leases as leases_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
@@ -55,6 +56,7 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
+from leaf_dev.commands.response_times import page_timings
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
@@ -1460,6 +1462,7 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
 
 
 def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
+    revisioning_model.activate_source(page_dir)
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer the first turn"},
@@ -1475,6 +1478,34 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
     stream = codex_model.AppServerReplyStream(
         "codex-thread", "turn-1", "delivery-1", target
     )
+    stream.restore(" \n")
+    [initial] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert "first_reply" not in initial["milestones"]
+    for text in ("I am checking.", "I am checking the report."):
+        stream.update(
+            {
+                "message": {
+                    "item": "answer",
+                    "phase": "final_answer",
+                    "text": text,
+                    "complete": True,
+                }
+            }
+        )
+    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
+    assert thread["msgs"][-1]["provisional"]
+    assert thread["msgs"][-1]["text"] == "I am checking the report."
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == comment["id"]
+    assert marker["attempt"] == stream.attempt
+    assert "text" not in marker
+    [before] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert before["first_reply_kind"] == "stream"
+    assert before["milestones"]["first_reply"]["turn"] == "turn-1"
+    assert "answered" not in before["milestones"]
+    assert "send_to_visible" not in before["milestones"]
     cleanup_model.close_session_turn("codex-thread", "turn-1")
     cleanup_model.open_session_turn("codex-thread", "turn-2")
 
@@ -1489,6 +1520,42 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
         (comment["id"], "First turn reply")
     ]
     assert service_model.page_claim(page_dir)["turn"] == "turn-2"
+    [after] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert after["milestones"]["first_reply"] == before["milestones"]["first_reply"]
+    assert after["milestones"]["answered"]["event_id"] == replies[0]["id"]
+
+
+def test_a_stream_reply_finishes_when_its_diagnostic_sink_is_unwritable(page_dir):
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Answer this input"},
+    )
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    cleanup_model.open_session_turn("codex-thread", "turn-1")
+    stream = codex_model.AppServerReplyStream(
+        "codex-thread",
+        "turn-1",
+        "delivery-1",
+        {
+            "page": str(page_dir),
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "ref": response_reference(page_dir, comment),
+        },
+    )
+    # The diagnostic file cannot be opened, while normal page writes remain valid.
+    (page_dir / interaction_log_model.INTERACTIONS_FILE).mkdir()
+    assert stream.restore("The complete answer.")
+    reply = read_record(page_dir / "status.json")["stream"]["reply"]
+    assert reply["text"] == "The complete answer."
+    assert reply["responds"] == comment["id"]
+
+    assert stream.finish("completed", "The complete answer.") is None
+    [answer] = thread_model.successful_replies(
+        events_model.read_events(page_dir), comment["id"]
+    )
+    assert answer["text"] == "The complete answer."
+    assert read_record(page_dir / "status.json")["stream"]["reply"] is None
 
 
 def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir):
@@ -1673,6 +1740,11 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
         "I made the change.",
         False,
     )
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == comment["id"]
+    assert marker["attempt"] == stream.attempt
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
@@ -1736,7 +1808,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
             {"parent": "comment", "responds": "comment"},
             service_model.delivery_reply_attempt("delivery-1"),
             None,
-            "",
+            "First visible",
             "active",
         )
         page.set_stream_reply(
@@ -1750,6 +1822,14 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
         )
         reply = page.status["stream"]["reply"]
 
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == "comment"
+    assert marker["attempt"] == reply["attempt"]
+    assert marker["turn"] == "turn-1"
+    assert "text" not in marker
+    assert reply["text"] == "Now visible"
     assert reply["ts"] == created.isoformat()
     assert reply["updated_at"] == refreshed.isoformat()
     projected = activity_model.canonical_stream_reply(

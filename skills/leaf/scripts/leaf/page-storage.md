@@ -122,6 +122,13 @@ whichever Leaf wrote it (`state.retire_if_gone`).
   a turn native or Leaf-created only when that turn matches the captured lifecycle.
   A missing event turn remains unknown. Browser `session` identifies a document
   and its clock, separately from native session identity.
+  Server `reply_stream_words` records when an addressed provisional reply gains
+  nonblank words, including retained partial or failed replies. It carries the
+  exact input, reply destination, attempt and native context, without the text.
+  Reconnects may repeat the observation. The timing query selects the first
+  recorded words as `first_reply` with kind `stream`; only an admitted answer
+  supplies `answered`. This records availability, not browser visibility. Missing
+  markers remain unknown; current draft files and their timestamps supply no history.
   Developer `run_context` declares `purpose`, `run` and optional authored source or
   test identity before synthetic input or preview use. Purpose describes a run,
   rather than proving a human gesture. `leaf-dev response-times` preserves missing

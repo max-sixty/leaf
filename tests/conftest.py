@@ -23,7 +23,7 @@ from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf import state as cleanup_model
-from leaf.registry.schema import schema_error
+from leaf.registry.schema import schema_error, with_leaf_resources
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
 from leaf_dev.browser import shell_executable, use_linux_fonts
@@ -571,7 +571,7 @@ def declared_records(monkeypatch):
         written = encode(record, value)
         stored = json.loads(written)
         del stored["format"]
-        if error := schema_error(record.schema, stored):
+        if error := schema_error(with_leaf_resources(record.schema), stored):
             raise AssertionError(
                 f"a {record.kind} record that fails its schema: {error}"
             )

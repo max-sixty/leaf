@@ -1,7 +1,7 @@
 # The summary hint from real thread events and the delivery an explicit wait prints.
 
 delivery:
-  format: leaf-delivery/14
+  format: leaf-delivery/15
   id: <delivery>
   created_at: <time>
   acknowledge: >-
@@ -80,9 +80,10 @@ delivery:
           reply <answer.ref> --done < reply.md`: what changed, in a sentence or
           two, linking the section that shows it. If the event asks for no work,
           as a question may not, answer it with that reply at once. The page holds
-          the work; the thread holds only the conversation about it. `leaf response
-          reply` checks any saved page edit and makes it live before posting. If
-          the revision removes the thread's anchor, move the thread in the same
+          the work; the thread holds only the conversation about it. A successful
+          non-progress `leaf response reply` checks any saved page edit and makes
+          it live before posting; progress and failure reports use the active revision.
+          If the revision removes the thread's anchor, move the thread in the same
           reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach`
           it if its subject left the page. Each answer takes `--done` when it delivers
           what was asked, or `--todo "<what you owe>"` when it promises work beyond

@@ -21,9 +21,8 @@ and [packages.md](../skills/leaf/references/packages.md).
 Delivery belongs to the harness adapter: Claude Code's Stop hook watches claimed
 pages; ordinary Codex tasks receive queued deliveries; tasks with an accessible
 Codex App Server receive delivery turns through that server. Read the owning
-[Claude Code](../skills/leaf/references/harness-claude-code.md),
-[Codex queue](../skills/leaf/references/harness-codex.md), and
-[App Server](../skills/leaf/references/harness-codex-app-server.md) contracts rather
+[Claude Code](../skills/leaf/references/harness-claude-code.md) and
+[Codex](../skills/leaf/references/harness-codex.md) contracts rather
 than deriving a handoff from this comparison. Serving, authentication, persistent
 lifetimes, and offline export belong to
 [serving-pages.md](../skills/leaf/references/serving-pages.md).

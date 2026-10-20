@@ -452,16 +452,18 @@ def test_panel_authored_message_button_reaches_primary_reader(browser, serve, wi
 
 
 @pytest.mark.parametrize(
-    ("primary", "travel", "source_top", "cross_boundary"),
+    ("primary", "travel", "source_top", "cross_boundary", "back_before_frame"),
     [
-        (True, True, 200, False),
-        (True, False, 200, False),
+        (True, True, 200, False, False),
+        (True, False, 200, False, False),
+        # Back interrupts the native trip before its first compositor frame.
+        (False, True, 1000, False, True),
         # A contextual card's travel, slowed until it crosses into the viewport.
-        (False, True, 1000, True),
+        (False, True, 1000, True, False),
     ],
 )
 def test_primary_arrival_records_a_return_place_only_when_travelling(
-    browser, serve, primary, travel, source_top, cross_boundary
+    browser, serve, primary, travel, source_top, cross_boundary, back_before_frame
 ):
     """Back restores the working place left by a jump to the primary reader."""
     url = package_workspace(
@@ -488,6 +490,10 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         """(node, top) => {
       node.tabIndex = -1;
       node.focus({preventScroll:true});
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
       window.scrollTo({top, behavior:'instant'});
     }""",
         source_top,
@@ -498,6 +504,19 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         page.context.new_cdp_session(page).send(
             "Emulation.setCPUThrottlingRate", {"rate": 6}
         )
+    if back_before_frame:
+        page.evaluate("""() => {
+          const scrollBy = Element.prototype.scrollBy;
+          Element.prototype.scrollBy = function(options) {
+            const result = scrollBy.call(this, options);
+            if (this === document.scrollingElement && options.behavior === 'smooth') {
+              Element.prototype.scrollBy = scrollBy;
+              window.backRequestedAt = scrollY;
+              queueMicrotask(() => history.back());
+            }
+            return result;
+          };
+        }""")
     entries = page.evaluate("history.length")
     assert page.evaluate(
         """async ({travel, primary}) => {
@@ -508,23 +527,27 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
         }""",
         {"travel": travel, "primary": primary},
     )
-    assert page.evaluate("""() => {
-      let active = document.activeElement;
-      while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
-      return active === returnTripDestination;
-    }""")
+    if not back_before_frame:
+        assert page.evaluate("""() => {
+          let active = document.activeElement;
+          while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+          return active === returnTripDestination;
+        }""")
     assert page.evaluate("history.length") == entries + int(travel)
     if travel:
-        # Back is ordinary input as soon as arrival returns, during smooth placement.
-        page.wait_for_function("top => scrollY !== top", arg=source_top)
-        if cross_boundary:
-            page.wait_for_function("scrollY < 200")
-            expect(page.locator("#lf-margin-preview")).to_be_in_viewport()
-
-        page.go_back()
+        if back_before_frame:
+            assert page.evaluate("backRequestedAt") == source_top
+        else:
+            # Back is ordinary input as soon as arrival returns, during smooth placement.
+            page.wait_for_function("top => scrollY !== top", arg=source_top)
+            if cross_boundary:
+                page.wait_for_function("scrollY < 200")
+                expect(page.locator("#lf-margin-preview")).to_be_in_viewport()
+            page.go_back()
         expect(heading).to_be_focused()
         scroll_settled(page)
         assert page.evaluate("scrollY") == source_top
+        assert page.evaluate("getSelection().toString()") == heading.text_content()
     else:
         assert page.evaluate("scrollY") == source_top
 

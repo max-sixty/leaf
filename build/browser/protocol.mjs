@@ -165,6 +165,9 @@ function sameClause(consumer, producer) {
 
 const show = (value) => JSON.stringify(value);
 
+const closed = (schema) =>
+  schema.additionalProperties === false || schema.unevaluatedProperties === false;
+
 /** Each place the consumer's schema refuses a value the producer's allows, as
  * `[path, message]`. `oldConsumes` says which of the two is the old schema, and
  * `validates` whether the consumer is the browser door, which refuses what its schema
@@ -310,12 +313,15 @@ class Walk {
     const map = [consumer.additionalProperties, consumer.unevaluatedProperties].find(
       (schema) => typeof schema === "object",
     );
+    const refuses = this.validates && closed(consumer);
     for (const [name, schema] of Object.entries(given))
       if (name in taken)
         breaks.push(...this.compare(taken[name], schema, `${path}.${name}`));
       else if (map) breaks.push(...this.compare(map, schema, `${path}.${name}`));
-    // The fields beyond those the producer declares: none where it declares some, and
-    // any where it declares none.
+      else if (refuses)
+        breaks.push([`${path}.${name}`, "a closed object refuses the field"]);
+    // The values of fields the producer doesn't name: none where it names some, and any
+    // where it names none.
     const extra =
       producer.additionalProperties ??
       producer.unevaluatedProperties ??
@@ -324,14 +330,11 @@ class Walk {
       for (const [name, schema] of Object.entries(taken))
         if (!(name in given))
           breaks.push(...this.compare(schema, extra, `${path}.${name}`));
-      if (
-        this.validates &&
-        (consumer.additionalProperties === false ||
-          consumer.unevaluatedProperties === false)
-      )
-        breaks.push([`${path}.*`, "a closed object refuses fields it took"]);
-      else if (map) breaks.push(...this.compare(map, extra, `${path}.*`));
+      if (map && !refuses) breaks.push(...this.compare(map, extra, `${path}.*`));
     }
+    // An open object the browser door admitted may have held fields it didn't name.
+    if (refuses && !closed(producer))
+      breaks.push([`${path}.*`, "a closed object refuses fields it took"]);
     for (const name of consumer.required ?? [])
       if (!producer.required?.includes(name))
         breaks.push([

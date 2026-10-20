@@ -196,6 +196,24 @@ test("the walk sees through browser contracts, unions, references and maps", () 
     changed(() => {}, exclusive),
     [],
   );
+  // A field one closed variant drops is refused there, though another variant keeps
+  // it, and closing an open object refuses the fields it didn't name.
+  const variant = (tag) => ({
+    type: "object",
+    properties: { tag: { const: tag }, x: { type: "string" } },
+    additionalProperties: false,
+  });
+  const tagged = structuredClone(baseline);
+  note(tagged).pick = { anyOf: [variant("a"), variant("b")] };
+  note(tagged).box = { type: "object", properties: { label: { type: "string" } } };
+  assert.deepEqual(
+    changed((s) => delete note(s).pick.anyOf[0].properties.x, tagged),
+    ["event note.pick.x: a closed object refuses the field"],
+  );
+  assert.deepEqual(
+    changed((s) => (note(s).box.additionalProperties = false), tagged),
+    ["event note.box.*: a closed object refuses fields it took"],
+  );
   // A bound beside a union holds in every branch.
   const branched = structuredClone(baseline);
   note(branched).slug = { type: "string", anyOf: [{ maxLength: 100 }] };

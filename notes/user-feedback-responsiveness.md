@@ -69,7 +69,7 @@ it.
 | Acceptance to visible receipt                       | Next state application; under 1 s           | not read apart from pickup                                                         |
 | Turn entry to visible pickup, idle session          | Without waiting for model output; under 1 s | 0.1–0.8 s on every harness                                                         |
 | Input in model context to accepted claim            | Before substantive work; under 2 s          | first command; 3.3 s (Pi) to 5.8–10.5 s (Claude Code) after the comment; see below |
-| Status or result write to browser paint             | Next state application; under 1 s           | status 16–76 ms, reply 87–183 ms; revision 262–277 ms, corpus 1.06–1.89 s          |
+| Status or result write to browser paint             | Next state application; under 1 s           | status 16–76 ms, reply 87–183 ms; revision 262–277 ms, corpus 0.64–1.22 s (below)  |
 | Comment admission to thread title                   | under 2 s                                   | Claude Code 1.2–2.7 s, Pi 2.0–2.7 s, Codex App Server 1.7–2.6 s                    |
 | Comment admission to reply, for a small page change | under 7 s                                   | Claude Code 23–36 s, Codex App Server 21–23 s, Pi 30–42 s                          |
 
@@ -80,13 +80,66 @@ reply; the page reads Working from the harness's stream 2 s after the comment an
 names each command as it runs.
 
 Two paint readings miss: the corpus's comment paints in a median 105 ms, and a
-revision of the corpus, a page far larger than a user's, paints in 1.06–1.89 s.
+revision of the corpus, a page far larger than a user's, paints within 1 s only
+when the tab finds the save before a stamp locks the page (below).
 
 Every harness titles near the 2 s target, and the model's own answer is most of it:
 1.3–2.2 s of a Codex title. Codex App Server titled in 3.0–8.5 s until its page
 server started each title's App Server and thread before the comment arrived
 (`thread_titles`), and in 1.7–2.6 s since, over two journeys at a load average of 8
 to 10.
+
+### A corpus revision's paint
+
+The benchmark saves `index.html` and at once runs `leaf page stamp`. The revision
+reaches the tab by one of two routes, depending on which comes first:
+
+- **The save route.** The tab's next freshness read (`LOOK_MS`, 250 ms apart)
+  finds the save. The state read that follows activates the source: the server
+  checks it and writes the revision. The tab then fetches the revision's document
+  and patches it in. An agent's ordinary save takes this route, since `SKILL.md`
+  tells it each valid save is live.
+- **The stamp route.** The stamp takes the page lock first, about 150 ms after
+  the save, once its process has started. The tab's read waits for the stamp's
+  whole check under the lock. The state read that follows checks the same source
+  again, since the server's record that a source passed its check lives in that
+  process only. A stamp right after a save, or one `--from-directory`, can take
+  this route.
+
+`uv run leaf-dev bench-latency --page corpus --transition revision` reads both;
+`results.json` gives each request's start and end beside the transition's, which
+says which route a run took, and `uv run leaf-dev profile corpus revision` gives
+the browser's tasks. Fifteen paired runs over three invocations at load 4–7 on 18
+cores, on `e440ca191` against its merge base `f38882d51`:
+
+| Route | Merge base  | Head        | Head's parts                                                     |
+| ----- | ----------- | ----------- | ---------------------------------------------------------------- |
+| Save  | 0.89–1.11 s | 0.64–0.79 s | state read and activation 285–310 ms, document 65, patch 215–255 |
+| Stamp | 1.77–2.09 s | 1.11–1.22 s | stamp's lock until 550–640 ms, state read 225–270, patch 230–265 |
+
+On the merge base the state read and its activation took 470–575 ms and the
+document 130–160. Work that was repeated or read by no one made up most of the
+difference: the check walked the page's containment once per live sample
+(`passages.enclosing_ids`), anchor relocation walked both revisions in full
+(`SourceReading.decided_passages`), every check judged the recorded data for
+advice only `page check` prints (`validation.source.source_advice`), and the
+document's delivery copied the whole page once per mark it wrote
+(`revision_delivery._spliced`). The user-view report also forced the style and
+layout of every hidden tab, about 280 ms 300 ms after each presentation, which
+delayed the tab's next read and sent more runs down the stamp route
+(`render-checks/layout.js`, `render-checks/words.js`).
+
+The stamp route stays over 1 s. Two changes would bring it under:
+
+- **Record that a source passed its check.** A revision could carry the identity
+  of the Leaf that checked it, so any process can treat an unchanged source as
+  checked, as the server's own memory does (`revisioning.py`, its header). The
+  digest of the revision's inputs alone isn't enough: it covers neither the Leaf
+  that checked it nor the data contracts its samples read, so it would pass a
+  source a newer Leaf refuses. The same record would let a stamp that follows the
+  server's activation skip its own check, about 450 ms under the lock.
+- **Check outside the lock.** A stamp could check before taking the lock and hold
+  it only to confirm nothing moved and to publish.
 
 The reply target is out of reach for any harness, and Leaf's part of the time is
 small. In the release step, delivery and tool calls together took 0.3–2.6 s; the

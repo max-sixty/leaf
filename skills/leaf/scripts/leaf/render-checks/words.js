@@ -397,8 +397,13 @@ function shrunkLabels(floor) {
       const words = node.data.trim();
       // Inside an SVG `text`, so an SVG element.
       const holder = /** @type {Element} */ (node.parentElement);
-      if (!words || !holder.getClientRects().length) continue;
-      if (!holder.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
+      // Visibility first: it answers for a run in skipped content, such as a tab not
+      // chosen, without making the browser lay that content out to find its box.
+      if (
+        !words ||
+        !holder.checkVisibility({ visibilityProperty: true, opacityProperty: true }) ||
+        !holder.getClientRects().length
+      )
         continue;
       const ctm = /** @type {SVGGraphicsElement} */ (holder).getScreenCTM();
       const set = parseFloat(getComputedStyle(holder).fontSize);

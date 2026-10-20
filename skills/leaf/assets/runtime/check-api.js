@@ -25,6 +25,7 @@ export {
 export {
   shownBand,
   shownBox,
+  skipped,
   shownRect,
   visibleBand,
   landingBand,

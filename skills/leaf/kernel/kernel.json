@@ -33,7 +33,7 @@
     "runtime/bootstrap.js": "9beb161634248a7badc80b2a747a8fe60312d02dd5a27b6e93e8f717e8c4cfc8",
     "runtime/bounds.js": "c0b8266e40959afe29d90097ce11039a7e6247d9d917148377dd3d61d2f03707",
     "runtime/carry.js": "00249adb3a85868acfca824d0a97ec21315637ebcc97bee79f9f78b155d1ad20",
-    "runtime/check-api.js": "a12983fec824a2c62d1a825a57afd8a8a127c08033dcb19f0e03488a9a85e823",
+    "runtime/check-api.js": "f46238cf2460b9243251d7176d9aa79b6ef4417a614f47abf02f4df81d3db6ae",
     "runtime/chrome.js": "46b4b4c972f5c9c082d354e60c62aca5bb690e176f05b6210ed79396cf472028",
     "runtime/code-copy.js": "653244554def27a2e49e34ca0d09f3a378a4714594004c0913d98f891ef6de81",
     "runtime/color-scheme.js": "da7a32876aea0b92a0f64226c55fc1661a99ba4841ff413a9200cc0beb5a8b69",

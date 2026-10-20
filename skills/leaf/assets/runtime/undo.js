@@ -32,6 +32,7 @@ const WAIT = "Wait for the current change to finish before undoing";
 // Said in the kinds this file owns, never in the verb the action carries: `move` and
 // `edit` read as nouns in that sentence and `choose` does not, and which of the two a
 // widget's word is is not core's to know. A reaction's word is its token.
+/** @type {Record<import("../../../../build/browser/contract.js").UndoableKind, string>} */
 const words = {
   resolve: "Reopened the thread",
   unresolve: "Resolved the thread again",

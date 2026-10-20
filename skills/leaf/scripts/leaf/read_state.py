@@ -34,7 +34,7 @@ mark it read.
 
 from .events import taken_back
 from .findings import Finding
-from .schema import MESSAGE_KINDS
+from .registry.kernel import kinds_declaring
 from .thread_context import event_threads
 
 
@@ -46,7 +46,7 @@ def user_message_content(event: dict) -> bool:
     stream placeholders are not content versions in the page log.
     """
     return (
-        event["kind"] in MESSAGE_KINDS
+        event["kind"] in kinds_declaring("message")
         and event["author"] == "agent"
         and not event.get("token")
     )

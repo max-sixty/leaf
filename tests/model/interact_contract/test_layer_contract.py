@@ -140,37 +140,49 @@ def init_refusal(page_dir) -> Finding:
     return refused
 
 
+def _handling(clauses):
+    return {"handling": clauses}
+
+
 @pytest.mark.parametrize(
-    ("handling", "code"),
+    ("events", "code"),
     [
-        ({"bogus-kind": [{"text": "A clause for no kind."}]}, "undeclared-event-kind"),
-        ({"comment": []}, "layer-facts"),
-        ({"comment": "Reply in French."}, "layer-facts"),
-        ({"comment": [{"text": ""}]}, "layer-facts"),
-        ({"comment": [{"text": "Reply in French.", "tone": "warm"}]}, "layer-facts"),
         (
-            {"comment": [{"text": "Reply in French.", "when": {"type": 5}}]},
+            _handling({"bogus-kind": [{"text": "A clause for no kind."}]}),
+            "undeclared-event-kind",
+        ),
+        (
+            {"answering": {"markdown": [{"text": "A clause for no answer."}]}},
+            "undeclared-event-kind",
+        ),
+        (_handling({"comment": []}), "layer-facts"),
+        (_handling({"comment": "Reply in French."}), "layer-facts"),
+        (_handling({"comment": [{"text": ""}]}), "layer-facts"),
+        (
+            _handling({"comment": [{"text": "Reply in French.", "tone": "warm"}]}),
+            "layer-facts",
+        ),
+        (
+            _handling({"comment": [{"text": "Reply in French.", "when": {"type": 5}}]}),
             "invalid-when",
         ),
-        ("Reply in French.", "layer-facts"),
-        (None, "layer-facts"),
+        (_handling("Reply in French."), "layer-facts"),
+        (_handling(None), "layer-facts"),
     ],
 )
-def test_init_refuses_handling_that_a_batch_could_not_carry(
-    page_dir, tmp_path, handling, code
+def test_init_refuses_instructions_that_a_batch_could_not_carry(
+    page_dir, tmp_path, events, code
 ):
-    """Every delivered event reads `$events.handling` directly, so the door holds a
-    layer to declared kinds and well-formed clauses rather than passing junk to the
-    agent."""
+    """Every delivered event reads `$events.handling` and `$events.answering`
+    directly, so the door holds a layer to declared kinds and answers and to
+    well-formed clauses rather than passing junk to the agent."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(
-        json.dumps({"$events": {"handling": handling}})
-    )
+    (overlay / "registry.json").write_text(json.dumps({"$events": events}))
 
     finding = init_refusal(page_dir)
     assert finding.code == code
-    assert "handling" in json.dumps(finding.values)
+    assert next(iter(events)) in json.dumps(finding.values)
 
 
 def test_the_events_reference_names_the_fields_each_kind_declares():
@@ -900,6 +912,21 @@ def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, 
     (overlay / "registry.json").write_text(json.dumps({"$events": {key: None}}))
     finding = init_refusal(page_dir)
     assert found([finding], "fixed-events", key=key)
+
+
+@pytest.mark.parametrize("fact", ["$passages", "$names", "$marks"])
+def test_the_kernel_facts_are_not_a_layer_extension(page_dir, tmp_path, fact):
+    """Python reads the running Leaf's kernel facts and the browser a copy generated
+    from them, so a layer's change to one, even taking a member out, would reach
+    neither runtime; a page's older runtime still reads `$marks` from its vocabulary."""
+    overlay = tmp_path / ".leaf"
+    overlay.mkdir(parents=True)
+    shipped = json.loads((page_dir / "registry.json").read_text())[fact]
+    member = next(key for key in shipped if key != "description")
+    (overlay / "registry.json").write_text(json.dumps({fact: {member: None}}))
+
+    finding = init_refusal(page_dir)
+    assert found([finding], "fixed-kernel-fact", name=fact)
 
 
 def test_shared_package_declarations_compose_by_member():

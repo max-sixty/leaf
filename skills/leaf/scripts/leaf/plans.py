@@ -26,9 +26,10 @@ the start `running` on a named to-do, `since`, when a working step began, its
 `steps`, and `done` of `total`, its children that are done of those not dropped.
 A step naming an obligation a later version removed reads as dropped.
 
-Nothing draws the plan yet, and the shipped instructions don't ask for one: drawing it
-and telling agents to write it are one change, since an undrawn plan shows the user
-nothing (TODO.md, "Draw the agent's plan").
+The floating panel draws the plan in a Plan tab of the On view, and an On me item the
+plan names says its goal and step there (`floating-panel.js`). `conversation-loop.md`,
+"When to write", asks an agent for a plan when its work runs to several steps or part of
+it waits on the user.
 
 Experimental, like to-dos and the lists; nothing outside this repository depends on it.
 """

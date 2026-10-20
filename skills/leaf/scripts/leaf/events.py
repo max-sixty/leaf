@@ -5,7 +5,7 @@ from itertools import groupby
 from typing import NamedTuple
 
 from leaf.findings import Finding
-from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
+from leaf.registry.kernel import kinds_declaring
 
 
 def taken_back(events: list) -> set:
@@ -137,7 +137,7 @@ class UndoReading:
                 if any(
                     event.get("token")
                     for event in events
-                    if event["kind"] in MESSAGE_KINDS
+                    if event["kind"] in kinds_declaring("message")
                 )
                 else {}
             )
@@ -147,7 +147,7 @@ class UndoReading:
             event["id"]
             for event in events
             if event["id"] not in self.withdrawn
-            and event["kind"] in MESSAGE_KINDS
+            and event["kind"] in kinds_declaring("message")
             and is_reaction(event)
         }
         for thread in threads.values():
@@ -173,16 +173,17 @@ class UndoReading:
             return Finding("foreign-gesture", values=named)
         if target["id"] in self.withdrawn:
             return Finding("withdrawn-gesture", values=named)
-        if target["kind"] in MESSAGE_KINDS:
+        if target["kind"] in kinds_declaring("message"):
             if not is_reaction(target):
                 return Finding("said-message", values=named)
             if target["id"] in self.answered_reactions:
                 return Finding("answered-reaction", values=named)
             if target["id"] in self.resolved_reactions:
                 return Finding("resolved-reaction", values=named)
-        elif target["kind"] not in UNDOABLE_KINDS:
+        elif target["kind"] not in kinds_declaring("undoable"):
             return Finding(
-                "unundoable", values={**named, "undoable": sorted(UNDOABLE_KINDS)}
+                "unundoable",
+                values={**named, "undoable": sorted(kinds_declaring("undoable"))},
             )
         elif target["kind"] == "action" and target["id"] in self.absorbed:
             # The newest revision's markup places the unit

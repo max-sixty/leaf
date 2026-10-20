@@ -7,6 +7,7 @@
 import { JUST_NOW, ago } from "./presence.js";
 import { itemNoun } from "./queues.js";
 
+/** @type {Record<import("../../../../build/browser/contract.js").ServedActivity["kind"], string>} */
 const TONE = {
   working: "working",
   listening: "listening",

@@ -12,6 +12,7 @@ import { announce } from "./notifications.js";
 export const queueItemKey = (item) => JSON.stringify([item.kind, item.id]);
 
 export const readQueues = readPart((root) => root.effective.queues);
+export const readPlan = readPart((root) => root.effective.plan);
 
 export function createQueueActions({ post, arrive }) {
   return Object.freeze({

@@ -140,6 +140,7 @@ import {
   offer,
   pagePresented,
   paintKeys,
+  passErrorsAt,
   placeBox,
   placeHolder,
   plainPress,
@@ -2571,6 +2572,10 @@ function forgetWritingPlace(ctx) {
   storeWritingPlace();
 }
 function keepRefusedWords(attempts) {
+  const atEnd = (ctx) => {
+    const end = (activeDraftRecord(ctx)?.text ?? "").length;
+    return [end, end];
+  };
   let held = 0;
   for (const attempt of attempts) {
     const from = openedFrom.get(attempt);
@@ -2581,7 +2586,11 @@ function keepRefusedWords(attempts) {
     const resumed = writingPlace?.context === under2;
     clearDraft(under2);
     if (resumed)
-      keepWritingPlace({ context: from, selection: [0, 0], generation: randomId() });
+      keepWritingPlace({
+        context: from,
+        selection: atEnd(from),
+        generation: randomId()
+      });
     if (box.text) held += 1;
   }
   const returned = attempts.flatMap((attempt) => {
@@ -2592,9 +2601,12 @@ function keepRefusedWords(attempts) {
   });
   const shownIn = (ctx) => [...draftEditors].filter((view) => view.ctx === ctx).map((view) => editorInput(view)).find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
+  const resumes = returned.find((ctx) => ctx === writingPlace?.context);
+  if (resumes !== void 0)
+    keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });
   for (const ctx of hidden.toReversed())
     if (writingPlace?.context !== ctx)
-      keepWritingPlace({ context: ctx, selection: [0, 0], generation: randomId() });
+      keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });
   const sentences = [
     hidden.length && "Draft kept \u2014 g i resumes writing",
     held && "Reply kept \u2014 it returns when its comment sends"
@@ -2674,7 +2686,10 @@ function createWritingResume({
       (view) => view.ctx === place2.context && editorInput(view) === input
     );
     if (matchesEditor && input?.isConnected && input.checkVisibility() && !input.readOnly && !input.disabled) {
-      intent.handoff(() => focusDestination(input, "move", { caret: place2.selection }));
+      intent.handoff(() => {
+        passErrorsAt(input);
+        focusDestination(input, "move", { caret: place2.selection });
+      });
       return;
     }
     if (runtime.showsActive && !holdsBox(place2.context) && moveToPage(place2.context)) {
@@ -3148,11 +3163,22 @@ function threadRewrites({
       // The rung above a rewrite is the thread's reply box, where ↑ came from, while it
       // is in view; a thread showing none, as a resolved one or a margin card not
       // replying, or one whose box is off screen, hands the user on as a sent reply
-      // does, which moves nothing.
+      // does, which moves nothing. A save in a resolved thread reopens it, so the box
+      // its presentation draws then takes the caret, as Reopen's landing gives it
+      // (#46, the user's decision, 2026-10-07).
       land: (message) => {
-        const input = box();
-        if (input && seenRect(input, /* @__PURE__ */ new Map())) landInThread(input);
-        else landSent(home(message));
+        const shown = () => {
+          const input2 = box();
+          return input2 && seenRect(input2, /* @__PURE__ */ new Map()) ? input2 : null;
+        };
+        const input = shown();
+        if (input) return landInThread(input);
+        landSent(home(message));
+        const mayLand = retainUserIntent();
+        void whenDocumentPresented().then(() => {
+          const drawn3 = shown();
+          if (drawn3 && mayLand()) landInThread(drawn3);
+        });
       },
       previous: (id) => lastEditable(id),
       // A rewrite of message `id` opens in `view`. It starts from the words as they

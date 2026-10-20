@@ -26,6 +26,17 @@
 // nothing writes it.
 // The submit binding owns the shortcut spelling used by the placeholder and tooltip.
 //
+// An error about a box (errors.js, its `subject`), such as a refused send's whose words
+// came back to it or an image it would not take, stands over the box's words and
+// actions, wrapping within its lines, until the user comes back to them: an edit there,
+// an image attached, a press on the cover or a key there, a send key or a press putting
+// the caret at the words' end and sending nothing, or Resume writing (drafts.js). While it stands the box sends nothing, so words the user
+// has not seen again are never sent. The error is about the words, not the node, so it
+// also passes once the box stops showing them: it takes up another draft (`arrive`), as
+// the one passage composer does on each passage, or it is hidden or leaves the page
+// (`unshown`). Every box takes this from here, the floating panel's field and a
+// passage's comment box alike, and a passed error waits in the leaf's menu.
+//
 // What the box holds changes in the turn that changes it: the words and attached images
 // (the field's own value, which its caret and every reader after the writer depend on),
 // and whether a send or upload is under way. What that looks like is painted once per
@@ -57,7 +68,14 @@ import { focusDestination, focused } from "../focus.js";
 import { whileConnected } from "../arrivals.js";
 import { move } from "../dom-move.js";
 import { applicationState } from "../semantic-state.js";
-import { raiseError } from "../errors.js";
+import {
+  errorsReading,
+  passErrorsAt,
+  raiseError,
+  registerErrorPresentation,
+} from "../errors.js";
+import { repaint } from "../repaint.js";
+import { sizeObserver } from "../rendering.js";
 
 const inputDrafts = new WeakMap();
 
@@ -213,6 +231,14 @@ export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
 // Ask a wired field to paint again, as its own `sync()` does, where what its hint or
 // name reads has changed and the caller holds the field rather than its wiring.
 export const syncInput = (ta) => inputDrafts.get(ta)?.();
+// The newest error about a box the user has not come back to, which covers its words.
+const errorOver = (ta) =>
+  errorsReading().find((error) => error.subject === ta && !error.passed) ?? null;
+// Whether an error stands at a box, which says it there; the panel's dot marks only
+// those that stand nowhere. A box that stops showing the words passes its errors, so a
+// standing one is always on screen.
+export const standsAtItsBox = (error) =>
+  inputDrafts.has(error.subject) && !error.passed;
 // Boot binds one input owner to the app's upload command and contextual-hint
 // reading. Fields keep those capabilities for their lifetime; importing this module
 // never installs or replaces application callbacks.
@@ -242,6 +268,22 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     paintedInput = input;
     paintedHintTarget = hintedInput;
   };
+  // A box an error stands over is watched for the user no longer seeing its words: put
+  // away, hidden with what holds it, or taken from the page. Its size reports each of
+  // those; the box's own paint passes an error over a box already out of sight.
+  const watched = new WeakSet();
+  const unshown = sizeObserver((entries) => {
+    for (const { target } of entries)
+      if (!target.isConnected || !target.checkVisibility()) passErrorsAt(target);
+  });
+  // A box an error is about, or was about, paints its cover again when the errors change.
+  let errorsPainted = errorsReading();
+  registerErrorPresentation(() => {
+    for (const { subject } of [...errorsPainted, ...errorsReading()])
+      if (inputPaints.has(subject)) stale.add(subject);
+    errorsPainted = errorsReading();
+    repaint();
+  });
   // `sends` states the box's own submit action. Composers send by default; a caller whose
   // action differs, such as adding an option, supplies the matching icon.
   function wireInput(
@@ -321,6 +363,29 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       mic.append(iconElement("microphone", "lf-action-icon"));
       field.append(mic);
     }
+    // The error standing over the box (`errorOver`). It stands in the field, so a press
+    // on it is a press in the box: a reply's stays in its row, which a press elsewhere
+    // would put away (thread/replies.js).
+    const cover = document.createElement("p");
+    cover.className = "lf-compose-error";
+    cover.setAttribute("aria-hidden", "true");
+    cover.hidden = true;
+    // Its words, clipped to the box's whole lines (response.css).
+    const coverWords = document.createElement("span");
+    cover.append(coverWords);
+    field.append(cover);
+    // The user coming back to the covered words by a press or a send key: the cover
+    // lifts with the caret at their end, and nothing is sent.
+    const uncover = () => {
+      passErrorsAt(ta);
+      const end = ta.value.length;
+      focusDestination(ta, "move", { caret: [end, end] });
+    };
+    cover.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      uncover();
+    });
+    const held = () => busy() || errorOver(ta) !== null;
     // These two are the press's whole face, and the theme keys the glyph's colour on the
     // pair, so a box cannot be handed a send button dressed as something else. `primary`
     // is a different face: it dresses the press's own box, which is the hit target and
@@ -446,7 +511,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     if (altBtn) altBtn.title = altBtn.textContent;
     let sending = false;
     let uploading = false;
-    const canSend = () => !sending && !uploading && !busy() && hasContent(draftValue());
+    const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
     // Everything the box shows about its standing, written only where it differs from
     // what stands: a text node replaced inside the chrome restyles far more than the node.
     const paint = (contextualHint) => {
@@ -474,6 +539,23 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       } else visibleHint.remove();
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
+      let error = errorOver(ta);
+      if (error && !(ta.isConnected && ta.checkVisibility())) {
+        passErrorsAt(ta);
+        error = null;
+      }
+      if (Boolean(error) !== watched.has(ta)) {
+        if (error) {
+          watched.add(ta);
+          unshown.observe(ta);
+        } else {
+          watched.delete(ta);
+          unshown.unobserve(ta);
+        }
+      }
+      keepsText(coverWords, error?.message ?? "");
+      keeps(cover, "title", error?.message ?? null);
+      keepsHidden(cover, !error);
       const action = sendLabel();
       keeps(sendBtn, "aria-label", action);
       // Where Return sends, a line breaks with Shift+Return, which the hover name says
@@ -561,6 +643,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // another draft, or this one as another tab left it. The caller's next paint shows
     // it, and shows any change made to it since as a step of that history.
     sync.arrive = () => {
+      passErrorsAt(ta);
       cancelDictation();
       arrivals += 1;
       ta.restartHistory();
@@ -579,7 +662,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // bookkeeping if a caller wires one the user already stands in.
     refresh();
     const submit = async (sender) => {
-      if (sending || uploading || busy()) return;
+      if (sending || uploading || held()) return;
       cancelDictation();
       // A send key on an empty box answered with silence reads as a send that
       // happened — the blind drive believed exactly that. Say the nothing out loud; the
@@ -611,10 +694,23 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (focused() === ta) followBoxGrowth(ta);
     });
     ta.addEventListener("focus", () => readBoxPlace(ta));
-    ta.addEventListener("lf-before-edit", () => readBoxPlace(ta), { capture: true });
+    ta.addEventListener(
+      "lf-before-edit",
+      () => {
+        readBoxPlace(ta);
+        passErrorsAt(ta);
+      },
+      { capture: true },
+    );
+    // A key in a covered box lifts the cover, as a press on it does, and keeps its
+    // meaning: an edit (`lf-before-edit` above) or a caret move lands as typed. A send
+    // key only lifts it, through the box's own send binding (`pressed`), so nothing is
+    // sent unseen and the next press sends. A modifier alone, Tab and Escape neither
+    // edit nor move the caret, so none of them lifts it.
+    ta.addEventListener("lf-caret-move", () => passErrorsAt(ta));
     if (mic) {
       const activateDictation = async () => {
-        if (dictationPhase() === "stopping" || sending || uploading || busy()) return;
+        if (dictationPhase() === "stopping" || sending || uploading || held()) return;
         if (dictationPhase() !== "idle") {
           if (loadingDictation) cancelDictation();
           else dictation.stop();
@@ -669,7 +765,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             dictationPhase() !== "stopping" &&
             !sending &&
             !uploading &&
-            !busy(),
+            !held(),
           run: () => void activateDictation(),
         },
       ]);
@@ -683,8 +779,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // whole draft's history, and refuses a second upload while the first owns the field.
     // The arrival generation prevents an image reaching another draft when the floating
     // composer moves to another passage before its bytes reach the server.
+    // Attaching is the user coming back to the box, as an edit is.
     sync.addMedia = async (images) => {
-      if (!images.length || sending || uploading || busy()) return false;
+      if (images.length) passErrorsAt(ta);
+      if (!images.length || sending || uploading || held()) return false;
       cancelDictation();
       const allowed = allowsMedia();
       if (allowed !== true) {
@@ -789,7 +887,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     let composing = false;
     ta.addEventListener("compositionstart", () => (composing = true));
     ta.addEventListener("compositionend", () => (composing = false));
+    // A send key, or Send reached by the keyboard, in a covered box lifts the cover and
+    // sends nothing (`uncover`).
     const pressed = (sender) => {
+      if (errorOver(ta)) return uncover();
       if (focused() !== ta) focusDestination(ta, "return");
       submit(sender);
     };

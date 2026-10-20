@@ -40,12 +40,6 @@ has tried; settle that before building it.
 
 ### User experience
 
-- **Verify cancellation when a browser document departs.** Reproduce navigation
-  away during registry loading, state response decoding, and presentation, plus
-  removal of a loading sample iframe. Confirm which work survives departure and
-  whether it produces errors before changing shared startup or presentation
-  lifetimes. Include real back/forward-cache restoration so cancellation cannot
-  break a returning page.
 - **#25 — Answer one decision beside its evidence and on a board.** A section's
   picker and its board card currently record independent facts. Choose the owner
   and test both views against one decision, including ordering, write-ins and
@@ -181,6 +175,14 @@ has tried; settle that before building it.
   buckets scroll horizontally and the release rationale sits below the board.
   Keep comparison context available during a move, preserving direct destination
   controls and undo.
+- **Decide whether Back may restore a served page whole.** Every served page and
+  API answer carries `Cache-Control: no-store`, so Chrome and Firefox load the page
+  afresh on Back rather than restoring it from their back/forward cache, and Firefox
+  also refuses a page holding a sample ([browser support](notes/browser-support.md),
+  "Page cache"). With `no-store` lifted, a Chrome probe restored a page that caught
+  up with the log and recorded gestures. Weigh an instant Back against what
+  `no-store` protects, a private page's copy in the browser's disk cache, and
+  exercise Safari.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.
@@ -300,9 +302,6 @@ and its chrome coordinate.
 - **Report a control clipped anywhere in the width sweep.** The clipped-control
   check runs only at the two fixed viewports, so a control cut off only between
   360 and 440px goes unreported.
-- **Clear a quoted playground's empty item boxes.** A playground quoted in a static
-  sample hides its controls, those written beside items in its preview included,
-  but leaves the author's settings boxes standing empty.
 
 ### Layout stability
 

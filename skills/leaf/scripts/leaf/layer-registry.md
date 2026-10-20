@@ -126,8 +126,9 @@ would misread sets its `since` to the current protocol, bumping the protocol fir
 where `since` already names it. The same build check holds this: the baseline keeps
 each record's schema at its `since`, and fails a change at the same `since` that a
 reader at either end would misread, or a `since` moved anywhere but the current
-protocol. The draft carries the current protocol
-(`runtime/protocol.js` is generated from it), so a bump drops a draft's drawing.
+protocol. The composer's draft is held the same way: its format names
+`$events.draft_since`, and the baseline keeps the comment record's `drawing`, the part
+of a draft its format guards, beside the records.
 
 The render gate's probes are outside the number. They come from the Leaf running the
 check and import `check-api.js` and `widget-api.js` from the page's runtime, so a

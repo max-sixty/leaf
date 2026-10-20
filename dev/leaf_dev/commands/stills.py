@@ -1332,6 +1332,12 @@ STATES = (
         touch=True,
     ),
     State(
+        "quoted-playground",
+        "../tests/fixtures/pages/quoted-playground",
+        at_rest,
+        region="#quoted-alerts",
+    ),
+    State(
         "margin-gallery-phone",
         "developer/feature-gallery",
         margin_gallery,

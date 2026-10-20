@@ -76,8 +76,10 @@ class Harness:
     - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
       session's pages in the background and wakes the session when input arrives
       (`watches_between_turns`), and the prompt hook, which runs as the turn the
-      wake opens begins, and the other Stop hook put the input in the turn's
-      context and confirm it (`hook_delivers`). A turn that ends without its Stop
+      wake opens begins, and the tool-batch hook within a turn put the input in
+      the turn's context and confirm it (`hook_delivers`); the other Stop hook
+      does only under plain `--print`, where no watch follows the turn
+      (`hook_transport`). A turn that ends without its Stop
       hooks, as an interrupt does, leaves nothing watching while the session lives
       on, which is why this is the harness with a `nudge`. With its option on,
       Leaf's hooks module (`hooks/claude-code.ts`) keeps the watch in place of

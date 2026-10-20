@@ -417,13 +417,18 @@ on 2026-10-07.
 - **Answer a comment that arrived before the page changed hands.** Its new owner
   has no delivery to answer it from. A command that hands out a fresh recovery
   delivery for it would give one.
-- **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
-  a stop, the agent writes one more message, and where the harness shows only the last
-  message (Claude Code's focus mode) that message replaces the answer: a user who typed
-  `/whereami` twice saw two notes about a missing watcher and never the briefing. #1502
-  removed that trigger, since the hook now does the watching. **Unconfirmed:** check
-  whether any remaining block, such as input the turn still owes an answer to, reaches
-  a turn whose answer is already written.
+- **Decide whether an owed answer may continue a turn whose answer is written.**
+  Where a watch follows the turn, Stop no longer hands new input into it
+  (`hook_transport`), but it still continues the turn once for an update picked up
+  and unanswered, and for a page it could not re-vendor. The agent then writes one
+  more message, which Claude Code's focus view shows in place of the turn's answer:
+  9 of the 65 Leaf continuations in Max's sessions of 2026-10-10 to 10-19 were these,
+  as when a report on "check leaf, do #18" gave way to "I've answered the last item
+  the hook flagged", and one page vendored by a newer Leaf than the session's
+  repeated its finding at every turn. Waking a turn of its own for the reminder
+  keeps the answer, but needs a record that it reminded, or an agent that won't act
+  is woken without end; dropping the reminder leaves the next prompt's one. Max to
+  choose.
 - **Reproduce the Codex delivery-start race.** Another client may start a turn
   between Leaf's idle check and its start request. **Unconfirmed:** test the installed
   App Server's behavior before changing delivery policy; the

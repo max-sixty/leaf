@@ -226,7 +226,7 @@ export default function leaf(pi: ExtensionAPI) {
   });
 
   pi.on("agent_before_settle", async () => {
-    // The Stop hook hands over whatever is pending.
+    // The Stop hook hands over no input; the watch gives it a run of its own.
     handOff = false;
     const context = await hook({
       hook_event_name: "Stop",

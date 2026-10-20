@@ -206,8 +206,8 @@ export type WireTodo = Omit<ServedTodo, "outcome"> & {
 };
 
 /** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
- * places it: `owner` names the list. A widget or approval row names its obligation by `id`,
- * and a to-do row carries the fields a row draws. */
+ * places it: `owner` names the list. A widget, approval or to-do row names its record
+ * by `id`. */
 interface QueueItem {
   kind: ServedQueueRow["kind"];
   id: string;
@@ -218,6 +218,8 @@ interface QueueItem {
   live: boolean;
   /** A widget or approval row's current record, which `localQueues` joins on. */
   obligation?: ObligationRecord;
+  /** A to-do row's current record, which `localQueues` joins on. */
+  todo?: WireTodo;
   [field: string]: unknown;
 }
 
@@ -488,6 +490,9 @@ function localQueues(
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
+  const todoRecord = new Map(
+    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo]),
+  );
   const byThread = new Map(threads.map((thread) => [thread.id, thread]));
   // The forward sends still in flight; a refused one is the user's resend, below.
   const sending = workflows.filter(
@@ -537,9 +542,19 @@ function localQueues(
     carriesObligation(item)
       ? obligationOf(item).status !== "open"
       : item.kind === "todo" && ended.has(item.id);
-  // A widget or approval obligation carries this tab's record of its obligation.
+  const todoOf = (item: QueueItem) => {
+    const local = todoRecord.get(item.id);
+    if (!local) throw new Error(`Queue item ${item.id} names no to-do`);
+    return local;
+  };
+  // A widget or approval obligation carries this tab's record of its obligation, and
+  // a to-do this tab's record of the to-do.
   const current = <T extends QueueItem>(item: T): T =>
-    carriesObligation(item) ? { ...item, obligation: obligationOf(item) } : item;
+    carriesObligation(item)
+      ? { ...item, obligation: obligationOf(item) }
+      : item.kind === "todo"
+        ? { ...item, todo: todoOf(item) }
+        : item;
   const asOpen = ({
     state: _state,
     ended: _ended,
@@ -612,7 +627,9 @@ function localQueues(
           answer: workflow.answer,
           stage: workflow.stage,
         })),
-      ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)),
+      ...served.on_agent
+        .filter((item) => item.kind === "todo" && standsOpen(item))
+        .map(current),
       ...reopenedFor("agent").map(asOpen),
     ],
     // Newest first, as the server serves it: what ended in this tab has just ended.

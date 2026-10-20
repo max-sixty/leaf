@@ -13,10 +13,10 @@ On me holds obligations, to-dos on the user and resends; On <agent> holds answer
 owes, work in hand on an update, and the agent's to-dos. A row names its kind, its
 subject, the list it stands on (`owner`), the thread it stands in, and whether the
 agent has it in hand now (`live`): a to-do a start holds, or an update the agent is at
-work on whose work has not gone quiet or stopped. A widget or approval row names its
-obligation by `id` and carries no copy of it: the view serves each obligation record once, in
-`obligations`, and the browser's publisher joins the row to its current record. A to-do row
-carries the fields a row draws.
+work on whose work has not gone quiet or stopped. A widget, approval or to-do row
+names its record by `id` and carries no copy of it: the view serves each obligation
+record once, in `obligations`, the page serves each to-do once, in `todos`, and the
+browser's publisher joins the row to its current record.
 
 A row that leaves a list lands in that list's Done, which its `owner` names: On me's
 holds the obligations the user answered, here or elsewhere, or the agent withdrew, and the
@@ -34,18 +34,15 @@ from ..thread import is_answer
 
 
 def _todo_item(todo: dict) -> dict:
-    """One to-do as an item on the list of its `owner`."""
+    """One to-do on the list of its `owner`. It names the to-do by `id`; the record is
+    the page's `todos` entry."""
     return {
         "kind": "todo",
         "id": todo["id"],
         "owner": todo["owner"],
         "subject": todo["subject"],
         "thread": todo["thread"],
-        "title": todo["title"],
-        "running": todo["running"],
         "live": todo["running"] is not None,
-        "agent": todo["agent"],
-        "session": todo["session"],
     }
 
 

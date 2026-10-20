@@ -348,7 +348,7 @@ function queueKinds(items) {
     // A to-do outlasts the turns and the thread that opened it (`todos.py`), so each
     // open one is named, including one on a thread the user has resolved.
     return kind === "todo"
-      ? `${words} (${all.map((todo) => todo.title).join(" · ")})`
+      ? `${words} (${all.map((row) => row.todo.title).join(" · ")})`
       : words;
   });
 }

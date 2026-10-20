@@ -214,12 +214,14 @@ leaf page state <page> | jq '{source, obligations, todos, queues}'
 
 `queues.on_user` is On me: open obligations, to-dos on the user, and updates to resend.
 `queues.on_agent` is your list: answers you owe, updates you are working on, and your
-to-dos. Read them as given rather than rebuilding them from events. An obligation's row
-names it by `id`; its record in `obligations` holds its `prompt`, its `answer` once given,
-and its `status`, and a widget's obligation takes its answer
-from the widget's state. Read a thread or a widget with `leaf page state <page> <id>`,
-using a message id or a widget id; the widget's markup is in the HTML file named by
-`active.file`. Unsent drafts and tabs on older versions are not in this reading.
+to-dos. Read them as given rather than rebuilding them from events. A row names its
+obligation or to-do by `id`. An obligation's record in `obligations` holds its
+`prompt`, its `answer` once given, and its `status`, and a widget's obligation takes
+its answer from the widget's state; a to-do's record in `todos` holds its `title` and
+the start `running` on it. Read a thread or a widget with
+`leaf page state <page> <id>`, using a message id or a widget id; the widget's markup
+is in the HTML file named by `active.file`. Unsent drafts and tabs on older versions
+are not in this reading.
 Check `source` for an invalid or missing draft before taking an empty list as a
 clean handoff.
 

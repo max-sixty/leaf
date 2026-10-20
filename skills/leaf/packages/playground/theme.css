@@ -365,6 +365,11 @@
 :scope:is(lf-playground).lf-playground-quoted > lf-playground-preset {
   display: none !important;
 }
+/* Its stage holds what was authored and never changes, so it takes the height of its
+ * artifacts rather than a live stage's minimum, which stood empty below them. */
+:scope:is(lf-playground).lf-playground-quoted > lf-playground-preview {
+  min-height: 0;
+}
 
 @container (max-width: 38rem) {
   :scope:is(lf-playground-preview) {

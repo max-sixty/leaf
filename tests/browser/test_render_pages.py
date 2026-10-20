@@ -2980,6 +2980,38 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
         assert (track_box["top"] < body_box["top"]) is first
 
 
+def test_a_sidebar_pages_items_trim_their_words_at_both_edges(browser, serve):
+    """Each item in a sidebar page's row trims its words' outer margins, through any
+    wrapper, as a column does at its edges: beside the body, a track whose heading sits in
+    a wrapper starts level with a body whose heading doesn't, and stacked, the body ends
+    at its last line, so only the row's gap stands before the track. Only an item's own
+    first child was trimmed, so a wrapped heading stood its margin lower, and every item
+    but the last kept its last paragraph's margin."""
+    source = leaf_page(
+        "a sidebar page",
+        "<header><h1>Review</h1></header>"
+        "<div id='body'><h2 id='body-head'>Findings</h2>"
+        + "<p>Body paragraph. "
+        * 40
+        + "</p><p id='last'>The last line.</p></div>"
+        "<aside id='track'><div><h2 id='track-head'>Summary</h2>"
+        "<p>Summary and contents.</p></div></aside>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source))
+    box = "(id) => document.getElementById(id).getBoundingClientRect()"
+    resized(page, 1440, 900)
+    body_head, track_head = (
+        page.evaluate(box, "body-head"),
+        page.evaluate(box, "track-head"),
+    )
+    assert track_head["x"] > body_head["x"]
+    assert track_head["top"] == pytest.approx(body_head["top"], abs=0.5)
+    resized(page, 390, 844)
+    body, last = page.evaluate(box, "body"), page.evaluate(box, "last")
+    assert body["bottom"] == pytest.approx(last["bottom"], abs=0.5)
+
+
 def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve):
     """Beside the body, the one block a track holds stays in view at the window's head as the
     body scrolls, scrolls what it holds so its end is reachable, and is the reading

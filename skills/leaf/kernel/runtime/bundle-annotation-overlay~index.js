@@ -2121,6 +2121,7 @@ function createMarginProjection({
     rows: [
       {
         id: "margin.back",
+        touch: false,
         keys: ["Escape"],
         description: () => pageMapRung(false)?.description,
         title: () => pageMapRung(false)?.title,

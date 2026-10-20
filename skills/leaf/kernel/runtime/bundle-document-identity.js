@@ -1930,6 +1930,7 @@ function createSelectionComposer({
   const RESPONSE_OPTIONS_TITLE = "With other responses open";
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
+    touch: false,
     ready: savedReadingSettled,
     keys: () => reactionTokens2().slice(0, 9).map((_, index) => String(index + 1)),
     label: () => {
@@ -1943,6 +1944,7 @@ function createSelectionComposer({
   };
   const RESPONSE_MOVE = {
     id: "response.move",
+    touch: false,
     keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
     description: "Move through other responses",
     title: "move",
@@ -1952,6 +1954,7 @@ function createSelectionComposer({
   };
   const RESPONSE_ACTIVATE = {
     id: "response.activate",
+    touch: false,
     keys: PRESS,
     description: "Use the focused response",
     title: "choose",
@@ -1960,6 +1963,7 @@ function createSelectionComposer({
   };
   const RESPONSE_CLOSE = {
     id: "response.close",
+    touch: false,
     keys: ["Escape"],
     description: "Close other responses",
     title: "close",
@@ -4779,6 +4783,7 @@ function createReactionController({
     rows: [
       {
         id: "reaction.choose",
+        touch: false,
         runFromCommandReference: false,
         keys: () => reactionTokens().slice(0, 9).map((_, i) => String(i + 1)),
         label: () => {
@@ -4805,6 +4810,7 @@ function createReactionController({
       },
       {
         id: "reaction.move",
+        touch: false,
         runFromCommandReference: false,
         keys: ["Tab", "Shift+Tab", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
         description: "Move through reactions",
@@ -4814,6 +4820,7 @@ function createReactionController({
       },
       {
         id: "response.activate",
+        touch: false,
         runFromCommandReference: false,
         keys: PRESS,
         description: "Use the focused response",
@@ -4823,6 +4830,7 @@ function createReactionController({
       },
       {
         id: "reaction.cancel",
+        touch: false,
         keys: ["Escape"],
         description: "Close response choices",
         title: "cancel",
@@ -7915,6 +7923,7 @@ pageScope("text entry", {
   rows: [
     {
       id: "text.leave",
+      touch: false,
       keys: ["Escape"],
       description: "Leave the box, keeping what is typed",
       title: () => backFromBox()?.line ?? "back",
@@ -7985,6 +7994,7 @@ function declareThreadKeys(landIn) {
     rows: [
       {
         id: "thread.primary",
+        touch: false,
         keys: ["Enter"],
         description: () => resolutionControl(cardThread())?.matches(".lf-reopen") ? "Reopen it" : "Write a reply",
         title: () => resolutionControl(cardThread())?.matches(".lf-reopen") ? "reopen" : "reply",
@@ -8002,6 +8012,7 @@ function declareThreadKeys(landIn) {
       },
       {
         id: "thread.resolution.toggle",
+        touch: false,
         keys: ["r"],
         description: () => resolutionControl(heldThread())?.matches(".lf-reopen") ? "Reopen it" : "Resolve it",
         title: () => resolutionControl(heldThread())?.matches(".lf-reopen") ? "reopen" : "resolve",

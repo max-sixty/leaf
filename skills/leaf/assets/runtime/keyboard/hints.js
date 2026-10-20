@@ -394,6 +394,7 @@ export function createHintSession({
     return [
       {
         id: `${id}.walk`,
+        touch: false,
         keys: ["Tab", "Shift+Tab"],
         routes: [
           { id: `${id}.next`, binding: "Tab", title: "Hear the next visible target" },
@@ -410,6 +411,7 @@ export function createHintSession({
       },
       {
         id: `${id}.choose`,
+        touch: false,
         keys: ["Enter"],
         description: choose.description,
         title: choose.title,

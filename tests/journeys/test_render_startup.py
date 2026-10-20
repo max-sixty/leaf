@@ -82,6 +82,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         "checkout": "fb77",
         "interaction": "user",
         "started": "2026-08-31T12:00:00+00:00",
+        "input": {"source": "triage-board", "authored": "test"},
     }
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},

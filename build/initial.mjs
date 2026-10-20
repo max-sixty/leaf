@@ -23,8 +23,13 @@ export async function initialOutputs() {
     // inlines only the renderers of the widgets it holds.
     for (const [tag, entry] of Object.entries(registry)) {
       if (!entry?.["x-initial"]) continue;
-      const output = path.join("skills/leaf/packages", name, entry["x-initial"].slice(1));
-      if (outputs.has(output)) throw new Error(`${output} is more than one tag's bundle`);
+      const output = path.join(
+        "skills/leaf/packages",
+        name,
+        entry["x-initial"].slice(1),
+      );
+      if (outputs.has(output))
+        throw new Error(`${output} is more than one tag's bundle`);
       const result = await build({
         entryPoints: [path.join(directory, "initial", `${tag}.js`)],
         bundle: true,

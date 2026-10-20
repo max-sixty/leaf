@@ -12,7 +12,7 @@
  * the source a revision compares against (version.js), so the early drawing writes
  * nothing outside its host, and a destination without an id has no link until upgrade.
  */
-export const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
+const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 
 // The outline is of the document it stands in: the page's `main`, or the part of a
 // page made of parts that holds it (`data-lf-views="parts"`, lf-tabs.js).

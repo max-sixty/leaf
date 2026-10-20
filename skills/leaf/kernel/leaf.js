@@ -7264,17 +7264,21 @@ function createFloatingPanel({
     }}
             >
               On me
-            </button>` : step.state === "working" && step.since ? html`<span class="lf-fp-plan-time">${shortAgo(step.since)}</span>` : nothing}${step.running ? html`<span class="lf-fp-plan-line">${step.running.text}</span>` : nothing}${step.steps.length ? html`<ol class="lf-fp-plan-steps">${step.steps.map(planStep)}</ol>` : nothing}
+            </button>` : step.state === "working" && step.since ? html`<span class="lf-fp-plan-time">${shortAgo(step.since)}</span>` : nothing}${step.running ? html`<span class="lf-fp-plan-line">${step.running.text}</span>` : nothing}${step.steps.length ? html`<ol class="lf-fp-plan-steps">
+              ${step.steps.map(planStep)}
+            </ol>` : nothing}
     </li>`;
   }
   const planCards = () => (readPlan()?.steps ?? []).map(
     (goal) => html`<section class="lf-fp-plan">
-        <h3 class="lf-fp-plan-goal">
-          <span>${goal.title ?? ""}</span
-          ><span class="lf-fp-plan-count">${goal.done} of ${goal.total}</span>
-        </h3>
-        <ol class="lf-fp-plan-steps">${goal.steps.map(planStep)}</ol>
-      </section>`
+          <h3 class="lf-fp-plan-goal">
+            <span>${goal.title ?? ""}</span
+            ><span class="lf-fp-plan-count">${goal.done} of ${goal.total}</span>
+          </h3>
+          <ol class="lf-fp-plan-steps">
+            ${goal.steps.map(planStep)}
+          </ol>
+        </section>`
   );
   function onItemCard(item, list) {
     const record = carriesItem(item) ? item.item : null;

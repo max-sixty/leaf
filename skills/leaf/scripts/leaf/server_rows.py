@@ -20,7 +20,6 @@ lease withdraws the row. The enabled service remains eligible for the existing
 server revival path.
 """
 
-import os
 import sys
 import time
 from datetime import datetime
@@ -31,6 +30,7 @@ from .page_memory import memory_of
 from .presence import PRESENCE_CACHE_S, live_facts
 from .served_state.reading import page_reading
 from .served_state.service import PageStateService
+from .server import exit_serving
 from .service import page_claim
 from .state import STRING, Record, object_schema, page_key, state_home
 
@@ -135,7 +135,7 @@ class RowPublisher:
                 file=sys.stderr,
                 flush=True,
             )
-            os._exit(1)
+            exit_serving(1)
 
     def refresh(self) -> None:
         """Publish changed own inputs, including activity aging without a tab."""

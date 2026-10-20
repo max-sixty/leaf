@@ -1090,7 +1090,7 @@
       "additionalProperties": false
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A widget or approval row names its obligation by `id`, whose record is the view's `items` entry; a to-do row carries the fields a row draws.",
+      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A widget or approval row names its obligation by `id`, whose record is the view's `obligations` entry; a to-do row carries the fields a row draws.",
       "anyOf": [
         { "$ref": "#/$defs/ObligationRow", "unevaluatedProperties": false },
         { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false },

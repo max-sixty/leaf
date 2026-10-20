@@ -899,12 +899,35 @@
     else removeRuntimeRootStyle(body, TITLE);
     return true;
   };
+  // The header a Layout sticks over its body, as a workspace does where the window is
+  // too small to be its screen (layouts.css, "Workspace"): what the body stands under is
+  // the header's height, which no CSS can read, so it is written here for the body's
+  // sticky-header slot (`--lf-top`, theme.css) to add. Which header sticks is the
+  // stylesheet's to say; this reads its computed position.
+  const HEAD = "--lf-layout-head-h";
+  const head = () => {
+    const body = document.body;
+    if (!body) return false;
+    const header = layoutBox()?.querySelector(":scope > header");
+    const value =
+      header && getComputedStyle(header).position === "sticky"
+        ? `${Math.ceil(header.getBoundingClientRect().height)}px`
+        : "";
+    if (body.style.getPropertyValue(HEAD) === value) return false;
+    if (value) setRuntimeRootStyle(body, HEAD, value);
+    else removeRuntimeRootStyle(body, HEAD);
+    return true;
+  };
   const residency = () => {
     const seated = seat();
     const titled = title();
+    const headed = head();
     const stood = stand();
     const reading = breakouts();
-    return { ...reading, changed: reading.changed || seated || titled || stood };
+    return {
+      ...reading,
+      changed: reading.changed || seated || titled || headed || stood,
+    };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from

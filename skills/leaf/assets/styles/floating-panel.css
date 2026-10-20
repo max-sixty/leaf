@@ -1588,14 +1588,13 @@
     width: min(360px, calc(100vw - 32px));
   }
   /* A list in the menu's place: its head, the way back, over its rows as the state
-     stands over the menu's. */
+     stands over the menu's. Its bold name and a space set it apart, as a view's crumb
+     stands over the view, so it hovers as any row does. */
   .lf-fp-menu-page {
     display: grid;
   }
   .lf-fp-menu-back {
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
-    border-radius: 6px 6px 0 0;
+    margin-bottom: 6px;
   }
   .lf-fp-menu-back .lf-fp-label {
     display: flex;
@@ -1617,8 +1616,7 @@
     display: grid;
     gap: 1px;
     padding: 6px 8px 8px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
+    margin-bottom: 6px;
     color: var(--lf-fp-muted);
     font-size: 12px;
   }

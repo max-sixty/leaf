@@ -3,7 +3,7 @@
 # the proposal and its reasoning, and the user asked for the page to be split into parts
 # with arrangements of their own. Claude Code, at the change: base 0/3 (a
 # layout-workspace page of two lf-pane regions, the prose beside the playground),
-# candidate RESULT.
+# candidate 3/3.
 description: parts-take-their-own-layouts
 metadata:
   purpose:

@@ -764,33 +764,18 @@
     }
   }
 
-  /* A page's parts (lf-parts.js). The page lays them out (layouts.css, "A page of
-   * parts"): the list in a column down the left and the open part beside it, arranged
-   * by its own Layout. The holder draws no frame; its list stands on the page's ground
-   * under the page's title, and the open part's name wears the face every strip's open
-   * tab wears. The open part is ruled off from the column. The list sticks under the
-   * title, so it stands in one place whichever part is open and wherever it is read,
-   * and scrolls on its own where it holds more names than the window's height leaves
-   * under the title. On a phone it is a row over the part, scrolled sideways. */
-  :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
-    position: sticky;
-    top: calc(var(--lf-top) + var(--lf-parts-title-h, 0px));
-    align-self: start;
-    block-size: calc(var(--lf-view-height) - var(--lf-parts-title-h, 0px));
-    min-block-size: 0;
-    flex-direction: column;
-    gap: 0;
-    padding: var(--sp-4) 8px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    border-bottom: 0;
-    border-radius: 0;
-    --lf-tabstrip-bg: var(--paper);
-  }
-  :scope:is(lf-parts).lf-rendered > .lf-tabstrip > .lf-tabstrip-scroll {
-    display: none;
-  }
-  /* A part is a section of the page, not a box on it: like `main`, it trims its edges
+  /* A page's parts (lf-parts.js). Where they stand in a `main` that carries no Layout,
+   * the page lays them out (layouts.css, "A page of parts"): the list in a column down
+   * the left and the open part beside it, arranged by its own Layout. The holder draws
+   * no frame; its list stands on the page's ground under the page's title, and the open
+   * part's name wears the face every strip's open tab wears. The open part is ruled off
+   * from the column. The list sticks under the title, so it stands in one place
+   * whichever part is open and wherever it is read, and scrolls on its own where it
+   * holds more names than the window's height leaves under the title. On a phone it is
+   * a row over the part, scrolled sideways. Placed anywhere else, as when the corpus
+   * embeds a page of parts, the list is a strip's row over the open part.
+   *
+   * A part is a section of the page, not a box on it: like `main`, it trims its edges
    * and draws nothing, and its Layout sets its padding. A positioned box in it, such as
    * a playground's stage, paints over an outline on the part itself, so its ring is
    * drawn on a later box above them instead, as a page tab's is. */
@@ -804,7 +789,6 @@
   :scope:is(lf-parts).lf-rendered > lf-part:not([hidden]) {
     position: relative;
     z-index: 0;
-    border-inline-start: 1px solid var(--rule);
     --lf-block-frame: trim;
   }
   :scope:is(lf-parts).lf-rendered > lf-part[data-lf-focus] {
@@ -828,28 +812,46 @@
     overflow: clip;
     pointer-events: none;
   }
-  @container lf-shell (width < 640px) {
+  @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
     :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
-      position: static;
-      block-size: auto;
-      min-block-size: var(--lf-tabstrip-h);
-      flex-direction: row;
-      gap: 2px;
-      padding: 8px var(--lf-tabstrip-pad) 0;
-      overflow-x: auto;
-      overflow-y: hidden;
-      border-bottom: 1px solid var(--border-2);
+      position: sticky;
+      top: calc(var(--lf-top) + var(--lf-parts-title-h, 0px));
+      align-self: start;
+      block-size: calc(var(--lf-view-height) - var(--lf-parts-title-h, 0px));
+      min-block-size: 0;
+      flex-direction: column;
+      gap: 0;
+      padding: var(--sp-4) 8px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      border-bottom: 0;
+      border-radius: 0;
+      --lf-tabstrip-bg: var(--paper);
     }
-    :scope:is(lf-parts).lf-rendered > .lf-tabstrip > .lf-tab-run {
-      flex: none;
-      flex-direction: row;
-      gap: 2px;
-    }
-    :scope:is(lf-parts).lf-rendered > .lf-tabstrip .lf-tab-summary {
+    :scope:is(lf-parts).lf-rendered > .lf-tabstrip > .lf-tabstrip-scroll {
       display: none;
     }
     :scope:is(lf-parts).lf-rendered > lf-part:not([hidden]) {
-      border-inline-start: 0;
+      border-inline-start: 1px solid var(--rule);
+    }
+    @container lf-shell (width < 640px) {
+      :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
+        position: static;
+        block-size: auto;
+        min-block-size: var(--lf-tabstrip-h);
+        flex-direction: row;
+        gap: 2px;
+        padding: 8px var(--lf-tabstrip-pad) 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-bottom: 1px solid var(--border-2);
+      }
+      :scope:is(lf-parts).lf-rendered > .lf-tabstrip .lf-tab-summary {
+        display: none;
+      }
+      :scope:is(lf-parts).lf-rendered > lf-part:not([hidden]) {
+        border-inline-start: 0;
+      }
     }
   }
   /* Before the module upgrades the parts, the page lays them out as it will (layouts.css),

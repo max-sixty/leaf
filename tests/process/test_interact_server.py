@@ -255,39 +255,6 @@ def test_interaction_trace_is_writable_from_a_read_only_page_preview(page_dir):
     )
 
 
-def test_a_read_only_preview_records_no_reading_without_an_error_status(page_dir):
-    """The page posts a `read` on its own once it has shown an agent message whole. A
-    read-only preview, such as the one `page check --render` serves, records none. It
-    answers the read as final, so the page doesn't send it again, with a 200, since
-    Chrome reports a failed fetch as a console error and the gate fails the page for
-    it. A comment, which only a user's gesture sends, is still refused with a 403."""
-    publish(page_dir)
-    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
-    snapshot = page_snapshot_model.capture_page_snapshot(
-        page_dir,
-        artifact_model.read_revision(page_dir, active["revision"]).document,
-        active["revision"],
-        url=active["url"],
-    )
-    before = event_model.read_events(page_dir)
-    read = {
-        "kind": "read",
-        "messages": [{"message": "a1b2c3d4", "version": "a1b2c3d4"}],
-    }
-    comment = {"kind": "comment", "revision": 1, "text": "hello"}
-    with hosting_model.TemporaryPageServer(
-        page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
-    ) as preview:
-        status, body = fetch(
-            f"{preview.origin}/api/event", data=json.dumps(read).encode()
-        )
-        assert status == 200
-        assert json.loads(body) | {"ok": False, "final": True} == json.loads(body)
-        posted = fetch(f"{preview.origin}/api/event", data=json.dumps(comment).encode())
-        assert posted[0] == 403
-    assert event_model.read_events(page_dir) == before
-
-
 def test_interaction_trace_does_not_change_page_readings(page_dir):
     reading = served_reading.page_reading(page_dir)
     sources = served_reading.source_readings(page_dir)

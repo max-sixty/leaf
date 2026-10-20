@@ -45,7 +45,6 @@ from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
 from .refusals import Refused
-from .registry.kernel import kinds_declaring
 from .registry.storage import layer_metadata, load_registry
 from .render_checks import PROBE_SOURCES
 from .revision_artifact import (
@@ -1143,18 +1142,9 @@ class PageEndpoint:
         return None
 
     def _writable_gate(self) -> Response | None:
-        if self.source.writable:
-            return None
-        # A capture serves an instrument, not the user's reading (`_observe_user_view`).
-        # The page sends bookkeeping on its own, recording what the user has seen, so a
-        # capture answers it final, which stops the page sending it again, under a
-        # success status: a failed fetch is a console error, and the render gate counts
-        # those against the page.
-        if isinstance(self.posted, dict) and self.posted.get("kind") in kinds_declaring(
-            "bookkeeping"
-        ):
-            return self._refuse("the preview server records no reading", 200)
-        return self._refuse("the preview server is read-only", 403)
+        if not self.source.writable:
+            return self._refuse("the preview server is read-only", 403)
+        return None
 
     def _layer_gate(self) -> Response | None:
         """Hold a write to the vocabulary the tab speaks.

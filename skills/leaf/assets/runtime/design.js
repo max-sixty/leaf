@@ -356,7 +356,7 @@ export function createDesignMode({
         id: "design.mode.exit",
         keys: ["l"],
         title: "exit Design mode",
-        touch: "Exit Design mode",
+        exit: true,
         run: () => setDesignMode(false),
       },
     ],

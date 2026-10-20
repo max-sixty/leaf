@@ -87,6 +87,7 @@ import {
   availableCommandRoutes,
   dispatchKey,
   executeCommand,
+  innermostStance,
   invokePress,
   keyReady,
   onSampleNotice,
@@ -3324,7 +3325,7 @@ function createDrawingController({
         id: "draw.mode.exit",
         keys: ["w"],
         title: "exit Draw mode",
-        touch: "Exit Draw mode",
+        exit: true,
         run: () => setDrawMode(false)
       }
     ]
@@ -4682,7 +4683,10 @@ ${searchCount(maximum, maximum)}`
     keys: ["Escape"],
     description: () => pageSearchOpen ? searchReturnsToHints ? "Return to the visible target hints" : "Close page search" : hints.prefix() ? "Remove the last hint letter" : "Close the target picker",
     title: () => pageSearchOpen ? searchReturnsToHints ? "back to hints" : "close search" : hints.prefix() ? "back one letter" : "close picker",
-    touch: () => pageSearchOpen ? searchReturnsToHints ? "Back to hints" : "Close search" : hints.prefix() ? "Back one letter" : "Cancel selection",
+    // The ✕ of both stances (keyboard/AGENTS.md, "Touch routes"). While the user
+    // has typed part of a hint it takes back a letter, as its words say; a finger,
+    // which types none, always closes.
+    exit: true,
     run: back
   };
   const targetingClaims = (binding) => allButCommandReference(binding) && !bindings(PAGE_SEARCH).includes(binding);
@@ -5906,7 +5910,7 @@ registerPageControl({
 });
 
 // runtime/keyboard/status-context.js
-var EMPTY = Object.freeze({ goTo: null, walk: null });
+var EMPTY = Object.freeze({ goTo: null, walk: null, stance: null });
 var context = EMPTY;
 var lastWalk = null;
 var presenters = /* @__PURE__ */ new Set();
@@ -5915,7 +5919,7 @@ function registerStatusContextPresentation(invalidate) {
   presenters.add(invalidate);
 }
 var shownWalk = ({ walk }) => walk?.shown ? walk : null;
-var same2 = (a, b) => a.goTo === b.goTo && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
+var same2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
 function paintStatusContext(goToStatus) {
   const position = walkPosition();
   const goTo = goToStatus();
@@ -5928,7 +5932,8 @@ function paintStatusContext(goToStatus) {
   const before = context;
   context = Object.freeze({
     goTo,
-    walk: lastWalk ? Object.freeze({ ...lastWalk, shown: Boolean(position) }) : null
+    walk: lastWalk ? Object.freeze({ ...lastWalk, shown: Boolean(position) }) : null,
+    stance: word(innermostStance()?.scope.title) ?? null
   });
   setNoticeContext(Boolean(goTo));
   if (!same2(context, before)) for (const invalidate of presenters) invalidate();
@@ -5950,7 +5955,7 @@ var OWN_VIEWS = Object.freeze(["leaves", "versions"]);
 var FOLD = "panel.floating.fold";
 var HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 var PICK = "command:target.picker.open";
-var listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key) && !(entry.key === PICK && advertisesKeys());
+var listed = (entry) => !entry.gesture && !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && !(entry.key === PICK && advertisesKeys());
 var copyRefused = false;
 var canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
 var groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;
@@ -6076,8 +6081,9 @@ function createFloatingPanel({
   lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
+  const exitSeat = el("div", "lf-fp-exit-seat");
   const responseSeat = el("div", "lf-fp-response");
-  row.append(leaf, field, responseSeat, rowNoticeSeat, quick);
+  row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
   const CONNECTING = {
     tone: "",
     summary: "Connecting\u2026",
@@ -6134,9 +6140,15 @@ function createFloatingPanel({
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
+    const stance2 = key ? null : statusContextReading().stance;
     const notice2 = passing();
-    if (notice2.visible) return { says: "notice", words: notice2.message };
+    if (notice2.visible)
+      return {
+        says: "notice",
+        words: stance2 ? `${stance2} \xB7 ${notice2.message}` : notice2.message
+      };
     if (thread?.resolved) return { says: "turn", words: "Resolved \xB7 reopen to reply" };
+    if (stance2) return { says: "stance", words: stance2 };
     if (!key) return { says: "status", words: status().summary };
     if (!thread) return { says: "turn", words: "Reply\u2026" };
     const agent = agentName();
@@ -7808,6 +7820,22 @@ function createFloatingPanel({
     keepsHidden(rowNoticeSeat, !standing2);
     render(standing2 ? rowNoticeTemplate(standing2) : nothing, rowNoticeSeat);
     const steps = rows().filter((entry) => entry.gesture);
+    const exit = rows().find((entry) => entry.exit);
+    render(
+      exit ? html`<button
+            type="button"
+            class="lf-fp-chip lf-fp-exit"
+            aria-label=${exit.label}
+            title=${exit.label}
+            ?disabled=${exit.disabled}
+            @mousedown=${(event) => event.preventDefault()}
+            @click=${() => exit.press()}
+          >
+            ${iconTemplate("cross", "lf-action-icon")}
+          </button>` : nothing,
+      exitSeat
+    );
+    keepsHidden(exitSeat, !exit);
     keeps(quick, "data-steps", steps.length ? "" : null);
     if (steps.length) {
       render(
@@ -9640,7 +9668,7 @@ function createDesignMode({
         id: "design.mode.exit",
         keys: ["l"],
         title: "exit Design mode",
-        touch: "Exit Design mode",
+        exit: true,
         run: () => setDesignMode(false)
       }
     ]
@@ -10509,6 +10537,25 @@ function place2(press, gesture) {
   });
   return press.id;
 }
+var stance = null;
+var stanceRegistered = false;
+function placeStanceExit() {
+  if (stanceRegistered) return;
+  stanceRegistered = true;
+  registerPageControl({
+    key: "stance:exit",
+    rank: PAGE_CONTROL_RANK.steps,
+    exit: true,
+    label: () => stance?.label ?? "",
+    group: "page",
+    offered: () => Boolean(stance),
+    disabled: () => stance?.disabled ?? true,
+    press: () => {
+      if (stance && live(stance.press.row)) invokePress(stance.press);
+    }
+  });
+}
+var sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled;
 var same3 = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
 function paintTouchControls() {
   const { commands, steps } = touchPresses();
@@ -10520,6 +10567,16 @@ function paintTouchControls() {
     ...innermost?.presses.map((press) => press.id) ?? []
   ]);
   let changed = false;
+  const held = innermostStance();
+  if (held) placeStanceExit();
+  const title = held && titleOf(held.exit);
+  const nextStance = held ? {
+    label: title[0].toUpperCase() + title.slice(1),
+    disabled: !live(held.exit),
+    press: { id: held.exit.id, row: held.exit, binding: void 0 }
+  } : null;
+  if (!sameStance(nextStance, stance)) changed = true;
+  stance = nextStance;
   for (const [id, press] of presses) {
     const [binding] = bindings(press.row);
     const next = shown.has(id) ? {

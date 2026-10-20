@@ -228,6 +228,11 @@ ELEVATION_SHADOWS = """() => {
     }
     return layers;
   };
+  // A height is written from its drop and blur tokens (theme.css), so those read as
+  // the lengths they hold, and a rule spelling a lift from them is still a lift.
+  const theme = getComputedStyle(document.documentElement);
+  const parts = (value) => value.replace(/var\((--raise-\d-(?:drop|blur))\)/g,
+    (_, name) => theme.getPropertyValue(name).trim());
   const found = [];
   const eaten = new Set();
   const eat = (sheet) => {
@@ -240,7 +245,7 @@ ELEVATION_SHADOWS = """() => {
         const named = rule.style ? [...rule.style] : [];
         const lifted = (name) => ['box-shadow', 'filter'].includes(name) || name.startsWith('--');
         for (const property of named.filter(lifted)) {
-          const value = rule.style.getPropertyValue(property).trim();
+          const value = parts(rule.style.getPropertyValue(property).trim());
           if (!value || value === 'none') continue;
           // The blur, which is the third length of a layer, past the two offsets. A ring
           // writes `0 0 0 Npx` and has none; an inset band is not a lift at all. Read per

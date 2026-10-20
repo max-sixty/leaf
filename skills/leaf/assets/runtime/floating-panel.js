@@ -934,7 +934,6 @@ export function createFloatingPanel({
   // takes the shorter tween: the view's own change, and the one when the view it
   // replaced is gone after its fade.
   let viewMovingUntil = 0;
-  const SHADOW_REACH = 32;
   const outlineClip = (box, grow = 0) =>
     `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${
       box.left - grow
@@ -962,12 +961,17 @@ export function createFloatingPanel({
       return;
     outline = next;
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`, a
-    // 24px blur dropped 8px), so it stands over nothing else in the window: a layer over
-    // the whole window that paints nothing left every word under it unmeasured by a
-    // contrast checker. Its cut moves with the ring's, so it holds the ring every frame.
+    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
+    // blur dropped by its drop, theme.css), so it stands over nothing else in the window:
+    // a layer over the whole window that paints nothing left every word under it
+    // unmeasured by a contrast checker. Its cut moves with the ring's, so it holds the
+    // ring every frame.
+    const lift = getComputedStyle(ground);
+    const shadowReach = ["--raise-2-drop", "--raise-2-blur"]
+      .map((token) => Number.parseFloat(lift.getPropertyValue(token)))
+      .reduce((reach, part) => reach + part);
     for (const [layer, grow] of [
-      [ground, SHADOW_REACH],
+      [ground, shadowReach],
       [ring, 1],
       [fill, 0],
     ]) {

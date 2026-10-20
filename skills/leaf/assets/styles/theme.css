@@ -398,13 +398,21 @@
      hand); --raise-3 stands over the page for a task of its own (a dialog, the thread
      card). A surface takes the height its meaning has, never a new value. Each is one
      layer with no spread, so `filter: drop-shadow(var(--raise-N))` reads it as it
-     stands, for a surface whose silhouette is not its box. With no sideways offset or
-     spread, a lift's blur is how far it reaches beside its box, so a box that clips
-     must leave --raise-1-reach free around a lifted thing to show its shadow. */
-  --raise-1-reach: 8px;
-  --raise-1: 0 2px var(--raise-1-reach) var(--shade);
-  --raise-2: 0 8px 24px var(--shade);
-  --raise-3: 0 12px 36px var(--shade);
+     stands, for a surface whose silhouette is not its box.
+
+     Each is written from its drop and its blur, because a box that clips has to leave
+     a lifted thing room to show its shadow, and that room is read from them: with no
+     sideways offset or spread, a lift reaches its blur beside its box and its drop and
+     blur together below it. */
+  --raise-1-drop: 2px;
+  --raise-1-blur: 8px;
+  --raise-1: 0 var(--raise-1-drop) var(--raise-1-blur) var(--shade);
+  --raise-2-drop: 8px;
+  --raise-2-blur: 24px;
+  --raise-2: 0 var(--raise-2-drop) var(--raise-2-blur) var(--shade);
+  --raise-3-drop: 12px;
+  --raise-3-blur: 36px;
+  --raise-3: 0 var(--raise-3-drop) var(--raise-3-blur) var(--shade);
   /* A tooltip's face: a control's label, held or hovered, in the inverse ink at
      --raise-1. Its stylesheets live wherever the control does, often in a shadow tree
      or a package and on a pseudo-element no shared class reaches, so the face is

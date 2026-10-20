@@ -619,7 +619,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         "kind": "waiting",
         "reason": "todo",
         "workflow": None,
-        "todo": {"id": "t1", "title": "Rebuild", "line": None},
+        "todo": "t1",
     }
 
 

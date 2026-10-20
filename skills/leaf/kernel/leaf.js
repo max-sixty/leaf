@@ -5645,7 +5645,7 @@ function queueKinds(items2) {
     byKind.set(itemNoun(item), [...byKind.get(itemNoun(item)) ?? [], item]);
   return [...byKind].map(([kind, all]) => {
     const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    return kind === "todo" ? `${words} (${all.map((todo) => todo.title).join(" \xB7 ")})` : words;
+    return kind === "todo" ? `${words} (${all.map((row) => row.todo.title).join(" \xB7 ")})` : words;
   });
 }
 function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
@@ -7317,7 +7317,7 @@ function createFloatingPanel({
         >${thread ? discuss : nothing}`;
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
+          >${item.todo?.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
       answers = html`<span class="lf-fp-said">${itemEnding(record)}</span>${gesture ? html`<button

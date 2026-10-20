@@ -820,7 +820,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/10`;
+var recordFormat = (kind) => `leaf-${kind}/11`;
 
 // runtime/composing/text-field.js
 import {
@@ -7978,7 +7978,7 @@ function queueTitle(item) {
   const thread = readThreads().threads.find((thread2) => thread2.id === item.thread);
   const own = elementById(item.subject.id);
   const topic = thread ? threadName(thread) : "";
-  const title = item.title ?? item.item?.prompt.text;
+  const title = item.todo?.title ?? item.item?.prompt.text;
   if (title) return title;
   if (item.kind === "work" && item.detail) return item.detail;
   const sent = item.answer?.message && thread?.msgs.find((message) => message.id === item.answer.message);

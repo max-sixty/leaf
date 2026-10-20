@@ -14,7 +14,7 @@ export function queueTitle(item) {
   const own = elementById(item.subject.id);
   const topic = thread ? threadName(thread) : "";
   // A to-do's own title, or an item's prompt.
-  const title = item.title ?? item.item?.prompt.text;
+  const title = item.todo?.title ?? item.item?.prompt.text;
   if (title) return title;
   if (item.kind === "work" && item.detail) return item.detail;
   // A reply the agent sent reads as its own words, since one thread holds many.

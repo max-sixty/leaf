@@ -1090,7 +1090,7 @@
       "additionalProperties": false
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A widget or approval row names its item by `id`, whose record is the view's `items` entry; a to-do row carries the fields a row draws.",
+      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A widget or approval row names its item by `id`, whose record is the view's `items` entry, and a to-do row names its to-do by `id`, whose record is the page's `todos` entry.",
       "anyOf": [
         { "$ref": "#/$defs/ItemRow", "unevaluatedProperties": false },
         { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false },
@@ -1167,24 +1167,9 @@
         "owner": { "enum": ["agent", "user"] },
         "subject": { "$ref": "#/$defs/Subject" },
         "thread": { "type": ["string", "null"] },
-        "title": { "type": "string" },
-        "running": { "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }] },
-        "live": { "type": "boolean" },
-        "agent": { "type": ["string", "null"] },
-        "session": { "type": ["string", "null"] }
+        "live": { "type": "boolean" }
       },
-      "required": [
-        "kind",
-        "id",
-        "owner",
-        "subject",
-        "thread",
-        "title",
-        "running",
-        "live",
-        "agent",
-        "session"
-      ]
+      "required": ["kind", "id", "owner", "subject", "thread", "live"]
     },
     "DoneRow": {
       "description": "A row that left its list, in the Done of the list `owner` names: how it ended (`state`), when (`ended`, null going last), and the outcome's detail.",
@@ -1333,15 +1318,8 @@
             "reason": { "const": "todo" },
             "workflow": { "type": "null" },
             "todo": {
-              "description": "The to-do the thread waits on, with the line of the start running on it while one holds it.",
-              "type": "object",
-              "properties": {
-                "id": { "type": "string" },
-                "title": { "type": "string" },
-                "line": { "type": ["string", "null"] }
-              },
-              "required": ["id", "title", "line"],
-              "additionalProperties": false
+              "description": "The id of the to-do the thread waits on, whose record is the page's `todos` entry.",
+              "type": "string"
             }
           },
           "required": ["kind", "reason", "workflow", "todo"],

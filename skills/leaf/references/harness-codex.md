@@ -29,12 +29,10 @@ run its `leaf delivery read <id>` and read every part. Follow the delivery's
 
 When the task is idle, or a hook's input wasn't confirmed before the turn ended, the
 adapter either queues a `leaf-delivery` pointer as the task's next user message or
-adds a complete delivery to App Server's queue, behind any input the user queued.
-App Server starts that delivery as its own turn, with a user message from Leaf:
-a line saying Leaf has new input, then the delivery envelope as JSON, one slice per
-turn. Leaf acknowledges queued input. A pointer still needs complete reading and
-the confirmation on its last part; an inline envelope in a queued user message
-needs no acknowledgement command. Run no `leaf wait` or `leaf wait --ack`.
+starts an App Server turn with a `leaf_delivery` tool output, one slice per turn.
+Leaf acknowledges input it queues or starts. A pointer still needs complete reading
+and the confirmation on its last part; inline tool output needs no acknowledgement
+command. Run no `leaf wait` or `leaf wait --ack`.
 The same delivery id can come back after an uncertain queue response; that is the
 retry `event-batches.md` describes. Input confirmed during a turn isn't queued again.
 

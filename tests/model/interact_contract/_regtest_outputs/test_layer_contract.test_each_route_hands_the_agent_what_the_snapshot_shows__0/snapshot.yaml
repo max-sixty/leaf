@@ -30,12 +30,12 @@
 #                      follows every `next` command, and confirms complete receipt
 #                      with `leaf delivery ack <id>` before answering with
 #                      `leaf response reply <answer.ref>`.
-#   Codex App Server   Leaf adds the delivery to the task's queue with
-#                      `thread/queue/add`, as the user message of the turn App
-#                      Server starts for it, and binds that turn's opening and
-#                      final messages as the reply. Leaf acknowledges the
-#                      delivery once it enters that turn. leaf.page's hosted
-#                      agent and a `leaf codex launch` terminal use this route.
+#   Codex App Server   Leaf starts a turn with `turn/start`, carrying the
+#                      delivery as a `leaf_delivery` tool output, and binds the
+#                      turn's opening and final messages as the reply. Leaf
+#                      acknowledges the delivery once it enters that turn.
+#                      leaf.page's hosted agent and a `leaf codex launch`
+#                      terminal use this route.
 #
 # CLI readings print bounded, indented JSON. Large deliveries expose numbered
 # parts and a `next` command; read all parts before acknowledging. A CLI reading
@@ -64,9 +64,8 @@
 #                      after it.
 #   Codex queue:       the `--message` given to `codex queue`, and the output of
 #                      the `leaf delivery read` it points at.
-#   Codex App Server:  the `thread/queue/add` params. The input's text is one
-#                      line saying Leaf has new input, then the delivery
-#                      serialized as one line of JSON; it is shown split and
+#   Codex App Server:  the `turn/start` params. `toolOutput.output` is the
+#                      delivery serialized as one line of JSON; it is shown
 #                      decoded here.
 #
 # JSON is shown as YAML, and each clause in a batch's `handling` as wrapped prose,
@@ -123,15 +122,17 @@ leaf wait:
             in a sentence or two, linking the section that shows it. If the event
             asks for no work, as a question may not, answer it with that reply at
             once. The page holds the work; the thread holds only the conversation
-            about it. `leaf response reply` checks any saved page edit and makes
-            it live before posting. If the revision removes the thread's anchor,
-            move the thread in the same reply with `--section <id>` (narrowed by
-            `--quote` or `--part`), or `--detach` it if its subject left the page.
-            Each answer takes `--done` when it delivers what was asked, or `--todo
-            "<what you owe>"` when it promises work beyond this turn, which stays
-            on you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-            work"). To ask the user something back, put the question in an `lf-ask`
-            in `--markup`; it waits on them until their next message there.
+            about it. A successful non-progress `leaf response reply` checks any
+            saved page edit and makes it live before posting; progress and failure
+            reports use the active revision. If the revision removes the thread's
+            anchor, move the thread in the same reply with `--section <id>` (narrowed
+            by `--quote` or `--part`), or `--detach` it if its subject left the
+            page. Each answer takes `--done` when it delivers what was asked, or
+            `--todo "<what you owe>"` when it promises work beyond this turn, which
+            stays on you until `leaf task end` (`references/conversation-loop.md`,
+            "Long-running work"). To ask the user something back, put the question
+            in an `lf-ask` in `--markup`; it waits on them until their next message
+            there.
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -206,9 +207,10 @@ Claude Code hook:
               in a sentence or two, linking the section that shows it. If the event
               asks for no work, as a question may not, answer it with that reply
               at once. The page holds the work; the thread holds only the conversation
-              about it. `leaf response reply` checks any saved page edit and makes
-              it live before posting. If the revision removes the thread's anchor,
-              move the thread in the same reply with `--section <id>` (narrowed
+              about it. A successful non-progress `leaf response reply` checks any
+              saved page edit and makes it live before posting; progress and failure
+              reports use the active revision. If the revision removes the thread's
+              anchor, move the thread in the same reply with `--section <id>` (narrowed
               by `--quote` or `--part`), or `--detach` it if its subject left the
               page. Each answer takes `--done` when it delivers what was asked,
               or `--todo "<what you owe>"` when it promises work beyond this turn,
@@ -292,15 +294,17 @@ Codex queue:
             in a sentence or two, linking the section that shows it. If the event
             asks for no work, as a question may not, answer it with that reply at
             once. The page holds the work; the thread holds only the conversation
-            about it. `leaf response reply` checks any saved page edit and makes
-            it live before posting. If the revision removes the thread's anchor,
-            move the thread in the same reply with `--section <id>` (narrowed by
-            `--quote` or `--part`), or `--detach` it if its subject left the page.
-            Each answer takes `--done` when it delivers what was asked, or `--todo
-            "<what you owe>"` when it promises work beyond this turn, which stays
-            on you until `leaf task end` (`references/conversation-loop.md`, "Long-running
-            work"). To ask the user something back, put the question in an `lf-ask`
-            in `--markup`; it waits on them until their next message there.
+            about it. A successful non-progress `leaf response reply` checks any
+            saved page edit and makes it live before posting; progress and failure
+            reports use the active revision. If the revision removes the thread's
+            anchor, move the thread in the same reply with `--section <id>` (narrowed
+            by `--quote` or `--part`), or `--detach` it if its subject left the
+            page. Each answer takes `--done` when it delivers what was asked, or
+            `--todo "<what you owe>"` when it promises work beyond this turn, which
+            stays on you until `leaf task end` (`references/conversation-loop.md`,
+            "Long-running work"). To ask the user something back, put the question
+            in an `lf-ask` in `--markup`; it waits on them until their next message
+            there.
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -330,74 +334,72 @@ Codex queue:
               writer: agent
 
 Codex App Server:
-  thread/queue/add:
+  turn/start:
     threadId: codex-thread
     clientUserMessageId: '33333333'
-    input:
-      - type: text
-        text:
-          opening: >-
-            Leaf has new input for your turn. Read this complete delivery before
-            answering.
-          delivery:
-            format: leaf-delivery/14
-            id: '33333333'
-            created_at: 1790046750.29
-            acknowledge: null
-            batches:
-              - page: /path/to/page
-                claim: codex-thread
-                through_seq: 2
-                threads:
-                  - id: 1946b466
-                    title: null
-                    anchor:
-                      section: plan
-                      quote: moves to Tuesdays
-                    detached_from: null
-                    resolved: null
-                    elided:
-                      messages: 0
-                      actions: 0
-                    messages: []
-                    summaries: []
-                    actions: []
-                handling:
-                  h1: >-
-                    Leaf posts your opening message in the thread as your progress
-                    line and your final message as the reply, unless an explicit
-                    reply already answered this input. Before your first tool call,
-                    tell the user briefly the answer or what you are about to do;
-                    later working messages stay in Codex. End with the answer, or
-                    what changed and where it shows. For widgets, a question awaiting
-                    the user (an `lf-ask` in `--markup`), work promised beyond this
-                    turn (`--todo`), a title or moving the thread, reply explicitly
-                    with `leaf response reply <answer.ref>` (`references/threads.md`);
-                    it posts at once, and your final message is then not posted.
-                  h2: >-
-                    Your reply renders as Markdown in a narrow column: give each
-                    point its own short paragraph or list item, link a page section
-                    as `[its name](#section-id)`, and fence code or markup.
-                events:
-                  - kind: comment
-                    revision: 1
-                    text: why here?
-                    anchor:
-                      section: plan
-                      quote: moves to Tuesdays
-                    author: user
-                    id: 1946b466
-                    attention: true
-                    ts: '2026-09-21T20:12:30-07:00'
-                    seq: 2
-                    subject:
-                      kind: thread
-                      id: 1946b466
-                    threads: [1946b466]
-                    handling: [h1, h2]
-                    answer:
-                      kind: reply
-                      parent: 1946b466
-                      responds: 1946b466
-                      ref: 33333333:0:1946b466
-                      writer: turn
+    input: []
+    toolOutput:
+      name: leaf_delivery
+      output:
+        format: leaf-delivery/14
+        id: '33333333'
+        created_at: 1790046750.29
+        acknowledge: null
+        batches:
+          - page: /path/to/page
+            claim: codex-thread
+            through_seq: 2
+            threads:
+              - id: 1946b466
+                title: null
+                anchor:
+                  section: plan
+                  quote: moves to Tuesdays
+                detached_from: null
+                resolved: null
+                elided:
+                  messages: 0
+                  actions: 0
+                messages: []
+                summaries: []
+                actions: []
+            handling:
+              h1: >-
+                Leaf posts your opening message in the thread as your progress line
+                and your final message as the reply, unless an explicit reply already
+                answered this input. Before your first tool call, tell the user
+                briefly the answer or what you are about to do; later working messages
+                stay in Codex. End with the answer, or what changed and where it
+                shows. For widgets, a question awaiting the user (an `lf-ask` in
+                `--markup`), work promised beyond this turn (`--todo`), a title
+                or moving the thread, reply explicitly with `leaf response reply
+                <answer.ref>` (`references/threads.md`); it posts at once, and your
+                final message is then not posted.
+              h2: >-
+                Your reply renders as Markdown in a narrow column: give each point
+                its own short paragraph or list item, link a page section as `[its
+                name](#section-id)`, and fence code or markup.
+            events:
+              - kind: comment
+                revision: 1
+                text: why here?
+                anchor:
+                  section: plan
+                  quote: moves to Tuesdays
+                author: user
+                id: 1946b466
+                attention: true
+                ts: '2026-09-21T20:12:30-07:00'
+                seq: 2
+                subject:
+                  kind: thread
+                  id: 1946b466
+                threads: [1946b466]
+                handling: [h1, h2]
+                answer:
+                  kind: reply
+                  parent: 1946b466
+                  responds: 1946b466
+                  ref: 33333333:0:1946b466
+                  writer: turn
+    turnTrigger: leaf

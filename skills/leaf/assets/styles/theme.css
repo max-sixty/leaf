@@ -705,9 +705,7 @@ html {
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
      * `--lf-root-headers` (lf-tabs.js). */
     scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
-    scroll-padding-bottom: calc(
-      var(--lf-foot-room) + max(12px, var(--focus-ring-room))
-    );
+    scroll-padding-bottom: calc(var(--lf-foot-room) + var(--lf-landing-room));
     /* The foot's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth. */
     body {
@@ -885,24 +883,11 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   border-radius: 6px;
   background: var(--card);
   color: var(--ink);
-}
-:where(
-    select,
-    input:not(
-      [type="checkbox"],
-      [type="radio"],
-      [type="range"],
-      [type="color"],
-      [type="file"],
-      [type="button"],
-      [type="submit"],
-      [type="reset"],
-      [type="image"]
-    )
-  ):is(.lf-ui, .field)[data-lf-focus] {
-  outline: var(--focus-ring);
-  outline-offset: 0;
-  border-color: transparent;
+  &[data-lf-focus] {
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    border-color: transparent;
+  }
 }
 .lf-ui :is(input, textarea)::placeholder,
 :is(input, textarea):is(.lf-ui, .field)::placeholder {
@@ -1855,11 +1840,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
    back; restyling it first would change the fold's intrinsic starting box. */
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   padding: 0;
-}
-/* The visible label becomes transient hover and focus chrome once the runtime's
- * stylesheet arrives. The accessible name comes from the entry reading. */
-.lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {
-  display: none;
 }
 /* The pluggable RHS margin entry. Contributors choose glyph, label, tone, and behavior
    through contributionEntry(); this declaration owns every visual and interactive

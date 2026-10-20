@@ -225,7 +225,7 @@ html {
     overflow-x: hidden;
     overflow-y: scroll;
     scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
-    scroll-padding-bottom: calc(var(--lf-foot-room) + max(12px, var(--focus-ring-room)));
+    scroll-padding-bottom: calc(var(--lf-foot-room) + var(--lf-landing-room));
     body {
       padding-bottom: var(--lf-foot-room);
     }
@@ -321,11 +321,11 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   border-radius: 6px;
   background: var(--card);
   color: var(--ink);
-}
-:where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color], [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field)[data-lf-focus] {
-  outline: var(--focus-ring);
-  outline-offset: 0;
-  border-color: transparent;
+  &[data-lf-focus] {
+    outline: var(--focus-ring);
+    outline-offset: 0;
+    border-color: transparent;
+  }
 }
 .lf-ui :is(input, textarea)::placeholder,
 :is(input, textarea):is(.lf-ui, .field)::placeholder {
@@ -811,9 +811,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   padding: 0;
-}
-.lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {
-  display: none;
 }
 .lf-margin-entry {
   position: relative;

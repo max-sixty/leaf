@@ -62,13 +62,13 @@ def test_a_window_sample_scrolled_past_its_first_screen_stays_visible(browser, s
 
 
 def test_a_same_origin_frame_reads_hidden_and_settled_off_screen(browser, serve):
-    """A same-origin parent may embed a live page in an ordinary iframe. Scrolled out of
-    its parent's scrolling pane, the frame is not on screen, which Firefox answers by
-    rendering it about once a second. Under `visibility: hidden` it shows nothing
-    either, and showing it again is announced, as reading resumes on that. Under
-    `content-visibility: hidden` on the iframe itself, Chrome stops rendering it
-    altogether, so a reading that took it for visible would wait forever for the
-    update its last request asked for."""
+    """A same-origin parent may embed a live page in an ordinary iframe, here inside
+    another. Scrolled out of the top page's scrolling pane, the frame is not on screen,
+    which Firefox answers by rendering it about once a second. Under `visibility:
+    hidden` on the outer iframe it shows nothing either, and showing it again is
+    announced, as reading resumes on that. Under `content-visibility: hidden` on the
+    inner iframe itself, Chrome stops rendering it altogether, so a reading that took
+    it for visible would wait forever for the update its last request asked for."""
     page = open_page(
         browser,
         serve(
@@ -77,15 +77,22 @@ def test_a_same_origin_frame_reads_hidden_and_settled_off_screen(browser, serve)
                 """
 <h1>Embedding page</h1>
 <div id="pane" style="height: 300px; overflow: auto">
-  <iframe id="embedded" title="Embedded" style="height: 200px"></iframe>
+  <iframe id="outer" title="Outer" style="width: 600px; height: 250px"></iframe>
   <div style="height: 2000px"></div>
 </div>
 """,
             )
         ),
     )
-    page.locator("#embedded").evaluate("frame => frame.src = location.href")
-    embedded = page.locator("#embedded").element_handle().content_frame()
+    page.locator("#outer").evaluate("""outer => {
+      const inner = outer.contentDocument.createElement('iframe');
+      inner.style.cssText = 'width: 500px; height: 200px';
+      inner.src = location.href;
+      outer.contentDocument.body.append(inner);
+    }""")
+    outer = page.locator("#outer")
+    inner = outer.element_handle().content_frame().locator("iframe")
+    embedded = inner.element_handle().content_frame()
     embedded.wait_for_function("() => document.body.hasAttribute('data-lf-presented')")
     embedded.evaluate(VISIBLE)
     embedded.wait_for_function("frameIsVisible()")
@@ -100,15 +107,13 @@ def test_a_same_origin_frame_reads_hidden_and_settled_off_screen(browser, serve)
       window.lastHeard = null;
       module.onFrameVisibility(({ visible }) => (window.lastHeard = visible));
     }""")
-    page.locator("#embedded").evaluate("frame => frame.style.visibility = 'hidden'")
+    outer.evaluate("frame => frame.style.visibility = 'hidden'")
     embedded.wait_for_function("lastHeard === false")
     assert not embedded.evaluate("frameIsVisible()")
-    page.locator("#embedded").evaluate("frame => frame.style.visibility = ''")
+    outer.evaluate("frame => frame.style.visibility = ''")
     embedded.wait_for_function("lastHeard === true")
 
-    page.locator("#embedded").evaluate(
-        "frame => frame.style.contentVisibility = 'hidden'"
-    )
+    inner.evaluate("frame => frame.style.contentVisibility = 'hidden'")
     # A resize asks the runtime for a rendering update the hidden frame never gets.
     assert embedded.evaluate("""() => {
       dispatchEvent(new Event('resize'));

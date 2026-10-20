@@ -22,10 +22,11 @@
      the sample's port, and the child publishes it here. Exact message exposure asks
      each containing geometry owner for a fresh band (`readSampleVisibility`).
    - Any other framed Leaf document has a same-origin parent, since a live page
-     admits only those (`structure.FRAME_ANCESTORS_CSP`), so it reads its own
-     `frameElement`, and every frame element above it that it can reach is drawn:
-     Firefox reports a frame inside an outer iframe under `content-visibility:
-     hidden` as intersecting.
+     admits only those (`structure.FRAME_ANCESTORS_CSP`), so it watches its own
+     `frameElement` and every frame element above it that it can reach, and shows
+     when all of them do. Firefox reports a frame inside an outer iframe under
+     `content-visibility: hidden` as intersecting, and tells the inner frame nothing
+     when that changes.
    - A top-level document has no frame to read, and `frameVisibility` is null.
 
    The tab's own visibility is the reader's to add (`document.hidden`).
@@ -34,7 +35,6 @@
    frame's viewport instead: it runs in every frame, Leaf's or not, before the runtime
    it judges, and has no host to ask. */
 const child = document.documentElement.lfSample;
-const owner = child ? null : window.frameElement;
 let admitted = false;
 const observers = new Set();
 const readings = new Map();
@@ -69,30 +69,27 @@ export function watchFrame(frame, callback) {
     attributeFilter: ["inert", "open", "hidden", "aria-hidden", "class", "style"],
   });
   return {
-    shown: () => intersecting && drawn(frame),
+    shown: () =>
+      intersecting &&
+      frame.checkVisibility({ visibilityProperty: true }) &&
+      getComputedStyle(frame).contentVisibility !== "hidden",
     stop: () => {
       seen.disconnect();
       styled.disconnect();
     },
   };
 }
-const drawn = (frame) =>
-  frame.checkVisibility({ visibilityProperty: true }) &&
-  getComputedStyle(frame).contentVisibility !== "hidden";
 
-const ownerWatch = owner && watchFrame(owner, publish);
-function ownerShown() {
-  if (!ownerWatch.shown()) return false;
-  // A cross-origin ancestor's frame element reads null and ends the walk.
-  for (let view = window.parent; view.frameElement; view = view.parent)
-    if (!drawn(view.frameElement)) return false;
-  return true;
-}
+// A cross-origin ancestor's frame element reads null and ends the walk.
+const owners = [];
+if (!child)
+  for (let view = /** @type {Window} */ (window); view.frameElement; view = view.parent)
+    owners.push(watchFrame(view.frameElement, publish));
 
 /** Null in a top-level document; otherwise whether its frame shows. */
 export function frameVisibility() {
   if (child) return { visible: admitted };
-  if (ownerWatch) return { visible: ownerShown() };
+  if (owners.length) return { visible: owners.every((owner) => owner.shown()) };
   return null;
 }
 export function onFrameVisibility(callback) {
@@ -138,9 +135,8 @@ if (child) {
     publish();
   });
 }
-if (ownerWatch)
-  // A persisted pagehide is the containing page's, and its page cache brings this
-  // document back still standing where it stood (bootstrap.js).
-  addEventListener("pagehide", (event) => {
-    if (!event.persisted) ownerWatch.stop();
-  });
+// A persisted pagehide is the containing page's, and its page cache brings this
+// document back still standing where it stood (bootstrap.js).
+addEventListener("pagehide", (event) => {
+  if (!event.persisted) for (const owner of owners) owner.stop();
+});

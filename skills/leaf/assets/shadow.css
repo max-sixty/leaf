@@ -1772,7 +1772,7 @@ html[data-lf-draw-mode] main {
   pointer-events: none;
 }
 .lf-block-control-away {
-  display: none;
+  display: none !important;
 }
 .lf-block-controls {
   display: contents;

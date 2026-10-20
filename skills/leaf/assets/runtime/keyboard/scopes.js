@@ -99,6 +99,13 @@ function* nativeCommandScopes() {
 }
 // Every button a command names, with the declarations naming it. Gathering them reads no
 // predicate, so it is cheap to do on every pass; choosing among them is what reads.
+// Contribution controls have a native activation adapter that retains the projected
+// surface and gesture intent. Its registration is also the row's semantic callback, so
+// a scope projected onto its own control adds no second activation.
+const projectedOnto = (control, scope) =>
+  [...(projectedScopes.get(control)?.values() ?? [])].some(
+    (projected) => scopeIdentity(projected) === scopeIdentity(scope),
+  );
 function buttonDeclarations() {
   const declarations = new Map();
   for (const { source, scope } of nativeCommandScopes()) {
@@ -109,15 +116,7 @@ function buttonDeclarations() {
       for (const entry of routes.length ? routes : [row]) {
         const control = word(entry.control ?? row.control);
         if (!(control instanceof HTMLButtonElement) || !control.isConnected) continue;
-        // Contribution controls have a native activation adapter that retains the
-        // projected surface and gesture intent. Its registration is also the row's
-        // semantic callback; attaching its keyboard scope adds no second activation.
-        if (
-          [...(projectedScopes.get(control)?.values() ?? [])].some(
-            (projected) => scopeIdentity(projected) === scopeIdentity(scope),
-          )
-        )
-          continue;
+        if (projectedOnto(control, scope)) continue;
         if (!declarations.has(control)) declarations.set(control, []);
         const candidates = declarations.get(control);
         if (
@@ -267,7 +266,8 @@ function wireDeclaredButtons(scope) {
     if (!row.run || typeof row.routes === "function") continue;
     for (const entry of row.routes?.length ? row.routes : [row]) {
       const control = entry.control ?? row.control;
-      if (control instanceof HTMLButtonElement) wireButton(control);
+      if (control instanceof HTMLButtonElement && !projectedOnto(control, scope))
+        wireButton(control);
     }
   }
 }
@@ -671,6 +671,7 @@ export function projectCommandScope(control, projector, capability = null) {
   }
   projections.set(projector, capability.scope);
   projectedScopes.set(control, projections);
+  wireDeclaredButtons(capability.scope);
   rememberScopedElement(control);
   reflectTracked(control);
 }

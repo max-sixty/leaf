@@ -56,9 +56,10 @@ html[data-lf-draw-mode] main {
   pointer-events: none;
 }
 /* A control the runtime stands over a page block (block-controls.js) draws only while
-   its block renders near the window. */
+   its block renders near the window, whatever display the control's own rules give
+   it. */
 .lf-block-control-away {
-  display: none;
+  display: none !important;
 }
 /* Keep the document controls together without introducing a containing block for
    their CSS anchors or their fixed header-clipping frames. */

@@ -1502,18 +1502,28 @@ function aimControl({ control, near, anchor }) {
   if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
   return control;
 }
-function revealControl(control, block) {
-  if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
+function readInsets(block) {
   const box = block.getBoundingClientRect();
   const at = anchorBox(block);
-  for (const [property, length] of [
-    ["--lf-block-control-dx", box.left - at.left],
-    ["--lf-block-control-dy", box.top - at.top]
-  ]) {
+  return { dx: box.left - at.left, dy: box.top - at.top };
+}
+function writeInsets(control, { dx, dy }) {
+  for (
+    const [property, length] of
+    /** @type {[string, number][]} */
+    [
+      ["--lf-block-control-dx", dx],
+      ["--lf-block-control-dy", dy]
+    ]
+  ) {
     const value = length ? layoutPx(length) : "";
     if (control.style.getPropertyValue(property) !== value)
       control.style.setProperty(property, value);
   }
+}
+function revealControl(control, block) {
+  if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
+  writeInsets(control, readInsets(block));
   refreshAnchorView(control);
 }
 function tabFromBlock(control, block, signal) {
@@ -2185,7 +2195,7 @@ function paint(player) {
   keeps(time, "disabled", duration(video) ? null : "");
   paintTime(player);
 }
-function takeOver(video) {
+function prepare(video) {
   const bar = offer("div", "lf-video-controls");
   const play = offer("button", "lf-video-play");
   play.tabIndex = -1;
@@ -2207,7 +2217,9 @@ function takeOver(video) {
     play,
     time,
     authoredTabindex: video.getAttribute("tabindex"),
-    events: new AbortController()
+    events: new AbortController(),
+    /** @type {ReturnType<typeof commandScope> | null} */
+    scope: null
   };
   const { signal } = player.events;
   const on = (target, type, listener) => target.addEventListener(type, listener, { signal });
@@ -2215,11 +2227,15 @@ function takeOver(video) {
     on(video, type, () => paint(player));
   on(video, "seeked", () => paintTime(player));
   on(video, "timeupdate", () => paintTime(player));
+  let frame = 0;
   const followFrames = () => {
     paintTime(player);
-    if (!video.paused && !signal.aborted) video.requestVideoFrameCallback(followFrames);
+    frame = video.paused || signal.aborted ? 0 : video.requestVideoFrameCallback(followFrames);
   };
-  on(video, "playing", () => video.requestVideoFrameCallback(followFrames));
+  on(video, "playing", () => {
+    if (frame) video.cancelVideoFrameCallback(frame);
+    frame = video.requestVideoFrameCallback(followFrames);
+  });
   on(video, "click", (event) => {
     if (plainPress(event)) toggle(video);
   });
@@ -2233,55 +2249,55 @@ function takeOver(video) {
   on(video, "focus", () => show("lf-video-keyed", video.matches(":focus-visible")));
   on(video, "blur", () => show("lf-video-keyed", false));
   tabFromBlock(bar, video, signal);
-  projectCommandScope(
-    video,
-    SCOPE,
-    commandScope("On a recording", [
-      {
-        id: "recording.play",
-        keys: [" "],
-        title: () => video.paused ? "play recording" : "pause recording",
-        // The register runs the command when its control is pressed.
-        control: play,
-        run: () => {
-          if (focused() === video) show("lf-video-keyed", true);
-          toggle(video);
-        }
-      },
-      {
-        id: "recording.step",
-        keys: ["ArrowLeft", "ArrowRight"],
-        routes: [
-          {
-            id: "recording.back",
-            binding: "ArrowLeft",
-            title: `back ${STEP_SECONDS} seconds`
-          },
-          {
-            id: "recording.forward",
-            binding: "ArrowRight",
-            title: `forward ${STEP_SECONDS} seconds`
-          }
-        ],
-        title: `back / forward ${STEP_SECONDS} seconds`,
-        repeat: true,
-        run: (binding) => {
-          show("lf-video-keyed", true);
-          const step = binding === "ArrowLeft" ? -STEP_SECONDS : STEP_SECONDS;
-          video.currentTime = Math.min(
-            duration(video),
-            Math.max(0, video.currentTime + step)
-          );
-        }
+  player.scope = commandScope("On a recording", [
+    {
+      id: "recording.play",
+      keys: [" "],
+      title: () => video.paused ? "play recording" : "pause recording",
+      // The register runs the command when its control is pressed.
+      control: play,
+      run: () => {
+        if (focused() === video) show("lf-video-keyed", true);
+        toggle(video);
       }
-    ])
-  );
+    },
+    {
+      id: "recording.step",
+      keys: ["ArrowLeft", "ArrowRight"],
+      routes: [
+        {
+          id: "recording.back",
+          binding: "ArrowLeft",
+          title: `back ${STEP_SECONDS} seconds`
+        },
+        {
+          id: "recording.forward",
+          binding: "ArrowRight",
+          title: `forward ${STEP_SECONDS} seconds`
+        }
+      ],
+      title: `back / forward ${STEP_SECONDS} seconds`,
+      repeat: true,
+      run: (binding) => {
+        show("lf-video-keyed", true);
+        const step = binding === "ArrowLeft" ? -STEP_SECONDS : STEP_SECONDS;
+        video.currentTime = Math.min(
+          duration(video),
+          Math.max(0, video.currentTime + step)
+        );
+      }
+    }
+  ]);
+  players.set(video, player);
+  return player;
+}
+function trade(player) {
+  const { video, scope } = player;
+  projectCommandScope(video, SCOPE, scope);
   keeps(video, PLAYER, "");
   keeps(video, "controls", null);
   if (player.authoredTabindex === null) keeps(video, "tabindex", "0");
-  players.set(video, player);
   paint(player);
-  return player;
 }
 function giveBack(video) {
   const player = players.get(video);
@@ -2297,18 +2313,20 @@ function giveBack(video) {
 function watchVideos() {
   watchArrivals(`video[controls], video[${PLAYER}]`, [], {
     arriveBatch(videos) {
-      const read = videos.filter((video) => video.getRootNode() === document).map((video) => {
-        const { bar } = players.get(video) ?? takeOver(video);
+      const read = videos.map((video) => {
+        const player = players.get(video) ?? prepare(video);
         return {
-          video,
-          reading: anchorControl(bar, video),
-          levels: headerLevels(video)
+          player,
+          reading: anchorControl(player.bar, video),
+          levels: headerLevels(video),
+          insets: readInsets(video)
         };
       });
-      for (const { video, reading, levels } of read) {
-        const bar = aimControl(reading);
-        standInChrome(bar, video, levels);
-        revealControl(bar, video);
+      for (const { player, reading, levels, insets } of read) {
+        aimControl(reading);
+        writeInsets(player.bar, insets);
+        standInChrome(player.bar, player.video, levels);
+        trade(player);
       }
     },
     leave: giveBack
@@ -7211,11 +7229,11 @@ function renderSurfaces(collection, placements, commands2) {
   };
   const activeComposition = commands2.composition.active();
   let prepared = null;
-  const completion = prepare().then((plans) => {
+  const completion = prepare2().then((plans) => {
     prepared = plans;
   });
   return { completion, cancel, commit };
-  async function prepare() {
+  async function prepare2() {
     const plans = [];
     const ordered = [...registrations.values()].sort(
       (a, b) => Number(a.kind === "page") - Number(b.kind === "page")

@@ -97,19 +97,30 @@ export function aimControl({ control, near, anchor }) {
 // The control's anchor insets carry how far `anchor()` reads the block from where it
 // shows, which only an engine that leaves transforms out makes other than nothing
 // (css-anchors.js, `anchorBox`), such as Firefox on a block in a table granted room.
-// Read whenever the control is about to show, since only a shown control needs it.
-export function revealControl(control, block) {
-  if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
+// Read whenever the control is about to show, since only a shown control needs it; a
+// control shown as it arrives reads them with the batch's other readings.
+export function readInsets(block) {
   const box = block.getBoundingClientRect();
   const at = anchorBox(block);
-  for (const [property, length] of [
-    ["--lf-block-control-dx", box.left - at.left],
-    ["--lf-block-control-dy", box.top - at.top],
-  ]) {
+  return { dx: box.left - at.left, dy: box.top - at.top };
+}
+/**
+ * @param {HTMLElement} control
+ * @param {ReturnType<typeof readInsets>} insets
+ */
+export function writeInsets(control, { dx, dy }) {
+  for (const [property, length] of /** @type {[string, number][]} */ ([
+    ["--lf-block-control-dx", dx],
+    ["--lf-block-control-dy", dy],
+  ])) {
     const value = length ? layoutPx(length) : "";
     if (control.style.getPropertyValue(property) !== value)
       control.style.setProperty(property, value);
   }
+}
+export function revealControl(control, block) {
+  if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
+  writeInsets(control, readInsets(block));
   refreshAnchorView(control);
 }
 

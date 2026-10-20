@@ -6,7 +6,6 @@ import contextlib
 import json
 import os
 import shutil
-import signal
 import subprocess
 import sys
 import threading
@@ -480,7 +479,7 @@ with unix_serve(handle, sys.argv[3].removeprefix("unix://")) as server:
 
 
 def test_a_codex_title_server_runs_while_a_codex_session_holds_the_page(
-    page_dir, tmp_path, monkeypatch
+    page_dir, tmp_path, monkeypatch, spawn
 ):
     """A page server holds the next title's App Server only for a Codex claimant:
     it starts one when a Codex session claims a page it already serves, and stops
@@ -503,14 +502,20 @@ def test_a_codex_title_server_runs_while_a_codex_session_holds_the_page(
         )
 
     record_claim(page_dir, id="s1", harness="claude-code", agent="Claude")
-    # The page server's follower, run in a process of its own as it is there.
+    # The page server's follower, run in a process of its own as it is there, until
+    # its stdin closes. Its exit then stops the title server it holds, as a page
+    # server's does.
     follow = """
-import sys
+import sys, threading
 from pathlib import Path
 from leaf.thread_titles import follow_claimant
-follow_claimant(Path(sys.argv[1]))
+page = Path(sys.argv[1])
+threading.Thread(target=follow_claimant, args=(page,), daemon=True).start()
+sys.stdin.read()
 """
-    follower = subprocess.Popen([sys.executable, "-c", follow, str(page_dir)])
+    follower = spawn(
+        [sys.executable, "-c", follow, str(page_dir)], stdin=subprocess.PIPE
+    )
     try:
         endings = {
             "Claude Code took the page": lambda: record_claim(
@@ -533,11 +538,8 @@ follow_claimant(Path(sys.argv[1]))
                 failure=f"the title server ran on after {ending}",
             )
     finally:
-        follower.kill()
-        follower.wait()
-        for pid in servers():
-            if psutil.pid_exists(pid):
-                os.kill(pid, signal.SIGTERM)
+        follower.stdin.close()
+        follower.wait(timeout=STATED_TIMEOUT)
 
 
 # Pi's records in `--mode json`: a run that failed and that Pi retries, then the

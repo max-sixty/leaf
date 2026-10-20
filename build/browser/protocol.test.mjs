@@ -274,7 +274,7 @@ test("the comparison sees through unions, references and maps", () => {
   listed.served.properties.pick = { anyOf: [listing("y"), listing("x")] };
   assert.deepEqual(
     changed((s) => s.served.properties.pick.anyOf.pop(), listed),
-    ["served state.pick[0].payload.x: the field is gone"],
+    ["served state.pick[].payload.x: the field is gone"],
   );
   const shared = structuredClone(payloads);
   shared.served.properties.pick.properties = payload("x").properties;

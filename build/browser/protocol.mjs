@@ -76,12 +76,15 @@ function fields(schema, path = "", found = new Set()) {
     schema.anyOf,
     schema.oneOf,
     schema.allOf,
+    schema.if,
+    schema.then,
+    schema.else,
     Object.values(schema.dependentSchemas ?? {}),
   ].flat())
     fields(branch, path, found);
-  for (const [index, item] of (schema.prefixItems ?? []).entries())
-    fields(item, `${path}[${index}]`, found);
-  fields(schema.items, `${path}[]`, found);
+  // Every position of an array is one, whether `prefixItems` or `items` names it.
+  for (const item of [...(schema.prefixItems ?? []), schema.items])
+    fields(item, `${path}[]`, found);
   fields(schema.additionalProperties, `${path}.*`, found);
   fields(schema.unevaluatedProperties, `${path}.*`, found);
   return found;

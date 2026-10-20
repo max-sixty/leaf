@@ -468,6 +468,14 @@
   .lf-floating-panel[data-asks][data-tone="blocked"] {
     --lf-fp-asks: var(--danger-ink);
   }
+  /* A report in the blocked tone, a server the page can't reach or one answering with
+     its own error, reads in the danger's ink at the quiet face's strength: red, so the
+     words agree with the leaf, and dim, since the page retries on its own. */
+  .lf-floating-panel[data-tone="blocked"]:not([data-asks])
+    .lf-fp-field
+    leaf-text[data-says="status"]::part(placeholder) {
+    color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
+  }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
   }

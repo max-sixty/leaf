@@ -295,9 +295,10 @@ what fails and what still works.
   neither engine says whether the navigation will replace the document: a leave
   prompt the user stays at, or a link answered with a download or a 204, leaves it
   in place with its aborted requests failed for good. `pageswap` or `pagehide` drops
-  what waited; the user's next press, key or edit reports it, and `pageshow` reopens
-  the lifetime for a cached realm. A press during a slow navigation that then
-  commits still reports the aborted loads. No error-text matching participates.
+  what waited; the user's next press, key or edit reports it, and a persisted
+  `pageshow` reopens the lifetime for a cached realm. A press during a slow
+  navigation that then commits still reports the aborted loads. No error-text
+  matching participates.
 - **Compatibility limit:** [MDN's compatibility data](https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Window.json)
   lists `pageswap` from Chrome 124, no Firefox support, and partial Safari 18.2
   support because cross-origin navigation omits it

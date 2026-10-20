@@ -20,10 +20,14 @@
   // answered with a download or a 204 leaves the document in place, its aborted
   // requests failed for good. So a fault that arrives after `beforeunload` waits.
   // `pageswap` or `pagehide` drops it with the document. The user's next press, key
-  // or edit shows the document stayed, and the fault is reported then. `pageshow`
-  // reopens the lifetime when the browser restores the same document from its page
-  // cache. A wheel turn reopens nothing, since a reader may scroll a page they are
-  // leaving while its destination loads.
+  // or edit shows the document stayed, and the fault is reported then. A wheel turn
+  // shows nothing, since a reader may scroll a page they are leaving while its
+  // destination loads, and neither does the document's own first `pageshow`, which
+  // can follow a prompt the user stayed at. Only the first faults wait: the earliest
+  // is the evidence, and a fault that repeats while the user does nothing would
+  // otherwise pile up. A persisted `pageshow` reopens the lifetime when the browser
+  // restores the same document from its page cache, the faults that waited having
+  // gone with the `pagehide`.
   let swapped = false;
   let leaving = false;
   /** @type {(() => void)[]} */
@@ -32,7 +36,7 @@
     /** Run `report` now, once the document is known to have stayed, or never. */
     whenActive(report) {
       if (!swapped && !leaving) report();
-      else if (!swapped) waiting.push(report);
+      else if (!swapped && waiting.length < 20) waiting.push(report);
     },
   });
   const stayed = () => {
@@ -50,7 +54,8 @@
       swapped = true;
       waiting = [];
     });
-  window.addEventListener("pageshow", () => {
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
     swapped = false;
     leaving = false;
   });

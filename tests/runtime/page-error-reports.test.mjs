@@ -82,27 +82,33 @@ test("a departing document holds its faults until it stays, and drops them as it
     console.error = error;
     window.removeEventListener("lf-startup-fault", fault);
     root.removeAttribute("data-lf-startup-error");
-    window.dispatchEvent(new Event("pageshow"));
+    window.dispatchEvent(returning());
   });
   const startupFault = (reason) =>
     window.dispatchEvent(new CustomEvent("lf-startup-failed", { detail: { reason } }));
+  // The page cache's return; the document's own first pageshow reopens nothing.
+  const returning = () => Object.assign(new Event("pageshow"), { persisted: true });
   const leave = () =>
     window.dispatchEvent(new Event("beforeunload", { cancelable: true }));
   // Firefox rejects the loads a navigation aborts before any swap, and the navigation
   // may still leave the document in place, as a download or a stay at the prompt does.
-  // A fault then waits; a wheel turn says nothing about whether the reader stayed.
+  // A fault then waits, and so does no more than the first few that keep coming. Neither
+  // a wheel turn nor the document's own first pageshow says the reader stayed.
   leave();
   reportPageError(new Error("load a download aborted"));
   startupFault("startup a download aborted");
+  for (let poll = 0; poll < 100; poll++) reportPageError(new Error("read failed"));
   window.dispatchEvent(new Event("wheel"));
+  window.dispatchEvent(new Event("pageshow"));
   assert.deepEqual(errors, []);
   assert.deepEqual(faults, []);
   // The user's next key shows the document stayed, and the faults are reported then.
   window.dispatchEvent(new Event("keydown"));
   assert.match(errors[0], /load a download aborted/);
   assert.deepEqual(faults, ["startup a download aborted"]);
+  assert.ok(errors.length < 100);
   root.removeAttribute("data-lf-startup-error");
-  faults.length = 0;
+  errors.length = faults.length = 0;
   // A departure drops what waited with it.
   leave();
   reportPageError(new Error("departing fetch canceled"));
@@ -110,21 +116,21 @@ test("a departing document holds its faults until it stays, and drops them as it
   window.dispatchEvent(new Event("pageswap"));
   window.dispatchEvent(new Event("keydown"));
   reportPageError(new Error("swapped document canceled"));
-  assert.equal(errors.length, 1);
+  assert.equal(errors.length, 0);
   assert.deepEqual(faults, []);
   assert.equal(root.hasAttribute("data-lf-startup-error"), false);
   // Pagehide is also the retirement boundary on engines without pageswap.
-  window.dispatchEvent(new Event("pageshow"));
+  window.dispatchEvent(returning());
   window.dispatchEvent(new Event("pagehide"));
   reportPageError(new Error("hidden document canceled"));
   startupFault("hidden startup canceled");
-  assert.equal(errors.length, 1);
+  assert.equal(errors.length, 0);
   assert.deepEqual(faults, []);
   // BFCache restores this realm, including its original error listeners.
-  window.dispatchEvent(new Event("pageshow"));
+  window.dispatchEvent(returning());
   reportPageError(new Error("restored real fault"));
   startupFault("restored startup fault");
-  assert.match(errors[1], /restored real fault/);
+  assert.match(errors[0], /restored real fault/);
   assert.deepEqual(faults, ["restored startup fault"]);
   assert.equal(root.dataset.lfStartupError, "restored startup fault");
 });

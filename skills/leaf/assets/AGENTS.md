@@ -358,7 +358,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What is focused, inside open shadow trees or through a held label press                               | `focus.js` `focused`, `focused(tree)` (_lint_)                                     |
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `standingIn` (_lint_)                                                   |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
-| Where a page walk starts, and which item it steps to                                                  | `standing-target.js` `walkOrigin`, `stepFrom`                                      |
+| The page place focus or selection identifies, or none                                                 | `standing-target.js` `standingOrigin`                                              |
+| Where a page walk starts, falling back to visible reading, and which item it steps to                 | `standing-target.js` `walkOrigin`, `stepFrom`                                      |
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |

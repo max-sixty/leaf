@@ -218,7 +218,9 @@ import {
   scrollersOf,
   settlePageInterface,
   shownRegionBounds,
+  stopScroll,
   tickClock,
+  unconcealedReadingRegions,
   watchReadingRegionTransitions
 } from "./bundle-presence.js";
 import {
@@ -376,7 +378,6 @@ import {
   keepsHidden,
   move,
   nextAnimation,
-  nextFrame,
   nextRender,
   onFrameVisibility,
   onStanding,
@@ -551,15 +552,9 @@ function mountHistory({ followFragment, returnToFragment }) {
           if (!mayReturn()) return;
           const scrollers = /* @__PURE__ */ new Set([
             pageScroller,
-            ...readingRegions().map((region) => region.body)
+            ...unconcealedReadingRegions().map((region) => region.body)
           ]);
-          for (const scroller of scrollers)
-            scroller.scrollTo({
-              left: scroller.scrollLeft,
-              top: scroller.scrollTop,
-              behavior: "instant"
-            });
-          await new Promise((resolve) => nextFrame(() => nextFrame(resolve)));
+          await stopScroll(scrollers);
           if (!mayReturn()) return;
           let work;
           mayReturn.handoff(() => {
@@ -2260,6 +2255,16 @@ function createAnchorTravel({
     return Boolean(where && seenOf(where));
   }
   async function arrive(resolve, { intent, present = null, departure = null }) {
+    const initial = intent() && resolve();
+    if (!initial?.where) return false;
+    if (initial.scroll.length)
+      await stopScroll(
+        /* @__PURE__ */ new Set([
+          pageScroller,
+          ...unconcealedReadingRegions().map((region) => region.body)
+        ])
+      );
+    if (!intent()) return false;
     const first = resolve();
     const holder = first && placeHolder(first.where);
     if (!holder || !intent()) return false;
@@ -2451,7 +2456,7 @@ function createAnchorTravel({
       return false;
     }
     const destination = addressedElements(source, key)[0] ?? null;
-    const moving = departure.plan(destination);
+    departure.plan(destination);
     if (!destination) {
       await arrive(
         () => {
@@ -2470,7 +2475,9 @@ function createAnchorTravel({
         return where && {
           where,
           focus: focus ? where : null,
-          scroll: moving ? [{ at: where, block: "start" }] : []
+          scroll: [
+            { at: where, block: "start", when: () => !readableDestination(where) }
+          ]
         };
       },
       { intent: mayArrive, departure }
@@ -6176,15 +6183,21 @@ function createThreadDestinations({
         if (trip) {
           if (!await scrollToThread(id, { part: localPart, focus, intent }))
             return null;
-        } else {
+        } else if (focus === false) {
           await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
-          const current = surfaceFocusTarget(id, { part: localPart });
-          if (!current || !mayPresent() || focus !== false && !intent.handoff(() => {
-            focusDestination(current, "move");
-            if (scroll) scrollIntoView(current, { block: "nearest" });
-          }))
-            return null;
-        }
+          if (!mayPresent()) return null;
+        } else if (!await arrive(
+          () => {
+            const current = surfaceFocusTarget(id, { part: localPart });
+            return current && {
+              where: current,
+              focus: current,
+              scroll: scroll ? [{ at: current, block: "nearest", behavior: "auto" }] : []
+            };
+          },
+          { intent }
+        ))
+          return null;
         return surfaceFocusTarget(id, { part: localPart });
       };
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
@@ -6212,15 +6225,17 @@ function createThreadDestinations({
             return null;
         } else {
           if (!await opened.presented || !mayPresent()) return null;
-          const current = threadFocusTarget(id, { part });
-          if (!current || !mayPresent() || focus !== false && !intent.handoff(() => {
-            focusDestination(current, "move");
-            if (scroll)
-              scrollIntoView(current, {
-                behavior: scrollBehavior(),
-                block: "nearest"
-              });
-          }))
+          if (focus !== false && !await arrive(
+            () => {
+              const current = threadFocusTarget(id, { part });
+              return current && {
+                where: current,
+                focus: current,
+                scroll: scroll ? [{ at: current, block: "nearest" }] : []
+              };
+            },
+            { intent }
+          ))
             return null;
         }
         return threadFocusTarget(id, { part });

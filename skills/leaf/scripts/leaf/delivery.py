@@ -11,8 +11,8 @@ Receipt (`receive_batch`) checks, under the page transaction, that the receiver
 still owns the page and the events are the ones captured, then advances the page's
 cursor. The pickup it records (`record_pickup`) says a harness accepted the delivery
 or a turn opened it, and answers nothing. The envelope's `acknowledge` says who
-confirms receipt: a hook confirms what it hands over inline, and the agent confirms
-a pointer it read with `leaf delivery ack`.
+confirms receipt: Claude Code and Pi hooks confirm their inline input, while the
+agent confirms Codex hook input and a pointer it read with `leaf delivery ack`.
 
 A reply reservation lets a Codex App Server turn's final message become the reply
 to one delivered update. Freezing with `turn_replies` marks each reply answer
@@ -515,6 +515,14 @@ def pointer_acknowledgement(delivery_id: str) -> str:
     )
 
 
+def reader_envelope(payload: dict) -> dict:
+    """The complete frozen input with its explicit reader receipt instruction."""
+    return {
+        **payload,
+        "acknowledge": payload["acknowledge"] or pointer_acknowledgement(payload["id"]),
+    }
+
+
 def delivery_reading(payload: dict, *, part: int = 1) -> dict:
     """Render bounded reader input, leaving its captured facts and refs immutable.
 
@@ -523,10 +531,7 @@ def delivery_reading(payload: dict, *, part: int = 1) -> dict:
     transport could establish entry itself. Large readings expose lossless text
     parts with a next command; only the last offers confirmation.
     """
-    reading = {
-        **payload,
-        "acknowledge": payload["acknowledge"] or pointer_acknowledgement(payload["id"]),
-    }
+    reading = reader_envelope(payload)
     serialized = jsonl_line(reading)
     if len(serialized.encode("utf-8")) + 1 <= READ_BYTES:
         if part != 1:

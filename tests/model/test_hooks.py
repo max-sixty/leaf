@@ -26,6 +26,7 @@ from interact_support import (
     delivered_ref,
     freeze_events,
     last_deliverable_seq,
+    owed_answers,
     page_state,
     publish,
     read_record,
@@ -788,8 +789,11 @@ def test_prompt_and_stop_reuse_the_original_unanswered_delivery(claimed, capsys)
         assert delivered_ref(claimed, asked["id"]) == ref
 
 
-def test_a_recovery_reading_records_refs_for_a_new_owner(claimed, capsys, monkeypatch):
-    """A new owner recovers already-received input at a usable response address."""
+def test_a_new_owners_prompt_delivers_the_update_its_predecessor_left_unanswered(
+    claimed, capsys, monkeypatch
+):
+    """An update the previous owner received and left unanswered comes to the new
+    owner with its other input, at a reference the new owner can answer through."""
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
@@ -818,20 +822,25 @@ def test_a_recovery_reading_records_refs_for_a_new_owner(claimed, capsys, monkey
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s2"}
     )
-    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-        "additionalContext"
-    ]
-    [held, recovery] = re.findall(r'<leaf-delivery id="(\w+)"', context)
-    assert held == captured["id"]
-    assert recovery != original.partition(":")[0]
-    [batch] = delivery_model.read_delivery(recovery)["batches"]
+    output = json.loads(capsys.readouterr().out)
+    context = output["hookSpecificOutput"]["additionalContext"]
+    assert re.findall(r'<leaf-delivery id="(\w+)"', context) == [captured["id"]]
+    handed = output[hook_transport_model.DELIVERY_FIELD]
+    assert handed["inline"]
+    assert handed["id"] != original.partition(":")[0]
+    [batch] = delivery_model.read_delivery(handed["id"])["batches"]
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
-    delivery_model.receive_delivery(recovery)
-    assert delivered_ref(claimed, asked["id"]).startswith(f"{recovery}:")
+    ref = delivered_ref(claimed, asked["id"])
+    assert ref.startswith(f"{handed['id']}:")
     assert all(
         delivered_ref(claimed, event["id"]).startswith(f"{captured['id']}:")
         for event in fresh
     )
+    reply = CliRunner().invoke(
+        cli_model.cli, ["response", "reply", "--done", ref, "--text", "Because."]
+    )
+    assert reply.exit_code == 0, reply.output
+    assert asked["id"] not in {item["input"] for item in owed_answers(claimed)}
 
 
 def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
@@ -1081,9 +1090,9 @@ def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
 ):
     """An update an older Leaf delivered and the turn has not answered owes its
     answer through the reference that delivery printed, which this Leaf cannot
-    read once the page protocol moved. So the prompt treats it as having no usable
-    reference and captures it again in a delivery of its own, rather than pointing
-    the turn at one it can neither read nor reply through."""
+    read once the page protocol moved. So the update has no usable reference, and
+    the prompt delivers it again rather than pointing the turn at a delivery it can
+    neither read nor reply through."""
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "still working?"}
     )
@@ -1097,12 +1106,10 @@ def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
-    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-        "additionalContext"
-    ]
-    [reminder] = re.findall(r'<leaf-delivery id="(\w+)"', context)
-    assert reminder != old
-    [batch] = delivery_model.read_delivery(reminder)["batches"]
+    output = json.loads(capsys.readouterr().out)
+    assert old not in output["hookSpecificOutput"]["additionalContext"]
+    handed = output[hook_transport_model.DELIVERY_FIELD]["id"]
+    [batch] = delivery_model.read_delivery(handed)["batches"]
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
 
 

@@ -567,6 +567,8 @@ class CodexHarness(EnvironmentHarness):
         reach Stop without running another tool. A tool hook also proves that
         Codex runs Leaf's hooks for this task (`turn_takes_input`). Stop offers
         only where the turn would continue for it (`hook_transport.stop_continues`).
+        The tool hook offers only input the cursor has not passed, and Stop also an
+        update the session holds no usable reference for (`delivery.deliverable`).
         """
         if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
             return None, expected
@@ -588,7 +590,7 @@ class CodexHarness(EnvironmentHarness):
                 return None, expected
         from .codex import offer_hook_delivery
 
-        return offer_hook_delivery(self.session, expected)
+        return offer_hook_delivery(self.session, expected, received=event == "Stop")
 
     @classmethod
     def run_ack(cls, delivery_id: str) -> str:

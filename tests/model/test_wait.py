@@ -30,8 +30,10 @@ from interact_support import (
     declare_idle,
     delivered,
     fifo_writer,
+    freeze_events,
     hold_status_read,
     last_deliverable_seq,
+    owed_answers,
     page_state,
     printed,
     publish,
@@ -1639,6 +1641,49 @@ def test_a_wait_delivers_input_even_after_its_hooks_stop(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "unhooked"}
     )
     assert not leases_model.hooks_ran("unhooked")
+
+
+def test_a_wait_hands_a_new_owner_the_update_its_predecessor_left_unanswered(
+    page_dir, monkeypatch, capsys
+):
+    """A comment the previous owner received advanced the cursor, and its reference
+    names that owner's claim, which the reply writer refuses once the page changes
+    hands. The new owner's first wait delivers the comment again with a reference it
+    can answer through, and once that delivery is confirmed, waits deliver it no
+    more."""
+    serving(page_dir, 1)
+    session_model.cmd_waiting(page_dir, "")
+    with service_model.PageTransaction(page_dir) as page:
+        page.take_claim(harness_model.EmbeddedHarness("prior", "Prior", os.getpid()))
+    cleanup_model.open_session_turn("prior")
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "why here?"}
+    )
+    earlier = freeze_events(page_dir, [asked])
+    delivery_model.receive(earlier, "prior")
+    [stale] = [event["answer"]["ref"] for event in earlier["batches"][0]["events"]]
+
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "unhooked")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    claim = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
+    assert claim.exit_code == 0, claim.output
+    refused = CliRunner().invoke(
+        cli_model.cli, ["response", "reply", "--done", stale, "--text", "Here."]
+    )
+    assert "no longer matches its delivery" in refused.output
+
+    assert session_model.cmd_wait(page_dir) == 0
+    payload, _, [event] = printed(capsys.readouterr().out)
+    assert event["id"] == asked["id"]
+    delivery_model.cmd_delivery_ack(payload["id"])
+    with service_model.PageTransaction(page_dir) as page:
+        assert delivery_model.deliverable(page) == []
+    reply = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", "--done", event["answer"]["ref"], "--text", "Here."],
+    )
+    assert reply.exit_code == 0, reply.output
+    assert owed_answers(page_dir) == []
 
 
 def test_a_named_wait_observes_ownership_without_taking_it(claimed, capsys):

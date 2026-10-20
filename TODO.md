@@ -407,9 +407,6 @@ on 2026-10-07.
 
 ### The agent's text interface
 
-- **Answer a comment that arrived before the page changed hands.** Its new owner
-  has no delivery to answer it from. A command that hands out a fresh recovery
-  delivery for it would give one.
 - **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
   a stop, the agent writes one more message, and where the harness shows only the last
   message (Claude Code's focus mode) that message replaces the answer: a user who typed

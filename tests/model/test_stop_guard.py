@@ -29,6 +29,7 @@ from interact_support import (
     delivered_ref,
     delivery_through,
     end_work,
+    freeze_events,
     last_deliverable_seq,
     let_a_pick_settle_a_thread,
     obligations_on_user,
@@ -714,14 +715,20 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(claimed, capsys
         claimed, {"kind": "comment", "author": "user", "text": "one more thing"}
     )
     [comment] = events_model.read_events(claimed)
-    batch = {"events": [{"seq": comment["seq"], "id": comment["id"]}]}
+    [batch] = freeze_events(claimed, [comment])["batches"]
 
     def pickup(phase: str) -> None:
         with (
             service_model.PageTransaction(claimed) as page,
             delivery_model.receive_batch(page, batch, session_id="s1") as delivered,
         ):
-            delivery_model.record_pickup(page, delivered, phase=phase, session="s1")
+            delivery_model.record_pickup(
+                page,
+                delivered,
+                phase=phase,
+                session="s1",
+                refs=delivery_model.batch_refs(batch),
+            )
 
     def idle() -> str | None:
         result = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
@@ -1144,10 +1151,13 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
                 set(delivery_model.delivery_path(envelope["id"]).parent.glob("*.json"))
                 == deliveries
             )
+            assert not codex_records("codex-thread")
         else:
+            # The new owner is offered the update as Codex offers new input.
             assert envelope["id"] != original["id"]
+            [(offered, _)] = codex_records("codex-thread")
+            assert offered.stem == envelope["id"]
         assert events_model.read_cursor(page_dir) == cursor
-        assert not codex_records("codex-thread")
         [batch] = envelope["batches"]
         [event] = batch["events"]
         assert event["id"] == latest["id"]

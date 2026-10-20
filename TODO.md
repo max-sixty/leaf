@@ -733,28 +733,30 @@ export` writes a file that boots the page's own runtime offline, and that file
   duration charges
   ([docs](https://developers.cloudflare.com/durable-objects/best-practices/websockets/)).
   Each look also renews the user's attention lease (`_news` in `http.py`), so a
-  push channel has to carry that lease too. A WebSocket brings costs polling
-  lacks. A connection broken by sleep or a network change still looks open, and
-  browser code can't send protocol pings, so the tab needs a heartbeat message
-  and a reconnect loop. Each server restart or Worker deploy drops every socket.
-  The handshake can't carry `layerHeaders`. A WebSocket isn't bound by CORS, so
-  the server must check `Origin`. Push would not change how a tab
-  loses or finds its server: a failed look already reports a dead server, a
-  retry against a dead local server costs no measurable CPU, and a tab reaches
-  its restarted server only because `service.json` keeps the server's address.
-  Push would show an agent's
-  change sooner: locally the file watcher notices an append in about 90 ms against
+  push channel has to carry that lease too. Push would show an agent's change
+  sooner: locally the file watcher notices an append in about 90 ms against
   polling's 125 ms average, and on leaf.page, where a look takes about 370 ms, it
-  would save roughly 250 ms. A sketch of one stream per browser (a leader tab
-  holding it through a Web Lock, relaying over a BroadcastChannel, with samples
-  relayed through their parent) adds about 115 lines more than it deletes; a
-  WebSocket per document avoids the leader and the relay. Either way, first give
+  would save roughly 250 ms. Push would not change how a tab loses or finds its
+  server: a failed look already reports a dead server, a retry against a dead
+  local server costs no measurable CPU, and a tab reaches its restarted server
+  only because `service.json` keeps the server's address. A sketch of one stream
+  per browser (a leader tab holding it through a Web Lock, relaying over a
+  BroadcastChannel, with samples relayed through their parent) adds about 115
+  lines more than it deletes; a WebSocket per document avoids the leader and the
+  relay, and gestures stay on `POST api/event`, whose queue already orders and
+  retries them. A WebSocket brings costs polling lacks. A connection broken by
+  sleep or a network change still looks open, and browser code can't send
+  protocol pings, so the tab needs a heartbeat message and a reconnect loop.
+  Each server restart or Worker deploy drops every socket. The handshake can't
+  carry `layerHeaders`. A WebSocket isn't bound by CORS, so the server must
+  check `Origin`. Either way, first give
   the server one subscribable change detector per page: the stat token and the
   watched files already derive from one declaration of page inputs
   (`served_state/reading.py`), but `api/news` stats on every look while the row
   publisher and lifetime supervisor wake on the shared subscription
   (`file_changes.page_changes`), which runs only in a serving process. Trigger:
-  hosted replies visibly lag.
+  hosted replies visibly lag, or a page streams an agent's reply as it is
+  written, which polling would show in 250 ms jumps of whole-state reads.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

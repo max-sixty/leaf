@@ -38,9 +38,10 @@ The steps, in order:
 - `escape`: Escape during a shell command ends the turn; a comment sent afterwards
   opens a turn that answers it;
 - `woken`: a comment sent during a shell command wakes the watch, and Escape ends
-  that turn while the command still runs, before the turn reads the comment; a
-  comment sent afterwards is answered, and so is the first, carried by the next
-  prompt;
+  that turn while the command still runs, before the turn reads the comment at its
+  next tool boundary. With the hooks module, the watch after Escape wakes for that
+  comment and a turn of its own answers it; a comment sent afterwards is answered
+  too;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
@@ -90,7 +91,6 @@ from leaf_dev.review_scenario import (
     REQUEST,
     SLEEP,
     USER_TURN,
-    answers,
     prepare,
     require,
     settled,
@@ -305,18 +305,26 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
         user.passed(name, started, *details)
         cc.keep(name)
 
-    def after_escape(name: str) -> str:
-        """What an Escape left: required with the hooks module, reported without."""
+    def after_escape(name: str, turn: str) -> str:
+        """What an Escape that ended `turn` left: required with the hooks module,
+        reported without. The watch after Escape may already have woken a turn of
+        its own, which opens only once `turn` has closed."""
+
+        def closed() -> bool:
+            claim = page_claim(page)
+            return claim["turn_closed"] is not None or claim["turn"] != turn
+
         cc.until(
-            lambda: page_claim(page)["turn_closed"] is not None or not module,
-            f"{name}: Escape left the turn open",
-            30,
+            lambda: closed() or not module, f"{name}: Escape left the turn open", 30
         )
         if module:
-            cc.until(watched, f"{name}: no watch after Escape", 30)
-        closed = page_claim(page)["turn_closed"] is not None
+            cc.until(
+                lambda: watched() or page_claim(page)["turn"] != turn,
+                f"{name}: no watch after Escape",
+                30,
+            )
         return (
-            f"after Escape: turn {'closed' if closed else 'open'}, "
+            f"after Escape: turn {'closed' if closed() else 'open'}, "
             f"{'a' if watched() else 'no'} watch running, the page reads "
             f"{activity()}"
         )
@@ -384,8 +392,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
 
     started = time.monotonic()
     user_turn("escape")
+    turn = page_claim(page)["turn"]
     cc.escape()
-    escaped = after_escape("escape")
+    escaped = after_escape("escape", turn)
     before = nudged()
     user.comment("escape")
     cc.until(answered("escape"), "escape: the comment was not answered")
@@ -395,34 +404,23 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     user_turn("woken")
     turn = page_claim(page)["turn"]
     woken = user.comment("woken")
-
-    def pickups() -> list[dict]:
-        return pickup_receipts(read_events(page), phase="opened", input_id=woken)
-
-    # The watch has woken, and the hooks module has handed the comment to the turn,
-    # which reads it only once its command ends.
-    cc.until(
-        lambda: not watched() and (pickups() or not module),
-        "woken: the watch did not wake on the comment",
-        60,
-    )
-    require(cc.sleeping(), "woken: the command ended before Escape")
-    cc.escape()
-    escaped = after_escape("woken")
-    # Nothing new has arrived, so no turn follows the Escape: the comment the
-    # stopped turn was handed waits for the next one.
+    # The watch wakes on the comment, which the turn reads only at its next tool
+    # boundary, once its command ends.
+    cc.until(lambda: not watched(), "woken: the watch did not wake on the comment", 60)
     require(
-        page_claim(page)["turn"] == turn
-        and all(event["turn"] == turn for event in pickups()),
-        "woken: a turn started after Escape with no new input",
+        cc.sleeping()
+        and not pickup_receipts(read_events(page), phase="opened", input_id=woken),
+        "woken: the turn read the comment before Escape",
     )
     before = nudged()
+    cc.escape()
+    escaped = after_escape("woken", turn)
+    if module:
+        # The stopped turn never read the comment, so the watch after Escape wakes
+        # for it, and a turn of its own answers it.
+        cc.until(answered("woken"), "woken: the watch after Escape did not answer it")
     user.comment("after-wake")
-    cc.until(answered("after-wake"), "woken: the comment after Escape was not answered")
-    if not answers(page, woken):
-        # The comment the stopped turn was handed waits for the user's next prompt.
-        cc.say("Carry on with the review.")
-        cc.until(answered("woken"), "woken: the next prompt did not answer it")
+    cc.until(answered("woken", "after-wake"), "woken: the comments were not answered")
     step("woken", started, "woken", "after-wake", before=before, escaped=escaped)
 
     started = time.monotonic()

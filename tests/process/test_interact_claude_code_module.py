@@ -170,6 +170,7 @@ def test_the_module_keeps_no_watch_until_its_option_is_on(spawn, sessionless):
     assert driven.events == [
         "session.start",
         "tool.call",
+        "turn.start",
         "turn.complete",
         "ui.render",
         "session.end",
@@ -220,6 +221,13 @@ def test_the_band_follows_the_pages_the_session_holds(
     published = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))["row"]
     url, title = server_model.running_server(page_dir)["url"], published["title"]
     band([(f"Leaf {title} · On me 0 · Threads 0", url)])
+    # A /clear ends the session and starts none; the next turn follows again.
+    claude_code.emit(
+        "session.end", {"reason": "clear", "sessionId": claude_code.session}
+    )
+    band([])
+    claude_code.start_turn()
+    band([(f"Leaf {title} · On me 0 · Threads 0", url)])
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "why?"}
     )
@@ -267,25 +275,30 @@ def test_failed_module_processes_report_their_diagnostics(
     )
     driven.start_turn()
     driven.emit("session.start", {"cwd": str(tmp_path), "isInteractive": True})
-    # The pages follower starts beside the watch and reports its own failure.
-    follower, diagnostic = sorted(
-        driven.diagnostics.get(timeout=STATED_TIMEOUT) for _ in range(2)
-    )
+    # The pages follower starts beside the watch, as the turn and the session start,
+    # and reports its own failures.
+    followers, watches = [], []
+    while not (followers and watches):
+        line = driven.diagnostics.get(timeout=STATED_TIMEOUT)
+        (watches if line.startswith("Leaf: watch") else followers).append(line)
+    [diagnostic] = watches
     if failure == "spawn":
         assert (
             diagnostic == "Leaf: watch could not start: Error: host cannot spawn watch"
         )
-        assert follower == (
+        expected = (
             "Leaf: the pages follower could not start: Error: host cannot spawn watch"
         )
+        assert followers and set(followers) == {expected}, followers
     elif failure == "startup":
         assert "watch failed" in diagnostic and "ENOENT" in diagnostic, diagnostic
-        assert "pages follower failed" in follower and "ENOENT" in follower, follower
+        assert followers and all(
+            "pages follower failed" in line and "ENOENT" in line for line in followers
+        ), followers
     else:
         assert diagnostic == "Leaf: watch failed (exit code 23): watch launcher failed"
-        assert follower == (
-            "Leaf: the pages follower exited with code 23: watch launcher failed"
-        )
+        expected = "Leaf: the pages follower exited with code 23: watch launcher failed"
+        assert followers and set(followers) == {expected}, followers
     driven.quit()
 
 

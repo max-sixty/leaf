@@ -52,7 +52,8 @@
  * no page; the launcher answers it without starting uv in a session holding none.
  * The session takes a page only through a `leaf` command, so the module starts the
  * follower as the session starts, after each Bash call that runs `leaf`, and as a
- * main-loop turn ends, once none is running.
+ * turn starts or a main-loop turn ends, once none is running; a request while one
+ * runs starts another once it exits.
  */
 
 import type { EngineInterface, Register, RenderElement } from "claude-code";
@@ -79,9 +80,11 @@ type Leaf = {
   on_user: number;
   threads: { open: number; unread: number };
 };
-// The follower's last list, and how to stop the follower while one runs.
+// The follower's last list, how to stop the follower while one runs, and whether
+// something asked for one while it ran, which may have outlived its last read.
 let leaves: Leaf[] = [];
 let following: { stop: () => unknown } | undefined;
+let followAgain = false;
 
 function environment(session: string) {
   return { CLAUDE_CODE_SESSION_ID: session, CLAUDE_PID: claudePid };
@@ -223,9 +226,13 @@ function show($: EngineInterface, listed: Leaf[]) {
   $.ui.invalidate("ui.render");
 }
 
-/** Start the follower of the session's pages, unless one runs. */
+/** Start the follower of the session's pages, or once the running one exits. */
 function follow($: EngineInterface, session: string) {
-  if (following) return;
+  if (following) {
+    followAgain = true;
+    return;
+  }
+  followAgain = false;
   let stream: ReturnType<EngineInterface["process"]["spawn"]>;
   try {
     stream = $.process.spawn({
@@ -271,7 +278,8 @@ function follow($: EngineInterface, session: string) {
       // It exits once the session holds no page, or never starts in one holding none.
       if (following === current) {
         following = undefined;
-        show($, []);
+        if (followAgain) follow($, session);
+        else show($, []);
       }
     }
   })();
@@ -292,23 +300,32 @@ export const register: Register = (on, options) => {
     return started;
   });
 
-  on("tool.call", { tool: "Bash" }, async ($, e, next) => {
-    const result = await next(e);
-    // A gate on the tool's own call: nothing after its result may fail it.
-    if (/\bleaf\b/.test(e.command))
+  // A call that runs `leaf`, as `hooks.json`'s PreToolUse registrations match one.
+  on(
+    "tool.call",
+    { tool: "Bash", command: /(^|[\s;&|(/])leaf(\s|$)/ },
+    async ($, e, next) => {
+      const result = await next(e);
+      // A gate on the tool's own call: nothing after its result may fail it.
       void $.session.id().then((session) => follow($, session));
-    return result;
+      return result;
+    },
+  );
+
+  // A resumed or cleared session raises no session.start, so its first turn follows.
+  on("turn.start", ($, e, next) => {
+    if (watching) running = true;
+    void $.session.id().then((session) => follow($, session));
+    return next(e);
   });
 
   on("turn.complete", async ($, e, next) => {
     const completed = await next(e);
     if (e.agentId !== undefined) return completed;
+    if (watching) running = false;
     const session = await $.session.id();
     follow($, session);
-    if (watching) {
-      running = false;
-      void ensureWatch($, session, e.isAborted);
-    }
+    if (watching) void ensureWatch($, session, e.isAborted);
     return completed;
   });
 
@@ -336,7 +353,7 @@ export const register: Register = (on, options) => {
     const owner = watch;
     const current = following;
     following = undefined;
-    leaves = [];
+    show($, []);
     await Promise.all([owner.close(), current?.stop()]);
     const ended = await next(e);
     // /clear and resume keep the module loaded without another session.start.
@@ -345,11 +362,6 @@ export const register: Register = (on, options) => {
   });
 
   if (!watching) return;
-
-  on("turn.start", ($, e, next) => {
-    running = true;
-    return next(e);
-  });
 
   on("classic.Stop", ($, e, next) => {
     const ending = (async () => {

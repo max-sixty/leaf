@@ -216,6 +216,10 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
     return watch_between_turns(watching, interrupted=interrupted)
 
 
+# What `cmd_pages` prints of each page, so a change to anything else stays quiet.
+SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads")
+
+
 def cmd_pages(payload: dict) -> None:
     """Print the live pages the payload's session holds, as one JSON list
     (`presence.session_leaves`), then again each time that list changes, until the
@@ -242,11 +246,17 @@ def cmd_pages(payload: dict) -> None:
     try:
         while True:
             mark = changes.mark()
-            listed = json.dumps(session_leaves(sid))
+            held = bool(owned_pages(sid))
+            listed = json.dumps(
+                [
+                    {field: leaf[field] for field in SHOWN_FIELDS}
+                    for leaf in (session_leaves(sid) if held else [])
+                ]
+            )
             if listed != shown:
                 print(listed, flush=True)
                 shown = listed
-            if not owned_pages(sid):
+            if not held:
                 return
             changes.wait(mark, PRESENCE_CACHE_S)
     finally:

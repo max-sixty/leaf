@@ -644,10 +644,11 @@ summary {
   flex: 0 1 auto;
   overflow: hidden;
 }
-/* A primary reader's message part holds its thread's news notice at the head's end,
-   beside the message's own control rather than under it (controls.css), unless its
-   presentation stands the notice elsewhere (thread/primary-reader.js). */
-.lf-primary-message > .lf-msg-head:has(> .lf-primary-news) {
+/* A primary reader's first message part, or the first message of its transcript part,
+   holds its thread's news notice at the head's end, beside the message's own control
+   rather than under it (controls.css), unless its presentation stands the notice
+   elsewhere (thread/primary-reader.js). */
+.lf-msg > .lf-msg-head:has(> .lf-primary-news) {
   position: relative;
   --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);

@@ -120,8 +120,8 @@ def _agent_update_reply(page_dir, root, number, for_event=None):
 
 def test_progress_is_never_unread_and_reading_its_answer_reads_only_it(browser, serve):
     """Pending progress pulls the user back to nothing; the answer after it is the
-    thread's one unread message, and reading the thread, which the panel draws with
-    its progress unfolded, acknowledges that answer alone."""
+    thread's one unread message, and reading the thread, which the panel draws as its
+    card does, the progress folded behind the answer, acknowledges that answer alone."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "An earlier conversation.")
     root = panel_comment(serve.page_dir, "Check the schedule.")
@@ -145,7 +145,7 @@ def test_progress_is_never_unread_and_reading_its_answer_reads_only_it(browser, 
     wait_until_ready(page)
     card = open_panel_thread(page, root)
     expect(card.locator(f'.lf-msg[data-event="{answer}"]')).to_be_visible()
-    expect(card.locator(f'.lf-msg[data-event="{progress}"]')).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-event="{progress}"]')).to_be_hidden()
     _expect_news(page, False)
     round_trip(page)
     assert _read_events(serve.page_dir)[-1]["messages"] == [

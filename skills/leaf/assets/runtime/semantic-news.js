@@ -223,9 +223,7 @@ export function semanticNewsNotice(news) {
   }
   if (obligations.length)
     clauses.push(
-      obligations.length === 1
-        ? "Input needed"
-        : `${plural(obligations.length, "item")} waiting on me`,
+      obligations.length === 1 ? "Input needed" : `${obligations.length} waiting on me`,
     );
   if (availability.length) clauses.push(`${agentLabel()} active on this page`);
   return clauses.join("; ");

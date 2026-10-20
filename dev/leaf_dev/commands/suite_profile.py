@@ -3,7 +3,8 @@
 Loaded as a pytest plugin (`-p leaf_dev.commands.suite_profile`, as CI's `test` job loads it),
 it gives every test one junit property, `profile`: JSON holding the seconds each
 phase took (`setup`, `call`, `teardown`), under `cpu` the CPU seconds the worker and
-every process it started used meanwhile, and, under `playwright`, the seconds and
+every process it started used meanwhile, under `cases` the subtests it ran, if any,
+and, under `playwright`, the seconds and
 calls the test spent in Playwright's sync API, keyed `"<method> from <caller>"`, the
 caller being the first frame outside Playwright. That sync API runs its event loop in
 a second greenlet and switches to it for every call, so a sampling profiler, which
@@ -73,6 +74,9 @@ FRAME = re.compile(r"\S+ \([^()]*:\d+\)")
 # The running test's Playwright tally, (method from caller) -> [seconds, calls], or
 # None outside a test.
 _calls: dict[str, list] | None = None
+# The subtests the running test has reported: the cases a test folded onto one page
+# (`tests/AGENTS.md`, "One page for the cases that can share it").
+_cases = 0
 _phases = pytest.StashKey[dict[str, float]]()
 
 
@@ -146,13 +150,20 @@ def worker_cpu() -> float | None:
 
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_protocol(item):
-    global _calls
+    global _calls, _cases
     _calls = {}
+    _cases = 0
     item.stash[_cpu] = worker_cpu()
     try:
         return (yield)
     finally:
         _calls = None
+
+
+def pytest_runtest_logreport(report):
+    global _cases
+    if isinstance(report, pytest.SubtestReport):
+        _cases += 1
 
 
 @pytest.hookimpl(wrapper=True)
@@ -166,6 +177,8 @@ def pytest_runtest_makereport(item, call):
             for key, (seconds, calls) in sorted((_calls or {}).items())
         }
         profile = {**phases, "playwright": playwright}
+        if _cases:
+            profile["cases"] = _cases
         if (start := item.stash[_cpu]) is not None:
             profile["cpu"] = round(worker_cpu() - start, 3)
         report.user_properties.append(("profile", json.dumps(profile)))
@@ -324,7 +337,9 @@ def report_budgets(cases: list[dict]) -> None:
     """Every test over its directory's budget, which belongs in `journeys` or needs to
     get faster, and every journey within the browser budget, which could run on each
     push to main instead (`tests/AGENTS.md`, "Run what the change needs"). Only a
-    test that passed has a time that says what it costs."""
+    test that passed has a time that says what it costs. A test that runs its cases
+    as subtests on one page is judged by its seconds per case, the cost each case
+    would have as a test of its own."""
     over, under = [], []
     for case in cases:
         parts = Path(case["file"]).parts
@@ -334,14 +349,15 @@ def report_budgets(cases: list[dict]) -> None:
         # The node id pytest selects by, without the `@group` xdist's `loadgroup`
         # appends to a grouped test's name.
         test = f"{case['file']}::{GROUP_SUFFIX.sub('', case['name'])}"
-        if (budget := BUDGETS.get(directory)) and case["seconds"] >= budget:
-            over.append((case["seconds"], budget, test))
-        if directory == "journeys" and case["seconds"] < BUDGETS["browser"]:
-            under.append((case["seconds"], test))
+        seconds = case["seconds"] / (case["profile"] or {}).get("cases", 1)
+        if (budget := BUDGETS.get(directory)) and seconds >= budget:
+            over.append((seconds, budget, test))
+        if directory == "journeys" and seconds < BUDGETS["browser"]:
+            under.append((seconds, test))
     if over:
         section("Over their directory's budget")
         table(
-            ("seconds", "budget", "test"),
+            ("seconds per case", "budget", "test"),
             [
                 (f"{s:.1f}", f"{b:.0f}", name)
                 for s, b, name in sorted(over, reverse=True)

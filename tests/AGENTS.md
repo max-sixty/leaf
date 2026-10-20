@@ -227,6 +227,23 @@ its engine, configuration, process boundary or lifetime is under test. Raising t
 worker count multiplies all of this across every concurrent suite, so it needs a
 measured benefit on the shared host.
 
+### One page for the cases that can share it
+
+Opening a page and waiting until it is ready takes about two seconds on CI's runner,
+and openings are close to half of a push run's browser time. Cases of one test that can
+share a page run on it as subtests: open the page once, then run each case inside
+`with subtests.test(width=width):` (pytest's `subtests` fixture). A failing case is
+reported by its arguments, and the cases after it still run.
+
+Keep a `parametrize` axis for each difference that needs a page of its own: the browser
+engine, something the whole document declares, such as `dir` or its layout class, or a
+case that writes the page's log, publishes a revision, or leaves the composer, panel,
+focus or a draft as the next case would find it. A sensor that reports a problem once
+per page, such as the write watch, also needs a page per case. Give each case its own
+part of the page, such as its own ids, holder or contribution key, or undo what it
+changed, and order the cases so that none moves content the shift watch reads.
+`suite_profile` judges a test with subtests against its budget per case.
+
 ### Processes and servers
 
 Many suite runs share one machine, so a process a test leaves running, or one that

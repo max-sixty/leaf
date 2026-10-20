@@ -481,38 +481,43 @@ def test_the_obligation_the_user_stands_in_selects_its_marker(browser, serve):
     )
 
 
-@pytest.mark.parametrize("width", [1440, 390])
 def test_dense_suggestion_labels_cover_no_neighboring_margin_entry(
-    browser, serve, width
+    browser, serve, subtests
 ):
-    """Every label in a tightly stacked real cluster finds a clear side."""
+    """Every label in a tightly stacked real cluster finds a clear side, at a desktop
+    width and then a phone's on one page."""
     page = open_page(browser, serve(DENSE_SUGGESTIONS_PAGE))
-    resized(page, width, 900)
-    page.locator("#bg-neighbors").scroll_into_view_if_needed()
-    for target in ("bg-neighbor-a", "bg-neighbor-b", "bg-neighbor-c"):
-        buttons = page.locator(
-            f'[data-lf-margin-for="{target}"] .lf-margin-entry:visible'
-        )
-        for index in range(buttons.count()):
-            button = buttons.nth(index)
-            button.hover()
-            expect(button).to_have_attribute("data-lf-label-side", re.compile(".+"))
-            reading = button.evaluate(
-                """control => {
-                  const label = control.querySelector('.lf-margin-entry-label');
-                  const box = label.getBoundingClientRect();
-                  const overlap = (left, right) => left.left < right.right &&
-                    left.right > right.left && left.top < right.bottom &&
-                    left.bottom > right.top;
-                  const neighbors = [...document.querySelectorAll('.lf-margin-entry')]
-                    .filter(candidate => candidate !== control && candidate.checkVisibility())
-                    .map(candidate => candidate.getBoundingClientRect());
-                  return {inside: box.left >= 4 && box.right <= innerWidth - 4 &&
-                    box.top >= 4 && box.bottom <= innerHeight - 4,
-                    overlaps: neighbors.filter(neighbor => overlap(box, neighbor)).length};
-                }"""
-            )
-            assert reading == {"inside": True, "overlaps": 0}
+    for width in (1440, 390):
+        with subtests.test(width=width):
+            resized(page, width, 900)
+            page.locator("#bg-neighbors").scroll_into_view_if_needed()
+            for target in ("bg-neighbor-a", "bg-neighbor-b", "bg-neighbor-c"):
+                buttons = page.locator(
+                    f'[data-lf-margin-for="{target}"] .lf-margin-entry:visible'
+                )
+                for index in range(buttons.count()):
+                    button = buttons.nth(index)
+                    button.hover()
+                    expect(button).to_have_attribute(
+                        "data-lf-label-side", re.compile(".+")
+                    )
+                    reading = button.evaluate(LABEL_CLEARANCE)
+                    assert reading == {"inside": True, "overlaps": 0}
+
+
+LABEL_CLEARANCE = """control => {
+  const label = control.querySelector('.lf-margin-entry-label');
+  const box = label.getBoundingClientRect();
+  const overlap = (left, right) => left.left < right.right &&
+    left.right > right.left && left.top < right.bottom &&
+    left.bottom > right.top;
+  const neighbors = [...document.querySelectorAll('.lf-margin-entry')]
+    .filter(candidate => candidate !== control && candidate.checkVisibility())
+    .map(candidate => candidate.getBoundingClientRect());
+  return {inside: box.left >= 4 && box.right <= innerWidth - 4 &&
+    box.top >= 4 && box.bottom <= innerHeight - 4,
+    overlaps: neighbors.filter(neighbor => overlap(box, neighbor)).length};
+}"""
 
 
 def test_an_unchanged_repaint_cannot_cancel_a_margin_entry_press(browser, serve):
@@ -1052,94 +1057,97 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
 
 
 @pytest.mark.watch_shifts
-@pytest.mark.parametrize("target_kind", ["box", "shadow", "contents"])
 def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
-    browser, serve, target_kind
+    browser, serve, subtests
 ):
-    """A row leaves with its anchored box; a move within one task keeps it."""
-    paragraph = '<p style="margin:0">The final target.</p>'
-    target = (
-        f'<div id="target" style="display:contents">{paragraph}</div>'
-        if target_kind == "contents"
-        else paragraph.replace("<p ", '<p id="target" ')
-    )
+    """A row leaves with its anchored box; a move within one task keeps it.
+
+    Each kind of target stands in a holder of its own on one page, and each case ends
+    by removing its holder. Nothing stands below the last holder, so taking the cases
+    from the foot of the page up moves nothing the shift watch reads."""
+    kinds = ("box", "shadow", "contents")
+    holders = []
+    for kind in kinds:
+        paragraph = '<p style="margin:0">The final target.</p>'
+        target = (
+            f'<div id="target-{kind}" style="display:contents">{paragraph}</div>'
+            if kind == "contents"
+            else paragraph.replace("<p ", f'<p id="target-{kind}" ')
+        )
+        holders.append(f'<div id="holder-{kind}" style="height:120px">{target}</div>')
     page = open_page(
         browser,
         serve(
-            leaf_page(
-                "Target lifetime",
-                "<h1>Target lifetime</h1>"
-                '<div id="holder" style="height:120px">'
-                f"{target}</div>",
-            )
+            leaf_page("Target lifetime", "<h1>Target lifetime</h1>" + "".join(holders))
         ),
     )
-    page.evaluate(
-        """async kind => {
-          const {contributionEntry, registerContribution} =
-            await window.__lfWidgetApi();
-          const holder = document.querySelector('#holder');
-          window.lifetimeTarget = document.querySelector('#target');
-          if (kind === 'shadow') holder.attachShadow({mode: 'open'}).append(lifetimeTarget);
-          window.lifetimeAnchor = kind === 'contents'
-            ? lifetimeTarget.firstElementChild : lifetimeTarget;
-          window.lifetimeParent = lifetimeAnchor.parentNode;
-          window.lifetimeContribution = registerContribution({
-            key: 'target-lifetime', target: lifetimeTarget,
-            read: () => ({entries: [contributionEntry({
-              key: 'action', icon: 'dot', label: 'Target action'
-            })]}), activate: () => {}
-          });
-        }""",
-        target_kind,
-    )
-    margins_laid_out(page)
-    action = page.get_by_role("button", name="Target action")
-    expect(action).to_be_visible()
-    stayed_visible = page.evaluate(
-        """async () => {
-          window.lifetimeRow = lifetimeContribution.control('action', 'margin')
-            .closest('.lf-margin-cluster');
-          const destination = document.createElement('div');
-          destination.style.display = 'contents';
-          lifetimeParent.append(destination);
-          lifetimeAnchor.remove();
-          destination.append(lifetimeAnchor);
-          lifetimeParent = destination;
-          await Promise.resolve();
-          return lifetimeRow.checkVisibility();
-        }"""
-    )
-    assert stayed_visible
-    margins_laid_out(page)
-    expect(action).to_be_visible()
-    still_visible = page.evaluate(
-        """async () => {
-          lifetimeAnchor.remove();
-          await Promise.resolve();
-          return lifetimeRow.checkVisibility();
-        }"""
-    )
-    assert not still_visible
-    rendered(page)
-    expect(action).to_be_hidden()
-    page.evaluate("""() => {
-      if (lifetimeTarget.style.display === 'contents')
-        lifetimeAnchor = lifetimeAnchor.cloneNode(true);
-      lifetimeParent.append(lifetimeAnchor);
-    }""")
-    margins_laid_out(page)
-    expect(action).to_be_visible()
-    ancestor_visible = page.evaluate(
-        """async () => {
-          document.querySelector('#holder').remove();
-          await Promise.resolve();
-          return lifetimeRow.checkVisibility();
-        }"""
-    )
-    assert not ancestor_visible
-    rendered(page)
-    expect(action).to_be_hidden()
+    for kind in reversed(kinds):
+        with subtests.test(target_kind=kind):
+            page.evaluate(
+                """async kind => {
+              const {contributionEntry, registerContribution} =
+                await window.__lfWidgetApi();
+              const holder = document.getElementById(`holder-${kind}`);
+              const target = document.getElementById(`target-${kind}`);
+              if (kind === 'shadow') holder.attachShadow({mode: 'open'}).append(target);
+              const anchor = kind === 'contents' ? target.firstElementChild : target;
+              window.lifetime = {kind, holder, target, anchor, parent: anchor.parentNode,
+                contribution: registerContribution({
+                  key: `target-lifetime-${kind}`, target,
+                  read: () => ({entries: [contributionEntry({
+                    key: 'action', icon: 'dot', label: `Target action ${kind}`
+                  })]}), activate: () => {}
+                })};
+            }""",
+                kind,
+            )
+            margins_laid_out(page)
+            action = page.get_by_role("button", name=f"Target action {kind}")
+            expect(action).to_be_visible()
+            stayed_visible = page.evaluate(
+                """async () => {
+              lifetime.row = lifetime.contribution.control('action', 'margin')
+                .closest('.lf-margin-cluster');
+              const destination = document.createElement('div');
+              destination.style.display = 'contents';
+              lifetime.parent.append(destination);
+              lifetime.anchor.remove();
+              destination.append(lifetime.anchor);
+              lifetime.parent = destination;
+              await Promise.resolve();
+              return lifetime.row.checkVisibility();
+            }"""
+            )
+            assert stayed_visible
+            margins_laid_out(page)
+            expect(action).to_be_visible()
+            still_visible = page.evaluate(
+                """async () => {
+              lifetime.anchor.remove();
+              await Promise.resolve();
+              return lifetime.row.checkVisibility();
+            }"""
+            )
+            assert not still_visible
+            rendered(page)
+            expect(action).to_be_hidden()
+            page.evaluate("""() => {
+              if (lifetime.target.style.display === 'contents')
+                lifetime.anchor = lifetime.anchor.cloneNode(true);
+              lifetime.parent.append(lifetime.anchor);
+            }""")
+            margins_laid_out(page)
+            expect(action).to_be_visible()
+            ancestor_visible = page.evaluate(
+                """async () => {
+              lifetime.holder.remove();
+              await Promise.resolve();
+              return lifetime.row.checkVisibility();
+            }"""
+            )
+            assert not ancestor_visible
+            rendered(page)
+            expect(action).to_be_hidden()
 
 
 def test_margin_projection_keeps_opaque_owner_and_entry_identities_distinct(

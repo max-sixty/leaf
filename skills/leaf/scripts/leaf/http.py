@@ -8,6 +8,7 @@ headers, and the finite freshness reading a visible tab asks for.
 
 import html
 import json
+import math
 import re
 import secrets
 import time
@@ -86,6 +87,23 @@ TOO_DEEP = f"event nests deeper than {MAX_POSTED_DEPTH} levels"
 def reject_json_constant(value: str) -> None:
     """Reject Python's non-standard NaN and infinity JSON extensions."""
     raise ValueError(f"invalid JSON constant {value}")
+
+
+def json_number(parse):
+    """`parse` for a JSON number, refusing one past a double's range: a browser, and
+    leaf.page's Worker, read it as infinity, which no schema here would refuse."""
+
+    def read(text: str):
+        value = parse(text)
+        try:
+            finite = math.isfinite(value)
+        except OverflowError:
+            finite = False
+        if not finite:
+            raise ValueError(f"JSON number {text} is past a double's range")
+        return value
+
+    return read
 
 
 def nests_deeper_than(value, limit: int) -> bool:
@@ -672,7 +690,12 @@ class PageEndpoint:
             self.body_unread = True
             return {}, "event exceeds the 10 MiB limit"
         try:
-            posted = json.loads(body, parse_constant=reject_json_constant)
+            posted = json.loads(
+                body,
+                parse_constant=reject_json_constant,
+                parse_float=json_number(float),
+                parse_int=json_number(int),
+            )
         except RecursionError:
             # The parser's own stack ran out, far deeper than the bound.
             return {}, TOO_DEEP

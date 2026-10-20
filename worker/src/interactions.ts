@@ -15,22 +15,23 @@ import * as z from "zod/mini";
 
 import { sessionReference } from "./routing";
 
+// The fields every entry carries, which reach the record as the browser sent them.
+const admittedFields = {
+  observed_at: z
+    .string()
+    .check(z.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)),
+  monotonic_ms: z.number().check(z.gte(0)),
+  sequence: z.int().check(z.gte(1)),
+  visibility: z.enum(["visible", "hidden"]),
+  type: z.string().check(z.regex(/^[a-z][a-z0-9_-]{0,99}$/)),
+};
+
 // The batch the local server admits too: `test/interactions.test.ts` holds this to
 // `interaction-batch.schema.json`, whose JSON Schema is the one Python reads.
 export const interactionBatch = z.strictObject({
   session: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
   entries: z
-    .array(
-      z.looseObject({
-        observed_at: z
-          .string()
-          .check(z.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)),
-        monotonic_ms: z.number().check(z.gte(0)),
-        sequence: z.int().check(z.gte(1)),
-        visibility: z.enum(["visible", "hidden"]),
-        type: z.string().check(z.regex(/^[a-z][a-z0-9_-]{0,99}$/)),
-      }),
-    )
+    .array(z.looseObject(admittedFields))
     .check(z.minLength(1), z.maxLength(100)),
 });
 
@@ -90,14 +91,8 @@ const nodeId = z.int().check(z.positive());
 const httpStatus = z.int().check(z.gte(100), z.lte(599));
 const coordinates = z.tuple([z.number(), z.number()]);
 
-// The fields `interactionBatch` requires, which reach the record as the browser sent
-// them.
 const entryFields = {
-  observed_at: z.string(),
-  monotonic_ms: z.number(),
-  sequence: z.number(),
-  visibility: z.string(),
-  type: z.string(),
+  ...admittedFields,
   trusted: kept(z.boolean()),
   target: kept(validItems(locator, 8)),
   nodes: kept(validItems(nodeId, 8)),

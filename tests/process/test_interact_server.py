@@ -169,6 +169,12 @@ def test_interaction_trace_records_browser_entries_and_every_request_outcome(
         )[0]
         == 400
     )
+    # A clock past a double's range, which the browser and the Worker read as infinity.
+    overflowing = json.dumps(
+        {"session": tab, "entries": [browser_observation("x")]}
+    ).replace('"monotonic_ms": 10', '"monotonic_ms": 1e400')
+    assert "1e400" in overflowing
+    assert fetch(f"{server}/api/interaction", data=overflowing.encode())[0] == 400
     assert (
         fetch(
             f"{server}/api/interaction", data=json.dumps(payload).encode(), token=None

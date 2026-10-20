@@ -228,10 +228,11 @@ var offlineMarker = document.querySelector(
   'script[type="application/json"][data-lf-runtime][data-lf-offline]'
 );
 var offlinePayload = offlineMarker ? JSON.parse(offlineMarker.textContent || "null") : null;
-var annotationMode = (
-  /** @type {AnnotationMode | null} */
-  document.body.getAttribute("data-annotations") ?? "overlay"
+var allocation = (name) => (
+  /** @type {any} */
+  document.body.getAttribute(name)
 );
+var annotationMode = allocation("data-annotations") ?? "overlay";
 var offlineInteractive = offlinePayload !== null;
 var offlineState = () => offlineInteractive ? structuredClone(offlinePayload.state) : null;
 var offlineData = () => offlineInteractive ? offlinePayload.data : null;

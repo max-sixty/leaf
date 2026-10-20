@@ -6,6 +6,10 @@
 /** @typedef {import("../../../../build/browser/contract.js").AuthoredAllocations} Allocations */
 (() => {
   const root = document.documentElement;
+  // A page-wide allocation `body` states (`$authored`), or null where it states none.
+  /** @template {keyof Allocations} A @param {A} name @returns {Allocations[A] | null} */
+  const pageAllocation = (name) =>
+    /** @type {any} */ (document.body.getAttribute(name));
   // A cross-document swap commits departure before Chrome rejects its aborted
   // fetches. Those rejections belong to the old document, not its replacement.
   // beforeunload is cancelable and therefore cannot end this lifetime; pageshow
@@ -569,16 +573,10 @@
       const taken = { left: 0, right: 0 };
       const granted = [];
       /** @type {Allocations["data-annotations"]} */
-      const annotations =
-        /** @type {Allocations["data-annotations"] | undefined} */ (
-          document.body.dataset.annotations
-        ) ?? "overlay";
-      const rail = /** @type {Allocations["data-rail"] | undefined} */ (
-        document.body.dataset.rail
-      );
+      const annotations = pageAllocation("data-annotations") ?? "overlay";
       if (
         annotations === "overlay" &&
-        rail !== "none" &&
+        pageAllocation("data-rail") !== "none" &&
         room.right >= need("--rail")
       ) {
         granted.push("rail");

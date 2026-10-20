@@ -10,7 +10,9 @@
  *   `data-lf-` name formed from a mark's key, which is what a renamed paint leaves
  *   behind;
  * - each `data-lf-` attribute Python writes into a page or reads off one is one the
- *   browser spells too, so renaming it on either side alone fails here;
+ *   browser spells too, so renaming it on either side alone fails here. A name two
+ *   browser sources read, such as the served script's `data-lf-layer`, still passes
+ *   while one of them keeps it: the check knows names, not which reader needs one;
  * - each stylesheet selector on a page-wide allocation names a value `$authored`
  *   declares. The runtime's readers of those values are typed by the same table
  *   (`AuthoredAllocations`, build/browser/contract-types.mjs). */

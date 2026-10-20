@@ -330,7 +330,9 @@
           ]
         },
         "observed": { "type": "string" },
-        "observed_kind": { "type": ["string", "null"] },
+        "observed_kind": {
+          "anyOf": [{ "$ref": "#/$defs/WorkKind" }, { "type": "null" }]
+        },
         "awaiting": { "type": "boolean" },
         "counts": {
           "type": "object",
@@ -380,6 +382,18 @@
         "obligations"
       ],
       "additionalProperties": false
+    },
+    "WorkKind": {
+      "description": "The step a harness observed the agent taking (`activity.WORK_KINDS`, read from here): working, thinking, using a tool, waiting on the user in its own window for an approval, an answer or a dialog it does not name (the `awaiting_` kinds), or replying. The browser words each one (`runtime/activity-words.js`).",
+      "enum": [
+        "working",
+        "thinking",
+        "tool",
+        "awaiting_approval",
+        "awaiting_input",
+        "awaiting_user",
+        "replying"
+      ]
     },
     "ReplyEvidence": {
       "description": "A provisional reply's settlement evidence, without its text (`activity._reply_evidence`).",

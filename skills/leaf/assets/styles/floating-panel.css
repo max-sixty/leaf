@@ -117,15 +117,20 @@
      outlet, a thread's messages or an ask On shows as one, keeps the face its own
      controls give it (controls.css): this face once reached a message's reaction
      trigger there, under the aim floor, and took the fill off a chosen reaction. So
-     does an attachment shelf, whose pictures and removal marks every composer shares
-     (response.css): the document layers that sheet, and this one is unlayered, so a
-     rule here, however plain its selector, would win over the shelf's own. */
+     do the anchored comment box seated in the row (`.lf-fp-response`) and an
+     attachment shelf, which every composer shares (response.css): the document layers
+     that sheet, and this one is unlayered, so a rule here, however plain its selector,
+     would win over their own. This face's reach once made the seated box's Send
+     `position: relative`, standing it on a line under the field. */
   :where(.lf-floating-panel)
-    :is(button, input, textarea):where(:not(.lf-fp-outlet *, .lf-composer-media *)) {
+    :is(button, input, textarea):where(
+      :not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)
+    ) {
     font: inherit;
     color: inherit;
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-composer-media *)) {
+  :where(.lf-floating-panel)
+    button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)) {
     background: none;
     border: 0;
     border-radius: 6px;
@@ -143,21 +148,25 @@
      floor, since a reach there would lie over its neighbour's. The field's presses are
      its editor's, which sizes and places them itself (response.css). */
   :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-composer-media *)) {
+    button:where(
+      :not(.lf-fp-outlet *, .lf-fp-field *, .lf-fp-response *, .lf-composer-media *)
+    ) {
     position: relative;
   }
   :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-composer-media *))::after {
+    button:where(
+      :not(.lf-fp-outlet *, .lf-fp-field *, .lf-fp-response *, .lf-composer-media *)
+    )::after {
     content: "";
     position: absolute;
     inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
   }
   :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *, .lf-composer-media *)):hover {
+    button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)):hover {
     background: var(--lf-fp-hover);
   }
   :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *, .lf-composer-media *)):is(
+    button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)):is(
       :disabled,
       [aria-disabled="true"]
     ) {
@@ -167,12 +176,12 @@
   }
   :where(.lf-floating-panel)
     :is(button, input, textarea, a, .lf-fp-on-item):where(
-      :not(.lf-fp-outlet *, .lf-composer-media *)
+      :not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)
     ):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
-  .lf-floating-panel .lf-action-icon:not(.lf-composer-media *) {
+  .lf-floating-panel .lf-action-icon:not(.lf-fp-response *, .lf-composer-media *) {
     width: 16px;
     height: 16px;
   }

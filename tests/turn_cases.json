@@ -1,0 +1,32 @@
+[
+  {
+    "id": "a comment and a reply with words are turns, and a reaction is not",
+    "events": [
+      { "kind": "comment", "id": "c", "text": "Why this order?" },
+      { "kind": "reply", "id": "r", "parent": "c", "text": "And the second step?" },
+      { "kind": "reply", "id": "x", "parent": "c", "token": "thumbs-up" }
+    ],
+    "turns": [
+      ["c", "c"],
+      ["r", "r"]
+    ]
+  },
+  {
+    "id": "a rewrite is a turn shown on the message it rewrites",
+    "events": [
+      { "kind": "comment", "id": "c", "text": "Why this order?" },
+      { "kind": "reply", "id": "r", "parent": "c", "text": "And the second step?" },
+      { "kind": "edit", "id": "e", "message": "r", "text": "And the third step?" }
+    ],
+    "turns": [
+      ["c", "c"],
+      ["r", "r"],
+      ["e", "r"]
+    ]
+  },
+  {
+    "id": "a reaction opening a thread is no turn",
+    "events": [{ "kind": "comment", "id": "x", "token": "thumbs-up" }],
+    "turns": []
+  }
+]

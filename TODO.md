@@ -291,10 +291,6 @@ and its chrome coordinate.
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
-- **Keep a playground's rail in view beside a tall preview.** With controls beside
-  each item in the preview (#2711), the user works down a long stage while the
-  page-wide controls, the instruction and the submit button scroll away above it.
-  Bound the rail to the window's height, as the sidebar's sticky panel is (#2636).
 - **Decide whether a sidebar built from several blocks sticks.** A sidebar panel
   sticks only when it is a single block, so existing multi-panel pages keep
   flowing; dropping that condition makes every sidebar page's panel stick.

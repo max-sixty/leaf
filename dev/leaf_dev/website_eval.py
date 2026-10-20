@@ -5,6 +5,9 @@ projection. A subprocess imports it normally from the arm's worker directory,
 with a private login home. Observation retains native notifications and each
 projected reply update; it changes neither the turn nor the text being scored.
 Promptfoo judges meaning, while fixed checks require completed exact-input replies.
+Each turn's time to its first words, to text showing in the reply, and to its
+completed answer joins the metadata as `timings`, read from the adapter's own
+records.
 No Worker, browser or page-authoring task is needed for these response evals.
 """
 
@@ -116,7 +119,37 @@ def execute_scenario(
             if child.returncode:
                 raise subprocess.CalledProcessError(child.returncode, child.args)
 
-        return json.loads((work / "result.json").read_text())
+        result = json.loads((work / "result.json").read_text())
+        result["metadata"]["timings"] = turn_timings(work / "adapter.log")
+        return result
+
+
+# The milestones each hosted turn records (`HostedTurn.observe`, `.observe_reply`,
+# `.commit`), by the name `turn_timings` gives each.
+TURN_MILESTONES = {
+    "turn_first_model_message": "first_words",
+    "turn_reply_first_text_published": "shown",
+    "turn_stream_completed": "completed",
+}
+
+
+def turn_timings(log: Path) -> list[dict]:
+    """Each hosted turn's milestones in milliseconds from its start, read from the
+    adapter's own records: when the model's first words arrived and whether they
+    were an opening (`commentary`) or the answer (`final_answer`), when text first
+    showed in the user's reply, and when the turn completed with its answer."""
+    turns: dict[str, dict] = {}
+    for line in log.read_text().splitlines():
+        if not line.startswith('{"component":"leaf-agent"'):
+            continue
+        record = json.loads(line)
+        if (name := TURN_MILESTONES.get(record["event"])) is None:
+            continue
+        turn = turns.setdefault(record["turnId"], {"turn": record["turnId"]})
+        turn[f"{name}_ms"] = record["durationMs"]
+        if name == "first_words":
+            turn["first_words_phase"] = record["phase"]
+    return list(turns.values())
 
 
 def grade(

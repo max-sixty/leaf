@@ -4,6 +4,8 @@ import copy
 import json
 import os
 import re
+import socket
+import sys
 from pathlib import Path
 
 import pytest
@@ -47,12 +49,17 @@ from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import todos as todos_model
 from leaf.findings import Finding, Rejected
+from leaf.refusals import Refused
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_digest
 from leaf.validation import composition as validation_model
-from leaf.validation.admission import check_markup, revision_publication
+from leaf.validation.admission import (
+    check_markup,
+    read_text_arg,
+    revision_publication,
+)
 from leaf.validation.instances import reference_errors
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -1086,6 +1093,26 @@ def test_agent_messages_preserve_a_single_space(page_dir):
         if event["kind"] in {"comment", "reply"}
     ]
     assert [message["text"] for message in messages] == [" ", " "]
+
+
+def test_a_body_reads_only_piped_stdin(page_dir, monkeypatch):
+    """A body without --text comes from a pipe or file; a socket the caller keeps
+    open, as Claude Code hands a command spanning lines, is refused at once rather
+    than waited on."""
+    held, caller = socket.socketpair()
+    with held, caller:
+        # A regression waits on the socket; the timeout turns that into a failure.
+        held.settimeout(5)
+        monkeypatch.setattr(sys, "stdin", held.makefile("r"))
+        with pytest.raises(Refused, match="empty text"):
+            read_text_arg(page_dir, None)
+
+    read, write = os.pipe()
+    os.write(write, b"Checked the label row.")
+    os.close(write)
+    with open(read) as piped:
+        monkeypatch.setattr(sys, "stdin", piped)
+        assert read_text_arg(page_dir, None) == "Checked the label row."
 
 
 def test_the_wire_ships_a_message_as_logged(page_dir):

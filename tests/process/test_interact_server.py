@@ -5350,31 +5350,21 @@ def test_the_state_home_and_its_key_stay_owner_only():
 
     home.chmod(0o755)
     key = home / "access.json"
-    key.write_text(json.dumps({"token": "minted-elsewhere"}))
+    server_model.ACCESS.write(key, {"token": "minted-elsewhere"})
     key.chmod(0o644)
     assert server_model.host_key() == "minted-elsewhere"
     assert stat.S_IMODE(home.stat().st_mode) == 0o700
     assert stat.S_IMODE(key.stat().st_mode) == 0o600
 
 
-def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
-    """The key is staged beside its durable file before an atomic link publishes it.
-    A filesystem failure other than the intentional first-writer race still leaves no
-    second copy of that machine credential behind."""
-    staged = []
-
-    def refuse(source, _target):
-        staged.append(source)
-        assert source.exists()
-        raise PermissionError("cannot publish access key")
-
-    monkeypatch.setattr(server_model.os, "link", refuse)
-
-    with pytest.raises(PermissionError, match="cannot publish access key"):
-        server_model.host_key()
-
-    assert len(staged) == 1 and not staged[0].exists()
-    assert not (cleanup_model.state_home() / "access.json").exists()
+def test_a_key_this_leaf_cannot_read_is_replaced_once():
+    """A key file at another `ACCESS` format, such as one an earlier Leaf wrote,
+    gives way to a fresh key, which every later serve then reuses."""
+    key = cleanup_model.state_home() / "access.json"
+    key.write_text(json.dumps({"token": "unformatted"}))
+    minted = server_model.host_key()
+    assert minted != "unformatted"
+    assert server_model.host_key() == minted
 
 
 def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypatch):

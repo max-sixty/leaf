@@ -1687,7 +1687,7 @@ flowchart TD
               <tbody>
                 <tr id="updates-notice-content">
                   <td>
-                    Claude replied, Claude commented, Claude updated a reply, 3 replies
+                    Claude replied, Claude commented, Claude edited a reply, 3 replies
                     in 2 threads
                   </td>
                   <td>
@@ -1860,6 +1860,7 @@ flowchart TD
             </p>
             <figure id="options-demo">
               <lf-sample id="spec-options-frame" label="lf-options">
+                <p>I'd migrate in stages, which keeps the rollback boundary small.</p>
                 <lf-options id="spec-options">
                   <lf-option id="so-rewrite"
                     ><small class="tag">effort: high</small
@@ -1876,9 +1877,9 @@ flowchart TD
                   <lf-option id="so-stage"
                     ><small class="tag">effort: med</small
                     ><small class="tag">risk: low</small
+                    ><small class="tag ok">recommended</small
                     ><strong>Migrate in stages</strong> New fields land on the new
-                    schema while reads fall back, table by table.
-                    <em>My take: this keeps the rollback boundary small.</em></lf-option
+                    schema while reads fall back, table by table.</lf-option
                   >
                 </lf-options>
                 <h3>

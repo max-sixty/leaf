@@ -202,7 +202,6 @@ import {
   inputCount,
   keeps,
   keepsHidden,
-  keepsText,
   layoutPx,
   move,
   nextFrame,
@@ -3168,13 +3167,13 @@ var MessageEditor = class {
   #reveal;
   #settling = null;
   #follow;
-  constructor(id, view, { wireInput, said, base: currentBase, send, land: land2, paint, previous, reveal }) {
+  constructor(id, view, { wireInput, said: said2, base: currentBase, send, land: land2, paint, previous, reveal }) {
     const ctx = rewriteContext(id);
     let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
       raiseError(
-        `This message changed since this edit began. It now says: \u201C${said()}\u201D`
+        `This message changed since this edit began. It now says: \u201C${said2()}\u201D`
       );
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor lf-comment-box");
@@ -3190,17 +3189,17 @@ var MessageEditor = class {
     this.foot = document.createElement("span");
     this.foot.className = "lf-msg-edit-foot";
     this.node.append(this.input, this.foot, actions);
-    this.input.value = loadDraft(ctx) || said();
+    this.input.value = loadDraft(ctx) || said2();
     let opened = this.input.value;
     this.#follow = () => {
       if (base === currentBase() || draftHasContent(ctx) || this.input.value !== opened)
         return;
       base = currentBase();
-      this.input.value = opened = said();
+      this.input.value = opened = said2();
     };
     const unchanged = () => {
       const words = this.input.value;
-      return !words.trim() || words === said();
+      return !words.trim() || words === said2();
     };
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land2();
@@ -3220,7 +3219,7 @@ var MessageEditor = class {
     this.#putAside = putAside;
     const sync = wireInput(this.input, {
       hint: "Edit message",
-      accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
+      accessibleName: () => `Edit message: ${said2().slice(0, 60)}`,
       sends: "save",
       icon: null,
       sendBtn: save,
@@ -3284,7 +3283,7 @@ var MessageEditor = class {
     );
     cancel.addEventListener("mousedown", (event) => event.preventDefault());
     cancel.addEventListener("click", () => close());
-    this.#stop = mirrorDraft(this.input, sync, ctx, { retained: true, blank: said });
+    this.#stop = mirrorDraft(this.input, sync, ctx, { retained: true, blank: said2 });
   }
   // Put the user on the words with the caret after them, where a rewrite usually starts,
   // and bring the editor into view, its last line, where the caret stands, at least. A
@@ -4887,7 +4886,7 @@ function difference(was, now, { progressOpen = false } = {}) {
   const settled = Boolean(was.resolved) === Boolean(now.resolved) ? null : now.resolved ? "Resolved" : "Reopened";
   const news = {
     settled,
-    working: was.working?.words === now.working?.words ? null : now.working?.live ? "Work in progress" : "Work updated",
+    working: was.working?.words === now.working?.words ? null : now.working?.live ? "Work in progress" : "Work changed",
     progress: 0,
     replies: 0,
     messages: 0,
@@ -4999,12 +4998,12 @@ function withheld(was, now) {
   });
 }
 var counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
-var newsLabel = ({
+var newsParts = ({
   settled,
   working,
-  progress,
-  replies,
-  messages,
+  progress = 0,
+  replies = 0,
+  messages = 0,
   edits,
   reactions,
   summaries,
@@ -5014,15 +5013,19 @@ var newsLabel = ({
   ![settled, progress, replies, messages, edits, reactions, summaries, threads].some(
     Boolean
   ) && working,
-  // A reply arriving with progress before it folds that progress, so it says both.
-  !replies && counted(progress, "new update", "new updates"),
   counted(replies, "new reply", "new replies"),
-  counted(messages, "new message", "new messages"),
+  // A progress message is no reply, so it counts with the user's messages from
+  // elsewhere; a reply arriving after it folds it, and says it.
+  counted(messages + (replies ? 0 : progress), "new message", "new messages"),
   counted(edits, "message edited", "messages edited"),
   counted(reactions, "reaction changed", "reactions changed"),
   counted(summaries, "summary changed", "summaries changed"),
   counted(threads, "new thread", "new threads")
-].filter(Boolean).join(" \xB7 ");
+].filter(Boolean);
+var said = (news) => {
+  const parts = newsParts(news).map((part, index) => index ? ` \xB7 ${part}` : part);
+  return { parts, label: parts.join("") };
+};
 function newsNotice(header = false) {
   const node = offer(
     "button",
@@ -5049,7 +5052,14 @@ function newsNotice(header = false) {
   return {
     node,
     set(news) {
-      keepsText(words, news.label);
+      if (words.textContent !== news.label)
+        words.replaceChildren(
+          ...news.parts.map((part) => {
+            const fact = document.createElement("span");
+            fact.textContent = part;
+            return fact;
+          })
+        );
       keeps(node, "title", news.label);
       node.classList.toggle("lf-reopen", news.reopened);
       open2 = news.open;
@@ -5189,7 +5199,7 @@ var HeldNews = class {
     for (const thread of threads) {
       if (thread.news)
         thread.news = {
-          label: newsLabel(thread.news),
+          ...said(thread.news),
           reopened: thread.news.settled === "Reopened",
           open: () => {
             const node = this.#view(thread.key)?.node ?? null;
@@ -5200,7 +5210,7 @@ var HeldNews = class {
         };
     }
     const news = waiting && !host ? {
-      label: newsLabel({ threads: waiting }),
+      ...said({ threads: waiting }),
       reopened: false,
       open: () => this.#open(null, true)
     } : null;
@@ -5758,7 +5768,7 @@ function workingMessage(thread, attention, messages) {
   const pending = messages.filter(
     (message) => message.progress && !covered2.has(message.id)
   );
-  const said = pending.at(-1)?.body.plainText ?? "";
+  const said2 = pending.at(-1)?.body.plainText ?? "";
   const workflows = thread.workflows ?? [];
   const running = workflows.find(
     (workflow) => !workflow.condition && ["working", "replying"].includes(workflow.stage)
@@ -5767,7 +5777,7 @@ function workingMessage(thread, attention, messages) {
     (workflow) => STOPPED.has(workflow.condition?.kind) && workflow.detail
   );
   const todo = thread.todos.find((open2) => open2.running);
-  const [words, live, condition, agent] = running ? [running.detail || said, true, null, running.agent] : todo ? [todo.running.text, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said, false, null, null];
+  const [words, live, condition, agent] = running ? [running.detail || said2, true, null, running.agent] : todo ? [todo.running.text, true, null, null] : stopped ? [stopped.detail, false, workflowLabel(stopped), stopped.agent] : [said2, false, null, null];
   if (!words || !pending.length && !live && !condition) return null;
   const agentMessage = messages.findLast((message) => message.author === "agent");
   const work = running?.detail ? running : !running && !todo ? stopped : null;

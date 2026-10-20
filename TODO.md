@@ -51,12 +51,7 @@ has tried; settle that before building it.
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
   behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
-  activity, selection, and reply editing in the implemented accordion.
-- **Name a Pi Thread promptly.** Claude Code and Codex pages and leaf.page name a
-  thread from the user's words a few seconds after they arrive (`thread_titles`).
-  `PiHarness` has no `title_generator`, so a Pi page's thread is named only by the
-  agent's reply. Give the page server a request on Pi's configured model, such as
-  a print-mode run with tools, extensions and hooks off, and measure it.
+  activity, selection, and reply editing in the floating panel's Threads view.
 - **Keep a long Thread's current status visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
@@ -79,20 +74,17 @@ has tried; settle that before building it.
   bar and the switch between them went. Work through its remaining list. The phone
   waits until the desktop design is firm, and where a passage thread opens from
   Threads waits until later.
-- **Give "update" one meaning on screen.** It names the user's input ("Undo the
-  latest update", "Stalled update", "1 update to send again", the On view's
-  Update rows) and, since the floating card's held-news notice, the agent's progress
-  ("1 new update"); the glossary keeps it for the user's input alone. Choose one
-  sense, rename the other surfaces, and update the glossary to match.
-- **Find the labels where cutting at the room misleads.** Since 2026-10-14 a label
-  holding a room (`data-lf-room`, `controls.css`) cuts words past it with an ellipsis
-  rather than widening its control, which had shifted the banner (the user's
-  decision). An ellipsis at the end cuts the count or the later news first, so some
-  cuts lose the fact the label exists for: On me at 100 or more reads "On me: 1…",
-  and the user called that count essential; the agent's On count reads the same way,
-  and a held-news notice that first said "1 new reply" cuts "1 new reply · 1 reaction
-  changed" to "1 new re…". Start with On me, then each room's owner, and give each
-  misleading cut a room that holds it or a shorter form, such as "99+".
+- **Say when a held-news notice holds more than it shows.** A notice in a seat's
+  head row keeps the width of the news it first said (`data-lf-room`) and shows each
+  fact whole or not at all (`newsNotice`), so "1 new reply" with a message arriving
+  after it still reads "1 new reply", with nothing on screen saying more waits; the
+  title that names every fact doesn't reach touch. A count growing past that room
+  ("1 new reply", then "2 new replies") still cuts at its end ("2 new repl…"). The
+  notice stands absolutely over the free head row, so its room could be the whole
+  slot up to the visible end (`thread-card.js`, `#retainHeaderSlot`), if a notice
+  wider than its words under the pointer is acceptable; a "+1" for dropped facts is
+  the other route. In a margin card the notice takes its width from the heads'
+  track, and a wide one moved the head's time sideways in CI (PR #3250's first run).
 
 ### Agent and author experience
 
@@ -130,10 +122,6 @@ has tried; settle that before building it.
   [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
   using current code and an unfamiliar author; two samples per task do not settle
   which compositions work generally.
-- **Give a recommendation's reason beside the options, not in its card.** The
-  default registry's `lf-options` example writes the reason into the recommended
-  card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
-  options on 2026-10-12. Score the change with `evals/` before and after.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -424,10 +412,12 @@ on 2026-10-07.
   removed that trigger, since the hook now does the watching. **Unconfirmed:** check
   whether any remaining block, such as input the turn still owes an answer to, reaches
   a turn whose answer is already written.
-- **Reproduce the Codex delivery-start race.** Another client may start a turn
-  between Leaf's idle check and its start request. **Unconfirmed:** test the installed
-  App Server's behavior before changing delivery policy; the
-  [Codex brief](notes/codex-integration.md#delivery-start-race) owns the experiment.
+- **Decide how a Codex delivery avoids joining another client's turn.** App Server's
+  `turn/start` steers into a running turn. A follow-up the user queued in Codex starts
+  just after Leaf's idle check reads idle, so Leaf's delivery joins it and Leaf posts
+  that turn's answer as its reply to the comment. The
+  [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
+  measurements, the reproduction and the two options.
 
 - **Measure how often agents produce bad pages.** Write `evals/` cases in which agents
   author ordinary pages, and have a judge read each result at wide, middle and phone
@@ -471,15 +461,6 @@ on 2026-10-07.
 
 ### Development velocity
 
-- **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
-  the tests the agent picks for its change, and the broad selection runs only at
-  landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
-  200 pull-request `ci` runs that finished between 2026-10-02 22:00 and 2026-10-04
-  ~19:00 UTC failed on tests. Compare the pull requests' test-failure rate since the
-  change with that baseline, and weigh it against the local test time saved: the
-  broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
-  look at which escapes a cheap fixed set of tests would have caught, and choose
-  that set by measured catches per second rather than by kind.
 - **Require `test` on `main` again.** Since 2026-10-13 Leaf merges any change that
   introduces no new failure, so `test` is not a required check: a pull request
   inherits whatever main fails among the tests it runs, and only an admin could merge
@@ -639,8 +620,10 @@ export` writes a file that boots the page's own runtime offline, and that file
   (`signal-polyfill`). Were the publication and those readings TC39 signals,
   `SignalWatcher` would draw again on a read's move, and the base class would keep
   only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
-  and data delivery. Every widget draws as a `LeafElement` now, so the change would
-  land in one class, but assessed on 2026-10-14 it is no simplification yet. Ordering
+  and data delivery. Some widgets draw as a `LeafElement`; of those that still extend
+  `HTMLElement`, `lf-tabs`, `lf-tally` and `lf-activity` repaint through
+  `watchProjection`, and once they move the change would land in one class. Assessed
+  on 2026-10-14, it is no simplification yet. Ordering
   no longer stands in the way: `LeafElement.scheduleUpdate` puts every update in the
   parent-ordered widget queue (`queueWidgetUpdate`), `SignalWatcher`'s included. What
   does: a move must claim the widget's region inside the publication that made it,
@@ -653,7 +636,7 @@ export` writes a file that boots the page's own runtime offline, and that file
   stage browsers ship, or Lit's signal integration exposes the notify a claim needs.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
-  experimental and about 500 lines in the core runtime, consumed by `lf-shot`,
+  experimental and about 820 lines in the core runtime, consumed by `lf-shot`,
   `lf-visual-review` and `leaf-dev stills`. A package could own it, so the core keeps
   only what every page needs. Try it on non-Leaf captures first (another site, a
   terminal, a plot); where the capture is a browser's, recording each element's box

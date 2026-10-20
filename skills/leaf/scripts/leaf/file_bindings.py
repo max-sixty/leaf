@@ -43,6 +43,7 @@ from .state import (
 BINDINGS = Record(
     "file-bindings",
     object_schema({"bindings": {"type": "object", "additionalProperties": STRING}}),
+    since=13,
 )
 
 MAX_FILE_BYTES = 256 * 1024

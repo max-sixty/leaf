@@ -29,7 +29,9 @@ from leaf.state import (
 )
 
 # The acknowledgement cursor (`read_cursor`).
-CURSOR = Record("cursor", object_schema({"seq": {"type": "integer", "minimum": 0}}))
+CURSOR = Record(
+    "cursor", object_schema({"seq": {"type": "integer", "minimum": 0}}), since=13
+)
 
 
 def read_cursor(page_dir: Path) -> int:

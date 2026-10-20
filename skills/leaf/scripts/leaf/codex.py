@@ -1646,7 +1646,7 @@ def _when_variant(holds, then: dict) -> dict:
     return {"if": {"properties": {"state": {"enum": states}}}, "then": then}
 
 
-# A record of another protocol is ignored, and the events its page has not
+# A record at another format is ignored, and the events its page has not
 # acknowledged are captured afresh.
 RECORD_SCHEMA = {
     "type": "object",
@@ -1682,7 +1682,7 @@ RECORD_SCHEMA = {
         ),
     ],
 }
-RECORD = Record("codex-delivery", RECORD_SCHEMA)
+RECORD = Record("codex-delivery", RECORD_SCHEMA, since=13)
 
 
 def read_record(path: Path) -> DeliveryRecord | None:

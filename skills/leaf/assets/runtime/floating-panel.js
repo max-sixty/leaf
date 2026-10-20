@@ -36,13 +36,12 @@
  *   gives the placeholder to where the words go, and from then on nothing that passes
  *   is said while the caret is in the field: news, an acknowledgement, a walk's position and Go-to's word go unsaid
  *   there but for the live region, and the empty field says what still stands once the
- *   caret leaves. An error (errors.js) is no passing word: the field says the newest
- *   one about its editor, or about nothing while the editor is empty, in its status's
- *   place and the danger's ink, until the user's first edit, and over words its
- *   editor holds, such as a refused send's, it covers them until the first key or
- *   press there (`errorCover`). An error the field has passed or cannot say waits in
- *   the leaf's menu, under Errors, with a dot on the leaf until the user opens the
- *   list (`errorsList`). The user chose this on 17
+ *   caret leaves. An error (errors.js) is no passing word: one about the field's
+ *   editor covers its words, as at any box (composing/input.js), and the empty field
+ *   says the newest one about nothing in its status's place and the danger's ink,
+ *   until the user's first edit. An error the field has passed or no box stands for
+ *   waits in the leaf's menu, under Errors, with a dot on the leaf until the user
+ *   opens the list (`errorsList`). The user chose this on 17
  *   October over errors riding the passing notice, which faded after four seconds and
  *   went unsaid while the user wrote. With no view open the line over the field says a
  *   passing notice the placeholder cannot, while words hide the placeholder and the
@@ -127,8 +126,8 @@ import {
 } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
-import { pageCommand, pageRung } from "./keyboard/register.js";
-import { advertisesKeys, rowArrows } from "./keyboard/bindings.js";
+import { pageCommand, pageDoor, pageRung } from "./keyboard/register.js";
+import { advertisesKeys, parsed, rowArrows } from "./keyboard/bindings.js";
 import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.js";
 import { pageControls, watchPageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
@@ -152,7 +151,7 @@ import {
   tellDraft,
 } from "./drafts.js";
 import { textField } from "./composing/text-field.js";
-import { draftOf, syncInput } from "./composing/input.js";
+import { draftOf, standsAtItsBox, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
 import { settleThread } from "./thread/folding.js";
@@ -518,17 +517,14 @@ export function createFloatingPanel({
   const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
 
   // ---------- one native editor per destination ----------
-  // The errors the field can say now, newest first (errors.js): not yet edited past,
-  // and about the editor standing in the field, or about nothing while that editor is
-  // empty. A folded panel, or a view with no editor in the field, can say none.
+  // The errors the field can say now, newest first (errors.js): about nothing, not yet
+  // edited past, while the editor standing in the field is empty. An error about the
+  // editor covers it instead, as at any box (composing/input.js). A folded panel, or a
+  // view with no editor in the field, can say none.
   function sayable() {
     const input = host.dataset.rest === "mark" ? null : fieldInput();
-    if (!input?.isConnected) return [];
-    const empty = draftOf(input) === "";
-    return errorsReading().filter(
-      (error) =>
-        !error.passed && (error.subject === input || (error.subject === null && empty)),
-    );
+    if (!input?.isConnected || draftOf(input) !== "") return [];
+    return errorsReading().filter((error) => !error.passed && error.subject === null);
   }
   // What the empty field says, and whose reading it is (`says`): the newest error it
   // can say; once the caret is in a field that takes words, where they go; a passing
@@ -596,7 +592,6 @@ export function createFloatingPanel({
           : null;
       },
       accessibleName: "Comment on the page",
-      busy: () => !errorCover.hidden,
       sends: "send",
       sendBtn: send,
       save: (text) => {
@@ -658,7 +653,6 @@ export function createFloatingPanel({
       replyOptions.set(key, {
         hint: () => saying(key, replyInput()),
         accessibleName: () => `Reply to ${threadTitle(key)}`,
-        busy: () => !errorCover.hidden,
         sent: (flight) => {
           // The user's turn lets go of the height a press held (`pressAt`).
           rooms.delete(routeKey(trail.at(-1)));
@@ -700,25 +694,13 @@ export function createFloatingPanel({
   }
   field.addEventListener("input", retype);
   // The user's first edit in the field passes every error it could say to the menu's
-  // list, read before the edit changes what it could say. Over words its subject
-  // holds, an error covers them (`errorCover`), and the first edit or press there
-  // brings them back, a press with the caret at their end; while they are covered the
-  // field sends nothing (`busy`), so words the user has not seen again are never sent.
-  // The user chose both on 17 October. The cover stands in the box of the editor whose
-  // words it covers, so a press on it is a press in that box: a reply's ends in its
-  // row, which a press elsewhere would put away (thread/replies.js), even where the
-  // cover going under the pointer lands the click on what holds them both.
-  const errorCover = el("p", "lf-fp-error-cover");
-  errorCover.setAttribute("aria-hidden", "true");
-  const passSayable = () => passErrors(sayable().map((error) => error.id));
-  field.addEventListener("beforeinput", passSayable, { capture: true });
-  errorCover.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    const input = fieldInput();
-    passSayable();
-    const end = draftOf(input).length;
-    focusDestination(input, "move", { caret: [end, end] });
-  });
+  // list, read before the edit changes what it could say. The user chose this on 17
+  // October.
+  field.addEventListener(
+    "beforeinput",
+    () => passErrors(sayable().map((error) => error.id)),
+    { capture: true },
+  );
 
   // ---------- readings ----------
   // The threads the page draws, this tab's sends among them while the saved ones are
@@ -879,6 +861,30 @@ export function createFloatingPanel({
           `.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`,
         );
         if (row) focusDestination(row, "move");
+      },
+    };
+  }
+  // Reopening a thread puts the caret in its reply, which the reopening draws in the
+  // field, so what the user types next is their reply. Taking the reopen back, or the
+  // log refusing it, stands the user on the thread's view again, while they have not
+  // acted since, so the reply they did not write in goes with the reopening
+  // (folding.js, `settleThread`).
+  function reopenLanding() {
+    const route = trail.at(-1);
+    const mayLand = retainUserIntent();
+    let mayRestore = () => false;
+    return {
+      optimistic: () => {
+        const input = fieldInput();
+        if (!mayLand() || trail.at(-1) !== route || !input) return false;
+        focusDestination(input, "move");
+        mayRestore = retainUserIntent();
+        return true;
+      },
+      reverse: (may = mayRestore) => {
+        const view = shownView();
+        if (!may() || trail.at(-1) !== route || !view) return;
+        focusDestination(view, "return");
       },
     };
   }
@@ -1790,6 +1796,7 @@ export function createFloatingPanel({
   // the note its stamp gave it after its name, cut to the row and whole on hover; with
   // Compare where the picker offers it; then the version's approval, where the page
   // asks for one, with why a press would not approve yet.
+  const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
@@ -1815,7 +1822,7 @@ export function createFloatingPanel({
                   : nothing
               }`,
               entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
-              () => putAwayThen(() => versionPicker.activate(entry)),
+              () => showVersion(entry),
               { title: entry.note },
             )}${
               entry.comparable
@@ -2621,6 +2628,16 @@ export function createFloatingPanel({
         </button>`;
       })}
     </div>`;
+  // Threads' own search, which its search button and `/` in Threads open: a fresh
+  // search the first time, and the one standing, words kept, after that.
+  function findThreads() {
+    if (!searching) {
+      searching = true;
+      query = "";
+      paint();
+    }
+    focusDestination(head.querySelector(".lf-fp-search"), "move");
+  }
   function headTemplate(top) {
     const parent = trail.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -2649,11 +2666,13 @@ export function createFloatingPanel({
           aria-label="Find a thread or message"
           aria-pressed=${String(searching)}
           @click=${() => {
-            searching = !searching;
+            if (!searching) {
+              findThreads();
+              return;
+            }
+            searching = false;
             query = "";
             paint();
-            if (searching)
-              focusDestination(head.querySelector(".lf-fp-search"), "move");
           }}
         >
           ${iconTemplate("search", "lf-action-icon")}
@@ -2741,7 +2760,8 @@ export function createFloatingPanel({
               parent: () => thread.id,
               key: thread.key,
               resolved: Boolean(thread.resolved),
-              prepareLanding: thread.resolved ? null : () => resolveLanding(thread),
+              prepareLanding: () =>
+                thread.resolved ? reopenLanding() : resolveLanding(thread),
               ...settlement,
             }).catch(() => {});
           }}
@@ -2906,11 +2926,12 @@ export function createFloatingPanel({
     keepsText(badge, onUser ? String(onUser) : "");
     keeps(badge, "data-shown", onUser ? "" : null);
     keeps(newsDot, "data-shown", news ? "" : null);
-    // An error the user has not seen marks the leaf while the field is not saying it:
-    // passed, raised where the field could not say it, or held while folded.
+    // An error the user has not seen marks the leaf while nothing says it: passed, about
+    // a box not on screen, about nothing while the field holds words, or held while
+    // folded. One a box on screen stands over says itself there (`standsAtItsBox`).
     const sayingNow = new Set(sayable().map((error) => error.id));
     const unseen = errorsReading().some(
-      (error) => !error.seen && !sayingNow.has(error.id),
+      (error) => !error.seen && !sayingNow.has(error.id) && !standsAtItsBox(error),
     );
     keeps(errorDot, "data-shown", unseen ? "" : null);
 
@@ -3055,14 +3076,6 @@ export function createFloatingPanel({
           : reading.says === "error"
             ? reading.words
             : null;
-    // An error stands over the words its subject holds, such as a refused send's,
-    // which the user's first key or press there brings back (`errorCover`).
-    const [error] = sayable();
-    const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
-    if (covering && errorCover.parentNode !== input.parentNode)
-      move(input.parentNode, errorCover, null);
-    keepsText(errorCover, covering ? error.message : "");
-    keepsHidden(errorCover, !covering);
     // The line over the field says the passing notice the field cannot, while words
     // hide its placeholder with the caret elsewhere and no view is open. While the
     // caret is in the field nothing passing is said there: an error, the one thing
@@ -3318,16 +3331,29 @@ export function createFloatingPanel({
   // (`panel.floating.leave`); with nothing open, the page's own foot of the ladder takes
   // the user from the panel back onto the page.
   pageRung("floating panel", () => {
-    if (query && focused()?.matches?.(".lf-fp-search"))
-      return {
-        root: host,
-        title: "clear search",
-        description: "Clear the search",
-        out: () => {
-          query = "";
-          paint();
-        },
-      };
+    // Threads' search box clears its words first, then, empty, returns to Threads,
+    // as a find box returns to its panel (keyboard/AGENTS.md, "Escape").
+    if (focused()?.matches?.(".lf-fp-search"))
+      return query
+        ? {
+            root: host,
+            title: "clear search",
+            description: "Clear the search",
+            out: () => {
+              query = "";
+              paint();
+            },
+          }
+        : {
+            root: host,
+            title: "close search",
+            description: "Close the search and return to Threads",
+            out: () => {
+              focusDestination(shownView(), "return");
+              searching = false;
+              paint();
+            },
+          };
     if (menuOpen && menuAt)
       return {
         root: host,
@@ -3422,6 +3448,64 @@ export function createFloatingPanel({
         },
       })),
     ),
+  );
+  // A key the page has acts on the view standing open where the view has that act of
+  // its own, as d and u already page the view the user is in (navigation.js): `/` in
+  // Threads finds a thread rather than the page's words. Rooted at the head and the
+  // view together, so the filters find too; the search box's own `/` is a character.
+  keys(
+    opened,
+    "In the floating panel",
+    [
+      {
+        id: "panel.floating.threads.find",
+        keys: ["/"],
+        description: "Find a thread or message in Threads",
+        title: "find a thread",
+        run: findThreads,
+      },
+    ],
+    () => trail.at(-1)?.view === "threads",
+  );
+  // Versions is a list for choosing, as the menu is, so while it holds focus the
+  // page's character keys rest rather than move the page under it, and a version's
+  // number shows it. Two doors stay open: `?`, and Go-to, whose `g V` puts Versions
+  // away as it opened it.
+  const versionsShown = () => menuOpen && menuAt?.view === "versions";
+  const numbered = () =>
+    versionsReading()
+      .rows.filter(({ version }) => version !== null && version <= 9)
+      .toSorted((a, b) => a.version - b.version);
+  keys(
+    menu,
+    "In the floating panel",
+    [
+      {
+        id: "panel.floating.versions.pick",
+        keys: () => numbered().map(({ version }) => String(version)),
+        label: () => {
+          const top = numbered().at(-1)?.version;
+          return top > 1 ? `1–${top}` : "1";
+        },
+        description: "Show the version with that number",
+        title: "show version",
+        when: () => numbered().length > 0,
+        run: (binding) =>
+          showVersion(numbered().find(({ version }) => String(version) === binding)),
+      },
+    ],
+    {
+      when: versionsShown,
+      claims: (binding) => {
+        const { key, mods } = parsed(binding);
+        return (
+          key.length === 1 &&
+          key !== " " &&
+          mods.every((mod) => mod === "Shift") &&
+          !pageDoor(binding)
+        );
+      },
+    },
   );
   // The caret in the field is the innermost thing open, so while a view is open
   // Escape leaves the field first and leaves the rest standing, the draft included

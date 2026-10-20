@@ -3,8 +3,8 @@ import {
 } from "./bundle-visible-target-parts.js";
 import {
   pointBand,
-  residencyStarted
-} from "./bundle-content-layout.js";
+  railStands
+} from "./bundle-page-controls.js";
 import {
   anchorBox,
   anchorElement,
@@ -297,7 +297,6 @@ function carrierAnchor(subject, sources, scroller) {
   return carriedAnchor(inner) ?? own();
 }
 var marginColumn = () => layoutBox() || document.body;
-var railStands = (main) => (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
 var railBeside = (scroller) => {
   if (scroller === pageScroller) return true;
   const block = boundedBlockOf(scroller);
@@ -360,13 +359,7 @@ function samePassage(passage, words) {
   return range.startContainer === words.startContainer && range.startOffset === words.startOffset && range.endContainer === words.endContainer && range.endOffset === words.endOffset;
 }
 function syncMarginResidency(changed) {
-  paintPins();
   if (changed) scheduleMarginLayout();
-}
-function paintPins() {
-  if (!residencyStarted()) return;
-  const main = layoutBox();
-  layer?.root.closest(".lf-chrome").toggleAttribute("data-lf-pins", !main || !railStands(main));
 }
 var labelRect = (name, left, top, label) => ({
   name,
@@ -443,7 +436,6 @@ function scheduleMarginEntryLabels() {
 }
 function mountMarginLayer(root) {
   layer = { root, lanes: /* @__PURE__ */ new Map(), sizes: sizeObserver(layoutMarginRows) };
-  paintPins();
   hearTargetChanges(document);
 }
 var heard = /* @__PURE__ */ new WeakSet();

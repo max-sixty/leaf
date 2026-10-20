@@ -41,6 +41,7 @@ const RUNGS = Symbol("Escape's fallback ladder");
 // The universal route out of a native layer's keyboard boundary, named here because the
 // boundary is the dispatcher's rather than a presentation's.
 const COMMAND_REFERENCE = "command.reference.open";
+const GO_TO = "navigation.go-to.open";
 
 const STACK = [
   "command reference",
@@ -108,7 +109,7 @@ const PAGE_COMMANDS = [
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
   // them: a second way to somewhere the user can already get to.
-  "navigation.go-to.open",
+  GO_TO,
   "draw.mode.enter",
   "capture.region.open",
   "design.mode.enter",
@@ -288,3 +289,9 @@ export const textEntryScope = () => scopes.get("text entry")?.[0];
 // binding cannot correct it.
 export const allButCommandReference = (binding) =>
   !bindings(universalCommandReference()).includes(binding);
+// What a surface resting the page's keys still lets through: the reference, and Go-to,
+// whose doors open a surface or put it away from inside it.
+export const pageDoor = (binding) =>
+  [COMMAND_REFERENCE, GO_TO].some(
+    (id) => commands.has(id) && bindings(commands.get(id)).includes(binding),
+  );

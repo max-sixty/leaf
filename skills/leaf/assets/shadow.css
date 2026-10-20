@@ -1243,6 +1243,26 @@ svg[data-lf-icon] {
   background: transparent;
   color: var(--muted);
 }
+.lf-compose-error {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--danger-ink);
+  font: 500 var(--t-5) / 1.5 var(--sans);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+.lf-compose-error > span {
+  display: block;
+  max-height: round(down, 100%, 1lh);
+  overflow: hidden;
+}
 .lf-compose-field > leaf-text:not(.lf-fab-input) {
   display: block;
   box-sizing: border-box;

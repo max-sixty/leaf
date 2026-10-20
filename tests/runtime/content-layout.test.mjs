@@ -19,10 +19,8 @@ test("import and a closed residency schedule start no document layout owner", as
   };
   try {
     const owner = await import("/runtime/content-layout.js");
-    assert.equal(owner.residencyStarted(), false);
     const before = frames;
     owner.scheduleResidency();
-    assert.equal(owner.residencyStarted(), false);
     assert.equal(frames, before);
     assert.deepEqual(
       loaded.filter(
@@ -42,7 +40,6 @@ test("an opened residency completes unchanged readings with no main", async () =
   assert.equal(document.querySelector("main"), null);
   const completed = [];
   owner.openResidency({ onRead: (changed) => completed.push(changed) });
-  assert.equal(owner.residencyStarted(), true);
   assert.deepEqual(completed, [false]);
   owner.settleResidency();
   assert.deepEqual(completed, [false, false]);

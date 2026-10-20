@@ -404,24 +404,20 @@
     font-weight: 500;
   }
   /* An error the field says stands in its status's place, in the danger's ink, until
-     the user's first edit (errors.js). Over words its subject holds it covers them and
-     Send, and a press on it brings the words back (floating-panel.js, `errorCover`). */
+     the user's first edit (errors.js). One about the field's editor covers it as at any
+     box (response.css, `.lf-compose-error`), on one line here, cut short where long. */
   .lf-fp-field leaf-text[data-says="error"]::part(placeholder) {
     color: var(--danger-ink);
     font-weight: 500;
   }
-  .lf-fp-error-cover {
-    position: absolute;
-    inset: 0;
-    margin: 0;
+  .lf-fp-field .lf-compose-error {
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     background: var(--lf-fp-surface);
-    color: var(--danger-ink);
     font: 500 14px / 22px var(--sans);
     white-space: nowrap;
-    overflow: hidden;
+  }
+  .lf-fp-field .lf-compose-error > span {
     text-overflow: ellipsis;
-    cursor: text;
   }
   /* The shared reduced-motion guard (surfaces.css) stops at the field's closed tree. */
   @media (prefers-reduced-motion: no-preference) {

@@ -24,7 +24,7 @@ from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import one_frame, wait_until_ready
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, live_url, panel_comment
@@ -36,6 +36,7 @@ from render_harness import (
     holding,
     http_error_console,
     open_page,
+    resized,
     round_trip,
     select_words,
     sending,
@@ -1063,6 +1064,57 @@ def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
     page.get_by_role("button", name="Find a thread or message").click()
     page.locator("input.lf-fp-search").fill("schedule leaves")
     expect(rows.locator(".lf-fp-label")).to_have_text(["Is lunch provided?"])
+
+
+def test_keys_in_threads_act_on_threads(browser, serve):
+    """In Threads, `/` opens Threads' own search, where it opened the page's search
+    over the list, and d and u page the list rather than the page under it."""
+    url = serve(AGENDA_PAGE)
+    agenda_threads(serve.page_dir)
+    for n in range(12):
+        panel_comment(serve.page_dir, f"Question {n} about the room")
+    page = floating(browser, url)
+    resized(page, 1440, 500)
+    rows = threads_rows(page)
+    view = page.locator(".lf-fp-view[data-view=threads]")
+    expect(view).to_be_focused()
+    assert view.evaluate("box => box.scrollHeight > box.clientHeight")
+    document = "() => document.scrollingElement.scrollTop"
+    before = page.evaluate(document)
+    page.keyboard.press("d")
+    page.wait_for_function("box => box.scrollTop > 0", arg=view.element_handle())
+    page.keyboard.press("u")
+    page.wait_for_function("box => box.scrollTop === 0", arg=view.element_handle())
+    assert page.evaluate(document) == before
+
+    page.keyboard.press("/")
+    expect(page.locator("input.lf-fp-search")).to_be_focused()
+    expect(page.locator(".lf-page-search")).to_be_hidden()
+    page.keyboard.type("schedule leaves")
+    expect(rows.locator(".lf-fp-label")).to_have_text(["Is lunch provided?"])
+
+
+def test_escape_from_threads_search_returns_to_threads(browser, serve):
+    """Escape in Threads' search clears its words, then, with the box empty, closes the
+    search and leaves the user in Threads, as a find box returns to its panel, where it
+    put Threads away; the next Escape closes Threads."""
+    url = serve(AGENDA_PAGE)
+    agenda_threads(serve.page_dir)
+    page = floating(browser, url)
+    rows = threads_rows(page)
+    view = page.locator(".lf-fp-view[data-view=threads]")
+    search = page.locator("input.lf-fp-search")
+    page.get_by_role("button", name="Find a thread or message").click()
+    search.fill("schedule leaves")
+    expect(rows).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(search).to_have_value("")
+    expect(rows).to_have_count(3)
+    page.keyboard.press("Escape")
+    expect(search).to_have_count(0)
+    expect(view).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(view).to_have_count(0)
 
 
 THREAD_FIT = """() => {
@@ -2380,9 +2432,11 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     say it: about its editor, or about nothing while the editor is empty. The user's
     first edit passes every error the field says to Errors in the leaf's menu, where a
     dot on the leaf marks them until the list is opened and each can be dismissed. Over
-    words its editor holds, an error covers them until the first edit there, which
-    lands in those words, and nothing sends them meanwhile. An error the field cannot say, such
-    as one about nothing while the user has words there, goes straight to the list."""
+    words its editor holds, an error covers them until the first key there: an edit
+    or a caret move lands in those words, and Enter only uncovers them, so nothing
+    sends them unseen.
+    An error the field cannot say, such as one about nothing while the user has words
+    there, goes straight to the list."""
     url = serve(LONG_PAGE)
     page = floating(browser, url)
     raise_error = """async ([text, onField]) => {
@@ -2390,7 +2444,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
       (await window.__lfWidgetApi()).raiseError(text, { subject });
     }"""
     panel = page.locator(".lf-floating-panel")
-    cover = page.locator(".lf-fp-error-cover")
+    cover = page.locator(".lf-fp-field .lf-compose-error")
     dot = page.locator(".lf-fp-error-dot")
     value = "node => node.value"
     page.evaluate(raise_error, ["Couldn't load v1", False])
@@ -2408,17 +2462,23 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
     expect(field(page)).to_have_attribute("data-says", "destination")
     expect(dot).to_be_visible()
 
-    # Over words its editor holds, an error covers them; Enter sends nothing while
-    # they are covered, and the next edit uncovers them and lands in them.
+    # Over words its editor holds, an error covers them, and Enter only uncovers
+    # them, sending nothing, with the caret at their end for the next key.
     page.evaluate(raise_error, ["Could not add image — disk full", True])
     expect(cover).to_have_text("Could not add image — disk full")
     assert field(page).evaluate(value) == "Could"
     sent = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("Enter")
-    expect(cover).to_be_visible()
-    page.keyboard.type(" it")
     expect(cover).to_be_hidden()
+    assert field(page).evaluate(value) == "Could"
+    page.keyboard.type(" it")
     assert field(page).evaluate(value) == "Could it"
+    # A caret key uncovers them too, moving the caret as it would.
+    page.evaluate(raise_error, ["Could not add image — disk full", True])
+    expect(cover).to_be_visible()
+    page.keyboard.press("ArrowLeft")
+    expect(cover).to_be_hidden()
+    assert field(page).evaluate("node => node.selectionStart") == len("Could i")
     assert len(events_model.read_events(serve.page_dir)) == sent
     # One about nothing while the user has words goes straight to the list.
     page.evaluate(raise_error, ["Draw on or beside something on the page.", False])
@@ -2427,14 +2487,14 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
 
     page.locator(".lf-fp-leaf").click()
     errors = page.locator('.lf-fp-menu [data-row="errors"]')
-    expect(errors).to_contain_text("4")
+    expect(errors).to_contain_text("5")
     errors.click()
     listed = page.locator(".lf-fp-menu .lf-fp-error")
-    expect(listed).to_have_count(4)
+    expect(listed).to_have_count(5)
     expect(listed.first).to_contain_text("Draw on or beside something")
     expect(dot).to_be_hidden()
     listed.first.get_by_role("menuitem").click()
-    expect(listed).to_have_count(3)
+    expect(listed).to_have_count(4)
     expect(listed.first.get_by_role("menuitem")).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
@@ -2763,6 +2823,45 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     expect(page).to_have_url(re.compile(rf"/versions/{number}\b"))
 
 
+def test_versions_rests_the_page_s_keys_and_takes_a_version_s_number(browser, serve):
+    """While Versions holds focus the page's keys rest, where d and j scrolled the page
+    under it and c left it for the field. A version's number shows that version, not
+    the row in that place, and `?` lists the numbers among the panel's keys."""
+    url = serve(SIGN_OFF)
+    for words, note in (("Paragraph zero.", "two"), ("Paragraph nought.", "three")):
+        stamp_page(serve.page_dir, SIGN_OFF.replace("Paragraph 0.", words), note)
+    page = floating(browser, url)
+    view = page.locator(".lf-fp-menu[data-level=versions]")
+
+    def open_versions():
+        page.locator("body").focus()
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+V")
+        expect(view.locator(".lf-fp-version")).to_have_count(3)
+
+    open_versions()
+    document = "() => document.scrollingElement.scrollTop"
+    before = page.evaluate(document)
+    for key in "djc":
+        page.keyboard.press(key)
+    one_frame(page)
+    assert page.evaluate(document) == before
+    expect(view.locator(".lf-fp-version .lf-fp-item").first).to_be_focused()
+
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(
+        reference.locator('tr[data-lf-command="panel.floating.versions.pick"] kbd')
+    ).to_have_text(["1–3"])
+    page.keyboard.press("Escape")
+    expect(reference).to_be_hidden()
+
+    open_versions()
+    # v1 is the last row: the number names the version.
+    page.keyboard.press("1")
+    expect(page).to_have_url(re.compile(r"/versions/v1\b"))
+
+
 def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     browser, serve
 ):
@@ -2989,8 +3088,8 @@ def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out
     """The row holds the leaf, the field and the two counts, and the leaf's menu holds
     the rest. A menu row that opens a list of its own ends in a chevron. Navigate lists
     where a reader goes from a menu; the keyboard's conveniences for where they stand
-    (Page Map, Resume writing, Restore selection, Align current item at top) keep their
-    keys, and the menu leaves them out."""
+    (Page Map beside the margin's rail, Resume writing, Restore selection, Align current
+    item at top) keep their keys, and the menu leaves them out."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     expect(page.locator(".lf-fp-quick button")).to_have_count(2)
     page.locator(".lf-fp-leaf").click()

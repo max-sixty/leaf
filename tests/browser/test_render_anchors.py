@@ -1522,6 +1522,29 @@ def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
     expect(pre).to_have_attribute("tabindex", "0")
 
 
+def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
+    """Markdown fence labels select the same colors as their full language names."""
+    sources = {
+        "js": ("javascript", 'const value = "leaf"; // keep the source\n'),
+        "sh": ("bash", 'leaf page check "$PAGE" --render\n'),
+    }
+    blocks = "".join(
+        f'<pre id="{label}"><code class="language-{label}">{escape(source)}</code></pre>'
+        for alias, (name, source) in sources.items()
+        for label in (alias, name)
+    )
+    page = open_page(browser, serve(leaf_page("Code aliases", blocks)))
+    for alias, (name, source) in sources.items():
+        tokens = "el => [...el.querySelectorAll('[data-lf-syn]')].map(token => [token.textContent, getComputedStyle(token).color])"
+        short = page.locator(f"#{alias} code")
+        full = page.locator(f"#{name} code")
+        expect(short).to_have_attribute("data-lf-syntax", name)
+        assert short.text_content() == full.text_content() == source
+        painted = short.evaluate(tokens)
+        assert len({color for _, color in painted}) > 1
+        assert painted == full.evaluate(tokens)
+
+
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
     """A second dressing pass that reaches a block whose tokens are still on their way
     leaves it to the pass in flight, so that pass colors the text the block holds when

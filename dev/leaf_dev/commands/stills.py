@@ -80,6 +80,14 @@ def captured_source(page: Page) -> None:
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
 
 
+def native_code(page: Page) -> None:
+    """Native fenced code using short language labels."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Data & work", exact=True
+    ).click()
+    page.locator("#bg-plain-code").scroll_into_view_if_needed()
+
+
 def recorded_video(page: Page) -> None:
     """The gallery's recording at rest under its play bar, beside the audio player."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -1055,6 +1063,19 @@ class State:
 
 
 STATES = (
+    State(
+        "native-code",
+        "developer/feature-gallery",
+        native_code,
+        region="#bg-plain-code, #bg-javascript-code",
+    ),
+    State(
+        "native-code-dark",
+        "developer/feature-gallery",
+        native_code,
+        scheme="dark",
+        region="#bg-plain-code, #bg-javascript-code",
+    ),
     State(
         "markdown-preview-scrolled",
         "developer/feature-gallery",

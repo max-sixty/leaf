@@ -318,12 +318,13 @@ that changes size after first paint, with its cause.
   a synchronous source reading, or whether a summary can serve the reader who came
   to read it. The activity feed now opens log-sized rows deliberately and holds later
   growth with `HeldReading`.
-- **Draw the contents before first paint.** `lf-toc` is written empty and builds its
-  list from the page's headings as its module upgrades, so it first paints with no box
-  and then takes its full one (`tests/known_widget_findings.py`). Residency
-  (`data-lf-margin`, prepaint.js) already decides its form before that paint; what is
-  left is an initial renderer (`lfInitial.register`) that draws the list from the
-  authored headings.
+- **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
+  (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
+  disclosure stays closed until the module opens it, so the spine and its markers
+  first show at upgrade. Opening it earlier would show the markers evenly spaced and
+  then move them, since each row's share is the module's measurement of the document
+  (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
+  would put them in place.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first

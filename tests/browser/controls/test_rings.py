@@ -73,6 +73,52 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
     assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 
+def test_an_open_part_wears_a_tab_panels_ring_on_its_own_edge(browser, serve):
+    """A part is a tab panel under another tag, so it is ringed as one is: inset from
+    its border box, whose start edge here is the rule between the list and the part.
+
+    The holder draws that ring while it lays out as `display: contents`, so the ring
+    reading must still find and measure it: a cover over the run is reported."""
+    para = "<p>" + "Words that fill the part's measure. " * 30 + "</p>"
+    url = serve(
+        leaf_page(
+            "Parts",
+            '<h1>Parts</h1><lf-parts id="parts">'
+            f'<lf-part id="first" label="First"><article class="layout-column">{para}'
+            "</article></lf-part>"
+            '<lf-part id="second" label="Second"><article class="layout-column">'
+            "<p>Second.</p></article></lf-part></lf-parts>",
+            layout=None,
+        )
+    )
+    page = open_page(browser, url)
+    page.get_by_role("tab", name="First").click()
+    page.keyboard.press("Tab")
+    expect(page.locator("#first")).to_be_focused()
+    rendered(page)
+    drawn = rings_drawn(page)
+    ring = next((seen for seen in drawn if seen["sample"] and seen["here"]), None)
+    assert ring, drawn
+    assert ring["cuts"] == ring["covers"] == [], ring
+
+    box = page.locator("#first").bounding_box()
+    clip = {"x": round(box["x"]), "y": round(box["y"] + 40), "width": 4, "height": 1}
+    shot = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+    accent = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--accent")))
+    assert shot.getpixel((0, 0)) == accent, [shot.getpixel((x, 0)) for x in range(4)]
+
+    page.evaluate(
+        """(x) => {
+      const band = document.body.appendChild(document.createElement('div'));
+      band.style.cssText = `position: absolute; z-index: 99999; background: red;
+        left: ${x}px; top: 0; width: 2px; height: 100vh;`;
+    }""",
+        box["x"],
+    )
+    covered = next(seen for seen in rings_drawn(page) if seen["who"] == ring["who"])
+    assert any("left edge is under" in cover for cover in covered["covers"]), covered
+
+
 def test_controls_share_pointer_and_keyboard_focus_rings(browser, serve):
     """Focus has one ring for native controls, linked carriers, and shadow controls."""
     declaration = element_declaration("lf-shadow-focus", upgrade=True)

@@ -5026,7 +5026,7 @@ var label = (count) => `${count} comment${count === 1 ? "" : "s"}`;
 function createAnchorNoteProjection({ openThread, labelAnchor }) {
   const claims = /* @__PURE__ */ new Map();
   function claim() {
-    const note = offer("button", "lf-skip lf-mark-note");
+    const note = offer("button", "lf-mark-note");
     note.tabIndex = -1;
     const record = { note, firstThreadId: null };
     note.addEventListener(
@@ -8755,10 +8755,6 @@ function createFloatingPanel({
       if (moved) paint();
     }
   });
-  function enter() {
-    const input = prefs().rest !== "mark" ? fieldInput() : null;
-    focusDestination(input ?? leaf, "move");
-  }
   function mount(parent) {
     parent.append(ground, host);
     follow.observe(card);
@@ -8828,7 +8824,6 @@ function createFloatingPanel({
     mount,
     open,
     close,
-    enter,
     pageComment,
     doors,
     showForSample,
@@ -11586,8 +11581,6 @@ var standingPainters = {
   paintCoreControls,
   paintInputs: inputs.paintInputs
 };
-var skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
-skipToChrome.onclick = floatingPanel.enter;
 if (!offlineInteractive) {
   document.adoptedStyleSheets = [
     ...document.adoptedStyleSheets,
@@ -11610,7 +11603,6 @@ if (!offlineInteractive) {
     fabBar,
     chromeForeground
   );
-  document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
   version.mount();
   mountPageStatus({

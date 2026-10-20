@@ -18,8 +18,8 @@ The steps, in order:
   the extension starts watching the session's pages;
 - `release`: the journey's timed ask, sent while Pi is idle, starts a run that
   answers it (`journey.run_journey`);
-- `mid-turn`: a comment sent during a shell command is delivered into that run and
-  answered before it settles, with no run after it, and the claim holds the run's
+- `mid-turn`: the working case's ask (`journey.CASES`), sent during a shell command,
+  is delivered into that run, recorded on the page and answered before it settles, with no run after it, and the claim holds the run's
   turn open while it goes;
 - `escape`: Escape during a shell command closes the turn and leaves Pi idle, and a
   comment sent afterwards starts a run that answers it;
@@ -121,9 +121,11 @@ class Pi(Terminal):
             self.closed_watches += 1
         elif kind == "agent_start":
             self.running = True
+            self.trace.append({"type": "turn_start", "received_at": now()})
         elif kind == "agent_settled":
             self.running = False
             self.settled += 1
+            self.trace.append({"type": "turn_end", "received_at": now()})
         elif kind == "tool_execution_start":
             if record["toolName"] == "bash":
                 self.running_commands[record["toolCallId"]] = record["args"]["command"]
@@ -140,6 +142,9 @@ class Pi(Terminal):
                     "received_at": now(),
                 }
             )
+        elif kind == "turn_end":
+            # One assistant response and the tool calls it started have finished.
+            self.trace.append({"type": "model_response", "received_at": now()})
         elif kind == "tool_execution_end":
             if command := self.running_commands.pop(record["toolCallId"], None):
                 self.commands.append(command)
@@ -234,12 +239,13 @@ def steps(pi: Pi, user: User, page: Path) -> None:
         "the claim does not hold the user's run open",
     )
     turn = claim["turn"]
-    mid_turn = user.comment("mid-turn")
+    mid_turn = user.ask_while_working()
     pi.until(pi.idle, "the user's run did not settle")
     require(
         user.answered("mid-turn"),
         "the user's run settled without answering the comment sent during it",
     )
+    user.require_recorded()
     require(
         any(
             event["turn"] == turn

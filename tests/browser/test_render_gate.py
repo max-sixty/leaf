@@ -78,7 +78,6 @@ from render_harness import (
     EXAMPLE_PACKAGES,
     INLINE_PAGE,
     LONG_PAGE,
-    RELEASE_FOCUS,
     TOKEN,
     _traffic,
     _until,
@@ -2500,7 +2499,6 @@ def surface_findings(page):
         for surface, (_, door) in SURFACES.items()
     }
     left_alone(page)
-    page.evaluate(RELEASE_FOCUS)
 
     def press(keys):
         for key in keys:
@@ -2711,7 +2709,6 @@ def typed_box_findings(page):
     findings = []
     for box, route in TYPED_BOXES.items():
         left_alone(page)
-        page.evaluate(RELEASE_FOCUS)
         keys = route(page)
         if not keys:
             continue
@@ -3362,7 +3359,7 @@ def pressable_paper_findings(page):
     mean anything: a corpus whose controls were bare and whose disclosures were open
     everywhere would pass the assertions below while proving nothing about the medium.
     """
-    page.get_by_role("tab", name="Command", exact=True).click()
+    page.locator('[role="tab"][aria-controls="corpus-command-hub"]').click()
     expect(page.locator("#corpus-command-hub")).to_be_visible()
     on_screen = page.evaluate(PRINTED_OFFERS)
     assert sum(1 for offer in on_screen if offer["pressable"]) > 20, (

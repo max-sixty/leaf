@@ -162,7 +162,7 @@ DIAGRAM_SVG = (
 )
 
 
-DIAGRAM = media_model.media_name(DIAGRAM_SVG, "diagram.svg")
+DIAGRAM = media_model.media_name(DIAGRAM_SVG, ".svg")
 
 
 @pytest.mark.parametrize("offline", [False, True])

@@ -121,9 +121,9 @@ def test_a_failed_driver_preserves_other_states_and_both_arm_diagnostics(
         for name in (
             "base.png",
             "head.png",
-            "base-crop@2x.png",
-            "head-crop@2x.png",
-            "diff@2x.png",
+            "base-crop.png",
+            "head-crop.png",
+            "diff.png",
         )
     )
     assert result.output.replace(str(out), "<stills>") == (
@@ -185,9 +185,9 @@ def test_a_failed_analysis_preserves_later_comparisons_and_crops(
     assert result.exit_code == 0, result.output
     assert stills_catalogue.compared == ["broken", "healthy"]
     assert cropped == (["healthy"] if phase == "comparison" else ["broken", "healthy"])
-    assert (out / "healthy" / "head-crop@2x.png").is_file()
-    assert (out / "healthy" / "diff@2x.png").is_file()
-    assert not (out / "broken" / "diff@2x.png").exists()
+    assert (out / "healthy" / "head-crop.png").is_file()
+    assert (out / "healthy" / "diff.png").is_file()
+    assert not (out / "broken" / "diff.png").exists()
     message = (
         "Image decoding failed" if phase == "comparison" else "Crop writing failed"
     )

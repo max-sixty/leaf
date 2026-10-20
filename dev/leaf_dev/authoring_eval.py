@@ -95,7 +95,7 @@ def execute(
             inputs = {
                 str(
                     path.relative_to(cwd)
-                ): f"/media/{media_name(path.read_bytes(), path.name)}"
+                ): f"/media/{media_name(path.read_bytes(), path.suffix)}"
                 for path in destination.rglob("*")
                 if path.is_file()
             }

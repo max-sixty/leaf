@@ -53,7 +53,6 @@ from .revision_artifact import (
 from .schema import (
     BROWSER_DIRS,
     DECLARED_MARKS,
-    MEDIA_DENSITY,
     MEDIA_DIR,
     RENDER_CHECKS_DIR,
     VENDORED_FILES,
@@ -131,7 +130,7 @@ def _rebase(reference: str, base: str, address: Address) -> str:
     if located is None:
         return reference
     path, suffix = located
-    return address(quote(path, safe="/@") + suffix)
+    return address(quote(path, safe="/") + suffix)
 
 
 def rebase_css(
@@ -374,15 +373,7 @@ def mark_declared(
     has no size until it decodes, so an element naming page media in its attributes is
     painted with the box that holds any of them, the largest width and the largest
     height (`data-lf-media-width`, `data-lf-media-height`), for the stylesheet to lay
-    out a frame that the images arrive in. An `img` whose page media carries a density
-    mark (`schema.MEDIA_DENSITY`) is painted with that file as its only `srcset`
-    candidate, by its pixel width, and `sizes` of that width over the density, the
-    platform's statement of an image's CSS size, so it draws at the size it had on the
-    captured screen at every screen density. A width descriptor rather than `2x`,
-    because the browser counts `src` as a 1x candidate beside an `x` list and draws
-    it at its full pixels on a 1x screen; the browser then never reads `src`, so a
-    script that changes the image sets its `srcset`. A widget whose module draws its
-    structure,
+    out a frame that the images arrive in. A widget whose module draws its structure,
     such as Command Hub's outcome and its count tiles, would otherwise stand in a room
     the theme reserved by summing that structure's line heights and paddings, a sum
     that cannot follow how its words wrap; with the structure written in, the browser
@@ -432,16 +423,6 @@ def mark_declared(
         if sizes:
             marks["data-lf-media-width"] = str(max(width for width, _ in sizes))
             marks["data-lf-media-height"] = str(max(height for _, height in sizes))
-        named = urlsplit(attrs.get("src", "")).path
-        if (
-            element.tag == "img"
-            and not {"srcset", "sizes"} & attrs.keys()
-            and (density := MEDIA_DENSITY.search(named))
-            and (media := resources.get(named)) is not None
-            and (size := media_size(media.data)) is not None
-        ):
-            marks["srcset"] = f"{attrs['src']} {size[0]}w"
-            marks["sizes"] = f"{size[0] / int(density.group(1)):g}px"
         if marks:
             start = index(location.start_tag.start_line, location.start_tag.start_col)
             edits.append((start + 1 + len(element.tag), _attributes(marks)))
@@ -565,7 +546,7 @@ class DeliveryAddress:
         suffix = ("?" + located.query if located.query else "") + (
             "#" + located.fragment if located.fragment else ""
         )
-        return root.rstrip("/") + quote(unquote(located.path), safe="/@") + suffix
+        return root.rstrip("/") + quote(unquote(located.path), safe="/") + suffix
 
 
 def layer_import_map(asset_root: str) -> dict:

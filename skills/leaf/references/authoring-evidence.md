@@ -122,13 +122,6 @@ Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` 
 video and audio; never inline media bytes. To let the reader zoom into an image, link it
 to its own media URL: `<a href="/media/…"><img src="/media/…" alt="…"></a>`.
 
-A page image draws at its file's size and shape, so an `<img>` needs no `width` or
-`height`; give a width only to draw it at another size. Capture an interface at two
-device pixels per CSS pixel (Playwright's `deviceScaleFactor: 2`), so its text stays
-sharp on the high-density screens pages are read on, and name the file `NAME@2x.png`
-before adding it: Leaf then draws it at the size it had on screen, by giving the
-`<img>` a `srcset`, so a script that changes the image sets `srcset` rather than `src`.
-
 Keep each capture in its own image file; never join captures into one. Where captures
 vary along named axes, such as the moment in an interaction, the case, the window width
 or the colour scheme, put them in a `<table>` with one linked capture per cell, a

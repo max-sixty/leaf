@@ -27,11 +27,10 @@ Whether a state changed, and where, is `lf-shot`'s reading of its two stills, fr
 module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
 Each invocation allocates a run directory under `.tmp/stills/`. Each state's
 directory within it holds `base.png` and `head.png`, and for a
-change `base-crop@2x.png` and `head-crop@2x.png` cropped to the union of its regions
-(or whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
-`diff@2x.png` outlining the head's own regions, a change in red and a move in blue. The
-crops cover both stills' regions. Every still is taken at `CAPTURE_SCALE`, and the
-crops a page shows carry its density mark.
+change `base-crop.png` and `head-crop.png` cropped to the union of its regions (or
+whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
+`diff.png` outlining the head's own regions, a change in red and a move in blue. The
+crops cover both stills' regions.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. Only complete pairs enter the
@@ -55,7 +54,6 @@ from leaf_dev.browser import (
     BESIDE,
     CAPTURE_SCALE,
     DESKTOP,
-    capture_name,
     headless_shell,
     load,
     settle,
@@ -1734,8 +1732,8 @@ def crop(
         if framing
         else (0, 0, head.width, head.height)
     )
-    base.crop(box).save(folder / capture_name("base-crop"))
-    head.crop(box).save(folder / capture_name("head-crop"))
+    base.crop(box).save(folder / "base-crop.png")
+    head.crop(box).save(folder / "head-crop.png")
     faded = Image.blend(head, Image.new("RGB", head.size, "white"), 0.6)
     draw = ImageDraw.Draw(faded)
     for r in (r for r in regions if r["side"] == "after"):
@@ -1744,7 +1742,7 @@ def crop(
             outline=(220, 0, 0) if r["kind"] == "changed" else (40, 110, 230),
             width=2,
         )
-    faded.crop(box).save(folder / capture_name("diff"))
+    faded.crop(box).save(folder / "diff.png")
 
 
 @click.command()

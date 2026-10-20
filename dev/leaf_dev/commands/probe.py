@@ -28,7 +28,6 @@ from leaf_dev.arms import base_ref, build_arm, serving_source
 from leaf_dev.browser import (
     CAPTURE_SCALE,
     DESKTOP,
-    capture_name,
     headless_firefox,
     headless_shell,
     load,
@@ -189,8 +188,8 @@ def probe(
 
     Focus rings draw whenever a control holds focus, by click or keyboard arrival.
     The page draws at 2 device pixels per CSS pixel, so a screenshot stays sharp on
-    the screens pages are read on; name one a journey saves NAME@2x.png, as --shot
-    does, so a Leaf page draws it at the size it had on screen.
+    the screens pages are read on; an <img> of it with a width of half its pixels
+    draws at the size it had on screen.
     --base takes an optional ref, so put
     SOURCE before it or give it one (--base=REF).
 
@@ -296,7 +295,7 @@ def probe(
                             doing = "js"
                             reading["result"] = page.evaluate(expression)
                         if shot:
-                            reading["shot"] = str(shot / capture_name(arm))
+                            reading["shot"] = str(shot / f"{arm}.png")
                             page.screenshot(path=reading["shot"])
                 except click.ClickException as error:
                     reading["failed"] = f"{doing}: {error.format_message()}"

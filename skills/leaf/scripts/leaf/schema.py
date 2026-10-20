@@ -643,19 +643,11 @@ MEDIA_TYPES = {
     ".ogg": "audio/ogg",
     ".wav": "audio/wav",
 }
-# A media file's name is the first MEDIA_DIGEST hex characters of its bytes' SHA-256,
-# the source file's density mark if it had one, and a lowercase MEDIA_TYPES suffix:
-# `media.media_name` mints it, `DIR_FILES` serves it, and the agent's reference doors
-# refuse any other name under `/media/`. The browser and the Worker know the
-# directory and never the name.
+# A media file's name is the first MEDIA_DIGEST hex characters of its bytes' SHA-256
+# and a lowercase MEDIA_TYPES suffix: `media.media_name` mints it, `DIR_FILES` serves
+# it, and the agent's reference doors refuse any other name under `/media/`. The
+# browser and the Worker know the directory and never the name.
 MEDIA_DIGEST = 16
-# How many device pixels an image holds per CSS pixel, as `NAME@2x.png` says, the
-# convention screenshot tools and image pipelines share. A capture taken at 2 device
-# pixels per CSS pixel stays sharp on the high-density screens pages are read on, and
-# delivery states this density to the browser (`revision_delivery.mark_declared`), so
-# a page image draws at the size it had on the captured screen. An unmarked image
-# holds one.
-MEDIA_DENSITY = re.compile(r"@([2-9])x(?=\.[^.@/]+$)")
 NO_KEY = "open the link leaf printed; it carries the key"
 DATA_FILE = "data.json"
 FILE_BINDINGS_FILE = "files.json"
@@ -744,7 +736,7 @@ DIR_FILES = {
     "runtime": rf"{BROWSER_FILE}(?:{MODULE_EXTENSION}|\.css)",
     "widgets": rf"{BROWSER_FILE}{MODULE_EXTENSION}",
     "vendor": BROWSER_FILE,
-    MEDIA_DIR: rf"[a-f0-9]{{{MEDIA_DIGEST}}}(?:@[2-9]x)?(?:"
+    MEDIA_DIR: rf"[a-f0-9]{{{MEDIA_DIGEST}}}(?:"
     + "|".join(re.escape(e) for e in MEDIA_TYPES)
     + ")",
 }

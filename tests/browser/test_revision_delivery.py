@@ -5,7 +5,6 @@ import io
 import struct
 
 import pytest
-from leaf import exporting as exporting_model
 from leaf.revision_delivery import (
     media_size,
 )
@@ -62,48 +61,27 @@ def test_delivery_reads_an_image_s_size_as_the_browser_decodes_it(browser):
     assert media_size(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR") is None
 
 
-def test_a_page_image_draws_at_its_file_s_size_and_shape(browser, serve, tmp_path):
-    """A page image draws at its file's size and shape, so a page gives it no
-    attributes. An unmarked capture draws at its pixels, and one named `@2x` at half
-    of them, so it stays sharp and as large as it was on the captured screen. A width
-    the author gives sizes it, and a height that misstates the file's shape (copied
-    from another capture, once) can't stretch it; each holds at a phone's width."""
-    twice = SHOT_SRC["before"].replace(".png", "@2x.png")
+def test_a_page_image_keeps_its_file_s_shape_when_its_attributes_misstate_it(
+    browser, serve
+):
+    """An image's width and height attributes hold its room before it loads, and an
+    agent types them by hand, so a pair copied from another capture once stretched a
+    capture to its neighbour's shape. Delivery reads the file's own size, so the image
+    draws at the attribute's width and the file's shape, at a phone's width too."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Captures",
-                f'<h1>Captures</h1><img id="plain" src="{SHOT_SRC["before"]}" alt="A">'
-                f'<img id="twice" src="{twice}" alt="B">'
-                f'<img id="misstated" src="{SHOT_SRC["before"]}" width="500"'
-                ' height="400" alt="C">',
+                f'<h1>Captures</h1><img id="misstated" src="{SHOT_SRC["before"]}"'
+                ' width="500" height="400" alt="A panel">',
             ),
-            media={SHOT_SRC["before"]: SHOTS["before"], twice: SHOTS["before"]},
+            media={SHOT_SRC["before"]: SHOTS["before"]},
         ),
     )
-    page.set_viewport_size({"width": 1200, "height": 800})
-    page.wait_for_function("[...document.images].every((image) => image.complete)")
-    sizes = {
-        name: page.locator(f"#{name}").bounding_box()
-        for name in ("plain", "twice", "misstated")
-    }
-    assert [(box["width"], box["height"]) for box in sizes.values()] == [
-        (600, 300),
-        (300, 150),
-        (500, 250),
-    ], sizes
-    page.set_viewport_size({"width": 390, "height": 800})
-    for name in ("plain", "misstated"):
-        box = page.locator(f"#{name}").bounding_box()
-        assert box["width"] < 390
-        assert box["width"] / box["height"] == pytest.approx(2, abs=0.02), (name, box)
-    # On a 1x screen too, where a browser would read `src` as a 1x candidate, and in
-    # an export, which carries the mark as delivery wrote it.
-    out = tmp_path / "captures.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
-    for scale in (1, 2):
-        exported = browser.new_page(device_scale_factor=scale)
-        exported.goto(out.as_uri(), wait_until="load")
-        assert exported.locator("#twice").bounding_box()["width"] == 300, scale
-        exported.close()
+    image = page.locator("#misstated")
+    for width in (1200, 390):
+        page.set_viewport_size({"width": width, "height": 800})
+        box = image.bounding_box()
+        assert box["width"] <= 500
+        assert box["width"] / box["height"] == pytest.approx(2, abs=0.02), (width, box)

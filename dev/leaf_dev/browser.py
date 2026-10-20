@@ -144,12 +144,6 @@ def shell_executable() -> str:
     return executable
 
 
-def capture_name(stem: str) -> str:
-    """The file name for a capture at CAPTURE_SCALE, marked as page media reads its
-    density (`schema.MEDIA_DENSITY`), so a page draws it at the size it had on screen."""
-    return f"{stem}@{CAPTURE_SCALE}x.png"
-
-
 @contextmanager
 def tab(
     browser: Browser,

@@ -58,8 +58,7 @@ other page files and the external state listed below.
 - `media/` — content-addressed page media, shared across revisions. `media.py` owns
   ingestion through `page media` and `/api/media`. Browser drafts and messages refer to
   them with Markdown; a public filename always identifies the same bytes. That name is
-  `schema.MEDIA_DIGEST`'s, carrying the source file's density mark (`@2x`,
-  `schema.MEDIA_DENSITY`), the one `media.media_name` mints and the server serves;
+  `schema.MEDIA_DIGEST`'s, the one `media.media_name` mints and the server serves;
   `page check` and the agent's message doors refuse any other name under `/media/`,
   and the browser and the Worker read a reference by its directory alone. A revision
   captures the media its document names, but every host serves media at the page root,

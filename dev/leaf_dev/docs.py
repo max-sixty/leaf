@@ -64,7 +64,7 @@ COLLAPSED_DETAIL_WORDS = 30
 
 def media_url(source: Path) -> str:
     """The page path an image takes once `leaf page media` has stored it."""
-    return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.name)}"
+    return f"/{MEDIA_DIR}/{media_name(source.read_bytes(), source.suffix)}"
 
 
 def catalog_preview(assets: Path, name: str) -> Path:

@@ -288,13 +288,13 @@
     border-radius: var(--r);
   }
   /* What the field's draft carries, its attached images, hangs off the box rather
-     than standing in it: the shelf stands on a ground of its own just over the box's top
-     edge, above the field's start, so attaching neither grows the box nor moves a
-     word, in the page's field and an open thread's reply alike. With a view open it
-     hangs over the view's head. The user chose this on 19 October, comparing it live
-     with the shelf taking a line of its own over the words, which grew the box by a
-     line the one thumbnail left mostly empty, and with thumbnails shrunk into the row
-     beside the words, which kept the box whole but made each picture a chip. */
+     than standing in it: the shelf stands just over the box's top edge, above the
+     field's start, so attaching neither grows the box nor moves a word, in the page's
+     field and an open thread's reply alike. With a view open it hangs over the view's
+     head. The user chose this on 19 October, comparing it live with the shelf taking
+     a line of its own over the words, which grew the box by a line the one thumbnail
+     left mostly empty, and with thumbnails shrunk into the row beside the words,
+     which kept the box whole but made each picture a chip. */
   .lf-fp-card {
     anchor-name: --lf-fp-card;
   }
@@ -303,16 +303,84 @@
   }
   .lf-fp-field .lf-composer-media:not([hidden]) {
     position: fixed;
-    bottom: calc(anchor(--lf-fp-card top) + 6px);
-    left: anchor(--lf-fp-field left);
+    /* The shelf scrolls sideways when its images outrun the field, and a scroller cuts
+       what it holds at its padding box, so its padding holds each image's shadow and
+       the reach of its removal, which also keeps one image's removal off the next;
+       the offsets take that padding back. */
+    --lf-fp-shelf-room: max(10px, calc(var(--aim-floor) / 2 - 3px));
+    bottom: calc(anchor(--lf-fp-card top) + 8px - var(--lf-fp-shelf-room));
+    left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
     width: max-content;
-    max-width: anchor-size(--lf-fp-field width);
-    padding: 4px;
-    border-radius: 10px;
-    background: var(--lf-fp-surface);
+    max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-fp-shelf-room));
+    gap: var(--lf-fp-shelf-room);
+    padding: var(--lf-fp-shelf-room);
+  }
+  /* Each image is its picture alone, at the shelf's height in its own proportions,
+     and its removal a mark on its corner, there under a finger and shown to a pointer
+     over the image or a key on it. The user asked for this on 19 October over each
+     image boxed on a shared ground with its removal a press the image's height. */
+  .lf-fp-field .lf-composer-media-item {
+    position: relative;
+    border: 0;
+    background: none;
+    overflow: visible;
+  }
+  .lf-fp-field .lf-composer-media-open {
+    width: auto;
+    height: 56px;
+    min-height: 0;
+    padding: 0;
+    background: none;
+    border-radius: 8px;
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      var(--raise-2);
+      0 4px 14px var(--shade);
+  }
+  .lf-fp-field .lf-composer-media-open img {
+    width: auto;
+    min-width: 40px;
+    max-width: 104px;
+    border-radius: inherit;
+  }
+  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    inline-size: 18px;
+    min-block-size: 0;
+    block-size: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--ink) 72%, var(--lf-fp-surface));
+    color: var(--lf-fp-surface);
+    box-shadow: 0 0 0 2px var(--lf-fp-surface);
+  }
+  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open)::before {
+    content: "";
+    position: absolute;
+    inset: calc((18px - var(--aim-floor)) / 2);
+  }
+  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open):hover {
+    background: var(--ink);
+    color: var(--lf-fp-surface);
+  }
+  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
+    outline-offset: 2px;
+  }
+  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) > svg {
+    inline-size: 10px;
+    block-size: 10px;
+  }
+  @media (hover: hover) {
+    .lf-fp-field
+      .lf-composer-media-item:not(:hover, :focus-within)
+      > button:not(.lf-media-open) {
+      opacity: 0;
+    }
+    .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
+      transition: opacity 120ms;
+    }
   }
   /* The anchored comment box on a page drawing its own annotations, standing in the
      field's place while its composer is open and no view is open above the row

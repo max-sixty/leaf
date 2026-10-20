@@ -614,7 +614,7 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
         records = document.lf_elements
         by_id = {rec["attrs"]["id"]: rec for rec in records}
         return widget_errors(records, registry) + reference_errors(
-            records, registry, set(by_id), by_id
+            records, registry, set(by_id), by_id, thread_ids=set()
         )
 
     assert errors('for="feed"') == []

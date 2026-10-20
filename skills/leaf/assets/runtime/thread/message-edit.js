@@ -83,6 +83,7 @@ import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
 import { announce } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
+import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
 import { raiseError } from "../errors.js";
@@ -211,11 +212,22 @@ export function threadRewrites({
       // The rung above a rewrite is the thread's reply box, where ↑ came from, while it
       // is in view; a thread showing none, as a resolved one or a margin card not
       // replying, or one whose box is off screen, hands the user on as a sent reply
-      // does, which moves nothing.
+      // does, which moves nothing. A save in a resolved thread reopens it, so the box
+      // its presentation draws then takes the caret, as Reopen's landing gives it
+      // (#46, the user's decision, 2026-10-07).
       land: (message) => {
-        const input = box();
-        if (input && seenRect(input, new Map())) landInThread(input);
-        else landSent(home(message));
+        const shown = () => {
+          const input = box();
+          return input && seenRect(input, new Map()) ? input : null;
+        };
+        const input = shown();
+        if (input) return landInThread(input);
+        landSent(home(message));
+        const mayLand = retainUserIntent();
+        void whenDocumentPresented().then(() => {
+          const drawn = shown();
+          if (drawn && mayLand()) landInThread(drawn);
+        });
       },
       previous: (id) => lastEditable(id),
       // A rewrite of message `id` opens in `view`. It starts from the words as they

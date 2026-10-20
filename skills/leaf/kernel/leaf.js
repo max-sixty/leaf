@@ -6389,6 +6389,25 @@ function createFloatingPanel({
       }
     };
   }
+  function reopenLanding() {
+    const route = trail.at(-1);
+    const mayLand = retainUserIntent();
+    let mayRestore = () => false;
+    return {
+      optimistic: () => {
+        const input = fieldInput();
+        if (!mayLand() || trail.at(-1) !== route || !input) return false;
+        focusDestination(input, "move");
+        mayRestore = retainUserIntent();
+        return true;
+      },
+      reverse: (may = mayRestore) => {
+        const view = shownView();
+        if (!may() || trail.at(-1) !== route || !view) return;
+        focusDestination(view, "return");
+      }
+    };
+  }
   function back() {
     const before = trail.at(-1);
     trail = trail.slice(0, -1);
@@ -7592,7 +7611,7 @@ function createFloatingPanel({
           parent: () => thread.id,
           key: thread.key,
           resolved: Boolean(thread.resolved),
-          prepareLanding: thread.resolved ? null : () => resolveLanding(thread),
+          prepareLanding: () => thread.resolved ? reopenLanding() : resolveLanding(thread),
           ...settlement
         }).catch(() => {
         });

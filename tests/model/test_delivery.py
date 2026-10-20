@@ -1054,8 +1054,8 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     assert mark["attention"] is False
 
 
-def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
-    from leaf.thread import answered_by_reply, successful_replies
+def test_successful_replies_require_an_exact_agent_answer():
+    from leaf.thread import successful_replies
 
     comment = {
         "kind": "comment",
@@ -1081,6 +1081,4 @@ def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
         reply = {**answer, **changes}
         events = [comment, reply]
         expected = [reply] if success else []
-        (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
         assert successful_replies(events, "input") == expected
-        assert answered_by_reply(events, "input") is success

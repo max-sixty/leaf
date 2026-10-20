@@ -75,10 +75,10 @@ from pathlib import Path
 
 import click
 import psutil
-from leaf.delivery import DELIVERY, INLINE_OPENING, pickup_receipts
+from leaf.delivery import DELIVERY, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.hook_transport import POINTED_OPENING
+from leaf.hook_transport import INLINE_OPENING, POINTED_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim

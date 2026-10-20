@@ -32,9 +32,19 @@ from leaf import leases as leases_model
 from leaf import state as state_model
 from leaf import thread_titles
 
+# What Codex's turn reports when the account cannot use the model it asks for.
+UNAVAILABLE_MODEL = {
+    "message": (
+        "The 'gpt-6-luna' model is not supported when using Codex with a ChatGPT "
+        "account."
+    ),
+    "codexErrorInfo": "other",
+}
 
-def titling_app_server(app_server, answer: str) -> tuple[str, list[dict]]:
-    """An App Server that answers each titling thread with `answer`."""
+
+def titling_app_server(app_server, answer: str | None) -> tuple[str, list[dict]]:
+    """An App Server that answers each titling thread with `answer`, or fails its
+    turn as an account without the title model does where `answer` is None."""
     received = []
 
     def handle(socket):
@@ -55,23 +65,31 @@ def titling_app_server(app_server, answer: str) -> tuple[str, list[dict]]:
                 socket.send(
                     json.dumps({"id": message["id"], "result": {"turn": {"id": "t"}}})
                 )
-                for notification in (
-                    {
-                        "method": "item/completed",
-                        "params": {
-                            "threadId": "title-thread",
-                            "item": {"type": "agentMessage", "text": answer},
-                        },
-                    },
-                    {
-                        "method": "turn/completed",
-                        "params": {
-                            "threadId": "title-thread",
-                            "turn": {"id": "t", "status": "completed"},
-                        },
-                    },
-                ):
-                    socket.send(json.dumps(notification))
+                completed = {"id": "t", "status": "completed"}
+                if answer is None:
+                    completed = {
+                        "id": "t",
+                        "status": "failed",
+                        "error": UNAVAILABLE_MODEL,
+                    }
+                else:
+                    item = {"type": "agentMessage", "text": answer}
+                    socket.send(
+                        json.dumps(
+                            {
+                                "method": "item/completed",
+                                "params": {"threadId": "title-thread", "item": item},
+                            }
+                        )
+                    )
+                socket.send(
+                    json.dumps(
+                        {
+                            "method": "turn/completed",
+                            "params": {"threadId": "title-thread", "turn": completed},
+                        }
+                    )
+                )
 
     return app_server(handle), received
 
@@ -99,7 +117,7 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
     thread_titles.name_thread(
-        thread_titles.app_server_title(endpoint, "light-model"),
+        thread_titles.app_server_title(endpoint),
         page_dir,
         comment["id"],
         "hosted-thread",
@@ -116,7 +134,8 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
     assert (title["agent"], title["session"]) == ("Leaf guide", "hosted-thread")
     [start] = [m for m in received if m.get("method") == "thread/start"]
     assert start["params"]["ephemeral"] is True
-    assert start["params"]["model"] == "light-model"
+    # The website's tasks run on a model of their own; its titles do not.
+    assert start["params"]["model"] == thread_titles.CODEX_TITLE_MODEL
     # The user's MCP servers would start with the thread and list their tools to it.
     assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
     # Both read the page's directory, so a project's own servers are among them.
@@ -152,7 +171,7 @@ def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
     thread_titles.name_thread(
-        thread_titles.app_server_title(endpoint, None),
+        thread_titles.app_server_title(endpoint),
         page_dir,
         comment["id"],
         "hosted-thread",
@@ -164,6 +183,35 @@ def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_
     [text] = turn["params"]["input"]
     assert "Why is the export slow?" in text["text"]
     assert "thanks" not in text["text"]
+
+
+def test_a_title_the_model_refuses_leaves_the_thread_to_the_agent(page_dir, app_server):
+    """An account without the title model fails the title's turn: the thread stays
+    untitled, so the agent's answer is asked to name it, and the record says why."""
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Why is the export slow?"},
+    )
+    codex_model.prepare_codex_delivery(
+        page_dir,
+        harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
+    )
+    endpoint, _ = titling_app_server(app_server, None)
+    records = []
+    thread_titles.name_thread(
+        thread_titles.app_server_title(endpoint),
+        page_dir,
+        comment["id"],
+        "hosted-thread",
+        lambda event, **fields: records.append((event, fields)),
+    )
+    wait_for(lambda: records, bool, failure="the title request never reported")
+
+    [(event, fields)] = records
+    assert (event, fields["error"]) == ("thread_title_failed", "RuntimeError")
+    assert UNAVAILABLE_MODEL["message"] in fields["detail"]
+    kinds = [e["kind"] for e in events_model.read_events(page_dir)]
+    assert "thread_title" not in kinds
 
 
 def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir):
@@ -350,7 +398,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     start, *_ = [m for m in received if m.get("method") == "thread/start"]
     assert start["params"]["config"]["features"]["hooks"] is False
     assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
-    assert "model" not in start["params"]
+    assert start["params"]["model"] == thread_titles.CODEX_TITLE_MODEL
 
     # A reaction opens a thread with no words; the reply that gives it some names it.
     reaction = append_carried_log_record(
@@ -730,7 +778,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     schema = json.loads(argv[argv.index("--json-schema") + 1])
 
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
-    thread_titles.app_server_title(endpoint, None)(request, page_dir)
+    thread_titles.app_server_title(endpoint)(request, page_dir)
     [start] = [m for m in received if m.get("method") == "thread/start"]
     [turn] = [m for m in received if m.get("method") == "turn/start"]
     assert start["params"]["baseInstructions"] == system_prompt
@@ -750,7 +798,13 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
                 "schema": schema,
                 "app_server_thread": {
                     key: start["params"][key]
-                    for key in ("ephemeral", "approvalPolicy", "sandbox", "config")
+                    for key in (
+                        "model",
+                        "ephemeral",
+                        "approvalPolicy",
+                        "sandbox",
+                        "config",
+                    )
                 },
                 "app_server_effort": turn["params"]["effort"],
             },

@@ -278,15 +278,6 @@ def successful_replies(events: list[dict], responds: str) -> list[dict]:
     ]
 
 
-def answered_by_reply(events: list[dict], responds: str) -> bool:
-    """A successful exact reply wins over every later delivery completion.
-
-    Failure receipts and user settlement do not assert a provider answer, so a
-    recovered final message may still answer that original delivered address.
-    """
-    return bool(successful_replies(events, responds))
-
-
 @dataclass(frozen=True)
 class Refuse:
     """An ordinary writer's settlement: a stale or settled response address is
@@ -562,12 +553,12 @@ def _resolve_obligation(
     if (
         isinstance(settlement, ProviderFinal)
         and responds is not None
-        and answered_by_reply(events, responds)
+        and successful_replies(events, responds)
     ):
         return None
     responses = current_responses(page_dir, events)
+    expected = responses.get(responds)
     if responds is not None and parent is None:
-        expected = responses.get(responds)
         if expected is None or expected["kind"] != "reply":
             if isinstance(settlement, Receipt):
                 return None
@@ -579,11 +570,10 @@ def _resolve_obligation(
     thread_id, parent = thread_addressed(page_dir, events, parent)
     in_hand = None
     if responds is not None:
-        expected = responses.get(responds)
         if (
             expected is None
             or expected["kind"] != "reply"
-            or (expected["parent"], expected["responds"]) != (parent, responds)
+            or expected["parent"] != parent
         ):
             if isinstance(settlement, Receipt):
                 return None

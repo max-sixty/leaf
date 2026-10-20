@@ -11,14 +11,17 @@ export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 // Finite animations delay final geometry reads. Infinite ambient animation, such as the
 // status indicator, does not. `moving` is the render gate's shared reading of that
 // boundary. A component that animates forever must not appear in it; a state transition
-// that can still change boxes must.
+// that can still change boxes must. One on an element the page doesn't render changes
+// no box, and Firefox never starts it: a colour transition the scheme starts on a
+// control inside a closed `<details>` stays pending until the details open.
 export function moving() {
   return openRoots(document)
     .flatMap((root) => root.getAnimations())
     .filter(
       (animation) =>
         animation.playState === "running" &&
-        Number.isFinite(animation.effect?.getComputedTiming().endTime),
+        Number.isFinite(animation.effect?.getComputedTiming().endTime) &&
+        animation.effect?.target?.checkVisibility() !== false,
     )
     .map((animation) =>
       animation.animationName

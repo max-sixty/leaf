@@ -437,10 +437,9 @@ leaves chrome to the suite), so their reach is the 20 rendering defects outside 
 chrome, of which they reported 3. Their value shows earlier: on 35 of the 40 pages the
 author's own checks reported 137 distinct findings, as the matching turn groups repeats,
 and the final page still had 10 of them. The render check's were labels shrunk below
-10px (52 on 10 pages, 9 kept on 4), tables
-squeezed at 360px (7), labels drawn over each other in a chart (6), scrollbar
-clearance (3), content past the column (1), a verbatim mismatch (2) and a console
-error (1). The plain check's were markup: targets with no id (35 on 18 pages), schema
+10px (52 on 10 pages, 9 kept on 4), tables squeezed at 360px (7), labels drawn over
+each other in a chart (6), scrollbar clearance (3), content past the column (1), a
+verbatim mismatch (2) and a console error (1). The plain check's were markup: targets with no id (35 on 18 pages), schema
 refusals (20 on 7 pages), and 10 runs before `index.html` existed. Every author ran a
 check, and 27 of 40 ran `--render`; on the 13 pages whose authors did not, mostly
 queues and Codex pages, the final render check found nothing.
@@ -488,7 +487,7 @@ decisions rather than fixes:
   pages.
 - `lf-tally` counts an obligation the user discussed and left with the agent as still
   to answer, while Next on me walks only those waiting on the user. Both queue pages
-  where the judge cleared an answer after commenting showed "1 of 8 to answer" with
+  where the judge commented and cleared an answer showed "1 of 8 to answer" with
   Next on me disabled. That the comment moved the obligation to the agent is a
   reading of `obligations.discussed`, not reproduced: clearing an answer without a
   comment re-enables Next on me.

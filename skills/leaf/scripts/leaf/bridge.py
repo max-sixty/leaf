@@ -6,9 +6,10 @@ session's process and a server that outlives the command. Its hooks run outside 
 sandbox, so the hook Claude Code runs before a shell command naming `leaf`
 (`ensure`) starts a bridge for this install there, and `bin/leaf` hands each
 command confined by Claude Code's sandbox (`SANDBOX_RUNTIME`) to it (`run`). The command then runs as an unsandboxed one
-would, with its arguments, working directory and environment. Its stdin, output
-and exit status pass as they come, so a command that never reads a stdin that
-never ends still finishes.
+would, with its arguments, working directory and environment. Its output and exit
+status pass as they come, and so does its stdin, read beside the command, so a
+command that never reads a stdin that never ends still finishes. A stdin that is a
+terminal or a socket reaches the command as an empty pipe (`piped_input`).
 
 The only road out of that sandbox a command can take without settings is Claude
 Code's network proxy, which every sandboxed command's `HTTP_PROXY` names: a direct
@@ -59,6 +60,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from .leases import release_lease, take_lease
+from .piped_input import piped
 from .state import STRING, Record, object_schema, state_home
 
 # Where the running bridge listens, the token a request carries, and its process.
@@ -354,10 +356,15 @@ def run(argv: list[str]) -> int:
 
     def feed() -> None:
         # Stdin may never end, as a harness's open socket doesn't, so it is read
-        # beside the command rather than before it.
+        # beside the command rather than before it, and relayed only from a pipe or
+        # a file (`piped_input`): the command reads the pipe this hands it, which
+        # ends only when this sends the end.
         with contextlib.suppress(OSError):
-            while data := os.read(0, 65536):
-                write(STDIN, data)
+            if piped(0):
+                while data := os.read(0, 65536):
+                    write(STDIN, data)
+        # A closed stdin fails both reads above, and the command still gets its end.
+        with contextlib.suppress(OSError):
             write(STDIN, b"")
 
     def beat() -> None:

@@ -343,8 +343,10 @@ def pages_gone(pages: list[Path]) -> bool:
     Nothing can answer a record once its pages are gone, whichever Leaf wrote it.
     Pages are usually deleted from outside Leaf, with a worktree or a scratch
     directory, so no Leaf process sees the moment; whoever next enumerates the
-    record's directory retires it. A page this process can't stat, as on an
-    unmounted volume or behind a folder it may not read, stands."""
+    record's directory retires it. A page this process can't stat, as behind a
+    folder it may not read, stands; one whose path is missing is gone, though a
+    volume unmounted under it would bring it back, since nothing tells the two
+    apart. Its session takes the page again with `leaf server start`."""
     return bool(pages) and not any(page_stands(page) for page in pages)
 
 

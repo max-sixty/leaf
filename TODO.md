@@ -336,11 +336,6 @@ that changes size after first paint, with its cause.
   (`data-lf-margin`, prepaint.js) already decides its form before that paint; what is
   left is an initial renderer (`lfInitial.register`) that draws the list from the
   authored headings.
-- **Check that margin markers paint in place in their first frame.** The shift watch
-  exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
-  startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
-  frame and then moved would fail nothing. Read `leaf-dev probe`'s startup readings on
-  a page with margin markers at a few widths.
 - **Fold a thread summary without moving the messages it covers.** Folding moves
   the covered messages into `.lf-summary-originals` (`thread-card.js`), so a text
   selection inside them is lost in Chromium, Firefox and WebKit, and WebKit, which

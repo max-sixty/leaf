@@ -964,9 +964,12 @@ main {
  * above packages and Layouts, so it outranks a value stacked onto a box that scrolls (a
  * page tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
  * box that starts its slot other than at 0 states beside its `--lf-top` (a workspace
- * pane's body, a thread list). A box that clips without scrolling says
- * `overflow: clip`, since `hidden` scrolls, for a script, and so holds the headers
- * inside it. A box that sticks keeps the value it met for its own `top`, so a sticking
+ * pane's body, a thread list). A box the user scrolls only sideways restarts it for
+ * what it holds and keeps the headers over itself for their landings (`across`,
+ * state.css); one that means to scroll only sideways says `hidden` down, since
+ * `visible` beside a scrolling axis computes to `auto`. A box that clips without
+ * scrolling says `overflow: clip`, since `hidden` scrolls, for a script, and so holds the
+ * headers inside it. A box that sticks keeps the value it met for its own `top`, so a sticking
  * box that scrolls headers restarts the slot for them itself (a column's sidebar,
  * layouts.css).
  * A sticky header (a page tab strip, a diff's file header) has a stated height and
@@ -975,7 +978,8 @@ main {
  * property cannot read itself. The stacked value goes on a box that does not itself
  * scroll, since a box that scrolls is read where it stands. A landing clears the
  * headers over a whole scroller through its `scroll-padding` and one over part of it
- * through `scroll-margin` on the rows under it, and the runtime's reading of what is on
+ * through the `scroll-margin` every box reads from the slot (surfaces.css), and the
+ * runtime's reading of what is on
  * screen takes the value at each element (geometry.js, `headerInset`). Registered so
  * that reading is a length. */
 @property --lf-top {

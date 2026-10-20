@@ -450,19 +450,6 @@
     --lf-head-inset: calc(var(--lf-diff-action-top) - 1px);
   }
 }
-/* The room that header takes, so a landing arrives below it rather than behind it. The
-   scroller's `scroll-padding` clears what stands over the whole of it, the head room and
-   a page tab strip; this is the rest of the same sum. Only where the header pins: unpinned,
-   it covers nothing. The code's sideways scroller is a tab stop of its own, and its focus
-   clears the header and the ring's landing room beside it; as a box that scrolls it starts
-   `--lf-top` again for what it holds, so the layer's reading of the headers over it
-   cannot reach it there. */
-:scope:host(.lf-rendered[data-lf-diff-pinned]) [data-line] {
-  scroll-margin-top: var(--lf-diff-head-h);
-}
-:scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file .lf-text-scroller {
-  scroll-margin-top: calc(var(--lf-diff-head-h) + var(--focus-ring-landing));
-}
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 .lf-diff-path {
@@ -554,7 +541,10 @@
   border: none;
   border-top: 1px solid var(--code-border);
   border-radius: 0;
-  overflow-x: auto;
+  /* Sideways only: `hidden` down rather than `visible`, which would compute to `auto`
+     beside it and make the box one that scrolls down, which starts the landing band
+     again and cuts the rows off from the file header over them (state.css, `across`). */
+  overflow: auto hidden;
   color: var(--code-ink);
 }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to

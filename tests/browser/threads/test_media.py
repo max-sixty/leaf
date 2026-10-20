@@ -321,7 +321,8 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     """The compact composer reads the complete draft hidden behind its text box.
 
     Several images make its shelf overflow, proving the anchored box gets the same
-    horizontal thumbnail projection as the larger thread text boxes.
+    horizontal thumbnail projection as the larger thread text boxes. The shelf stands
+    above the field, so attaching leaves the box and its words where they were.
     """
     # The narrow box, where the shelf of images overflows soonest.
     width = 390
@@ -331,17 +332,27 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     field = page.locator(".lf-fab-input")
     expect(field).to_be_visible()
     field.click()
+    rendered(page)
+    bar = page.locator(".lf-fab-bar")
+    before = (bar.bounding_box(), field.bounding_box())
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
 
-    paste_image(field, pixels, count=4)
+    # Enough of them to outrun the narrow box.
+    pasted = 6
+    kept = pasted - 1
+    paste_image(field, pixels, count=pasted)
 
     expect(field).to_have_js_property("value", "")
     shelf = page.locator(".lf-fab-bar .lf-composer-media")
-    expect(shelf.locator("img")).to_have_count(4)
+    expect(shelf.locator("img")).to_have_count(pasted)
     rendered(page)
-    field_box = field.bounding_box()
-    shelf_box = shelf.bounding_box()
-    assert shelf_box["x"] + shelf_box["width"] <= field_box["x"]
+    assert (bar.bounding_box(), field.bounding_box()) == before
+    field_box = before[1]
+    for picture in shelf.locator(".lf-composer-media-open").all():
+        assert (
+            picture.bounding_box()["y"] + picture.bounding_box()["height"]
+            <= (field_box["y"])
+        )
     assert field_box["x"] + field_box["width"] <= width
     layout = shelf.evaluate(
         """element => ({
@@ -354,36 +365,24 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     shelf.get_by_role("button", name="Remove attached image 2").click()
     rendered(page)
     expect(shelf).to_be_visible()
-    expect(shelf.locator(":scope > .lf-composer-media-item")).to_have_count(3)
+    expect(shelf.locator(":scope > .lf-composer-media-item")).to_have_count(kept)
     expect(field).to_be_focused()
-    expect(shelf.locator("img")).to_have_count(3)
+    expect(shelf.locator("img")).to_have_count(kept)
     assert shelf.locator(".lf-composer-media-remove").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
-    ) == [
-        "Remove attached image 1",
-        "Remove attached image 2",
-        "Remove attached image 3",
-    ]
+    ) == [f"Remove attached image {n}" for n in range(1, kept + 1)]
     assert shelf.locator(".lf-composer-media-open").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
-    ) == [
-        "View attached image 1",
-        "View attached image 2",
-        "View attached image 3",
-    ]
+    ) == [f"View attached image {n}" for n in range(1, kept + 1)]
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
     page.locator("#p1").click(click_count=3)
     expect(field).to_be_visible()
     field.click()
-    expect(shelf.locator("img")).to_have_count(3)
+    expect(shelf.locator("img")).to_have_count(kept)
     assert shelf.locator(".lf-composer-media-remove").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
-    ) == [
-        "Remove attached image 1",
-        "Remove attached image 2",
-        "Remove attached image 3",
-    ]
+    ) == [f"Remove attached image {n}" for n in range(1, kept + 1)]
     with sending(page, "the retained image draft"):
         page.keyboard.press("ControlOrMeta+Enter")
     comments = [
@@ -395,13 +394,9 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(browser, s
     sent = comments[0]
     image_markdown = "![Attached image](/media/051bee487bfb5d13.png)"
     assert sent["kind"] == "comment"
-    assert sent["text"].splitlines() == [
-        image_markdown,
-        "",
-        image_markdown,
-        "",
-        image_markdown,
-    ]
+    assert (
+        sent["text"].splitlines() == "\n\n".join([image_markdown] * kept).splitlines()
+    )
     expect(page.locator(".lf-composer")).to_be_hidden()
 
 

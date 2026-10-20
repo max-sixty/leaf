@@ -382,8 +382,6 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  :scope:is(lf-shot) .lf-shotcomparison::part(divider),
-  :scope:is(lf-shot) .lf-shotcomparison::part(handle),
   :scope:is(lf-toc) a {
     transition: none;
   }

@@ -215,9 +215,7 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     fills_the_window(page, workspace, True)
 
 
-def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(
-    browser, serve
-):
+def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):
     """On a phone the workspace flows and the page scrolls, and its header sticks at the
     window's top, so a tally's Next on me stays under the pointer that pressed it. The
     obligation it lands on stands below the header, which the landing clears, and a

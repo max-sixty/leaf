@@ -16,6 +16,7 @@ import {
 import {
   nextFrame,
   nextRender,
+  sizeObserver,
   under,
   upFrom
 } from "./bundle-sample-visibility.js";
@@ -39,7 +40,7 @@ var watchedHead = null;
 function watchHead() {
   const header = document.documentElement.lfInitial.layoutBox()?.querySelector(":scope > header") ?? null;
   if (header === watchedHead) return;
-  headSizes ??= new ResizeObserver(() => scheduleResidency());
+  headSizes ??= sizeObserver(() => scheduleResidency());
   if (watchedHead) headSizes.unobserve(watchedHead);
   if (header) headSizes.observe(header);
   watchedHead = header;

@@ -4,7 +4,7 @@
    paint and adopted here after upgrade. This owner schedules later reads and informs
    annotation geometry and reading-region discovery when that composition changes.
    Imports are inert; boot opens it once for every interactive document. */
-import { nextFrame, nextRender } from "./rendering.js";
+import { nextFrame, nextRender, sizeObserver } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-elements.js";
 import { pageDocument } from "./passages.js";
@@ -40,7 +40,7 @@ function watchHead() {
     document.documentElement.lfInitial.layoutBox()?.querySelector(":scope > header") ??
     null;
   if (header === watchedHead) return;
-  headSizes ??= new ResizeObserver(() => scheduleResidency());
+  headSizes ??= sizeObserver(() => scheduleResidency());
   if (watchedHead) headSizes.unobserve(watchedHead);
   if (header) headSizes.observe(header);
   watchedHead = header;

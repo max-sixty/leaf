@@ -174,7 +174,7 @@ server's grace period. For any other reading, use `clockValue((now) => reading)`
 ## Editing a bound file
 
 `boundFile(binding)` reads and writes a file the agent granted this page with
-`leaf file bind`. `read()` returns `{label, text, revision, newline, bytes}`, with `text`
+`leaf file bind`. `read()` returns `{label, text, revision}`, with `text`
 in LF line endings. `save({revision, text})` writes only if the file is still at
 `revision`; otherwise it throws an error whose `current` holds the newer file.
 `watch(callback)` calls back whenever the file may have changed on disk, including after

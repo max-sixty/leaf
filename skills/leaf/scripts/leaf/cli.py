@@ -786,12 +786,9 @@ def file_bind(dir: str, binding: str, path: Path) -> dict:
     from leaf.file_bindings import bind_file, bound_paths
 
     page_dir = resolve_dir(dir)
-    snapshot = bind_file(page_dir, binding, path)
-    return {
-        "binding": binding,
-        "path": str(bound_paths(page_dir)[binding]),
-        "bytes": snapshot["bytes"],
-    }
+    bind_file(page_dir, binding, path)
+    bound = bound_paths(page_dir)[binding]
+    return {"binding": binding, "path": str(bound), "bytes": bound.stat().st_size}
 
 
 def json_input(input_file):

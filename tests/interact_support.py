@@ -754,11 +754,10 @@ def stamp(d, text="stamped", completes=()):
 
 
 @cache
-def _served_state_validators() -> dict:
-    """`served_state/state.schema.json` with the `leaf:` schemas it refers to
-    (`registry.schema.leaf_resources`). Keyed by what is checked: a complete
-    `/api/state` answer (`answer`), the `Reading` a fold returns before the serving
-    route adds its neighbors and token, or a `/api/view` answer (`ViewAnswer`)."""
+def _served_state_validator(against: tuple[str, ...]):
+    """`served_state/state.schema.json`, with the `leaf:` schemas it refers to
+    (`registry.schema.leaf_resources`), taking any of `against`: `answer`, a
+    complete `/api/state` answer, `null`, or one of its definitions by name."""
     from leaf.registry.schema import json_validator, with_leaf_resources
 
     schema = with_leaf_resources(
@@ -767,33 +766,54 @@ def _served_state_validators() -> dict:
         )
     )
 
-    def definition(name: str) -> dict:
-        return {
-            "$id": schema["$id"],
-            "$defs": schema["$defs"],
-            "$ref": f"#/$defs/{name}",
+    def target(name: str) -> dict:
+        if name == "null":
+            return {"type": "null"}
+        pointer = "" if name == "answer" else f"#/$defs/{name}"
+        return {"$ref": schema["$id"] + pointer}
+
+    return json_validator(
+        {
+            "anyOf": [target(name) for name in against],
             "unevaluatedProperties": False,
+            "$defs": {"served": schema},
         }
-
-    return {
-        "answer": json_validator(schema),
-        "Reading": json_validator(definition("Reading")),
-        "ViewAnswer": json_validator(definition("ViewAnswer")),
-    }
+    )
 
 
-def served_state_error(state: dict, against: str = "Reading") -> str | None:
-    """Where `state` breaks the served state's schema, or None: a fold's `Reading`, a
-    complete `/api/state` answer (`answer`), or a `/api/view` answer (`ViewAnswer`). A
-    channel only Leaf writes, so the tests hold its shape here rather than anything
-    validating it in flight."""
+def served_state_error(value, against: str | tuple[str, ...] = "Reading") -> str | None:
+    """Where `value` breaks the served state's schema, or None: against a fold's
+    `Reading`, a complete `/api/state` answer (`answer`), or any definition or
+    definitions named. A channel only Leaf writes, so the tests hold its shape here
+    rather than anything validating it in flight."""
     from jsonschema.exceptions import best_match
 
-    validator = _served_state_validators()[against]
-    error = best_match(validator.iter_errors(state))
+    names = (against,) if isinstance(against, str) else against
+    error = best_match(_served_state_validator(names).iter_errors(value))
     if error is None:
         return None
     return f"{error.json_path}: {error.message[:400]}"
+
+
+# What each route a test requests through `fetch` may answer, by the end of its path
+# (`http.PageEndpoint.POST_ROUTES` and its gates), so every answer a test reads holds
+# the schema the browser and the Worker are typed from.
+ROUTE_ANSWERS = {
+    r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
+    r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
+    r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),
+    r"/api/files/[^/]+": ("FileSnapshot", "null", "StaleFile", "Refusal"),
+}
+
+
+def route_answer_error(url: str, body: bytes) -> str | None:
+    """Where the answer `body` a route under `url` gave breaks its schema, or None
+    for a route `ROUTE_ANSWERS` doesn't name."""
+    path = urllib.parse.urlsplit(url).path
+    for route, against in ROUTE_ANSWERS.items():
+        if re.search(route + "$", path):
+            return served_state_error(json.loads(body), against)
+    return None
 
 
 def page_state(d):
@@ -1510,9 +1530,12 @@ def fetch(url, data=None, token=TOKEN, layer=None, headers=None):
             request_headers["Leaf-Layer"] = layer
         request = urllib.request.Request(url, data=data, headers=request_headers)
         with opener.open(request) as res:
-            return res.status, res.read()
+            status, body = res.status, res.read()
     except urllib.error.HTTPError as e:
-        return e.code, e.read()
+        status, body = e.code, e.read()
+    if error := route_answer_error(url, body):
+        raise AssertionError(f"{url} answered {status} outside its schema: {error}")
+    return status, body
 
 
 def fetch_hanging_up(url, data=None):

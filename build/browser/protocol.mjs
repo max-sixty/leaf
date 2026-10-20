@@ -67,6 +67,17 @@ const others = (schema) =>
   schema.additionalProperties ?? schema.unevaluatedProperties ?? !schema.properties;
 const show = (value) => JSON.stringify(value ?? "none");
 
+// The path of each field `schema` names, at any depth and in any branch.
+function fields(schema, path = "", found = new Set()) {
+  if (typeof schema !== "object") return found;
+  for (const [name, field] of Object.entries(schema.properties ?? {}))
+    fields(field, `${path}.${name}`, found.add(`${path}.${name}`));
+  for (const branch of [schema.anyOf, schema.oneOf, schema.allOf].flat())
+    fields(branch, path, found);
+  fields(schema.items, `${path}[]`, found);
+  return found;
+}
+
 /** Each change from `old` to `now` the consuming side refuses, as `[path, message]`.
  * `side.newConsumes` says whether the new schema takes the old one's values or the
  * reverse, `side.validates` whether the consumer is the browser door, and
@@ -180,12 +191,12 @@ function diff(old, now, path, side) {
     // A missing conjunct takes anything; a missing branch, nothing, so a branch the new
     // schema drops takes with it each field no remaining branch names.
     const missing = keyword === "allOf";
+    const kept = new Set(after.flatMap((branch) => [...fields(branch)]));
     for (let index = 0; index < Math.max(before.length, after.length); index++) {
       nested(`|${index}`, before[index] ?? missing, after[index] ?? missing);
       if (!missing && !after[index])
-        for (const name of Object.keys(before[index].properties ?? {}))
-          if (!after.some((branch) => branch.properties?.[name]))
-            found.push([`${path}.${name}`, "the field is gone"]);
+        for (const field of fields(before[index]))
+          if (!kept.has(field)) found.push([`${path}${field}`, "the field is gone"]);
     }
   }
   if (side.validates && !isDeepStrictEqual(old.oneOf, now.oneOf))

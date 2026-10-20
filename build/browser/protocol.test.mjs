@@ -258,12 +258,16 @@ test("the comparison sees through unions, references and maps", () => {
       "served state.pick.x: the field is gone",
     ],
   );
-  // A served branch dropped takes the fields no other branch names.
-  const reordered = structuredClone(variants);
-  reordered.served.properties.pick.anyOf.reverse();
+  // A served branch dropped takes the fields no other branch names, at any depth.
+  const payloads = structuredClone(baseline);
+  const payload = (field) => ({
+    type: "object",
+    properties: { payload: { type: "object", properties: { [field]: {} } } },
+  });
+  payloads.served.properties.pick = { anyOf: [payload("y"), payload("x")] };
   assert.deepEqual(
-    changed((s) => s.served.properties.pick.anyOf.pop(), reordered),
-    ["served state.pick.x: the field is gone"],
+    changed((s) => s.served.properties.pick.anyOf.pop(), payloads),
+    ["served state.pick.payload.x: the field is gone"],
   );
   // A reference compares by its text, and its target where it is declared.
   const nested = structuredClone(baseline);

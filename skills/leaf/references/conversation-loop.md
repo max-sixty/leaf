@@ -7,15 +7,17 @@ event's `handling`. A chat response does not change the page.
 
 The user follows your work on the page:
 
-| Surface                   | What it shows                                                                                                   | Written by                                                                |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Banner                    | one sentence for the whole page: the line of the item you started last, or what you want back                   | `leaf task start`, `leaf status <page> waiting "<detail>"`                |
-| Beside a thread or widget | **Working** and your line: the thread's working message above its reply box, or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread                    | your answer to the user's message, with the progress before it folded behind it                                 | the response operation named by delivered `handling`                      |
-| Page                      | the revised content in place, and a stamp's changelog                                                           | saving `index.html`, `leaf page stamp`                                    |
+| Surface                   | What it shows                                                                                                                                                           | Written by                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Leaf's panel              | one sentence for the whole page, in the empty comment field: the line of the item you started last, or what you want back; the leaf beside it takes the status's colour | `leaf task start`, `leaf status <page> waiting "<detail>"`                |
+| Beside a thread or widget | **Working** and your line: the thread's working message above its reply box, or on the control the work answers                                                         | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
+| Thread                    | your answer to the user's message, with the progress before it folded behind it                                                                                         | the response operation named by delivered `handling`                      |
+| Page                      | the revised content in place, and a stamp's changelog                                                                                                                   | saving `index.html`, `leaf page stamp`                                    |
 
-Leaf marks each update **Sent**, **Queued**, and **Picked up** by itself. Your
-harness may add its current step to the banner.
+Leaf's panel floats at the foot of the window. Leaf marks each update **Sent**,
+**Queued**, and **Picked up** by itself. Your harness may add its current step to the
+status, which the user reads in full by pointing at the field, or at the leaf when the
+panel is folded.
 
 In `leaf page state <page>`, `viewed` is when a browser tab last showed the page, in
 epoch seconds, renewed about every 30 seconds while visible and `null` if nobody has
@@ -47,8 +49,8 @@ first:
 leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
 ```
 
-The line shows at once as the thread's working message and the banner's **Working**
-line, and it starts the update. Your answer later folds it away
+The line shows at once as the thread's working message and the panel's **Working**
+status, and it starts the update. Your answer later folds it away
 ([progress messages](threads.md#progress-messages)). Start any other item, such as a
 to-do or an action on a page widget, with `leaf task start`:
 
@@ -82,8 +84,8 @@ When input arrives:
    `null`, your harness has confirmed receipt.
 2. Post the progress line for each update that asks for work. Answer a question you
    can already settle at once; make any related page revision after replying.
-3. If it interrupted other work, start that item again, so the banner describes the
-   work that continues.
+3. If it interrupted other work, start that item again, so the panel's status
+   describes the work that continues.
 
 Before replying about a page revision, run `leaf page check`, the only check the
 main skill's "Check the page" step requires for that reply.
@@ -98,8 +100,9 @@ leaf status <page> waiting "<what you want back>"
 ```
 
 Name the answer or decision, not the fact that you are waiting. On an informational
-page with nothing on On me, leave it empty; the banner then invites the user to comment.
-Tell the user what they can do on the page, and hand over as your harness contract says.
+page with nothing on On me, leave it empty; the panel's status then invites the user to
+comment. Tell the user what they can do on the page, and hand over as your harness
+contract says.
 From the first handoff on, every turn's final response includes the exact page URL;
 progress messages don't repeat it.
 An export hands over its file URL, and a harness that already shows the page uses
@@ -136,8 +139,8 @@ your conversation inherits the page too. Work that needs its own conversation wi
 the user belongs in its own session, with its own page.
 
 A start lasts only for the turn that wrote it. About two minutes after the turn ends,
-the banner says your turn ended and quotes the line, and within a long turn a start
-goes stale after about 15 minutes. The banner shows the item you started last, so
+the panel's status says your turn ended and quotes the line, and within a long turn a
+start goes stale after about 15 minutes. The status shows the item you started last, so
 start the one that best describes what is running. While a worker produces an
 update's answer, start that update before you end your turn; the Stop hook lets a
 turn end over an update it started. In the next turn, start the item again or answer
@@ -151,8 +154,8 @@ leaf response reply <answer.ref> --todo "<what you owe>" --text "<what is under 
 ```
 
 The reply answers the message and opens a to-do on the thread, under the reply's id.
-The to-do keeps the thread on your list and in the banner until you end it, even
-after the user resolves the thread or your session ends. A turn's own message cannot
+The to-do keeps the thread on your list and in the panel's status until you end it,
+even after the user resolves the thread or your session ends. A turn's own message cannot
 open one. Handing the work to another session, a background job, or a later turn is
 such a promise too; a `--done` reply would tell the user nothing more is coming.
 
@@ -183,7 +186,7 @@ press lands where the item is answered; on a widget's item, its numbered actions
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | A decision or input recorded by a widget                                        | Author a decision widget (`authoring-decisions.md`); optional `lf-ask` frames its question and evidence         | The widget's declared answer; a multiple-choice widget also needs the user's Done     |
 | A conversational answer                                                         | An `lf-ask` holding the question, with no widget inside, in a reply's or new thread's markup (`threads.md`)     | The user's next message there or a settling reaction                                  |
-| Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-decisions.md`, "Sign-off")                                   | That version's banner approval                                                        |
+| Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-decisions.md`, "Sign-off")                                   | The user's approval of that version, its row in On me                                 |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 Item ids are `widget:<widget-id>` for a widget, `lf-ask` included, and
@@ -202,8 +205,9 @@ leaf page state <page> | jq '{source, items, todos, queues}'
 
 `queues.on_user` is On me: open items, to-dos on the user, and updates to resend.
 `queues.on_agent` is your list: answers you owe, updates you are working on, and your
-to-dos. Read them as given rather than rebuilding them from events. An item holds its
-`prompt`, its `answer` once given, and its `status`; a widget's item takes its answer
+to-dos. Read them as given rather than rebuilding them from events. An item's row
+names it by `id`; its record in `items` holds its `prompt`, its `answer` once given,
+and its `status`, and a widget's item takes its answer
 from the widget's state. Read a thread or a widget with `leaf page state <page> <id>`,
 using a message id or a widget id; the widget's markup is in the HTML file named by
 `active.file`. Unsent drafts and tabs on older versions are not in this reading.

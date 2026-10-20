@@ -1,27 +1,4 @@
 import {
-  KINDS,
-  annotationItems,
-  clearContributionControls,
-  contributionHost,
-  contributionItemKey,
-  contributionReceipts,
-  contributionSource,
-  entryControls,
-  spokenSubject,
-  versionBtn,
-  visibleContributionEntryLabel
-} from "./bundle-contribution-model.js";
-import {
-  BANNER_CONTROL_RANK,
-  bannerControlDoor,
-  placeKeeper,
-  registerBannerControl,
-  retainUserIntent,
-  rowWalk,
-  scrollIntoView,
-  showBannerControl
-} from "./bundle-user-intent.js";
-import {
   anchorAt,
   anchorBox,
   anchorElement,
@@ -32,53 +9,27 @@ import {
   scrollsWith
 } from "./bundle-chrome.js";
 import {
-  blockAt,
-  inChrome,
-  says
+  inChrome
 } from "./bundle-passage-facts.js";
 import {
-  closeControl,
-  closeNativeLayer,
-  coarsePointer,
   el,
   hasArea,
   headerCuts,
-  iconTemplate,
   intersect,
-  keys,
   nearObserver,
   nearWindow,
   paintClips,
-  paintKeys,
-  pressIsKeyboardActivation,
   scrollsContent,
-  searchField,
-  showNativeLayer,
   shownBox
 } from "./bundle-page-paint.js";
 import {
   atLayoutPrecision,
   cancelRender,
-  closeLayer,
-  focusDestination,
-  focused,
-  handBack,
-  holdFocus,
   keeps,
-  keepsHidden,
-  keepsText,
   layoutPx,
   move,
-  nextRender,
-  openLayer,
-  openerOf
+  nextRender
 } from "./bundle-sample-visibility.js";
-import {
-  html,
-  nothing,
-  render,
-  repeat
-} from "./bundle-queued-work.js";
 import {
   __export
 } from "./bundle-__export.js";
@@ -322,7 +273,7 @@ function paintSet(root, { onNear = () => {
         standBox(node, entry.rect, entry.stood, entry.anchor, entry.at);
     }
   }
-  function place2(items, clips = /* @__PURE__ */ new Map()) {
+  function place(items, clips = /* @__PURE__ */ new Map()) {
     const holders = /* @__PURE__ */ new Map();
     const targets = /* @__PURE__ */ new Set();
     const read = items.map((item) => {
@@ -448,7 +399,7 @@ function paintSet(root, { onNear = () => {
     view.disconnect();
   }
   return {
-    place: place2,
+    place,
     clear,
     // Whether `target`'s boxes stand in the document, near enough to be shown.
     near: nearBy,
@@ -647,399 +598,6 @@ function mountTargetPaint() {
   targetTraceBox.append(targetTraceShape);
 }
 
-// runtime/margin-map-model.js
-var dialogItemKey = (entry, item) => JSON.stringify(["item", entry.key, contributionItemKey(item)]);
-function dialogControlKey(entry, offered, record) {
-  return JSON.stringify(["control", entry.key, offered.key, record.key]);
-}
-var dialogControlId = (entry, offered, record) => `lf-page-map-entry-${encodeURIComponent(dialogControlKey(entry, offered, record))}`;
-function marginMapGroups(entries, faceFor, searchTextByKey) {
-  return Object.freeze(
-    entries.map((entry) => {
-      const controls = entryControls(entry);
-      const items = annotationItems(entry);
-      const actions = [
-        ...items.map((item) => {
-          const face = faceFor(item);
-          const visibleLabel = item.text || entry.title;
-          return {
-            kind: "item",
-            key: dialogItemKey(entry, item),
-            entry,
-            item,
-            icon: face.icon,
-            label: `Open ${face.label.toLowerCase()}: ${spokenSubject(visibleLabel)}`,
-            visibleLabel,
-            // Producers add context only when it carries another fact. Version
-            // comparisons do: their pair is provenance, separate from the account.
-            context: item.mapContext,
-            receipt: item.workflowReceipt,
-            awaitsUser: Boolean(item.userAttention)
-          };
-        }),
-        ...controls.map(({ offered, record, receipt }) => ({
-          kind: "control",
-          key: dialogControlKey(entry, offered, record),
-          id: dialogControlId(entry, offered, record),
-          entry,
-          offered,
-          record,
-          icon: record.icon,
-          glyph: record.glyph,
-          label: record.accessibleLabel,
-          visibleLabel: visibleContributionEntryLabel(record),
-          context: record.context,
-          receipt,
-          awaitsUser: false
-        }))
-      ];
-      const search = [
-        entry.title,
-        ...actions.flatMap(({ visibleLabel, context }) => [visibleLabel, context]),
-        searchTextByKey.get(entry.key)
-      ].filter(Boolean).join(" ").toLocaleLowerCase();
-      return Object.freeze({
-        key: entry.key,
-        entry,
-        controls: Object.freeze(controls),
-        actions: Object.freeze(actions.map(Object.freeze)),
-        search
-      });
-    })
-  );
-}
-
-// runtime/page-map-dialog.js
-var mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
-var mapCount = 0;
-mapButton.type = "button";
-mapButton.title = "Open Page Map";
-registerBannerControl({
-  key: "map",
-  control: mapButton,
-  rank: BANNER_CONTROL_RANK.map,
-  present: false,
-  row: {
-    label: "Page Map",
-    value: () => String(mapCount),
-    group: "keys"
-  }
-});
-var dialog = document.createElement("dialog");
-dialog.className = "lf-ui lf-page-map-dialog";
-dialog.setAttribute("aria-label", "Page Map");
-dialog.setAttribute("aria-modal", "true");
-var dialogHead = el("div", "lf-page-map-head");
-dialogHead.append(el("strong", "", "Page Map"));
-var dialogClose = closeControl({
-  name: "Close Page Map",
-  title: "Close Page Map (Esc)"
-});
-dialogHead.append(dialogClose);
-var dialogSearch = searchField("lf-page-map-search", {
-  name: "page-map-search",
-  label: "Find an action, status, or location in Page Map",
-  placeholder: "Find an action, status, or location"
-});
-var dialogList = el("div", "lf-page-map-list");
-var place = placeKeeper(dialogList, {
-  items: ".lf-page-map-action",
-  identity: (row) => row.dataset.lfMapKey,
-  active: () => dialog.open
-});
-var dialogEmpty = el(
-  "p",
-  "lf-page-map-empty",
-  "No matching actions, statuses, or locations"
-);
-dialogEmpty.hidden = true;
-dialogEmpty.setAttribute("role", "status");
-dialog.append(dialogHead, dialogSearch, dialogList, dialogEmpty);
-var mapRows = () => [...dialogList.querySelectorAll("button.lf-page-map-action")].filter(
-  (row) => row.checkVisibility()
-);
-function createPageMapDialog({
-  inventory,
-  activeInAnnotations,
-  releaseAnnotations,
-  annotationFocus
-}) {
-  const { targetFor } = inventory;
-  let entries = [];
-  let groups = [];
-  let target = null;
-  let trackedOffers = /* @__PURE__ */ new Set();
-  const pageMapIsActive = () => dialog.open || Boolean(activeInAnnotations?.());
-  function activateItem(item, entry) {
-    releaseAnnotations?.(entry);
-    const destination = annotationFocus?.(entry);
-    closeLayer(
-      leavePageMap,
-      () => !destination && targetFor(entry)?.isConnected ? focusDestination(targetFor(entry), "move") : handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn))
-    );
-    inventory.activate(item);
-  }
-  function pageMapDialogContains(candidate, node) {
-    return dialog.open && target === candidate && dialog.contains(node);
-  }
-  const sheetFace = ({ icon, glyph, visibleLabel, context }) => html`${icon ? iconTemplate(icon, "lf-margin-kind") : html`<span class="lf-margin-kind">${glyph}</span>`}<span class="lf-page-map-action-label"
-        ><span class="lf-page-map-action-label-word">${visibleLabel}</span>${context ? html`<span class="lf-page-map-action-context">${context}</span>` : nothing}</span
-      >`;
-  function activateSheetControl(event, action) {
-    const { offered, record } = action;
-    if (record.behavior === "status" || record.disabled) return;
-    const control = event.currentTarget;
-    const relation = record.relation;
-    if (relation?.kind === "entries") {
-      const currentIntent = retainUserIntent({ available: () => dialog.open });
-      contributionSource(offered).registration.activate(record.key, {
-        origin: control,
-        surface: "map",
-        input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer"
-      });
-      nextRender(() => {
-        if (!currentIntent()) return;
-        const revealed = relation.keys.map(
-          (key) => contributionSource(offered).registration.control(key, "map", true)
-        ).find((candidate) => candidate?.checkVisibility());
-        focusDestination(revealed ?? control, "move");
-      });
-      return;
-    }
-    const returnTo = openerOf(dialog);
-    closeLayer(
-      () => closeNativeLayer(dialog),
-      () => handBack(returnTo)
-    );
-    contributionSource(offered).registration.activate(record.key, {
-      origin: control,
-      surface: "map",
-      input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer"
-    });
-  }
-  const sheetHost = (action, actions) => contributionHost(contributionSource(action.offered), "map", action.record, {
-    accessibleLabel: [action.record.accessibleLabel, action.record.context].filter(Boolean).join(", "),
-    relatedControlIds: relatedControlIds(action, actions)
-  });
-  const sheetItemTemplate = (action) => html`
-    <button
-      type="button"
-      class="lf-page-map-action"
-      data-lf-map-key=${action.key}
-      data-lf-map-item=${action.item.id}
-      aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
-      ${contributionReceipts(action.receipt, action.awaitsUser)}
-      @click=${() => activateItem(action.item, action.entry)}
-    >
-      ${sheetFace(action)}
-    </button>
-  `;
-  function relatedControlIds(action, actions) {
-    if (action.record.relation?.kind !== "entries") return [];
-    const related = new Set(action.record.relation.keys);
-    const ids = actions.filter(
-      (candidate) => candidate.kind === "control" && candidate.offered === action.offered && related.has(candidate.record.key)
-    ).map(({ id }) => id);
-    return ids;
-  }
-  const sheetControlTemplate = (action, actions) => {
-    const body = sheetFace(action);
-    if (action.record.behavior === "status")
-      return html`<span
-        id=${action.id}
-        class="lf-page-map-action"
-        data-lf-map-key=${action.key}
-        data-lf-map-margin-entry=${action.key}
-        ${sheetHost(action, actions)}
-        ${contributionReceipts(action.receipt, action.awaitsUser)}
-        >${body}</span
-      >`;
-    return html`<button
-      id=${action.id}
-      type="button"
-      class="lf-page-map-action"
-      data-lf-map-key=${action.key}
-      data-lf-map-margin-entry=${action.key}
-      ${sheetHost(action, actions)}
-      ${contributionReceipts(action.receipt, action.awaitsUser)}
-      @click=${(event) => activateSheetControl(event, action)}
-    >
-      ${body}
-    </button>`;
-  };
-  const sheetGroupTemplate = (group, query) => html`
-    <section
-      class="lf-page-map-group"
-      data-lf-map-group=${group.key}
-      ?hidden=${Boolean(query) && !group.search.includes(query)}
-    >
-      <h3>${group.entry.title}</h3>
-      <div class="lf-page-map-actions">
-        ${repeat(
-    group.actions,
-    ({ key }) => key,
-    (action) => action.kind === "item" ? sheetItemTemplate(action) : sheetControlTemplate(action, group.actions)
-  )}
-      </div>
-    </section>
-  `;
-  function renderSheet() {
-    const restoreFocus = holdFocus(dialog);
-    place.around(() => presentSheet());
-    restoreFocus?.(dialogSearch);
-  }
-  function presentSheet() {
-    const query = dialogSearch.value.trim().toLocaleLowerCase();
-    const searchTextByKey = new Map(
-      entries.map((entry) => {
-        const passage = blockAt(targetFor(entry));
-        return [entry.key, passage ? says(passage) : ""];
-      })
-    );
-    groups = marginMapGroups(entries, (item) => KINDS[item.kind], searchTextByKey);
-    render(
-      html`${repeat(
-        groups,
-        ({ key }) => key,
-        (group) => sheetGroupTemplate(group, query)
-      )}`,
-      dialogList
-    );
-    const liveOffers = new Set(
-      groups.flatMap(({ entry }) => entry.offers.map(contributionSource))
-    );
-    for (const offered of trackedOffers)
-      if (!liveOffers.has(offered))
-        clearContributionControls(offered, "map", /* @__PURE__ */ new Set());
-    for (const group of groups) {
-      for (const offered of group.entry.offers)
-        clearContributionControls(
-          contributionSource(offered),
-          "map",
-          new Set(
-            group.controls.filter((candidate) => candidate.offered === offered).map(({ record }) => record.key)
-          )
-        );
-    }
-    trackedOffers = liveOffers;
-    const shown = groups.filter(
-      (group) => !query || group.search.includes(query)
-    ).length;
-    keepsText(
-      dialogEmpty,
-      query ? "No matching actions, statuses, or locations" : "No margin controls, status indicators, or locations yet"
-    );
-    keepsHidden(dialogEmpty, shown !== 0);
-  }
-  function pageMapInvoker() {
-    return bannerControlDoor(mapButton) ?? mapButton;
-  }
-  function renderPageMapDialog(nextEntries) {
-    entries = nextEntries;
-    const label = `Map (${entries.length})`;
-    mapCount = entries.length;
-    showBannerControl(mapButton, entries.length > 0);
-    keepsText(mapButton, label);
-    if (dialog.open) renderSheet();
-  }
-  function openPageMap(entry = null, { invoker = null, focusSpill = false } = {}) {
-    const openedFrom = invoker ?? focused();
-    target = entry ? targetFor(entry) : null;
-    if (!dialog.open) {
-      openLayer(dialog, openedFrom);
-      dialogSearch.value = "";
-    }
-    renderSheet();
-    if (!dialog.open) showNativeLayer(dialog);
-    const index = entry ? entries.findIndex((candidate) => candidate.key === entry.key) : -1;
-    const group = index < 0 ? null : dialogList.children[index];
-    if (group) scrollIntoView(group, { block: "nearest", within: dialogList });
-    const spilled = focusSpill ? openedFrom?.lfFirstSpilledOption : null;
-    const spilledAction = focusSpill ? groups[index]?.actions.find(
-      (action) => action.kind === "control" && action.record.key === spilled?.record?.key && action.record.owner === spilled?.record?.owner || action.kind === "item" && spilled?.choice?.items.some(
-        (item) => contributionItemKey(action.item) === contributionItemKey(item)
-      )
-    ) : null;
-    const destination = focusSpill ? spilledAction && group?.querySelector(`[data-lf-map-key="${CSS.escape(spilledAction.key)}"]`) : group?.querySelector(".lf-page-map-action");
-    focusDestination(
-      destination ?? (coarsePointer.matches ? mapRows()[0] ?? dialogClose : dialogSearch),
-      "move"
-    );
-    paintKeys();
-  }
-  const enterPageMap = () => openPageMap();
-  function leavePageMap() {
-    if (!dialog.open) return;
-    closeLayer(() => closeNativeLayer(dialog));
-  }
-  function cancelPageMap() {
-    const returnTo = openerOf(dialog);
-    closeLayer(leavePageMap, () => handBack(returnTo));
-  }
-  const mapHasEntries = () => entries.length > 0;
-  function mount(root) {
-    dialogSearch.addEventListener("input", renderSheet);
-    keys(
-      dialog,
-      "In the Page Map",
-      rowWalk({ id: "map", noun: "Entry", plural: "entries", rows: mapRows }),
-      mapHasEntries
-    );
-    mapButton.onclick = enterPageMap;
-    dialog.addEventListener("cancel", (event) => {
-      event.preventDefault();
-      cancelPageMap();
-    });
-    dialog.addEventListener("close", () => {
-      if (dialog.open) return;
-      target = null;
-      paintKeys();
-    });
-    dialogClose.onclick = cancelPageMap;
-    root.append(dialog);
-    dialogSearch.updateComplete.then(declareSearchKeys);
-  }
-  function declareSearchKeys() {
-    const hasRows = () => mapRows().length > 0;
-    keys(
-      dialogSearch.input,
-      "In the Page Map's search",
-      [
-        {
-          id: "map.search.enter",
-          keys: ["ArrowDown"],
-          description: "Go from the search to the first entry",
-          title: "to the entries",
-          when: hasRows,
-          run: () => {
-            const row = mapRows()[0];
-            focusDestination(row, "move");
-            scrollIntoView(row, { block: "nearest" });
-          }
-        },
-        {
-          id: "map.search.open",
-          keys: ["Enter"],
-          description: "Open the first matching entry",
-          title: "open first",
-          when: hasRows,
-          run: () => mapRows()[0].click()
-        }
-      ],
-      mapHasEntries
-    );
-  }
-  return {
-    pageMapIsActive,
-    pageMapDialogContains,
-    renderPageMapDialog,
-    openPageMap,
-    enterPageMap,
-    leavePageMap,
-    mount
-  };
-}
-
 export {
   SVG_NS,
   paintGeometry,
@@ -1053,7 +611,5 @@ export {
   aimLayer,
   paintTrace,
   mountTargetPaint,
-  target_paint_exports,
-  mapButton,
-  createPageMapDialog
+  target_paint_exports
 };

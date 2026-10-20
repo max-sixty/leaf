@@ -40,7 +40,8 @@ other page files and the external state listed below.
   `page instructions` composes them with selected registry instructions
   (`../../references/packages.md`, "Package contract").
 
-- `icon.svg` — tab icon; its lf-tone element follows the banner's status colour
+- `icon.svg` — tab icon; its lf-tone element follows the page's status colour, as the
+  panel's leaf does
 
 - `runtime/` — private browser owners plus the public widget-api.js module
 
@@ -101,7 +102,7 @@ other page files and the external state listed below.
 
   Command observations capture the selected title and description, focus and scroll
   before execution. `event_submit` records local enqueue with its `attempt`;
-  `reply_visible` records actual message or working words entering a visible banner,
+  `reply_visible` records actual message or working words entering a visible status,
   thread, or On list, with reply/input identity and presentation kind. Generic
   delivery labels do not count. Compare monotonic values only within one browser
   session; host receipt and browser wall time do not measure send-to-visible latency.

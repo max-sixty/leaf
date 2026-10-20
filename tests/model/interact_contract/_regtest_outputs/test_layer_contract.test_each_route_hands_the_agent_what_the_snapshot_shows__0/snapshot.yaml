@@ -77,7 +77,7 @@
 
 leaf wait:
   output:
-    format: leaf-delivery/9
+    format: leaf-delivery/10
     id: '11111111'
     created_at: 1790046750.29
     acknowledge: >-
@@ -109,9 +109,8 @@ leaf wait:
         handling:
           h1: >-
             The thread has no title yet. Name it with `--title "<a few words>"`
-            on your reply, so the Threads panel lists its subject instead of its
-            opening words. If Leaf has already named it from its first message,
-            that name stays.
+            on your reply, so Threads lists its subject instead of its opening words.
+            If Leaf has already named it from its first message, that name stays.
           h2: >-
             If the event asks for work, first post one line in its thread saying
             what you will do, before any other command, even reading the source:
@@ -167,7 +166,7 @@ Claude Code hook:
     instruction: >-
       Leaf has new input for your turn. Read this complete delivery before answering.
     delivery:
-      format: leaf-delivery/9
+      format: leaf-delivery/10
       id: '44444444'
       created_at: 1790046750.29
       acknowledge: null
@@ -192,9 +191,9 @@ Claude Code hook:
           handling:
             h1: >-
               The thread has no title yet. Name it with `--title "<a few words>"`
-              on your reply, so the Threads panel lists its subject instead of its
-              opening words. If Leaf has already named it from its first message,
-              that name stays.
+              on your reply, so Threads lists its subject instead of its opening
+              words. If Leaf has already named it from its first message, that name
+              stays.
             h2: >-
               If the event asks for work, first post one line in its thread saying
               what you will do, before any other command, even reading the source:
@@ -251,7 +250,7 @@ Codex queue:
     <leaf-delivery id="22222222" operation="delivery read" />
     ```
   leaf delivery read 22222222:
-    format: leaf-delivery/9
+    format: leaf-delivery/10
     id: '22222222'
     created_at: 1790046750.29
     acknowledge: >-
@@ -279,9 +278,8 @@ Codex queue:
         handling:
           h1: >-
             The thread has no title yet. Name it with `--title "<a few words>"`
-            on your reply, so the Threads panel lists its subject instead of its
-            opening words. If Leaf has already named it from its first message,
-            that name stays.
+            on your reply, so Threads lists its subject instead of its opening words.
+            If Leaf has already named it from its first message, that name stays.
           h2: >-
             If the event asks for work, first post one line in its thread saying
             what you will do, before any other command, even reading the source:
@@ -338,7 +336,7 @@ Codex App Server:
     toolOutput:
       name: leaf_delivery
       output:
-        format: leaf-delivery/9
+        format: leaf-delivery/10
         id: '33333333'
         created_at: 1790046750.29
         acknowledge: null

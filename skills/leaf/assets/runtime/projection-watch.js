@@ -6,12 +6,15 @@
    (`collectReads`, snapshot.ts), into one record: every part of the publication it
    reads through a reader that selects its part (`readPart`, `readItems`, a widget's
    controller, the runtime getters), and every reading of something outside the
-   publication (`outsideReading`): the time it shows (`clockValue`, `ago`), and how many
-   times the page has announced `PRESENTATION`. Every paint reads the last, since a
+   publication (`outsideReading`): the time it shows (`clockValue`, `ago`), how many
+   times a caller has said the document changed (`documentChanged`), which a reading of
+   the page's own nodes keys on, and how many times the page has announced
+   `PRESENTATION`. Every paint reads the last, since a
    paint may draw from nodes it decides. The watcher follows each entry by the same rule, and a change that
    moves none of them paints nothing. So a paint never names its inputs, and none it
    reads can go unwatched. Only reads made synchronously count: a read after an `await`
-   in an asynchronous paint, or of the document's nodes, is the caller's to watch, and
+   in an asynchronous paint, or of the document's nodes by a reading that keys on
+   nothing of these, is the caller's to watch, and
    so is a private signal such as where the user stands, which a paint may also write.
    A read of the whole root (`readApplication()`) throws, so a paint reads the parts it
    draws.

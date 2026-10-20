@@ -17,6 +17,8 @@ from render_harness import (
     is_problem,
     leaf_page,
     open_page,
+    panel_control,
+    panel_field,
     refuse,
     watched,
 )
@@ -121,33 +123,6 @@ def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
     )
 
 
-def test_a_website_example_names_its_limited_agent(browser, serve):
-    page = open_page(
-        browser,
-        serve(
-            leaf_page("Website example", "<h1>Website example</h1>"),
-            website_publication={
-                "kind": "example",
-                "agent": "Leaf guide",
-                "install_url": "/#install",
-            },
-        ),
-    )
-    status = page.locator(".lf-banner .lf-status-text")
-    expect(status).to_have_text(
-        "This is an example on the Leaf website. Leaf guide replies and revises "
-        "this private copy. Other examples Install Leaf"
-    )
-    assert status.locator("a").evaluate_all(
-        "links => links.map(link => link.getAttribute('href'))"
-    ) == ["/examples/", "/#install"]
-    expect(page.locator(".lf-status-button .lf-publication-install")).to_have_count(0)
-    expect(status).to_have_attribute("title", " ".join(status.text_content().split()))
-    assert page.locator(".lf-banner .lf-dot").evaluate("dot => [...dot.classList]") == [
-        "lf-dot"
-    ]
-
-
 @pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline", "slow"])
 def test_public_startup_reports_upgrade_separately_from_held_state(
     browser, serve, outcome, request
@@ -196,7 +171,9 @@ def test_public_startup_reports_upgrade_separately_from_held_state(
     page.wait_for_function("document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the first state read"
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("^Loading saved state…")
+    )
     assert reports == []
     assert page.evaluate("firstStateResponses") == []
     if outcome == "slow":
@@ -286,17 +263,17 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
     page.route("**/api/state*", identify)
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    expect(page.locator(".lf-banner .lf-status-detail")).to_have_count(0)
-    reference = page.locator(".lf-session-reference")
-    expect(reference).not_to_be_visible()
-    page.get_by_role("button", name="More page controls", exact=True).click()
-    expect(reference).to_be_visible()
-    expect(reference).to_have_text("Session 239383829012")
-    expect(reference).to_have_accessible_name("Session 239383829012 · copy reference")
-    page.set_viewport_size({"width": 390, "height": 844})
-    expect(page.locator(".lf-banner-menu .lf-session-reference")).to_be_visible()
+    # The reference is no part of the status the panel's field says, and one press in
+    # the leaf's menu copies it.
+    expect(panel_field(page)).not_to_have_attribute(
+        "placeholder", re.compile("239383829012")
+    )
+    reference = panel_control(page, "session")
+    expect(reference).to_have_text("Copy session reference")
     reference.click()
-    expect(page.locator(".lf-notice")).to_have_text("Copied session reference")
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("^Session reference copied")
+    )
     assert page.evaluate("() => navigator.clipboard.readText()") == "239383829012"
 
 
@@ -329,13 +306,10 @@ def test_a_website_session_reference_survives_a_failed_first_read(
     )
     try:
         page.goto(url, wait_until="load")
-        expect(page.locator(".lf-banner .lf-status-detail")).to_contain_text(
-            status_words
+        expect(panel_field(page)).to_have_attribute(
+            "placeholder", re.compile(status_words)
         )
-        page.get_by_role("button", name="More page controls", exact=True).click()
-        expect(page.locator(".lf-session-reference")).to_have_text(
-            "Session 239383829012"
-        )
+        expect(panel_control(page, "session")).to_have_text("Copy session reference")
     finally:
         page.close()
     # The route stands for the whole test and the page asks again every two seconds,

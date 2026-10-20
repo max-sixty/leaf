@@ -2,9 +2,9 @@
 
 This file says how Leaf decides who holds a page, what the agent is doing on it, and
 how the user's input reaches the agent's turn. It has three parts. "Page activity" is
-the server's one reading of the agent's work, which the banner, the Stop hook and the
-browser all consume. "Watchers" is how each harness carries input into a turn, and the
-hooks that keep a turn from ending over it. "Lifetime" is how serving, claims and
+the server's one reading of the agent's work, which the page's status, the Stop hook
+and the browser all consume. "Watchers" is how each harness carries input into a
+turn, and the hooks that keep a turn from ending over it. "Lifetime" is how serving, claims and
 services begin and end. The Codex transports' delivery records and App Server
 observation belong to `codex.py`, `codex_adapter.py` and `codex_state.py`, whose
 headers state them.
@@ -65,12 +65,12 @@ working independently of how far newer input has progressed. A harness-observed 
 on the user in its own window, such as an approval or a question, is observed work
 that lasts as long as its observer does. Delivery opened into the claimant's running
 turn also proves generic activity before its first start; the receipt itself remains
-Picked up. The banner's line is the newest start's, among the items still in hand.
+Picked up. The status's line is the newest start's, among the items still in hand.
 `counts.overdue` counts the owed updates that stalled with the agent to act: still
 Sent past the pickup grace, or left by a turn that ended or was interrupted before
-answering. Over an `away` page, they are when the banner asks the user to nudge the
-session. The banner consumes this same reading and presents delivery counts
-separately; the Pages drawer consumes each serving page's own canonical publication.
+answering. Over an `away` page, they are when the status asks the user to nudge the
+session. The floating panel consumes this same reading and presents delivery counts
+separately; its All pages view consumes each serving page's own canonical publication.
 
 Observed App Server activity refines the page's work and never a message's. The App
 Server observer retains typed `working`, `thinking`, `tool`, `replying`,

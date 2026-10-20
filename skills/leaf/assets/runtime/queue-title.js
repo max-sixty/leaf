@@ -1,4 +1,4 @@
-/* An obligation's subject, shared by the On panel and package lists.
+/* An obligation's subject, shared by On me and package lists.
    Membership remains with the publisher. A title reads the current conversation
    or the rendered item or widget it names, without interpreting events. */
 import { addressableLabel } from "./addressable-names.js";
@@ -13,7 +13,9 @@ export function queueTitle(item) {
   const thread = readThreads().threads.find((thread) => thread.id === item.thread);
   const own = elementById(item.subject.id);
   const topic = thread ? threadName(thread) : "";
-  if (item.title) return item.title;
+  // A to-do's own title, or an item's prompt.
+  const title = item.title ?? item.item?.prompt.text;
+  if (title) return title;
   if (item.kind === "work" && item.detail) return item.detail;
   // A reply the agent sent reads as its own words, since one thread holds many.
   const sent =

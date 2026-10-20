@@ -1892,28 +1892,15 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
 def test_layer_style_sources_consume_the_runtime_layout_names():
     """CSS and runtime agree on shared property and attribute names. Read editable
     sources; the stylesheet freshness gate holds their generated delivery copies."""
-    runtime = schema_model.ASSETS / "runtime"
-    edges, page_paint, surfaces = (
-        runtime / name
-        for name in ("drawn-edge.js", "page-paint.js", "auxiliary-surfaces.js")
-    )
-    read = json.loads(js_facts("literals", [edges, page_paint, surfaces]))
+    page_paint = schema_model.ASSETS / "runtime" / "page-paint.js"
+    read = json.loads(js_facts("literals", [page_paint]))
     styles = schema_model.ASSETS / "styles"
     sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
-    [[read_property]] = read[str(surfaces)]["calls"]["getPropertyValue"]
-    for spelling in (
-        read_property + ":",
-        "var(" + read[str(edges)]["constants"]["THREAD_PANEL_PROP"] + ")",
-        "var(" + read[str(edges)]["constants"]["DRAWER_SLOT_PROP"] + ")",
-        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.item"] + "]",
-    ):
-        assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
-    for spelling in (
-        '[data-lf-auxiliary-surface="queue"]',
-        '[data-lf-auxiliary-surface="threads"]',
-    ):
-        assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
+    spelling = (
+        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.item"] + "]"
+    )
+    assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
 
 def test_prepaint_marks_the_state_the_stylesheet_reads():
@@ -2264,8 +2251,8 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
 
 def test_a_server_names_its_leaf_where_another_vendored_the_page(page_dir):
     """The served state names the Leaf the server runs only where it is another than
-    the page's, so the banner sets the two side by side exactly when they differ,
-    judged by the commit the Leaf records rather than its short label."""
+    the page's, so the leaf's About menu sets the two side by side exactly when they
+    differ, judged by the commit the Leaf records rather than its short label."""
     from leaf import hosting as hosting_model
 
     (page_dir / "index.html").write_text(PLAIN_PAGE, encoding="utf-8")

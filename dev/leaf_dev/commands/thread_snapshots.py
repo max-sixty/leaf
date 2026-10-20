@@ -23,10 +23,10 @@ leaf_assets.stage / publish and updates the thread-expectations pin, leaving med
 revision untouched. Acceptance never occurs in normal tests. CI retains failed run
 evidence. Small antialias noise is excluded by Pixelmatch's AA handling and
 calibrated 0.01 perceptual tolerance; every other mismatched pixel fails, with no
-whole-image allowance. Compare the padded response frame below the banner's canonical
-painted edge, retaining frame shadows and the editor at the viewport foot, where the
-thread panel paints over the bottom bar. Keep full captures for review. Independently
-compare viewport geometry so a translated crop cannot conceal placement changes.
+whole-image allowance. Compare the padded response frame inside the window the page
+shows (`shownWindow`), retaining frame shadows and the editor at the viewport foot.
+Keep full captures for review. Independently compare viewport geometry so a
+translated crop cannot conceal placement changes.
 
 First insertion has an immediate words/busy/opacity observer before stabilized
 screenshots. Refusal's exact feedback and native visibility are observed at mutation;
@@ -109,8 +109,8 @@ def visible_capture(image: Image.Image, clip: dict, window: dict) -> Image.Image
     """Keep captured pixels inside the response window, including frame halos.
 
     Both approved and actual images retain their full padded capture separately.
-    Crop at whole pixels inside the window so no partial banner pixel enters the
-    response oracle. The independently compared region still owns placement.
+    Crop at whole pixels inside the window so no partial pixel of Leaf's chrome
+    enters the response oracle. The independently compared region still owns placement.
     """
     return image.crop(
         (

@@ -16,7 +16,7 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { bannerFoot, shownBox } from "../geometry.js";
+import { shownBox } from "../geometry.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
@@ -48,7 +48,6 @@ import { beginWalk, walkPosition } from "../walk-position.js";
 
 import {
   allButCommandReference,
-  coveringAuxiliarySurface,
   pageCommand,
   pageScope,
 } from "../keyboard/register.js";
@@ -82,8 +81,8 @@ const searchCount = (position, total) => `${position} of ${total}`;
 
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
-// chosen target; `/` opens the page's text search directly or from that map. The banner's
-// Select element opens this same picker, and its Cancel selection closes it. A choice
+// chosen target; `/` opens the page's text search directly or from that map. The floating
+// panel's Select element opens this same picker. A choice
 // in Design mode keeps that mode's design intent; Draw reserves the page for ink and
 // offers no picker. Area capture also claims the page until it ends. While the picker
 // stands, the page is armed as it is under a held Alt (aim.js): a mouse shows the target
@@ -118,8 +117,7 @@ export function createTargetPicker({
   readTargets,
   armChanged,
 }) {
-  const canChoose = () =>
-    anchoringIsReady() && !coveringAuxiliarySurface() && !pointerModeActive();
+  const canChoose = () => anchoringIsReady() && !pointerModeActive();
 
   let pickerOpen = false;
   let pageSearchOpen = false;
@@ -296,9 +294,8 @@ export function createTargetPicker({
   }
 
   function startingMatch(found) {
-    const top = bannerFoot();
     const next = found.findIndex(
-      (segments) => rangeOf(segments).getBoundingClientRect().bottom > top,
+      (segments) => rangeOf(segments).getBoundingClientRect().bottom > 0,
     );
     return next === -1 ? 0 : next;
   }
@@ -529,7 +526,6 @@ export function createTargetPicker({
           targetShown(target) ? targetBounds(target, reading) : null,
         ])
         .filter(([, rect]) => rect);
-      const top = bannerFoot();
       return seated.map(([target, rect]) => {
         const steps = [...target.code];
         return {
@@ -538,7 +534,7 @@ export function createTargetPicker({
             key: hintRenderKey(hintElement(target)),
             className: `lf-key-badge lf-key-hint lf-target-picker-hint${
               target === current ? " lf-current" : ""
-            }${rect.clippedTop || rect.top < top ? " lf-in" : ""}`,
+            }${rect.clippedTop || rect.top < 0 ? " lf-in" : ""}`,
             hintCode: target.code,
             sequence: keySequenceModel(
               steps,
@@ -550,7 +546,7 @@ export function createTargetPicker({
           // Control keys sit just outside their own upper-left corner. Owner keys
           // stay before the owner; neither route writes a key into its target.
           left: rect.left,
-          top: Math.max(top, rect.top),
+          top: Math.max(0, rect.top),
         };
       });
     },
@@ -564,8 +560,8 @@ export function createTargetPicker({
     chrome: hintChrome,
   });
 
-  // A mark for each box the match's words take, while a covering surface leaves any of
-  // it in sight, standing over what holds the words and carried by what carries them
+  // A mark for each box the match's words take, while any of it is in sight, standing
+  // over what holds the words and carried by what carries them
   // (`anchorFor`).
   function paintSearchMatches() {
     const segments = matches[active];
@@ -607,9 +603,6 @@ export function createTargetPicker({
     keys: ["/"],
     description: "Search all the text on the page",
     title: "search page",
-    // Once a target is in hand, its actions own the two short-line slots. Search stays
-    // live to replace that target and remains in the complete reference.
-    lineWhen: () => !Boolean(fabAnchorAt()),
     when: () => anchoringIsReady() && !pageSearchOpen,
     run: openPageSearch,
   };
@@ -639,9 +632,6 @@ export function createTargetPicker({
   const TARGETING_BACK = {
     id: "targeting.back",
     keys: ["Escape"],
-    // Search keeps its two unfamiliar operations on the shortcut bar; Escape remains
-    // available in the complete reference.
-    promoteEscape: () => !pageSearchOpen,
     description: () =>
       pageSearchOpen
         ? searchReturnsToHints
@@ -770,15 +760,10 @@ export function createTargetPicker({
     title: "select element",
     touch: "Select element",
     menu: "annotate",
-    // Once the field is open, its typing scope owns character keys. This gate also keeps
-    // the route off the short line while a target is in hand.
-    lineWhen: () => !Boolean(fabAnchorAt()),
     when: canChoose,
     run: (/** @type {Parameters<typeof openTargetPicker>} */ ...args) =>
       openTargetPicker(...args),
   });
-  // Search remains one press from the expanded shortcut bar and named in full by the
-  // reference.
   pageCommand(PAGE_SEARCH);
   pageCommand(REPEAT_PAGE_SEARCH);
 

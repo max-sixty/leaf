@@ -1,15 +1,11 @@
-/* Settlement command continuations and mechanical resolution-fold motion.
-   Thread views own every generated control and reflected folding attribute.
+/* Settlement command continuations. Thread views own every generated control.
 
    A settlement's landing is the surface's own: `optimistic` carries the user where the
    gesture leaves them, and `reverse` puts them back once it no longer stands. The log
    refusing it runs `reverse` here; the user taking it back runs the same `reverse`,
-   which the undo door holds by the gesture's attempt, under the undo's intent. The
-   user's other turns in a panel thread land the same way (`landGesture`), going with
-   the thread out of a view it leaves (thread-card.js, `#goWithThread`). */
+   which the undo door holds by the gesture's attempt, under the undo's intent. */
 import { randomId } from "../ids.js";
 import { paintKeys } from "../keyboard/scopes.js";
-import { foldBlock } from "../motion.js";
 import { pendingForParent } from "../pending/model.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -46,7 +42,7 @@ export async function settleThread({
  * `landing` is the surface's {optimistic, reverse}, or null; `answer` the send's
  * answer; `pending` whether the gesture is still on its way, so a landing the log
  * answered before the page presented the gesture waits for that answer. */
-export async function landGesture({ landing, answer, pending }) {
+async function landGesture({ landing, answer, pending }) {
   const land = async (step) => {
     try {
       return Boolean(await step?.());
@@ -74,42 +70,3 @@ export async function landGesture({ landing, answer, pending }) {
     paintKeys();
   }
 }
-
-// Fold motion belongs to the rendered card. The same Thread can stand in several
-// panels, each with its own node, disclosure, and animation lifetime.
-const folding = new Map();
-export function foldOut(node, repaintThread) {
-  const running = folding.get(node);
-  if (running && node.isConnected) return true;
-  folding.delete(node);
-  running?.played.cancel();
-  const played = foldBlock(node);
-  if (!played) return false;
-  const record = { played };
-  folding.set(node, record);
-  played.finished.then(
-    () => {
-      if (folding.get(node) !== record) return;
-      folding.delete(node);
-      repaintThread();
-    },
-    () => {},
-  );
-  return true;
-}
-
-export function finishFold(node) {
-  const record = folding.get(node);
-  folding.delete(node);
-  record?.played.cancel();
-}
-export const hasFolding = (root) =>
-  [...folding.keys()].some((node) => node.isConnected && root.contains(node));
-// Settles once every fold now running under `root` has ended, finished or cancelled.
-export const whenFolded = (root) =>
-  Promise.allSettled(
-    [...folding]
-      .filter(([node]) => root.contains(node))
-      .map(([, { played }]) => played.finished),
-  );
-export const isFolding = (node) => folding.has(node);

@@ -18,7 +18,7 @@ delivered at prompt:
   instruction: >-
     Leaf has new input for your turn. Read this complete delivery before answering.
   delivery:
-    format: leaf-delivery/9
+    format: leaf-delivery/10
     id: <delivery>
     created_at: <time>
     acknowledge: null
@@ -41,9 +41,8 @@ delivered at prompt:
         handling:
           h1: >-
             The thread has no title yet. Name it with `--title "<a few words>"`
-            on your reply, so the Threads panel lists its subject instead of its
-            opening words. If Leaf has already named it from its first message,
-            that name stays.
+            on your reply, so Threads lists its subject instead of its opening words.
+            If Leaf has already named it from its first message, that name stays.
           h2: >-
             If the event asks for work, first post one line in its thread saying
             what you will do, before any other command, even reading the source:

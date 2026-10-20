@@ -1,35 +1,41 @@
 """The comment composer's contents and recovery: the smallest message, pasted pictures
-and uploads, Return on a phone, covering panels, and Resume writing."""
+and uploads, Return on a phone, and Resume writing."""
 
 import base64
-import re
 
 import pytest
 from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered
+from leaf.render_checks import one_frame
 from playwright.sync_api import expect
 from render_cases_interaction import ITEM_PAGE, live_url
 from render_cases_layout import glyph_action_face, token_colour
 from render_cases_navigation import compose, pending_text
 from render_harness import (
     LONG_PAGE,
+    PANEL,
+    available_commands,
     draft_control,
     example_media,
+    expect_error_waits_in_menu,
     holding,
     leaf_page,
     open_page,
     page_comment,
+    panel_control,
+    panel_field,
     panel_settled,
     primed,
     resized,
     scroll_settled,
     select_words,
     sending,
-    shortcut_bar_text,
     stamp_page,
     stored_draft_text,
     write,
 )
+
+from browser.drafts import expect_panel_says
+from browser.threads import clear_of_the_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -37,9 +43,10 @@ pytestmark = pytest.mark.shifts_unsurveyed
 @pytest.mark.watch_shifts
 def test_a_single_space_is_message_content_in_every_composer(browser, serve):
     """The shared field and both drawing-aware variants admit the smallest message,
-    each box sending in turn on one page.
+    each box sending in turn on one page: an open thread's reply and the page comment,
+    both in the panel's field, and the passage composer.
 
-    Each box sends from the one press the shared field dresses, and that press paints
+    The composer sends from the one press the shared field dresses, and that press paints
     nothing of its own: at rest the accent glyph is the whole of what a user sees, and
     the disc behind it is a clear 28px that takes the accent tint under the pointer,
     which is why it stays the same size as the target around it grows.
@@ -53,28 +60,35 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             surface = page.locator(".lf-composer")
         elif box == "general":
             page_comment(page)
-            surface = page.locator(".lf-general")
+            surface = page.locator(".lf-fp-field")
         else:
-            page.locator(".lf-threads-toggle").click()
-            panel_settled(page)
-            surface = page.locator(".lf-threads > .lf-thread").first
-            surface.locator(".lf-thread-summary").click()
+            page.locator(".lf-fp-threads").click()
+            panel_settled(page, view="threads")
+            page.locator(".lf-fp-thread").first.click()
+            panel_settled(page, view="thread")
+            surface = page.locator(".lf-fp-field")
         field = surface.locator("leaf-text")
         send = surface.locator(".lf-compose-submit")
         write(field, " ")
         expect(send).to_have_attribute("aria-disabled", "false")
-        face = glyph_action_face(send)
-        assert face["press"] == "rgba(0, 0, 0, 0)", (box, face)
-        assert face["glyph"] == token_colour(page, "--accent"), (box, face)
-        assert face["disc"] == "rgba(0, 0, 0, 0)", (box, face)
-        assert face["discWidth"] == "28px", (box, face)
-        send.hover()
-        hovered = glyph_action_face(send)
-        assert hovered["press"] == "rgba(0, 0, 0, 0)", (box, hovered)
-        assert hovered["disc"] == token_colour(page, "--accent-tint"), (box, hovered)
-        assert hovered["discWidth"] == "28px", (box, hovered)
-        with sending(page, f"the {box} message"):
-            send.click()
+        if box != "composer":
+            # The panel's field shows Send only once its words hold more than space
+            # (floating-panel.js, `typing`), so its keys send the space.
+            with sending(page, f"the {box} message"):
+                field.press("ControlOrMeta+Enter")
+        else:
+            face = glyph_action_face(send)
+            assert face["press"] == "rgba(0, 0, 0, 0)", face
+            assert face["glyph"] == token_colour(page, "--accent"), face
+            assert face["disc"] == "rgba(0, 0, 0, 0)", face
+            assert face["discWidth"] == "28px", face
+            send.hover()
+            hovered = glyph_action_face(send)
+            assert hovered["press"] == "rgba(0, 0, 0, 0)", hovered
+            assert hovered["disc"] == token_colour(page, "--accent-tint"), hovered
+            assert hovered["discWidth"] == "28px", hovered
+            with sending(page, f"the {box} message"):
+                send.click()
 
         message = [
             event
@@ -82,13 +96,10 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
             if event["kind"] in {"comment", "reply"}
         ][-1]
         assert message["text"] == " ", box
-        if box == "reply":
-            page.locator(".lf-threads-toggle").click()
-            panel_settled(page, open=False)
 
 
 def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, serve):
-    """A press on the banner takes the composer off screen and keeps the words, and for
+    """A press on the chrome takes the composer off screen and keeps the words, and for
     a long time that was the whole of it: the bar went, the mark went, no notice and no
     dialog said anything, and the only way back was returning to that version and
     reselecting that exact passage. Words a user cannot find again are words they have
@@ -98,30 +109,22 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     address is offered only while there is a draft still there to go to, which is the half
     that keeps the sentence honest."""
     page = open_page(browser, serve(LONG_PAGE))
-    kept = "Half a sentence, and then the banner."
+    kept = "Half a sentence, and then the panel."
 
-    # Nothing written, nothing to return to: the sequence does not offer the destination.
-    page.keyboard.press("g")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Threads panel")
-    draft_route = page.locator('.lf-shortcut[data-lf-command-ids~="writing.resume"]')
-    expect(draft_route).to_have_count(0)
-    page.keyboard.press("Escape")
+    # Nothing written, nothing to return to: the address is not offered.
+    assert "writing.resume" not in available_commands(page)
 
     compose(page, "#p3", kept)
     assert pending_text(page), "the open box left its own passage unmarked"
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert pending_text(page) == "", "a box off screen left its passage marked"
-    notice = page.locator(".lf-notice")
-    expect(notice).to_have_class(re.compile(r"\bshow\b"))
-    assert notice.inner_text() == "Draft kept — g i resumes writing"
+    expect_panel_says(page, "Draft kept — g i resumes writing")
 
+    assert "writing.resume" in available_commands(page)
     page.keyboard.press("g")
-    shortcut_bar_text(page)
-    # The one-row line can trim this destination while leaving it in the register.
-    expect(draft_route).to_have_count(1)
     page.keyboard.press("i")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -284,9 +287,12 @@ def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser,
     holding(page, held, 1, "the pasted image")
     compose(page, "#p1")
     held.pop().continue_()
-    expect(page.locator(".lf-notice")).to_contain_text("Image not added")
     expect(box).not_to_have_attribute("aria-busy", "true")
     expect(page.locator(".lf-composer-media img")).to_have_count(0)
+    # The error is about the composer, which the panel's field does not speak for.
+    expect_error_waits_in_menu(
+        page, "Image not added — the comment moved before it finished uploading"
+    )
 
 
 def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
@@ -323,26 +329,23 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     expect(shelf.locator("img")).to_be_visible()
 
     # Put away: the picture is words enough to keep, and to be told about.
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
     expect(page.locator(".lf-composer")).to_be_hidden()
-    notice = page.locator(".lf-notice")
-    assert notice.inner_text() == "Draft kept — g i resumes writing"
+    expect_panel_says(page, "Draft kept — g i resumes writing")
+    assert "writing.resume" in available_commands(page)
     page.keyboard.press("g")
-    shortcut_bar_text(page)
-    expect(
-        page.locator('.lf-shortcut[data-lf-command-ids~="writing.resume"]')
-    ).to_have_count(1)
     page.keyboard.press("i")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", "")
     expect(shelf.locator("img")).to_be_visible()
 
     # Sent: the box is empty because the send emptied it, and says nothing about drafts.
-    # Every word the status line says through the send, not the one left standing at the
-    # end of it: a wrong sentence four seconds long is one the user reads.
+    # Every word a notice says through the send, not the one left standing at the end of
+    # it: a wrong sentence four seconds long is one the user reads. The live region hears
+    # every notice the panel shows, wherever it seats it.
     page.evaluate("""() => {
-      const el = document.querySelector('.lf-notice');
+      const el = document.querySelector('.lf-live');
       window.__said = [];
       new MutationObserver(() => window.__said.push(el.textContent)).observe(el, {
         childList: true,
@@ -354,7 +357,8 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-composer")).to_be_hidden()
     assert events_model.read_events(serve.page_dir)[-1]["text"] == image_markdown
-    assert page.evaluate("window.__said") == []
+    said = page.evaluate("window.__said")
+    assert not [words for words in said if "Draft kept" in words], said
 
     # And the next passage's box opens on nothing, shelf included.
     typed = "A second comment, and no image with it."
@@ -380,29 +384,29 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
     page = open_page(browser, serve(source))
     write(page_comment(page), "A page-wide draft")
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+    expect(panel_field(page)).not_to_be_focused()
     page.keyboard.press("g")
     expect(page.locator(".lf-go-to-hint[data-lf-hint-code]").first).to_be_visible()
     labels = page.locator(".lf-go-to-hint[data-lf-hint-code]").evaluate_all(
         "els => els.map(el => el.dataset.lfHintCode)"
     )
     assert labels and all("i" not in label for label in labels)
-    # The page's draft resumes in the banner's page comment card.
+    # The page's draft resumes in the panel's field.
     page.keyboard.press("i")
-    card_box = page.locator(".lf-page-comment-card leaf-text")
-    expect(card_box).to_be_focused()
-    expect(card_box).to_have_js_property("value", "A page-wide draft")
+    box = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "A page-wide draft")
     page.keyboard.press("Escape")
     context = browser.new_context(
         is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
     )
     touch = open_page(browser, serve(LONG_PAGE), context=context)
-    touch.keyboard.press("c")
-    general = touch.locator(".lf-page-comment-card leaf-text")
+    general = page_comment(touch)
     write(general, "A touch draft")
     touch.keyboard.press("Escape")
-    touch.get_by_role("button", name="More page controls", exact=True).click()
-    touch.get_by_role("button", name="Resume writing", exact=True).click()
+    expect(general).not_to_be_focused()
+    # A finger has no `g i`, so Resume writing stands under the menu's Navigate.
+    panel_control(touch, "command:writing.resume", at="navigate").click()
     expect(general).to_be_focused()
     expect(general).to_have_js_property("value", "A touch draft")
 
@@ -448,7 +452,7 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     source_entry = page.evaluate("navigation.currentEntry.key")
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
     if hidden_tab:
         page.evaluate("""() => {
           const held = new Promise(resolve => { window.releaseResumeLayout = resolve; });
@@ -476,9 +480,9 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     else:
         page.keyboard.press("g")
         page.keyboard.press("i")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(edit).to_be_focused()
-    expect(edit).to_be_in_viewport()
+    # In sight: in the window, clear of the panel's open view where it covers the page.
+    assert clear_of_the_panel(page, edit)
     expect(edit).to_have_js_property("value", "Last edit")
     assert edit.evaluate("el => el.selectionStart") == 1
     page.go_back()
@@ -529,7 +533,7 @@ def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("i")
-    box = page.locator(".lf-page-comment-card .lf-general leaf-text")
+    box = page.locator('.lf-fp-field leaf-text[name="comment"]')
     joined = "A page-wide thought.\n\nAn unsent edit."
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", joined)
@@ -537,7 +541,8 @@ def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
         len(joined),
         len(joined),
     ]
-    expect(page.locator(".lf-notice")).to_have_text(
+    # The caret stands in the field, where nothing passing is said but to a listener.
+    expect(page.locator(".lf-live")).to_have_text(
         "Its box is gone, so its words moved to a comment on the page"
     )
     assert stored_draft_text(page, "edit:editable") is None
@@ -577,9 +582,7 @@ def test_an_older_version_leaves_words_its_box_is_missing_from_where_they_are(
     page.locator("body").focus()
     page.keyboard.press("g")
     page.keyboard.press("i")
-    expect(page.locator(".lf-notice")).to_have_text(
-        "That writing place is unavailable on this version"
-    )
+    expect_panel_says(page, "That writing place is unavailable on this version")
     assert stored_draft_text(page, "edit:editable") == "An unsent edit."
     assert stored_draft_text(page, "general") is None
 
@@ -623,47 +626,10 @@ def test_composer_return_edits_or_sends_according_to_its_keyboard(
     assert [event["text"] for event in comments] == [exact]
 
 
-@pytest.mark.parametrize("surface", ["on", "threads"])
-def test_covering_surface_retains_the_open_passage_editor(browser, serve, surface):
-    """Every covering auxiliary surface lends room back to the same native editor."""
-    page = open_page(browser, serve(ITEM_PAGE))
-    resized(page, 900, 844)
-    page.locator(".lf-queue" if surface == "on" else ".lf-threads-toggle").click()
-    rendered(page)
-    select_words(page, "#h")
-    page.keyboard.press("c")
-    field = page.locator(".lf-fab-input")
-    words = "Keep this unfinished comment."
-    write(field, words)
-    field.press("Home")
-    field.press("ArrowRight")
-    field.evaluate("el => { window.heldDraftEditor = el; }")
-    resized(page, 390, 844)
-    panel = page.locator(".lf-queue-panel" if surface == "on" else ".lf-thread-panel")
-    expect(panel).to_be_visible()
-    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-withheld", "")
-    expect(field).not_to_be_focused()
-    landing = panel.locator(
-        ".lf-drawer-list button, .lf-drawer-list a[href]"
-        if surface == "on"
-        else ".lf-threads"
-    ).first
-    expect(landing).to_be_focused()
-    resized(page, 900, 844)
-    expect(field).to_be_visible()
-    expect(field).to_have_js_property("value", words)
-    assert field.evaluate("el => el === window.heldDraftEditor")
-    assert field.evaluate("el => el.selectionStart") == 1
-    page.keyboard.press("g")
-    page.keyboard.press("i")
-    expect(field).to_be_focused()
-
-
 def test_nested_markdown_decoration_uses_the_renderers_block_markers(browser, serve):
     """Nested headings keep their face and fence-shaped code stays code while editing."""
     page = open_page(browser, serve(LONG_PAGE))
-    page_comment(page)
-    field = page.locator(".lf-general leaf-text")
+    field = page_comment(page)
     source = "> - # Heading\n\n````\n```\nbody\n````\n\n**end**"
     write(field, source)
     expect(field).to_have_js_property("value", source)

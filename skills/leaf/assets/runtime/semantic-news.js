@@ -5,8 +5,8 @@
    which source versions were observed, not a second account of what the page
    currently means.
 
-   New agent content is the server's `unread` reading, the same one the Threads panel
-   and banner paint: a version is news the first time this tab sees it unread, and
+   New agent content is the server's `unread` reading, the same one the floating panel
+   paints: a version is news the first time this tab sees it unread, and
    never once the user has taken it in, here or in another tab. What the user has
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
@@ -17,7 +17,7 @@ import { moved } from "./thread/model.js";
 const identity = (record) => record.attempt ?? record.id;
 
 // News reads the shown revision's view: the one the page just presented, whose On me list
-// the drawer and banner count paint. While an activation waits (a gesture defers it, or
+// the floating panel counts. While an activation waits (a gesture defers it, or
 // the document is a pinned version), an item the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
 export function semanticNewsReading(root) {
@@ -25,7 +25,7 @@ export function semanticNewsReading(root) {
   if (!view) throw new Error("The shown page has no browser reading");
   const state = root.authoritative;
   return {
-    page: view.document,
+    items: view.items,
     thread: view.thread,
     workflows: state.workflows,
     activity: state.activity,
@@ -47,18 +47,13 @@ function unreadContent(threadView) {
     .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
 
-function userObligations(page, threadView) {
+function userObligations(items) {
   const held = new Map();
-  for (const item of page.items.user)
-    held.set(JSON.stringify(["page", item.id]), {
-      source: item.id,
-      thread: null,
-    });
-  for (const item of threadView.items.user) {
-    held.set(JSON.stringify(["thread", item.thread, item.id]), {
-      source: item.id,
-      thread: item.thread,
-    });
+  for (const item of items) {
+    if (item.next_actor !== "user") continue;
+    const key =
+      item.thread === null ? ["page", item.id] : ["thread", item.thread, item.id];
+    held.set(JSON.stringify(key), { source: item.id, thread: item.thread });
   }
   return held;
 }
@@ -91,7 +86,7 @@ const agentAvailable = (activity) =>
 
 export function observeSemanticNews(prior, reading) {
   const content = unreadContent(reading.thread);
-  const obligations = userObligations(reading.page, reading.thread);
+  const obligations = userObligations(reading.items);
   const failures = responseFailures(reading.workflows);
   const available = agentAvailable(reading.activity);
   const first = prior === null;
@@ -155,7 +150,7 @@ export function observeSemanticNews(prior, reading) {
 // an answer can replace a failure while the user's own command holds the line.
 export function currentSemanticNews(news, reading, observed) {
   const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
-  const obligations = userObligations(reading.page, reading.thread);
+  const obligations = userObligations(reading.items);
   const failures = responseFailures(reading.workflows);
   return news.flatMap((item) => {
     switch (item.kind) {

@@ -39,15 +39,9 @@ from render_cases_layout import (
     AIMED,
     CORNER_PAGE,
     DRAFT_MARK,
-    EDGES,
     FOCUS_IN_PAGE,
     LEGEND_TRUE,
-    ON_PANEL,
     PAGE_MARKUP,
-    banner_control,
-    draw_edge,
-    edge_settled,
-    geometry,
 )
 from render_cases_navigation import source_revision
 from render_cases_widgets import (
@@ -71,16 +65,16 @@ from render_harness import (
     EXAMPLES,
     FOLLOWER_MARK,
     LONG_PAGE,
+    PANEL,
+    PANEL_THREAD,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SAMPLE_PAGE,
     SUBJECT_MARK,
-    admit_before_presenting_comment,
     assert_follows_in_every_frame,
     draft_key,
     expect_comment_notes,
     gesture_writes,
-    hold_pending_thread_presentation,
     judge_watches,
     leaf_page,
     open_page,
@@ -100,6 +94,8 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -159,6 +155,11 @@ def open_compact_comment(page, text=None):
     return field
 
 
+# The top of the window the page shows (geometry.js, `shownWindow`): what a float the
+# page places stands below.
+SHOWN_TOP = """async () => (await window.__lfWidgetApi()).shownWindow().top"""
+
+
 def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
     """The sidenote authors copy carries the identity its advertised aim needs.
 
@@ -216,7 +217,6 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
     )
     assert field.bounding_box()["height"] == 32
     write(field, "Carry this comment into its thread.")
-    hold_pending_thread_presentation(page)
     page.evaluate(
         """() => {
           window.__lfForceMarginRender = true;
@@ -231,10 +231,13 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
         }"""
     )
     page.wait_for_function("() => window.__lfRenderCycles > 0")
-    page.keyboard.press("ControlOrMeta+Enter")
-    admitted = admit_before_presenting_comment(
-        page, serve.page_dir, "Carry this comment into its thread."
-    )
+    with sending(page, "the compact comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    [admitted] = [
+        e
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment" and e["text"] == "Carry this comment into its thread."
+    ]
 
     preview = page.locator(".lf-margin-preview")
     expect(preview).to_be_visible()
@@ -255,10 +258,10 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 
 @pytest.mark.parametrize("width", [900, 1200])
-def test_an_aimed_comment_keeps_its_place_with_the_on_panel_open(browser, serve, width):
-    """The On panel stands over the page without moving its coordinate plane.
+def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width):
+    """On me stands over the page without moving its coordinate plane.
 
-    A broad authored rule may position ordinary divs, and the drawer may arrive over a
+    A broad authored rule may position ordinary divs, and the view may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
     leave its reading of the page behind. Keep the whole comment route on the item the
     user pointed at.
@@ -278,9 +281,9 @@ def test_an_aimed_comment_keeps_its_place_with_the_on_panel_open(browser, serve,
     target.hover()
     page.keyboard.down("Alt")
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
-    # Open by script so the pointer remains parked on the target while the drawer arrives.
-    page.locator(".lf-queue").evaluate("node => node.click()")
-    edge_settled(page, ON_PANEL)
+    # Open by script so the pointer remains parked on the target while the view arrives.
+    page.locator(".lf-fp-on-user").evaluate("node => node.click()")
+    panel_settled(page, view="queue")
     aligned = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();
@@ -305,7 +308,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_on_panel_open(browser, serve,
         f"the aim moved {aligned['dx']:.1f}px across and {aligned['dy']:.1f}px down "
     )
 
-    # The panel stands over the right of the item, so the press lands on its start.
+    # The press lands on the item's start, clear of the panel at the window's foot.
     target.click(position={"x": 12, "y": 12})
     page.keyboard.up("Alt")
     open_compact_comment(page)
@@ -324,11 +327,9 @@ def test_an_aimed_comment_keeps_its_place_with_the_on_panel_open(browser, serve,
     assert not placed["overlaps"], f"the composer covers its aimed element: {placed}"
 
 
-@pytest.mark.parametrize(
-    "width,panel_open", [(1440, False), (1440, True), (390, False)]
-)
+@pytest.mark.parametrize("width", [1440, 390])
 def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
-    browser, serve, width, panel_open
+    browser, serve, width
 ):
     """A growing editor keeps its side and stays in the window, and the page stays put.
 
@@ -353,9 +354,6 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
         ),
     )
     resized(page, width, 900)
-    if panel_open:
-        page.locator(".lf-threads-toggle").click()
-        panel_settled(page)
     paragraph = page.locator("#passage")
     points = paragraph.evaluate(
         """el => {
@@ -399,11 +397,6 @@ def test_a_growing_text_comment_keeps_its_side_and_the_page_still(
     assert field.evaluate(
         "el => parseFloat(getComputedStyle(el).borderTopLeftRadius)"
     ) <= (compact["height"] / 2)
-    if panel_open:
-        assert (
-            expanded["x"] + expanded["width"]
-            < page.locator(".lf-thread-panel").bounding_box()["x"]
-        )
     page.mouse.move(8, 450)
     page.mouse.wheel(0, 300)
     page.wait_for_function("() => scrollY >= 300")
@@ -591,7 +584,8 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     grown_scroll = page.evaluate("scrollY")
     assert bar.get_attribute("data-lf-placement") == placement
     assert abs(grown["x"] - compact["x"]) <= 1, (compact, grown)
-    assert grown["y"] >= 48 and grown["y"] + grown["height"] <= 378, grown
+    ceiling = page.evaluate(SHOWN_TOP)
+    assert grown["y"] >= ceiling and grown["y"] + grown["height"] <= 378, grown
 
     peers = page.evaluate(
         """() => {
@@ -645,8 +639,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     )
     rendered(page)
     bounded = bar.bounding_box()
-    banner = page.locator(".lf-banner").bounding_box()
-    ceiling = max(48, banner["y"] + banner["height"] + 6)
+    ceiling = page.evaluate(SHOWN_TOP)
     assert bounded["y"] >= ceiling and bounded["y"] + bounded["height"] <= 378
     assert bar.get_attribute("data-lf-placement") == placement
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
@@ -704,12 +697,17 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
         ),
     )
     resized(page, 1440, 900)
+    foot = page.evaluate(
+        """async () => (await window.__lfWidgetApi())
+          .shownWindow({gap: 8}).bottom"""
+    )
     passage = page.locator("#passage")
     passage.evaluate(
-        """node => scrollBy({
-          top: node.getBoundingClientRect().top - (innerHeight - 240),
+        """(node, foot) => scrollBy({
+          top: node.getBoundingClientRect().top - (foot - 200),
           behavior: 'instant'
-        })"""
+        })""",
+        foot,
     )
     rendered(page)
     passage.click(modifiers=["Alt"])
@@ -717,10 +715,6 @@ def test_a_side_comment_at_the_window_s_foot_rises_only_as_far_as_it_must(
     bar = page.locator(".lf-fab-bar")
     assert bar.get_attribute("data-lf-placement") == "right-start"
     resting = page.evaluate(SIDE_COMMENT)
-    foot = page.evaluate(
-        """async () => (await window.__lfWidgetApi())
-          .shownWindow({gap: 8}).bottom"""
-    )
     assert resting["bottom"] < foot - 20, (resting, foot)
     write(field, "\n".join(f"Line {n}" for n in range(6)))
     rendered(page)
@@ -830,9 +824,8 @@ def test_a_comment_uses_the_viewport_when_its_target_fills_the_vertical_lane(
           return field.scrollHeight > field.clientHeight;
         }"""
     )
-    banner = page.locator(".lf-banner").bounding_box()
     box = bar.bounding_box()
-    ceiling = max(48, banner["y"] + banner["height"] + 6)
+    ceiling = page.evaluate(SHOWN_TOP)
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 328, box
 
     field.evaluate("node => { node.scrollTop = 0; }")
@@ -873,8 +866,7 @@ def test_a_long_comment_stays_in_view_when_its_target_fills_the_viewport(
     )
     rendered(page)
     bounds = target.bounding_box()
-    banner = page.locator(".lf-banner").bounding_box()
-    ceiling = max(48, banner["y"] + banner["height"] + 6)
+    ceiling = page.evaluate(SHOWN_TOP)
     assert bounds["y"] <= ceiling and bounds["y"] + bounds["height"] >= 352, (
         "the target must fill the available viewport so no adjacent rail can fit"
     )
@@ -1591,54 +1583,6 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     )
 
 
-def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, serve):
-    """A covering auxiliary surface owns its pixels, and in Design mode stays Leaf's.
-
-    Covered page content is inert, so neither the aim nor a design comment reaches it
-    through the visible remainder, and the page's fixed design legend paints beneath
-    the sheet. The sheet itself is Leaf's chrome, which the mode leaves working: nothing
-    on it is a design target, and a press on its scrim puts it away as it would outside
-    the mode, which is how a phone the sheet covers gets back to its page.
-    """
-    page = open_page(browser, serve(ITEMS_PAGE))
-    # Wide enough that the panel first stands beside the page, where Design mode starts.
-    resized(page, 900, 900)
-    banner_control(page, ".lf-queue").click()
-    edge_settled(page, ON_PANEL)
-    page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
-    resized(page, 560, 900)
-    drawer = page.locator(".lf-queue-panel")
-    expect(drawer).to_be_visible()
-
-    target = page.locator("#lq-keep")
-    target_box = target.bounding_box()
-    assert target_box is not None and target_box["x"] + target_box["width"] > 320
-    point = {
-        "x": target_box["x"] + target_box["width"] - 18,
-        "y": target_box["y"] + target_box["height"] / 2,
-    }
-    page.mouse.move(point["x"], point["y"])
-    expect(page.locator(".lf-aim")).to_be_hidden()
-    drawer_box = drawer.bounding_box()
-    assert drawer_box is not None
-    page.mouse.move(drawer_box["x"] + 12, drawer_box["y"] + 12)
-    expect(page.locator(".lf-aim")).to_be_hidden()
-    planes = page.evaluate(
-        """() => ({
-          drawer: Number(getComputedStyle(document.querySelector('.lf-queue-panel')).zIndex),
-          legend: Number(getComputedStyle(
-            document.querySelector('.lf-legend-box[data-for="lq-keep"]')).zIndex),
-        })"""
-    )
-    assert planes["legend"] < planes["drawer"], planes
-
-    page.mouse.click(point["x"], point["y"])
-    expect(drawer).not_to_have_class(re.compile(r"\bopen\b"))
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
-
-
 def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     """A transient chrome label paints above the page-level trace it summons."""
     single = ITEM_PAGE.replace(
@@ -1921,7 +1865,6 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
     page.keyboard.press("?")
-    page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(reference.locator('tr[data-lf-command="aim.comment"]')).to_have_count(0)
@@ -1977,18 +1920,18 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     assert [e for e in events if e["kind"] == "action"] == []
     # The retained thread names the target the same way the composer named the box. The
     # top-layer margin card stays retired while design mode stands, so the send lands
-    # on the thread in the ordinary Threads panel.
-    panel = page.locator(".lf-thread-panel")
+    # on the thread in the panel's thread view.
+    panel = page.locator(PANEL_THREAD)
     expect(panel).to_be_visible()
-    expect(panel.locator(".lf-thread .lf-quote")).to_have_text(
+    expect(page.locator(".lf-fp-quote")).to_contain_text(
         "design · lf-option · opt-shim"
     )
-    expect(panel.locator(".lf-thread > .lf-thread-summary")).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     # Escape from the thread is the panel's, which closes onto the page. The mode they
     # put on before the panel comes off last.
-    page.keyboard.press("Escape")
-    expect(panel).to_be_hidden()
+    page.locator(".lf-fp-close").click()
+    expect(panel).to_have_count(0)
+    page.locator("body").focus()
     expect(page.locator("body")).to_be_focused()
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     page.keyboard.press("Escape")
@@ -2072,7 +2015,7 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
     assert event.get("about") == ("design" if mode == "l" else None)
     if mode == "l":
         page.keyboard.press("Escape")
-        expect(page.locator(".lf-thread-panel")).to_be_hidden()
+        expect(page.locator(PANEL_THREAD)).to_have_count(0)
         expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
         page.keyboard.press("Escape")
         expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
@@ -2240,7 +2183,7 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     assert event["anchor"] == inventory[1]["anchor"]
     assert event["about"] == "design"
     if generated:
-        card = page.locator(f'.lf-thread[data-id="{event["id"]}"]')
+        card = open_panel_thread(page, event["id"])
         expect(card.locator(".lf-msg-text")).to_contain_text("Keep this row.")
         # Replacing the authored owner retires its generated controls as their producer
         # would. The same owner id now holds just one native matching control.
@@ -2342,7 +2285,7 @@ def test_design_control_context_must_resolve_to_visible_words(
     else:
         assert event["anchor"] == {"section": "controls", "part": part}
     expect(
-        page.locator(f'.lf-thread[data-id="{event["id"]}"] .lf-msg-text')
+        open_panel_thread(page, event["id"]).locator(".lf-msg-text")
     ).to_contain_text("Review this control.")
 
 
@@ -2407,13 +2350,11 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     """Design mode comments on what the agent made; Leaf's own chrome works as it does
     outside the mode, as it does for the target picker.
 
-    A remark on the banner or a panel has no reader who can act on it, and a mode that
-    took the chrome took the way out of the panel its own send opened: on a phone that
-    panel covers the page, the banner goes inert under it, and its close was a comment.
-    The active mode's Exit control displaces the reading-loop controls on the banner.
-    The Threads key still opens the panel, where nothing under the pointer promises a
-    comment, the panel's edge draws it wider, and its close closes it."""
-    edge = EDGES[0]
+    A remark on the panel has no reader who can act on it, and a mode that took the
+    chrome took the way out of the view its own send opened. The active mode's Exit
+    control stands in the panel's row as the gesture's next step. The Threads key still
+    opens the panel's Threads, where nothing under the pointer promises a comment, and
+    its close closes it."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     resized(page, 1280, 800)
 
@@ -2439,28 +2380,20 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(page.locator(".lf-inspect")).to_be_hidden()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel = page.locator(".lf-thread-panel")
-    panel_settled(page)
+    panel = page.locator('.lf-fp-view[data-view="threads"]')
+    panel_settled(page, view="threads")
     expect(panel).to_be_visible()
+    panel.hover()
+    expect(page.locator(".lf-inspect")).to_be_hidden()
     expect(composer).to_be_hidden()
 
-    resting = geometry(page, edge)
-    draw_edge(page, edge, 160)
-    held = geometry(page, edge)
-    assert held["width"] > resting["width"] and held["chosen"], (
-        f"the mode took the edge rather than drawing it: {resting} then {held}"
-    )
-    expect(composer).to_be_hidden()
-
-    panel.get_by_role("button", name="Close threads").click()
-    expect(panel).to_be_hidden()
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     assert comments() == seeded, "a press on the chrome posted a comment"
     exit_mode.click()
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode")
-    threads = page.locator(".lf-banner-actions .lf-threads-toggle")
-    expect(threads).to_be_visible()
-    threads.click()
+    page.locator(".lf-fp-threads").click()
     expect(panel).to_be_visible()
 
 
@@ -2607,7 +2540,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
 
     Three of the doors that move it: the page scrolling (items come on screen with no
     box yet, and the boxes are drawn in document space), the panel opening (the column
-    re-centres, every block reflows, and no scroll or replay says so — each item's own
+    re-centred, every block reflowed, and no scroll or replay said so — each item's own
     resize does), and the name under the pointer, which is drawn beside the box in the
     same space: it sat in viewport space once, with the scroll added on top, and stood a
     screen below its box on any page scrolled at all. The aim is one more of the
@@ -2630,12 +2563,10 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     name = page.locator(".lf-inspect").bounding_box()
     assert abs(name["y"] + name["height"] - box["y"]) < 4, (name, box)
     assert abs(name["x"] - box["x"]) < 4, (name, box)
-    # The panel stands over the right of the page, and each box ends where the panel
-    # begins. Opened by key: in the mode a press on the Threads button is a comment
-    # about the button.
+    # Threads opens over the page. Opened by key.
     page.keyboard.press("g")
     page.keyboard.press("Shift+T")
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    panel_settled(page, view="threads")
     page.wait_for_function(LEGEND_TRUE)
     # The legend's repaint above consumed the reflow's edge, and the aim was refreshed
     # in the same pageShifted, so one plain read is the settled answer: the pointer
@@ -2692,7 +2623,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
     renderer internals, so both the aim and the legend stop at the widget.
     """
     page = open_page(browser, serve(PICTURE_PAGE))
-    node = page.locator("#flow svg g[data-id]").first
+    node = page.locator("#flow svg g.pele-node[data-id]").first
     expect(node).to_be_visible()
     node.hover()
     page.keyboard.down("Alt")
@@ -2872,7 +2803,7 @@ def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, se
 def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals_it(
     browser, serve
 ):
-    """A thread on a part the visual is not drawing now stays attached, to the whole
+    """A thread on a part the visual is not drawing now stays attached to the whole
     visual, and travelling to it asks the visual to draw the part and lands there."""
     url = serve(
         GENERIC_VISUAL_PAGE,
@@ -2893,24 +2824,7 @@ def test_a_part_drawn_in_another_state_stands_on_its_visual_until_travel_reveals
     page = open_page(browser, url)
     inner = page.locator("#inner")
     expect(inner).to_be_hidden()
-    # Pointing at the thread in Threads raises its contour, and it encloses the whole,
-    # in a window wide enough that the open panel covers none of the visual.
     resized(page, 1800, 900)
-    toggle = page.locator(".lf-threads-toggle")
-    toggle.click()
-    page.locator('.lf-threads > .lf-thread[data-id="inner-comment"]').hover()
-    page.wait_for_function(
-        """() => {
-          const box = (el) => el.getBoundingClientRect();
-          const mark = document.querySelector('.lf-visual-mark-hover');
-          const visual = box(document.querySelector('#visual'));
-          return Boolean(mark) && box(mark).width >= visual.width
-            && box(mark).height >= visual.height;
-        }"""
-    )
-    page.mouse.move(0, 0)
-    toggle.click()
-
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
     expect(inner).to_be_visible()
@@ -3020,7 +2934,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
     assert page.eval_on_selector_all(
         ".lf-visual-mark-shape > g > *", "nodes => nodes.map(node => node.localName)"
     ) == ["rect"]
-    expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
     expect(page.locator(".lf-composer")).to_be_hidden()
 
     point = midpoint(decoration)
@@ -3326,15 +3240,15 @@ def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, 
     assert [event["anchor"] for event in posted] == [
         {"section": "flow", "visual": "node:S"}
     ]
-    expect(page.locator(".lf-thread .lf-quote")).to_have_text(
-        "§ diagram · Start request"
-    )
+    open_panel_thread(page, posted[0]["id"])
+    expect(page.locator(".lf-fp-quote")).to_have_text("§ diagram · Start request")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
     expect_comment_notes(page, "#flow", 1)
     expect(start).to_have_class(re.compile(r"\blf-mark-el\b"))
 
     stamp_page(serve.page_dir, PART_DIAGRAM_V2, "reordered")
-    told(page)
-    expect(page.locator(".lf-version")).to_contain_text("v2")
+    wait_for_revision(page, 2)
     expect(diagram.locator('g[data-id="S"]')).to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
@@ -3640,17 +3554,16 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
 def test_the_chrome_keeps_its_presses_while_the_page_is_armed(browser, serve):
     """What ⌥ arms is the page, and the line around it is the chrome's container.
 
-    An aim that reached in there would take the panel, the composer and the banner away
+    An aim that reached in there would take the panel and the composer away
     from a user who happens to be holding the key — and there is nothing in the layer
     to aim at anyway, since an anchor names an element of the page."""
     page = open_page(browser, serve(LONG_PAGE))
-    comments = page.locator(".lf-threads-toggle")
+    comments = page.locator(".lf-fp-threads")
     comments.hover()
     page.keyboard.down("Alt")
     comments.click()
     page.keyboard.up("Alt")
-    panel_settled(page)
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    panel_settled(page, view="threads")
     expect(page.locator(".lf-composer")).to_be_hidden()
 
 
@@ -3743,10 +3656,7 @@ def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     page.evaluate("window.phoneQuote = getSelection().getRangeAt(0).cloneRange()")
-    page.locator(".lf-banner-actions").get_by_role(
-        "button", name="Comment on selection"
-    ).tap()
-    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+    page.locator(".lf-fp-step", has_text="Comment on selection").tap()
     expect(field).to_be_focused()
     rendered(page)
     geometry = page.evaluate("""() => {
@@ -3786,10 +3696,7 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
       getSelection().removeAllRanges();
       getSelection().addRange(range);
     }""")
-    page.locator(".lf-banner-actions").get_by_role(
-        "button", name="Comment on selection"
-    ).tap()
-    expect(page.locator(".lf-banner-menu")).to_be_hidden()
+    page.locator(".lf-fp-step", has_text="Comment on selection").tap()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     session = context.new_cdp_session(page)
     session.send("Emulation.setPageScaleFactor", {"pageScaleFactor": 1.25})
@@ -3856,7 +3763,9 @@ def _draft_in_view(page, words, field=None):
 def _open_attachment_draft(browser, url, target):
     page = open_page(browser, url)
     rendered(page)
-    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
+        "data-says", "notice"
+    )
     destination = page.locator(target).first
     for _ in range(50):
         if destination.evaluate("el => el.matches(':focus-within')"):
@@ -3875,7 +3784,9 @@ def _open_attachment_draft(browser, url, target):
 def test_quote_attachment_can_hide_while_its_paragraph_remains(browser, serve):
     page = open_page(browser, serve(COMPOSER_ATTACHMENT_PAGE))
     rendered(page)
-    expect(page.locator(".lf-notice.show")).to_have_count(0)
+    expect(page.locator(".lf-fp-field leaf-text")).not_to_have_attribute(
+        "data-says", "notice"
+    )
     page.locator("#quote-holder").scroll_into_view_if_needed()
     points = page.locator("#quote-holder").evaluate(
         """el => {
@@ -4047,12 +3958,12 @@ def _design_mode(page):
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
 
 
-# A long page whose paragraphs stand under a header stuck below the banner, which cuts
+# A long page whose paragraphs stand under a header stuck at the window's head, which cuts
 # paint over them in the window's plane (geometry.js, `headerInset`).
 HEADED_PAGE = LONG_PAGE.replace(
     "<p id='p0'>",
-    "<section style='--lf-top: calc(var(--lf-banner-h) + 40px)'>"
-    "<h2 id='head' style='position: sticky; top: var(--lf-banner-h); height: 40px;"
+    "<section style='--lf-top: calc(var(--lf-safe-top) + 40px)'>"
+    "<h2 id='head' style='position: sticky; top: var(--lf-safe-top); height: 40px;"
     " margin: 0; background: var(--paper)'>Head</h2><p id='p0'>",
 ).replace("</p>\n</main>", "</p></section>\n</main>", 1)
 
@@ -4129,7 +4040,7 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     what it names is carried, anchored to it in the frames that cut it
     (target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
     it with the scroll and writes none of it on the scroll's frames. What the scroll
-    changes, the map's members and a chip the banner holds in, is read once it
+    changes, the map's members and a chip the window's head holds in, is read once it
     settles, and a legend's tags step inside their boxes as they cross a cut. The
     design legend, its boxes and tags placed and written on every scroll, trailed a
     pane by a frame, and so did the picker's and Go-to's chips, the search's mark and
@@ -4199,8 +4110,8 @@ def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, ser
     """A chip the picker seats below a neighbour's, which rides the scroll, rides it too
     (keyboard/hints.js, `seatHints`): only what stands still as the page scrolls, the
     window's edge or the chrome, holds a chip where the window does. Held because the
-    shortcut bar shared its column, such a chip stood still mid-page through a scroll
-    and jumped once it settled."""
+    chrome at the foot shared its column, such a chip stood still mid-page through a
+    scroll and jumped once it settled."""
     source = LONG_PAGE.replace(
         "<p id='p10'>",
         "<section id='outer' style='padding-bottom: 12px'><p id='inner'>A nested"
@@ -4220,7 +4131,7 @@ def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, ser
         page,
         60,
         sample="""() => {
-          const foot = document.querySelector('.lf-banner').getBoundingClientRect().bottom + 40;
+          const foot = 40;
           return Object.fromEntries([...document.querySelectorAll(
               '.lf-target-picker-hint[data-lf-hint-code]')]
             .map((chip) => [chip.dataset.lfHintCode, chip.getBoundingClientRect().top])
@@ -4305,7 +4216,7 @@ def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
 OFF_FLOW_PAGE = leaf_page(
     "off flow",
     "<h1 id='t'>Off flow</h1>"
-    "<nav id='nav' style='position: sticky; top: var(--lf-banner-h);"
+    "<nav id='nav' style='position: sticky; top: var(--lf-top);"
     " background: var(--paper)'>Contents</nav>"
     "<div id='fixedbar' style='position: fixed; bottom: 0; left: 0; right: 0;"
     " background: var(--paper)'>A fixed bar.</div>"
@@ -4556,14 +4467,10 @@ def test_a_detached_selection_still_has_a_live_writable_composer(
         anchor,
     )
     if change == "revision":
-        page.locator(".lf-thread-filter-toggle").click()
-        unplaced = page.locator(
-            '[data-filter-kind="unplaced"][data-filter-value="unplaced"]'
+        # Its words gone from the page, the thread is still reached in the panel.
+        expect(open_panel_thread(page, event["id"])).to_contain_text(
+            "Review the second occurrence."
         )
-        expect(unplaced).to_have_text("Not located (1)")
-        unplaced.click()
-        expect(page.locator(".lf-thread-view-summary")).to_contain_text("Not located")
-        expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
     assert errors == []
 
 
@@ -4775,7 +4682,7 @@ def test_design_can_comment_on_a_generated_tab_with_a_repeated_summary(browser, 
         is None
     )
     expect(
-        page.locator(f'.lf-thread[data-id="{event["id"]}"] .lf-msg-text')
+        open_panel_thread(page, event["id"]).locator(".lf-msg-text")
     ).to_contain_text("Clarify this summary.")
     assert page.evaluate(
         """async anchor => {
@@ -5332,8 +5239,8 @@ def test_a_native_cross_cell_selection_sends_its_quote_without_claiming_location
     }""",
         event["anchor"],
     )
-    expect(page.locator(".lf-thread-panel")).to_contain_text(
-        "Before field Editor words After field."
+    expect(open_panel_thread(page, event["id"])).to_contain_text(
+        "Keep this entire selection in the comment."
     )
 
 

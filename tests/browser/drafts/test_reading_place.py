@@ -114,18 +114,15 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
 
 
 @pytest.mark.parametrize("region", [False, True], ids=["page", "pane"])
-def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
-    browser, serve, region
-):
-    """The banner takes a second row when the window narrows. The browser's scroll
-    anchoring holds the line the reader landed on where it stood in the window, which is
-    now under the banner; the page moves with the banner instead, in a document as in
-    a pane the page carries, and back again when the window widens. A control the reader
-    has focused at the top of the page, where the browser anchors nothing, stays in view
-    as the words above it rewrap."""
+def test_a_page_keeps_its_place_as_the_window_changes_width(browser, serve, region):
+    """The words above the line the reader landed on rewrap as the window narrows; the
+    line stays where it stood below the landing band, in a document as in a pane the
+    page carries, and back again when the window widens. A control the reader has
+    focused at the top of the page, where the browser anchors nothing, stays in view as
+    the words above it rewrap."""
     lines = "".join(
         f'<p id="line-{n}">Line {n} of the incident, long enough to rewrap when the '
-        "window narrows to a phone and the banner takes its second row.</p>"
+        "window narrows to a phone.</p>"
         for n in range(60)
     )
     lines = (
@@ -164,7 +161,6 @@ def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
     resized(page, 700, 800)
     rendered(page)
     narrowed = page.evaluate(reading, "line-30")
-    assert narrowed["band"] > landed["band"], "the banner should take a second row"
     assert narrowed["top"] - narrowed["band"] == pytest.approx(below, abs=2), narrowed
     resized(page, 1280, 800)
     rendered(page)
@@ -195,9 +191,9 @@ def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_wi
     """The reader landed on a section's heading; a pane the page carries starts lower in
     the window. Text between them rewraps as the window changes width, so the pane's own
     first line and the heading cannot both keep their distances. The heading is what the
-    reader reads, so it stays where it stood below the banner, at each width and back,
-    even after they turned the wheel with the pointer over the pane's words, as a finger
-    scrolling a phone over a queue does."""
+    reader reads, so it stays where it stood below the landing band, at each width and
+    back, even after they turned the wheel with the pointer over the pane's words, as a
+    finger scrolling a phone over a queue does."""
     filler = "".join(
         f"<p>Paragraph {n} sets the scene in enough words to rewrap to more lines when "
         "the window narrows to a phone, pushing what follows further down.</p>"

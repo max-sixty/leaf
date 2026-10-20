@@ -47,9 +47,6 @@ from render_cases_interaction import (
     executable_revision,
     live_url,
 )
-from render_cases_layout import (
-    banner_control,
-)
 from render_cases_navigation import (
     call_diff,
     call_node,
@@ -59,22 +56,23 @@ from render_cases_navigation import (
 from render_harness import (
     EXAMPLE_PACKAGES,
     IMPORTER_CARD,
+    PANEL_THREAD,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
     consume_browser_errors,
     draft_control,
     example_media,
-    expect_banner_control_offered,
     expect_items_answered,
+    expect_panel_offers,
     holding,
     leaf_page,
     names,
     open_page,
-    opened_tab,
     page_comment,
     page_registry,
-    panel_settled,
+    panel_control,
+    panel_field,
     resized,
     root_overflow,
     round_trip,
@@ -88,6 +86,10 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+from browser.threads import open_panel_thread
+
+from journeys import expect_panel_says, first_thread_quote
 
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
@@ -336,7 +338,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     write(page.locator(".lf-composer leaf-text"), "Review this added call.")
     page.keyboard.press("ControlOrMeta+Enter")
     round_trip(page)
-    expect(page.locator(".lf-thread .lf-quote").first).to_have_text(
+    expect(first_thread_quote(page, serve.page_dir)).to_have_text(
         "§ added call-tree item └─ if request.token at gateway/limits.py:40"
     )
 
@@ -864,20 +866,24 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    editor = page.get_by_role("textbox", name="Reply", exact=True)
+    thread = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    open_panel_thread(page, thread)
+    editor = panel_field(page)
     words = "Keep my reply while questions arrive."
     write(editor, words)
     editor.evaluate(
         "node => { window.heldReply = node; node.setSelectionRange(5, 9); }"
     )
     editor.press("Tab")
-    send = page.locator(".lf-thread-send").filter(visible=True)
+    send = page.locator(".lf-fp-field .lf-compose-submit")
     expect(send).to_be_focused()
 
     (serve.page_dir / "index.html").write_text(second)
-    expect(page.locator(".lf-queue")).to_have_text("On me: 1")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me: 1")
     expect(send).to_be_focused()
 
     third = second.replace('<p id="subject">Work under discussion.</p>', "")
@@ -890,13 +896,15 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
 
     # A fresh document cannot claim native retention and still waits for composition.
     (serve.page_dir / "index.html").write_text(executable_revision(third, "reload"))
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    # The menu holds the rows it opened with, so it opens once the page has heard.
+    told(page)
+    expect_panel_offers(page, "latest")
     assert editor.evaluate("node => node === window.heldReply")
     send.press("Shift+Tab")
     expect(editor).to_be_focused()
     editor.press("Escape")
     page.wait_for_function("window.heldReply === undefined")
-    expect(page.locator(".lf-queue")).to_have_text("On me: 1")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me: 1")
 
 
 def test_an_old_document_state_request_cannot_update_the_new_revision(browser, serve):
@@ -911,11 +919,11 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
 
     # Let the page learn that the second revision exists before holding a read. The
     # open draft keeps the first revision shown and leaves the direct activation
-    # route available through the latest-version chip.
+    # route available through the leaf's menu row for the latest version.
     (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
     told(page)
     expect(page).to_have_title("Live first")
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
+    expect_panel_offers(page, "latest")
 
     # One read, held open while it still names the first revision. Releasing it below is
     # what sends it, so the server answers it against the log and versions of that
@@ -943,12 +951,10 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         working(serve.page_dir, "exercising the held state request")
         holding(page, held, 1, "the read from revision 1")
 
-        # The chip's own read remains independent of the background read held above. It
-        # moves the page to the second revision, then the third revision is written
-        # before the held request is released.
-        # Opening More to reach the chip puts the card away, keeping its words.
-        chip = banner_control(page, ".lf-latest-chip")
-        chip.click()
+        # The row's own read remains independent of the background read held above.
+        # It moves the page to the second revision, then the third revision is
+        # written before the held request is released.
+        panel_control(page, "latest").click()
         expect(page).to_have_title("Live second")
         page_comment(page)
         (serve.page_dir / "index.html").write_text(
@@ -1483,7 +1489,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     expect(page.locator("#th-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#th-cache lf-proposed")).to_be_hidden()
-    expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
+    expect(first_thread_quote(page, serve.page_dir)).to_have_class(
         re.compile(r"\bdetached\b")
     )
     assert painted(page, "lf-mark") == "", (
@@ -1516,7 +1522,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     page = open_page(browser, url)
     assert page.locator("#th-cache").get_attribute("data-lf-state") is None
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    expect(page.locator(".lf-thread .lf-quote").first).not_to_have_class(
+    expect(first_thread_quote(page, serve.page_dir)).not_to_have_class(
         re.compile(r"\bdetached\b")
     )
     assert painted(page, "lf-mark") != "", (
@@ -1605,94 +1611,6 @@ customElements.define("lf-trial", class extends LeafElement {
         and (failure.values["mark"], failure.values["outcome"]) == ("shelve", None)
         for failure in failures
     ), failures
-
-
-def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
-    """A message can point at the page with a fragment link, and following it is a trip
-    to the element it names: the tab holding the target opens, and where Threads
-    covers a narrow window, the panel the link was pressed in gives the page back,
-    as a press on the thread's own quote does. Left to the browser, the page moved
-    behind the panel and the user was left looking at the reply.
-
-    The half the browser has no answer for is an id this version hasn't got, which
-    needs nobody to have erred: a comment outlives the version it was written on.
-    Unmarked it reads live, moves nothing, and leaves a fragment nobody holds in the
-    URL for the next load to honor. So it wears the detached face a stranded quote
-    wears and its press is refused — asserted from a real press, since that refusal
-    is the whole of what the runtime does here."""
-    url = serve(REF_PAGE)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "c-ref",
-            "author": "user",
-            "revision": 1,
-            "text": "See [the bath](#p-bath), [the end](#tail-end), "
-            "not [the old note](#gone).",
-        },
-    )
-    page = open_page(browser, url, context=one_user)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-
-    live = page.locator('.lf-msg-body a[href="#p-bath"]')
-    expect(live).to_have_attribute("title", "Jump to § p-bath")
-    # Collapsed behind the inactive tab until the jump asks for it.
-    hidden = re.compile(".*")
-    expect(page.locator("#tab-bath")).to_have_attribute("hidden", hidden)
-    live.click()
-    expect(page.locator("#tab-bath")).not_to_have_attribute("hidden", hidden)
-    page.wait_for_function(
-        """() => { const r = document.getElementById('p-bath').getBoundingClientRect();
-                   return r.height > 0 && r.top >= 0 && r.bottom <= innerHeight; }"""
-    )
-
-    # The other half of a link: opened in its own tab it is an arrival, which the
-    # browser answers before any widget has upgraded — so the runtime is what aims it
-    # (aimArrival). Nothing of this tab travels with it; the new one starts empty.
-    # Which sequence opens that tab is the platform's answer rather than one this suite
-    # holds — ⌘ where it was written, ⌃ where CI runs it — so the press names the
-    # gesture and the browser's target record proves where it opened.
-    destination = live.evaluate("link => link.href")
-    tab = opened_tab(
-        page,
-        destination,
-        lambda: live.click(modifiers=["ControlOrMeta"]),
-    )
-    wait_until_ready(tab)
-    tab.wait_for_function(
-        """() => { const r = document.getElementById('p-bath').getBoundingClientRect();
-                   return r.height > 0 && r.top >= 0 && r.bottom <= innerHeight; }"""
-    )
-    tab.close()
-
-    dead = page.locator('.lf-msg-body a[href="#gone"]')
-    expect(dead).to_have_class("detached")
-    expect(dead).to_have_attribute("aria-disabled", "true")
-    expect(dead).to_have_attribute("title", "§ gone isn't in the version shown")
-    # force, because locator.click refuses aria-disabled controls and that refusal is
-    # the state under test. Nothing will happen, so there is no fact to consume: the
-    # press is the edge, and the hash the browser would write is synchronous with it.
-    at = page.evaluate("() => document.scrollingElement.scrollTop")
-    was = page.url  # the live jump left its own fragment, as a fragment jump does
-    dead.click(force=True)
-    assert page.url == was, page.url
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == at
-
-    # A window too narrow to hold the page beside Threads: the panel covers the page,
-    # and the reference is pressed from inside it.
-    resized(page, 600, 800)
-    panel = page.locator(".lf-thread-panel")
-    expect(panel).to_be_visible()
-    page.locator('.lf-msg-body a[href="#tail-end"]').click()
-    expect(panel).to_be_hidden()
-    page.wait_for_function(
-        """() => { const r = document.getElementById('tail-end').getBoundingClientRect();
-                   const at = document.elementFromPoint(r.left + 4, r.top + r.height / 2);
-                   return r.top >= 0 && r.bottom <= innerHeight
-                     && document.getElementById('tail-end').contains(at); }"""
-    )
 
 
 def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
@@ -1807,25 +1725,27 @@ def test_a_thread_item_waits_until_answered(browser, serve):
     expect_items_answered(page, "0/2")
 
     page.keyboard.press("m")
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    one = page.locator(f'{PANEL_THREAD}[data-thread="c-which"]')
+    expect(one).to_be_visible()
     # The arrival stands on the question's own region; its picks are the next Tab stops.
     expect(page.locator("#tq-one-decision")).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
-    expect(page.locator(".lf-thread .lf-say")).to_have_count(0)
-    reply = page.locator(".lf-thread:has(#tq-one) > .lf-thread-reply leaf-text")
+    expect(one.locator(".lf-say")).to_have_count(0)
+    reply = panel_field(page)
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
+    expect(reply).to_have_attribute("name", "reply")
     expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
     # The box hands the user back to the thread it belongs to, which is the
     # container it is part of rather than the pick they pressed Enter from.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")).to_be_focused()
+    expect(one).to_be_focused()
 
     page.locator("#tq-redis").click()
     expect_items_answered(page, "1/2")
 
-    page.locator(".lf-thread:has(#tq-set) .lf-thread-summary").click()
+    open_panel_thread(page, "c-any")
     expect(page.locator("#tq-set .lf-done")).to_be_visible()
 
     # The group's hairline belongs to the upper neighbour, so the Done press keeps its
@@ -1868,7 +1788,7 @@ def test_a_thread_item_waits_until_answered(browser, serve):
         page.locator("#tq-set .lf-done").click()
     expect_items_answered(page, "2/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
-    expect(page.locator(".lf-notice")).to_have_text("Marked answered — sent")
+    expect_panel_says(page, "Marked answered — sent")
     # Said once, by the log's answer. An `answered` attribute on the group said it
     # again in the author's namespace, where the entry admits nothing undeclared and no
     # version could ever have carried a record of a thread verb — invisible to every
@@ -1887,10 +1807,12 @@ def test_a_thread_item_waits_until_answered(browser, serve):
     # And a second tab reads it off the log, which is the only place it is written.
     # A user who made no gesture gets the same pressed press and the same closed
     # decision — replay is what puts it there, and the one representation is what replay
-    # writes, so there is nothing for a version or a markup copy to fall behind.
+    # writes, so there is nothing for a version or a markup copy to fall behind. A
+    # message's widgets draw where its thread is open, so the tab opens it to look.
     other = open_page(browser, url)
-    expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect_items_answered(other, "2/2")
+    open_panel_thread(other, "c-any")
+    expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     assert (
         render_checks_model.evaluate_probe(
             other, "undeclaredAttrs", page_registry(other)
@@ -1920,25 +1842,21 @@ def test_a_thread_item_waits_until_answered(browser, serve):
     expect_items_answered(page, "1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
-    # reaches Threads, on the title of the thread it shows open. A stray digit there
-    # neither travels nor picks; t then c makes the repeatable category walk and the
-    # thread-local reply route explicit.
-    page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
+    # reaches Threads. A stray digit there neither travels nor picks; t then c makes the
+    # repeatable category walk and the thread-local reply route explicit. The Threads
+    # view stands in the thread's place, so the log says whether the digit picked.
+    open_panel_thread(page, "c-which")
     page.locator("#tq-one .lf-pick").first.focus()
-    # The address toggles the panel it names, so from the panel `m` opened the first
-    # completion closes it and the second is the arrival on the open thread.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
-    panel_settled(page, open=False)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    title = page.locator(".lf-thread:has(#tq-one) > .lf-thread-summary")
-    expect(title).to_be_focused()
+    threads = page.locator('.lf-fp-view[data-view="threads"]:not([data-leaving])')
+    expect(threads).to_be_visible()
     page.keyboard.press("1")
-    expect(title).to_be_focused()
+    expect(threads).to_be_visible()
     page.keyboard.press("t")
     page.keyboard.press("c")
-    expect(page.locator(".lf-thread:has(#tq-set) leaf-text")).to_be_focused()
+    expect(panel_field(page)).to_be_focused()
+    expect(panel_field(page)).to_have_attribute("name", "reply")
     sent = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
@@ -1971,7 +1889,9 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
     expect_items_answered(page, "1/5")
-    expect(page.locator(".lf-queue")).not_to_have_text("On me: 0")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
+        "aria-label", re.compile(r"^On me: [1-9]")
+    )
 
     honoring = re.sub(
         r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
@@ -1994,7 +1914,9 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     # The saved answer remains in the reviewable item inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
     expect_items_answered(page, "1/5")
-    expect(page.locator(".lf-queue")).not_to_have_text("On me: 0")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
+        "aria-label", re.compile(r"^On me: [1-9]")
+    )
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture")).to_be_visible()
@@ -2054,11 +1976,9 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
         "The hunk is complete; see the run and park."
     )
 
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
-    thread.locator(".lf-thread-summary").click()
+    open_panel_thread(page, root["id"])
     with sending(page, "the resolution"):
-        thread.get_by_role("button", name="Resolve thread", exact=True).click()
+        page.locator(".lf-fp-settle").click()
     expect(goal).not_to_have_attribute("data-lf-held")
     released = page.locator("#atlas-record .lf-activity-row").first
     expect(released).to_contain_text(

@@ -9,20 +9,24 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_cases_layout import banner_control
 from render_harness import (
     FEATURE_GALLERY,
+    PANEL,
     RELEASE_FOCUS,
     consume_browser_errors,
     http_error_console,
     leaf_page,
     open_page,
+    panel_control,
+    panel_settled,
     resized,
     sending,
     stamp_page,
     wait_for_revision,
     write,
 )
+
+from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -44,9 +48,9 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     A preview can name a gallery section directly: arriving at a fragment held in a
     closed tab is one runtime path whichever section it names, so one arrival proves
     it, and the same page answers which tab holds every other destination. Each core
-    surface then opens and shows the gallery's own content: its item in the On panel,
-    its open, resolved, and media threads in Threads, its earlier version, the other
-    open page, and at phone width its Page Map. Live external data, the Threads tab's
+    surface then opens and shows the gallery's own content: its item in On me, its
+    open, resolved, and media threads in Threads, its earlier version, the other open
+    page, and at phone width its Page Map. Live external data, the Threads tab's
     presets operating a sample's panel, sign-off gating, design comments and transport
     refusal are real journeys on it too.
 
@@ -115,16 +119,18 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
     # The core chrome, each surface showing the gallery's own content.
     resized(page, 1600, 900)
-    expect(page.locator(".lf-banner-status")).not_to_be_empty()
-    banner_control(page, ".lf-queue").click()
-    map_item = page.locator("button.lf-queue-row").filter(
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · \S")
+    )
+    panel_control(page, "queue").click()
+    map_item = page.locator(".lf-fp-on-item").filter(
         has_text="Which map should the sample team carry?"
     )
     expect(map_item).to_have_count(1)
-    expect(map_item).to_have_attribute("data-lf-kind", "widget")
-    map_item.click()
-    expect(page.locator("#bg-choice-ask")).to_be_focused()
-    banner_control(page, ".lf-queue").click()
+    expect(map_item).to_have_attribute("data-key", '["widget","widget:bg-choice"]')
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
+    gallery_tab("tab", name="Decisions").click()
     page.locator("#bg-question-api > summary").click()
     page.get_by_role("button", name="Read current item", exact=True).click()
     reading = json.loads(page.locator("#bg-question-reading").inner_text())
@@ -134,21 +140,14 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     assert reading["status"] == "open"
 
     gallery_tab("tab", name="Threads").click()
-    banner_control(page, ".lf-threads-toggle").click()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.locator(".lf-thread-filter-toggle").click()
-    # The narrowing offers a status only while some thread holds it.
-    resolved = page.locator('[data-filter-value="resolved"]')
-    expect(resolved).to_be_enabled()
-    resolved.click()
-    expect(
-        page.locator('.lf-thread[data-resolved="true"]:not([hidden])')
-    ).not_to_have_count(0)
-    page.locator('[data-filter-value="open"]').click()
-    media_thread = page.locator(
-        '.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]'
-    )
-    media_thread.locator(".lf-thread-summary").click()
+    panel_control(page, "threads").click()
+    panel_settled(page, view="threads")
+    rows = page.locator(".lf-fp-thread")
+    filters = page.locator(".lf-fp-filters button")
+    filters.filter(has_text="Resolved").click()
+    expect(rows).not_to_have_count(0)
+    filters.filter(has_text="Open").click()
+    media_thread = open_panel_thread(page, "2be2443f0bb6cc49fc86b52f340e6073")
     media_thread.locator(".lf-message-media").click()
     viewer = page.get_by_role("dialog", name="Image preview")
     expect(viewer.locator("img")).to_have_attribute(
@@ -157,116 +156,46 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     page.keyboard.press("Escape")
     expect(viewer).to_be_hidden()
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    panel_settled(page, open=False)
 
-    # The Threads tab's presets operate a real panel in a sample and survive its Reset.
+    # The Threads tab's presets each open a thread in a sample's panel, and the one
+    # chosen survives its Reset.
     frame = page.frame_locator("#bg-panel-sample iframe")
-    panel = frame.locator(".lf-thread-panel")
-    expect(panel).to_be_hidden()
+    shown = frame.locator('.lf-fp-view[data-view="thread"]:not([data-leaving])')
+    expect(shown).to_have_count(0)
     page.locator('#bg-panel-presets [data-view="overview"]').click()
-    expect(panel).to_be_visible()
-    expect(frame.locator(".lf-thread")).to_have_count(5)
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(4)
+    expect(shown).to_have_attribute("data-thread", "72e031c5bf0d485ba9054628e09869d4")
 
     page.keyboard.press("Tab")
     you_button = page.locator('#bg-panel-presets [data-view="you"]')
     expect(you_button).to_be_focused()
     assert you_button.evaluate("element => element.matches(':focus-visible')")
     page.keyboard.press("Space")
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(shown).to_have_attribute("data-thread", "2be2443f0bb6cc49fc86b52f340e6073")
     expect(you_button).to_be_focused()
 
-    for view, thread, visible, title in (
-        ("you", "2be2443f0bb6cc49fc86b52f340e6073", 1, "Workshop room photo"),
-        ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", 1, "Projector map"),
-        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", 4, "Afternoon workshop"),
-        ("progress", "bg-progress-question", 4, "Schedule checks"),
+    for view, thread, title in (
+        ("you", "2be2443f0bb6cc49fc86b52f340e6073", "Workshop room photo"),
+        ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", "Projector map"),
+        ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", "Afternoon workshop"),
+        ("progress", "bg-progress-question", "Schedule checks"),
         (
             "overview",
             "72e031c5bf0d485ba9054628e09869d4",
-            4,
             "Is lunch provided, or should attendees make their own plans?",
         ),
     ):
-        button = page.locator(f'#bg-panel-presets [data-view="{view}"]')
-        button.click()
-        expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(visible)
-        expect(frame.locator(f'.lf-thread[data-id="{thread}"]')).to_have_attribute(
-            "open", ""
-        )
-        topic = frame.locator(f'.lf-thread[data-id="{thread}"] .lf-thread-topic')
-        expect(topic).to_be_visible()
-        expect(topic).to_have_text(title)
-        assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
-        if view == "progress":
-            card = frame.locator(f'.lf-thread[data-id="{thread}"]')
-            # The answered checks' fold; the later check still stands as the line.
-            checkpoint = card.locator(
-                '.lf-thread-checkpoint[data-summary-id^="ephemeral:"]'
-            )
-            expect(card.locator(".lf-thread-working-words")).to_have_text(
-                "Checking whether the room stays free after five"
-            )
-            expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
-            expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
-            earlier = checkpoint.locator(".lf-summary-originals")
-            expect(earlier).to_be_hidden()
-            expand = card.get_by_role("button", name="Show 2 progress messages")
-            page.locator("#bg-panel-sample").scroll_into_view_if_needed()
-            expect(expand).to_be_in_viewport()
-            expand.click()
-            expect(earlier).to_be_visible()
-            expect(earlier).to_contain_text("Checking the total practice time.")
-            expect(earlier).to_contain_text(
-                "Checking the break and closing discussion."
-            )
-            collapse = card.get_by_role("button", name="Hide 2 progress messages")
-            expect(collapse).to_be_focused()
-            expect(collapse).to_be_in_viewport()
-            page.keyboard.press("Enter")
-            expect(earlier).to_be_hidden()
-            expect(
-                card.locator(".lf-thread-transcript > .lf-msg").last
-            ).to_contain_text("The workshop fits, including a fifteen-minute break.")
-            later = card.get_by_text(
-                "Checking whether the room stays free after five.", exact=True
-            )
-            expect(later).to_be_hidden()
-            expect(
-                card.locator(".lf-thread-working").get_by_role("button")
-            ).to_have_count(0)
+        page.locator(f'#bg-panel-presets [data-view="{view}"]').click()
+        expect(shown).to_have_attribute("data-thread", thread)
+        expect(frame.locator(".lf-fp-title")).to_have_text(title)
 
-    page.locator('#bg-panel-presets [data-view="you"]').click()
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    find = frame.get_by_role("searchbox", name="Find in threads")
-    find.click()
-    find.fill("xyz-nothing")
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(0)
     page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    resolved = frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
-    expect(frame.get_by_role("searchbox", name="Find in threads")).to_have_value("")
-    expect(
-        frame.locator('[data-filter-kind="status"][data-filter-value="resolved"]')
-    ).to_have_attribute("aria-pressed", "true")
-    expect(resolved).to_have_attribute("open", "")
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    expect(frame.locator(".lf-thread-filter-toggle")).to_have_attribute(
-        "aria-expanded", "false"
-    )
-    page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    expect(resolved).to_have_attribute("open", "")
-    page.locator('#bg-panel-presets [data-view="you"]').click()
-    page.locator('#bg-panel-presets [data-view="resolved"]').click()
-    expect(resolved).to_have_attribute("open", "")
+    expect(shown).to_have_attribute("data-thread", "bab3cdfcfb8c02aacbb27da731de947a")
     page.locator("#bg-panel-sample").get_by_role(
         "button", name="Reset", exact=True
     ).click()
     page.locator("#bg-panel-sample").evaluate("async sample => { await sample.ready; }")
-    expect(panel).to_be_visible()
-    expect(frame.locator(".lf-thread")).to_have_count(5)
-    expect(
-        frame.locator('.lf-thread[data-id="bab3cdfcfb8c02aacbb27da731de947a"]')
-    ).to_have_attribute("open", "")
+    expect(shown).to_have_attribute("data-thread", "bab3cdfcfb8c02aacbb27da731de947a")
     # Latest commands and Reset cancel pending presentation across the port.
     result = page.locator("#bg-panel-sample").evaluate(
         """sample => Promise.all([
@@ -277,10 +206,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         ])"""
     )
     assert result == [False, True]
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    expect(
-        frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
-    ).to_have_text("Projector map")
+    expect(frame.locator(".lf-fp-title")).to_have_text("Projector map")
     result = page.locator("#bg-panel-sample").evaluate(
         """async sample => {
           const old = sample.showThread('2be2443f0bb6cc49fc86b52f340e6073',
@@ -290,20 +216,16 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         }"""
     )
     assert result is False
-    expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(1)
-    expect(
-        frame.locator(".lf-thread[open]:not([hidden]) .lf-thread-topic")
-    ).to_have_text("Projector map")
+    expect(frame.locator(".lf-fp-title")).to_have_text("Projector map")
 
-    banner_control(page, ".lf-version").click()
-    expect(
-        page.locator('.lf-version-menu .lf-version-row[data-lf-version="1"]')
-    ).to_be_visible()
-    page.keyboard.press("Escape")
+    panel_control(page, "versions").click()
+    expect(page.locator(".lf-fp-version").filter(has_text="v1")).to_be_visible()
+    page.locator(".lf-fp-leaf").click()
 
-    banner_control(page, ".lf-others").click()
-    expect(page.locator("a.lf-others-row")).to_contain_text("A second Leaf page")
-    page.keyboard.press("Escape")
+    panel_control(page, "leaves", at="navigate").click()
+    expect(page.locator("a.lf-fp-page")).to_contain_text("A second Leaf page")
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
 
     resized(page, 390, 900)
     page.evaluate("scrollTo(0, 0)")
@@ -324,12 +246,13 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     # Sign-off gating, a design comment, and a transport refusal.
     resized(page, 1280, 900)
     gallery_tab("tab", name="Decisions").click()
-    approve = page.locator(".lf-signoff")
-    expect(approve).to_have_text("Approve version")
+    approve = panel_control(page, "approval")
+    expect(approve).to_contain_text("Approve version")
     expect(approve).to_be_disabled()
-    expect(approve).to_have_attribute(
+    expect(page.locator(".lf-fp-approval")).to_have_attribute(
         "title", "Answer every open widget before approving this work"
     )
+    page.locator(".lf-fp-leaf").click()
 
     option = page.locator("#bg-choice-street")
     page.evaluate(RELEASE_FOCUS)
@@ -357,14 +280,13 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         if event["kind"] == "comment" and event.get("about") == "design"
     ][-1]
     assert design_comment["anchor"] == {"section": "bg-choice-street"}
-    # Design mode withholds the card, so the send opened Threads on the new thread, and
-    # that opening is the send's to undo: one Escape closes the panel, and the next
-    # leaves design mode, the press that came before it.
-    threads = page.locator(".lf-thread-panel")
-    expect(threads).to_have_class(re.compile(r"\bopen\b"))
+    # Design mode withholds the card, so the send opened the new thread in the panel,
+    # and that opening is the send's to undo: one Escape puts the view away, and the
+    # next leaves design mode, the press that came before it.
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "thread")
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("Escape")
-    expect(threads).not_to_have_class(re.compile(r"\bopen\b"))
+    panel_settled(page, open=False)
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")

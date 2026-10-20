@@ -6,7 +6,8 @@ import type {
   EventMap,
   BrowserCommand,
   CompleteUnion,
-} from "./event-contract.js";
+  ServedState,
+} from "./contract.js";
 export type { Event, BrowserCommand };
 import type { Immutable } from "./snapshot.ts";
 export type StateRecord =
@@ -31,7 +32,6 @@ export interface ContentVersion {
   message: string;
   version: string;
 }
-type MessageEvent = CompleteUnion<EventMap["comment"] | EventMap["reply"]>;
 export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
   id: string;
   content_version: string;
@@ -39,21 +39,6 @@ export type LocalMessage = Extract<Command, { kind: "comment" | "reply" }> & {
   ts: string;
   pending: true;
   plainText: string;
-};
-type StreamingMessage = {
-  id: string;
-  content_version: string;
-  attempt: string;
-  key: string;
-  provisional: true;
-  kind: "reply";
-  addressable: false;
-  author: "agent";
-  agent: string | null;
-  parent: string;
-  text: string;
-  ts: string;
-  pending: boolean;
 };
 /** The user's rewrite of one of their messages, as this tab draws it before the log
  * has it. */
@@ -69,10 +54,17 @@ type Revision = (EventMap["edit"] | LocalEdit) & { was: string };
  * each settlement, and each undo. */
 export type ThreadGesture =
   LocalMessage | LocalEdit | Settlement | Extract<Command, { kind: "undo" }>;
-/** A logged message as a served thread holds it, naming the id of its current content
- * version (`read_state.content_version`): its latest rewrite's, else its own. */
-type ServedMessage = MessageEvent & { content_version: string };
-export type Message = CompleteUnion<ServedMessage | LocalMessage | StreamingMessage> & {
+/** A message as a served thread holds it (`Message` in `state.schema.json`): a logged
+ * comment or reply naming its current content version, or a provisional reply. Its
+ * `edited` joins a rewrite this tab has not sent yet, which has no `seq`. */
+type ServedMessage = Without<
+  NonNullable<
+    ServedState["browser"]
+  >["views"][string]["thread"]["threads"][number]["msgs"][number],
+  "edited"
+>;
+type Without<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+export type Message = CompleteUnion<ServedMessage | LocalMessage> & {
   // The name it is drawn under where the server gives one (`thread.messageKey`).
   key?: string;
   agent?: string | null;
@@ -89,7 +81,7 @@ export type Attention = {
 export interface Thread {
   id: string;
   root: Message;
-  msgs: Message[];
+  msgs: readonly Message[];
   title: string | null;
   anchor: Anchor | null;
   detached_from: Anchor | null;
@@ -97,7 +89,6 @@ export interface Thread {
   revisions: readonly Revision[];
   resolved:
     EventMap["resolve"] | EventMap["action"] | { author: string; pending: true } | null;
-  user_prompt: { message: string; [key: string]: unknown } | null;
   bare_reaction: boolean;
   seat: string | null;
   summaries: readonly (Pick<
@@ -116,7 +107,7 @@ export interface Thread {
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
   localParent?: string;
 };
-export type WidgetEvent = EventMap["action"] | EventMap["report"];
+type WidgetEvent = EventMap["action"] | EventMap["report"];
 export type LocalAction = Extract<Command, { kind: "action" }> & {
   id: string;
   seq?: never;
@@ -145,7 +136,7 @@ export type PendingProjection =
       coordinate: string;
       localOrder: number;
     };
-export interface Coverage {
+interface Coverage {
   event: Event;
   coordinate: unknown;
 }

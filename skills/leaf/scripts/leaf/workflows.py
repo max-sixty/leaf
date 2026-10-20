@@ -5,7 +5,7 @@ A workflow is one update the user has handed over that has not yet settled.
 Replying), which the margin, the Page Map and a thread's receipt show. `answer` is
 what the agent owes it: an addressed operation, or null for nothing. Every consumer
 that holds the agent to something — delivery, `page state`, activity counts, the
-Stop hook, `leaf status idle`, and the banner's counts — reads `answer` here rather
+Stop hook, `leaf status idle`, and the panel's counts — reads `answer` here rather
 than deciding again. An update with an answer is owed until that answer is written.
 `activity.turn_obligations` decides how long an owed update holds the agent's turn.
 
@@ -319,8 +319,6 @@ def canonical_workflows(
         return {
             "id": source["id"],
             "input": source["id"],
-            # The message a thread input is said in, which shows its delivery: its
-            # own, or for a revision the message it rewrote (`events.turn_message`).
             "message": turn_message(source) if target["kind"] == "thread" else None,
             "seq": source["seq"],
             "revision": source.get("revision"),

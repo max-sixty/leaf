@@ -446,7 +446,7 @@ variants:
         the release assessment. I authorized finishing the CI wait; it is running
         in the background. The CI to-do is already open on you as ci-work.
         I still need to try the build on my phone; only I can do that. The page's
-        latest valid stamped version is v6 and includes a required banner approval.
+        latest valid stamped version is v6 and requires my sign-off.
         You need my review and approval of that version before publishing.
         There is also an optional color explorer on the page; no work depends on
         its settings. Before the latest stamp the queue had no user items; you have

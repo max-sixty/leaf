@@ -4,11 +4,11 @@
 import { cancelRender, nextFrame } from "./rendering.js";
 import { scrollGlides } from "./arrivals.js";
 import { cycledRow } from "./keyboard/bindings.js";
-import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
+import { pageCommand } from "./keyboard/register.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { sampleNotice } from "./sample-child.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
+import { atScrollEnd, scrollLimit } from "./scrolling.js";
 import { landingBand, shownRect } from "./geometry.js";
 import { intersect } from "./rect.js";
 import {
@@ -19,140 +19,88 @@ import {
   scrollersOf,
 } from "./reading-regions.js";
 import { walkOrigin, heldItem, placeOf, stepFrom } from "./standing-target.js";
-import { focused, standingIn } from "./focus.js";
-import { bannerStanding } from "./banner-toolbar.js";
+import { focused } from "./focus.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
 import { readingBlock } from "./reading-place.js";
 import { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
+import { threadList } from "./thread/state.js";
+import { inPageOrder } from "./thread/placement.js";
 import { under } from "./shadow.js";
 import { retainUserIntent } from "./user-intent.js";
 import { announce } from "./notifications.js";
-import { focusThread } from "./thread/focus.js";
-import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 
-// The walk's reading supplies both its destinations and their visible scope. In the
-// panel they are the cards its list walks (`walkRows`), which may show resolved threads
-// too; only the closed-panel page walk promises open threads.
-const threadWalk = (panelIsOpen, { threadsBox, openThreadsInPageOrder }) => {
-  const inPanel = panelIsOpen();
-  return {
-    threads: inPanel
-      ? threadsBox.walkRows().flatMap(({ thread }) => thread ?? [])
-      : openThreadsInPageOrder(),
-    scope: inPanel ? "shown" : "open",
-  };
-};
+// The walk's threads: the open ones, in the page's order (thread/placement.js), read
+// from the thread model rather than from any surface that draws them, so every route
+// into the walk steps through the same list. Each is named by its id.
+const openThreads = (placedAt) =>
+  inPageOrder(
+    threadList().filter((thread) => !thread.resolved),
+    placedAt,
+  ).map((thread) => thread.id);
 
-// The walk's place: the list thread holding focus, or the thread the user is at from
-// its target (`threadHere`), in the list or beside the page.
+// The walk's place: the thread the user is at from its target (`threadHere`), drawn
+// wherever it is drawn.
 const currentThread = (threads, threadHere) => {
-  const held = threadHere();
-  const id = drawnThreadId(held);
-  return threads.find((thread) => thread.dataset.id === id);
+  const id = drawnThreadId(threadHere());
+  return threads.includes(id) ? id : null;
 };
 
-const threadPosition = (threadHere, panelIsOpen, narrowing, list) => {
-  const { threads, scope } = threadWalk(panelIsOpen, list);
-  const current = currentThread(threads, threadHere);
-  return listWalkPosition(threads, current, {
-    identity: (thread) => thread.dataset.id,
-    qualifier: panelIsOpen() && narrowing.narrowed() ? scope : "",
-  });
+const threadPosition = (threadHere, placedAt) => {
+  const threads = openThreads(placedAt);
+  return listWalkPosition(threads, currentThread(threads, threadHere));
 };
 
-// Arrive at one thread a walk chose, `next` its list card: the one arrival both
-// the t/T walk and the queue walk (queue-walk.js) make. With the panel shut it opens the
-// thread at its inline destination: a declared widget outlet first, then the thread
-// margin entry's card; a thread with no page destination is indexed only by Threads, so
-// that destination opens the panel.
-//
-// With the panel open, both halves of the press go where they were pointed. The list
-// lands the thread off the focus it is about to take, so a press on a walk of one
-// thread, which names the thread the user already stands on, moves no focus and gives the
-// list nothing to land: the press lands that thread itself. The page half travels either
-// way, and keeps the panel the walk is in: it moves the page only where moving it shows
-// the passage better beside the panel (anchor-travel.js, `arrive`).
+// Arrive at one thread a walk chose, by its id: the one arrival both the t/T walk and
+// the queue walk (queue-walk.js) make. It opens the thread at its destination: a
+// declared widget outlet first, then the thread margin entry's card, then the floating
+// panel's view of it (thread/destination.js).
 //
 // It answers whether the user arrived, once the thread stands open. `intent` is the
 // press's, retained before any wait the caller made: newer input cancels the arrival,
 // and the walk then says nothing about a thread the user is not at.
-async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, intent) {
-  const { openPageThread, scrollToThread } = destinations;
-  if (!panelIsOpen())
-    return Boolean(await openPageThread(next.dataset.id, { part: "thread", intent }));
-  if (!intent()) return false;
-  threadsBox.revealNavigation(next.dataset.id);
-  const standing = standingIn(next);
-  focusThread(next, "move");
-  if (standing) landWalkedThread(next, threadsBox);
-  scrollToThread(next.dataset.id, { keep: true });
-  return true;
+async function arriveAtThread(id, { openPageThread }, intent) {
+  return Boolean(await openPageThread(id, { part: "thread", intent }));
 }
 
-// t/T walk threads. A closed panel walks open threads in page order; once the panel is
-// open, the walk stays in its list, in whichever order the list shows. Both paths come
-// round from either end to the other (`cycledRow`).
+// t/T walk the open threads in page order, coming round from either end to the other
+// (`cycledRow`).
 //
 // From a place at no thread, the walk steps by the page walks' one rule (`stepFrom`,
-// standing-target.js): a place on the page against each thread's place as the list
-// sorts it (`threadPlace`), and a list row that is no thread, such as a withdrawn
-// thread's notice, against the cards beside it. A thread whose place holds the user's is
-// where they are without the thread open, so the press opens it. A general thread has
-// no place and stands after every placed one; in the panel's Recent order every thread
-// is reached from the list's ends.
-function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
-  const { threadsBox } = list;
+// standing-target.js): a place on the page against each thread's place (`threadPlace`).
+// A thread whose place holds the user's is where they are without the thread open, so
+// the press opens it. A general thread has no place and stands after every placed one.
+function stepThread(dir, destinations, placedAt) {
   const { threadHere, threadAtStanding, threadPlace } = destinations;
-  const { threads } = threadWalk(panelIsOpen, list);
+  const threads = openThreads(placedAt);
   const origin = walkOrigin();
   const current = currentThread(threads, threadHere);
   const targetId = !current && origin.kind === "standing" && threadAtStanding();
-  const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
-  // Focus on a list row the walk does not count, such as a withdrawn thread's notice.
-  const atRow = panelIsOpen() && focused() !== threadsBox && standingIn(threadsBox);
+  const atTarget = targetId && threads.includes(targetId) ? targetId : null;
   const { row: next, wrapped } = current
     ? cycledRow(threads, current, dir)
     : atTarget
       ? { row: atTarget, wrapped: false }
-      : atRow
-        ? stepFrom(
-            threads,
-            { place: focused(), kind: "standing" },
-            dir,
-            (thread) => thread,
-          )
-        : stepFrom(
-            threads,
-            !panelIsOpen() || narrowing.listedInPageOrder()
-              ? origin
-              : { place: null, kind: "enter" },
-            dir,
-            (thread) => threadPlace(thread.dataset.id),
-          );
+      : stepFrom(threads, origin, dir, threadPlace);
   if (!next) return;
   // The walk reads the standing destination, so begin it once the arrival has moved
   // focus, as the queue walk does; an arrival that failed registers nothing.
-  const ready = arriveAtThread(
-    next,
-    destinations,
-    panelIsOpen,
-    threadsBox,
-    retainUserIntent(),
-  ).then((arrived) => {
-    if (!arrived) return;
-    announce(
-      beginWalk(
-        "thread",
-        "Thread",
-        () => threadPosition(threadHere, panelIsOpen, narrowing, list),
-        wrapped,
-      ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
-    );
-  });
+  const ready = arriveAtThread(next, destinations, retainUserIntent()).then(
+    (arrived) => {
+      if (!arrived) return;
+      announce(
+        beginWalk(
+          "thread",
+          "Thread",
+          () => threadPosition(threadHere, placedAt),
+          wrapped,
+        ) ?? walkPositionLabel("Thread", threads.indexOf(next) + 1, threads.length),
+      );
+    },
+  );
   void ready.catch(() => {});
   return ready;
 }
@@ -195,11 +143,11 @@ export function placeThreadEdge(thread, edge) {
 // rest of the runtime's motion already gives (scrollBehavior()).
 //
 // The page the step measures is the visible part of the scroller's landing band.
-// The document's box lends its top edge to the fixed banner and its bottom edge to the
-// bottom bar, and its scroll-padding — read exactly so by scrollToElement — is where the
-// box already says how much of itself stands covered, so a reading-page step is 60% of
-// what is left rather than 60% of the box, which is the answer the user wants — a step
-// that landed them under the banner would be a step onto words they cannot read.
+// The document's box lends its bottom edge to the floating panel's row, and its
+// scroll-padding — read exactly so by scrollToElement — is where the box already says
+// how much of itself stands covered, so a reading-page step is 60% of what is left
+// rather than 60% of the box, which is the answer the user wants — a step that landed
+// them under the panel would be a step onto words they cannot read.
 const SCROLL_MS = 140;
 let glide = null; // {box, goal, wrote, raf}
 // A glide is one scroll however many frames write it (arrivals.js, `scrolling`).
@@ -213,15 +161,9 @@ const setGlide = (next) => {
 // in that gap otherwise measures from a goal the box has already left.
 const holding = (box) =>
   glide?.box === box && Math.abs(box.scrollTop - glide.wrote) <= 1;
-// The visible box used by page-edge navigation. A covering panel replaces the page;
-// beside it, the document keeps its own top and bottom.
-const seenScroller = (coveringAuxiliaryScroller) =>
-  coveringAuxiliaryScroller() ?? pageScroller;
 // Reading-page keys follow the region the user is working in (`userReadingRegion`), so
 // `d` after a click in a pane scrolls that pane as PageDown does. Focus can put them in
-// a panel or anchored thread beside the page. Inside a covering surface the user's
-// region still wins where it is in that surface; its own scrollport may be nested
-// there. The covering scrollport catches everything else. Focus on a region's
+// a panel or anchored thread beside the page. Focus on a region's
 // apparatus follows its actual containing scrollport within the region while that
 // box overflows; otherwise the region's reading body takes the step. The step then
 // walks that box's scroll chain (`stepAlong`), where a box outside the visible band
@@ -234,8 +176,7 @@ const readingStep = (box, clips) => {
   const { top, bottom } = intersect(shown, band, { y: true });
   return bottom > top ? { box, height: bottom - top } : null;
 };
-const stepStart = (coveringAuxiliaryScroller) => {
-  const covering = coveringAuxiliaryScroller();
+const stepStart = () => {
   const region = userReadingRegion();
   const at = focused();
   if (region && under(at, region.host) && !under(at, region.body)) {
@@ -244,18 +185,13 @@ const stepStart = (coveringAuxiliaryScroller) => {
       containing &&
       under(containing, region.host) &&
       containing.scrollHeight > containing.clientHeight &&
-      (!covering || under(containing, coveringAuxiliarySurface())) &&
       readingStep(containing, new Map())
     )
       return containing;
   }
-  return covering && !(region && under(region.host, coveringAuxiliarySurface()))
-    ? covering
-    : effectiveScroller(region);
+  return effectiveScroller(region);
 };
-function stepReading(amount, unit, coveringAuxiliaryScroller) {
-  stepAlong(stepStart(coveringAuxiliaryScroller), amount, unit);
-}
+const stepReading = (amount, unit) => stepAlong(stepStart(), amount, unit);
 // The step walks the chain from `from` to the first box that shows and can take it. A
 // box that contains its overscroll, or one an open modal leaves outside, ends the walk.
 // A sample's chain runs on past its document into the containing page, as the wheel's
@@ -325,19 +261,11 @@ export function stopGlide(box) {
   setGlide(null);
 }
 
-export function createNavigation({
-  panelElements: { threadsBox, inPanel: panelFocusIsInside },
-  threadCards,
-  openThreadsInPageOrder,
-  panelIsOpen,
-  narrowing,
-  coveringAuxiliaryScroller,
-  threadDestinations,
-}) {
+export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
   const currentItem = () => {
-    const at = bannerStanding()?.focus?.deref() ?? focused();
-    // More's retained node is the same browser standing, read without moving focus
-    // merely to paint whether its control is available.
+    // The place the floating panel holds while the user is in it is the same standing,
+    // read without moving focus merely to paint whether its row is available.
+    const at = heldPlace()?.focus?.deref() ?? focused();
     const item = heldItem(at);
     if (item && under(at, item)) return item;
     const thread = closestAcross(at, THREAD);
@@ -368,7 +296,6 @@ export function createNavigation({
     touch: "Align current item at top",
     menu: "keys",
     retainStanding: true,
-    covering: true,
     when: () => Boolean(currentItem()),
     run: () => {
       const item = currentItem();
@@ -377,21 +304,15 @@ export function createNavigation({
       scrollIntoReadingBand(item, item, "start", scrollBehavior());
     },
   };
-  const inPanel = () => panelFocusIsInside(panelIsOpen);
-  const threadList = { threadsBox, openThreadsInPageOrder };
-  const move = (amount, unit) => stepReading(amount, unit, coveringAuxiliaryScroller);
-  const walkThreads = (dir) =>
-    stepThread(dir, threadDestinations, panelIsOpen, narrowing, threadList);
+  const move = stepReading;
+  const walkThreads = (dir) => stepThread(dir, threadDestinations, placedAt);
 
-  // Travel's own page keys. All three remain reachable inside a covering auxiliary
-  // surface: the surface replaces the page the user is reading rather than ending the
-  // reading, and t/T follows whichever surface is presenting the threads.
+  // Travel's own page keys.
   pageCommand({
     id: "thread.walk",
     // A walk needs a visible destination, not the complete saved inventory: local
     // sends are usable destinations while the first reading is still loading.
-    ready: () =>
-      savedReadingSettled() || threadWalk(panelIsOpen, threadList).threads.length > 0,
+    ready: () => savedReadingSettled() || openThreads(placedAt).length > 0,
     touch: false,
     // A walk's letter names its category; Shift reverses it. The page's walks therefore
     // share one compact, repeatable grammar.
@@ -400,29 +321,21 @@ export function createNavigation({
       {
         id: "thread.next",
         binding: "t",
-        title: () => `Next ${threadWalk(panelIsOpen, threadList).scope} thread`,
+        title: "Next open thread",
       },
       {
         id: "thread.previous",
         binding: "Shift+t",
-        title: () => `Previous ${threadWalk(panelIsOpen, threadList).scope} thread`,
+        title: "Previous open thread",
       },
     ],
     title: "threads",
-    covering: true,
-    // Once textual search owns the panel, n/N are the canonical walk there. Keep t/T
-    // in other contexts without leaving two spellings for the same panel search action.
-    when: () =>
-      threadWalk(panelIsOpen, threadList).threads.length > 0 &&
-      (!coveringAuxiliarySurface() || inPanel()) &&
-      !(narrowing.threadSearchActive() && inPanel()),
+    when: () => openThreads(placedAt).length > 0,
     repeat: true,
     // The walk moves the user laterally: it is the surface it reaches through, rather
-    // than the walk, that Escape takes off. In the panel it moves focus from card to
-    // card, and the panel's own rungs clear its narrowing and close it from whichever
-    // one they end on. With the panel shut it stands them on a thread a widget seats on the page,
-    // or opens the margin's thread view for a thread with no seat, and that view
-    // is what the Page Map's own step dismisses.
+    // than the walk, that Escape takes off. It stands them on a thread a widget seats on
+    // the page, or opens the margin's thread view, or the floating panel's, for a thread
+    // with no seat, and that view's own step dismisses it.
     run: (binding) => walkThreads(binding === "t" ? 1 : -1),
   });
   // A sample's spent step arrives at its frame (sample.js). It goes on only while the
@@ -452,7 +365,6 @@ export function createNavigation({
       },
     ],
     title: "page down / up",
-    covering: true,
     repeat: true,
     run: (binding) => move(binding === "d" ? 0.6 : -0.6, "page"),
   });
@@ -475,35 +387,19 @@ export function createNavigation({
       },
     ],
     title: "scroll down / up",
-    covering: true,
     repeat: true,
     run: (binding) => move(binding === "j" ? 60 : -60, "pixel"),
   });
 
-  // The queue walk's way onto one thread it names by id: the t/T walk's own arrival, at
-  // the thread's list card. A narrowing that hides the card is cleared first, as it is
-  // for an item seated in a thread (items/view.js, `materializeItem`), since the queue
-  // walk goes to what is on the user whatever the list shows.
-  async function arriveAtThreadById(id) {
-    const intent = retainUserIntent();
-    const card = () =>
-      (panelIsOpen() ? threadCards() : openThreadsInPageOrder()).find(
-        (thread) => thread.dataset.id === id,
-      );
-    if (panelIsOpen() && card()?.hidden) await narrowing.revealThread(id);
-    const next = card();
-    if (!next) return false;
-    return arriveAtThread(next, threadDestinations, panelIsOpen, threadsBox, intent);
-  }
+  // The queue walk's way onto one thread it names by id: the t/T walk's own arrival,
+  // whatever list the thread is in.
+  const arriveAtThreadById = (id) =>
+    arriveAtThread(id, threadDestinations, retainUserIntent());
 
   return {
     alignTop,
     arriveAtThread: arriveAtThreadById,
-    seenScroller: () => seenScroller(coveringAuxiliaryScroller),
     stepReading: move,
     stepThread: walkThreads,
-    // Where the thread walk stands, which the panel's arrows report as `t` does.
-    threadPosition: () =>
-      threadPosition(threadDestinations.threadHere, panelIsOpen, narrowing, threadList),
   };
 }

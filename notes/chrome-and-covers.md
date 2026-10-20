@@ -1,7 +1,8 @@
 # Workspace scrolling and chrome
 
 The sticky-header foundation landed in [PR #1472](https://github.com/max-sixty/leaf/pull/1472).
-The banner has a stated height, sticky headers stack through `--lf-top`, and the
+Sticky headers stack through `--lf-top`, the floating panel's row reserves its room at
+the window's foot (`--lf-foot-room`), and the
 workspace row rule applies to pane grids without squeezing a widget's own rows.
 These contracts live in [layouts.css](../skills/leaf/assets/layouts.css),
 [theme.css](../skills/leaf/assets/theme.css), and the
@@ -29,16 +30,6 @@ item separate scrollers, routed the reading keys to the item, and stacked queue 
 item on a phone. It bound the workspace's behavior to one widget and spent its
 weight on scrolling, so none of it shipped except the instructions above.
 
-## Still open
-
-- **The desktop bottom bar,** undecided. Removing it deletes `--lf-bottom-bar-h` and
-  its readers (`theme.css`, whose `--lf-view-height` the contents map reads,
-  `chrome.css`, `shortcut-bar.js`), `declareBottomBar`, and the bottom edge in
-  `shownWindow`; its key hints would move to `?` and its status (notices, the Go-to
-  sequence, the walk position) to the banner. The bar is how a desktop user learns the
-  keys without asking. A middle path keeps the hints at the foot and moves the status
-  into the banner.
-
 ## Evidence
 
 The original review ran on 29 September 2026 at `5ed41df4b`. On a plain Chrome page
@@ -52,5 +43,5 @@ it found:
 | Back after `pushState`                | Restored position | Kept the later position |
 | Back from another document, or reload | Restored position | Returned to top         |
 
-Use `leaf-dev stills` against the merge base for changed first viewports and banner
+Use `leaf-dev stills` against the merge base for changed first viewports and panel
 states, on a phone too.

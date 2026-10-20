@@ -119,7 +119,7 @@ PHRASE = """(words) => {
 
 class Passage:
     """Words in the long paragraph, selected by dragging across them or, under a
-    finger, by the platform's selection and the banner's Comment on selection."""
+    finger, by the platform's selection and the panel's Comment on selection."""
 
     block = "#long"
 
@@ -135,9 +135,7 @@ class Passage:
                 }}""",
                 self.words,
             )
-            page.locator(".lf-banner-actions").get_by_role(
-                "button", name="Comment on selection"
-            ).tap()
+            page.locator(".lf-fp-step", has_text="Comment on selection").tap()
             return
         rect = self.line(page)
         y = rect["top"] + rect["height"] / 2
@@ -170,14 +168,15 @@ class Element:
         target.click(modifiers=["Alt"], position={"x": 40, "y": y})
 
     def line(self, page):
-        """Its top as the window shows it, which a scroll may have clipped."""
+        """Its top as the window shows it, which a scroll may have clipped, less the
+        ring's room at the window's head."""
         return page.evaluate(
             """([selector, head]) => {
               const {left, top, right, bottom} = document.querySelector(selector)
                 .getBoundingClientRect();
               return {left, top: Math.max(top, head), right, bottom};
             }""",
-            [self.block, page.evaluate(BANNER_FOOT) + 8],
+            [self.block, 8],
         )
 
 
@@ -215,10 +214,6 @@ CASES = {
         {"again": True},
     ),
 }
-
-BANNER_FOOT = (
-    "() => document.querySelector('.lf-banner').getBoundingClientRect().bottom"
-)
 
 SIDES = {
     "right-start": "right",
@@ -1084,7 +1079,7 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     "size,at,long,touch,again,options,engine",
     [
         ((1440, 900), 0.4, False, False, False, False, "browser"),
-        ((900, 600), 0.85, False, False, False, False, "browser"),
+        ((900, 600), 0.75, False, False, False, False, "browser"),
         ((390, 844), 0.12, False, False, False, False, "browser"),
         ((900, 600), 0.4, True, False, False, False, "browser"),
         ((900, 600), 0.4, "scrolled", False, False, False, "browser"),
@@ -1104,7 +1099,7 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
         ),
         pytest.param(
             (900, 600),
-            0.85,
+            0.75,
             False,
             False,
             False,
@@ -1169,7 +1164,7 @@ def test_send_grows_thread_around_the_words(
         page.locator(".lf-fab-input").focus()
         rendered(page)
     if long == "passage":
-        assert FIRST_LINE.line(page)["bottom"] > page.evaluate(BANNER_FOOT)
+        assert FIRST_LINE.line(page)["bottom"] > 0
     page.evaluate("""() => {
       const input = document.querySelector('.lf-fab-input');
       const blockRects = node => {
@@ -1261,13 +1256,16 @@ def test_send_grows_thread_around_the_words(
         if painted_growth:
             rendered(page)
             # Layout Instability compares painted frames; a RAF measurement can
-            # catch an intermediate height the browser never actually displayed.
+            # catch an intermediate height the browser never actually displayed. The
+            # card grows up from its foot here, so its painted top rises. Its source
+            # rect is the card's visual rect, which takes in the ink below its box, so
+            # that rect's height need not change while the card's does.
             card.evaluate("""card => {
               const growth = [];
               const record = entries => {
                 for (const entry of entries) for (const source of entry.sources) {
                   if (source.node !== card || !source.previousRect.height) continue;
-                  const before = source.previousRect.height, after = source.currentRect.height;
+                  const before = source.previousRect.top, after = source.currentRect.top;
                   if (Math.abs(after - before) > 0.75) growth.push({before, after});
                 }
               };
@@ -1287,7 +1285,7 @@ def test_send_grows_thread_around_the_words(
         ).to_be_visible()
         if painted_growth:
             growth = page.evaluate("window.__replyGrowth()")
-            assert len(growth) == 1 and growth[0]["after"] > growth[0]["before"], growth
+            assert len(growth) == 1 and growth[0]["after"] < growth[0]["before"], growth
 
         # The first sent message, subsequent turns, metadata and the empty reply
         # share one reading edge, both during the handoff and after reopening.

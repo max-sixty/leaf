@@ -1,7 +1,7 @@
 # The summary hint from real thread events and the delivery an explicit wait prints.
 
 delivery:
-  format: leaf-delivery/9
+  format: leaf-delivery/10
   id: <delivery>
   created_at: <time>
   acknowledge: >-
@@ -63,9 +63,8 @@ delivery:
           a page at a time.
         h2: >-
           The thread has no title yet. Name it with `--title "<a few words>"` on
-          your reply, so the Threads panel lists its subject instead of its opening
-          words. If Leaf has already named it from its first message, that name
-          stays.
+          your reply, so Threads lists its subject instead of its opening words.
+          If Leaf has already named it from its first message, that name stays.
         h3: >-
           This thread's entry in the batch's `threads` has a `summary_hint`: an
           earlier range of messages worth summarizing. As you answer, follow the

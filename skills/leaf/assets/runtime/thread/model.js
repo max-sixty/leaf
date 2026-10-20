@@ -168,12 +168,12 @@ const sending = (turn) => ({
 // `gestures` are the ledger's thread gestures, oldest first: each comment, reply or
 // rewrite as the thread draws it, each settlement with the `localParent` its pending
 // parent went by, and each undo.
-/** @param {Thread[]} threads
+/** @param {readonly Thread[]} threads
  * @param {readonly import("../../../../../build/browser/domain.ts").ThreadGesture[]} gestures
  * @returns {Thread[]}
  */
 export function foldThreads(threads, gestures) {
-  if (!gestures.length) return threads;
+  if (!gestures.length) return [...threads];
   const withdrawn = new Set(
     gestures.flatMap((gesture) => (gesture.kind === "undo" ? [gesture.undoes] : [])),
   );
@@ -181,6 +181,7 @@ export function foldThreads(threads, gestures) {
   // reply written against the first: the one this page gave it, and the one the log
   // gave back. Both reach the one thread, so a reply written into the card a
   // send had just drawn stays in it when the answer arrives.
+  /** @type {Thread[]} */
   const copies = threads
     .filter((thread) => !withdrawn.has(thread.root.id))
     .map((thread) => ({
@@ -204,7 +205,6 @@ export function foldThreads(threads, gestures) {
         msgs: [gesture],
         revisions: [],
         resolved: null,
-        user_prompt: null,
         bare_reaction: reaction,
         seat: pendingSeat(gesture),
         summaries: [],
@@ -219,7 +219,7 @@ export function foldThreads(threads, gestures) {
       // A reply still streaming stands last, where the log will take its answer, so the
       // user's message joins the thread above it and its acceptance moves nothing.
       const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
-      thread.msgs.splice(thread.msgs.length - streaming, 0, gesture);
+      thread.msgs = thread.msgs.toSpliced(thread.msgs.length - streaming, 0, gesture);
       // A reaction is no turn, so it reopens nothing.
       if (!isReaction(gesture)) thread.resolved = null;
     } else if (gesture.kind === "edit") {
@@ -318,12 +318,14 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    A Thread's `unread` is the server's reading of the agent content versions the user
    has not taken in, less those this tab is marking read now: the page draws them read
    in the turn it sends that, and the answer confirms rather than decides it. */
-/** @param {Thread[]} threads
+/** @param {readonly Thread[]} threads
  * @param {import("../../../../../build/browser/application.ts").SemanticDocument} document
  * @param {ReturnType<typeof import("../projection/model.js").foldWidgetStates>} widgets
  * @param {import("../../../../../build/browser/application.ts").Workflow[]} workflows
  * @param {readonly import("../../../../../build/browser/application.ts").WireTodo[]} todos
  *   the open to-dos, of which each thread holds the agent's on it
+ * @param {readonly import("../../../../../build/browser/application.ts").ItemRecord[]} items
+ *   the view's items, of which each thread holds those its messages make
  * @param {import("../../../../../build/browser/domain.ts").ContentVersion[]} markingRead
  * @param {boolean} ready
  */
@@ -333,6 +335,7 @@ export function readThreadRecords(
   widgets,
   workflows,
   todos = [],
+  items = [],
   markingRead = [],
   ready = true,
 ) {
@@ -420,8 +423,10 @@ export function readThreadRecords(
       rewritten_from: thread.rewritten_from,
       resolved: thread.resolved,
       settling: thread.settling ?? null,
-      user_prompt: thread.user_prompt,
       attention: thread.attention,
+      // The items widgets in its messages make, such as an `lf-ask` the user owes
+      // words to there.
+      items: items.filter((item) => item.thread === thread.id),
       // The agent's open to-dos on the thread: a reply that promised one says it is
       // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first
       // is the one a thread waiting on a to-do waits on, and a running one is work the

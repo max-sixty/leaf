@@ -528,7 +528,10 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
     explicit: the launch declines the claim it could have made, so the server
     records the persistent lifetime and the page stays nobody's — no watcher
     thread to stop it when the harness pid goes, no SessionEnd reaper. The harness is
-    the suite's own session, which every command here already runs under."""
+    the suite's own session, which every command here already runs under. Its user
+    stops it with Ctrl-C, which unwinds through the process's exit handlers while
+    its watch threads still run, whereas `server stop` ends it at once
+    (`exit_serving`)."""
     process = spawn(
         [
             *LEAF_COMMAND,
@@ -546,8 +549,11 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
     assert reading["lifetime"] == "persistent"
     assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
     assert service_model.page_claim(page_dir) is None
-    assert hosting_model.cmd_stop(page_dir) is True
-    assert process.wait(timeout=STATED_TIMEOUT) == 0
+
+    process.send_signal(signal.SIGINT)
+    _, error = process.communicate(timeout=STATED_TIMEOUT)
+    assert process.returncode == 1, error
+    assert json.loads(error.splitlines()[-1])["error"] == "interrupted"
 
 
 def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn):

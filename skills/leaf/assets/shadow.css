@@ -244,6 +244,12 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: max(28px, var(--aim-floor));
   --lf-msg-body-gap: 4px;
+  --lf-msg-control-size: max(26px, var(--aim-floor));
+  --lf-msg-edit-cancel: max(52px, var(--aim-floor));
+  --lf-msg-edit-save: max(40px, var(--aim-floor));
+  --lf-msg-edit-gap: 4px;
+  --lf-msg-edit-room: calc( var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save) );
+  --lf-primary-news-width: 5rem;
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -286,7 +292,7 @@ summary {
 }
 .lf-primary-message > .lf-msg-head:has(> .lf-primary-news) {
   position: relative;
-  --lf-msg-head-room: 5rem;
+  --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);
 }
 .lf-primary-part {
@@ -299,7 +305,7 @@ summary {
   position: absolute;
   inset-block-start: 0;
   inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
-  max-inline-size: 5rem;
+  max-inline-size: var(--lf-primary-news-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -480,10 +486,10 @@ summary {
   padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > :is(.lf-react-strip, .lf-msg-control)) {
-  --lf-thread-message-control-room: calc(max(26px, var(--aim-floor)) + var(--sp-2));
+  --lf-thread-message-control-room: calc(var(--lf-msg-control-size) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-body > .lf-msg-editor) {
-  --lf-thread-message-control-room: calc( max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor)) + var(--sp-2) );
+  --lf-thread-message-control-room: calc(var(--lf-msg-edit-room) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
   anchor-name: --lf-thread-headline, --lf-msg-head;
@@ -647,7 +653,7 @@ button.lf-thread-notice[data-lf-focus] {
   font-size: 0.9em;
 }
 :where(:root, .lf-thread-transcript) caption {
-  text-align: left;
+  text-align: start;
   font-size: var(--t-6);
   color: var(--muted);
   margin-bottom: 6px;
@@ -656,7 +662,7 @@ button.lf-thread-notice[data-lf-focus] {
   max-inline-size: 100cqi;
 }
 :where(:root, .lf-thread-transcript) :is(th, td) {
-  text-align: left;
+  text-align: start;
   padding: 8px 14px;
   border-bottom: 1px solid var(--rule);
   vertical-align: top;
@@ -668,10 +674,10 @@ button.lf-thread-notice[data-lf-focus] {
   }
 }
 :where(:root, .lf-thread-transcript) tr > :first-child {
-  padding-left: 0;
+  padding-inline-start: 0;
 }
 :where(:root, .lf-thread-transcript) tr > :last-child {
-  padding-right: 0;
+  padding-inline-end: 0;
 }
 :where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
@@ -693,10 +699,10 @@ button.lf-thread-notice[data-lf-focus] {
   color: var(--ink);
 }
 :where(:root, .lf-thread-transcript) tr > td:first-child:has(img) {
-  padding-inline-start: var(--raise-1-reach);
+  padding-inline-start: var(--raise-1-blur);
 }
 :where(:root, .lf-thread-transcript) tr > td:last-child:has(img) {
-  padding-inline-end: var(--raise-1-reach);
+  padding-inline-end: var(--raise-1-blur);
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
@@ -777,7 +783,6 @@ leaf-text.lf-fab-input,
   padding: 0;
   margin: 0;
   font: inherit;
-  line-height: inherit;
   overflow: visible;
 }
 
@@ -883,7 +888,7 @@ leaf-text.lf-fab-input,
   border-color: transparent;
   background: transparent;
 }
-.lf-react:not(.lf-margin-entry):is([aria-pressed=true], :hover, [data-lf-focus], [data-lf-focus], [aria-busy=true]) {
+.lf-react:not(.lf-margin-entry):is([aria-pressed=true], :hover, [data-lf-focus], [aria-busy=true]) {
   color: var(--ink-2);
   border-color: var(--border-2);
   background: var(--chip);
@@ -943,14 +948,14 @@ leaf-text.lf-fab-input,
   anchor-name: --lf-msg-head;
 }
 .lf-msg:has(.lf-msg-control, > .lf-msg-head > .lf-progress-expand) > .lf-msg-head {
-  --lf-msg-control: max(26px, var(--aim-floor));
+  --lf-msg-control: var(--lf-msg-control-size);
   padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
   scroll-margin-block-end: var(--sp-2);
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
-  --lf-msg-control-room: calc( max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor)) );
+  --lf-msg-control-room: var(--lf-msg-edit-room);
 }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head > .lf-msg-meta {
   display: none;
@@ -964,8 +969,8 @@ leaf-text.lf-fab-input,
   inset-inline-end: anchor(right);
   translate: 0 -50%;
   box-sizing: border-box;
-  inline-size: 26px;
-  block-size: 26px;
+  inline-size: var(--lf-msg-control-size);
+  block-size: var(--lf-msg-control-size);
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -1050,7 +1055,7 @@ svg[data-lf-icon] {
 }
 @media (pointer: coarse), (hover: none) {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
-    --lf-msg-control: max(26px, var(--aim-floor));
+    --lf-msg-control: var(--lf-msg-control-size);
     padding-inline-end: calc(var(--lf-msg-control-room, var(--lf-msg-control)) + var(--lf-msg-head-room, 0px));
   }
 }
@@ -1078,11 +1083,6 @@ svg[data-lf-icon] {
 @media screen {
   [data-lf-more-after]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-before])),
   [data-lf-more-before]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-after])) {
-    -webkit-mask-image:
-      linear-gradient(
-        to right,
-        #000 calc(100% - var(--lf-more-fade, 24px)),
-        var(--lf-more-fade-to, transparent));
     mask-image:
       linear-gradient(
         to right,
@@ -1091,11 +1091,6 @@ svg[data-lf-icon] {
   }
   [data-lf-more-before]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-after])),
   [data-lf-more-after]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-before])) {
-    -webkit-mask-image:
-      linear-gradient(
-        to right,
-        var(--lf-more-fade-to, transparent),
-        #000 var(--lf-more-fade, 24px));
     mask-image:
       linear-gradient(
         to right,
@@ -1103,13 +1098,6 @@ svg[data-lf-icon] {
         #000 var(--lf-more-fade, 24px));
   }
   [data-lf-more-before][data-lf-more-after] {
-    -webkit-mask-image:
-      linear-gradient(
-        to right,
-        var(--lf-more-fade-to, transparent),
-        #000 var(--lf-more-fade, 24px),
-        #000 calc(100% - var(--lf-more-fade, 24px)),
-        var(--lf-more-fade-to, transparent));
     mask-image:
       linear-gradient(
         to right,
@@ -1119,7 +1107,6 @@ svg[data-lf-icon] {
         var(--lf-more-fade-to, transparent));
   }
   :is([data-lf-more-before], [data-lf-more-after]):is([data-lf-focus], :has([data-lf-focus])) {
-    -webkit-mask-image: none;
     mask-image: none;
   }
   [data-lf-more-below] {
@@ -1512,7 +1499,7 @@ button.lf-media-open {
   inset-inline-end: anchor(right);
   translate: 0 -50%;
   display: inline-flex;
-  gap: 4px;
+  gap: var(--lf-msg-edit-gap);
 }
 .lf-msg-edit-actions > .lf-msg-control {
   position: static;
@@ -1524,10 +1511,10 @@ button.lf-media-open {
   font: 600 var(--t-6)/1 var(--sans);
 }
 .lf-msg-edit-actions > .lf-msg-edit-cancel {
-  inline-size: max(52px, var(--aim-floor));
+  inline-size: var(--lf-msg-edit-cancel);
 }
 .lf-msg-edit-actions > .lf-msg-edit-save {
-  inline-size: max(40px, var(--aim-floor));
+  inline-size: var(--lf-msg-edit-save);
 }
 .lf-msg-edit-actions > .lf-msg-edit-save::before {
   display: none;

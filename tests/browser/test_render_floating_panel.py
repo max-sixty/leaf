@@ -2785,6 +2785,25 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
 
 
+def test_more_room_on_a_phone_keeps_the_panel_its_width(browser, serve):
+    """On a phone the panel already spans the window less its gutter, so more room to
+    write leaves it as wide as it was. The wider panel's own width named the desktop's
+    24px gutter rather than the phone's 20px, so pressing for more room narrowed it."""
+    context = browser.new_context(viewport={"width": 390, "height": 800})
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    panel = page.locator(".lf-floating-panel")
+    expand = page.locator(".lf-fp-row > .lf-fp-expand")
+    field(page).click()
+    page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 4)
+    expect(expand).to_be_visible()
+    settled(page)
+    narrow = panel.bounding_box()["width"]
+    expand.click()
+    expect(expand).to_have_attribute("aria-pressed", "true")
+    settled(page)
+    assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=0.5)
+
+
 def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     """A long draft and an open view share the window: the view takes what the field
     leaves and scrolls inside it, so its head, where Close stands, stays in the window.
@@ -2811,6 +2830,67 @@ def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     assert head["y"] >= 0, head
     assert shown["y"] + shown["height"] <= words["y"] + 0.5, (shown, words)
     assert view.evaluate("v => v.scrollHeight > v.clientHeight")
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
+    browser, serve, touch
+):
+    """The theme reserves the panel's row at the window's foot, with the gap it stands
+    above the window's edge again above it, so the page's last line scrolls clear of the
+    row and no further. The reserve was a number of its own, 4px taller than the row
+    under a mouse and under a finger alike."""
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=touch
+    )
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch
+    at = page.evaluate("""() => {
+      const room = document.createElement('div');
+      room.style.height = 'var(--lf-foot-room)';
+      document.body.append(room);
+      const foot = room.getBoundingClientRect().height;
+      room.remove();
+      const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
+      return {foot, row: row.height, below: innerHeight - row.bottom};
+    }""")
+    assert at["foot"] == pytest.approx(at["row"] + 2 * at["below"], abs=0.5), at
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, touch):
+    """A line of answers holding only words is already a press tall, so the Undo a
+    reading brings later moves nothing beside it. Under a finger the panel's presses
+    are the row's 34px line, and the line kept the mouse's 28px, so a press arriving
+    grew it by 6px."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Should the rollout wait?")
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Which week suits?",
+        '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
+        '<lf-option id="this">This week</lf-option>'
+        '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
+    )
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=touch
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-fp-on-user").click()
+    answers = page.locator(".lf-fp-view[data-view=queue] .lf-fp-answers").first
+    expect(answers).to_be_visible()
+    heights = answers.evaluate("""line => {
+      line.replaceChildren('Answered.');
+      const words = line.getBoundingClientRect().height;
+      const press = document.createElement('button');
+      press.type = 'button';
+      press.className = 'lf-fp-answer';
+      press.textContent = 'Undo';
+      line.append(press);
+      return [words, line.getBoundingClientRect().height];
+    }""")
+    assert heights[1] == pytest.approx(heights[0], abs=0.5), heights
 
 
 def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):

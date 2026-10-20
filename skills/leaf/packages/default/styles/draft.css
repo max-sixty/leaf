@@ -4,9 +4,10 @@
    outer width the measure. */
 :scope:is(lf-draft) {
   display: block;
+  --lf-draft-inset: 14px;
   border: 1px solid var(--border-2);
-  border-radius: 6px;
-  padding: 10px 14px;
+  border-radius: var(--r);
+  padding: 10px var(--lf-draft-inset);
   margin: 12px 0;
   background: var(--card);
   font-size: max(var(--entry-floor), 1em);
@@ -37,7 +38,6 @@
   padding: 0;
   margin: 0;
   font: inherit;
-  line-height: inherit;
   overflow: visible;
 }
 .lf-draft-edit.lf-ui {
@@ -74,7 +74,8 @@
        the box's own padding and border. */
     :scope:is(lf-draft) > .lf-draft-edit {
       margin-right: calc(
-        var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px
+        var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px -
+          var(--lf-draft-inset) - 1px
       );
     }
   }
@@ -83,7 +84,7 @@
   }
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
     outline: var(--focus-ring);
-    outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap)));
+    outline-offset: calc(-1 * var(--focus-ring-room));
   }
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body {
     display: none;
@@ -115,8 +116,6 @@
 }
 @media (forced-colors: active) {
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
-    outline: 2px solid Highlight;
-    outline-offset: -5px;
-    box-shadow: none;
+    outline-color: Highlight;
   }
 }

@@ -551,6 +551,18 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: max(28px, var(--aim-floor));
   --lf-msg-body-gap: 4px;
+  /* A message's control, and the Cancel and Save an open rewrite stands in its place:
+     the head keeps their room (controls.css), and so does the thread's own controls'
+     row beside a first message (below). */
+  --lf-msg-control-size: max(26px, var(--aim-floor));
+  --lf-msg-edit-cancel: max(52px, var(--aim-floor));
+  --lf-msg-edit-save: max(40px, var(--aim-floor));
+  --lf-msg-edit-gap: 4px;
+  --lf-msg-edit-room: calc(
+    var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save)
+  );
+  /* The widest a primary reader's news notice stands, in a message head or a part. */
+  --lf-primary-news-width: 5rem;
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -616,7 +628,7 @@ summary {
    presentation stands the notice elsewhere (thread/primary-reader.js). */
 .lf-primary-message > .lf-msg-head:has(> .lf-primary-news) {
   position: relative;
-  --lf-msg-head-room: 5rem;
+  --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);
 }
 .lf-primary-part {
@@ -629,7 +641,7 @@ summary {
   position: absolute;
   inset-block-start: 0;
   inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
-  max-inline-size: 5rem;
+  max-inline-size: var(--lf-primary-news-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -861,7 +873,7 @@ summary {
       > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
       > :is(.lf-react-strip, .lf-msg-control)
   ) {
-  --lf-thread-message-control-room: calc(max(26px, var(--aim-floor)) + var(--sp-2));
+  --lf-thread-message-control-room: calc(var(--lf-msg-control-size) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(
     > .lf-thread-transcript
@@ -869,9 +881,7 @@ summary {
       > .lf-msg-body
       > .lf-msg-editor
   ) {
-  --lf-thread-message-control-room: calc(
-    max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor)) + var(--sp-2)
-  );
+  --lf-thread-message-control-room: calc(var(--lf-msg-edit-room) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript

@@ -3244,11 +3244,16 @@ var KEY_REFUSED = 401;
 function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
-var { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
+var { promise: layerReady, resolve: layerRevealed } = Promise.withResolvers();
+var layerKnown = false;
+var revealLayer = () => {
+  layerKnown = true;
+  layerRevealed();
+};
 var postEvent = async (event, held = runtime.data) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
-  await layerReady;
+  if (!layerKnown) await layerReady;
   countTraffic("sends");
   recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
   let response;

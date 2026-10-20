@@ -31,6 +31,36 @@ test("shared context keeps placement and containment specific to each obligation
   }
 });
 
+test("the innermost obligation holding a node is where the user stands", () => {
+  // A question inside a proposal's new text: the proposal's source holds the question's
+  // enclosing widget, where arrival puts the user on the question.
+  document.body.innerHTML =
+    '<div id="change"><p id="text">Walk outside.</p><section id="ask"><h4>Which route?</h4><div id="route"><button>Garden</button></div></section></div>';
+  const item = (source, target) => ({
+    id: `widget:${source}`,
+    thread: null,
+    message: null,
+    source: { kind: "widget", id: source },
+    prompt: { target },
+  });
+  const change = item("change", "change");
+  const route = item("route", "ask");
+  const at = (id) => document.getElementById(id);
+  try {
+    for (const items of [
+      [change, route],
+      [route, change],
+    ]) {
+      assert.equal(obligationHolding(items, at("ask")), route);
+      assert.equal(obligationHolding(items, at("ask").firstElementChild), route);
+      assert.equal(obligationHolding(items, at("route").firstElementChild), route);
+      assert.equal(obligationHolding(items, at("text")), change);
+    }
+  } finally {
+    document.body.replaceChildren();
+  }
+});
+
 test("a region holds the live widget obligations whose source is it or stands under it", () => {
   document.body.innerHTML =
     '<section id="queue"><div id="item"><div id="first"></div><div id="gone"></div></div></section><div id="outside"></div>';

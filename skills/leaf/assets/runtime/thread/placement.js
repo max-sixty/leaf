@@ -2,7 +2,7 @@
    shares. */
 import { addressableLabel, addressableWord } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { pageParts, pageReadingVersion } from "../passages.js";
+import { leafSurface, pageParts, pageReadingVersion } from "../passages.js";
 import { documentChanged } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { byRenderedOrder, upFrom } from "../shadow.js";
@@ -26,9 +26,13 @@ import { byRenderedOrder, upFrom } from "../shadow.js";
 // It reads as detached in the list and keeps its place in the page's order, which are two
 // true things rather than one true and one lost.
 //
-// What is left resolves nowhere at all: a general comment, which names nowhere, and an
-// anchor whose element this version no longer holds either. Both go under the list rather
-// than at some point in the middle of it.
+// What is left resolves nowhere on the page: a general comment, which names nowhere; an
+// anchor whose element this version no longer holds either; and an anchor in another
+// thread's message, such as a comment on a widget an agent's reply carries. Such a
+// message is drawn in a Leaf surface only while something shows it, and the walk itself
+// opens and closes those views, so a place there would move the thread up and down the
+// list between presses and `t` would visit it twice and skip its neighbour. They all go
+// under the list, in log order, rather than at some point in the middle of it.
 // Where a thread stands, for every reading of the page's order of threads: the list's
 // sort and both walks' steps (`threadPlace` in destination.js). A passage a widget renders into a declared shadow root is
 // placed inside that root, and the page's order is read across those trees
@@ -37,7 +41,7 @@ import { byRenderedOrder, upFrom } from "../shadow.js";
 // is no place, which is the same answer an anchor that resolves nowhere gets.
 export const threadPlace = (t, placedAt) => {
   const place = placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null);
-  return place?.isConnected ? place : null;
+  return place?.isConnected && !leafSurface(place) ? place : null;
 };
 
 // The log's order is the tiebreak, so two threads on one paragraph read in the order they

@@ -831,12 +831,7 @@ export function createSemanticApplication({
     // words `fault` keeps), or with one the page could not apply (`broken`). It is
     // what the page's status says about the server, and no semantic epoch.
     reach: "waiting"
-
-
-
-
-
-                ,
+                                                                              ,
     fault: null                 ,
     hostAvailable: true,
     data: { version: null                 , sources: {}                            },

@@ -114,9 +114,13 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
         # neither offline nor a key to replace: the status says its words.
         page.route(
             "**/api/state*",
-            lambda route: route.fulfill(status=500, json={"error": "projection failed"}),
+            lambda route: route.fulfill(
+                status=500, json={"error": "projection failed"}
+            ),
         )
-        expect(live).to_contain_text("The server answered with an error: projection failed")
+        expect(live).to_contain_text(
+            "The server answered with an error: projection failed"
+        )
         # The refused and failed reads recur on the page's clock until it closes.
         page.close()
         consume_browser_errors(page, http_error_console(401), http_error_console(500))

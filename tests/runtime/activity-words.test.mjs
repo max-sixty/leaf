@@ -223,16 +223,13 @@ test("an unreachable server reports itself without a tone; a refused key and an 
     adds: "Keep this tab open so pending changes can send.",
     asks: true,
   });
-  assert.deepEqual(
-    pageStatus(null, { reach: "faulted", fault: "KeyError: 'x'." }),
-    {
-      kind: "faulted",
-      tone: "blocked",
-      summary: "Server error — retrying",
-      explanation: "The server answered with an error: KeyError: 'x'. Retrying.",
-      adds: "It answered: KeyError: 'x'. Retrying.",
-    },
-  );
+  assert.deepEqual(pageStatus(null, { reach: "faulted", fault: "KeyError: 'x'." }), {
+    kind: "faulted",
+    tone: "blocked",
+    summary: "Server error — retrying",
+    explanation: "The server answered with an error: KeyError: 'x'. Retrying.",
+    adds: "It answered: KeyError: 'x'. Retrying.",
+  });
   assert.deepEqual(pageStatus(null, { reach: "broken" }), {
     kind: "broken",
     tone: "blocked",

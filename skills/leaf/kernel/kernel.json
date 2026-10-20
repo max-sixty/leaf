@@ -246,7 +246,7 @@
     "runtime/words.js": "9ac8635d70b7c09b33c28a69e7c4b17438e407af25a8da94de77bb0859457c61",
     "runtime/work.js": "5e3fdd90551dd7caf7a1268423ac611c4b8f86a7b666d732fba252dfc5669f4f",
     "vendor/browser-runtime.js": "70b6fa24cc6a28d001ad37d432837fff7764a98090e9ef3bc115d3a9b1b661a2",
-    "vendor/browser-runtime/application.js": "7da6564f2d6c06410e873b82d52eb81dacb4d359ecf7edb1ef21de2160f8ae78",
+    "vendor/browser-runtime/application.js": "dc535851e33ec10ff552ecb9d8ae349a4bb7dae9bb2548a3d01b754b66891ba9",
     "vendor/browser-runtime/presentation.js": "fab714b509aaf8d8f6705effdb5ed14d016fc91e4b1c07184f2ff7f481c3b972",
     "vendor/browser-runtime/signals-core.js": "8da1a37a754b447ba086e44b25d8d498b43a16ba4c7c6775b2e5e8e61c3abb96",
     "vendor/browser-runtime/snapshot.js": "1b07d5d6e900af3a81dd8f8158588d618c3ba2f1fa2bd5fa6460180c91c72e69",

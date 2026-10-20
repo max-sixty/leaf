@@ -24,7 +24,13 @@ from render_cases_interaction import (
     SEATED_ITEM_WIDGETS,
     live_url,
 )
-from render_cases_layout import SHOT_SRC, SHOTS, toggle_queue, with_one_item
+from render_cases_layout import (
+    SHOT_SRC,
+    SHOTS,
+    standing_ring,
+    toggle_queue,
+    with_one_item,
+)
 from render_cases_navigation import (
     composer_quote,
 )
@@ -1728,11 +1734,14 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
-def test_a_capture_in_an_outer_column_keeps_its_frame(browser, serve, direction):
-    """A table clips to its own edges, since it scrolls its columns, and an image's frame
-    is a shadow outside the image reaching 8px. A capture in the first or last column,
-    linked or captioned in a figure, stands far enough inside the table's edge to keep
-    that side of its frame, in either direction."""
+def test_what_an_outer_column_draws_outside_itself_stays_whole(
+    browser, serve, direction
+):
+    """A table clips to its own edges, since it scrolls its columns, so whatever a cell
+    in its first or last column draws outside its box keeps its outer side only if the
+    cell keeps room for it: a capture's frame, a shadow reaching 8px beside the image,
+    alone, linked or in a figure, and the ring on a link the keyboard stands on, in
+    either direction. A focused link in the first column lost its ring's outer side."""
     src = SHOT_SRC["before"]
     capture = f'<img src="{src}" width="300" height="150" alt="A capture.">'
     body = (
@@ -1740,6 +1749,9 @@ def test_a_capture_in_an_outer_column_keeps_its_frame(browser, serve, direction)
         f'<table id="captures"><tr><td>{capture}</td>'
         f'<td><a href="{src}">{capture}</a></td>'
         f"<td><figure>{capture}<figcaption>After.</figcaption></figure></td></tr>"
+        "</table>"
+        '<table id="links"><tr><td><a id="first" href="#a">#3189</a></td>'
+        '<td>A note on the change.</td><td><a id="last" href="#b">#3190</a></td></tr>'
         "</table>"
     )
     source = leaf_page("Captures", body).replace(
@@ -1760,14 +1772,23 @@ def test_a_capture_in_an_outer_column_keeps_its_frame(browser, serve, direction)
     assert left - at["table"][0] >= 8 - 0.5, at
     assert at["table"][1] - right >= 8 - 0.5, at
 
+    page.keyboard.press("Tab")  # keyboard modality, so focus draws its ring
+    for link in ("#first", "#last"):
+        page.locator(link).focus()
+        ring = standing_ring(page)
+        assert ring, f"the link {link} the keyboard stands on wears no ring"
+        assert ring["cuts"] == [], (link, ring["cuts"])
+
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
-def test_a_tables_outer_words_stand_on_the_prose_edges(browser, serve, direction):
-    """A table's outer columns keep no gutter on its outer sides and set their words from
-    the table's start, so a table as wide as the column starts its first column's words,
-    a short heading's included, where the prose starts, and ends its last column where
-    the prose ends, in either direction. A right-to-left table kept the left-to-right
-    gutter on its first column's right and set its words from the left."""
+def test_a_tables_rows_span_the_prose_and_its_outer_words_stand_in_alike(
+    browser, serve, direction
+):
+    """A table as wide as the column runs its row lines from where the prose starts to
+    where it ends, and sets its first column's words, a short heading's included, as far
+    inside the start as its last column's stop inside the end, in either direction. A
+    right-to-left table kept the left-to-right gutter on its first column's right and set
+    its words from the left."""
     words = "Each column holds enough words to fill its share of the measure. "
     body = (
         f"<h1>Columns</h1><p id='prose'>{words * 4}</p>"
@@ -1782,6 +1803,9 @@ def test_a_tables_outer_words_stand_on_the_prose_edges(browser, serve, direction
     page = open_page(browser, serve(source))
     at = page.evaluate("""() => {
       const rtl = getComputedStyle(document.getElementById('columns')).direction === 'rtl';
+      const sign = rtl ? -1 : 1;
+      const prose = document.getElementById('prose').getBoundingClientRect();
+      const [from, to] = rtl ? [prose.right, prose.left] : [prose.left, prose.right];
       const ink = node => {
         const range = document.createRange();
         range.selectNodeContents(node);
@@ -1792,18 +1816,20 @@ def test_a_tables_outer_words_stand_on_the_prose_edges(browser, serve, direction
         const r = cell.getBoundingClientRect(), cs = getComputedStyle(cell);
         return rtl ? r.left + parseFloat(cs.paddingLeft) : r.right - parseFloat(cs.paddingRight);
       };
-      const prose = document.getElementById('prose').getBoundingClientRect();
-      const rows = [...document.querySelectorAll('#columns tr')];
-      return {
-        starts: rows.map(row => ink(row.firstElementChild)),
-        ends: rows.map(row => content(row.lastElementChild)),
-        prose: rtl ? [prose.right, prose.left] : [prose.left, prose.right],
-      };
+      return [...document.querySelectorAll('#columns tr')].map(row => {
+        const first = row.firstElementChild.getBoundingClientRect();
+        const last = row.lastElementChild.getBoundingClientRect();
+        return {
+          line: rtl ? [first.right - from, last.left - to] : [first.left - from, last.right - to],
+          inset: [sign * (ink(row.firstElementChild) - from), sign * (to - content(row.lastElementChild))],
+        };
+      });
     }""")
-    for start in at["starts"]:
-        assert start == pytest.approx(at["prose"][0], abs=0.5), at
-    for end in at["ends"]:
-        assert end == pytest.approx(at["prose"][1], abs=0.5), at
+    for row in at:
+        assert row["line"] == [pytest.approx(0, abs=0.5)] * 2, at
+        start, end = row["inset"]
+        assert start > 0.5, at
+        assert start == pytest.approx(end, abs=0.5), at
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])

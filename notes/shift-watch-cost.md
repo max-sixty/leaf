@@ -19,13 +19,27 @@ measured and dropped in October 2026, and what would make it worth revisiting.
   | 4 tests opening many sample frames | 25.6 s | 15.5 s (−39%) |
   | 13 ordinary interaction tests      | 20.3 s | 18.1 s (−11%) |
 
-  Opening the feature gallery took 18.0 s with the watch and 9.3 s without.
+  The four tests whose subject is the feature gallery took, serially on an M-series
+  Mac under other sessions' load, one run each (October 2026):
+
+  | CPU         | unwatched | watched |
+  | ----------- | --------: | ------: |
+  | full speed  |    53.4 s | 119.1 s |
+  | 4x throttle |   150.9 s | 469.6 s |
+
+  The two in `tests/browser/`, which run on each push to main, take 35.1 s of the
+  unwatched and 77.9 s of the watched full-speed time.
 
 - **The time goes on full readings of frames where something changed**: page load,
   sample frames upgrading, trace playback, and the frames around each key. The ledger
   needs those readings to judge. A ledger-only variant that reused unchanged readings
   in child frames and read only the field during a key's rendering (51 lines, passing
   the watch's own tests) saved 1–2%.
+- **A scroll-driven animation changes nothing between scrolls.** Until October 2026 the
+  watch counted lf-toc's contents window, whose scroll-driven animation always reads as
+  running, as motion, and read every node on every frame of any page with a contents
+  list. That held the gallery at 15 frames a second watched against 60 unwatched, and
+  timed a gallery test out at 4x throttle.
 - **CI barely notices.** Browser tests run on pushes to main and nightly, about 3% of
   runner-hours. The saving matters to an agent running a watched test locally.
 - **Opening a page cost most on CI's runner before it presented.** Each frame of a
@@ -78,10 +92,6 @@ that enforces Stability:
 
 ## Open findings
 
-- **The watch can't judge the feature gallery.** A sample frame's judgement never
-  finishes, and the test times out after about 130 s, in either mode. That may be why
-  the gallery's tests are unwatched, so Stability goes unchecked on the page with the
-  most widgets.
 - **Most browser tests are unwatched.** Whether each `shifts_unsurveyed` module still
   needs its exemption hasn't been reviewed. Watching more tests costs time, at the rates
   above.

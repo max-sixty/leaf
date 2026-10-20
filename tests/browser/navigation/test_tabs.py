@@ -42,6 +42,7 @@ GALLERY_DESTINATIONS = {
 }
 
 
+@pytest.mark.watch_shifts
 def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_leaf):
     """The gallery is a journey through the core, not merely its samples beside it.
 

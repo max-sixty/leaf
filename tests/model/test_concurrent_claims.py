@@ -10,7 +10,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import STATED_TIMEOUT, record_claim
 from leaf import cli as cli_model
-from leaf import service
+from leaf import service, state
 from leaf.service import claim_path, claim_records, page_claim
 from leaf.state import flocked, holds_claims
 
@@ -82,10 +82,10 @@ def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(
 
     observed_missing = Event()
     successor_written = Event()
-    is_dir = Path.is_dir
+    stands = state._stands
 
     def observe_before_recreation(path):
-        exists = is_dir(path)
+        exists = stands(path)
         if path == page and not exists:
             observed_missing.set()
             assert successor_written.wait(STATED_TIMEOUT), (
@@ -93,7 +93,7 @@ def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(
             )
         return exists
 
-    monkeypatch.setattr(Path, "is_dir", observe_before_recreation)
+    monkeypatch.setattr(state, "_stands", observe_before_recreation)
     with ThreadPoolExecutor(max_workers=1) as executor:
         scan = executor.submit(claim_records, session)
         try:
@@ -145,18 +145,23 @@ def test_a_waiting_page_transaction_follows_a_recreated_page(tmp_path, monkeypat
 
 def test_a_claim_on_a_page_that_is_gone_retires_whichever_leaf_wrote_it(tmp_path):
     """A session's own scan removes its claim on a deleted page, with its locator,
-    so the session holds nothing and its hooks and files can end with it."""
+    so the session holds nothing and its hooks and files can end with it. A page
+    the scan can't reach, behind a folder it may not read, still stands."""
     page = tmp_path / "deleted"
     page.mkdir()
     record_claim(page, id="owner")
     payload = claim_path(page)
-    locator = service.session_claims("owner") / payload.name
     payload.write_text(json.dumps({**json.loads(payload.read_text()), "format": "x"}))
     assert holds_claims("owner")
+    tmp_path.chmod(0)
+    try:
+        assert holds_claims("owner")
+    finally:
+        tmp_path.chmod(0o755)
     page.rmdir()
     assert not holds_claims("owner")
     assert not payload.exists()
-    assert not locator.is_symlink()
+    assert not service.session_claims("owner").exists()
 
 
 def test_initializing_a_recreated_page_releases_its_old_claimant(tmp_path):

@@ -343,8 +343,18 @@ def pages_gone(pages: list[Path]) -> bool:
     Nothing can answer a record once its pages are gone, whichever Leaf wrote it.
     Pages are usually deleted from outside Leaf, with a worktree or a scratch
     directory, so no Leaf process sees the moment; whoever next enumerates the
-    record's directory retires it."""
-    return bool(pages) and not any(page.is_dir() for page in pages)
+    record's directory retires it. A page this process can't stat, as on an
+    unmounted volume or behind a folder it may not read, stands."""
+    return bool(pages) and not any(_stands(page) for page in pages)
+
+
+def _stands(page: Path) -> bool:
+    try:
+        return stat.S_ISDIR(page.stat().st_mode)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except OSError:
+        return True
 
 
 def retire_if_gone(path: Path) -> bool:
@@ -550,7 +560,8 @@ def open_session_turn(session_id: str, turn_id: str | None = None) -> dict | Non
             record["ended"] is not None
             or (record["provider"] and record["turn_closed"] is not None)
         ):
-            # A late consumer/callback cannot restart a known provider turn.
+            # A late consumer/callback cannot restart a known provider turn; one
+            # after the session's files retired starts a generation no claim names.
             return None
         if (
             record
@@ -811,7 +822,10 @@ def retire_claim(payload: Path, stored: dict) -> None:
 def _drop_claim(payload: Path, stored: dict | None) -> None:
     payload.unlink(missing_ok=True)
     if stored is not None:
-        (session_claims(stored["id"]) / payload.name).unlink(missing_ok=True)
+        partition = session_claims(stored["id"])
+        (partition / payload.name).unlink(missing_ok=True)
+        with contextlib.suppress(OSError):
+            partition.rmdir()  # once it holds no other locator
 
 
 def main() -> None:

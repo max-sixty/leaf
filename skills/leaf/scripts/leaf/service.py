@@ -116,8 +116,8 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     """
     path = claim_path(page_dir)
     locator = session_claims(claim["id"]) / path.name
-    locator.parent.mkdir(parents=True, exist_ok=True)
     with flocked(claims_lock()):
+        locator.parent.mkdir(parents=True, exist_ok=True)
         previous = CLAIM.read(path)
         staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
         try:

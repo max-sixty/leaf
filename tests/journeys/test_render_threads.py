@@ -19,9 +19,6 @@ from render_cases_interaction import (
     THREAD_DIFF_PAGE,
     panel_comment,
 )
-from render_cases_layout import (
-    button_radius,
-)
 from render_harness import (
     EXAMPLES,
     LONG_PAGE,
@@ -134,9 +131,10 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     image_open = bar.get_by_role("button", name="View attached image 1", exact=True)
     remove = bar.get_by_role("button", name="Remove attached image 1", exact=True)
     expect(image_open.locator("img")).to_be_visible()
-    expect(bar.locator(".lf-composer-media-item")).to_have_css(
-        "border-radius", button_radius(page)
-    )
+    # The shelf's face, its picture alone with a round removal on its corner, reaches
+    # the widget's tree too (response.css).
+    expect(image_open).to_have_css("border-radius", "8px")
+    expect(remove).to_have_css("border-radius", "50%")
     expect(image_open).to_have_css("cursor", "zoom-in")
     assert remove.evaluate("""button => {
       const box = button.getBoundingClientRect();
@@ -273,7 +271,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     expect(draft_image).to_be_visible()
     expect(draft_image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
     remove = page.locator(".lf-fp-card .lf-composer-media-remove")
-    expect(remove.locator("..")).to_have_css("border-radius", button_radius(page))
+    expect(remove).to_have_css("border-radius", "50%")
     expect(field.get_by_role("button", name="Send", exact=True)).to_have_attribute(
         "aria-disabled", "false"
     )

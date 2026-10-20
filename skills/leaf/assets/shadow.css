@@ -882,7 +882,7 @@ leaf-text.lf-fab-input,
   border-color: transparent;
   background: transparent;
 }
-.lf-react:not(.lf-margin-entry):is([aria-pressed=true], :hover, [data-lf-focus], [data-lf-focus], [aria-busy=true]) {
+.lf-react:not(.lf-margin-entry):is([aria-pressed=true], :hover, [data-lf-focus], [aria-busy=true]) {
   color: var(--ink-2);
   border-color: var(--border-2);
   background: var(--chip);
@@ -1077,11 +1077,6 @@ svg[data-lf-icon] {
 @media screen {
   [data-lf-more-after]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-before])),
   [data-lf-more-before]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-after])) {
-    -webkit-mask-image:
-      linear-gradient(
-        to right,
-        #000 calc(100% - var(--lf-more-fade, 24px)),
-        var(--lf-more-fade-to, transparent));
     mask-image:
       linear-gradient(
         to right,
@@ -1090,11 +1085,6 @@ svg[data-lf-icon] {
   }
   [data-lf-more-before]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-after])),
   [data-lf-more-after]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-before])) {
-    -webkit-mask-image:
-      linear-gradient(
-        to right,
-        var(--lf-more-fade-to, transparent),
-        #000 var(--lf-more-fade, 24px));
     mask-image:
       linear-gradient(
         to right,
@@ -1102,13 +1092,6 @@ svg[data-lf-icon] {
         #000 var(--lf-more-fade, 24px));
   }
   [data-lf-more-before][data-lf-more-after] {
-    -webkit-mask-image:
-      linear-gradient(
-        to right,
-        var(--lf-more-fade-to, transparent),
-        #000 var(--lf-more-fade, 24px),
-        #000 calc(100% - var(--lf-more-fade, 24px)),
-        var(--lf-more-fade-to, transparent));
     mask-image:
       linear-gradient(
         to right,
@@ -1118,7 +1101,6 @@ svg[data-lf-icon] {
         var(--lf-more-fade-to, transparent));
   }
   :is([data-lf-more-before], [data-lf-more-after]):is([data-lf-focus], :has([data-lf-focus])) {
-    -webkit-mask-image: none;
     mask-image: none;
   }
   [data-lf-more-below] {

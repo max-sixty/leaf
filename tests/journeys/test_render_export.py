@@ -14,8 +14,8 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
-from leaf import machine as machine_model
 from leaf import server as server_model
+from leaf import state as cleanup_model
 from leaf.render_checks import wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.served_state.service import PageStateService
@@ -34,7 +34,7 @@ ROOT = Path(__file__).parents[2]
 def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
     """Sharing an offline record grants no access to the machine's other pages."""
     serve(leaf_page("Exported record", "<h1>Exported record</h1>"), packages=())
-    neighbor = machine_model.state_home() / "pages" / "private-neighbor"
+    neighbor = cleanup_model.state_home() / "pages" / "private-neighbor"
     url = neighbour_page(neighbor, title="Private neighboring page")
     live = PageStateService(serve.page_dir).page_state(1)
     assert any(row["url"] == url for row in live["others"])

@@ -60,7 +60,7 @@ test("a document host value does not become a shadow-tree ancestor", () => {
 });
 
 // A detached subtree's root is an element, and an <a> or <area> has a `host` of its own:
-// its URL's. The Leaves drawer's other-page rows are such links, and the reading watcher
+// its URL's. All pages' other-page rows are such links, and the reading watcher
 // climbs from the one a removal record names once it has left.
 test("a detached link's URL host is not a shadow-tree ancestor", () => {
   document.body.innerHTML =
@@ -149,8 +149,8 @@ test("the runtime's chrome repainting is not a change to what the page says", ()
     '<main><p>Alpha beta</p></main><div class="lf-ui" id="panel"><p>Panel</p></div>';
   const first = pageText();
   assert.doesNotMatch(first.raw, /Panel/);
-  // The panel, the banner and the shortcut bar re-render on nearly every gesture — a drag
-  // on a large page wrote dozens of records, all under `.lf-ui`. The reading skips those
+  // The floating panel re-renders on nearly every gesture — a drag on a large page
+  // wrote dozens of records, all under `.lf-ui`. The reading skips those
   // words, so their churn is no reason to walk the page again.
   const panel = document.querySelector("#panel");
   panel.innerHTML = "<p>Panel again</p><button>Reply</button>";

@@ -14,7 +14,7 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
-from ..schema import WIDGET_KINDS
+from ..registry.kernel import verb_writers
 from ..thread_context import thread_memberships
 from ..work_reading import WorkReading
 from .context import PageRead
@@ -179,7 +179,7 @@ def browser_state(
         }
         coverage = []
         for event in events:
-            if event["kind"] in WIDGET_KINDS:
+            if event["kind"] in verb_writers():
                 classified_entry = classified.get(event["id"])
             elif event["kind"] == "undo":
                 classified_entry = classified.get(event["undoes"])

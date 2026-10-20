@@ -228,7 +228,7 @@ class _DeployedPage:
         revision: int,
         presented_at: float,
         reload_ok: bool = True,
-        banner: str | None = None,
+        status: str | None = None,
         follows_revision: bool = False,
         presentation_pending: bool = False,
         initial_presented_at: float | None = None,
@@ -237,7 +237,7 @@ class _DeployedPage:
         self.revision = revision
         self.presented_at = presented_at
         self.reload_ok = reload_ok
-        self.banner = banner
+        self.status = status
         self.follows_revision = follows_revision
         self.presentation_pending = presentation_pending
         self.initial_presented_at = (
@@ -315,7 +315,7 @@ class _DeployedPage:
         if script == "window.__leafVerifier.revisionAtLeast":
             return self.revision >= arg and not self.presentation_pending
         if script == "window.__leafVerifier.status":
-            return self.banner
+            return self.status
         return []
 
 
@@ -1567,7 +1567,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert pending.revision_waits == [(2, journey.TURN_PRESENTATION)]
 
 
-def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
+def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
     monkeypatch,
 ):
     """A stale revision has two causes, and the message has to separate them.
@@ -1576,7 +1576,7 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
     following the published 2` and nothing else, which reads the same whether the
     container answered the reload's first state read with revision 1 or never answered
     it at all. The gate cannot watch that read, but the page says which it was: an
-    answer it never got leaves the offline banner standing over the authored document.
+    answer it never got leaves the offline status standing over the authored document.
     """
     release = "5b6be522" + "0" * 56
     recorded = f"Deployment {release[:8]} verified"
@@ -1625,7 +1625,7 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
         recorded,
         revision=1,
         presented_at=11_000.0,
-        banner="Server offline — reconnecting",
+        status="Server offline — reconnecting",
     )
     with pytest.raises(RuntimeError) as reported:
         run_browser_journey(
@@ -1638,19 +1638,19 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
         )
     assert "stands on revision 1" in str(reported.value)
     assert "Server offline — reconnecting" in str(reported.value)
-    # Reported after the gate's own patience ran out, not at presentation: the banner is
+    # Reported after the gate's own patience ran out, not at presentation: the status is
     # quoted for a read that never answered rather than for one a second slower than the
     # runtime's wait.
     assert offline.revision_waits == [(2, journey.TURN_PRESENTATION)]
 
     # A page whose read answered is standing under an ordinary activity line rather
-    # than an empty banner — a presented page always has one — so the two causes are
+    # than an empty status — a presented page always has one — so the two causes are
     # separated by what the message quotes rather than by whether it quotes anything.
     told = _DeployedPage(
         recorded,
         revision=1,
         presented_at=1_400.0,
-        banner="Claude is handling 1 update",
+        status="Claude is handling 1 update",
     )
     with pytest.raises(RuntimeError) as named:
         run_browser_journey(

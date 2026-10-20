@@ -59,7 +59,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from .leases import release_lease, take_lease
-from .state import state_home_path, write_json
+from .state import state_home, write_json
 
 # One bridge per installed tree: a plugin update is a new tree, whose sessions
 # reach its own bridge while the old one serves out the sessions still on it.
@@ -107,7 +107,7 @@ def receive(stream, limit: int | None = None) -> tuple[bytes, bytes] | None:
 
 
 def bridge_path(suffix: str) -> Path:
-    return state_home_path() / "bridge" / f"{KEY}.{suffix}"
+    return state_home() / "bridge" / f"{KEY}.{suffix}"
 
 
 def ensure(session: str, lifetime: dict) -> None:

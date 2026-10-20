@@ -76,7 +76,8 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # CSS pixels of a widget that draws into a box of a stated height (x-height), and, read
 # from `body`, the selected annotation presentation and whether the page claims the
 # overlay rail or keeps that margin for its own residents. Delivery honours a width,
-# bound or height only where it means something (`authored_on`, schema.DECLARED_MARKS).
+# bound or height only where it means something (`authored_on` in the kernel
+# registry's `$marks`).
 AUTHORED_ALLOCATIONS = {
     "data-width": ("wide", "available"),
     "data-bound": ("start", "end"),

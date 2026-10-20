@@ -376,7 +376,7 @@ function summaryNode(record, open, verified = true) {
 // control nested in one is announced as a single thing — the serious
 // `nested-interactive` finding the corpus's axe sweep reports, once per file. They are
 // siblings in this wrapper instead, the press first, and shadow.css draws it back onto
-// the summary line. First because the line pins: the summary sticks under the banner
+// the summary line. First because the line pins: the summary sticks at the window's top
 // while its rows go past, and the press sticks with it only as a box in the flow ahead
 // of the disclosure, since a box placed against the file's top would stay there and
 // drift off the header it belongs to.
@@ -995,11 +995,9 @@ customElements.define(
         this,
         "In a diff review",
         [
-          // The walk leads the scope, because the shortcut bar's shortlist is its first
-          // two live rows and moving is what a user standing on a diff row does
-          // next, where "filter files" is the press for someone who has not started
-          // reading yet. The rest of the scope is one `?`
-          // away in the compact shortcut bar and complete in the reference dialog.
+          // The walk leads the scope, so the command reference lists it first: moving
+          // is what a user standing on a diff row does next, where "filter files" is
+          // the press for someone who has not started reading yet.
           //
           // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
           // unit out. Bracket pairs because that is what an editor and a review tool
@@ -1892,7 +1890,7 @@ customElements.define(
       if (!entry) return this.markFileWalk();
       this.fileCursor = entry;
       // The box rather than the header, which is what the generated fold target settled for
-      // the same shape: a header pinned to the banner is already where it is going, so
+      // the same shape: a header pinned to the window's top is already where it is going, so
       // aligning it moves nothing, while aligning the file it heads starts the file at
       // its start. The header is still what takes the focus.
       this.land(entry.node, entry.details?.firstElementChild ?? entry.node);

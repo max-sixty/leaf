@@ -86,11 +86,13 @@
    in the rewrite for that one cause of shrinking.
 
    The comment box's frame reserves its card's head and reply rows around the editor,
-   and the boundary holds all of it, as it holds the card, so Send moves nothing. The
-   box paints that frame while it is written (annotation-chrome.css), so the edge it
-   rises against is one the user sees. Rejected: letting the reserved row the box grows
-   toward stand past the window's edge (#3139), which kept the words still while typing
-   but moved them at Send by that row.
+   unpainted, and the boundary holds all of it, as it holds the card, so the card Send
+   grows out of the field (annotation-chrome.css) stands where the frame stood and no
+   word moves. Near the window's foot the field therefore rises while room still shows
+   below it. Rejected: letting the reserved row the box grows toward stand past the
+   window's edge (#3139), which kept the words still while typing but moved them at
+   Send by that row; and painting the frame as the card while it is written (#3157),
+   which left Send nothing to grow.
 
    Send hands the editor's frame to the card (`adopt`). Its next choice keeps the
    frame's side and inline start where the boundary still matches, and returns its

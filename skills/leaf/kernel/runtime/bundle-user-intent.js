@@ -35,6 +35,7 @@ import {
   followingItsEnd,
   headerLevels,
   localScrollBy,
+  marks,
   nameAnchor,
   refreshAnchorView,
   resolveAnchor,
@@ -1186,7 +1187,7 @@ async function highlightBlocks(root) {
 
 // runtime/declared-words.js
 var PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
-var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some((mark) => mark.paint === name);
+var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(marks).some((mark) => mark.paint === name);
 function quietWord(el2, word) {
   const title = el2.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el2.firstChild;
@@ -1316,7 +1317,7 @@ function* elementsIn(root, selector) {
   yield* root.querySelectorAll(selector);
 }
 function markDeclared(root) {
-  for (const [key, mark] of Object.entries(registry.$marks)) {
+  for (const [key, mark] of Object.entries(marks)) {
     const { paint, authored, message } = mark;
     if (!message) continue;
     const tags = tagsDeclaring((entry) => entry[key]);
@@ -3887,7 +3888,7 @@ var STACK = [
   "draw mode",
   "design mode",
   PAGE,
-  // Outermost, so a page command still ranks ahead of the way out on the line.
+  // Outermost, so a page command still ranks ahead of the way out.
   RUNGS
 ];
 var RUNG_LADDER = [
@@ -3919,14 +3920,13 @@ var PAGE_COMMANDS = [
   "reading.align.top",
   "thread.unread.first",
   "navigation.panel.threads",
-  "navigation.drawer.queue",
-  "navigation.drawer.leaves",
+  "navigation.panel.queue",
+  "navigation.panel.leaves",
   "navigation.page-map",
   "version.open",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
-  // them: on a narrow window the sequence hides a second way to somewhere the user can
-  // already get to, where a walk it crowded out would be the only one.
+  // them: a second way to somewhere the user can already get to.
   "navigation.go-to.open",
   "draw.mode.enter",
   "capture.region.open",
@@ -3934,8 +3934,7 @@ var PAGE_COMMANDS = [
   "annotations.toggle",
   "panel.floating.fold",
   COMMAND_REFERENCE,
-  // A real key the browser owns, and one gesture that is not a key at all. Neither says a
-  // word for the line, so neither is ever promised as the next press.
+  // A real key the browser owns, and one gesture that is not a key at all.
   "browser.caret",
   "aim.comment"
 ];
@@ -4760,7 +4759,7 @@ async function threadDestination(id, open2, may) {
 }
 var carried = /* @__PURE__ */ new WeakSet();
 var carrying = null;
-var carryingThreadPlace = (node) => Boolean(node) && carrying?.node === node && carrying.may();
+var carryingThreadPlace = (node) => Boolean(node) && carrying?.node === node && (carrying.reply ? carrying.may() : carrying.intent() && allThreads().some((thread) => thread.id === carrying.id && !thread.resolved));
 function holdThreadPlace(open2, { threadAt, seated }) {
   carrying = null;
   const held = holdStanding();
@@ -4776,7 +4775,7 @@ function holdThreadPlace(open2, { threadAt, seated }) {
     intent,
     () => allThreads().some((each) => each.id === id && !each.resolved) && seated(id)
   );
-  const carry2 = { node, may };
+  const carry2 = { node, id, intent, may, reply: Boolean(destination) };
   carrying = carry2;
   return async () => {
     try {

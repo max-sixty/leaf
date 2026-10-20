@@ -126,7 +126,7 @@ def test_terminal_harness_failure_keeps_exact_user_recovery_without_stop_obligat
         }
     ]
     assert state["activity"]["obligations"] == []
-    # The move is the user's to resend, so the banner counts nothing as saved for
+    # The move is the user's to resend, so the panel counts nothing as saved for
     # the agent to pick up.
     assert set(state["activity"]["counts"].values()) == {0}
     [thread] = served_thread(state["browser"])["threads"]

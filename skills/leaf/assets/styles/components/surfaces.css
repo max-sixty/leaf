@@ -12,7 +12,8 @@
  * The two halves are not written alike, because a duration is a way of keeping
  * an animation and no way at all of keeping a transition. An animation is
  * declared and named, and `animationend` is how the layer knows one has run —
- * the thread list takes `grow` off a card that way — so the near-zero duration
+ * a control takes its agent-arrival mark off that way (contribution-controls.js) —
+ * so the near-zero duration
  * keeps that event and spends no time on it. It runs once, since an endless
  * animation at that duration repeats on every frame, showing a different point
  * of its keyframes each time: a pulse becomes a flicker, and the page never

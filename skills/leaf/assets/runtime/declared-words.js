@@ -53,6 +53,7 @@ import { highlightBlocks } from "./syntax.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { marks } from "./marks.js";
 
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // Whether an attribute on the page's own element is paint rather than the author's: the
@@ -61,7 +62,7 @@ const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 // nothing has painted, and paint it did not look past is a change the author never made.
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
-  Object.values(registry.$marks).some((mark) => mark.paint === name);
+  Object.values(marks).some((mark) => mark.paint === name);
 
 // A word for a user listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
@@ -288,12 +289,12 @@ export function paintDeclaredWords(root) {
 // An attribute, because the theme cannot read the registry — the same arrangement x-says
 // already has with data-lf-said. Which declarations are marks, the attribute each is
 // painted as, the attribute an occurrence overrides it with, and whether it holds in a
-// message are one table, Python's `schema.DECLARED_MARKS`, which composition stamps into
-// the vocabulary as `$marks`. A page's document arrives painted from it: delivery writes
+// message are one table, the kernel registry's `$marks`, which this runtime imports as
+// generated `marks.js`. A page's document arrives painted from it: delivery writes
 // the marks into the served source (revision_delivery.py, `mark_declared`), so the first
 // paint already gives a board its room and a workspace its panes, before any module or
 // the registry loads, and a revision the page patches in arrives painted the same way. A
-// message is the runtime's to render, so `markDeclared` paints it from `$marks` as it
+// message is the runtime's to render, so `markDeclared` paints it from `marks` as it
 // renders, with the marks that hold there: every one but the room, which is the
 // document's to hand out, while a message renders in the panel's.
 
@@ -305,7 +306,7 @@ function* elementsIn(root, selector) {
 // Paint a message's declared marks, the root alongside its descendants: each tag's
 // declaration, and an occurrence's authored override over it.
 export function markDeclared(root) {
-  for (const [key, mark] of Object.entries(registry.$marks)) {
+  for (const [key, mark] of Object.entries(marks)) {
     const { paint, authored, message } = mark;
     if (!message) continue;
     const tags = tagsDeclaring((entry) => entry[key]);
@@ -314,7 +315,7 @@ export function markDeclared(root) {
       for (const el of elementsIn(root, tag))
         keeps(el, paint, declared === true || mark.presence ? "" : declared);
     }
-    // Message markup is all content (`authored_on`, schema.DECLARED_MARKS), so only a
+    // Message markup is all content (`authored_on`, `$marks`), so only a
     // mark held to declaring tags asks which tag an occurrence is.
     if (authored)
       for (const el of elementsIn(root, `[${authored}]`))

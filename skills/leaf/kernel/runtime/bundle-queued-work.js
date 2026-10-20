@@ -1416,11 +1416,17 @@ import { repeat } from "/vendor/lit.js";
 import { styleMap } from "/vendor/lit.js";
 import { unsafeHTML } from "/vendor/lit.js";
 
+// runtime/event-kinds.js
+var MESSAGE_KINDS = /* @__PURE__ */ new Set(["comment", "reply"]);
+var VERB_WRITERS = { "action": "user", "report": "agent" };
+
+// runtime/names.js
+var WIDGET_NAME = new RegExp("^lf-[a-z0-9]+(?:-[a-z0-9]+)*$");
+
 // runtime/registry-contract.js
 function stampedState(registry, tag, event) {
   const state = registry.$states[tag]?.[event.action];
-  const writer = { action: "user", report: "agent" }[event.kind];
-  return state?.writer === writer ? state : null;
+  return state?.writer === VERB_WRITERS[event.kind] ? state : null;
 }
 function sameStateDefinition(recorded, current) {
   if (recorded === current) return true;
@@ -1431,10 +1437,10 @@ function sameStateDefinition(recorded, current) {
     (key) => Object.hasOwn(current, key) && (typeof recorded[key] === "object" ? sameStateDefinition(recorded[key], current[key]) : recorded[key] === current[key])
   );
 }
-var isElementName = (name) => /^lf-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name);
+var isElementName = (name) => WIDGET_NAME.test(name);
 
 // runtime/pending/model.js
-var isThreadEvent = (event) => event.kind === "comment" || event.kind === "reply";
+var isThreadEvent = (event) => MESSAGE_KINDS.has(event.kind);
 var isMessageEvent = (event) => isThreadEvent(event) && !event.token;
 var isTurnEvent = (event) => isMessageEvent(event) || event.kind === "edit";
 var turnMessage = (turn) => turn.kind === "edit" && turn.message ? turn.message : turn.id;
@@ -1900,7 +1906,8 @@ function createSemanticApplication({
     // How the server answered the page's latest read: not yet (`waiting`), with a
     // reading the page adopted (`reached`), with nothing (`unreachable`, or `refused`
     // where it refused this tab's key), or with one the page could not apply
-    // (`broken`). It is what the banner says about the server, and no semantic epoch.
+    // (`broken`). It is what the page's status says about the server, and no semantic
+    // epoch.
     reach: "waiting",
     hostAvailable: true,
     data: { version: null, sources: {} },
@@ -2107,6 +2114,8 @@ function createSemanticApplication({
         gestured: [...new Set(unresolved.flatMap(threadsOfEntry))]
       },
       items: { phase, ...items },
+      // The agent's plan in force, as the server read it (`plans.plan_reading`).
+      plan: ready ? state?.browser.plan ?? null : null,
       // On me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {

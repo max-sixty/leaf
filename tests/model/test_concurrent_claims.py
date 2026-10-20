@@ -75,7 +75,8 @@ def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(
     tmp_path, monkeypatch, session
 ):
     """A scan retires a claim on a missing page, but never the successor's that
-    replaced it while the scan ran."""
+    replaced it while the scan ran, even when the successor is the session whose
+    claims the scan reads."""
     page = tmp_path / "recreated"
     record_claim(page, id="prior")
 
@@ -100,14 +101,14 @@ def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(
                 "scan did not observe the missing page"
             )
             page.mkdir()
-            successor = record_claim(page, id="successor")
+            successor = record_claim(page, id=session or "successor")
         finally:
             successor_written.set()
         assert scan.result(timeout=STATED_TIMEOUT) == []
 
     assert claim_path(page).exists()
     assert page_claim(page) == successor
-    assert claim_records("successor") == [successor]
+    assert claim_records(successor["id"]) == [successor]
 
 
 def test_a_waiting_page_transaction_follows_a_recreated_page(tmp_path, monkeypatch):

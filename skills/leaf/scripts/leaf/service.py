@@ -43,6 +43,7 @@ from leaf.state import (
     TIME,
     Record,
     chat_exists,
+    claims_lock,
     ensure_session,
     flocked,
     fsync_parents,
@@ -110,23 +111,24 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     old locator therefore stops being current at the canonical commit, which also
     admits the prepared new locator. Failed preparation leaves ownership intact.
     Resident writers retain the same flat payload path, so their atomic updates
-    cannot destroy discovery.
+    cannot destroy discovery. The claims lock keeps a retirement from removing
+    what this publishes (`state.retire_claim`).
     """
     path = claim_path(page_dir)
-    previous = CLAIM.read(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
     locator = session_claims(claim["id"]) / path.name
     locator.parent.mkdir(parents=True, exist_ok=True)
-    staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
-    try:
-        staged.symlink_to(Path("..") / path.name)
-        os.replace(staged, locator)
-        fsync_parents([locator])
-    finally:
-        staged.unlink(missing_ok=True)
-    CLAIM.write(path, claim)
-    if previous is not None and previous["id"] != claim["id"]:
-        (session_claims(previous["id"]) / path.name).unlink(missing_ok=True)
+    with flocked(claims_lock()):
+        previous = CLAIM.read(path)
+        staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
+        try:
+            staged.symlink_to(Path("..") / path.name)
+            os.replace(staged, locator)
+            fsync_parents([locator])
+        finally:
+            staged.unlink(missing_ok=True)
+        CLAIM.write(path, claim)
+        if previous is not None and previous["id"] != claim["id"]:
+            (session_claims(previous["id"]) / path.name).unlink(missing_ok=True)
 
 
 # The keys a claim's reading takes from its session's lifetime (`claim_reading`).

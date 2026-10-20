@@ -784,34 +784,34 @@ def standing_claims() -> list[Path]:
     return standing
 
 
+def claims_lock() -> Path:
+    """The lock under which a claim's payload and its locator change together:
+    publication (`service.publish_claim`), removal and retirement. It is taken
+    last, after any page or session lock, and nothing else is taken under it."""
+    return state_home().resolve() / "claims.lock"
+
+
 def remove_claim(payload: Path) -> None:
     """Remove a page's claim payload and the locator its claimant holds for it."""
-    stored = stored_record(payload)
-    payload.unlink(missing_ok=True)
-    if stored is not None:
-        (session_claims(stored["id"]) / payload.name).unlink(missing_ok=True)
+    with flocked(claims_lock()):
+        _drop_claim(payload, stored_record(payload))
 
 
 def retire_claim(payload: Path, stored: dict) -> None:
     """Remove the claim `stored`, read from `payload`, of a page that is gone.
 
     No page lock guards a page that is gone, and the path could be made a page
-    again and claimed between the reading and the removal. So the payload is moved
-    aside first and removed only if it is still the claim that was read; a
-    successor's is put back."""
-    moved = payload.with_name(f".{secrets.token_hex(8)}.retired")
-    try:
-        os.rename(payload, moved)
-    except FileNotFoundError:
-        return
-    try:
-        if stored_record(moved) != stored:
-            with contextlib.suppress(FileExistsError):
-                os.link(moved, payload)
-            return
+    again and claimed between the reading and the removal, so the claim goes only
+    if it is still the one that was read under the lock every publication takes."""
+    with flocked(claims_lock()):
+        if stored_record(payload) == stored:
+            _drop_claim(payload, stored)
+
+
+def _drop_claim(payload: Path, stored: dict | None) -> None:
+    payload.unlink(missing_ok=True)
+    if stored is not None:
         (session_claims(stored["id"]) / payload.name).unlink(missing_ok=True)
-    finally:
-        moved.unlink()
 
 
 def main() -> None:

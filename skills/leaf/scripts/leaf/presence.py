@@ -90,7 +90,8 @@ def neighbor_candidates() -> tuple:
     Every server already publishes a row, including pages outside pages/, so its
     publication is the one discovery surface. Atomic replacements move rows/'s
     stamp; readers hold the parsed envelopes until a producer changes them.
-    Server leases are still checked on every observation, independent of files.
+    Server leases are still checked on every observation, independent of files,
+    including those of the pages rows at another format name (`_row_reading`).
     """
     global _candidates, _row_home, _row_files
     home = state_home()
@@ -114,29 +115,26 @@ def neighbor_candidates() -> tuple:
             if key is None:
                 _row_files.pop(path, None)
             elif path not in _row_files or _row_files[path][0] != key:
-                try:
-                    record = ROW.read(path)
-                    if record is None:
-                        _retire_unread_row(path)
-                except (OSError, ValueError):
-                    record = None
-                _row_files[path] = (key, record)
-        found = []
-        for _key, record in _row_files.values():
-            if record is not None:
-                found.append((Path(record["page"]), record))
-        _candidates = (stamp, tuple(found))
+                _row_files[path] = (key, *_row_reading(path, ROW))
+        found = tuple(
+            (page, record) for _key, page, record in _row_files.values() if page
+        )
+        _candidates = (stamp, found)
         return _candidates[1]
 
 
-def _retire_unread_row(path: Path) -> None:
-    """Remove a row at a format this Leaf doesn't read once no process holds the
-    server lease of the page it names: the lease, unlike the row, means the same
-    to every Leaf (`other_leaves` retires the rows this Leaf reads)."""
-    stored = stored_record(path)
-    pages = named_pages(stored) if stored else []
-    if pages and not any(lock_is_held(page / SERVER_LOCK) for page in pages):
-        path.unlink(missing_ok=True)
+def _row_reading(path: Path, kind) -> tuple:
+    """The page a row names and the row, or the page alone for a row at a format
+    this Leaf doesn't read, so `other_leaves` still checks that page's server
+    lease, which means the same to every Leaf, and retires the row once none holds
+    it (`state.named_pages`)."""
+    try:
+        if record := kind.read(path):
+            return Path(record["page"]), record
+        pages = named_pages(stored_record(path) or {})
+    except (OSError, ValueError):
+        return None, None
+    return (pages[0] if pages else None), None
 
 
 def other_leaves(page_dir: Path) -> list:
@@ -176,6 +174,8 @@ def other_leaves(page_dir: Path) -> list:
             if info is None:
                 if not lock_is_held(candidate / SERVER_LOCK):
                     row_path(candidate).unlink(missing_ok=True)
+                continue
+            if record is None:
                 continue
             row = read_row(candidate, info, record=record)
             if row is not None and row["activity"]["kind"] != "closed":

@@ -138,8 +138,8 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
 
 
 def test_a_record_of_gone_pages_retires_at_any_format(tmp_path, page_dir):
-    """Freezing a delivery retires every envelope whose pages are gone, and a
-    neighbour scan every row whose page no server holds, though this Leaf reads
+    """Freezing a delivery retires every envelope whose pages are gone, and reading
+    the neighbours every row whose page no server holds, though this Leaf reads
     neither format."""
     page = published(page_dir)
     event = append_carried_log_record(
@@ -163,7 +163,7 @@ def test_a_record_of_gone_pages_retires_at_any_format(tmp_path, page_dir):
         row_path(served).parent.mkdir(parents=True, exist_ok=True)
         write_json(row_path(served), {"format": "x", "page": str(served)})
     try:
-        presence_model.neighbor_candidates()
+        assert presence_model.other_leaves(tmp_path / "observer") == []
         assert row_path(page).exists()
         assert not row_path(unheld).exists()
     finally:

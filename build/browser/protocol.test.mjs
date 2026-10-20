@@ -274,7 +274,24 @@ test("the comparison sees through unions, references and maps", () => {
   listed.served.properties.pick = { anyOf: [listing("y"), listing("x")] };
   assert.deepEqual(
     changed((s) => s.served.properties.pick.anyOf.pop(), listed),
-    ["served state.pick[].payload.x: the field is gone"],
+    ["served state.pick[0].payload.x: the field is gone"],
+  );
+  // A field at one position is gone though another position names it, and kept where
+  // the remaining branch's `items` names it at every position.
+  const shifted = structuredClone(listed);
+  shifted.served.properties.pick.anyOf[0].prefixItems = [{}, payload("x")];
+  assert.deepEqual(
+    changed((s) => s.served.properties.pick.anyOf.pop(), shifted),
+    [
+      "served state.pick[0].payload: the field is gone",
+      "served state.pick[0].payload.x: the field is gone",
+    ],
+  );
+  const covered = structuredClone(listed);
+  covered.served.properties.pick.anyOf[0] = { type: "array", items: payload("x") };
+  assert.deepEqual(
+    changed((s) => s.served.properties.pick.anyOf.pop(), covered),
+    [],
   );
   const shared = structuredClone(payloads);
   shared.served.properties.pick.properties = payload("x").properties;

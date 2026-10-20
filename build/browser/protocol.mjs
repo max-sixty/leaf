@@ -82,9 +82,9 @@ function fields(schema, path = "", found = new Set()) {
     Object.values(schema.dependentSchemas ?? {}),
   ].flat())
     fields(branch, path, found);
-  // Every position of an array is one, whether `prefixItems` or `items` names it.
-  for (const item of [...(schema.prefixItems ?? []), schema.items])
-    fields(item, `${path}[]`, found);
+  for (const [index, item] of (schema.prefixItems ?? []).entries())
+    fields(item, `${path}[${index}]`, found);
+  fields(schema.items, `${path}[]`, found);
   fields(schema.additionalProperties, `${path}.*`, found);
   fields(schema.unevaluatedProperties, `${path}.*`, found);
   return found;
@@ -210,7 +210,9 @@ function diff(old, now, path, side) {
       nested(`|${index}`, before[index] ?? missing, after[index] ?? missing);
       if (!missing && !after[index])
         for (const field of fields(before[index]))
-          if (!kept.has(field)) found.push([`${path}${field}`, "the field is gone"]);
+          // `items` names a field at every position, `[]`.
+          if (!kept.has(field) && !kept.has(field.replace(/\[\d+\]/g, "[]")))
+            found.push([`${path}${field}`, "the field is gone"]);
     }
   }
   if (side.validates && !isDeepStrictEqual(old.oneOf, now.oneOf))

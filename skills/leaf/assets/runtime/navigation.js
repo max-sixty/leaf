@@ -122,8 +122,8 @@ export function placeThreadEdge(thread, edge) {
 // document, and a sample's to its containing page, as the wheel does. Space,
 // Home/End and PageUp/Down stay the browser's own keys.
 //
-// They move the region the user is reading. The thread list is that region when
-// focus stands on its frame; a nested region keeps its own scrollport. Scrolling a
+// They move the region the user is reading. A view the floating panel opens is that
+// region when focus stands in it; a nested region keeps its own scrollport. Scrolling a
 // region the user is not in reads to them as the key doing nothing, and then the
 // document is somewhere else when they look back at it.
 //

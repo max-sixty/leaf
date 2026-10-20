@@ -511,9 +511,9 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     outline is painted by its control at its control's level while an outline's pixels
     are not hit-testable — so a sample outside the control's box returns whatever is
     beneath. That is sound while the control's surface takes hits and unsound inside one
-    that does not, where the answer comes back inverted: the shortcut bar stands over the
-    page at z-index 8940 with `pointer-events: none`, and the code under its More button
-    read as standing over it.
+    that does not, where the answer comes back inverted: the old shortcut bar stood over
+    the page at z-index 8940 with `pointer-events: none`, and the code under its More
+    button read as standing over it.
 
     So the reading declines inside such a surface, and that is a way for it to go quiet
     everywhere by accident. The plant is the population assertion: thin enough to lie

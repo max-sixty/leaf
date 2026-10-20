@@ -267,7 +267,7 @@ def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, n
     """Declaring status, acknowledging a delivery, or taking a wait writes a session
     file, and the next state read holds the activation it had rather than validating
     the whole page again: on a large page that re-validation was most of the time a
-    status took to reach the banner."""
+    status took to reach the panel."""
     assert revisioning_model.activate_source(page_dir).error is None
 
     def revalidated(*_args, **_kwargs):
@@ -1783,7 +1783,7 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     server, page_dir
 ):
-    """The declaration is the decision, and the door holds anything posting past the banner
+    """The declaration is the decision, and the door holds anything posting past the panel
     to it: a version that never asked has no approval to record."""
     publish(page_dir)
 
@@ -3312,7 +3312,7 @@ def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
 def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     page_dir, monkeypatch
 ):
-    """Clock-only aging uses the banner's deadline, with no file or live change.
+    """Clock-only aging uses the activity's own deadline, with no file or live change.
 
     Quiet checks retain the delivered row without folding again; deleting this
     output regenerates it from the page, leaving the canonical inputs untouched.

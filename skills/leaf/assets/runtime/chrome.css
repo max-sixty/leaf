@@ -205,16 +205,13 @@
     outline-offset: 0;
     border-radius: var(--r);
   }
-  .lf-fp-card {
-    anchor-name: --lf-fp-card;
-  }
   .lf-fp-field {
     anchor-name: --lf-fp-field;
   }
   .lf-fp-field .lf-composer-media:not([hidden]) {
     position: fixed;
     --lf-fp-shelf-room: max(10px, calc(var(--aim-floor) / 2 - 3px));
-    bottom: calc(anchor(--lf-fp-card top) + 8px - var(--lf-fp-shelf-room));
+    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-fp-shelf-room));
     left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
     width: max-content;
     max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-fp-shelf-room));
@@ -1489,12 +1486,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 @keyframes lf-runtime-4f3c2a8d-flash {
   from {
     background-color: var(--hi-tint);
-  }
-}
-@keyframes lf-runtime-4f3c2a8d-grow {
-  0% {
-    opacity: 0;
-    transform: translateY(-6px) scale(0.985);
   }
 }
 @scope (.lf-chrome) {

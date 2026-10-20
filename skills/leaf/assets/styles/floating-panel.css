@@ -295,9 +295,6 @@
      a line of its own over the words, which grew the box by a line the one thumbnail
      left mostly empty, and with thumbnails shrunk into the row beside the words,
      which kept the box whole but made each picture a chip. */
-  .lf-fp-card {
-    anchor-name: --lf-fp-card;
-  }
   .lf-fp-field {
     anchor-name: --lf-fp-field;
   }
@@ -308,7 +305,7 @@
        the reach of its removal, which also keeps one image's removal off the next;
        the offsets take that padding back. */
     --lf-fp-shelf-room: max(10px, calc(var(--aim-floor) / 2 - 3px));
-    bottom: calc(anchor(--lf-fp-card top) + 8px - var(--lf-fp-shelf-room));
+    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-fp-shelf-room));
     left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
     width: max-content;
     max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-fp-shelf-room));

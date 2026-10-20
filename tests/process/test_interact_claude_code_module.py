@@ -195,6 +195,8 @@ def band_lines(band) -> list[tuple[str, str]]:
     return [
         (text(line), link["props"]["href"])
         for line in band["children"]
+        # What the plugins beneath drew, which the driver's bottom leaves empty.
+        if line is not None
         for link in line["children"]
         if isinstance(link, dict) and link["tag"] == "Link"
     ]

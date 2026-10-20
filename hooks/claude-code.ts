@@ -329,8 +329,10 @@ export const register: Register = (on, options) => {
     return completed;
   });
 
-  on("ui.render", { component: "AbovePrompt" }, ($, e, next) => {
-    if (leaves.length === 0 || e.props.hasSurvey) return next(e);
+  // The band is shared: Leaf's lines go above whatever the plugins beneath draw.
+  on("ui.render", { component: "AbovePrompt" }, async ($, e, next) => {
+    const beneath = await next(e);
+    if (leaves.length === 0 || e.props.hasSurvey) return beneath;
     const { Box, Text, Link } = $.ui.resolve(e);
     // What JSX would type; the module stays `.ts` for Node, which runs it in tests.
     return h(
@@ -346,6 +348,7 @@ export const register: Register = (on, options) => {
           threads.unread ? `, ${threads.unread} new` : "",
         ),
       ),
+      beneath,
     ) as RenderElement;
   });
 

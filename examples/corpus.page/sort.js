@@ -374,7 +374,7 @@ export function trace(values) {
         line: "c-start0",
         text: `runs[n-1].start == 0`,
         fires: runs[k - 1].start === 0,
-        detail: `top run starts at ${runs[k - 1].start}`,
+        detail: `starts at ${runs[k - 1].start}`,
       });
       list.push({
         line: "c-inv1",
@@ -613,37 +613,40 @@ const CLAUSES = [
 
 // The drawing is laid out in the stage's own pixels, one viewBox unit to a CSS pixel:
 // the lanes stretch sideways with the pane while every height and every label keeps its
-// size, so the labels read at TYPE at any width. Under the lanes, the run stack stands
-// beside the collapse() clauses wherever the clauses fit beside it, a long clause
-// breaking after its `<=`, and there the stage keeps one height; in a narrower stage the
-// clauses stand under the stack at the full width.
+// size, so the labels read at TYPE at any width. Under the lanes, the collapse()
+// clauses stand beside the run stack wherever their verdicts fit, and a clause breaks
+// to fit its column, first after its `<=` and then before its `+`. The verdicts fit in
+// the stage of a 720px window, the narrowest that sets the page's panes side by side,
+// even where a classic scrollbar takes 17px of it. There the stage grows only by the
+// clauses' broken lines, and the film fits a 900px-tall window. In a narrower stage,
+// where the panes stack and the page scrolls, the clauses stand under the stack at the
+// full width.
 const TYPE = 12;
 const LINE = 14;
 // A monospace glyph's advance, in ems, which is what a line of code is measured by.
 const MONO_EM = 0.6;
 const monoWidth = (chars) => chars * TYPE * MONO_EM;
 const X0 = 20;
-const GAP = 20;
+// Wide enough that the comment targets of the stack and of a clause, each reaching
+// 6px past its drawing, don't meet.
+const GAP = 14;
 const STACK_W = 124;
 const STACK_ROWS = 4;
 const ROW_H = 26;
-// The longest verdict a clause prints under itself: "not evaluated   40 <= 20 + 20".
-const VERDICT_CHARS = 30;
+// The longest verdict a clause could print under itself, "true → merge  12 <= 11 + 10"
+// (the runs hold 40 elements in all). It is wider than any line of a clause broken at
+// both of its operators, and than `runs[n-1].start == 0`, the one clause with no `<=`.
+const VERDICT_CHARS = 27;
 
-// A clause's lines within `width`: whole, or broken after its comparison.
+// A clause's lines within `width`: whole, or broken after its comparison, with the
+// right side broken again before its `+` where it is still too wide.
 function clauseLines(text, width) {
   if (monoWidth(text.length) <= width) return [text];
-  const at = text.indexOf(" <= ") + 4;
-  return [text.slice(0, at - 1), `  ${text.slice(at)}`];
+  const [left, right] = text.split(" <= ");
+  const rights =
+    monoWidth(right.length + 2) <= width ? [right] : right.split(/ (?=\+ )/);
+  return [`${left} <=`, ...rights.map((line) => `  ${line}`)];
 }
-
-const widest = (width) =>
-  Math.max(
-    monoWidth(VERDICT_CHARS),
-    ...CLAUSES.flatMap((c) =>
-      clauseLines(c.text, width).map((l) => monoWidth(l.length)),
-    ),
-  );
 
 function geometry(width) {
   const W = Math.max(280, Math.round(width));
@@ -665,7 +668,7 @@ function geometry(width) {
   const besideX = X0 + STACK_W + GAP;
   const room = W - X0 - besideX;
   const clauses =
-    room >= widest(room)
+    room >= monoWidth(VERDICT_CHARS)
       ? { x: besideX, title, width: room }
       : { x: X0, title: g.stack.top + STACK_ROWS * ROW_H + 16, width: g.laneW };
   let y = clauses.title + 4;
@@ -1105,7 +1108,7 @@ export class Painter {
     // The collapse() clauses, always drawn: idle between checks, and during one each
     // clause says whether it held, or that `||` never reached it.
     const list = step.checks?.list ?? [];
-    text(K.x, K.title, "collapse(): merge when a clause is true", { fill: C.muted });
+    text(K.x, K.title, "collapse(): merge if one is true", { fill: C.muted });
     reconcileChildren(this.stack, g);
     CLAUSES.forEach((clause, i) => {
       const { lines, top, bottom } = K.rows[i];
@@ -1151,7 +1154,7 @@ export class Painter {
         ? step.checks
           ? `not checked: needs ${clause.needs} runs`
           : "·"
-        : `${c.evaluated ? (c.fires ? "true → merge" : "false") : "not evaluated"}   ${c.detail}`;
+        : `${c.evaluated ? (c.fires ? "true → merge" : "false") : "not reached"}  ${c.detail}`;
       reconcileChildren(this.checkEls[clause.key], cg);
     });
   }

@@ -1,12 +1,14 @@
 """Playgrounds: first paint from authored defaults, the working state and contributor
 drafts, sending a choice, quoted playgrounds, and their layout in a workspace."""
 
+import io
 import re
 
 import pytest
 from interact_support import refused_on
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
+from PIL import Image, ImageChops
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_cases_navigation import actions
@@ -472,6 +474,44 @@ def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_sh
     assert events_model.read_events(serve.page_dir)[-1]["detail"]["values"] == {
         "latency": 6
     }
+
+
+def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serve):
+    """In a workspace too short for them, the preview and the controls scroll, and each
+    shows over its own content that more is below: the preview's code cards fill it to
+    its edge, and a cue painted under them showed nothing. Focus within a region lifts
+    its cue, and reaching the end removes it."""
+    page = open_page(browser, serve(ROOT / "examples" / "code-comparison.html"))
+    resized(page, 1280, 560)
+    playground = page.locator("#code-comparison-playground")
+    bodies = {
+        "preview": playground.locator(".lf-playground-preview-body"),
+        "controls": playground.locator(".lf-playground-controls"),
+    }
+
+    def cue(body):
+        """How many pixels of the box's bottom band the mark changes."""
+        box = body.bounding_box()
+        clip = {**box, "y": box["y"] + box["height"] - 12, "height": 12}
+        marked = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        body.evaluate("el => el.removeAttribute('data-lf-more-below')")
+        bare = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
+        body.evaluate("el => el.toggleAttribute('data-lf-more-below', true)")
+        delta = ImageChops.difference(marked, bare).get_flattened_data()
+        return sum(1 for pixel in delta if max(pixel) > 24)
+
+    for name, body in bodies.items():
+        assert body.evaluate("el => el.scrollHeight > el.clientHeight + 1"), name
+        expect(body).to_have_attribute("data-lf-more-below", "")
+        assert cue(body) > 100, name
+    # A control Tab reaches at the edge is not faded out under its own ring.
+    slider = playground.get_by_role("slider", name="Comparison viewport")
+    slider.press("ArrowRight")
+    page.keyboard.press("Tab")
+    expect(playground.get_by_role("radio").first).to_be_focused()
+    assert cue(bodies["controls"]) == 0
+    bodies["controls"].evaluate("el => { el.scrollTop = el.scrollHeight; }")
+    expect(bodies["controls"]).not_to_have_attribute("data-lf-more-below", "")
 
 
 def test_a_playground_followed_by_a_note_keeps_its_instruction_off_the_note(

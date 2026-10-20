@@ -66,6 +66,7 @@ from leaf.codex import (
     open_app_server_delivery,
     prepare_codex_delivery,
     queue_app_server_delivery,
+    queued_submissions,
     start_queued_delivery,
     stop_app_server,
 )
@@ -1039,6 +1040,33 @@ class WebsiteCodexHarness:
             if socket is not None:
                 socket.close()
 
+    def _unqueue(self, thread_id: str, delivery_id: str, **fields) -> None:
+        """Remove a delivery no follower took from the thread's App Server queue.
+
+        After an interrupt App Server holds its queue, and Leaf starts a delivery
+        only from the queue's head, so a submission left there would hold back
+        every later delivery on the thread. Like `_interrupt`, this takes its own
+        connection and records a failure rather than raising it.
+        """
+        socket = None
+        try:
+            socket = app_server_connect(self.endpoint)
+            app_server_handshake(
+                socket, self._request_id(), "leaf-website", "Leaf website"
+            )
+            send = partial(self._send, socket)
+            for submission in queued_submissions(send, thread_id):
+                if submission["clientUserMessageId"] == delivery_id:
+                    send(
+                        "thread/queue/delete",
+                        {"threadId": thread_id, "queuedSubmissionId": submission["id"]},
+                    )
+        except Exception as error:  # noqa: BLE001 - reported, never raised
+            log_agent("turn_unqueue_failed", **fields, **fault_fields(error))
+        finally:
+            if socket is not None:
+                socket.close()
+
     def _send(
         self,
         socket,
@@ -1098,7 +1126,9 @@ class WebsiteCodexHarness:
                 raise AppServerDeliveryUncertain(
                     "a newer session epoch superseded the provider start"
                 )
-        except (RuntimeError, Refused) as error:
+        # Every class: once the submission went out, any failure leaves a delivery
+        # App Server may hold, and only the withdrawal below gives it back.
+        except Exception as error:
             # No turn to follow, and after an uncertain submission possibly one
             # App Server began and this never named. This harness owns the thread,
             # so it tells the provider to drop whatever it began rather than waiting
@@ -1186,11 +1216,13 @@ class WebsiteCodexHarness:
     ) -> None:
         """Retire offered input that no follower took, so the Worker can receipt it.
 
-        Interrupt any provider turn the request started, release its reply
-        reservation, and give the moves back as unanswered input. The Worker's
-        failure receipt then invites the user to send again; an offered delivery
-        still holding those moves would swallow the retry.
+        Take the delivery out of App Server's queue, interrupt any provider turn
+        the request started, release its reply reservation, and give the moves
+        back as unanswered input. The Worker's failure receipt then invites the
+        user to send again; an offered delivery still holding those moves would
+        swallow the retry.
         """
+        self._unqueue(thread_id, delivery_id, **agent_event_fields(event_ids))
         self._interrupt(thread_id, "", **agent_event_fields(event_ids))
         if reply_target is not None:
             release_delivery_reply(thread_id, delivery_id, reply_target)

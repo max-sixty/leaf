@@ -32,9 +32,10 @@ leave behind.
 Recovery reads the full, paginated provider history, because a summary or an unloaded
 item can neither settle an answer nor prove absence. Accepted or abandoned deliveries
 without a successful exact reply hydrate from it too, even when the first resume omits
-their turns or the user resolved the thread. When complete history and a fresh idle
-reading show no matching delivery, Leaf abandons its own attempt, releases its reply
-reservation, and reports that the delivery could not be confirmed and is not retried, without
+their turns or the user resolved the thread. When App Server's queue no longer holds
+a submitted delivery, and complete history and a fresh idle reading show no turn
+carrying it, Leaf abandons its own attempt, releases its reply reservation, and
+reports that the delivery could not be confirmed and is not retried, without
 claiming that a provider turn failed (`codex.abandon_uncertain_delivery`). A manual
 reply retires an unknown offer through receipt recovery, even while disconnected. Only
 a start or the task's exact offered delivery introduces live authority, and an ordinary
@@ -236,8 +237,8 @@ class TaskConnection:
 
     def start_delivery(self, payload: dict) -> bool:
         """Queue the delivery, or recover its submission; wait without owning
-        shared locks. Return False while App Server's queue holds it behind other
-        input."""
+        shared locks. Return whether a turn has taken it; until one does, the
+        delivery loop waits for news rather than asking again at once."""
         with self.submission_lock:
             if self.stop_event.is_set():
                 raise RuntimeError("Codex App Server client stopped")
@@ -321,13 +322,15 @@ class TaskConnection:
                 self._read(json.loads(raw))
 
     def _start_delivery(self, socket, payload: dict) -> bool:
-        """Queue the delivery once, behind a durable uncertain boundary.
+        """Queue the delivery once, behind a durable uncertain boundary, and return
+        whether a turn has taken it.
 
         Its turn is bound when it starts, by `_read`, whether that is during these
-        requests or long after. A delivery already submitted is never queued again:
-        while App Server holds it, it waits there, started if it heads an idle
-        queue; once App Server holds it no longer, the provider's history settles
-        it (`_reconcile_history`).
+        requests or long after: App Server answers the submission before the turn
+        it starts says anything. A delivery already submitted is never queued
+        again: while App Server holds it, it waits there, started if it heads an
+        idle queue; once App Server holds it no longer, the provider's history
+        settles it (`_reconcile_history`).
         """
         record = read_task_delivery(self.thread_id, payload["id"])
         if record is None or isinstance(record, codex.ReceiptOutcome):
@@ -357,7 +360,9 @@ class TaskConnection:
                 codex.release_delivery_start(self.thread_id, payload["id"])
             raise
         self._start_queued(socket, payload["id"])
-        return True
+        return isinstance(
+            read_task_delivery(self.thread_id, payload["id"]), codex.ReceiptOutcome
+        )
 
     def _start_queued(self, socket, delivery_id: str) -> bool:
         """Start the task's queue from this delivery if it heads it; return whether
@@ -985,6 +990,8 @@ def preparing_adapter(
                 )
             yield {"task": session_id, "app_server": running, "started": False}
             return
+        if app_server is not None:
+            check_delivery_queue(app_server, session_id)
         # The connection captures its causal lifecycle before observing turns.
         # Establish it in the launching harness, independently of page ownership.
         ensure_session(session_id, harness.lifetime())
@@ -1004,6 +1011,24 @@ def preparing_adapter(
         ):
             pass
         yield {"task": session_id, "app_server": app_server, "started": True}
+
+
+def check_delivery_queue(endpoint: str, session_id: str) -> None:
+    """Refuse an App Server whose task has no queue for Leaf's deliveries.
+
+    The queue is experimental, and a Codex without it would refuse every delivery
+    the adapter submits, each refusal only a retry in the adapter's log. Asking
+    once here puts the refusal in front of the agent that started delivery.
+    """
+    with app_server_connect(endpoint) as socket:
+        app_server_handshake(socket, 0, "leaf", "Leaf")
+        try:
+            app_server_request(socket, "thread/queue/list", 1, {"threadId": session_id})
+        except codex.AppServerRequestRejected as error:
+            raise Refused(
+                "Leaf delivers through the task's App Server queue, which this Codex "
+                f"refused (codex-cli 0.160.0 has it): {error}"
+            ) from error
 
 
 def _running_adapter(session_id: str) -> dict | None:

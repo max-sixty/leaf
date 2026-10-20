@@ -54,11 +54,12 @@ answers with that turn's id, so a delivery started that way can join a turn the 
 started, and Leaf would post that turn's answer, written for another prompt, as its
 reply. With codex-cli 0.160.0, a follow-up the user queued in Codex started about
 0.4 s after the running turn ended, so a delivery whose idle check fell in that gap
-joined the follow-up's turn. So a delivery never starts a turn itself. It joins the
-task's queue (`thread/queue/add`, which needs the `experimentalApi` capability) as
-the user message of a turn of its own, after any input the user queued, and the
-client adopts the turn whose user message carries the delivery's id
-(`app_server_delivery_id`) when that turn starts.
+joined the follow-up's turn. So Leaf never sends `turn/start` for a delivery. The
+delivery joins the task's queue (`thread/queue/add`, which needs the
+`experimentalApi` capability) as the user message of a turn of its own, after any
+input the user queued. The adapter adopts the turn whose user message carries the
+delivery's id (`app_server_delivery_id`); the website, its thread's only client,
+adopts the next turn to start.
 
 `queue_app_server_delivery` reserves the delivery's reply and queues it, raising
 `AppServerDeliveryUncertain` when App Server may hold a submission it never
@@ -307,9 +308,9 @@ def app_server_request(
 ) -> dict:
     """Make one request on an App Server connection and return its result.
 
-    A notification read while waiting is not a stray: a delivery's turn can start
-    while the request that queued it is still waiting on its answer, and dropping
-    its notifications would lose the binding a caller is watching for. Each caller
+    A notification read while waiting is not a stray: a turn can start while a
+    request is still waiting on its answer, as the turn `thread/queue/start` starts
+    can, and dropping its notifications would lose the binding a caller is watching for. Each caller
     says what to do with those messages — buffer them to replay in arrival order, or
     fold them immediately — because that choice is what separates a stream it is
     following from a snapshot request whose answer outranks everything sent before it.
@@ -418,17 +419,12 @@ def start_queued_delivery(send, thread_id: str, delivery_id: str) -> bool:
     added to an idle task at once, but after an interrupted turn it keeps the queue
     until a client starts it (measured with codex-cli 0.160.0). Starting only this
     delivery, and only from the head, leaves the user's own queued input in their
-    order. While a turn runs or is about to start, App Server refuses the start, and
-    that turn's ending starts the queue instead.
+    order: a delivery behind input the user holds waits until they start their
+    queue, and once Leaf's turn ends, App Server goes on to whatever the user queued
+    behind it. While a turn runs or is about to start, App Server refuses the start,
+    and that turn's ending starts the queue instead.
     """
-    held = []
-    cursor = None
-    while True:
-        page = send("thread/queue/list", {"threadId": thread_id, "cursor": cursor})
-        held.extend(page["data"])
-        cursor = page["nextCursor"]
-        if cursor is None:
-            break
+    held = queued_submissions(send, thread_id)
     ids = [submission["clientUserMessageId"] for submission in held]
     if delivery_id not in ids:
         return False
@@ -441,6 +437,18 @@ def start_queued_delivery(send, thread_id: str, delivery_id: str) -> bool:
         except AppServerRequestRejected:
             pass
     return True
+
+
+def queued_submissions(send, thread_id: str) -> list[dict]:
+    """Every submission the task's App Server queue holds, in the order it runs them."""
+    held = []
+    cursor = None
+    while True:
+        page = send("thread/queue/list", {"threadId": thread_id, "cursor": cursor})
+        held.extend(page["data"])
+        cursor = page["nextCursor"]
+        if cursor is None:
+            return held
 
 
 def _initialize_params(name: str, title: str) -> dict:
@@ -542,7 +550,7 @@ class TurnStream:
     treats that as the turn's ending rather than a gap to read across.
 
     Notifications the client read before following the turn arrive first; the
-    turn's own `turn/started` and the user message that named it are among them.
+    turn's own `turn/started` is routinely among them.
     """
 
     def __init__(self, socket, buffered=(), *, silence: float | None = None):
@@ -1358,12 +1366,11 @@ class TurnFold:
 class CarriedTurn(TurnFold):
     """One delivery's Codex turn, read on the connection that queued it.
 
-    The client names the turn before following it: the turn whose user message
-    carries the delivery's id (`app_server_delivery_id`). The connection belongs
-    to the turn for the turn's whole life: `thread/start` and `thread/resume`
-    subscribe it, queueing and starting neither subscribe nor unsubscribe, and
-    losing it is the turn ending. The notifications the client read while it
-    looked for the turn come first (`buffered`).
+    The client names the turn that took the delivery before following it. The
+    connection belongs to the turn for the turn's whole life: `thread/start` and
+    `thread/resume` subscribe it, queueing and starting neither subscribe nor
+    unsubscribe, and losing it is the turn ending. The notifications the client
+    read while it looked for the turn come first (`buffered`).
 
     Every way the read can stop other than the completion composes a terminal of
     its own in `ended`, so a turn ends exactly once however it ended. What each

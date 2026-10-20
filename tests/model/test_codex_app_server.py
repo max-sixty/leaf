@@ -2232,7 +2232,7 @@ def test_a_delivery_queued_behind_the_users_follow_up_answers_in_its_own_turn(
                 started.append(request)
 
     connection = task_connection(app_server(handle))
-    assert connection.start_delivery(prepared.payload)
+    assert connection.start_delivery(prepared.payload) is False
 
     replies = wait_for(
         lambda: [
@@ -2328,6 +2328,91 @@ def test_a_delivery_heading_a_held_queue_starts_it(
         bool,
         failure="the started delivery did not answer",
     ) == ["Started"]
+
+
+def test_a_delivery_held_behind_the_users_input_waits_rather_than_being_abandoned(
+    page_dir, app_server, task_connection
+):
+    """A submitted delivery the queue still holds is waiting, not lost.
+
+    After an interrupted turn App Server keeps its queue, here with a message the
+    user queued ahead of Leaf's delivery, on a task that reads idle. No turn has
+    carried the delivery, but abandoning it would tell the user Leaf could not
+    confirm it, and starting it would run it ahead of the user's own message.
+    """
+    prepared = _codex_delivery(page_dir)
+    path = codex_model.record_path("codex-thread", prepared.payload["id"])
+    record = files_model.read_json(path)
+    record["state"] = "starting"
+    cleanup_model.write_json(path, record)
+    held = [
+        {"id": "user-submission", "clientUserMessageId": "user-held"},
+        {"id": "leaf-submission", "clientUserMessageId": prepared.payload["id"]},
+    ]
+    requests = []
+
+    def handle(socket):
+        for raw in socket:
+            request = json.loads(raw)
+            method = request.get("method")
+            requests.append(method)
+            if method == "initialize":
+                result = {}
+            elif method == "thread/queue/list":
+                result = {"data": held, "nextCursor": None}
+            elif method == "thread/resume":
+                result = {
+                    "thread": {
+                        "id": "codex-thread",
+                        "status": {"type": "idle"},
+                        "turns": [],
+                    }
+                }
+            elif method == "thread/turns/list":
+                result = {"data": [], "nextCursor": None}
+            else:
+                continue
+            socket.send(json.dumps({"id": request["id"], "result": result}))
+
+    connection = task_connection(app_server(handle))
+    assert connection.start_delivery(prepared.payload) is False
+
+    assert isinstance(
+        codex_model.read_task_delivery("codex-thread", prepared.payload["id"]),
+        codex_model.StartingOffer,
+    )
+    assert "thread/queue/start" not in requests
+    assert not [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] in {"pickup", "reply"}
+    ]
+
+
+def test_a_codex_without_the_delivery_queue_is_refused_when_delivery_starts(
+    app_server,
+):
+    """Every delivery goes through App Server's experimental queue, so a Codex
+    without it is refused by `leaf codex start`, in front of the agent, rather than
+    refusing each delivery into the adapter's log."""
+
+    def handle(socket):
+        for raw in socket:
+            request = json.loads(raw)
+            if "id" not in request:
+                continue
+            if request["method"] == "initialize":
+                answer = {"result": {}}
+            else:
+                answer = {
+                    "error": {
+                        "message": "Invalid request: unknown variant `thread/queue/list`"
+                    }
+                }
+            socket.send(json.dumps({"id": request["id"], **answer}))
+
+    with pytest.raises(Refused, match="App Server queue.*unknown variant"):
+        codex_adapter_model.check_delivery_queue(app_server(handle), "codex-thread")
 
 
 @pytest.mark.parametrize(
@@ -2893,7 +2978,7 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
         with pytest.raises(codex_model.AppServerDeliveryUncertain):
             connection.start_delivery(payload)
     else:
-        assert connection.start_delivery(payload)
+        assert connection.start_delivery(payload) is False
         if lost == "restart":
             connection.stop()
             assert not connection.thread.is_alive()
@@ -3988,7 +4073,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
 
     with codex_model.app_server_connect(app_server(handle)) as socket:
         codex_model.app_server_handshake(socket, 0, "test", "test", connection._read)
-        assert connection._start_delivery(socket, offered.payload)
+        assert connection._start_delivery(socket, offered.payload) is False
     assert not connection.turns
     assert cleanup_model.session_record("codex-thread") == winner["epoch"]
     assert service_model.PageTransaction(page_dir).status == winner["status"]

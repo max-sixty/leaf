@@ -593,8 +593,14 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
             raise TimeoutError
 
     interrupts = []
+    unqueued = []
     monkeypatch.setattr(harness, "_send", refuse)
     monkeypatch.setattr(website_server, "START_TIMEOUT", 0)
+    monkeypatch.setattr(
+        harness,
+        "_unqueue",
+        lambda thread_id, delivery_id, **fields: unqueued.append(thread_id),
+    )
     monkeypatch.setattr(
         harness,
         "_interrupt",
@@ -609,6 +615,9 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
             [],
         )
 
+    # A submission App Server still holds leaves its queue too, or after the
+    # interrupt it would hold back every later delivery on the thread.
+    assert unqueued == ["hosted-thread"]
     assert interrupts == [("hosted-thread", "")]
     assert delivery_records("hosted-thread") == []
     assert competing_writer_rejected == [True]

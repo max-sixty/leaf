@@ -1360,10 +1360,6 @@
     display: none;
     transition: opacity 120ms;
   }
-  .lf-floating-panel[data-rest=row] .lf-fp-peek {
-    right: auto;
-    left: anchor(left);
-  }
   .lf-fp-peek[data-shown] {
     display: block;
     opacity: 1;
@@ -1443,7 +1439,7 @@
   user-select: none;
   -webkit-user-select: none;
 }
-.lf-skip {
+.lf-mark-note {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1451,11 +1447,11 @@
   user-select: none;
   -webkit-user-select: none;
 }
-.lf-skip {
+.lf-mark-note {
   opacity: 0;
   pointer-events: none;
 }
-:is(.lf-skip, .lf-visual-action)[data-lf-focus] {
+:is(.lf-mark-note, .lf-visual-action)[data-lf-focus] {
   position: fixed;
   top: calc(var(--lf-head-room) + 6px);
   left: 8px;
@@ -1476,7 +1472,7 @@
   color: var(--ink);
   box-shadow: var(--raise-2);
 }
-.lf-skip[data-lf-focus] {
+.lf-mark-note[data-lf-focus] {
   opacity: 1;
   z-index: var(--lf-z-escaped-control);
 }

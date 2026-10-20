@@ -73,8 +73,15 @@ from leaf.server import running_server
 from leaf.service import page_claim
 
 from leaf_dev import ROOT
-from leaf_dev.arms import PageClient, codex_home, environment, now, run_leaf
-from leaf_dev.codex_task import Task, install_plugin
+from leaf_dev.arms import (
+    PageClient,
+    codex_home,
+    environment,
+    install_codex_plugin,
+    now,
+    run_leaf,
+)
+from leaf_dev.codex_task import Task, trust_plugin_hooks
 from leaf_dev.commands.journey import (
     STEP_LIMIT,
     Isolation,
@@ -564,10 +571,18 @@ def answering(
             )
         else:
             prepare(ROOT, place.state, place.page)
+        with (place.evidence / "stderr.txt").open("w") as output:
+            install_codex_plugin(
+                Path(executable),
+                place.payload,
+                cwd=place.work,
+                env=dict(os.environ),
+                output=output,
+            )
         with private_app_server(executable) as endpoint:
             codex = Codex(endpoint)
             try:
-                install_plugin(codex.task, payload=place.payload, cwd=place.work)
+                trust_plugin_hooks(codex.task, place.work)
                 codex.task.thread = codex.task.request(
                     "thread/start",
                     {

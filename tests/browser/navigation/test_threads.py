@@ -13,6 +13,7 @@ from render_cases_layout import ring_faults, rings_drawn
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
     INLINE_PAGE,
+    LONG_PAGE,
     PANEL_THREAD,
     command_reference_rows,
     comment_note,
@@ -32,6 +33,64 @@ from browser.navigation import READING_REGIONS_PAGE
 from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+@pytest.mark.parametrize("return_route", ["walk", "passage"])
+def test_a_thread_trip_takes_over_an_outgoing_trip_before_its_first_frame(
+    browser, serve, return_route
+):
+    """Returning to a still-visible thread cancels native travel away from it."""
+    page = open_page(
+        browser,
+        serve(LONG_PAGE, anchored=[("p3", "Paragraph 3."), ("p41", "Paragraph 41.")]),
+    )
+    nearby = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    card = page.locator(f'.lf-margin-preview [data-thread="{nearby}"]')
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    page.evaluate(
+        """async route => {
+      const {executeCommand} = await window.__lfCheckApi();
+      const paragraph = document.querySelector('#p3');
+      const range = document.createRange();
+      range.selectNodeContents(paragraph);
+      const line = range.getClientRects()[0];
+      const scrollBy = Element.prototype.scrollBy;
+      Element.prototype.scrollBy = function(options) {
+        const result = scrollBy.call(this, options);
+        if (this === document.scrollingElement && options.behavior === 'smooth') {
+          Element.prototype.scrollBy = scrollBy;
+          window.returnSubject = document.querySelector('#p3').getBoundingClientRect().toJSON();
+          queueMicrotask(() => {
+            if (route === 'walk') executeCommand('thread.previous');
+            else paragraph.dispatchEvent(new MouseEvent('click', {
+              bubbles: true, button: 0, clientX: line.left + 8, clientY: line.top + 8,
+            }));
+          });
+        }
+        return result;
+      };
+    }""",
+        return_route,
+    )
+    page.keyboard.press("t")
+    page.wait_for_function("window.returnSubject !== undefined")
+    expect(card).to_be_focused()
+    scroll_settled(page)
+    before = page.evaluate("returnSubject")
+    assert 0 <= before["top"] < before["bottom"] <= page.viewport_size["height"]
+    target = page.locator("#p3").bounding_box()
+    assert (
+        0
+        <= target["y"]
+        < target["y"] + target["height"]
+        <= page.viewport_size["height"]
+    )
+    expect(page.locator(".lf-margin-preview")).to_be_in_viewport()
 
 
 def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):

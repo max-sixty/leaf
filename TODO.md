@@ -410,17 +410,26 @@ on 2026-10-07.
   keeps the answer, but needs a record that it reminded, or an agent that won't act
   is woken without end; dropping the reminder leaves the next prompt's one. Max to
   choose.
+- **Decide how a Codex delivery avoids joining the user's follow-up turn.** App
+  Server's `turn/start` steers into a running turn. A follow-up the user queued in
+  the Codex TUI starts just after Leaf's idle check reads idle, so Leaf's delivery
+  joins it and Leaf posts that turn's answer as its reply to the comment. Queueing
+  each delivery (#3357) was reverted because it put every delivery into the Codex
+  transcript as a user message. Reading App Server's queue before starting can't
+  help either: the TUI keeps its queued follow-ups itself. The
+  [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
+  measurements, the reproduction and the options. Max to choose.
 - **Decide what a Codex delivery turn answers once the user steers into it.** Leaf
-  queues each App Server delivery as a turn of its own and posts that turn's final
+  starts each App Server delivery as a turn of its own and posts that turn's final
   message as the reply. Pressing Enter in the Codex TUI while that turn runs sends
   `turn/steer`, and App Server adds the user's message to Leaf's turn (measured
   with codex-cli 0.160.0: the turn's items became the delivery, then the user's
   message). The final answer, written to the user's message, still posts as the
   reply to the page comment. Either the fold stops treating the final message as
-  the reply once a user message it did not queue joins the turn, releasing the
+  the reply once a user message it did not start joins the turn, releasing the
   reservation so the update stays owed for `leaf response reply`, or App Server
   deliveries drop final-as-reply as the hook and `codex queue` routes do, which
-  loses the streamed opening. Max to choose.
+  loses the opening. Max to choose.
 - **Decide how a Claude Code hook delivery is confirmed.** `hook_transport` records a
   pickup when the prompt hook returns, but Escape while any UserPromptSubmit hook is
   still running drops the whole prompt, Leaf's output included. Measured on Claude
@@ -549,6 +558,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
   and needs no second copy — the same SVG with its fill set — but only an icon whose
   outline is a closed shape fills cleanly. Trigger: a user misreads what a pin holds.
+- **#30 — Try a feed of ready-to-approve actions.** An agent pass prepares
+  actions, such as a drafted email, and the user approves, edits, dismisses or
+  discusses each. Every verb exists as an item; Leaf lacks an agent that runs
+  unprompted and a list across pages. The [feed note](notes/feeds/README.md) waits on
+  the user's pick between a "Today" page owned by one background session and On me
+  across every page, and on whether agents' offers become items.
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
@@ -712,25 +727,43 @@ export` writes a file that boots the page's own runtime offline, and that file
   250 ms (`runtime/state-feed.js`). Pages streamed updates until #1589 replaced
   per-document streams with polling, because the streams used up HTTP/1.1's six
   connections per host. Measured on 2026-10-13, polling costs about 1% of one core
-  per visible tab locally. On leaf.page each look bills a Worker and a Durable
-  Object request, under $1.20 a month per user at list price and inside the
-  included quotas, and polling accounts for about 1% of container hours. A stopped
-  container stays asleep under polling, since its Durable Object answers `api/news`
-  from the page the container last saved; a stream held in the container would
-  wake it for a passive reader, so push needs an idle path of its own before its
-  cost compares with polling's. Push would show an agent's
-  change sooner: locally the file watcher notices an append in about 90 ms against
+  per visible tab locally; on 2026-10-20 the server spent 1.8 ms of CPU per look,
+  0.7% of a core at four looks a second. On leaf.page each look bills a Worker and
+  a Durable Object request, under $1.20 a month per user at list price and inside
+  the included quotas, and polling accounts for about 1% of container hours. A
+  stopped container stays asleep under polling, since its Durable Object answers
+  `api/news` from the page the container last saved. A stream held in the
+  container would wake it for a passive reader, so on leaf.page the Durable
+  Object should hold the stream instead: under Cloudflare's WebSocket Hibernation
+  API its clients stay connected while the object is out of memory, without
+  duration charges
+  ([docs](https://developers.cloudflare.com/durable-objects/best-practices/websockets/)).
+  When the page server answers `api/news`, it renews the user's attention lease
+  (`_news` in `http.py`); the Durable Object's saved answer does not. A push
+  channel for a live page must carry that lease too. Push would show an agent's change
+  sooner: locally the file watcher notices an append in about 90 ms against
   polling's 125 ms average, and on leaf.page, where a look takes about 370 ms, it
-  would save roughly 250 ms. A sketch of one stream per browser (a leader tab
-  holding it through a Web Lock, relaying over a BroadcastChannel, with samples
-  relayed through their parent) adds about 115 lines more than it deletes; a
-  WebSocket per document avoids the leader and the relay. Either way, first give
+  would save roughly 250 ms. Push would not change how a tab loses or finds its
+  server: a failed look already reports a dead server, a retry against a dead
+  local server costs no measurable CPU, and a tab reaches its restarted server
+  only because `service.json` keeps the server's address. A sketch of one stream
+  per browser (a leader tab holding it through a Web Lock, relaying over a
+  BroadcastChannel, with samples relayed through their parent) adds about 115
+  lines more than it deletes; a WebSocket per document avoids the leader and the
+  relay, and gestures stay on `POST api/event`, whose queue already orders and
+  retries them. A WebSocket brings costs polling lacks. A connection broken by
+  sleep or a network change still looks open, and browser code can't send
+  protocol pings, so the tab needs a heartbeat message and a reconnect loop.
+  Each server restart or Worker deploy drops every socket. The handshake can't
+  carry `layerHeaders`. A WebSocket isn't bound by CORS, so the server must
+  check `Origin`. Either way, first give
   the server one subscribable change detector per page: the stat token and the
   watched files already derive from one declaration of page inputs
   (`served_state/reading.py`), but `api/news` stats on every look while the row
   publisher and lifetime supervisor wake on the shared subscription
   (`file_changes.page_changes`), which runs only in a serving process. Trigger:
-  hosted replies visibly lag.
+  hosted replies visibly lag, or a page streams an agent's reply as it is
+  written, which polling would show in 250 ms jumps of whole-state reads.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

@@ -21,9 +21,8 @@ and [packages.md](../skills/leaf/references/packages.md).
 Delivery belongs to the harness adapter: Claude Code's Stop hook watches claimed
 pages; ordinary Codex tasks receive queued deliveries; tasks with an accessible
 Codex App Server receive delivery turns through that server. Read the owning
-[Claude Code](../skills/leaf/references/harness-claude-code.md),
-[Codex queue](../skills/leaf/references/harness-codex.md), and
-[App Server](../skills/leaf/references/harness-codex-app-server.md) contracts rather
+[Claude Code](../skills/leaf/references/harness-claude-code.md) and
+[Codex](../skills/leaf/references/harness-codex.md) contracts rather
 than deriving a handoff from this comparison. Serving, authentication, persistent
 lifetimes, and offline export belong to
 [serving-pages.md](../skills/leaf/references/serving-pages.md).
@@ -111,11 +110,9 @@ following are the baseline, not proposed additions.
 
 - **#1 — Quiet Codex feedback.** Keep the desktop queue's compact XML pointer
   while that route needs it. The useful improvement is delivery without an
-  automatic user message. The
-  [App Server route](../skills/leaf/scripts/leaf/codex.py) queues each delivery as a
-  user message, because `turn/start` would steer it into a running turn, so it
-  shows in the transcript and the task's queue. Desktop access and rendering remain
-  unverified. Prove agent wake-up and exact
+  automatic user message. The existing [App Server request](../skills/leaf/scripts/leaf/codex.py)
+  sends empty user input and a structured `leaf_delivery` tool result. Desktop
+  access and rendering remain unverified. Prove agent wake-up and exact
   input/reply identity while keeping automatic user-message text out of chat.
 - **#4 — Make finished task results easy to read.** The On view already
   lists ended tasks under Done with their outcome. Their detail is in the row's

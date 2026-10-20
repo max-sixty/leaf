@@ -8,7 +8,6 @@ import re
 import shutil
 import threading
 import time
-from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
@@ -354,7 +353,7 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(
     blocked on each would never end; they stay pending for the next turn, and go
     in with the user's move when one arrives."""
     error = append_carried_log_record(
-        claimed, {"kind": "error", "author": "page", "message": "a widget threw"}
+        claimed, {"kind": "error", "author": "page", "text": "a widget threw"}
     )
     repeated = {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
 
@@ -408,7 +407,7 @@ def test_codex_stop_leaves_quiet_input_but_delivers_the_whole_batch_with_owed_in
             ),
             append_carried_log_record(
                 page_dir,
-                {"kind": "error", "author": "page", "message": "a widget threw"},
+                {"kind": "error", "author": "page", "text": "a widget threw"},
             ),
         ]
         cleanup_model.prompt_turn("codex-thread", "quiet")
@@ -447,13 +446,13 @@ def test_codex_stop_leaves_quiet_input_but_delivers_the_whole_batch_with_owed_in
         )
         answer = json.loads(capsys.readouterr().out)
         assert answer["decision"] == "block"
-        [pointer_xml] = re.findall(r"<leaf-delivery\b[^>]*?/>", answer["reason"])
-        pointer = ElementTree.fromstring(pointer_xml)
-        read = CliRunner().invoke(
-            cli_model.cli, ["delivery", "read", pointer.attrib["id"]]
+        envelope = json.loads(answer["reason"])
+        assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
+        assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(
+            envelope["id"]
         )
-        assert read.exit_code == 0, read.output
-        [batch] = json.loads(read.output)["batches"]
+        assert events_model.read_cursor(page_dir) == cursor
+        [batch] = envelope["batches"]
         assert [event["id"] for event in batch["events"]] == [
             *(event["id"] for event in quiet),
             comment["id"],
@@ -796,7 +795,7 @@ def test_prompt_and_stop_reuse_the_original_unanswered_delivery(claimed, capsys)
 def inline_delivery(context: str) -> dict:
     """The delivery a hook handed over inline, from the context it added."""
     opening, envelope, *_ = context.split("\n")
-    assert opening == delivery_model.INLINE_OPENING
+    assert opening == hook_transport_model.INLINE_OPENING
     return json.loads(envelope)
 
 
@@ -1093,7 +1092,7 @@ def test_a_prompt_re_vendors_a_page_an_older_leaf_vendored_and_hands_over_its_in
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    assert context.startswith(delivery_model.INLINE_OPENING)
+    assert context.startswith(hook_transport_model.INLINE_OPENING)
     assert "page protocol" not in context
     assert events_model.read_cursor(claimed) >= comment["seq"]
     assert event_contracts_model.write_refusal(claimed) is None
@@ -1202,11 +1201,11 @@ def test_a_prompt_offers_no_new_input_from_a_page_its_leaf_cannot_write(
 
     refused = prompt()
     assert "page protocol" in refused
-    assert delivery_model.INLINE_OPENING not in refused
+    assert hook_transport_model.INLINE_OPENING not in refused
     assert events_model.read_cursor(claimed) < comment["seq"]
 
     cleanup_model.write_json(stamp, json.loads(vendored))
-    assert prompt().startswith(delivery_model.INLINE_OPENING)
+    assert prompt().startswith(hook_transport_model.INLINE_OPENING)
     assert events_model.read_cursor(claimed) >= comment["seq"]
 
 

@@ -402,7 +402,8 @@ class ClaudeCodeHarness(EnvironmentHarness):
         Escape ends a turn without running the Stop hook, and the record turns
         `idle` at that moment (measured at Claude Code 2.1.283). `busy` is weaker:
         a background job's record stays `busy` across turn endings while its
-        background work runs, so it does not prove a turn is running. The record
+        background work runs, so it does not prove a turn is running; after a turn
+        ends, it says work continues (`activity.Turn.background`). The record
         belongs to the worker hosting the session's current sitting, so a
         background job whose worker has retired has none."""
         stamped = [
@@ -563,7 +564,7 @@ class CodexHarness(EnvironmentHarness):
     def offer_at_step(
         self, event: str, payload: dict, expected: dict | None
     ) -> tuple[str | None, dict | None]:
-        """Both the tool hook and Stop offer a pointer through Codex's one transport
+        """Both the tool hook and Stop offer an envelope through Codex's one transport
         reservation (`codex.offer_hook_delivery`), since empty-input resume can
         reach Stop without running another tool. A tool hook also proves that
         Codex runs Leaf's hooks for this task (`turn_takes_input`). Stop offers

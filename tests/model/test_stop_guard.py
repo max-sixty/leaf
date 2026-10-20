@@ -83,11 +83,8 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
         "response": {
             "state": "active",
             "settles": True,
-            "has_text": True,
-            "session": "codex-thread",
+            "attempt": "leaf-delivery-1",
             "turn": "leaf-turn",
-            "parent": "widget-owner-thread",
-            "responds": "widget-action",
         },
     }
 
@@ -1143,14 +1140,21 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             },
         )
         reason = json.loads(capsys.readouterr().out)["reason"]
-        [pointer_xml] = re.findall(r"<leaf-delivery\b[^>]*?/>", reason)
-        pointer = ElementTree.fromstring(pointer_xml)
-        assert pointer.attrib["operation"] == "delivery read"
-        read = CliRunner().invoke(
-            cli_model.cli, ["delivery", "read", pointer.attrib["id"]]
-        )
-        assert read.exit_code == 0, read.output
-        envelope = json.loads(read.output)
+        if history == "lost-pointer":
+            [pointer_xml] = re.findall(r"<leaf-delivery\b[^>]*?/>", reason)
+            pointer = ElementTree.fromstring(pointer_xml)
+            assert pointer.attrib["operation"] == "delivery read"
+            read = CliRunner().invoke(
+                cli_model.cli, ["delivery", "read", pointer.attrib["id"]]
+            )
+            assert read.exit_code == 0, read.output
+            envelope = json.loads(read.output)
+        else:
+            envelope = json.loads(reason)
+            assert envelope == delivery_model.cmd_delivery_read(envelope["id"])
+            assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(
+                envelope["id"]
+            )
         if history == "lost-pointer":
             assert (
                 set(delivery_model.delivery_path(envelope["id"]).parent.glob("*.json"))

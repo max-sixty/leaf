@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://leaf.page/schema/served-state.json",
   "title": "Served state",
-  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`) and holds it to the schema pages vendored at the current protocol read (`build/browser/protocol.mjs`). `leaf:event` refers to any kernel event record and `leaf:event/<kind>` to one kind's, as `$events.kinds` in skills/leaf/assets/registry.json declares them, and `leaf:verb` to an x-state verb as `schema.VERB_SCHEMA` declares it. Whoever reads this schema composes those in, each event record open so that an object here adding served fields to it closes it again with `unevaluatedProperties`.",
+  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`) and holds it to the schema pages vendored at the current protocol read (`build/browser/protocol.mjs`). `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to an x-state verb, as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
   "$ref": "#/$defs/Reading",
   "properties": {
     "others": {
@@ -364,8 +364,7 @@
           "description": "The ids of the update records whose next actor is the agent: the answers it owes (`activity.canonical_activity`).",
           "type": "array",
           "items": { "type": "string" }
-        },
-        "reply": { "$ref": "#/$defs/ReplyEvidence" }
+        }
       },
       "required": [
         "kind",
@@ -399,24 +398,12 @@
       "description": "A provisional reply's settlement evidence, without its text (`activity._reply_evidence`).",
       "type": "object",
       "properties": {
-        "state": { "type": ["string", "null"] },
-        "session": { "type": ["string", "null"] },
-        "turn": { "type": ["string", "null"] },
-        "parent": { "type": ["string", "null"] },
-        "responds": { "type": ["string", "null"] },
-        "settles": { "type": ["boolean", "null"] },
-        "attempt": { "type": "string" },
-        "has_text": { "type": "boolean" }
+        "state": { "type": "string" },
+        "turn": { "type": "string" },
+        "settles": { "type": "boolean" },
+        "attempt": { "type": "string" }
       },
-      "required": [
-        "state",
-        "session",
-        "turn",
-        "parent",
-        "responds",
-        "settles",
-        "has_text"
-      ],
+      "required": ["state", "turn", "settles", "attempt"],
       "additionalProperties": false
     },
     "Workflow": {
@@ -486,10 +473,9 @@
               "properties": {
                 "id": { "type": "string" },
                 "attempt": { "type": ["string", "null"] },
-                "state": { "const": "failed" },
-                "responds": { "type": "string" }
+                "state": { "const": "failed" }
               },
-              "required": ["id", "attempt", "state", "responds"],
+              "required": ["id", "attempt", "state"],
               "additionalProperties": false
             },
             { "$ref": "#/$defs/ReplyEvidence" },

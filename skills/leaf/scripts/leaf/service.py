@@ -27,7 +27,7 @@ from leaf.event_log import (
     read_cursor,
 )
 from leaf.files import unfinished_publications
-from leaf.interaction_log import session_context
+from leaf.interaction_log import append_interactions, session_context
 from leaf.machine import pid_alive, sandbox_remedy
 from leaf.refusals import Refused
 from leaf.schema import STATUS_FILE
@@ -515,9 +515,52 @@ class PageTransaction:
         )
         if previous == reply and reservations == stream["reply_reservations"]:
             return
-        self._write_stream(
-            {**stream, "reply": reply, "reply_reservations": reservations}
+        self._publish_stream_reply(
+            {**stream, "reply_reservations": reservations}, previous, reply
         )
+
+    def _publish_stream_reply(
+        self, stream: dict, previous: dict | None, reply: dict
+    ) -> None:
+        """Publish provisional words and record their availability, not visibility.
+
+        A nonblank transition records no text. Reconnects may repeat it; readers
+        select the first observation for the exact input and attempt. Diagnostic
+        I/O failure is reported without interrupting the published reply; explicit
+        diagnostic ingestion still propagates write failures (`interaction_log`).
+        """
+        self._write_stream({**stream, "reply": reply})
+        if reply["text"].strip() and (
+            previous is None
+            or not previous["text"].strip()
+            or any(
+                previous[key] != reply[key]
+                for key in ("session", "turn", "attempt", "responds")
+            )
+        ):
+            try:
+                append_interactions(
+                    self.page_dir,
+                    [
+                        {
+                            "source": "server",
+                            "type": "reply_stream_words",
+                            "input_id": reply["responds"],
+                            "parent": reply["parent"],
+                            "attempt": reply["attempt"],
+                            "session": reply["session"],
+                            "turn": reply["turn"],
+                            "agent": reply["agent"],
+                            "context": session_context(reply["session"], self.claim),
+                        }
+                    ],
+                )
+            except OSError as error:
+                print(
+                    f"Stream diagnostic not written: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
     def reserve_delivery_reply(
         self,
@@ -585,7 +628,7 @@ class PageTransaction:
             "updated_at": now_iso(),
         }
         if finished != reply:
-            self._write_stream({**stream, "reply": finished})
+            self._publish_stream_reply(stream, reply, finished)
         return True
 
     def clear_delivery_reply_reservation(

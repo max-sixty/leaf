@@ -532,8 +532,8 @@ def start_session_turn(
         ):
             return None
         if current != expected:
-            # The provider may run its synchronous prompt hook before Leaf reads
-            # the turn's start. That exact publication is the successful adoption,
+            # The provider may run its synchronous prompt hook before replying
+            # to turn/start. That exact publication is the successful adoption,
             # not a competing turn; no identity or revision is rewritten here.
             if (
                 current

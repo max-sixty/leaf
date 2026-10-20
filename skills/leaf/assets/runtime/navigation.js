@@ -287,6 +287,8 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     const caret = getSelection()?.focusNode;
     return (inReading(caret) && blockAt(placeOf(caret))) || readingBlock(region);
   };
+  // Like page scrolling, alignment stays offered at the edge of its useful range.
+  // Resolve the current reading only when invoked, not on every controls repaint.
   const alignTop = {
     id: "reading.align.top",
     keys: ["z"],
@@ -296,7 +298,6 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     touch: "Align current item at top",
     menu: "keys",
     retainStanding: true,
-    when: () => Boolean(currentItem()),
     run: () => {
       const item = currentItem();
       if (!item) return;

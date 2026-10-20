@@ -6352,16 +6352,20 @@ function createFloatingPanel({
     caretToField = true;
     clearRow();
   }
+  const openThreads2 = () => inPageOrder(
+    threads().filter((candidate) => !candidate.resolved),
+    placedAt
+  );
   function resolveLanding(thread) {
     const route = trail.at(-1);
     const fromThreads = trail.at(-2)?.view === "threads";
-    const at = threads().filter((candidate) => !candidate.resolved).indexOf(thread);
+    const at = openThreads2().indexOf(thread);
     const mayLand = retainUserIntent();
     let mayRestore = () => false;
     return {
       optimistic: () => {
         if (!mayLand() || trail.at(-1) !== route) return false;
-        const kept = threads().filter((candidate) => !candidate.resolved);
+        const kept = openThreads2();
         const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
         if (next) {
           open({ view: "thread", thread: next.key }, { replace: true, focus: false });
@@ -7019,9 +7023,13 @@ function createFloatingPanel({
   }
   function shownThreads() {
     const words = query.trim().toLowerCase();
-    return threads().filter((thread) => {
+    const shown = threads().filter((thread) => {
       if (words) {
-        const text = [threadName(thread), ...thread.msgs.map((m) => m.text ?? "")].join(" ").toLowerCase();
+        const text = [
+          threadName(thread),
+          quoteReading(thread, { placedAt })?.label ?? "",
+          ...thread.msgs.map((m) => m.text ?? "")
+        ].join(" ").toLowerCase();
         return text.includes(words);
       }
       if (filter === "unread") return unread(thread);
@@ -7029,6 +7037,7 @@ function createFloatingPanel({
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
     });
+    return inPageOrder(shown, placedAt);
   }
   function threadsView() {
     const shown = shownThreads();
@@ -7078,6 +7087,7 @@ function createFloatingPanel({
     const view = shownView();
     return rows2 && view ? [...view.querySelectorAll(rows2)] : [];
   };
+  const threadRows = () => trail.at(-1)?.view === "threads" ? listRows() : [];
   const openView = () => stage.querySelector('.lf-fp-view[data-view="thread"]:not([data-leaving])');
   const outletOf = () => openView()?.querySelector(".lf-fp-outlet") ?? null;
   function nominate(collection, parts) {
@@ -8302,7 +8312,18 @@ function createFloatingPanel({
     revealResponse: clearRow,
     // Where the reader stood before stepping into the panel, while they are in it
     // (navigation.js, `currentItem`).
-    heldPlace: () => standingIn(host) ? heldStanding : null
+    heldPlace: () => standingIn(host) ? heldStanding : null,
+    // The thread whose row in Threads the pointer is on, and the row Threads draws for
+    // a thread, through which hover links a row and its passage both ways
+    // (anchor-paint.js, `markRow`).
+    hoveredThread: () => {
+      const row2 = threadRows().find((candidate) => candidate.matches(":hover"));
+      return row2 ? threadByKey(row2.dataset.key)?.id ?? null : null;
+    },
+    threadRow: (id) => {
+      const key = threadByKey(id)?.key;
+      return threadRows().find((row2) => row2.dataset.key === key) ?? null;
+    }
   };
 }
 
@@ -10902,7 +10923,10 @@ var visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
 var anchorPaint = annotationRenderer?.createAnchorPaint({
   targetPaint: visualMarkPaint,
   pointer: pointerAt,
-  standingThreadId
+  standingThreadId,
+  rowThread: () => floatingPanel?.hoveredThread() ?? null,
+  threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
+  marginThread: () => app?.overlay?.pointedThread() ?? null
 });
 var drawingPaint = createDrawingInk({
   drawings: () => [

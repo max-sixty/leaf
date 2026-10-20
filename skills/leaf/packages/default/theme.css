@@ -2090,10 +2090,20 @@
       }
     }
   }
-  @scope (html[data-lf-interactive] body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
+  @scope (html[data-lf-interactive] :scope) {
     :scope:is(lf-parts):not(.lf-rendered):has(> lf-part) {
+      &::before {
+        content: "";
+        display: block;
+        box-sizing: border-box;
+        block-size: var(--lf-tabstrip-h);
+        border-bottom: 1px solid var(--border-2);
+        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+        background: var(--card);
+      }
       & > lf-part {
-        border-inline-start: 1px solid var(--rule);
+        margin: 0;
+        padding: 0;
         --lf-block-frame: trim;
       }
       & > lf-part::before {
@@ -2102,13 +2112,20 @@
       & > lf-part:not([data-lf-opening]) {
         display: none;
       }
+    }
+  }
+  @scope (html[data-lf-interactive] body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
+    :scope:is(lf-parts):not(.lf-rendered):has(> lf-part) {
+      &::before {
+        content: none;
+      }
+      & > lf-part {
+        border-inline-start: 1px solid var(--rule);
+      }
       @container lf-shell (width < 640px) {
         &::before {
           content: "";
-          display: block;
-          box-sizing: border-box;
-          block-size: var(--lf-tabstrip-h);
-          border-bottom: 1px solid var(--border-2);
+          border-radius: 0;
           background: var(--paper);
         }
         & > lf-part {

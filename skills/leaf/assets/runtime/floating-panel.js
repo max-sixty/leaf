@@ -140,6 +140,7 @@ import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { turns } from "./thread/model.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading } from "./thread/thread-card.js";
+import { inPageOrder } from "./thread/placement.js";
 import { dismissReply, replyAvailable } from "./thread/replies.js";
 import {
   PAGE_DRAFT,
@@ -829,24 +830,27 @@ export function createFloatingPanel({
     caretToField = true;
     clearRow();
   }
-  // Resolving a thread opened from Threads moves the user on: to the open thread after it, or
-  // before it at the end, standing on its view so `r`, `t` and Escape go on from there;
-  // or, with none left, back to the list. A thread opened from elsewhere goes back to
-  // where it came from. Taking the resolve back, or the log refusing it, stands the
-  // user on its row in Threads, while they have not acted since (folding.js,
-  // `settleThread`).
+  // Resolving a thread opened from Threads moves the user on: to the open thread after it
+  // in the page's order, or before it at the end, standing on its view so `r`, `t` and
+  // Escape go on from there; or, with none left, back to the list. A thread opened from
+  // elsewhere goes back to where it came from. Taking the resolve back, or the log
+  // refusing it, stands the user on its row in Threads, while they have not acted since
+  // (folding.js, `settleThread`).
+  const openThreads = () =>
+    inPageOrder(
+      threads().filter((candidate) => !candidate.resolved),
+      placedAt,
+    );
   function resolveLanding(thread) {
     const route = trail.at(-1);
     const fromThreads = trail.at(-2)?.view === "threads";
-    const at = threads()
-      .filter((candidate) => !candidate.resolved)
-      .indexOf(thread);
+    const at = openThreads().indexOf(thread);
     const mayLand = retainUserIntent();
     let mayRestore = () => false;
     return {
       optimistic: () => {
         if (!mayLand() || trail.at(-1) !== route) return false;
-        const kept = threads().filter((candidate) => !candidate.resolved);
+        const kept = openThreads();
         const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
         if (next) {
           open({ view: "thread", thread: next.key }, { replace: true, focus: false });
@@ -1794,11 +1798,19 @@ export function createFloatingPanel({
     }`;
   }
 
+  // The rows read in the page's order, the one the `t` walk steps through
+  // (thread/placement.js), so each thread stands among its passage's neighbours. A
+  // search reads a thread's name, its messages and the words it is about, as its head
+  // quotes them (`quoteReading`).
   function shownThreads() {
     const words = query.trim().toLowerCase();
-    return threads().filter((thread) => {
+    const shown = threads().filter((thread) => {
       if (words) {
-        const text = [threadName(thread), ...thread.msgs.map((m) => m.text ?? "")]
+        const text = [
+          threadName(thread),
+          quoteReading(thread, { placedAt })?.label ?? "",
+          ...thread.msgs.map((m) => m.text ?? ""),
+        ]
           .join(" ")
           .toLowerCase();
         return text.includes(words);
@@ -1808,6 +1820,7 @@ export function createFloatingPanel({
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
     });
+    return inPageOrder(shown, placedAt);
   }
   function threadsView() {
     const shown = shownThreads();
@@ -1898,6 +1911,7 @@ export function createFloatingPanel({
     const view = shownView();
     return rows && view ? [...view.querySelectorAll(rows)] : [];
   };
+  const threadRows = () => (trail.at(-1)?.view === "threads" ? listRows() : []);
   const openView = () =>
     stage.querySelector('.lf-fp-view[data-view="thread"]:not([data-leaving])');
   const outletOf = () => openView()?.querySelector(".lf-fp-outlet") ?? null;
@@ -3552,5 +3566,16 @@ export function createFloatingPanel({
     // Where the reader stood before stepping into the panel, while they are in it
     // (navigation.js, `currentItem`).
     heldPlace: () => (standingIn(host) ? heldStanding : null),
+    // The thread whose row in Threads the pointer is on, and the row Threads draws for
+    // a thread, through which hover links a row and its passage both ways
+    // (anchor-paint.js, `markRow`).
+    hoveredThread: () => {
+      const row = threadRows().find((candidate) => candidate.matches(":hover"));
+      return row ? (threadByKey(row.dataset.key)?.id ?? null) : null;
+    },
+    threadRow: (id) => {
+      const key = threadByKey(id)?.key;
+      return threadRows().find((row) => row.dataset.key === key) ?? null;
+    },
   };
 }

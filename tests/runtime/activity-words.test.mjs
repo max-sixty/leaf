@@ -205,18 +205,18 @@ test("a page nobody holds, and a closed one, say so without the agent", () => {
   assert.deepEqual(said({ kind: "closed" }), ["Page closed", "Page closed"]);
 });
 
-test("an unreachable server, a refused key and an unappliable state each say what to do", () => {
+test("an unreachable server reports itself without a tone; a refused key and an unappliable state ask", () => {
   assert.deepEqual(pageStatus(null, { reach: "unreachable" }), {
     kind: "unreachable",
-    tone: "offline",
-    summary: "Server offline — reconnecting; keep page open",
+    tone: "",
+    summary: "Server offline — reconnecting",
     explanation:
       "Server offline — reconnecting. Keep this page open so pending changes can send.",
     adds: "",
   });
   assert.deepEqual(pageStatus(null, { reach: "refused" }), {
     kind: "refused",
-    tone: "offline",
+    tone: "blocked",
     summary: "Key refused — open Leaf's link in a new tab",
     explanation:
       "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.",
@@ -225,7 +225,7 @@ test("an unreachable server, a refused key and an unappliable state each say wha
   });
   assert.deepEqual(pageStatus(null, { reach: "broken" }), {
     kind: "broken",
-    tone: "offline",
+    tone: "blocked",
     summary: "Page couldn't apply current state — reload",
     explanation: "Page couldn't apply current state — reload",
     adds: "",

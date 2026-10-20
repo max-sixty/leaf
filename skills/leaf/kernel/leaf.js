@@ -5658,7 +5658,7 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   if (reach2 === "broken")
     return {
       kind: "broken",
-      tone: "offline",
+      tone: "blocked",
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
       adds: "",
@@ -5667,7 +5667,7 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   if (reach2 === "refused")
     return {
       kind: "refused",
-      tone: "offline",
+      tone: "blocked",
       summary: "Key refused \u2014 open Leaf's link in a new tab",
       explanation: KEY_REFUSED_LINE,
       adds: "Keep this tab open so pending changes can send.",
@@ -5676,8 +5676,8 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   if (reach2 !== "reached")
     return {
       kind: "unreachable",
-      tone: "offline",
-      summary: "Server offline \u2014 reconnecting; keep page open",
+      tone: "",
+      summary: "Server offline \u2014 reconnecting",
       explanation: OFFLINE_LINE,
       adds: ""
     };
@@ -5878,11 +5878,11 @@ function paintTab() {
 }
 var saidKind;
 var saidActionableWork;
-var holdUnreached = holdingError({ announce: false });
+var holdBlocked = holdingError({ announce: false });
 function paintStatus() {
   const current = currentStatus();
-  holdUnreached(
-    ["unreachable", "refused", "broken"].includes(current?.status.kind) ? current.status.summary : null
+  holdBlocked(
+    ["refused", "broken"].includes(current?.status.kind) ? current.status.summary : null
   );
   if (!current) return;
   const { status, model } = current;

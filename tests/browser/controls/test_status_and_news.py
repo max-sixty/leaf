@@ -33,6 +33,7 @@ from render_harness import (
     http_error_console,
     nudge,
     open_page,
+    panel_field,
     panel_settled,
     refuse,
     stamp_page,
@@ -99,12 +100,18 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
         # A healthy page never asks without news, so give it one: the read that follows
         # is the one the route refuses.
         nudge(serve.page_dir)
-        expect(page.locator(".lf-fp-leaf .lf-dot.offline")).to_be_visible()
+        # An unreachable server is reported in the status's own face: the leaf has no
+        # reading to colour, and the field says it as a status rather than an error.
         expect(live).to_contain_text("Server offline")
+        expect(page.locator(".lf-fp-leaf .lf-dot")).to_have_class("lf-dot")
+        expect(panel_field(page)).to_have_attribute(
+            "data-says", "status"
+        )
         # The server coming back to refuse this tab's key asks something new of the
-        # user, so it is heard though the dot stays offline.
+        # user, which only they can end, so it is heard and the leaf says it.
         page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
         expect(live).to_contain_text("no longer accepts this tab's key")
+        expect(page.locator(".lf-fp-leaf .lf-dot.blocked")).to_be_visible()
         # The refused reads recur on the page's clock until it closes.
         page.close()
         consume_browser_errors(page, http_error_console(401))

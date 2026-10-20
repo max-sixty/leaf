@@ -460,7 +460,7 @@
   .lf-floating-panel[data-asks][data-tone="away"] {
     --lf-fp-asks: var(--warn-ink);
   }
-  .lf-floating-panel[data-asks][data-tone="offline"] {
+  .lf-floating-panel[data-asks][data-tone="blocked"] {
     --lf-fp-asks: var(--danger-ink);
   }
   .lf-fp-field .lf-compose-placeholder kbd {
@@ -1625,7 +1625,7 @@
   .lf-fp-state[data-tone="away"] .lf-fp-summary {
     color: var(--warn-ink);
   }
-  .lf-fp-state[data-tone="offline"] .lf-fp-summary {
+  .lf-fp-state[data-tone="blocked"] .lf-fp-summary {
     color: var(--danger-ink);
   }
 

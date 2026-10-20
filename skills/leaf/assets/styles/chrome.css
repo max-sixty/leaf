@@ -363,7 +363,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-dot.away {
     background: var(--warn);
   }
-  .lf-dot.offline {
+  .lf-dot.blocked {
     background: var(--danger);
   }
   @layer lf-reset {

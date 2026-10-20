@@ -135,14 +135,16 @@ function paintTab() {
 // begins waiting for user input or approval, not on every observed work step or poll.
 let saidKind;
 let saidActionableWork;
-// A status that reaches nothing, or a reading the page could not apply, is an error the
-// user should see wherever they are (errors.js), held while the status says it. The
-// status announces a change of kind in its own words already.
-const holdUnreached = holdingError({ announce: false });
+// A refused key, or a reading the page could not apply, is an error the user should see
+// wherever they are (errors.js), held while the status says it, since only the user ends
+// it. An unreachable server is not: the page reconnects on its own, so the status
+// reports it in its own face, and a change the user sends meanwhile holds its own error
+// (delivery.js). The status announces a change of kind in its own words already.
+const holdBlocked = holdingError({ announce: false });
 function paintStatus() {
   const current = currentStatus();
-  holdUnreached(
-    ["unreachable", "refused", "broken"].includes(current?.status.kind)
+  holdBlocked(
+    ["refused", "broken"].includes(current?.status.kind)
       ? current.status.summary
       : null,
   );

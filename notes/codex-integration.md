@@ -22,10 +22,10 @@ The model still decides whether feedback calls for a reply, a revision, or both.
 Measured with codex-cli 0.160.0 on 2026-10-19.
 
 `turn/start` on a task whose turn is running steers the input into that turn and
-answers with the running turn's id. Nothing in the answer says it steered. With
-both clients' starts sent back to back, Leaf's answer arrived before that turn's
-`turn/started`, the same order Leaf's own start produces, so Leaf's socket cannot
-tell the two cases apart.
+answers with the running turn's id. Nothing in the answer says it steered. When Leaf
+started after the other client's answer, that turn's `turn/started` reached Leaf's
+socket first. With both starts sent back to back, Leaf's answer came first, the order
+Leaf's own start produces, so the order of messages cannot tell the two cases apart.
 
 The race needs no coincidence of milliseconds. When the user queues a follow-up in
 Codex behind a running turn, App Server reports the task idle as the turn completes
@@ -146,8 +146,9 @@ EOF
 A typed reply tool would own both the streamed text and the durable reply event only
 if App Server streamed its arguments, and 0.160.0 does not. Its schema, experimental
 methods included, streams agent messages, plans, reasoning, command and file output,
-and file-change patches (`item/fileChange/patchUpdated`); a `dynamicToolCall` or
-`mcpToolCall` item carries its arguments only once complete. A typed reply would
+and file-change patches (`item/fileChange/patchUpdated`). No notification carries a
+tool call's arguments while the model writes them, and a dynamic tool call's request
+(`DynamicToolCallParams`) receives them complete. A typed reply would
 therefore appear only when its call finished, later than today's streamed final
 message. Check a later Codex with:
 

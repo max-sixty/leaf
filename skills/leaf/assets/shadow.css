@@ -1443,6 +1443,79 @@ button.lf-media-open {
 .lf-composer-media-item > .lf-media-open[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
+.lf-composer-media:has(> .lf-composer-drawing) {
+  --lf-media-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--aim-floor) / 2 - 3px) );
+  gap: var(--lf-media-room);
+  padding: var(--lf-media-room);
+  margin: calc(-1 * var(--lf-media-room));
+  margin-block-end: calc(2px - var(--lf-media-room));
+}
+.lf-composer-drawing.lf-composer-media-item {
+  position: relative;
+  border: 0;
+  background: none;
+  overflow: visible;
+}
+.lf-composer-drawing > .lf-composer-media-open {
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--border-2), var(--raise-1);
+}
+.lf-composer-drawing > button:not(.lf-media-open) {
+  position: absolute;
+  inset-block-start: -6px;
+  inline-size: 18px;
+  min-inline-size: 0;
+  block-size: 18px;
+  min-block-size: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 72%, var(--paper));
+  color: var(--paper);
+  box-shadow: 0 0 0 2px var(--paper);
+}
+.lf-composer-drawing > .lf-composer-media-remove {
+  inset-inline-end: -6px;
+}
+.lf-composer-drawing > .lf-composer-drawing-undo {
+  inset-inline-start: -6px;
+}
+.lf-composer-drawing > button:not(.lf-media-open)::before {
+  content: "";
+  position: absolute;
+  inset: calc((18px - var(--aim-floor)) / 2);
+}
+.lf-composer-drawing > button:not(.lf-media-open):hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+.lf-composer-drawing > button:not(.lf-media-open)[data-lf-focus] {
+  outline-offset: 2px;
+}
+.lf-composer-drawing > button:not(.lf-media-open) > svg {
+  inline-size: 10px;
+  block-size: 10px;
+}
+.lf-composer-drawing > .lf-media-open[data-lf-focus] {
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .lf-composer-drawing:not(:hover, :focus-within) > button:not(.lf-media-open) {
+    opacity: 0;
+  }
+  .lf-composer-drawing > button:not(.lf-media-open) {
+    transition: opacity 120ms;
+  }
+}
+@media (forced-colors: active) {
+  .lf-composer-drawing > .lf-composer-media-open {
+    outline: 1px solid CanvasText;
+  }
+  .lf-composer-drawing > button:not(.lf-media-open) {
+    border: 1px solid ButtonText;
+  }
+}
 .lf-comment-box > .lf-compose-field,
 .lf-response-control {
   border: 1px solid var(--border-2);
@@ -1665,7 +1738,8 @@ leaf-text.lf-fab-input {
 }
 .lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
   --lf-drawing-preview-width: 96px;
-  max-width: calc(var(--lf-drawing-preview-width) + 2 * max(26px, var(--aim-floor)) + 2px);
+  max-width: calc(var(--lf-drawing-preview-width) + 2 * var(--lf-media-room));
+  padding: var(--lf-media-room);
 }
 .lf-fab-bar .lf-composer-media-open {
   width: 42px;

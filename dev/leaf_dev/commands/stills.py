@@ -142,6 +142,18 @@ def drawing_comment(page: Page) -> None:
         ).wait_for(state="visible")
 
 
+def drawing_comment_hover(page: Page) -> None:
+    """The drawing's corner marks a pointer over it reveals."""
+    drawing_comment(page)
+    page.locator(".lf-composer-drawing .lf-media-open").hover()
+
+
+def drawing_comment_keyboard(page: Page) -> None:
+    """The drawing's Undo last stroke holding keyboard focus."""
+    drawing_comment(page)
+    page.get_by_role("button", name="Undo last stroke").focus()
+
+
 def drawing_photo_comment(page: Page) -> None:
     """Drawing and photo removal together in the same draft attachment shelf."""
     drawing_comment(page)
@@ -1132,7 +1144,7 @@ STATES = (
         "drawing-photo-comment",
         "developer/feature-gallery",
         drawing_photo_comment,
-        region=".lf-composer-media:visible",
+        region=".lf-fab-bar",
     ),
     State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
@@ -1169,6 +1181,25 @@ STATES = (
         "developer/feature-gallery",
         drawing_comment,
         scheme="dark",
+    ),
+    State("drawing-comment-hover", "developer/feature-gallery", drawing_comment_hover),
+    State(
+        "drawing-comment-hover-dark",
+        "developer/feature-gallery",
+        drawing_comment_hover,
+        scheme="dark",
+    ),
+    State(
+        "drawing-comment-keyboard",
+        "developer/feature-gallery",
+        drawing_comment_keyboard,
+    ),
+    State(
+        "drawing-comment-touch",
+        "developer/feature-gallery",
+        drawing_comment,
+        viewport=(390, 844),
+        touch=True,
     ),
     State("progress-messages", "developer/feature-gallery", progress_messages),
     State(

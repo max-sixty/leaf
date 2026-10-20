@@ -9,7 +9,9 @@
    again, as a watcher's or a region's paint is followed; nothing else is. Lit's own
    reactive properties update it too, for state the widget keeps itself. A reading of
    presentation proof (`proofReading`, semantic-state.js), such as `reportsReady`,
-   updates it without claiming its region, since the claim would move that proof.
+   updates it without claiming its region, since the claim would move that proof, and
+   only when the proof rises: a render that reads it false holds what it would say, so
+   its fall, which every claim on a region it waits for brings, owes no draw.
 
    The element owns one presentation region: its widget's render region when the
    registry declares it a widget, so startup, thread readers, gesture release and report
@@ -326,10 +328,11 @@ export class LeafElement extends LitElement {
       ? reads.map(([reading, seen]) =>
           reading.subscribe((now) => {
             if (now === seen) return;
-            // Proof moving draws again without a claim, which would move proof again;
+            // Proof rising draws again without a claim, which would move proof again;
             // accepted data claims and waits for its delivery to draw.
-            if (readsProof(reading)) this.requestUpdate();
-            else if (stagesOnly(reading)) this.#stage();
+            if (readsProof(reading)) {
+              if (now) this.requestUpdate();
+            } else if (stagesOnly(reading)) this.#stage();
             else this.#moved();
           }),
         )

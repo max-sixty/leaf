@@ -420,6 +420,21 @@ on 2026-10-07.
   that turn's answer as its reply to the comment. The
   [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
   measurements, the reproduction and the two options.
+- **Decide how a Claude Code hook delivery is confirmed.** `hook_transport` records a
+  pickup when the prompt hook returns, but Escape while any UserPromptSubmit hook is
+  still running drops the whole prompt, Leaf's output included. Measured on Claude
+  Code 2.1.304 with a second hook sleeping 6 s: the comment never reached the
+  transcript, nothing woke for it because it read as received, and it waited until
+  the user typed; an update that owes no reply (a resolve) never surfaced again.
+  #3272's re-offer covers only updates the owner holds no ref for. With Leaf's hook
+  alone the window is about 25–35 ms; another plugin's slow prompt hook widens it to
+  that hook's run. PostToolBatch likely shares the window (read from Claude Code's
+  source, not run); Pi commits the output itself and is safe. No hook event confirms
+  Claude Code accepted the output, so the options are: the agent confirms with
+  `leaf delivery ack`, as on Codex (a tool call, and Picked up waits for the model);
+  confirm at the turn's next hook and re-offer if the turn dies first (a "handed, not
+  confirmed" record); or keep it and document Escape beside the session-end case in
+  `hook_transport.py`'s header.
 
 - **Measure how often agents produce bad pages.** Write `evals/` cases in which agents
   author ordinary pages, and have a judge read each result at wide, middle and phone

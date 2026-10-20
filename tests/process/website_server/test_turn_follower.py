@@ -9,6 +9,7 @@ import leaf_website as website_server
 import pytest
 from interact_support import (
     STATED_TIMEOUT,
+    _delivery_item,
     activity_reading,
     owed_answers,
     page_state,
@@ -26,6 +27,7 @@ from leaf.thread import post_reply
 from process.website_server import (
     accept_in_turn,
     hosted_follower,
+    queued_turn,
 )
 
 
@@ -116,9 +118,7 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
     harness = website_server.WebsiteCodexHarness("codex")
-    monkeypatch.setattr(
-        harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
-    )
+    monkeypatch.setattr(harness, "_send", queued_turn("app-server-turn"))
 
     class LostSocket:
         def recv(self, timeout):
@@ -132,6 +132,7 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
         page_dir,
         "hosted-thread",
         type("Process", (), {"pid": os.getpid()})(),
+        [],
     )
     interrupts = []
     monkeypatch.setattr(
@@ -153,7 +154,7 @@ def test_a_turn_whose_stream_drops_is_stopped_and_its_move_receipted(
     assert activity["obligations"] == []
 
 
-def test_notifications_before_start_response_reach_the_turn_follower(
+def test_notifications_before_the_submission_response_reach_the_turn_follower(
     page_dir, monkeypatch
 ):
     # A real delivery, because the follower reads it back by id when it accounts for
@@ -173,17 +174,21 @@ def test_notifications_before_start_response_reach_the_turn_follower(
             json.dumps({"id": 1, "result": {"thread": {"id": "hosted-thread"}}}),
             json.dumps(
                 {
+                    "method": "turn/started",
+                    "params": {
+                        "threadId": "hosted-thread",
+                        "turn": {"id": "initial-turn", "items": []},
+                    },
+                }
+            ),
+            json.dumps(
+                {
                     "method": "item/started",
                     "params": {
                         "threadId": "hosted-thread",
                         "turnId": "initial-turn",
                         "startedAtMs": 900,
-                        "item": {
-                            "id": "delivery",
-                            "type": "functionCallOutput",
-                            "name": "leaf_delivery",
-                            "output": json.dumps(payload),
-                        },
+                        "item": _delivery_item(payload),
                     },
                 }
             ),
@@ -212,7 +217,8 @@ def test_notifications_before_start_response_reach_the_turn_follower(
                     },
                 }
             ),
-            json.dumps({"id": 2, "result": {"turn": {"id": "initial-turn"}}}),
+            json.dumps({"id": 2, "result": {}}),
+            json.dumps({"id": 3, "result": {"data": [], "nextCursor": None}}),
         ]
     )
 
@@ -284,7 +290,7 @@ def test_the_website_harness_keeps_its_claim_listening_through_the_agent_turn(
     monkeypatch.setattr(
         harness,
         "_send",
-        lambda *args: {"turn": {"id": "app-server-turn"}},
+        queued_turn("app-server-turn"),
     )
 
     try:
@@ -293,6 +299,7 @@ def test_the_website_harness_keeps_its_claim_listening_through_the_agent_turn(
             page_dir,
             "hosted-thread",
             type("Process", (), {"pid": os.getpid()})(),
+            [],
         )
         # The reading is the turn's, so it starts when the follower opens the turn
         # rather than when the request that made it went out.

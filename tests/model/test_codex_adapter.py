@@ -22,6 +22,7 @@ from interact_support import (
     PAGE,
     PLUGIN_ROOT,
     STATED_TIMEOUT,
+    _delivery_item,
     _observer,
     _watched,
     activity_reading,
@@ -1372,13 +1373,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
         {
             "id": "recovered-turn",
             "status": "failed",
-            "items": [
-                {
-                    "type": "functionCallOutput",
-                    "name": "leaf_delivery",
-                    "output": json.dumps(payload),
-                }
-            ],
+            "items": [_delivery_item(payload)],
         }
     )
 

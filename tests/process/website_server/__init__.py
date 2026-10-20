@@ -105,9 +105,10 @@ def hosted_follower(
 ):
     """Build the follower a dispatch builds, for a delivery a test prepared.
 
-    A follower is made from one `turn/start` answer on one connection, so a test
-    gives it the same three things the dispatch does: the delivery it sent, the
-    turn App Server named for it, and the connection that named it. Opening the
+    A follower is made from the turn that took one queued delivery, on the
+    connection that queued it, so a test gives it the same three things the
+    dispatch does: the delivery it queued, the turn that took it, and the
+    connection that saw that turn start. Opening the
     Leaf turn stays the follower's own first step.
     """
     admitted = start_session_turn(thread_id, turn_id, session_record(thread_id))
@@ -131,6 +132,34 @@ def hosted_follower(
         ),
         lifecycle=admitted,
     )
+
+
+def queued_turn(turn_id: str = "app-server-turn", sent: list | None = None):
+    """Stand in for App Server's answers to `WebsiteCodexHarness._send` on an idle
+    thread, collecting each request in `sent`.
+
+    Adding a delivery to an idle thread's queue starts it, so the turn's
+    `turn/started` reaches the subscription with the add's answer, and the queue
+    then lists empty."""
+
+    def send(socket, method, params, pending=None):
+        if sent is not None:
+            sent.append((method, params))
+        if method == "thread/queue/add":
+            pending.append(
+                {
+                    "method": "turn/started",
+                    "params": {
+                        "threadId": params["threadId"],
+                        "turn": {"id": turn_id, "items": []},
+                    },
+                }
+            )
+        if method == "thread/queue/list":
+            return {"data": [], "nextCursor": None}
+        return {}
+
+    return send
 
 
 class FakeCodexHarness:

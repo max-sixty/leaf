@@ -9,6 +9,7 @@ from pathlib import Path
 
 import leaf_website as website_server
 import pytest
+from interact_support import route_answer_error
 from leaf.codex import accept_codex_delivery, delivery_records
 from leaf.codex_state import delivery_lock_path
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
@@ -68,7 +69,10 @@ def post(url: str, body: dict, headers: dict | None = None) -> tuple[dict, Messa
         headers={"Content-Type": "application/json", **(headers or {})},
     )
     with urllib.request.urlopen(request) as response:
-        return json.loads(response.read()), response.headers
+        raw = response.read()
+    if error := route_answer_error(url, raw):
+        raise AssertionError(f"{url} answered outside its schema: {error}")
+    return json.loads(raw), response.headers
 
 
 def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
@@ -105,10 +109,9 @@ def hosted_follower(
 ):
     """Build the follower a dispatch builds, for a delivery a test prepared.
 
-    A follower is made from the turn that took one queued delivery, on the
-    connection that queued it, so a test gives it the same three things the
-    dispatch does: the delivery it queued, the turn that took it, and the
-    connection that saw that turn start. Opening the
+    A follower is made from one `turn/start` answer on one connection, so a test
+    gives it the same three things the dispatch does: the delivery it sent, the
+    turn App Server named for it, and the connection that named it. Opening the
     Leaf turn stays the follower's own first step.
     """
     admitted = start_session_turn(thread_id, turn_id, session_record(thread_id))
@@ -132,34 +135,6 @@ def hosted_follower(
         ),
         lifecycle=admitted,
     )
-
-
-def queued_turn(turn_id: str = "app-server-turn", sent: list | None = None):
-    """Stand in for App Server's answers to `WebsiteCodexHarness._send` on an idle
-    thread, collecting each request in `sent`.
-
-    Adding a delivery to an idle thread's queue starts it, so the turn's
-    `turn/started` reaches the subscription with the add's answer, and the queue
-    then lists empty."""
-
-    def send(socket, method, params, pending=None):
-        if sent is not None:
-            sent.append((method, params))
-        if method == "thread/queue/add":
-            pending.append(
-                {
-                    "method": "turn/started",
-                    "params": {
-                        "threadId": params["threadId"],
-                        "turn": {"id": turn_id, "items": []},
-                    },
-                }
-            )
-        if method == "thread/queue/list":
-            return {"data": [], "nextCursor": None}
-        return {}
-
-    return send
 
 
 class FakeCodexHarness:

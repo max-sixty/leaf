@@ -166,6 +166,7 @@ import {
   settleThread,
   showHeld,
   snapSelection,
+  standingOrigin,
   standingThreadId,
   stepFrom,
   tabStore,
@@ -5026,7 +5027,7 @@ var label = (count) => `${count} comment${count === 1 ? "" : "s"}`;
 function createAnchorNoteProjection({ openThread, labelAnchor }) {
   const claims = /* @__PURE__ */ new Map();
   function claim() {
-    const note = offer("button", "lf-skip lf-mark-note");
+    const note = offer("button", "lf-mark-note");
     note.tabIndex = -1;
     const record = { note, firstThreadId: null };
     note.addEventListener(
@@ -6085,8 +6086,7 @@ function createQueueWalk({
     return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
-  function standingStop(list, { place: here, kind } = walkOrigin()) {
-    if (kind !== "standing") return null;
+  function standingStop(list, origin = standingOrigin()) {
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
@@ -6097,6 +6097,8 @@ function createQueueWalk({
       );
       if (stop) return stop;
     }
+    if (origin?.kind !== "standing") return null;
+    const { place: here } = origin;
     if (!here) return null;
     const item = obligationHolding(readObligations().all, placeOf(here));
     if (item) {
@@ -6379,9 +6381,7 @@ function createFloatingPanel({
   const peek = el("div", "lf-fp-peek");
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
-  const STATUS = /* @__PURE__ */ Symbol("status");
-  let peekAsked = null;
-  let fieldSays = null;
+  let peekAsked = false;
   let peekReading = null;
   context2.append(contextWords);
   inner.append(opened, context2, row);
@@ -8333,7 +8333,6 @@ function createFloatingPanel({
     keeps(host, "data-offers", reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
-    fieldSays = writing || draftOf(input) !== "" ? null : reading.says === "status" ? STATUS : reading.says === "error" ? reading.words : null;
     const notice2 = passing();
     const hidden = !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
     keepsText(
@@ -8468,7 +8467,7 @@ function createFloatingPanel({
       if (first) focusDestination(first, "move");
     }
   });
-  const peekAsks = () => menuOpen.value ? null : peekAsked === leaf ? STATUS : peekAsked === field && host.dataset.rest !== "mark" ? fieldSays : null;
+  const peekAsks = () => host.dataset.rest === "mark" && peekAsked;
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice2 = passing();
@@ -8478,30 +8477,20 @@ function createFloatingPanel({
       { text: reading.explanation || reading.summary }
     ];
     const asked2 = peekAsks();
-    const said = asked2 === STATUS ? parts : asked2 ? [{ text: asked2 }] : null;
-    if (!asked2 || !readingIsContinuous() || peekReading?.asked !== asked2)
-      peekReading = null;
-    if (asked2 && !telling && pagePresented()) peekReading ??= { asked: asked2, parts: said };
-    render(
-      telling ? notice2.message : statusParts(peekReading?.parts ?? said ?? parts),
-      peek
-    );
+    if (!asked2 || !readingIsContinuous()) peekReading = null;
+    if (asked2 && !telling && pagePresented()) peekReading ??= parts;
+    render(telling ? notice2.message : statusParts(peekReading ?? parts), peek);
     keeps(peek, "data-shown", telling || asked2 ? "" : null);
   }
-  const showPeek = (asker) => {
+  const showPeek = (on) => {
     const before = peekAsks();
-    peekAsked = asker;
+    peekAsked = on;
     if (peekAsks() !== before) paintPeek();
   };
-  for (const asker of [leaf, field]) {
-    asker.addEventListener("pointerenter", () => showPeek(asker));
-    asker.addEventListener("pointerleave", () => showPeek(null));
-  }
-  leaf.addEventListener(
-    "focus",
-    () => showPeek(leaf.matches(":focus-visible") ? leaf : null)
-  );
-  leaf.addEventListener("blur", () => showPeek(null));
+  leaf.addEventListener("pointerenter", () => showPeek(true));
+  leaf.addEventListener("pointerleave", () => showPeek(false));
+  leaf.addEventListener("focus", () => showPeek(leaf.matches(":focus-visible")));
+  leaf.addEventListener("blur", () => showPeek(false));
   pageRung("floating panel", () => {
     if (focused()?.matches?.(".lf-fp-search"))
       return query ? {
@@ -8772,10 +8761,6 @@ function createFloatingPanel({
       if (moved) paint();
     }
   });
-  function enter() {
-    const input = prefs().rest !== "mark" ? fieldInput() : null;
-    focusDestination(input ?? leaf, "move");
-  }
   function mount(parent) {
     parent.append(ground, host);
     follow.observe(card);
@@ -8845,7 +8830,6 @@ function createFloatingPanel({
     mount,
     open,
     close,
-    enter,
     pageComment,
     doors,
     showForSample,
@@ -11068,7 +11052,6 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     touch: "Align current item at top",
     menu: "keys",
     retainStanding: true,
-    when: () => Boolean(currentItem()),
     run: () => {
       const item = currentItem();
       if (!item) return;
@@ -11603,8 +11586,6 @@ var standingPainters = {
   paintCoreControls,
   paintInputs: inputs.paintInputs
 };
-var skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
-skipToChrome.onclick = floatingPanel.enter;
 if (!offlineInteractive) {
   document.adoptedStyleSheets = [
     ...document.adoptedStyleSheets,
@@ -11627,7 +11608,6 @@ if (!offlineInteractive) {
     fabBar,
     chromeForeground
   );
-  document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
   version.mount();
   mountPageStatus({

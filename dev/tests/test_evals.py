@@ -1,4 +1,5 @@
-"""Two model-free smoke checks for the developer-run Promptfoo integration.
+"""Model-free checks of the developer-run Promptfoo integration, and of the deliveries
+cases paste into their prompts.
 
 Detailed grading, browser interaction and provider behavior are checked by running
 an experiment while developing it, rather than maintaining regression matrices.
@@ -94,3 +95,32 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     assert len(config["providers"]) == 1
     assert config["providers"][0]["config"]["viewports"] == ["phone", "desktop"]
     assert "--viewport" not in calls.read_text()
+
+
+def test_every_pasted_delivery_is_the_envelope_leaf_writes():
+    """A case that pastes a delivery scores the instructions against that envelope,
+    so a change to `DELIVERY` fails here until the case is frozen again."""
+    import yaml
+    from leaf.delivery import DELIVERY
+    from leaf.registry.schema import schema_error, with_leaf_resources
+    from leaf_dev import ROOT
+
+    def strings(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict | list):
+            for item in value.values() if isinstance(value, dict) else value:
+                yield from strings(item)
+
+    pasted = [
+        (case.parent.name, json.loads(line))
+        for case in sorted((ROOT / "evals").glob("*/case.yaml"))
+        for text in strings(yaml.safe_load(case.read_text()))
+        for line in text.splitlines()
+        if line.lstrip().startswith('{"format"') and "leaf-delivery/" in line
+    ]
+    assert pasted
+    for case, envelope in pasted:
+        assert envelope.pop("format") == DELIVERY.format, case
+        error = schema_error(with_leaf_resources(DELIVERY.schema), envelope)
+        assert error is None, f"{case}: {error}"

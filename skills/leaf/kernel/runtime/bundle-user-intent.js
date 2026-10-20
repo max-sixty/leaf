@@ -55,7 +55,6 @@ import {
   ago,
   aimedTop,
   atScrollEnd,
-  chooseScroll,
   claimReachStop,
   containingReadingRegionFor,
   effectiveScroller,
@@ -73,7 +72,8 @@ import {
   scrollerFor,
   scrollersOf,
   shortAgo,
-  shownRegionBounds
+  shownRegionBounds,
+  startScroll
 } from "./bundle-presence.js";
 import {
   setChildLists,
@@ -476,7 +476,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
 
 // runtime/landing-scroll.js
 var land = (box, by, behavior) => {
-  if (behavior !== "instant") chooseScroll(box);
+  if (behavior !== "instant") startScroll(box);
   box.scrollBy({ ...by, behavior });
 };
 function scrollMargin(where, side = "Top") {
@@ -1103,7 +1103,7 @@ function placeFrom(node, visited, countBeside) {
   }
   return inChrome(at) ? null : at;
 }
-function walkOrigin() {
+function standingOrigin() {
   for (const node of standingNodes()) {
     const place2 = placeOf(node);
     if (place2) {
@@ -1112,8 +1112,9 @@ function walkOrigin() {
       return panel ? { place: panel, kind: "enter" } : { place: place2, kind: "standing" };
     }
   }
-  return { place: pageReadingBlock(), kind: "standing" };
+  return null;
 }
+var walkOrigin = () => standingOrigin() ?? { place: pageReadingBlock(), kind: "standing" };
 function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   if (!here) return cycledRow(list, null, dir);
   if (kind === "enter") {
@@ -1154,6 +1155,7 @@ var syntaxLanguages = {
   "typescript": () => import("/vendor/syntax/typescript.js"),
   "yaml": () => import("/vendor/syntax/yaml.js")
 };
+var syntaxLanguageNames = { "shellscript": "bash", "bash": "bash", "sh": "bash", "shell": "bash", "zsh": "bash", "css": "css", "diff": "diff", "go": "go", "html": "html", "java": "java", "javascript": "javascript", "js": "javascript", "cjs": "javascript", "mjs": "javascript", "json": "json", "markdown": "markdown", "md": "markdown", "python": "python", "py": "python", "rust": "rust", "rs": "rust", "sql": "sql", "toml": "toml", "typescript": "typescript", "ts": "typescript", "cts": "typescript", "mts": "typescript", "yaml": "yaml", "yml": "yaml" };
 
 // runtime/syntax.js
 var registry2 = runtime.registry;
@@ -1208,7 +1210,7 @@ var LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 var BLOCK = "pre > code[class]";
 var languageOf = (code) => {
   const lang = code.className.match(LANGUAGE_CLASS)?.[1];
-  return registry2.$languages.names.includes(lang) ? lang : void 0;
+  return Object.hasOwn(syntaxLanguageNames, lang) ? syntaxLanguageNames[lang] : void 0;
 };
 var tokenizing = /* @__PURE__ */ new WeakSet();
 async function highlightBlocks(root) {
@@ -1481,11 +1483,7 @@ var resized = 0;
 addEventListener("resize", () => {
   resized ||= nextRender(() => {
     resized = 0;
-    const read = [...placed].map(([control, block]) => [
-      control,
-      block,
-      headerLevels(block)
-    ]);
+    const read = [...placed].filter(([, block]) => !skipped(block)).map(([control, block]) => [control, block, headerLevels(block)]);
     for (const [control, block, levels] of read) standInChrome(control, block, levels);
   });
 });
@@ -7662,6 +7660,7 @@ export {
   obligationHolding,
   placeOf,
   arrivalOf,
+  standingOrigin,
   walkOrigin,
   stepFrom,
   heldObligation,

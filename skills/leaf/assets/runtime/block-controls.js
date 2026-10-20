@@ -31,6 +31,7 @@ import { focusDestination } from "./focus.js";
 import { move } from "./dom-move.js";
 import { layoutPx } from "./keeps.js";
 import { nextRender } from "./rendering.js";
+import { skipped } from "./geometry.js";
 
 const home = document.createElement("div");
 home.className = "lf-block-controls";
@@ -49,12 +50,12 @@ let resized = 0;
 addEventListener("resize", () => {
   resized ||= nextRender(() => {
     resized = 0;
-    // Every reading before any write, as on arrival.
-    const read = [...placed].map(([control, block]) => [
-      control,
-      block,
-      headerLevels(block),
-    ]);
+    // A hidden panel's old layout is invalid after resize. Reading its cuts would
+    // force the browser to lay out each skipped subtree; revealControl reads them
+    // when the user next reveals the control. Read every shown block before writing.
+    const read = [...placed]
+      .filter(([, block]) => !skipped(block))
+      .map(([control, block]) => [control, block, headerLevels(block)]);
     for (const [control, block, levels] of read) standInChrome(control, block, levels);
   });
 });

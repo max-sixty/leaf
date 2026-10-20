@@ -16,8 +16,8 @@ The user follows your work on the page:
 
 Leaf's panel floats at the foot of the window. Leaf marks each update **Sent**,
 **Queued**, and **Picked up** by itself. Your harness may add its current step to the
-status, which the user reads in full by pointing at the field, or at the leaf when the
-panel is folded.
+status, which the user reads in full in the leaf's menu, or by pointing at the leaf
+when the panel is folded.
 
 In `leaf page state <page>`, `viewed` is when a browser tab last showed the page, in
 epoch seconds, renewed about every 30 seconds while visible and `null` if nobody has
@@ -107,8 +107,8 @@ When input arrives:
 3. If it interrupted other work, start that item again, so the panel's status
    describes the work that continues.
 
-Before replying about a page revision, run `leaf page check`, the only check the
-main skill's "Check the page" step requires for that reply.
+Reply about a page revision as soon as it is saved; the reply checks it (the main
+skill's "Check the page").
 
 ## Status and handoff
 
@@ -159,8 +159,9 @@ your conversation inherits the page too. Work that needs its own conversation wi
 the user belongs in its own session, with its own page.
 
 A start lasts only for the turn that wrote it. About two minutes after the turn ends,
-the panel's status says your turn ended and quotes the line, and within a long turn a
-start goes stale after about 15 minutes. The status shows the item you started last, so
+the panel's status says your turn ended and quotes the line, or in Claude Code, while
+background subagents run, that you are working in the background. Within a long turn
+a start goes stale after about 15 minutes. The status shows the item you started last, so
 start the one that best describes what is running. While a worker produces an
 update's answer, start that update before you end your turn; the Stop hook lets a
 turn end over an update it started. In the next turn, start the item again or answer

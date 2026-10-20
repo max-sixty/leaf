@@ -156,7 +156,7 @@ representative desktop viewport.
 - **A face used twice is a token or a shared rule**, and a rule names it rather than
   spelling it out. A lift names one of the theme's three heights, `--raise-1` to
   `--raise-3` (`styles/theme.css`, beside `--shade`); boxes that wear one face, such as
-  the chip a focused skip link and picture proxy show at the window's head, share one rule.
+  the chip a focused comment note and picture proxy show at the window's head, share one rule.
   Check: `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Each thread's `unread` and `attention` are computed once**, and every surface that
   paints them uses that value, so the Threads toggle, filters, panel, margin entry and
@@ -358,7 +358,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What is focused, inside open shadow trees or through a held label press                               | `focus.js` `focused`, `focused(tree)` (_lint_)                                     |
 | Whether the user is inside a scope, across shadow trees and slots                                     | `focus.js` `standingIn` (_lint_)                                                   |
 | The user's working place, read before something borrows it and handed back after                      | `history.js` `readPlace`, `returnPlace`                                            |
-| Where a page walk starts, and which item it steps to                                                  | `standing-target.js` `walkOrigin`, `stepFrom`                                      |
+| The page place focus or selection identifies, or none                                                 | `standing-target.js` `standingOrigin`                                              |
+| Where a page walk starts, falling back to visible reading, and which item it steps to                 | `standing-target.js` `walkOrigin`, `stepFrom`                                      |
 | Which of two nodes the reader reaches first, across shadow trees                                      | `shadow-tree.js` `renderedOrder`, `byRenderedOrder`                                |
 | Whether a node is inside another across shadow trees                                                  | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode`                    |
 | Put the user on an element, saying what moved them                                                    | `focus.js` `focusDestination(node, cause)` (_lint_)                                |

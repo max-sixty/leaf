@@ -225,11 +225,10 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     turn runs, `waiting` while a turn holds a dialog open, `busy` otherwise. An
     interrupt runs no Stop hook, so an `idle` newer than everything that renewed the
     turn ends it at that moment, and a `waiting` newer than the turn's stamps is
-    a dialog open now. `busy` adds nothing: a background job's record keeps it
-    across turn endings. Without a word from the record the hook stamps answer,
-    believed
-    only while something renewed the turn within the working grace, so a delivered
-    move no Stop closed cannot read working forever."""
+    a dialog open now. `busy` never says a turn runs: the record keeps it across
+    turn endings while background work runs. Without a word from the record the
+    hook stamps answer, believed only while something renewed the turn within the
+    working grace, so a delivered move no Stop closed cannot read working forever."""
     serving(claimed, 1)
     registry = harness_model.claude_code_sessions()
     registry.mkdir(parents=True, exist_ok=True)
@@ -312,6 +311,74 @@ def test_claude_codes_own_record_adds_what_no_hook_sees(claimed, capsys, dead_pi
     # A status the harness has no word on is no reading at all.
     harness_says("compacting")
     assert harness_model.ClaudeCodeHarness("s1", "Claude").live_turn() is None
+
+
+def test_a_coordinators_workers_keep_its_page_working(claimed, capsys):
+    """Claude Code's record stays `busy` after a turn ends while the background
+    subagents it left run. Until the record leaves `busy`, the page reads working,
+    observed in the background. The record doesn't say which turn left the work,
+    so the ended turn's start is dropped as usual. A background shell leaves the
+    record `shell`, which is idle."""
+    serving(claimed, 1)
+    registry = harness_model.claude_code_sessions()
+    registry.mkdir(parents=True, exist_ok=True)
+
+    def harness_says(status):
+        cleanup_model.write_json(
+            registry / f"{os.getpid()}.json",
+            {
+                "pid": os.getpid(),
+                "sessionId": "s1",
+                "status": status,
+                "statusUpdatedAt": int(time.time() * 1000),
+            },
+        )
+
+    session_model.cmd_waiting(claimed, "Pick a layout")
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Compare the layouts."}
+    )
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    consume_pending_input("s1")
+    harness_says("busy")
+    assert (
+        _start(claimed, comment["id"], "Workers are comparing layouts").exit_code == 0
+    )
+    hooks_model.cmd_hook(
+        "claude-code",
+        {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": False},
+    )
+    capsys.readouterr()
+    assert service_model.page_claim(claimed)["turn_closed"] is not None
+
+    # Within the renewal grace the start's line stands, with the step beside it.
+    ending = _activity_at(claimed)
+    assert (ending["kind"], ending["detail"], ending["observed"]) == (
+        "working",
+        "Workers are comparing layouts",
+        activity_model.BACKGROUND_DETAIL,
+    )
+    later = _activity_at(claimed, 10)
+    assert (later["kind"], later["detail"], later["dropped"]) == (
+        "working",
+        activity_model.BACKGROUND_DETAIL,
+        False,
+    )
+    assert later["obligations"][0]["condition"] == {
+        "kind": "stale",
+        "operation": "work",
+    }
+
+    for idle in ("idle", "shell"):
+        harness_says(idle)
+        ended = _activity_at(claimed, 10)
+        assert (ended["kind"], ended["dropped"], ended["observed"]) == (
+            "away",
+            True,
+            "",
+        )
 
 
 def test_away_asks_for_a_nudge_only_once_input_is_overdue(claimed, capsys):
@@ -442,7 +509,15 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "condition": None,
         "response": None,
     }
-    reply = {"state": "partial", "session": "session-1", "responds": "input-1"}
+    reply = {
+        "state": "partial",
+        "session": "session-1",
+        "responds": "input-1",
+        "turn": "turn-1",
+        "attempt": "reply-attempt",
+        "settles": False,
+        "updated_at": now.isoformat(),
+    }
     owed = obligations_model.update_obligation(
         "input-1",
         {"kind": "thread", "id": "input-1"},

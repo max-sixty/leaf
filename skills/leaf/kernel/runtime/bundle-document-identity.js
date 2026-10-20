@@ -218,7 +218,9 @@ import {
   scrollersOf,
   settlePageInterface,
   shownRegionBounds,
+  stopScroll,
   tickClock,
+  unconcealedReadingRegions,
   watchReadingRegionTransitions
 } from "./bundle-presence.js";
 import {
@@ -376,7 +378,6 @@ import {
   keepsHidden,
   move,
   nextAnimation,
-  nextFrame,
   nextRender,
   onFrameVisibility,
   onStanding,
@@ -551,15 +552,9 @@ function mountHistory({ followFragment, returnToFragment }) {
           if (!mayReturn()) return;
           const scrollers = /* @__PURE__ */ new Set([
             pageScroller,
-            ...readingRegions().map((region) => region.body)
+            ...unconcealedReadingRegions().map((region) => region.body)
           ]);
-          for (const scroller of scrollers)
-            scroller.scrollTo({
-              left: scroller.scrollLeft,
-              top: scroller.scrollTop,
-              behavior: "instant"
-            });
-          await new Promise((resolve) => nextFrame(() => nextFrame(resolve)));
+          await stopScroll(scrollers);
           if (!mayReturn()) return;
           let work;
           mayReturn.handoff(() => {
@@ -2260,6 +2255,16 @@ function createAnchorTravel({
     return Boolean(where && seenOf(where));
   }
   async function arrive(resolve, { intent, present = null, departure = null }) {
+    const initial = intent() && resolve();
+    if (!initial?.where) return false;
+    if (initial.scroll.length)
+      await stopScroll(
+        /* @__PURE__ */ new Set([
+          pageScroller,
+          ...unconcealedReadingRegions().map((region) => region.body)
+        ])
+      );
+    if (!intent()) return false;
     const first = resolve();
     const holder = first && placeHolder(first.where);
     if (!holder || !intent()) return false;
@@ -2451,7 +2456,7 @@ function createAnchorTravel({
       return false;
     }
     const destination = addressedElements(source, key)[0] ?? null;
-    const moving = departure.plan(destination);
+    departure.plan(destination);
     if (!destination) {
       await arrive(
         () => {
@@ -2470,7 +2475,9 @@ function createAnchorTravel({
         return where && {
           where,
           focus: focus ? where : null,
-          scroll: moving ? [{ at: where, block: "start" }] : []
+          scroll: [
+            { at: where, block: "start", when: () => !readableDestination(where) }
+          ]
         };
       },
       { intent: mayArrive, departure }
@@ -5390,7 +5397,8 @@ function createCommandDispatch() {
 // runtime/delivery.js
 var RETRY_MS = 2e3;
 var retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
-var readEventAnswer = (response, answer) => response.ok && answer?.ok === true && answer.state ? "accepted" : answer?.final === true ? "refused" : "incomplete";
+var acceptedAnswer = (response, answer) => response.ok && !!answer && "state" in answer && !("final" in answer);
+var refusedAnswer = (answer) => !!answer && "final" in answer;
 var applyAnswerState = (apply, state) => apply(state).catch((error) => reportCarried(error, "state in event response"));
 function createDelivery({
   ledger,
@@ -5423,7 +5431,7 @@ function createDelivery({
           (response) => ({ response }),
           (error) => ({ error })
         ),
-        entry.read.then((accepted2) => ({ accepted: accepted2 }))
+        entry.read.then((accepted) => ({ accepted }))
       ]);
       if (sent.accepted) return { accepted: sent.accepted };
       if (sent.error) {
@@ -5442,7 +5450,7 @@ function createDelivery({
           (answer2) => ({ answer: answer2 }),
           (error) => ({ error })
         ),
-        entry.read.then((accepted2) => ({ accepted: accepted2 }))
+        entry.read.then((accepted) => ({ accepted }))
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
@@ -5450,19 +5458,20 @@ function createDelivery({
         continue;
       }
       const answer = decoded.answer;
-      const reading = readEventAnswer(sent.response, answer);
-      const accepted = reading === "accepted" && answer.state.browser?.receipts?.find(
-        (candidate) => candidate.attempt === event.attempt
-      );
-      if (accepted)
-        return {
-          accepted,
-          application: applyAnswerState(
-            applyAcceptedState,
-            completeData(answer.state, held)
-          )
-        };
-      if (reading === "refused" && (!("attempt" in answer) || answer.attempt === event.attempt) && answer.ok === false) {
+      if (acceptedAnswer(sent.response, answer)) {
+        const accepted = answer.state.browser?.receipts?.find(
+          (candidate) => candidate.attempt === event.attempt
+        );
+        if (accepted)
+          return {
+            accepted,
+            application: applyAnswerState(
+              applyAcceptedState,
+              completeData(answer.state, held)
+            )
+          };
+      }
+      if (refusedAnswer(answer) && (!("attempt" in answer) || answer.attempt === event.attempt)) {
         return {
           accepted: null,
           state: completeData(answer.state, held),
@@ -5533,10 +5542,9 @@ async function deliverBookkeeping(event, applyState) {
   } catch {
     return "unreached";
   }
-  const reading = readEventAnswer(response, answer);
-  if (answer?.state)
+  if (answer && "state" in answer)
     await applyAnswerState(applyState, completeData(answer.state, held));
-  return reading === "incomplete" ? "unreached" : reading;
+  return acceptedAnswer(response, answer) ? "accepted" : refusedAnswer(answer) ? "refused" : "unreached";
 }
 
 // runtime/undo.js
@@ -6180,15 +6188,21 @@ function createThreadDestinations({
         if (trip) {
           if (!await scrollToThread(id, { part: localPart, focus, intent }))
             return null;
-        } else {
+        } else if (focus === false) {
           await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
-          const current = surfaceFocusTarget(id, { part: localPart });
-          if (!current || !mayPresent() || focus !== false && !intent.handoff(() => {
-            focusDestination(current, "move");
-            if (scroll) scrollIntoView(current, { block: "nearest" });
-          }))
-            return null;
-        }
+          if (!mayPresent()) return null;
+        } else if (!await arrive(
+          () => {
+            const current = surfaceFocusTarget(id, { part: localPart });
+            return current && {
+              where: current,
+              focus: current,
+              scroll: scroll ? [{ at: current, block: "nearest", behavior: "auto" }] : []
+            };
+          },
+          { intent }
+        ))
+          return null;
         return surfaceFocusTarget(id, { part: localPart });
       };
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
@@ -6216,15 +6230,17 @@ function createThreadDestinations({
             return null;
         } else {
           if (!await opened.presented || !mayPresent()) return null;
-          const current = threadFocusTarget(id, { part });
-          if (!current || !mayPresent() || focus !== false && !intent.handoff(() => {
-            focusDestination(current, "move");
-            if (scroll)
-              scrollIntoView(current, {
-                behavior: scrollBehavior(),
-                block: "nearest"
-              });
-          }))
+          if (focus !== false && !await arrive(
+            () => {
+              const current = threadFocusTarget(id, { part });
+              return current && {
+                where: current,
+                focus: current,
+                scroll: scroll ? [{ at: current, block: "nearest" }] : []
+              };
+            },
+            { intent }
+          ))
             return null;
         }
         return threadFocusTarget(id, { part });

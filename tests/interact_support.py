@@ -150,16 +150,17 @@ def append_carried_log_record(page_dir, event):
     could decide its meaning, so user input that admission would weigh against the
     page's obligations is taken to change them. Semantic attention cases use
     `append_command`.
-    A raw fixture can explicitly declare `attention=False` for quiet input.
+    A raw fixture can explicitly declare `attention=False` for quiet input. A kind
+    whose record requires the `revision` it was made on is placed on the first.
     """
     from leaf.registry.kernel import kernel_event_kinds
 
-    attention = event_contracts_model.settled_attention(
-        event, kernel_event_kinds().get(event["kind"], {})
-    )
-    return events_model.append_event(
-        page_dir, {"attention": attention is not False, **event}
-    )
+    contract = kernel_event_kinds().get(event["kind"], {})
+    attention = event_contracts_model.settled_attention(event, contract)
+    record = {"attention": attention is not False, **event}
+    if "revision" in contract["record"]["required"]:
+        record.setdefault("revision", 1)
+    return events_model.append_event(page_dir, record)
 
 
 def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
@@ -753,66 +754,66 @@ def stamp(d, text="stamped", completes=()):
 
 
 @cache
-def _served_state_validators() -> dict:
-    """`served_state/state.schema.json` with the kernel's event records composed in
-    under the `leaf:event` names it refers to them by, each open so the objects that add
-    served fields to one close it again (the schema's own description), and the x-state
-    verb (`schema.VERB_SCHEMA`) as `leaf:verb`. Keyed by what
-    is checked: a complete `/api/state` answer (`answer`), the `Reading` a fold returns
-    before the serving route adds its neighbors and token, or a `/api/view` answer
-    (`ViewAnswer`)."""
-    from leaf.registry.kernel import kernel_event_kinds
-    from leaf.registry.schema import json_validator
-    from leaf.schema import VERB_SCHEMA
+def _served_state_validator(against: tuple[str, ...]):
+    """`served_state/state.schema.json`, with the `leaf:` schemas it refers to
+    (`registry.schema.leaf_resources`), taking any of `against`: `answer`, a
+    complete `/api/state` answer, `null`, or one of its definitions by name."""
+    from leaf.registry.schema import json_validator, with_leaf_resources
 
-    schema = json.loads(
-        Path(served_page.__file__).with_name("state.schema.json").read_text()
+    schema = with_leaf_resources(
+        json.loads(
+            Path(served_page.__file__).with_name("state.schema.json").read_text()
+        )
     )
-    records = {
-        f"leaf:event/{kind}": {
-            "$id": f"leaf:event/{kind}",
-            **{
-                key: value
-                for key, value in contract["record"].items()
-                if key != "additionalProperties"
-            },
-        }
-        for kind, contract in kernel_event_kinds().items()
-    }
-    records["leaf:event"] = {
-        "$id": "leaf:event",
-        "anyOf": [{"$ref": identity} for identity in sorted(records)],
-    }
-    records["leaf:verb"] = {"$id": "leaf:verb", **VERB_SCHEMA}
-    defs = {**schema["$defs"], **records}
 
-    def definition(name: str) -> dict:
-        return {
-            "$id": schema["$id"],
-            "$defs": defs,
-            "$ref": f"#/$defs/{name}",
+    def target(name: str) -> dict:
+        if name == "null":
+            return {"type": "null"}
+        pointer = "" if name == "answer" else f"#/$defs/{name}"
+        return {"$ref": schema["$id"] + pointer}
+
+    return json_validator(
+        {
+            "anyOf": [target(name) for name in against],
             "unevaluatedProperties": False,
+            "$defs": {"served": schema},
         }
-
-    return {
-        "answer": json_validator({**schema, "$defs": defs}),
-        "Reading": json_validator(definition("Reading")),
-        "ViewAnswer": json_validator(definition("ViewAnswer")),
-    }
+    )
 
 
-def served_state_error(state: dict, against: str = "Reading") -> str | None:
-    """Where `state` breaks the served state's schema, or None: a fold's `Reading`, a
-    complete `/api/state` answer (`answer`), or a `/api/view` answer (`ViewAnswer`). A
-    channel only Leaf writes, so the tests hold its shape here rather than anything
-    validating it in flight."""
+def served_state_error(value, against: str | tuple[str, ...] = "Reading") -> str | None:
+    """Where `value` breaks the served state's schema, or None: against a fold's
+    `Reading`, a complete `/api/state` answer (`answer`), or any definition or
+    definitions named. A channel only Leaf writes, so the tests hold its shape here
+    rather than anything validating it in flight."""
     from jsonschema.exceptions import best_match
 
-    validator = _served_state_validators()[against]
-    error = best_match(validator.iter_errors(state))
+    names = (against,) if isinstance(against, str) else against
+    error = best_match(_served_state_validator(names).iter_errors(value))
     if error is None:
         return None
     return f"{error.json_path}: {error.message[:400]}"
+
+
+# What each route a test requests through `fetch` may answer, by the end of its path
+# (`http.PageEndpoint.POST_ROUTES` and its gates), so every answer a test reads holds
+# the schema the browser and the Worker are typed from.
+ROUTE_ANSWERS = {
+    r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
+    r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
+    r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),
+    r"/api/files/[^/]+": ("FileSnapshot", "null", "StaleFile", "Refusal"),
+}
+
+
+def route_answer_error(url: str, body: bytes) -> str | None:
+    """Where the answer `body` a route under `url` gave breaks its schema, or None
+    for a route `ROUTE_ANSWERS` doesn't name."""
+    path = urllib.parse.urlsplit(url).path
+    for route, against in ROUTE_ANSWERS.items():
+        if re.search(route + "$", path):
+            return served_state_error(json.loads(body), against)
+    return None
 
 
 def page_state(d):
@@ -1529,9 +1530,12 @@ def fetch(url, data=None, token=TOKEN, layer=None, headers=None):
             request_headers["Leaf-Layer"] = layer
         request = urllib.request.Request(url, data=data, headers=request_headers)
         with opener.open(request) as res:
-            return res.status, res.read()
+            status, body = res.status, res.read()
     except urllib.error.HTTPError as e:
-        return e.code, e.read()
+        status, body = e.code, e.read()
+    if error := route_answer_error(url, body):
+        raise AssertionError(f"{url} answered {status} outside its schema: {error}")
+    return status, body
 
 
 def fetch_hanging_up(url, data=None):
@@ -2678,13 +2682,12 @@ def _observer() -> codex_adapter_model.TaskConnection:
 
 
 def _delivery_item(payload: dict) -> dict:
-    """The user message a turn that took one queued App Server delivery holds."""
-    [text] = codex_model.app_server_queue_params("codex-thread", payload)["input"]
+    """The transcript item a turn carrying one App Server delivery holds."""
     return {
         "id": "delivery",
-        "type": "userMessage",
-        "clientId": payload["id"],
-        "content": [text],
+        "type": "functionCallOutput",
+        "name": "leaf_delivery",
+        "output": json.dumps(payload),
     }
 
 

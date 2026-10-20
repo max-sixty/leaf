@@ -44,9 +44,8 @@ import { pageRange, selectEnds, selectionBackward } from "./passages.js";
 import { retainUserIntent } from "./user-intent.js";
 import { placeOf } from "./standing-target.js";
 import { upFrom } from "./shadow.js";
-import { readingRegions } from "./reading-regions.js";
-import { nextFrame } from "./rendering.js";
-import { pageScroller } from "./scrolling.js";
+import { unconcealedReadingRegions } from "./reading-regions.js";
+import { pageScroller, stopScroll } from "./scrolling.js";
 
 const claims = new Set();
 const places = new Map();
@@ -194,15 +193,9 @@ export function mountHistory({ followFragment, returnToFragment }) {
           // complete rendering update has carried the cancellation to the browser.
           const scrollers = new Set([
             pageScroller,
-            ...readingRegions().map((region) => region.body),
+            ...unconcealedReadingRegions().map((region) => region.body),
           ]);
-          for (const scroller of scrollers)
-            scroller.scrollTo({
-              left: scroller.scrollLeft,
-              top: scroller.scrollTop,
-              behavior: "instant",
-            });
-          await new Promise((resolve) => nextFrame(() => nextFrame(resolve)));
+          await stopScroll(scrollers);
           if (!mayReturn()) return;
           let work;
           mayReturn.handoff(() => {

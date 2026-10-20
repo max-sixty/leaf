@@ -640,9 +640,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         >= box["x"] + box["width"]
     ), "the control must hang beside the selected paragraph"
 
-    # A box that takes no pointer cannot be covered for the pointer, which is the whole
-    # subject here: the skip link rests transparent and inert at the window's head and only
-    # becomes a control at all when the keyboard reaches it.
+    # A box that takes no pointer cannot be covered for the pointer.
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
         .filter(c => (!c.closest(".lf-chrome") || c.closest(".lf-margin-cluster"))
                      && c.checkVisibility()
@@ -1496,6 +1494,9 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     rendered(page)
     expect(page.locator("#source")).to_be_hidden()
     expect(control).not_to_be_in_viewport()
+    # A source opened once retains an old layout inside its skipped subtree.
+    # Resize while it is hidden, then reveal it at the new width.
+    resized(page, 1440, 900)
     opener.click()
     rendered(page)
     expect(control).to_be_in_viewport()
@@ -1505,6 +1506,66 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     button.click()
     expect(button).to_have_accessible_name("Code copied")
     assert page.evaluate("navigator.clipboard.readText()") == "copy this source"
+
+
+def test_resizing_closed_code_sections_does_not_lay_out_each_hidden_section(
+    browser, serve
+):
+    """Previously viewed code stays skipped when its disclosure closes and the window
+    resizes. Reading every block's header cuts used to force one layout per hidden
+    section; never-opened sections conceal that cost because they have no old layout."""
+    sections = "".join(
+        f"<details open><summary>Example {i}</summary>"
+        f"<div><pre><code>code {i}</code></pre></div></details>"
+        for i in range(20)
+    )
+    page = open_page(browser, serve(leaf_page("Closed code sections", sections)))
+    controls = page.locator(".lf-chrome .lf-code-copy")
+    expect(controls).to_have_count(20)
+    for summary in page.locator("main summary").all():
+        summary.click()
+    rendered(page)
+    expect(page.locator("main details[open]")).to_have_count(0)
+
+    browser.start_tracing(
+        page=page,
+        categories=[
+            "devtools.timeline",
+            "disabled-by-default-devtools.timeline",
+            "disabled-by-default-devtools.timeline.stack",
+        ],
+    )
+    try:
+        resized(page, 1440, 900)
+        rendered(page)
+        # Establish that this browser records JavaScript layout stacks at all.
+        # The fixed-position probe takes no room in the document.
+        page.evaluate("""() => {
+          const probe = document.createElement('div');
+          probe.style.position = 'fixed';
+          document.body.append(probe);
+          probe.getBoundingClientRect();
+          probe.remove();
+        }""")
+    finally:
+        trace = json.loads(browser.stop_tracing())
+    layouts = [
+        event
+        for event in trace["traceEvents"]
+        if event["name"] == "Layout" and event["ph"] == "X"
+    ]
+    assert any(event["args"]["beginData"].get("stackTrace") for event in layouts)
+    # Count only layout forced by the controls' cut reading, rather than comparing
+    # whole-page totals that include the browser's viewport and observer work.
+    forced = [
+        event
+        for event in layouts
+        if any(
+            frame["functionName"] == "headerLevels"
+            for frame in event["args"]["beginData"].get("stackTrace", [])
+        )
+    ]
+    assert not forced, {"hidden-section layouts": len(forced), "first": forced[0]}
 
 
 def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
@@ -1522,6 +1583,29 @@ def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
     expect(control).to_have_count(0)
     assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
     expect(pre).to_have_attribute("tabindex", "0")
+
+
+def test_native_code_uses_the_bundled_grammars_language_aliases(browser, serve):
+    """Markdown fence labels select the same colors as their full language names."""
+    sources = {
+        "js": ("javascript", 'const value = "leaf"; // keep the source\n'),
+        "sh": ("bash", 'leaf page check "$PAGE" --render\n'),
+    }
+    blocks = "".join(
+        f'<pre id="{label}"><code class="language-{label}">{escape(source)}</code></pre>'
+        for alias, (name, source) in sources.items()
+        for label in (alias, name)
+    )
+    page = open_page(browser, serve(leaf_page("Code aliases", blocks)))
+    for alias, (name, source) in sources.items():
+        tokens = "el => [...el.querySelectorAll('[data-lf-syn]')].map(token => [token.textContent, getComputedStyle(token).color])"
+        short = page.locator(f"#{alias} code")
+        full = page.locator(f"#{name} code")
+        expect(short).to_have_attribute("data-lf-syntax", name)
+        assert short.text_content() == full.text_content() == source
+        painted = short.evaluate(tokens)
+        assert len({color for _, color in painted}) > 1
+        assert painted == full.evaluate(tokens)
 
 
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):

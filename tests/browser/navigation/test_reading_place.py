@@ -32,12 +32,18 @@ from render_harness import (
     write,
 )
 
-from browser.navigation import (
-    STANDING,
-)
 from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+# Authored controls distinguish resuming Tab at the reading from restarting at the top.
+READING_CONTROLS_PAGE = LONG_PAGE.replace(
+    '<h1 id="t">', '<button id="first-control">First control</button><h1 id="t">'
+).replace(
+    "<p id='p41'>",
+    '<p id="p41"><button id="next-control">Next reading control</button>',
+)
 
 
 # Each route once and each reading region once.
@@ -76,7 +82,7 @@ def test_page_map_cancellation_returns_to_its_opener_without_moving_the_reading(
 def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
     browser, serve, route
 ):
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(READING_CONTROLS_PAGE))
     page.evaluate("() => document.getElementById('p40').scrollIntoView()")
     page_at_rest(page)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -91,7 +97,7 @@ def test_page_map_cancellation_without_an_opener_keeps_the_scrolled_reading(
     expect(sheet).to_be_hidden()
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before
     page.keyboard.press("Tab")
-    assert not page.evaluate(STANDING)["isFirstStop"]
+    expect(page.locator("#next-control")).to_be_focused()
 
 
 def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serve):
@@ -1568,17 +1574,10 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
     the user to the top of the page. The press that tells them apart is the Tab after
     it: from a panel opened four screens down, it belongs on from the words in front of
     the user rather than at the document's first stop.
-
-    A fresh page is the other half of the same fact and the opposite answer: nobody has
-    read it yet, so its first Tab is the skip link, which is what
-    test_a_user_at_the_top_of_the_document_is_one_press_from_the_chrome pins.
     """
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(READING_CONTROLS_PAGE))
     page.evaluate("() => document.getElementById('p40').scrollIntoView()")
     page_at_rest(page)
-    reading = page.evaluate(
-        "() => document.getElementById('p40').getBoundingClientRect().top"
-    )
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -1588,12 +1587,7 @@ def test_closing_a_surface_leaves_the_next_tab_where_the_user_is_reading(
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("Tab")
-    standing = page.evaluate(STANDING)
-    assert not standing["isFirstStop"], (
-        f"after Threads closed, the user's next Tab went to the first stop in the "
-        f"document ({standing}) rather than on from the words they were reading at "
-        f"{reading:.0f}px"
-    )
+    expect(page.locator("#next-control")).to_be_focused()
     # And nothing of the borrow is left on the author's paragraph.
     assert (
         page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
@@ -1614,27 +1608,20 @@ def test_the_reference_hands_the_user_back_to_the_page_they_were_reading(
 
     The reading is the next Tab rather than the focused element, because that is the fact
     that was wrong: the restore itself looked fine both before and after, focus being on
-    nothing either way. The skip link is the document's first stop, so landing on it is
-    exactly the failure written down.
+    nothing either way. Authored controls before and after the reading distinguish
+    restarting at the top from carrying on where the user was.
     """
-    page = open_page(browser, serve(LONG_PAGE))
+    page = open_page(browser, serve(READING_CONTROLS_PAGE))
     page.evaluate("() => document.getElementById('p40').scrollIntoView()")
     page_at_rest(page)
-    reading = page.evaluate(
-        "() => document.getElementById('p40').getBoundingClientRect().top"
-    )
+
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
 
     page.keyboard.press("Tab")
-    standing = page.evaluate(STANDING)
-    assert not standing["isFirstStop"], (
-        f"after the reference closed, the user's next Tab went to the first stop in "
-        f"the document ({standing}) rather than on from the words they were reading at "
-        f"{reading:.0f}px"
-    )
+    expect(page.locator("#next-control")).to_be_focused()
     # And nothing of the borrow is left on the author's paragraph: `tabindex` is not in
     # PAGE_PAINT_ATTRIBUTES, so a stop left in place would be runtime paint the replay
     # signature has no vocabulary for.

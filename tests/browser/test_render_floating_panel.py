@@ -2215,59 +2215,42 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     expect(peek).to_have_text("Saved for later")
 
 
-def test_pointing_at_the_row_s_leaf_or_field_says_the_status_in_full(browser, serve):
-    """In the row, pointing at the leaf or at the empty field shows the leaf's peek, the
-    box the folded leaf shows, at once and over the row, with the status the field cuts
-    short in full; the field keeps no browser tooltip of its own. The peek stands down
-    while the leaf's menu, which says the status itself, stands, and over a field the
-    user writes in or whose words hide the status."""
+def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
+    """The row's status and errors remain inline; its menu carries the full reading.
+    Hover and keyboard focus reveal status only when the leaf is folded."""
     page = floating(browser, serve(LONG_PAGE))
     peek = page.locator(".lf-fp-peek")
     leaf = page.locator(".lf-fp-leaf")
     seat = page.locator(".lf-fp-field")
-    shown = "peek => peek.hasAttribute('data-shown')"
     expect(field(page)).to_have_attribute("placeholder", re.compile(r" away\b"))
     assert seat.get_attribute("title") is None
-    row = page.locator(".lf-fp-row").bounding_box()
-    for asker in (leaf, seat):
-        page.mouse.move(5, 5)
-        expect(peek).to_be_hidden()
-        asker.hover()
-        assert peek.evaluate(shown)
-        expect(peek).to_have_text(re.compile(r"isn't watching right now\."))
-        box = peek.bounding_box()
-        assert box["y"] + box["height"] <= row["y"], (box, row)
+    for target in (leaf, seat):
+        target.hover()
+        assert not peek.evaluate("peek => peek.hasAttribute('data-shown')")
 
     leaf.click()
-    expect(page.locator(".lf-fp-menu")).to_be_visible()
+    expect(page.locator(".lf-fp-menu")).to_contain_text("Updates are saved.")
     expect(peek).to_be_hidden()
-    field(page).click()
-    expect(page.locator(".lf-fp-menu")).to_be_hidden()
-    expect(peek).to_be_hidden()
-    write(field(page), "Could the rollback cover the weekend?")
-    page.mouse.click(5, 5)
-    seat.hover()
-    expect(peek).to_be_hidden()
-
-
-def test_the_peek_says_what_its_asker_says_now(browser, serve):
-    """The leaf's peek keeps the status it opened with through one exposure, but a
-    different thing to say is said at once: the leaf holding keyboard focus shows the
-    status, and the pointer then on a field saying an error shows the error, and a newer
-    error under the still pointer replaces it."""
-    page = floating(browser, serve(LONG_PAGE))
-    peek = page.locator(".lf-fp-peek")
-    say = "async (text) => (await window.__lfWidgetApi()).raiseError(text)"
-    page.evaluate(say, "Couldn't save the draft")
+    page.keyboard.press("Escape")
+    page.evaluate(
+        "async text => (await window.__lfWidgetApi()).raiseError(text)",
+        "Couldn't save the draft",
+    )
     expect(field(page)).to_have_attribute("data-says", "error")
-    leaf = page.locator(".lf-fp-leaf")
-    leaf.focus()
+    seat.hover()
+    assert not peek.evaluate("peek => peek.hasAttribute('data-shown')")
+    page.locator("body").click(position={"x": 5, "y": 5})
+    page.keyboard.press(".")
+    leaf.hover()
+    expect(peek).to_be_visible()
+    expect(peek).to_contain_text("isn't watching right now.")
+    leaf.click()
+    expect(peek).to_be_hidden()
+    # Tab back onto the expanded leaf: keyboard focus must not repeat the status.
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     expect(leaf).to_be_focused()
-    expect(peek).to_have_text(re.compile(r"isn't watching right now\."))
-    page.locator(".lf-fp-field").hover()
-    expect(peek).to_have_text("Couldn't save the draft")
-    page.evaluate(say, "Couldn't load v1")
-    expect(peek).to_have_text("Couldn't load v1")
+    assert not peek.evaluate("peek => peek.hasAttribute('data-shown')")
 
 
 def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, request):
@@ -3377,19 +3360,12 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(cards.first).to_have_attribute("tabindex", "-1")
 
 
-def test_skip_to_leaf_controls_lands_in_the_panel(browser, serve):
-    """The page's first Tab stop, Skip to Leaf controls, lands in the panel that stands
-    for Leaf's controls: in its field, or on the leaf where the field takes no words, as
-    in a resolved thread, or while the panel is folded. A resolved thread's field says
-    no error either, so the leaf's dot marks one raised there."""
+def test_a_resolved_thread_s_error_waits_in_the_leaf_menu(browser, serve):
+    """A resolved thread's field takes no words and says no error, so the leaf's dot
+    marks an error raised there."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
-    skip = page.locator("body > .lf-skip")
-    skip.focus()
-    page.keyboard.press("Enter")
-    expect(field(page)).to_be_focused()
-
     page.locator("body").focus()
     page.keyboard.press("t")
     settle = page.locator(".lf-fp-settle")
@@ -3403,18 +3379,6 @@ def test_skip_to_leaf_controls_lands_in_the_panel(browser, serve):
     )
     expect(page.locator(".lf-fp-error-dot")).to_be_visible()
     expect(field(page)).not_to_have_attribute("data-says", "error")
-    skip.focus()
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-fp-leaf")).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-view")).to_have_count(0)
-
-    page.locator("body").focus()
-    page.keyboard.press(".")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
-    skip.focus()
-    page.keyboard.press("Enter")
-    expect(page.locator(".lf-fp-leaf")).to_be_focused()
 
 
 def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser, serve):

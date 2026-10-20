@@ -3193,11 +3193,13 @@ async function requestJson(url2, init, what) {
     } catch (error) {
       throw failed(`${what}: HTTP ${response.status}`, error);
     }
-  if (!response.ok)
-    throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
-      current: answer?.current,
-      said: answer?.error
+  if (!response.ok) {
+    const refusal = answer;
+    throw Object.assign(failed(refusal?.error ?? `${what}: HTTP ${response.status}`), {
+      current: refusal && "current" in refusal ? refusal.current : void 0,
+      said: refusal?.error
     });
+  }
   return answer;
 }
 function sameLayer(generation) {

@@ -26,7 +26,7 @@ import { watchProjection } from "./projection-watch.js";
 import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
 import { readQueues } from "./queue-api.js";
-import { approvalBlockingItems } from "./items/model.js";
+import { approvalBlockingObligations } from "./obligations/model.js";
 import { holdingError, raiseError } from "./errors.js";
 
 // ---------- status ----------
@@ -191,7 +191,7 @@ export const approvalTarget = () => (signoff ? (presentation?.target() ?? null) 
 
 // Whether the user has approved the shown version.
 const versionApproved = readPart((root) =>
-  root.effective.items.all.some(
+  root.effective.obligations.all.some(
     (item) => item.source.kind === "approval" && item.status === "answered",
   ),
 );
@@ -204,14 +204,14 @@ const versionApproved = readPart((root) =>
 export const approvalReading = () => {
   if (!signoff) return null;
   const approved = versionApproved();
-  const blockingItems = approvalBlockingItems();
+  const blockingObligations = approvalBlockingObligations();
   const reason = approved
     ? "Approved. Press z to undo while approval is still the latest update"
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
-      : !pagePresented() || blockingItems === null
+      : !pagePresented() || blockingObligations === null
         ? AWAITING_STATE
-        : blockingItems.length
+        : blockingObligations.length
           ? "Answer every open widget before approving this work"
           : null;
   return {

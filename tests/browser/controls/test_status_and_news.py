@@ -12,6 +12,7 @@ from interact_support import (
     end_work,
     record_claim,
     working,
+    write_record,
 )
 from leaf import leases as leases_model
 from leaf import service as service_model
@@ -262,7 +263,7 @@ def test_a_panel_row_follows_its_pages_status_live(
     # line ellipsizes at the panel's width, and it is the row's hover and not a part's,
     # the innermost title winning where two overlap.
     end_work(other_dir)
-    cleanup_model.write_json(
+    write_record(
         other_dir / "status.json",
         {
             "state": "waiting",
@@ -299,7 +300,7 @@ def test_a_closed_leaf_clears_itself_off_all_pages(browser, serve, other_leaf):
     rows = view.locator("a.lf-fp-page")
     expect(rows).to_have_count(1)
     rows.first.focus()
-    cleanup_model.write_json(
+    write_record(
         other_dir / "status.json",
         {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )

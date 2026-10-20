@@ -926,12 +926,10 @@ def test_service_publication_failure_keeps_previous_preview_claim(
             commit()
             return True
 
-    def unavailable(path, record):
-        if path == page_dir / "service.json":
-            raise PermissionError("service cannot be published")
-        write_json(path, record)
+    def unavailable(_directory, _record):
+        raise PermissionError("service cannot be published")
 
-    monkeypatch.setattr(hosting, "write_json", unavailable)
+    monkeypatch.setattr(hosting, "write_service", unavailable)
     try:
         with pytest.raises(PermissionError, match="service cannot be published"):
             hosting.cmd_serve(

@@ -83,6 +83,7 @@ from .codex_state import (
     hook_turn,
 )
 from .delivery import (
+    DELIVERY,
     DeliveryIdConflict,
     ReceiptRefused,
     batch_data,
@@ -95,17 +96,15 @@ from .delivery import (
     new_delivery_id,
     pages_gone,
     read_delivery,
-    readable_delivery,
     receive_batch,
     record_pickup,
+    stored_delivery,
     stream_reply_target,
     validate_delivery_id,
 )
-from .files import read_json
 from .harness import Harness
 from .leases import sessions_home
 from .refusals import Refused
-from .registry.kernel import record_format
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
@@ -113,22 +112,19 @@ from .service import (
     restore_page_claim,
 )
 from .state import (
+    Record,
     close_session_turn,
     flocked,
     renew_turn,
     session_lock_path,
     session_record,
     start_session_turn,
-    write_json,
 )
 
 START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
 # its pages to that server (`private_app_server`, `leaf codex start`).
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
-# A record of another protocol is ignored, and the events its page has not
-# acknowledged are captured afresh.
-RECORD_FORMAT = record_format("codex-delivery")
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
 STREAM_MESSAGE_METHOD = "item/agentMessage/delta"
@@ -457,8 +453,8 @@ def app_server_delivery_id(message: dict) -> str | None:
                 continue
             if (
                 isinstance(payload, dict)
+                and payload.get("format") == DELIVERY.format
                 and isinstance(payload.get("id"), str)
-                and readable_delivery(payload, payload["id"])
             ):
                 add(payload["id"])
             continue
@@ -1650,17 +1646,16 @@ def _when_variant(holds, then: dict) -> dict:
     return {"if": {"properties": {"state": {"enum": states}}}, "then": then}
 
 
-# Objects stay open: a record from another leaf on this machine may carry fields
-# this version ignores, and `format` already names the shape this version reads.
+# A record of another protocol is ignored, and the events its page has not
+# acknowledged are captured afresh.
 RECORD_SCHEMA = {
     "type": "object",
     "properties": {
-        "format": {"const": RECORD_FORMAT},
         "state": {"enum": list(RECORD_VARIANTS)},
         "created_at": {"type": "number"},
         "batches": {"type": "array", "minItems": 1, "items": _BATCH},
     },
-    "required": ["format", "state", "created_at", "batches"],
+    "required": ["state", "created_at", "batches"],
     "allOf": [
         _when_variant(
             lambda variant: variant is Collecting,
@@ -1687,44 +1682,24 @@ RECORD_SCHEMA = {
         ),
     ],
 }
+RECORD = Record("codex-delivery", RECORD_SCHEMA)
 
 
 def read_record(path: Path) -> DeliveryRecord | None:
-    """Decode a complete record at the shared-state boundary, ignoring other versions.
-
-    Live and archived records use the same variants. `RECORD_SCHEMA` states each
-    variant's shape; what it cannot state is checked here: receipts are sorted,
-    unique and name a batch, and an offered record's payload is one this version
-    reads. No partial state may enter delivery recovery, and an unreadable record
-    never authorizes deletion.
-    """
-    # Codex's hooks import this module between steps (module docstring), so the
-    # validator loads only once a task has a record to read.
-    from .registry.schema import json_validator
-
-    try:
-        record = read_json(path)
-    except ValueError:
+    """Decode one task record, live or archived, or None where this Leaf reads
+    none, as for one in a state this Leaf does not know, or an offered record
+    whose delivery this Leaf does not read. An unreadable record never authorizes
+    deletion."""
+    record = RECORD.read(path)
+    variant = RECORD_VARIANTS.get(record["state"]) if record else None
+    if variant is None:
         return None
-    if not json_validator(RECORD_SCHEMA).is_valid(record):
+    if variant is not Collecting and stored_delivery(path.stem) is None:
         return None
-    variant = RECORD_VARIANTS[record["state"]]
-    if variant is not Collecting:
-        try:
-            payload = read_json(delivery_path(path.stem))
-        except (ValueError, OSError):
-            return None
-        if not readable_delivery(payload, path.stem):
-            return None
     values = {item.name: record[item.name] for item in fields(variant)}
     values["batches"] = tuple(values["batches"])
     if issubclass(variant, ReceiptOutcome):
-        pending = values["pending"]
-        if pending != sorted(set(pending)) or any(
-            index >= len(values["batches"]) for index in pending
-        ):
-            return None
-        values["pending"] = tuple(pending)
+        values["pending"] = tuple(values["pending"])
     return variant(**values)
 
 
@@ -1752,7 +1727,7 @@ def archive_record(path: Path, record: DeliveryRecord) -> bool:
 
 def write_record(path: Path, record: DeliveryRecord) -> None:
     """Store one delivery record, retiring it once nothing is owed on it."""
-    write_json(path, {"format": RECORD_FORMAT, "state": record.state, **asdict(record)})
+    RECORD.write(path, {"state": record.state, **asdict(record)})
     archive_record(path, record)
 
 
@@ -1832,7 +1807,7 @@ def _readdress_record(path: Path) -> Path:
     while True:
         candidate = new_delivery_id()
         replacement = path.with_name(f"{candidate}.json")
-        if replacement.exists() or read_json(delivery_path(candidate)) is not None:
+        if replacement.exists() or delivery_path(candidate).exists():
             continue
         path.replace(replacement)
         return replacement
@@ -1928,7 +1903,7 @@ def append_batch(
         while True:
             delivery_id = new_delivery_id()
             path = record_path(session_id, delivery_id)
-            if not path.exists() and read_json(delivery_path(delivery_id)) is None:
+            if not path.exists() and not delivery_path(delivery_id).exists():
                 break
         path.parent.mkdir(parents=True, exist_ok=True)
         record = Collecting(time.time(), ())
@@ -2145,9 +2120,7 @@ def settle_answered_deliveries(session_id: str) -> bool:
         if target is None:
             continue
         if reply_target_answered(target):
-            abandon_uncertain_delivery(
-                session_id, read_json(delivery_path(delivery_id))
-            )
+            abandon_uncertain_delivery(session_id, stored_delivery(delivery_id))
             settled = True
     return settled
 

@@ -23,7 +23,7 @@
    A native continuation (`focus: false`) returns its presented route under session
    availability even after Tab supersedes positioning; it never takes focus, and the
    original intent alone permits scrolling or another reveal gesture.
-   Addressed part and focus are independent. Materializing a thread item asks
+   Addressed part and focus are independent. Materializing a thread obligation asks
    for its message part without focus; a native editing continuation asks for the
    reply part without focus. Omitting part follows each surface's ordinary route.
    A focused primary arrival uses page travel's ordinary arrival, which clears a
@@ -307,7 +307,7 @@ export function createThreadDestinations({
 
   // Where a thread about an element an agent sent in a message goes to its subject: the
   // message stands in for a place on the page (anchor-placement.js), so the message's
-  // thread opens there without moving focus, as a thread ask's does (items/view.js), and
+  // thread opens there without moving focus, as a thread ask's does (obligations/view.js), and
   // the user lands on the element in it. A thread whose subject stands on the page goes
   // there by opening itself, beside its words.
   async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {

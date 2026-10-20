@@ -98,7 +98,7 @@ as `1` and Keep as `2`, and disabling `1` must not turn `2` into something else.
 page keeps `m` and `Shift+m` for moving through On me.
 
 `decision: true`, which needs a `control`, marks a command that starts, advances,
-answers or revises the item holding it; it forwards no keys by itself. A forwarded key
+answers or revises the obligation holding it; it forwards no keys by itself. A forwarded key
 runs the original row, if available. Register each command once, not on every nearby
 button.
 

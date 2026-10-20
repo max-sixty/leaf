@@ -1,4 +1,4 @@
-/* Display wording for an item's canonical answer. This is presentation only:
+/* Display wording for an obligation's canonical answer. This is presentation only:
    membership, typed values and completion come from the application publication.
    A widget family formats answerWords(value, element); prose uses its typed text or token. */
 import { widgetWord } from "../addressable-names.js";
@@ -6,14 +6,14 @@ import { closestAcross, elementById } from "../passages.js";
 import { tagsDeclaring } from "../registry.js";
 import { answeredInWords } from "./model.js";
 
-export function ownedItemControl(source, commandSource) {
+export function ownedObligationControl(source, commandSource) {
   const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
   return !selector || closestAcross(commandSource, selector) === source;
 }
 
-/* What a row or a walk calls an item on the user's list: a widget's own word, so
+/* What a row or a walk calls an obligation on the user's list: a widget's own word, so
    lf-options reads Options; Approval for a version's sign-off. */
-export function itemWord(item) {
+export function obligationWord(item) {
   if (item.source.kind === "approval") return "Approval";
   const word = widgetWord(item.source.tag, elementById(item.source.id));
   return word.charAt(0).toUpperCase() + word.slice(1);
@@ -34,10 +34,10 @@ export function answerWords(item) {
     .trim();
 }
 
-/* How a finished item ended, in the words a Done row and the floating panel show:
+/* How a finished obligation ended, in the words a Done row and the floating panel show:
    its answer, after a colon so the two never read as one phrase, an answer given
    elsewhere, or its withdrawal. */
-export function itemEnding(item) {
+export function obligationEnding(item) {
   if (item.status === "withdrawn") return "Withdrawn";
   if (item.status === "answered_elsewhere") return "Answered elsewhere";
   const words = answerWords(item);

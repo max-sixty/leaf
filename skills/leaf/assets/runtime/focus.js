@@ -479,7 +479,15 @@ function paintFocus(node) {
     paintedFocus = next;
   }
   const within = new Set();
-  for (let owner = next; owner; owner = renderedParent(owner)) within.add(owner);
+  // The document roots are in every element's ancestry, but no control draws
+  // their marks. Leaving them out also avoids withdrawing and restoring the
+  // same root marks when focus passes through a native drop in one gesture.
+  for (
+    let owner = next;
+    owner && owner !== document.body && owner !== document.documentElement;
+    owner = renderedParent(owner)
+  )
+    within.add(owner);
   for (const owner of paintedWithin) {
     if (!within.has(owner)) markFocus(owner, "focus-within", false);
   }

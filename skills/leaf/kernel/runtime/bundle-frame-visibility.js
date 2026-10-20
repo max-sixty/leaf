@@ -523,7 +523,8 @@ function paintFocus(node) {
     paintedFocus = next;
   }
   const within = /* @__PURE__ */ new Set();
-  for (let owner = next; owner; owner = renderedParent(owner)) within.add(owner);
+  for (let owner = next; owner && owner !== document.body && owner !== document.documentElement; owner = renderedParent(owner))
+    within.add(owner);
   for (const owner of paintedWithin) {
     if (!within.has(owner)) markFocus(owner, "focus-within", false);
   }

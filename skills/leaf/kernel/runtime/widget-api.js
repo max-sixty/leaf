@@ -116,7 +116,7 @@ import {
   reducedMotion,
   scrollBehavior
 } from "./bundle-motion.js";
-import "./bundle-content-layout.js";
+import "./bundle-page-controls.js";
 import {
   addressableLabel,
   addressableName,

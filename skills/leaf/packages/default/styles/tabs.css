@@ -357,10 +357,13 @@
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered
     > .lf-tabstrip
-    .lf-tab-answer[data-lf-obligations="open"]::before {
-    content: "○" / "";
+    .lf-tab-answer[data-lf-obligations="open"] {
     font-weight: 400;
     color: var(--muted);
+    &::before {
+      content: "○" / "";
+      color: inherit;
+    }
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered
     > .lf-tabstrip
@@ -848,14 +851,25 @@
       }
     }
   }
-  /* Before the module upgrades the parts, the page lays them out as it will (layouts.css),
-   * with only the part the module will open (`data-lf-opening`, runtime/prepaint.js),
-   * framed as it will be. On a phone the list's row is kept empty over it. */
-  @scope (html[data-lf-interactive]
-      body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
+  /* Before the module upgrades the parts, they stand as they will, showing only the part
+   * the module will open (`data-lf-opening`, runtime/prepaint.js), unlabelled and
+   * framed as it will be. Placed anywhere but the page's own `main`, the list's row is
+   * kept empty over that part. In the page's own `main`, the page lays them out as it
+   * will (layouts.css) and keeps that row only on a phone. */
+  @scope (html[data-lf-interactive] :scope) {
     :scope:is(lf-parts):not(.lf-rendered):has(> lf-part) {
+      &::before {
+        content: "";
+        display: block;
+        box-sizing: border-box;
+        block-size: var(--lf-tabstrip-h);
+        border-bottom: 1px solid var(--border-2);
+        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+        background: var(--card);
+      }
       & > lf-part {
-        border-inline-start: 1px solid var(--rule);
+        margin: 0;
+        padding: 0;
         --lf-block-frame: trim;
       }
       & > lf-part::before {
@@ -864,13 +878,21 @@
       & > lf-part:not([data-lf-opening]) {
         display: none;
       }
+    }
+  }
+  @scope (html[data-lf-interactive]
+      body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > :scope) {
+    :scope:is(lf-parts):not(.lf-rendered):has(> lf-part) {
+      &::before {
+        content: none;
+      }
+      & > lf-part {
+        border-inline-start: 1px solid var(--rule);
+      }
       @container lf-shell (width < 640px) {
         &::before {
           content: "";
-          display: block;
-          box-sizing: border-box;
-          block-size: var(--lf-tabstrip-h);
-          border-bottom: 1px solid var(--border-2);
+          border-radius: 0;
           background: var(--paper);
         }
         & > lf-part {

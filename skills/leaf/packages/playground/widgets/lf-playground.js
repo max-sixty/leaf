@@ -28,7 +28,6 @@ import {
   dressSamples,
   focusDestination,
   layoutChanged,
-  notice,
   initialRender,
   LeafElement,
   nothing,
@@ -438,12 +437,12 @@ customElements.define(
       this.#paintAvailability();
       this.#submit.setAttribute("aria-busy", "true");
       try {
-        const event = await this.controller.dispatch({
+        await this.controller.dispatch({
           kind: "action",
           verb: "choose",
           detail: { values: this.values, instruction: this.#instruction() },
+          says: "Playground settings",
         })?.delivery;
-        if (event) notice("Playground settings sent");
       } finally {
         this.#choosing = false;
         this.#submit.removeAttribute("aria-busy");

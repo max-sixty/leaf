@@ -1435,19 +1435,20 @@
         opacity: 0.45;
         cursor: default;
       }
+      /* The inputs follow the player as a row that wraps. A floated legend is laid
+         out at the row's start as its label rather than drawn on a border. */
       lf-sort-film .sort-inputs {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 6px 16px;
         margin: 0;
-        padding: 8px 12px;
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--field);
+        padding: 0;
+        border: 0;
       }
       lf-sort-film .sort-inputs legend {
-        padding: 0 4px;
+        float: left;
+        padding: 0;
         color: var(--muted);
         font-size: var(--t-6);
       }
@@ -2129,6 +2130,54 @@
         #comparison-regions {
           grid-template-columns: 1fr;
         }
+      }
+</style>
+<!-- quoted-playground.html authored styles -->
+<style>
+      /* Each alert's evidence, and beside it a box holding that alert's controls:
+         one with a sentence before them, one with each control in a field of its
+         own. The box takes the room the evidence leaves. */
+      .quoted-alert {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-3);
+      }
+
+      .quoted-alert + .quoted-alert {
+        margin-top: var(--sp-3);
+      }
+
+      .quoted-alert-evidence,
+      .quoted-alert-settings {
+        min-width: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+
+      .quoted-alert-evidence {
+        flex: 3 1 20rem;
+      }
+
+      .quoted-alert-evidence h3 {
+        margin: 0 0 var(--sp-1);
+        font-size: var(--t-5);
+      }
+
+      .quoted-alert-evidence p {
+        margin: 0;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.4 var(--sans);
+      }
+
+      .quoted-alert-settings {
+        flex: 2 1 12rem;
+        display: grid;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.4 var(--sans);
+        align-content: start;
+        gap: var(--sp-3);
       }
 </style>
 <!-- review-queue.html authored styles -->
@@ -5457,7 +5506,7 @@ index b856171b57..cfa4f0448e 100644
 
 <lf-tab id="corpus-rust-sort" label="Explain Rust&#x27;s 2016 merge sort">
 <header>
-        <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
+        <h1>How Rust's 2016 merge sort uses natural runs</h1>
       </header>
       <div id="sort-regions">
         <lf-pane id="sort-stage-pane" label="The sort">
@@ -7334,6 +7383,118 @@ stateDiagram-v2
           <figcaption>After the fix, recorded from the same journey.</figcaption>
         </figure></lf-trace-compare
       >
+</lf-tab>
+
+<lf-tab id="corpus-quoted-playground" label="Alert settings page, as first proposed">
+<h1 id="quoted-title">The alert settings page, as first proposed</h1>
+      <p id="quoted-lede">
+        The first proposal put each alert's threshold beside that alert's replay, and
+        only the page budget in the rail. This copy shows the preview and the
+        instruction it sent; the settings it quotes are no longer live.
+      </p>
+      <lf-sample id="quoted-alerts-sample" label="alert settings playground">
+        <lf-playground id="quoted-alerts" submit-label="Apply these settings">
+          <lf-playground-control
+            name="budget"
+            label="On-call page budget, per 30 days"
+            kind="range"
+            value="10"
+            min="0"
+            max="30"
+          ></lf-playground-control>
+          <lf-playground-preview id="quoted-alerts-preview">
+            <div class="quoted-alert" id="quoted-rate">
+              <article class="quoted-alert-evidence" id="quoted-rate-evidence">
+                <h3><code>payments-5xx-rate</code></h3>
+                <p>
+                  Over 1% of requests failing for 5 minutes: 12 pages in 30 days, 3 of
+                  them real.
+                </p>
+              </article>
+              <section
+                class="quoted-alert-settings"
+                id="quoted-rate-settings"
+                aria-label="payments-5xx-rate settings"
+              >
+                Pages payments on-call.
+                <lf-playground-control
+                  name="rate-threshold"
+                  label="Threshold"
+                  kind="choice"
+                  value="1%"
+                >
+                  <lf-playground-choice
+                    value="1%"
+                    label="over 1%"
+                  ></lf-playground-choice>
+                  <lf-playground-choice
+                    value="2%"
+                    label="over 2%"
+                  ></lf-playground-choice>
+                </lf-playground-control>
+              </section>
+            </div>
+            <div class="quoted-alert" id="quoted-latency">
+              <article class="quoted-alert-evidence" id="quoted-latency-evidence">
+                <h3><code>payments-p99-latency</code></h3>
+                <p>
+                  p99 latency over 800 ms for 10 minutes: 19 pages in 30 days, 2 of them
+                  real.
+                </p>
+              </article>
+              <section
+                class="quoted-alert-settings"
+                id="quoted-latency-settings"
+                aria-label="payments-p99-latency settings"
+              >
+                <div class="quoted-field">
+                  <lf-playground-control
+                    name="latency-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="800ms"
+                  >
+                    <lf-playground-choice
+                      value="800ms"
+                      label="over 800 ms"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="1200ms"
+                      label="over 1,200 ms"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                </div>
+                <div class="quoted-field">
+                  <lf-playground-control
+                    name="latency-route"
+                    label="Route"
+                    kind="choice"
+                    value="page"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                </div>
+              </section>
+            </div>
+          </lf-playground-preview>
+          <lf-playground-output id="quoted-alerts-instruction">
+            Set payments-5xx-rate to page over
+            <lf-playground-value for="rate-threshold"></lf-playground-value>, set
+            payments-p99-latency to
+            <lf-playground-value for="latency-route"></lf-playground-value> over
+            <lf-playground-value for="latency-threshold"></lf-playground-value>, and
+            keep payments on-call within
+            <lf-playground-value for="budget"></lf-playground-value> pages a month.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-sample>
 </lf-tab>
 
 <lf-tab id="corpus-review-queue" label="Release review queue">
@@ -9561,9 +9722,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <ul id="bg-thread-unread-steps">
                 <li>
-                  Use “Next unread” in Threads, or press <kbd>g</kbd> then <kbd>u</kbd>:
-                  the earliest unread reply is revealed, including one covered by a
-                  summary.
+                  Use “Next unread” at the head of a thread opened in the panel, or
+                  press <kbd>g</kbd> then <kbd>u</kbd>: the earliest unread reply is
+                  revealed, including one covered by a summary.
                 </li>
                 <li>
                   Show a short reply in full: it leaves the count. Scroll through a long

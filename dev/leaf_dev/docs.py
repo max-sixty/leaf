@@ -39,16 +39,6 @@ EXAMPLES = ROOT / "examples"
 ASSETS = ROOT / "skills" / "leaf" / "assets"
 PACKAGES = ROOT / "skills" / "leaf" / "packages"
 
-PRODUCT_ROUTES = {
-    "index.html": "/",
-    "examples.html": "/examples/",
-    "how-it-works.html": "/how-it-works/",
-    "extending.html": "/extending/",
-    "registry.html": "/registry/",
-    "event-log.html": "/event-log/",
-    "threads.html": "/threads/",
-    "website.html": "/website/",
-}
 # The site's route bar, the brand first.
 SITE_NAV = (
     ("/", "leaf"),
@@ -60,6 +50,16 @@ SITE_NAV = (
 # A $keys entry longer than its first sentence by this many words keeps the rest
 # behind a disclosure.
 COLLAPSED_DETAIL_WORDS = 30
+
+
+def product_sources() -> list[Path]:
+    """The top-level product documents, each published at its filename's route."""
+    return sorted(DOCS.glob("*.html"))
+
+
+def product_route(source: Path) -> str:
+    """The site's index is `/`; every other document uses `/<stem>/`."""
+    return "/" if source.stem == "index" else f"/{source.stem}/"
 
 
 def media_url(source: Path) -> str:
@@ -209,7 +209,7 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
         edits.append((start, end, f"{inner}\n{indent}"))
 
     for nav in document.tree.select("nav.sitenav"):
-        fill(nav, site_nav(PRODUCT_ROUTES[source.name]))
+        fill(nav, site_nav(product_route(source)))
     previews = None
     for link in document.tree.select("a[href]"):
         name = example_name(link)

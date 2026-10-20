@@ -152,9 +152,15 @@ def _instance_errors(
         return []
     errors = instance_errors(parser, registry)
     errors.extend(
-        reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
+        reference_errors(
+            parser.lf_elements,
+            registry,
+            parser.ids,
+            parser.by_id,
+            thread_ids=thread_ids,
+        )
     )
-    errors.extend(suggestion_errors(parser.lf_elements, registry, thread_ids))
+    errors.extend(suggestion_errors(parser.lf_elements, registry))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
         errors.append(Finding("ids-taken-by-messages", values={"ids": taken}))

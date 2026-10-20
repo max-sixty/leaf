@@ -28,8 +28,8 @@ too, which renders in every revision. Delivery inserts them at the start of
 `<head>`, before authored executable content. Every lf-* element validates against the effective registry
 (schema, nesting, no self-closing form); every lf-* meta is a known page
 declaration with an allowed value; each lf-suggestion is well formed (at most
-one of each slot, at least one of them, no nesting, `resolves` naming a comment
-in the document's reference namespace); ids are unique and hold no whitespace, no authored id, class, or
+one of each slot, at least one of them, no nesting); a widget declaring `resolves`
+names a thread in the document's history; ids are unique and hold no whitespace, no authored id, class, or
 attribute sits in the runtime's `lf-` and `data-lf-` namespaces, named today or
 not, no id takes the shape of the event ids the log mints (`schema.EVENT_ID`), since
 a command's ID names a widget or a message in one address space, and every current declaration has a valid implementation. Historical references

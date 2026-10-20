@@ -26,8 +26,9 @@
    Rejected: keeping wrappers around a placement (`returningFocus`, `placeChrome`) that a
    caller could forget, which is how those returns reached the readers as moves.
 
-   And it exposes the document's input count, begun by prepaint.js before any module
-   can load, so delayed work knows whether the user has moved on since it began.
+   And it exposes the document's input count and text-entry predicates, begun by
+   prepaint.js before any module can load, so startup and runtime share their reading.
+   Delayed work uses the count to know whether the user moved on since it began.
    A hold asks a different question, so the two counts stay distinct:
 
    - A hold (`holdFocus`, `holdStanding`, `handBack`'s retry) reads `placements`: has
@@ -1169,41 +1170,11 @@ const land = (landing) => {
   }
 };
 
-// bootstrap.js spells `takesLetters` again, for keys pressed before any
-// module loads; a type added here goes there too.
-const TYPED_TYPES = new Set([
-  "text",
-  "search",
-  "url",
-  "tel",
-  "email",
-  "password",
-  "number",
-  "date",
-  "time",
-  "datetime-local",
-  "month",
-  "week",
-]);
-
 // Where a printed key becomes text in the box.
-export function typesText(node) {
-  return (
-    Boolean(node) &&
-    (node.matches(TEXT_BOX) ||
-      node.isContentEditable ||
-      (node.tagName === "INPUT" && TYPED_TYPES.has(node.type)))
-  );
-}
+export const typesText = inputs.typesText;
 
 // Select options retain typeahead when an open custom list moves focus into an option.
-export function takesLetters(node) {
-  return (
-    typesText(node) ||
-    (Boolean(node) &&
-      (node.tagName === "SELECT" || node.getAttribute("role") === "option"))
-  );
-}
+export const takesLetters = inputs.takesLetters;
 
 // Radio and range controls own their arrow navigation before a containing widget.
 // Custom controls expose the same role at their focused element as the native input.

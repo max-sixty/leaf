@@ -19,6 +19,7 @@ from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected
 from leaf.delivery import response_addresses
 from leaf.event_log import read_events
+from leaf.interaction_log import read_interactions
 from leaf.state import session_record
 from leaf.thread import post_reply
 
@@ -495,6 +496,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
         "turn_item_completed",
         "turn_first_model_message",
         "turn_reply_first_text_published",
+        "turn_reply_published",
         "turn_stream_completed",
         # The reply above is this test's stand-in, which records the commit rather
         # than writing it, so the move it was answering is still owed one.
@@ -515,6 +517,19 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     assert logs[7]["durationMs"] == 500
     assert logs[8]["phase"] == "final_answer"
     assert logs[9]["recovered"] is False
+    published = next(
+        record
+        for record in read_interactions(page_dir)
+        if record["type"] == "turn_reply_published"
+    )
+    assert published["eventId"] == comment["id"]
+    assert published["reply"] == {
+        "item": "message-1",
+        "phase": "final_answer",
+        "text": "Deployment verified.",
+        "complete": True,
+    }
+    assert all("reply" not in record for record in logs)
     assert finished == [
         (
             page_dir,

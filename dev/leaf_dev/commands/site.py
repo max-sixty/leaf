@@ -327,7 +327,7 @@ def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> No
         body = path.read_bytes()
         identity = (len(body), hashlib.sha256(body).digest())
         existing = canonical.setdefault(identity, path)
-        if existing == path:
+        if existing == path or existing.samefile(path):
             continue
         path.unlink()
         os.link(existing, path)

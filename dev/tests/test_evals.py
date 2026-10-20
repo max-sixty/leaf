@@ -10,13 +10,19 @@ from click.testing import CliRunner
 from leaf_dev.commands import eval as module
 
 
-def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path):
+def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
+    # Configuration copies the external login; no native provider is invoked.
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
     cases = module.catalog()
     assert cases
     config = module.prepare(
         [
             "todo-outlasts-the-turn",
             "configuration",
+            "dashboard/reader-clean",
             "parent-keeps-leaf-responsive/during-work",
             "page-reads-at-every-width/queue",
         ],
@@ -31,6 +37,7 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path):
     assert {test["metadata"]["case"] for test in config["tests"]} == {
         "todo-outlasts-the-turn",
         "configuration",
+        "dashboard/reader-clean",
         "parent-keeps-leaf-responsive/during-work",
         "page-reads-at-every-width/queue",
     }

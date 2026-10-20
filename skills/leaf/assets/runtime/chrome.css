@@ -209,7 +209,7 @@
   }
   .lf-fp-field .lf-composer-media:not([hidden]) {
     position: fixed;
-    --lf-fp-shelf-room: max(10px, calc(var(--aim-floor) / 2 - 3px));
+    --lf-fp-shelf-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--aim-floor) / 2 - 3px) );
     bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-fp-shelf-room));
     left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
     width: max-content;
@@ -230,7 +230,7 @@
     padding: 0;
     background: none;
     border-radius: 8px;
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 4px 14px var(--shade);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
   }
   .lf-fp-field .lf-composer-media-open img {
     width: auto;

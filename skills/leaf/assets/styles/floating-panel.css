@@ -301,8 +301,12 @@
     /* The shelf scrolls sideways when its images outrun the field, and a scroller cuts
        what it holds at its padding box, so its padding holds each image's shadow and
        the reach of its removal, which also keeps one image's removal off the next;
-       the offsets take that padding back. */
-    --lf-fp-shelf-room: max(10px, calc(var(--aim-floor) / 2 - 3px));
+       the offsets take that padding back. An image lies at --raise-1, whose shadow
+       reaches its drop and blur below it. */
+    --lf-fp-shelf-room: max(
+      calc(var(--raise-1-drop) + var(--raise-1-blur)),
+      calc(var(--aim-floor) / 2 - 3px)
+    );
     bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-fp-shelf-room));
     left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
     width: max-content;
@@ -329,7 +333,7 @@
     border-radius: 8px;
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 4px 14px var(--shade);
+      var(--raise-1);
   }
   .lf-fp-field .lf-composer-media-open img {
     width: auto;

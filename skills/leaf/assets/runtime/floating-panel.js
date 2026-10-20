@@ -157,6 +157,7 @@ import { retainUserIntent } from "./user-intent.js";
 import { settleThread } from "./thread/folding.js";
 import { queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
+import { queueStop } from "./queue-walk.js";
 import { carriesObligation, itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
 import { obligationEnding } from "./obligations/answer.js";
@@ -2477,10 +2478,14 @@ export function createFloatingPanel({
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
-    // An item the plan names says where it stands in it, so the user answers it
-    // knowing which run it unblocks, and keeps saying so once answered, so the
-    // answer moves nothing.
-    const place = queueTab === "you" ? planPlace(item.id) : null;
+    const stop = queueStop(item);
+    // What waits on the user says what it is, in the walk's word for it, so a
+    // suggestion says Insertion, Deletion or Rewrite as the field does after `m`. An
+    // item the plan names says where it stands in it after that, so the user answers
+    // it knowing which run it unblocks. Both stay once it is answered, so the answer
+    // moves nothing.
+    const about =
+      queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
@@ -2489,7 +2494,7 @@ export function createFloatingPanel({
       ?data-approval=${approval}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${place ? html`<p class="lf-fp-plan-place">${place}</p>` : nothing}${
+      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${
         message
           ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
               <div

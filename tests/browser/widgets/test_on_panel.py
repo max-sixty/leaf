@@ -323,3 +323,27 @@ def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
     panel_settled(page, view="threads")
     title = page.locator(".lf-fp-head .lf-fp-title").bounding_box()
     assert tabs["x"] == title["x"], (tabs, title)
+
+
+def test_each_on_me_card_names_its_kind_as_the_walk_does(browser, serve):
+    """Each card in On me says what its item is, in the word the field says after `m`:
+    a suggestion is an Insertion, a Deletion or a Rewrite by its shape, and a widget's
+    question its widget's word. The word stays once the card is answered."""
+    page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
+    resized(page, 1440, 900)
+    open_on_me(page)
+    kinds = {
+        "sug-rewrite": "Rewrite",
+        "sug-insert": "Insertion",
+        "sug-delete": "Deletion",
+        "shapes-q": "Options",
+    }
+    for at, word in kinds.items():
+        expect(on_card(page, f"widget:{at}").locator(".lf-fp-on-kind")).to_have_text(
+            word
+        )
+    card = on_card(page, "widget:sug-insert")
+    card.get_by_role("button", name="Accept").click()
+    round_trip(page)
+    expect(card.locator(".lf-fp-said")).to_contain_text("Answered: Accepted")
+    expect(card.locator(".lf-fp-on-kind")).to_have_text("Insertion")

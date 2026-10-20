@@ -5984,6 +5984,251 @@ registerPageControl({
   group: "navigate"
 });
 
+// runtime/queue-walk.js
+var QUALIFIER = "waiting on me";
+var WITHIN = "waiting on me here";
+var NOUNS = Object.freeze({
+  thread: "Thread",
+  widget: "Update",
+  page: "To-do",
+  approval: "Approval"
+});
+var nounOf = (item, stop) => carriesObligation(item) && stop.kind !== "approval" ? obligationWord(item.obligation) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+var stopOf = (item) => item.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation)) ? {
+  kind: "obligation",
+  id: item.id,
+  thread: item.thread,
+  obligation: item.obligation
+} : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
+var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
+function queueStop(item) {
+  const stop = stopOf(item);
+  return { ...stop, key: `${stop.kind}:${stop.id}`, noun: nounOf(item, stop) };
+}
+var pageHead = () => [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ?? pageDocument() ?? document.body.firstElementChild;
+function createQueueWalk({
+  arriveAtRecord,
+  arriveAtThread: arriveAtThread2,
+  threadHere,
+  threadPlace,
+  prepareTrip,
+  arrive,
+  readableDestination,
+  announce: announce2,
+  actions
+}) {
+  const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
+  function stops() {
+    const list = [];
+    const listed2 = /* @__PURE__ */ new Set();
+    for (const item of readQueues().on_user) {
+      const stop = queueStop(item);
+      if (listed2.has(stop.key)) continue;
+      listed2.add(stop.key);
+      const at = stopElement(stop);
+      list.push({ ...stop, place: at?.isConnected && !inChrome(at) ? at : null });
+    }
+    return byRenderedOrder(list, (stop) => stop.place);
+  }
+  function stopsWithin(region) {
+    const held = new Set(obligationsIn(region).map((item) => item.id));
+    return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
+  }
+  const stopsOf = (region) => region ? stopsWithin(region) : stops();
+  function standingStop(list, { place: here, kind } = walkOrigin()) {
+    if (kind !== "standing") return null;
+    if (focused(document) === approvalTarget())
+      return list.find((stop) => stop.kind === "approval") ?? null;
+    const held = threadHere();
+    const thread = drawnThreadId(held);
+    if (thread) {
+      const stop = list.find(
+        (candidate) => candidate.kind === "thread" && candidate.id === thread
+      );
+      if (stop) return stop;
+    }
+    if (!here) return null;
+    const item = obligationHolding(readObligations().all, placeOf(here));
+    if (item) {
+      const stop = list.find(
+        (candidate) => candidate.kind === "obligation" && candidate.id === item.id
+      );
+      if (stop) return stop;
+    }
+    return list.findLast((stop) => {
+      if (stop.kind === "page") return stopElement(stop) === here;
+      if (stop.kind !== "widget") return false;
+      const at = stopElement(stop);
+      return at && (at === here || under(here, at));
+    }) ?? null;
+  }
+  function step(list, dir, region, origin) {
+    if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
+    const standing2 = standingStop(list, origin);
+    if (standing2) return cycledRow(list, standing2, dir);
+    return stepFrom(list, origin, dir, (stop) => stop.place);
+  }
+  function arriveAtElement(find) {
+    const intent = retainUserIntent({ available: () => Boolean(find()) });
+    const where = find();
+    if (!where) return Promise.resolve(false);
+    const departure = prepareTrip({ landing: find, intent });
+    departure.plan(where);
+    return arrive(
+      () => {
+        const at = find();
+        return at && {
+          where: at,
+          focus: at,
+          scroll: [{ at, when: () => !readableDestination(at) }]
+        };
+      },
+      { intent, departure }
+    );
+  }
+  function arriveAt(stop) {
+    if (stop.kind === "obligation") {
+      const record = readObligations().all.find((item) => item.id === stop.id);
+      return record ? arriveAtRecord(record) : Promise.resolve(false);
+    }
+    if (stop.kind === "thread") return arriveAtThread2(stop.id);
+    if (stop.kind === "approval" && presentedApproval())
+      return presentedApproval().arrive();
+    return arriveAtElement(() => stopElement(stop));
+  }
+  function position(region) {
+    const list = stopsOf(region);
+    const here = standingStop(list);
+    const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
+    return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} \xB7 ${here.noun}` };
+  }
+  function walk(dir, region = null, origin = walkOrigin()) {
+    const list = stopsOf(region);
+    if (!list.length) return Promise.resolve(false);
+    const { row: next, wrapped } = step(list, dir, region, origin);
+    const ready = arriveAt(next).then((arrived) => {
+      if (!arrived) return false;
+      announce2(
+        beginWalk("queue", null, () => position(region), wrapped) ?? walkPositionLabel(
+          null,
+          list.indexOf(next) + 1,
+          list.length,
+          `${region ? WITHIN : QUALIFIER} \xB7 ${next.noun}`
+        )
+      );
+      return true;
+    });
+    void ready.catch(() => {
+    });
+    return ready;
+  }
+  const doneAt = (stop) => stop ? readQueues().on_user.find(
+    (item) => item.offers.done && sameStop(stopOf(item), stop)
+  ) ?? null : null;
+  let shownFor = null;
+  function doneTodo() {
+    const stop = standingStop(stops());
+    const focus = focused(document);
+    if (stop || !coarsePointer.matches || focus && focus !== document.body && !inUi(focus) && !inChrome(focus) || placeOf(getSelection()?.focusNode)) {
+      shownFor = doneAt(stop);
+      return shownFor;
+    }
+    shownFor = readQueues().on_user.find(
+      (item) => item.id === shownFor?.id && item.offers.done
+    ) ?? null;
+    return shownFor;
+  }
+  function endTodo(id) {
+    return actions.done(queueItemKey({ kind: "todo", id }));
+  }
+  const offered = () => readQueues().on_user.length > 0;
+  const doneable = () => readQueues().on_user.filter((item) => item.offers.done).map((item) => item.id).join(" ");
+  let wasOffered = false;
+  let wasDoneable = "";
+  let watching = null;
+  function mount() {
+    watching ??= watchProjection(document.body, () => {
+      if (offered() === wasOffered && doneable() === wasDoneable) return;
+      wasOffered = offered();
+      wasDoneable = doneable();
+      paintKeys();
+    });
+  }
+  pageCommand({
+    id: "queue.walk",
+    ready: savedReadingSettled,
+    touch: false,
+    keys: ["m", "Shift+m"],
+    routes: [
+      // The whole page's list, which a tally's Next on me, walking one region, is not.
+      {
+        id: "queue.next",
+        binding: "m",
+        title: "Next on me",
+        description: "Go to the next of everything waiting on me, anywhere on the page"
+      },
+      {
+        id: "queue.previous",
+        binding: "Shift+m",
+        title: "Previous on me",
+        description: "Go to the previous of everything waiting on me, anywhere on the page"
+      }
+    ],
+    title: "On me",
+    when: offered,
+    repeat: true,
+    // The same shape as the thread walk: it moves the user from item to item rather than
+    // down a level, so the standing scope lets go of whichever one they end on. An item
+    // reached through the panel leaves the panel a level of its own on the way out,
+    // whether this walk opened it or the user already had it.
+    run: (binding) => walk(binding === "m" ? 1 : -1)
+  });
+  pageScope("todo", {
+    title: "On a to-do waiting on me",
+    ready: savedReadingSettled,
+    at: () => Boolean(doneTodo()),
+    rows: [
+      {
+        id: "queue.todo.done",
+        keys: ["x"],
+        title: "done",
+        description: "Mark this to-do done",
+        touch: "Done",
+        when: () => Boolean(doneTodo()),
+        run: () => {
+          const todo = doneTodo();
+          if (todo) endTodo(todo.id);
+        }
+      }
+    ]
+  });
+  const arriveAtItem = (item) => arriveAt(stopOf(item));
+  let wentTo = null;
+  onStanding((node, cause) => {
+    if (cause === "step") return;
+    const place3 = node && placeOf(node);
+    wentTo = (place3 && obligationHolding(readObligations().all, place3)?.id) ?? null;
+  });
+  function nextWithin({ within, dir = 1 }) {
+    if (!(within instanceof Element))
+      throw new TypeError("leaf: obligationActions.next needs an element `within`");
+    const here = walkOrigin();
+    const items2 = obligationsIn(within);
+    const kept = items2.find((item) => item.id === wentTo);
+    const toward = dir < 0 ? -1 : 1;
+    if (under(here.place, within)) return walk(toward, within, here);
+    if (kept)
+      return walk(toward, within, {
+        place: obligationPlace(kept).source,
+        kind: "standing"
+      });
+    const clips = /* @__PURE__ */ new Map();
+    const shown = items2.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
+    return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
+  }
+  return { mount, arriveAtItem, nextWithin };
+}
+
 // runtime/keyboard/status-context.js
 var EMPTY = Object.freeze({ goTo: null, walk: null, stance: null });
 var context = EMPTY;
@@ -7541,7 +7786,8 @@ function createFloatingPanel({
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
-    const place3 = queueTab === "you" ? planPlace(item.id) : null;
+    const stop = queueStop(item);
+    const about = queueTab === "you" ? [stop.noun, planPlace(item.id)].filter(Boolean) : [];
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
@@ -7550,7 +7796,7 @@ function createFloatingPanel({
       ?data-approval=${approval}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${place3 ? html`<p class="lf-fp-plan-place">${place3}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
+      ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
               <div
                 class="lf-fp-asked lf-fp-outlet"
                 data-thread=${thread.key}
@@ -9225,252 +9471,6 @@ function createObligationView({
     goToObligation,
     choicesOf
   };
-}
-
-// runtime/queue-walk.js
-var QUALIFIER = "waiting on me";
-var WITHIN = "waiting on me here";
-var NOUNS = Object.freeze({
-  thread: "Thread",
-  widget: "Update",
-  page: "To-do",
-  approval: "Approval"
-});
-var nounOf = (item, stop) => carriesObligation(item) && stop.kind !== "approval" ? obligationWord(item.obligation) : stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
-var stopOf = (item) => item.kind === "approval" ? { kind: "approval", id: item.id, thread: null } : item.kind === "widget" && !(item.thread !== null && answeredInWords(item.obligation)) ? {
-  kind: "obligation",
-  id: item.id,
-  thread: item.thread,
-  obligation: item.obligation
-} : item.thread !== null ? { kind: "thread", id: item.thread, thread: item.thread } : item.subject.kind === "page" ? { kind: "page", id: "page", thread: null } : { kind: "widget", id: item.subject.id, thread: null };
-var sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
-var pageHead = () => [...document.querySelectorAll("h1")].find((heading) => !inChrome(heading)) ?? pageDocument() ?? document.body.firstElementChild;
-function createQueueWalk({
-  arriveAtRecord,
-  arriveAtThread: arriveAtThread2,
-  threadHere,
-  threadPlace,
-  prepareTrip,
-  arrive,
-  readableDestination,
-  announce: announce2,
-  actions
-}) {
-  const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
-  function stops() {
-    const list = [];
-    const listed2 = /* @__PURE__ */ new Set();
-    for (const item of readQueues().on_user) {
-      const stop = stopOf(item);
-      if (listed2.has(`${stop.kind}:${stop.id}`)) continue;
-      listed2.add(`${stop.kind}:${stop.id}`);
-      const at = stopElement(stop);
-      list.push({
-        ...stop,
-        key: `${stop.kind}:${stop.id}`,
-        noun: nounOf(item, stop),
-        place: at?.isConnected && !inChrome(at) ? at : null
-      });
-    }
-    return byRenderedOrder(list, (stop) => stop.place);
-  }
-  function stopsWithin(region) {
-    const held = new Set(obligationsIn(region).map((item) => item.id));
-    return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
-  }
-  const stopsOf = (region) => region ? stopsWithin(region) : stops();
-  function standingStop(list, { place: here, kind } = walkOrigin()) {
-    if (kind !== "standing") return null;
-    if (focused(document) === approvalTarget())
-      return list.find((stop) => stop.kind === "approval") ?? null;
-    const held = threadHere();
-    const thread = drawnThreadId(held);
-    if (thread) {
-      const stop = list.find(
-        (candidate) => candidate.kind === "thread" && candidate.id === thread
-      );
-      if (stop) return stop;
-    }
-    if (!here) return null;
-    const item = obligationHolding(readObligations().all, placeOf(here));
-    if (item) {
-      const stop = list.find(
-        (candidate) => candidate.kind === "obligation" && candidate.id === item.id
-      );
-      if (stop) return stop;
-    }
-    return list.findLast((stop) => {
-      if (stop.kind === "page") return stopElement(stop) === here;
-      if (stop.kind !== "widget") return false;
-      const at = stopElement(stop);
-      return at && (at === here || under(here, at));
-    }) ?? null;
-  }
-  function step(list, dir, region, origin) {
-    if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
-    const standing2 = standingStop(list, origin);
-    if (standing2) return cycledRow(list, standing2, dir);
-    return stepFrom(list, origin, dir, (stop) => stop.place);
-  }
-  function arriveAtElement(find) {
-    const intent = retainUserIntent({ available: () => Boolean(find()) });
-    const where = find();
-    if (!where) return Promise.resolve(false);
-    const departure = prepareTrip({ landing: find, intent });
-    departure.plan(where);
-    return arrive(
-      () => {
-        const at = find();
-        return at && {
-          where: at,
-          focus: at,
-          scroll: [{ at, when: () => !readableDestination(at) }]
-        };
-      },
-      { intent, departure }
-    );
-  }
-  function arriveAt(stop) {
-    if (stop.kind === "obligation") {
-      const record = readObligations().all.find((item) => item.id === stop.id);
-      return record ? arriveAtRecord(record) : Promise.resolve(false);
-    }
-    if (stop.kind === "thread") return arriveAtThread2(stop.id);
-    if (stop.kind === "approval" && presentedApproval())
-      return presentedApproval().arrive();
-    return arriveAtElement(() => stopElement(stop));
-  }
-  function position(region) {
-    const list = stopsOf(region);
-    const here = standingStop(list);
-    const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
-    return at && { ...at, qualifier: `${region ? WITHIN : QUALIFIER} \xB7 ${here.noun}` };
-  }
-  function walk(dir, region = null, origin = walkOrigin()) {
-    const list = stopsOf(region);
-    if (!list.length) return Promise.resolve(false);
-    const { row: next, wrapped } = step(list, dir, region, origin);
-    const ready = arriveAt(next).then((arrived) => {
-      if (!arrived) return false;
-      announce2(
-        beginWalk("queue", null, () => position(region), wrapped) ?? walkPositionLabel(
-          null,
-          list.indexOf(next) + 1,
-          list.length,
-          `${region ? WITHIN : QUALIFIER} \xB7 ${next.noun}`
-        )
-      );
-      return true;
-    });
-    void ready.catch(() => {
-    });
-    return ready;
-  }
-  const doneAt = (stop) => stop ? readQueues().on_user.find(
-    (item) => item.offers.done && sameStop(stopOf(item), stop)
-  ) ?? null : null;
-  let shownFor = null;
-  function doneTodo() {
-    const stop = standingStop(stops());
-    const focus = focused(document);
-    if (stop || !coarsePointer.matches || focus && focus !== document.body && !inUi(focus) && !inChrome(focus) || placeOf(getSelection()?.focusNode)) {
-      shownFor = doneAt(stop);
-      return shownFor;
-    }
-    shownFor = readQueues().on_user.find(
-      (item) => item.id === shownFor?.id && item.offers.done
-    ) ?? null;
-    return shownFor;
-  }
-  function endTodo(id) {
-    return actions.done(queueItemKey({ kind: "todo", id }));
-  }
-  const offered = () => readQueues().on_user.length > 0;
-  const doneable = () => readQueues().on_user.filter((item) => item.offers.done).map((item) => item.id).join(" ");
-  let wasOffered = false;
-  let wasDoneable = "";
-  let watching = null;
-  function mount() {
-    watching ??= watchProjection(document.body, () => {
-      if (offered() === wasOffered && doneable() === wasDoneable) return;
-      wasOffered = offered();
-      wasDoneable = doneable();
-      paintKeys();
-    });
-  }
-  pageCommand({
-    id: "queue.walk",
-    ready: savedReadingSettled,
-    touch: false,
-    keys: ["m", "Shift+m"],
-    routes: [
-      // The whole page's list, which a tally's Next on me, walking one region, is not.
-      {
-        id: "queue.next",
-        binding: "m",
-        title: "Next on me",
-        description: "Go to the next of everything waiting on me, anywhere on the page"
-      },
-      {
-        id: "queue.previous",
-        binding: "Shift+m",
-        title: "Previous on me",
-        description: "Go to the previous of everything waiting on me, anywhere on the page"
-      }
-    ],
-    title: "On me",
-    when: offered,
-    repeat: true,
-    // The same shape as the thread walk: it moves the user from item to item rather than
-    // down a level, so the standing scope lets go of whichever one they end on. An item
-    // reached through the panel leaves the panel a level of its own on the way out,
-    // whether this walk opened it or the user already had it.
-    run: (binding) => walk(binding === "m" ? 1 : -1)
-  });
-  pageScope("todo", {
-    title: "On a to-do waiting on me",
-    ready: savedReadingSettled,
-    at: () => Boolean(doneTodo()),
-    rows: [
-      {
-        id: "queue.todo.done",
-        keys: ["x"],
-        title: "done",
-        description: "Mark this to-do done",
-        touch: "Done",
-        when: () => Boolean(doneTodo()),
-        run: () => {
-          const todo = doneTodo();
-          if (todo) endTodo(todo.id);
-        }
-      }
-    ]
-  });
-  const arriveAtItem = (item) => arriveAt(stopOf(item));
-  let wentTo = null;
-  onStanding((node, cause) => {
-    if (cause === "step") return;
-    const place3 = node && placeOf(node);
-    wentTo = (place3 && obligationHolding(readObligations().all, place3)?.id) ?? null;
-  });
-  function nextWithin({ within, dir = 1 }) {
-    if (!(within instanceof Element))
-      throw new TypeError("leaf: obligationActions.next needs an element `within`");
-    const here = walkOrigin();
-    const items2 = obligationsIn(within);
-    const kept = items2.find((item) => item.id === wentTo);
-    const toward = dir < 0 ? -1 : 1;
-    if (under(here.place, within)) return walk(toward, within, here);
-    if (kept)
-      return walk(toward, within, {
-        place: obligationPlace(kept).source,
-        kind: "standing"
-      });
-    const clips = /* @__PURE__ */ new Map();
-    const shown = items2.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
-    return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
-  }
-  return { mount, arriveAtItem, nextWithin };
 }
 
 // runtime/keyboard/command-hints.js

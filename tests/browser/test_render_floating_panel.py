@@ -2720,8 +2720,8 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
     """While the agent has a plan, the On view adds a Plan tab beside the two lists,
     drawing the goal with its steps in order, and a step waiting on the user is a way
     to On me. On me keeps every item it lists, and one the plan names says its goal
-    and step over its question, counted as the goal counts, without dropped steps, and
-    still says it once answered."""
+    and step after its kind, over its question, counted as the goal counts, without
+    dropped steps, and still says it once answered."""
     url = serve(OBLIGATION_PAGE)
     steps = [
         {"depth": 0, "title": "Ship the migration", "state": "working"},
@@ -2738,17 +2738,17 @@ def test_the_plan_has_its_own_tab_and_an_item_says_its_place_in_it(browser, serv
     page.locator(".lf-fp-on-user").click()
     cards = page.locator(".lf-fp-view[data-view=queue] .lf-fp-on-item")
     expect(cards).to_have_count(2)
-    expect(cards.first.locator(".lf-fp-plan-place")).to_have_text(
-        "Ship the migration · step 2 of 3"
+    expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
+        "Options · Ship the migration · step 2 of 3"
     )
-    expect(cards.nth(1).locator(".lf-fp-plan-place")).to_have_count(0)
+    expect(cards.nth(1).locator(".lf-fp-on-kind")).to_have_text("Options")
     settled(page)
     answers = cards.first.locator(".lf-fp-answers").bounding_box()
     with sending(page, "the answer"):
         cards.first.locator(".lf-fp-answer", has_text="Shim").click()
     expect(cards.first.locator(".lf-fp-said")).to_have_text(re.compile("^Answered"))
-    expect(cards.first.locator(".lf-fp-plan-place")).to_have_text(
-        "Ship the migration · step 2 of 3"
+    expect(cards.first.locator(".lf-fp-on-kind")).to_have_text(
+        "Options · Ship the migration · step 2 of 3"
     )
     assert cards.first.locator(".lf-fp-answers").bounding_box()["y"] == answers["y"]
     with sending(page, "the undo"):

@@ -16,7 +16,8 @@
    onto the widget the action was made on, the element, or the page's head; the
    version's approval by the floating panel's own arrival (page-status.js,
    `registerApprovalPresentation`). An On me row arrives through the same function
-   (`arriveAtItem`), for an item on either list or one that is done.
+   (`arriveAtItem`), for an item on either list or one that is done, and names its item
+   as the walk does (`queueStop`).
 
    A walk starts from the user's place, in this order:
 
@@ -116,6 +117,14 @@ const stopOf = (item) =>
           : { kind: "widget", id: item.subject.id, thread: null };
 const sameStop = (a, b) => a.kind === b.kind && a.id === b.id;
 
+// An item as the walk reads it: where it is arrived at, the key the walk's position
+// names that stop by, and what the walk calls it. An On me card reads the same, so it
+// names its kind as the field does after `m` and knows when the walk stands on it.
+export function queueStop(item) {
+  const stop = stopOf(item);
+  return { ...stop, key: `${stop.kind}:${stop.id}`, noun: nounOf(item, stop) };
+}
+
 // The page's head, where a to-do on the page as a whole is arrived at: its first
 // top-level heading, or its first element.
 const pageHead = () =>
@@ -152,18 +161,13 @@ export function createQueueWalk({
     const list = [];
     const listed = new Set();
     for (const item of readQueues().on_user) {
-      const stop = stopOf(item);
+      const stop = queueStop(item);
       // Two items arrived at in one place, such as two to-dos on one thread, are one
       // stop.
-      if (listed.has(`${stop.kind}:${stop.id}`)) continue;
-      listed.add(`${stop.kind}:${stop.id}`);
+      if (listed.has(stop.key)) continue;
+      listed.add(stop.key);
       const at = stopElement(stop);
-      list.push({
-        ...stop,
-        key: `${stop.kind}:${stop.id}`,
-        noun: nounOf(item, stop),
-        place: at?.isConnected && !inChrome(at) ? at : null,
-      });
+      list.push({ ...stop, place: at?.isConnected && !inChrome(at) ? at : null });
     }
     return byRenderedOrder(list, (stop) => stop.place);
   }

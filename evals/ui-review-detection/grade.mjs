@@ -5,17 +5,7 @@
  * grades remain in the audit; only applicable, scored numbers enter namedScores.
  */
 import { createHash, randomUUID } from "node:crypto";
-import {
-  mkdir,
-  mkdtemp,
-  chmod,
-  readFile,
-  readdir,
-  writeFile,
-  copyFile,
-  rm,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, readdir, writeFile, copyFile } from "node:fs/promises";
 import path from "node:path";
 import { loadApiProvider } from "promptfoo";
 import { z } from "zod";
@@ -72,7 +62,6 @@ export default async function grade(output, context) {
   const response = context.providerResponse;
   const evidenceDir = response.metadata?.evidenceDir;
   let packetDir;
-  let nativeHome;
   let rawGrade = null;
   let finalGrade = null;
   const audit = {};
@@ -225,49 +214,13 @@ export default async function grade(output, context) {
       modelIdentity: response.metadata?.modelIdentity,
     };
     await writeFile(path.join(packetDir, "prompt.json"), prompt + "\n");
-    let spec =
-      typeof settings.graderProvider === "string"
-        ? { id: settings.graderProvider }
-        : settings.graderProvider;
-    if (spec.id === "openai:codex-sdk" || spec.config?.cli_env?.CODEX_HOME) {
-      const baseHome = spec.config?.cli_env?.CODEX_HOME;
-      if (!baseHome)
-        throw new Error("Codex judge requires the canonical isolated login home");
-      const baseProfile = await readFile(path.join(baseHome, "config.toml"), "utf8");
-      const header = "[permissions.screenshots.filesystem]\n";
-      if (baseProfile.split(header).length !== 2)
-        throw new Error(
-          "Canonical judge profile has no unique screenshot filesystem table",
-        );
-      nativeHome = await mkdtemp(path.join(tmpdir(), "leaf-grader-"));
-      const codexHome = path.join(nativeHome, ".codex");
-      await mkdir(codexHome, { mode: 0o700 });
-      const authFile = path.join(codexHome, "auth.json");
-      await copyFile(path.join(baseHome, "auth.json"), authFile);
-      await chmod(authFile, 0o600);
-      // CLI dotted overrides split dots inside file paths. Derive a file profile
-      // from the canonical helper instead, keeping its runtime grants intact.
-      await writeFile(
-        path.join(codexHome, "config.toml"),
-        baseProfile.replace(
-          header,
-          `${header}${JSON.stringify(`${packetDir}/**`)} = "read"\n`,
-        ),
-      );
-      spec = {
-        ...spec,
-        config: {
-          ...spec.config,
-          working_dir: nativeHome,
-          cli_env: { ...spec.config.cli_env, HOME: nativeHome, CODEX_HOME: codexHome },
-        },
-      };
-    }
+    const spec = settings.graderProvider;
     const provider = await loadApiProvider(spec.id, {
       options: {
         ...spec,
         config: {
           ...spec.config,
+          screenshots: packetDir,
           output_schema: GRADE_SCHEMA,
         },
       },
@@ -361,7 +314,5 @@ export default async function grade(output, context) {
     });
   } catch (error) {
     return finish(unscored(error.message));
-  } finally {
-    if (nativeHome) await rm(nativeHome, { recursive: true, force: true });
   }
 }

@@ -35,7 +35,7 @@ import {
   PageStore,
   dateStateDelivery,
   readPublication,
-  type PagePublication,
+  readPublicationCommit,
 } from "./storage";
 
 import { agentLog, dispatchAgentTask } from "./agent";
@@ -164,24 +164,18 @@ export class LeafWebsiteSession extends Container<Env> {
     await this.pages.saveBlob(digest, bytes);
   }
 
-  private async publication(value: unknown): Promise<PagePublication> {
+  async preparePublication(
+    value: unknown,
+  ): Promise<{ identity: string; missing: string[] }> {
     const publication = readPublication(value);
     const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
-    if (
-      !(publication.root in manifest.pages) ||
-      publication.release !== manifest.release
-    ) {
-      throw new Error("publication does not name a page in this website release");
-    }
-    return publication;
-  }
-
-  async preparePublication(value: unknown): Promise<string[]> {
-    return this.pages.prepare(await this.publication(value));
+    return this.pages.prepare(publication, manifest);
   }
 
   async savePublication(value: unknown): Promise<void> {
-    this.pages.publish(await this.publication(value));
+    const commit = readPublicationCommit(value);
+    const manifest = await siteManifest(new Request("https://leaf.page/"), this.env);
+    this.pages.publish(commit, manifest);
   }
 
   override async fetch(request: Request): Promise<Response> {
@@ -239,9 +233,7 @@ LeafWebsiteSession.outboundByHost = {
       return session.savedRecords();
     }
     if (request.method === "PUT" && path === "/prepare") {
-      return Response.json({
-        missing: await session.preparePublication(await request.json()),
-      });
+      return Response.json(await session.preparePublication(await request.json()));
     }
     const blob = /^\/blobs\/([0-9a-f]{64})$/.exec(path);
     if (blob !== null && request.method === "PUT") {

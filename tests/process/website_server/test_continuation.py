@@ -9,6 +9,7 @@ import leaf_website as website_server
 import pytest
 from interact_support import append_carried_log_record as append_event
 from leaf.event_log import read_events
+from leaf.interaction_log import read_interactions
 from leaf.refusals import Refused
 from leaf.state import session_record
 from leaf.thread import cmd_resolve
@@ -50,6 +51,9 @@ def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypat
 
     def attach(target, event_id):
         assert "hosted-thread" not in harness.following_threads
+        assert not any(
+            row["type"] == "turn_following_ended" for row in read_interactions(page_dir)
+        )
         continued.append((target, event_id))
         return "hosted-thread"
 
@@ -58,6 +62,12 @@ def test_a_turn_follower_releases_its_seat_before_continuing(page_dir, monkeypat
 
     assert rescans == [(page_dir, ("first-event",))]
     assert continued == [(page_dir, "next-event")]
+    [ended] = [
+        row
+        for row in read_interactions(page_dir)
+        if row["type"] == "turn_following_ended"
+    ]
+    assert ended["completed"] is True
 
 
 def test_continuation_reaches_the_next_move_when_the_named_one_settles(
@@ -204,6 +214,12 @@ def test_a_follower_that_faults_still_hands_the_page_on(page_dir, monkeypatch):
 
     assert continued == [comment["id"]]
     assert "hosted-thread" not in harness.following_threads
+    [ended] = [
+        row
+        for row in read_interactions(page_dir)
+        if row["type"] == "turn_following_ended"
+    ]
+    assert ended["completed"] is False
 
 
 def test_a_refused_correction_receipt_still_hands_the_page_on(

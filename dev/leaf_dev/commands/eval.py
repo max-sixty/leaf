@@ -53,6 +53,7 @@ from leaf_dev.arms import (
 )
 from leaf_dev.eval_cases import definition
 from leaf_dev.leaf_assets import pinned_copy
+from leaf_dev.screenshot_judge import screenshot_judge
 
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
@@ -222,48 +223,6 @@ def workflow_provider(
     }
 
 
-def screenshot_judge(screenshots: Path | None, home: Path) -> dict:
-    """The Codex visual grader for `agent-rubric`s, run under a home of its own.
-
-    Its permission profile lets it read the run's screenshot tree and nothing else,
-    so only copied images are available as filesystem evidence. An assertion may
-    supply authored HTML to identify image references; transcripts and paths naming
-    the arm remain outside the judge's input. Passing None leaves evidence access
-    to each call's isolated profile,
-    so an assertion can grant exactly one sample instead of the run's whole tree.
-    `:minimal` is the runtime paths tools need, which include the temp
-    directories but not the repository. Codex starts its sandbox helper by executing
-    itself, so the profile also grants the executable, run by its resolved path: a
-    symlink's own location is refused. A profile replaces Codex's older sandbox
-    settings, so the provider sets no `sandbox_mode`."""
-    codex = codex_program()
-    home.mkdir(mode=0o700, parents=True)
-    profile = "\n".join(
-        [
-            'default_permissions = "screenshots"',
-            "",
-            "[permissions.screenshots.filesystem]",
-            '":minimal" = "read"',
-            *([f'{json.dumps(f"{screenshots}/**")} = "read"'] if screenshots else []),
-            f'{json.dumps(str(codex))} = "read"',
-            "",
-        ]
-    )
-    return {
-        "id": "openai:codex-sdk",
-        "config": {
-            "model": MODELS["screenshots"],
-            "codex_path_override": str(codex),
-            "working_dir": str(home),
-            "skip_git_repo_check": True,
-            "cli_env": {
-                "HOME": str(home),
-                "CODEX_HOME": str(codex_home(home / ".codex", profile)),
-            },
-        },
-    }
-
-
 def prepare(
     cases: list[str],
     arms: dict[str, Path],
@@ -343,7 +302,7 @@ def prepare(
                     any(r["type"].endswith("agent-rubric") for r in rubrics)
                     and judge is None
                 ):
-                    judge = screenshot_judge(screenshots, scratch / "judge")
+                    judge = screenshot_judge(screenshots, scratch / "judge-login")
                 sample["assert"] = [
                     *(
                         {
@@ -393,7 +352,9 @@ def prepare(
                     for assertion in sample["assert"]:
                         if assertion["type"].endswith("agent-rubric"):
                             if judge is None:
-                                judge = screenshot_judge(screenshots, scratch / "judge")
+                                judge = screenshot_judge(
+                                    screenshots, scratch / "judge-login"
+                                )
                             assertion["provider"] = judge
                     sample["assert"] = [
                         *(

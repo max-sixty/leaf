@@ -327,11 +327,11 @@ def publish(page: PageTransaction) -> None:
             "responses": responses,
         }
         with _request("/prepare", publication) as response:
-            missing = json.load(response)["missing"]
-        for digest in missing:
+            prepared = json.load(response)
+        for digest in prepared["missing"]:
             with _request(f"/blobs/{digest}", blobs.body(digest)):
                 pass
-        with _request("/publication", publication):
+        with _request("/publication", {"root": root, "identity": prepared["identity"]}):
             pass
     token.parent.mkdir(parents=True, exist_ok=True)
     write_json(token, {"fingerprint": fingerprint})

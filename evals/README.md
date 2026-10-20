@@ -27,7 +27,9 @@ pnpm run eval:view
 - **Arms.** The working tree always runs. `--base` adds the merge base with `main`
   as a second arm, and `--base REF` adds that ref; put cases before it. An arm
   holds only the plugin payload, with no git history, so an agent can't look up
-  another version of Leaf through it.
+  another version of Leaf through it. The hosted `website-replies` experiment
+  requires producer-owned hosted-turn diagnostics in each arm; an arm without
+  them is refused before a native turn starts.
 - **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Run
   the harness the motivating failure came from, or the one you are working in when
   no session failed. Run `both` when the change is about how the harnesses differ,
@@ -252,7 +254,7 @@ declaring both on a case, including through inherited variant metadata, is an er
 | `arrangement_eval` | One live author builds the page, receives the width preference and passage comment, and applies the browser user's decision. Leaf uses its installed plugin and anchored comments; HTML uses chat and the page's copy route or a typed decision. Python retains the revisions, native traces, final/predecision screenshots and author accounting. One final live judge checks the outcome and operates the earlier decision controls. Optional `eval-pairs` compares saved samples. |
 | `usability_eval`   | Seeded pages read, resumed and revised, and live handoffs where the driver posts user updates through the served page. One agent rubric judges the task from canonical page state, active markup, data, events, delivery envelopes and the full native trace. The driver retains exact input, turn and progress observations as metadata; it does not grade per-case tags, card counts or word ratios. Fixtures are in `usability/fixtures/`.                                        |
 | `delivery_eval`    | Comments posted between turns and mid-turn, each of which must be picked up, started and answered.                                                                                                                                                                                                                                                                                                                                                                                   |
-| `website_eval`     | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Retains native notifications, the opening and final reply updates actually published, and exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user.                                |
+| `website_eval`     | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Queries the adapter's private page diagnostics for native turn status, the opening and final reply updates actually published, and follower completion after cleanup. Retains exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user. |
 | `reader_eval`      | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards.                                                                                                                                                                                                                                                                      |
 
 `sidebar-page-at-900px` runs the complete authoring and render loop. Its

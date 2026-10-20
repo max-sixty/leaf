@@ -1928,10 +1928,14 @@ describe("website page agent", () => {
         record: {},
         responses,
       };
-      for (const digest of await session.preparePublication(publication)) {
+      const prepared = await session.preparePublication(publication);
+      for (const digest of prepared.missing) {
         await session.saveBlob(digest, blobs.get(digest)!.slice().buffer);
       }
-      await session.savePublication(publication);
+      await session.savePublication({
+        root: publication.root,
+        identity: prepared.identity,
+      });
       forwardedContainerFetch.mockClear();
       const state = await session.fetch(
         new Request("https://leaf.page/examples/triage-board/api/state", {
@@ -2032,7 +2036,10 @@ describe("website page agent", () => {
           env as never,
           context as never,
         );
-      expect(await (await missing()).json()).toEqual({ missing: [digest, absent] });
+      expect(await (await missing()).json()).toEqual({
+        identity: expect.stringMatching(/^[0-9a-f]{64}$/),
+        missing: [digest, absent],
+      });
       const put = await handler(
         new Request(`https://leaf-state.internal/blobs/${digest}`, {
           method: "PUT",
@@ -2043,15 +2050,26 @@ describe("website page agent", () => {
         context as never,
       );
       expect(put.status).toBe(204);
-      expect(await (await missing()).json()).toEqual({ missing: [absent] });
+      expect(await (await missing()).json()).toEqual({
+        identity: expect.stringMatching(/^[0-9a-f]{64}$/),
+        missing: [absent],
+      });
       const publication = {
         root: "/examples/triage-board",
         release: RELEASE,
         record: { "events.jsonl": { chunks: [digest], modified: 1_700_000_000 } },
         responses: {},
       };
-      await session.preparePublication(publication);
-      await session.savePublication(publication);
+      const prepared = await session.preparePublication(publication);
+      const committed = await handler(
+        new Request("https://leaf-state.internal/publication", {
+          method: "PUT",
+          body: JSON.stringify({ root: publication.root, identity: prepared.identity }),
+        }) as never,
+        env as never,
+        context as never,
+      );
+      expect(committed.status).toBe(204);
       const answer = await handler(
         new Request("https://leaf-state.internal/records") as never,
         env as never,

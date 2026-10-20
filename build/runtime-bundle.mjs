@@ -67,7 +67,7 @@ function browserPath(path) {
 function layerPath(path, assetRoot) {
   if (assetRoot && path.startsWith(`${assetRoot}/`))
     return path.slice(assetRoot.length + 1);
-  return /^\/(?:runtime|vendor|widgets)\//.test(path) ? path.slice(1) : null;
+  return /^\/(?:runtime|vendor|widgets|page)\//.test(path) ? path.slice(1) : null;
 }
 
 /** Whether a layer module is served as committed rather than compiled into the kernel.
@@ -103,37 +103,41 @@ function moduleUrlReads(source) {
   return ranges.sort(([a], [b]) => a - b);
 }
 
-/** Native modules' kernel imports are graph boundaries, not extra implementations. */
+/** Static declarations of one captured native module, resolved by layer path. */
+async function nativeImports(layerRoot, local, assetRoot) {
+  const path = join(layerRoot, local);
+  const module = parse(await readFile(path, "utf8"), {
+    ecmaVersion: "latest",
+    sourceType: "module",
+  });
+  return module.body.filter((node) => node.source).map((node) => {
+    const specifier = node.source.value;
+    return specifier.startsWith("/")
+      ? layerPath(specifier, assetRoot) ?? specifier
+      : specifier.startsWith(".")
+        ? browserPath(relative(layerRoot, resolve(dirname(path), specifier)))
+        : specifier;
+  });
+}
+
+/** Retain native static edges and keep their runtime imports as kernel entries. */
 async function nativeRuntimeEntries(layerRoot, assetRoot) {
   const entries = new Set();
+  const imports = new Map();
   for (const directory of ["vendor", "widgets"]) {
     const root = join(layerRoot, directory);
     for (const name of await readdir(root, { recursive: true })) {
-      if (
-        !name.endsWith(".js") ||
-        !native(browserPath(join(directory, name)), assetRoot)
-      )
-        continue;
-      const path = join(root, name);
+      const local = browserPath(join(directory, name));
+      if (!/\.m?js$/.test(name) || !native(local, assetRoot)) continue;
       // Shipped vendor modules permit only static local imports (shipped.mjs).
-      // Package modules' static declarations carry the same public API edge.
-      const module = parse(await readFile(path, "utf8"), {
-        ecmaVersion: "latest",
-        sourceType: "module",
-      });
-      for (const node of module.body) {
-        if (!node.source) continue;
-        const specifier = node.source.value;
-        const local = specifier.startsWith("/")
-          ? layerPath(specifier, assetRoot)
-          : specifier.startsWith(".")
-            ? browserPath(relative(layerRoot, resolve(dirname(path), specifier)))
-            : null;
-        if (local?.startsWith("runtime/")) entries.add(local);
-      }
+      // Package declarations carry the same public API edge.
+      const dependencies = await nativeImports(layerRoot, local, assetRoot);
+      for (const dependency of dependencies)
+        if (dependency.startsWith("runtime/")) entries.add(dependency);
+      imports.set(local, dependencies);
     }
   }
-  return [...entries].sort();
+  return { entries: [...entries].sort(), imports };
 }
 
 /** The esbuild plugin that keeps native modules outside the graph. */
@@ -175,10 +179,11 @@ const OUT = ".kernel";
 
 /** Compile one graph in memory; an asset root names the website's resource scope. */
 async function compile(layerRoot, entries, assetRoot, minify) {
+  const native = await nativeRuntimeEntries(layerRoot, assetRoot);
   entries = [
-    ...new Set([...entries, ...(await nativeRuntimeEntries(layerRoot, assetRoot))]),
+    ...new Set([...entries, ...native.entries]),
   ];
-  return build({
+  const result = await build({
     // Metafile paths and unminified module comments name layer paths, not this host's.
     absWorkingDir: layerRoot,
     bundle: true,
@@ -198,9 +203,14 @@ async function compile(layerRoot, entries, assetRoot, minify) {
     splitting: true,
     write: false,
   });
+  return { ...result, nativeImports: native.imports };
 }
 
-/** The website's minified rebundle of a vendored layer, with its widgets. */
+/** The website's minified rebundle and static dependency graph, by layer path.
+ *
+ * esbuild owns emitted edges; the captured layer's native declarations supply
+ * external edges. Dynamic imports stay outside this initial-load graph.
+ */
 export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot) {
   const inPlace = resolve(outputRoot) === resolve(layerRoot);
   layerRoot = await realpath(layerRoot);
@@ -223,6 +233,29 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot) {
   }
   for (const path of frameworkPaths)
     await rm(join(outputRoot, path), { force: true, recursive: true });
+  const graph = result.nativeImports;
+  for (const [path, output] of Object.entries(result.metafile.outputs))
+    graph.set(
+      browserPath(relative(OUT, path)),
+      output.imports
+        .filter(({ kind }) => kind === "import-statement")
+        .map(({ path, external }) =>
+          external
+            ? layerPath(path, assetRoot) ?? path
+            : browserPath(relative(OUT, path)),
+        ),
+    );
+  // Authored page files also include classic scripts. Read only modules reached
+  // by static declarations, including .mjs, rather than parsing that directory.
+  const pending = [...graph.values()].flat();
+  while (pending.length) {
+    const local = pending.pop();
+    if (graph.has(local)) continue;
+    const dependencies = await nativeImports(layerRoot, local, assetRoot);
+    graph.set(local, dependencies);
+    pending.push(...dependencies);
+  }
+  return graph;
 }
 
 /** Every module a kernel build reads, by layer path, sorted. */

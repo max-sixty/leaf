@@ -23,6 +23,10 @@
   slow development. Reduce their runtime and the work needed to run them while
   preserving useful coverage. `notes/shift-watch-cost.md` records what the
   Stability sensor costs and when a cheaper gate would be worth revisiting.
+  Sharing one page across a test's cases (`tests/AGENTS.md`, "One page for the
+  cases that can share it") reaches only cases that leave the log and the page's
+  own UI alone, so most of the time spent opening pages needs each opening to
+  cost less.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the

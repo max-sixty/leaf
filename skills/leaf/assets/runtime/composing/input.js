@@ -29,8 +29,8 @@
 // An error about a box (errors.js, its `subject`), such as a refused send's whose words
 // came back to it or an image it would not take, stands over the box's words and
 // actions, wrapping within its lines, until the user comes back to them: an edit there,
-// an image attached, a press on the cover, which puts the caret at the words' end, or
-// Resume writing (drafts.js). While it stands the box sends nothing, so words the user
+// an image attached, a press on the cover or a key there, a send key or a press putting
+// the caret at the words' end and sending nothing, or Resume writing (drafts.js). While it stands the box sends nothing, so words the user
 // has not seen again are never sent. The error is about the words, not the node, so it
 // also passes once the box stops showing them: it takes up another draft (`arrive`), as
 // the one passage composer does on each passage, or it is hidden or leaves the page
@@ -65,6 +65,7 @@ import { LitElement, html, render as renderHint } from "/vendor/browser-runtime.
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
+import { MODIFIER_KEYS } from "../control-selectors.js";
 import { whileConnected } from "../arrivals.js";
 import { move } from "../dom-move.js";
 import { applicationState } from "../semantic-state.js";
@@ -374,11 +375,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const coverWords = document.createElement("span");
     cover.append(coverWords);
     field.append(cover);
-    cover.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
+    // The user coming back to the covered words by a press or a send key: the cover
+    // lifts with the caret at their end, and nothing is sent.
+    const uncover = () => {
       passErrorsAt(ta);
       const end = ta.value.length;
       focusDestination(ta, "move", { caret: [end, end] });
+    };
+    cover.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      uncover();
     });
     const held = () => busy() || errorOver(ta) !== null;
     // These two are the press's whole face, and the theme keys the glyph's colour on the
@@ -697,6 +703,35 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       },
       { capture: true },
     );
+    // A key pressed in a covered box lifts the cover, as a press on it does, and keeps
+    // its meaning, an edit or a caret move landing as typed, except a send key: it
+    // only lifts, with the caret at the words' end, so nothing is sent unseen and the
+    // next press sends. A modifier alone is half a key, and Tab and Escape leave the
+    // box, so none of them lifts it. Heard on the host before its editor, which would
+    // otherwise take the send key.
+    ta.addEventListener(
+      "keydown",
+      (event) => {
+        if (
+          event.isComposing ||
+          !errorOver(ta) ||
+          [...MODIFIER_KEYS, "Tab", "Escape"].includes(event.key)
+        )
+          return;
+        const sends =
+          event.key === "Enter" &&
+          !event.shiftKey &&
+          !event.altKey &&
+          submitBindings().includes(
+            event.metaKey || event.ctrlKey ? "Mod+Enter" : "Enter",
+          );
+        if (!sends) return passErrorsAt(ta);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        uncover();
+      },
+      { capture: true },
+    );
     if (mic) {
       const activateDictation = async () => {
         if (dictationPhase() === "stopping" || sending || uploading || held()) return;
@@ -876,7 +911,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     let composing = false;
     ta.addEventListener("compositionstart", () => (composing = true));
     ta.addEventListener("compositionend", () => (composing = false));
+    // A send control reached by the keyboard under a cover lifts it, as a send key does.
     const pressed = (sender) => {
+      if (errorOver(ta)) return uncover();
       if (focused() !== ta) focusDestination(ta, "return");
       submit(sender);
     };

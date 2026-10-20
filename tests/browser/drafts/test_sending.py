@@ -268,9 +268,9 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     cover = page.locator(".lf-fab-bar .lf-compose-error")
     expect(cover).to_have_text("Couldn't send — refused before append")
     expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
+    # The first Enter only lifts the cover, with the caret at the words' end, so the
+    # words are never sent unseen; the error waits in the leaf's menu.
     page.keyboard.press("Enter")
-    expect(cover).to_be_visible()
-    cover.click()
     expect(cover).to_be_hidden()
     expect(box).to_be_focused()
     assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
@@ -278,7 +278,11 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
         len(words),
     ]
     assert held == [], "the covered words were sent"
-    # Once the user has come back to the words, the error waits in the leaf's menu.
+    # The next Enter sends them.
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the comment sent again")
+    assert held[0].request.post_data_json["text"] == words
+    held.pop(0).continue_()
     expect_error_waits_in_menu(page, "Couldn't send — refused before append")
     consume_browser_errors(page, http_error_console(400))
 

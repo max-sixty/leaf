@@ -890,11 +890,14 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     const coverWords = document.createElement("span");
     cover.append(coverWords);
     field.append(cover);
-    cover.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
+    const uncover = () => {
       passErrorsAt(ta);
       const end = ta.value.length;
       focusDestination(ta, "move", { caret: [end, end] });
+    };
+    cover.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      uncover();
     });
     const held = () => busy() || errorOver(ta) !== null;
     sendBtn.classList.add("lf-icon-action", "lf-compose-submit");
@@ -1136,6 +1139,21 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       },
       { capture: true }
     );
+    ta.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.isComposing || !errorOver(ta) || [...MODIFIER_KEYS, "Tab", "Escape"].includes(event.key))
+          return;
+        const sends2 = event.key === "Enter" && !event.shiftKey && !event.altKey && submitBindings().includes(
+          event.metaKey || event.ctrlKey ? "Mod+Enter" : "Enter"
+        );
+        if (!sends2) return passErrorsAt(ta);
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        uncover();
+      },
+      { capture: true }
+    );
     if (mic) {
       const activateDictation = async () => {
         if (dictationPhase() === "stopping" || sending || uploading || held()) return;
@@ -1268,6 +1286,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     ta.addEventListener("compositionstart", () => composing = true);
     ta.addEventListener("compositionend", () => composing = false);
     const pressed = (sender) => {
+      if (errorOver(ta)) return uncover();
       if (focused() !== ta) focusDestination(ta, "return");
       submit(sender);
     };

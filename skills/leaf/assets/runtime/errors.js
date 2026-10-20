@@ -12,8 +12,8 @@
    ends.
 
    An error about a text field stands at that field, wherever it is, covering the
-   field's words and actions until the user comes back to them, by an edit, an image
-   attached, a press on the cover or Resume writing (`g i`), or the field stops showing
+   field's words and actions until the user comes back to them, by a key or an image
+   there, a press on the cover or Resume writing (`g i`), or the field stops showing
    them (`passErrorsAt`; composing/input.js, `errorOver`). The floating panel's field
    also says an error about nothing, in its status's place while it is empty, until the
    user's first edit there (floating-panel.js). An error no field stands for, or one the user has

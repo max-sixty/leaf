@@ -67,9 +67,8 @@ work-item lists too:
 - For arrangements or mechanisms nothing can run yet, draw each option, all in the
   same frame at one scale.
 - For a proposal to accept or reject, show the change in the accepting option and
-  today in the option that keeps it, so the two stand side by side and each under its
-  own pick. A visible fault is a capture marked where it goes wrong, beside a drawing
-  or demonstration of the fix.
+  today in the option that keeps it. A visible fault is a capture marked where it goes
+  wrong, beside a drawing or demonstration of the fix.
 - For a code or data change, show the text before and after when the text is what the
   user judges; otherwise show the change's effect before and after, with the code
   beside it.

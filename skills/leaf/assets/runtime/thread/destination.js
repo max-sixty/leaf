@@ -38,9 +38,7 @@
    Thread. */
 import { aborted } from "../abort.js";
 import { threadDraft } from "../drafts.js";
-import { scrollIntoView } from "../landing-scroll.js";
-import { focusDestination, focused } from "../focus.js";
-import { scrollBehavior } from "../motion.js";
+import { focused } from "../focus.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { replyAvailable } from "./replies.js";
 import { allThreads, threadNamed } from "./state.js";
@@ -228,20 +226,27 @@ export function createThreadDestinations({
         if (trip) {
           if (!(await scrollToThread(id, { part: localPart, focus, intent })))
             return null;
-        } else {
+        } else if (focus === false) {
           await reveal(surfaceFocusTarget(id, { part: localPart }), intent).ready;
-          const current = surfaceFocusTarget(id, { part: localPart });
-          if (
-            !current ||
-            !mayPresent() ||
-            (focus !== false &&
-              !intent.handoff(() => {
-                focusDestination(current, "move");
-                if (scroll) scrollIntoView(current, { block: "nearest" });
-              }))
-          )
-            return null;
-        }
+          if (!mayPresent()) return null;
+        } else if (
+          !(await arrive(
+            () => {
+              const current = surfaceFocusTarget(id, { part: localPart });
+              return (
+                current && {
+                  where: current,
+                  focus: current,
+                  scroll: scroll
+                    ? [{ at: current, block: "nearest", behavior: "auto" }]
+                    : [],
+                }
+              );
+            },
+            { intent },
+          ))
+        )
+          return null;
         return surfaceFocusTarget(id, { part: localPart });
       };
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
@@ -278,19 +283,21 @@ export function createThreadDestinations({
             return null;
         } else {
           if (!(await opened.presented) || !mayPresent()) return null;
-          const current = threadFocusTarget(id, { part });
           if (
-            !current ||
-            !mayPresent() ||
-            (focus !== false &&
-              !intent.handoff(() => {
-                focusDestination(current, "move");
-                if (scroll)
-                  scrollIntoView(current, {
-                    behavior: scrollBehavior(),
-                    block: "nearest",
-                  });
-              }))
+            focus !== false &&
+            !(await arrive(
+              () => {
+                const current = threadFocusTarget(id, { part });
+                return (
+                  current && {
+                    where: current,
+                    focus: current,
+                    scroll: scroll ? [{ at: current, block: "nearest" }] : [],
+                  }
+                );
+              },
+              { intent },
+            ))
           )
             return null;
         }

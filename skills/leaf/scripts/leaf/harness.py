@@ -564,7 +564,7 @@ class CodexHarness(EnvironmentHarness):
     def offer_at_step(
         self, event: str, payload: dict, expected: dict | None
     ) -> tuple[str | None, dict | None]:
-        """Both the tool hook and Stop offer a pointer through Codex's one transport
+        """Both the tool hook and Stop offer an envelope through Codex's one transport
         reservation (`codex.offer_hook_delivery`), since empty-input resume can
         reach Stop without running another tool. A tool hook also proves that
         Codex runs Leaf's hooks for this task (`turn_takes_input`). Stop offers

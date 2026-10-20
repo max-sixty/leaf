@@ -2272,6 +2272,23 @@ export function createFloatingPanel({
   };
   const tabLabel = (tab) =>
     tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+  // The stop the `m` walk stands on while the field says its position
+  // (keyboard/status-context.js): its card in On me wears the ring a focused card
+  // wears, and the list brings it into view as the walk reaches it (`landWalked`), so
+  // the list follows the walk rather than standing where it was.
+  const walkedStop = () => {
+    const { walk } = statusContextReading();
+    return walk?.shown && walk.kind === "queue" ? walk.target : null;
+  };
+  let walkedLanded = null;
+  function landWalked() {
+    const key = trail.at(-1)?.view === "queue" ? walkedStop() : null;
+    if (key === walkedLanded) return;
+    walkedLanded = key;
+    const view = shownView();
+    const card = key && view?.querySelector(".lf-fp-on-item[data-walked]");
+    if (card) scrollIntoView(card, { block: "nearest", within: view });
+  }
 
   // ---------- the plan ----------
   // What each state reads as to assistive tech, which hears no mark.
@@ -2497,6 +2514,7 @@ export function createFloatingPanel({
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
       ?data-approval=${approval}
+      ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
       ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" · ")}</p>` : nothing}${
@@ -2899,6 +2917,7 @@ export function createFloatingPanel({
     }
     landReader();
     seatOnItems();
+    landWalked();
   }
   // A card's seat is the height it first stands at once its message is drawn; a card
   // whose message Leaf's reader has not drawn yet asks it to (`nominate`), once, and

@@ -6246,13 +6246,14 @@ function registerStatusContextPresentation(invalidate) {
   presenters.add(invalidate);
 }
 var shownWalk = ({ walk }) => walk?.shown ? walk : null;
-var same2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
+var same2 = (a, b) => a.goTo === b.goTo && a.stance === b.stance && shownWalk(a)?.text === shownWalk(b)?.text && shownWalk(a)?.target === shownWalk(b)?.target && shownWalk(a)?.boundary === shownWalk(b)?.boundary;
 function paintStatusContext(goToStatus) {
   const position = walkPosition();
   const goTo = goToStatus();
   if (position)
     lastWalk = Object.freeze({
       kind: position.kind,
+      target: position.target,
       text: position.text,
       boundary: position.boundary
     });
@@ -7641,6 +7642,19 @@ function createFloatingPanel({
     return entry?.event ?? null;
   };
   const tabLabel = (tab) => tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+  const walkedStop = () => {
+    const { walk } = statusContextReading();
+    return walk?.shown && walk.kind === "queue" ? walk.target : null;
+  };
+  let walkedLanded = null;
+  function landWalked() {
+    const key = trail.at(-1)?.view === "queue" ? walkedStop() : null;
+    if (key === walkedLanded) return;
+    walkedLanded = key;
+    const view = shownView();
+    const card2 = key && view?.querySelector(".lf-fp-on-item[data-walked]");
+    if (card2) scrollIntoView(card2, { block: "nearest", within: view });
+  }
   const PLAN_STATES = Object.freeze({
     open: "Not started",
     working: "Under way",
@@ -7802,6 +7816,7 @@ function createFloatingPanel({
       data-key=${key}
       data-obligation=${record?.id ?? nothing}
       ?data-approval=${approval}
+      ?data-walked=${queueTab === "you" && walkedStop() === stop.key}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
       ${about.length ? html`<p class="lf-fp-on-kind">${about.join(" \xB7 ")}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
@@ -8092,6 +8107,7 @@ function createFloatingPanel({
     }
     landReader();
     seatOnItems();
+    landWalked();
   }
   const asked = /* @__PURE__ */ new WeakSet();
   function seatOnItems() {

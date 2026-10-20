@@ -53,6 +53,7 @@ export function walkPosition() {
   return {
     boundary: walking.boundary,
     kind: walking.key,
+    target: position.target,
     text: walkPositionLabel(
       walking.noun,
       position.position,

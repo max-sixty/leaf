@@ -387,3 +387,53 @@ def test_show_on_a_card_goes_where_m_arrives_and_only_where_that_is_elsewhere(
 
     show(on_card(page, "widget:shapes-q")).click()
     expect(page.locator(f"#{landed}")).to_be_focused()
+
+
+WALKED_PAGE = leaf_page(
+    "many asks",
+    '<h1 id="title">Kit list</h1>'
+    + "".join(
+        f'<lf-ask id="ask-{n}"><h2>Bring item {n}?</h2>'
+        f'<lf-options id="pick-{n}" choose><lf-option id="yes-{n}">Yes</lf-option>'
+        f'<lf-option id="no-{n}">No</lf-option></lf-options></lf-ask>'
+        for n in range(1, 9)
+    ),
+)
+
+
+def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serve):
+    """While On me is open, `m` and Shift+`m` bring the card of the item they reach into
+    the list's view, scrolling it either way, and that card alone wears a focused
+    card's ring, while focus stands at the item on the page."""
+    page = open_page(browser, serve(WALKED_PAGE))
+    resized(page, 1000, 560)
+    view = open_on_me(page)
+    cards = view.locator(".lf-fp-on-item")
+    expect(cards).to_have_count(8)
+    assert view.evaluate("view => view.scrollHeight > view.clientHeight + 40")
+
+    def shown(card):
+        return card.evaluate(
+            """(card) => {
+              const box = card.getBoundingClientRect();
+              const view = card.closest('.lf-fp-view').getBoundingClientRect();
+              return box.top >= view.top - 1 && box.bottom <= view.bottom + 1;
+            }"""
+        )
+
+    last = on_card(page, "widget:pick-8")
+    assert not shown(last)
+    page.keyboard.press("Shift+m")
+    expect_walk_position(page, "8 of 8 waiting on me · Options")
+    expect(page.locator("#ask-8")).to_be_focused()
+    expect(view.locator(".lf-fp-on-item[data-walked]")).to_have_count(1)
+    expect(last).to_have_attribute("data-walked", "")
+    assert last.evaluate("card => getComputedStyle(card).outlineStyle") == "solid"
+    assert shown(last)
+
+    first = on_card(page, "widget:pick-1")
+    page.keyboard.press("m")
+    expect_walk_position(page, "1 of 8 waiting on me · Options")
+    expect(first).to_have_attribute("data-walked", "")
+    expect(last).not_to_have_attribute("data-walked", "")
+    assert shown(first)

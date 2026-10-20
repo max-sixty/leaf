@@ -40,15 +40,18 @@
     --lf-breakout: 1;
   }
 }
-/* An lf-ask whose evidence includes a figure (a chart, image, table or shot, with an
- * option list somewhere after it) outruns a window when its options stack:
- * the cards land below the figure they turn on, one under another. It asks its option
- * list to lay them across instead (`--lf-options-across`, said on the lf-ask and read by
- * its own children; options.css), so as many cards as the lf-ask's width holds stand
- * side by side under the evidence, and they stack where only one fits.
+/* An lf-ask whose evidence includes a figure (a chart, image, table or shot) before its
+ * option list, or in its options, outruns a window when its options stack: the cards
+ * land one under another, below the figure they turn on or each as tall as its own
+ * picture. It asks its option list to lay them across instead (`--lf-options-across`,
+ * said on the lf-ask and read by its own children; options.css), so as many cards as the
+ * lf-ask's width holds stand side by side, and they stack where only one fits. Options
+ * that each hold what choosing them gives then read as one comparison, each picture
+ * above its own pick; a group given `data-width` lays them across its own width.
  * The content decides, so there is no attribute for it: an lf-ask of words alone keeps its
  * cards reading down, since there the cards are most of what the reader weighs. The rule
- * reads only that relation, a figure before the list: where the heading sits, and what
+ * reads only those relations: a figure before the list, or one anywhere in an option,
+ * such as an image wrapped in the link that opens it. Where the heading sits, and what
  * follows the list, change nothing. The list is the lf-ask's own child because the
  * variable that says so does not inherit.
  *
@@ -57,7 +60,10 @@
  * cards with drawings beside a five-row table left the window's width beside the table
  * empty, and the reading column was too narrow for it, so every such lf-ask had to ask
  * for the wide measure. */
-:scope:is(lf-ask):has(> :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options) {
+:scope:is(lf-ask):has(
+    > :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options,
+    > lf-options > lf-option :is(figure, img, svg, table, lf-chart, lf-shot)
+  ) {
   --lf-options-across: 1;
 }
 /* An lf-ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a

@@ -46,6 +46,7 @@ import {
 import { announce } from "../notifications.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
+import { paintKeysWithin } from "../keyboard/scopes.js";
 
 import {
   allButCommandReference,
@@ -319,6 +320,9 @@ export function createTargetPicker({
     return next === -1 ? 0 : next;
   }
 
+  // The arrows beside the count are offered while there are matches. No signal tracks
+  // `matches`, so painting the count also marks the arrows to read their availability
+  // again (scopes.js, `paintKeysWithin`).
   function presentSearchStatus() {
     const query = pageSearchInput.value.trim();
     const status = !query
@@ -327,6 +331,7 @@ export function createTargetPicker({
         ? searchCount(active + 1, matches.length)
         : noMatches;
     render(html`${status}`, pageSearchWords);
+    paintKeysWithin(pageSearchSurface);
   }
 
   function sameMatch(left, right) {

@@ -4499,6 +4499,7 @@ ${searchCount(maximum, maximum)}`
     const query = pageSearchInput.value.trim();
     const status = !query ? nothing : matches.length ? searchCount(active + 1, matches.length) : noMatches;
     render(html`${status}`, pageSearchWords);
+    paintKeysWithin(pageSearchSurface);
   }
   function sameMatch(left, right) {
     return left.length === right.length && left.every(

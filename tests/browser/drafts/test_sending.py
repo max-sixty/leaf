@@ -6,6 +6,7 @@ import re
 import pytest
 from interact_support import append_carried_log_record
 from leaf import event_log as events_model
+from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_PAGE, panel_comment
 from render_cases_navigation import (
@@ -284,6 +285,42 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     assert held[0].request.post_data_json["text"] == words
     held.pop(0).continue_()
     expect_error_waits_in_menu(page, "Couldn't send — refused before append")
+    consume_browser_errors(page, http_error_console(400))
+
+
+# A paragraph running into a suggestion: words selected across it cross the widget's
+# fence, so the page's text can't name them again and their anchor is detached.
+FENCED_PAGE = leaf_page(
+    "fenced",
+    '<h1 id="t">Fenced</h1><p id="p">The wall is painted <lf-suggestion id="swap">'
+    "<lf-old>red</lf-old><lf-new>blue</lf-new></lf-suggestion> before the opening.</p>",
+)
+
+
+def test_a_refused_detached_comment_reopens_beside_its_words(held_events, serve):
+    """Only the browser's selection knew where a detached comment's words stand, and
+    nothing beside them draws its thread, so the send opens that thread in the panel.
+    A refusal brings the box back beside the words, where the user wrote, and the
+    thread's view goes with the thread. The box once came back in the window's corner,
+    under a view saying the thread was not on the page."""
+    browser, held = held_events
+    page = open_page(browser, serve(FENCED_PAGE))
+    words = "Why this colour?"
+    compose(page, "#p", words)
+    box = page.locator(".lf-fab-input")
+    before = box.bounding_box()
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the detached comment")
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_have_count(1)
+
+    refuse(page, held)
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", words)
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    after = box.bounding_box()
+    assert abs(after["x"] - before["x"]) < 1 and abs(after["y"] - before["y"]) < 1, (
+        f"the box came back at {after}, not beside its words at {before}"
+    )
     consume_browser_errors(page, http_error_console(400))
 
 

@@ -6545,10 +6545,9 @@ function createFloatingPanel({
         open(route, { replace: true });
         const untouched = retainUserIntent();
         void Promise.resolve(flight).then((sent) => {
-          if (sent || trail.at(-1) !== route) return;
+          if (sent || trail.length && trail.at(-1) !== route) return;
           caretToField = standingIn(host) || untouched();
-          trail = [];
-          transition(route, { focus: false });
+          paint();
         });
       }
     });
@@ -7643,8 +7642,7 @@ function createFloatingPanel({
   }
   function threadView(key) {
     const thread = threadByKey(key);
-    if (!thread)
-      return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
+    if (!thread) return nothing;
     return html`${quoteHead(thread)}
       <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${waiting?.key === key ? html`<div class="lf-fp-foot">
@@ -8143,6 +8141,8 @@ function createFloatingPanel({
   function paintPanel() {
     painting = true;
     try {
+      const top = trail.at(-1);
+      if (top?.view === "thread" && !threadByKey(top.thread)) close();
       paintNow();
       if ([holdRoom(), holdMenu()].some(Boolean)) paintNow();
     } finally {

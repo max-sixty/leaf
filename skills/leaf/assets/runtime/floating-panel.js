@@ -642,16 +642,15 @@ export function createFloatingPanel({
         const route = { view: "thread", thread: handle.attempt };
         open(route, { replace: true });
         // A refusal takes back the thread the send drew, which the server never held,
-        // and hands the words back to the page's draft (drafts.js, `standGesture`). Its
-        // view goes with it, where it still stands, so the field stands for the page
-        // again holding them, with the caret in them where the user still stands in the
-        // panel or has done nothing since the send.
+        // and its view goes with it (`paintPanel`); the words go back to the page's
+        // draft (drafts.js, `standGesture`). Unless the user has opened another view
+        // since, the field stands for the page again holding them, with the caret in
+        // them where the user still stands in the panel or has done nothing since.
         const untouched = retainUserIntent();
         void Promise.resolve(flight).then((sent) => {
-          if (sent || trail.at(-1) !== route) return;
+          if (sent || (trail.length && trail.at(-1) !== route)) return;
           caretToField = standingIn(host) || untouched();
-          trail = [];
-          transition(route, { focus: false });
+          paint();
         });
       },
     });
@@ -2268,9 +2267,9 @@ export function createFloatingPanel({
   }
 
   function threadView(key) {
+    // A thread the reading let go of takes its view away before the view draws.
     const thread = threadByKey(key);
-    if (!thread)
-      return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
+    if (!thread) return nothing;
     return html`${quoteHead(thread)}
       <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${
@@ -2986,6 +2985,11 @@ export function createFloatingPanel({
   function paintPanel() {
     painting = true;
     try {
+      // A thread's view draws a thread of the reading. One the reading no longer holds,
+      // as a refused send's or an undone comment's, leaves it nothing to draw, so it goes
+      // with its thread, as a card does (margin-projection.js), whoever opened it.
+      const top = trail.at(-1);
+      if (top?.view === "thread" && !threadByKey(top.thread)) close();
       paintNow();
       if ([holdRoom(), holdMenu()].some(Boolean)) paintNow();
     } finally {

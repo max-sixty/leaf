@@ -1,9 +1,10 @@
 /* The contents' initial drawing: the frame as the parser finishes the widget, and the
  * outline once the document it outlines has parsed, since its headings usually follow
- * it. Until then the frame stands at the box it keeps in either form, a closed
- * disclosure in flow or the map's full height in the margin, so it stands even where
- * no heading will qualify; once parsing ends, a contents with none is hidden, as its
- * module hides it. */
+ * it. The frame alone has the box the widget keeps in either form, a closed disclosure
+ * in flow or the map's full height in the margin. Whether any heading qualifies is
+ * known only once parsing ends, so the frame shows until then, and a contents with
+ * none is hidden there, as its module hides it. Hiding it until a heading arrives would
+ * instead move what follows it on any page with headings that paints while parsing. */
 import { drawOutline, drawToc } from "../widgets/toc-view.js";
 
 // Before modules run, a heading holds only the words its author wrote, and the only
@@ -13,6 +14,7 @@ const reading = {
   chrome: (heading) => heading.closest(".lf-chrome") !== null,
   // The rows are drawn once, into an empty list.
   place: (list, rows) => list.append(...rows),
+  lends: false,
 };
 
 document.documentElement.lfInitial.register("lf-toc", (host, { keeps }) => {

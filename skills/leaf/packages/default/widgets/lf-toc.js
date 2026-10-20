@@ -142,6 +142,7 @@ customElements.define(
         chrome: inChrome,
         place: setChildren,
         keeps,
+        lends: true,
       });
       // A new key still represents the user's place when its heading or destination
       // survives. Placing the rows already retains focus through keyed moves.

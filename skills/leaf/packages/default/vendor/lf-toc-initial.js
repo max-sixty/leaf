@@ -41,13 +41,14 @@
       rows: /* @__PURE__ */ new Map()
     };
   }
-  function destinationFor(host, heading, position) {
+  function destinationFor(host, heading, position, lends) {
     const section = heading.closest("section[id]");
     if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
     const destination = heading.closest("hgroup") ?? heading;
-    return destination.id ? destination : lend(host, destination, position);
+    return lend(host, destination, position, lends);
   }
-  function lend(host, destination, position) {
+  function lend(host, destination, position, lends) {
+    if (destination.id || !lends) return destination;
     const doc = host.ownerDocument;
     const stem = `lf-${host.id}-section-${position}`;
     let id = stem;
@@ -57,7 +58,7 @@
     return destination;
   }
   var level = (heading) => Number(heading.localName.slice(1));
-  function drawOutline(host, drawing, { label, chrome, place, keeps }) {
+  function drawOutline(host, drawing, { label, chrome, place, keeps, lends }) {
     const main = outlineDocument(host);
     if (!main) return [];
     const maxLevel = Number(host.getAttribute("max-level") ?? 6);
@@ -69,16 +70,17 @@
     );
     const start = {
       ...drawing.start,
-      destination: pageTitle ? destinationFor(host, pageTitle, 0) : main.id ? main : lend(host, main, 0)
+      destination: pageTitle ? destinationFor(host, pageTitle, 0, lends) : lend(host, main, 0, lends)
     };
-    keeps(start.link, "href", `#${start.destination.id}`);
+    const href = ({ id }) => id ? `#${id}` : null;
+    keeps(start.link, "href", href(start.destination));
     const title = (pageTitle ? label(pageTitle) : "") || "Top";
     if (start.link.textContent !== title) start.link.textContent = title;
     const floor = Math.min(...headings.map(({ heading }) => level(heading)));
     const rows = /* @__PURE__ */ new Map();
     const items = headings.map(({ heading, label: label2 }, index) => {
-      const destination = destinationFor(host, heading, index + 1);
-      const key = heading.id || heading;
+      const destination = destinationFor(host, heading, index + 1, lends);
+      const key = heading.id && !heading.id.startsWith("lf-") ? heading.id : heading;
       let drawn = rows.has(key) ? null : drawing.rows.get(key);
       if (!drawn) {
         const row = host.ownerDocument.createElement("li");
@@ -87,7 +89,7 @@
       rows.set(key, drawn);
       const depth = Math.min(level(heading) - floor, 4);
       keeps(drawn.row, "data-lf-depth", depth);
-      keeps(drawn.link, "href", `#${destination.id}`);
+      keeps(drawn.link, "href", href(destination));
       if (drawn.link.textContent !== label2) drawn.link.textContent = label2;
       return { heading, label: label2, destination, depth, ...drawn };
     });
@@ -104,7 +106,8 @@
     label: (heading) => heading.textContent.replace(/\s+/g, " ").trim(),
     chrome: (heading) => heading.closest(".lf-chrome") !== null,
     // The rows are drawn once, into an empty list.
-    place: (list, rows) => list.append(...rows)
+    place: (list, rows) => list.append(...rows),
+    lends: false
   };
   document.documentElement.lfInitial.register("lf-toc", (host, { keeps }) => {
     const drawing = drawToc(host);

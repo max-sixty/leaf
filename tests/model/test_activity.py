@@ -173,7 +173,7 @@ def test_direct_delivery_progress_does_not_become_page_activity(claimed, capsys)
     ]
     assert move["subject"] == {"kind": "thread", "id": comment["id"]}
     assert "acknowledgments" not in page_state(claimed)["browser"]
-    pickup = events_model.read_events(claimed)[-1]
+    *_, pickup = (e for e in events_model.read_events(claimed) if e["kind"] == "pickup")
     claim = service_model.page_claim(claimed)
     assert (pickup["phase"], pickup["session"], pickup["turn"]) == (
         "opened",

@@ -10,7 +10,6 @@ from datetime import datetime
 from pathlib import Path
 
 from .activity import Turn, current_turn, declared_at, takes_input
-from .event_log import read_cursor
 from .files import file_stamp
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
@@ -19,6 +18,7 @@ from .schema import SERVER_LOCK, UNNAMED_AGENT, VIEWED_FILE
 from .server import running_server
 from .service import (
     PageTransaction,
+    acknowledged,
     claim_is_active,
     page_claim,
     read_status,
@@ -266,7 +266,7 @@ def presence_with_activity(
     # What the wait owner has acknowledged after the complete batch reached its
     # next durable consumer. An action past this seq has not reached that point,
     # which lets the runtime carry it forward onto versions written without it.
-    cursor = read_cursor(page_dir)
+    cursor = acknowledged(events)
     reading = {
         "status": status,
         **live_facts(page_dir, claim, process=process),

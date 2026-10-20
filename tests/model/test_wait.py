@@ -22,6 +22,7 @@ from interact_support import (
     HELD_LEASES,
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
+    acknowledged_through,
     activity_reading,
     append_carried_log_record,
     append_command,
@@ -98,7 +99,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     assert shown[1]["detail"]["value"] == "y"
     # Printing is not acknowledgement: a detached Codex command can finish without
     # putting its output in the model's context, so wait leaves both events pending.
-    assert read_record(page_dir / "cursor.json") is None
+    assert acknowledged_through(page_dir) == 0
     assert page_state(page_dir)["pending"] == 2
 
     # An event posted between wait and acknowledgement is beyond the highest sequence
@@ -112,7 +113,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     )
     delivery_model.receive_delivery(payload["id"])
     delivery_model.receive_delivery(payload["id"])  # retries are harmless
-    assert read_record(page_dir / "cursor.json")["seq"] == delivered_through
+    assert acknowledged_through(page_dir) == delivered_through
     assert page_state(page_dir)["pending"] == 1
 
     assert session_model.cmd_wait(page_dir) == 0
@@ -161,7 +162,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     _, _, shown = printed(capsys.readouterr().out)
     assert [(e["kind"], e.get("agent")) for e in shown] == [("report", "Indexer")]
     receive_through(page_dir, shown[-1]["seq"])
-    assert read_record(page_dir / "cursor.json")["seq"] == shown[-1]["seq"]
+    assert acknowledged_through(page_dir) == shown[-1]["seq"]
 
 
 def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessionless):
@@ -177,7 +178,7 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessi
     first_payload, header, [event] = printed(first.output)
     assert header["page"] == str(page_dir)
     assert (event["id"], event["seq"], event["text"]) == ("c1", 1, "hi")
-    assert read_record(page_dir / "cursor.json") is None
+    assert acknowledged_through(page_dir) == 0
 
     reread = CliRunner().invoke(
         cli_model.cli, ["delivery", "read", first_payload["id"]]
@@ -773,7 +774,7 @@ def test_one_wait_watches_every_page_the_session_holds(
     # The page that spoke records exact pickup; neither page's status is rewritten.
     assert read_record(second / "status.json")["state"] == "waiting"
     assert read_record(page_dir / "status.json")["state"] == "waiting"
-    assert events_model.read_events(second)[-1]["kind"] == "pickup"
+    assert any(e["kind"] == "pickup" for e in events_model.read_events(second))
     assert all(e["kind"] != "pickup" for e in events_model.read_events(page_dir))
 
     # Idling one leaf leaves the watch to the others; idling the last ends it.
@@ -1126,8 +1127,7 @@ def test_a_watch_does_not_reopen_for_answered_unreceived_input(
         assert source["id"] in {
             event["id"]
             for event in service_model.unacknowledged(
-                events_model.read_events(claimed),
-                service_model.PageTransaction(claimed).cursor,
+                events_model.read_events(claimed), acknowledged_through(claimed)
             )
         }
     finally:
@@ -1364,7 +1364,7 @@ def test_a_bare_shell_receipt_rearms_every_page_in_its_delivery(
     assert event["id"] == later["id"]
     for page in (page_dir, other):
         assert service_model.page_claim(page) is None
-        assert read_record(page / "cursor.json") == {"seq": 1}
+        assert acknowledged_through(page) == 1
 
 
 def test_an_unnamed_bare_shell_wait_has_no_watch_set(page_dir, sessionless, capsys):
@@ -1483,7 +1483,7 @@ def test_a_codex_watcher_task_takes_the_parent_watch_obligation(
     _, header, [event] = printed(out)
     assert header["page"] == str(page)
     assert event["text"] == "hi"
-    assert read_record(page / "cursor.json") is None
+    assert acknowledged_through(page) == 0
 
 
 def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(

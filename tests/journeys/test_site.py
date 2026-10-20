@@ -34,12 +34,13 @@ from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
 from leaf import schema as schema_model
-from leaf.event_log import CURSOR, _parse_events, read_events
+from leaf.event_log import _parse_events, read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
+from leaf.service import acknowledged
 from leaf.structure import SourceDocument
 from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
@@ -434,7 +435,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     assert (example_layer / "registry.json").is_file()
     assert list((example_root / "versions").glob("v*.html"))
     assert list((example_root / "revisions").glob("r*.html"))
-    for private in ("data.json", "events.jsonl", "status.json", "cursor.json"):
+    for private in ("data.json", "events.jsonl", "status.json"):
         assert not (example_root / private).exists()
 
     notification_root = assets / "examples" / "notification-playground"
@@ -598,9 +599,10 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         seed = source.with_suffix(".jsonl")
         if seed.exists():
             assert seed.read_text() in (page_dir / "events.jsonl").read_text()
-            assert CURSOR.read(page_dir / "cursor.json") == {"seq": len(events)}
+            # The seed is history, so the page acknowledges all of it.
+            assert acknowledged(events) == len(events) - 1
         else:
-            assert not (page_dir / "cursor.json").exists()
+            assert acknowledged(events) == 0
         assert set(contracts) == {operation["source"] for operation in operations}
         for operation in operations:
             stored = data_model.source_file(page_dir, operation["source"])

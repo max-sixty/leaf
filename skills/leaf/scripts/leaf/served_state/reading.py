@@ -27,7 +27,6 @@ from ..files import STAGED, entry_stamps, file_stamp
 from ..schema import (
     DATA_DIR,
     INTERACTIONS_FILE,
-    LOG_STATE_FILES,
     PAGE_PROCESS_FILES,
     SESSION_FILES,
     USER_VIEWS_FILE,
@@ -144,8 +143,8 @@ def record_reading(page_dir: Path) -> str:
     """Name durable page inputs with the same file stamps as live readings.
 
     Claim, lease, status and browser observations belong to a serving process.
-    A dormant publication excludes them, while log acknowledgement and bound
-    external files still change what its canonical state answers.
+    A dormant publication excludes them, while bound external files still change
+    what its canonical state answers.
     """
     stamps = [
         stamp for stamp in _page_stamps(page_dir) if stamp[0] not in PAGE_PROCESS_FILES
@@ -163,16 +162,14 @@ def source_readings(page_dir: Path) -> tuple[str, str]:
     """The page's reading split in two: its source, and its history.
 
     The same stamps `page_reading` takes, less the claim and the session files
-    (`SESSION_FILES`), and its log acknowledgement (`LOG_STATE_FILES`).
-    History is `HISTORY`; source is every other stamp, so a file nothing names here
-    counts as source and moves the activation it could change. Leaving the session
-    out is what lets an agent declare its status, acknowledge a delivery, or take a
-    wait without the next state read validating the whole page again.
+    (`SESSION_FILES`). History is `HISTORY`; source is every other stamp, so a file
+    nothing names here counts as source and moves the activation it could change.
+    Leaving the session out is what lets an agent declare its status or take a wait
+    without the next state read validating the whole page again; acknowledging a
+    delivery appends to the log, which is history.
     """
     stamps = [
-        stamp
-        for stamp in _page_stamps(page_dir)
-        if stamp[0] not in (*SESSION_FILES, *LOG_STATE_FILES)
+        stamp for stamp in _page_stamps(page_dir) if stamp[0] not in SESSION_FILES
     ]
     return (
         _token([stamp for stamp in stamps if stamp[0] not in HISTORY]),

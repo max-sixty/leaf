@@ -37,6 +37,7 @@ import {
   localScrollBy,
   marks,
   nameAnchor,
+  nameable,
   refreshAnchorView,
   resolveAnchor,
   scrollAxes,
@@ -127,6 +128,7 @@ import {
   growthIsSeen,
   headerInset,
   holdStatus,
+  iconElement,
   iconTemplate,
   inUi,
   inWindowChrome,
@@ -1359,18 +1361,18 @@ function* elementsIn(root, selector) {
 }
 function markDeclared(root) {
   for (const [key, mark] of Object.entries(marks)) {
-    const { paint, authored, message } = mark;
+    const { paint: paint2, authored, message } = mark;
     if (!message) continue;
     const tags = tagsDeclaring((entry) => entry[key]);
     for (const tag of tags) {
       const declared = registry[tag][key];
       for (const el2 of elementsIn(root, tag))
-        keeps(el2, paint, declared === true || mark.presence ? "" : declared);
+        keeps(el2, paint2, declared === true || mark.presence ? "" : declared);
     }
     if (authored) {
       for (const el2 of elementsIn(root, `[${authored}]`))
         if (mark.authored_on !== "declared" || tags.includes(el2.localName))
-          keeps(el2, paint, el2.getAttribute(authored));
+          keeps(el2, paint2, el2.getAttribute(authored));
     }
   }
 }
@@ -1448,15 +1450,13 @@ function copyControl(className, { label = "", success, error }) {
   return copy;
 }
 
-// runtime/code-copy.js
-var controls = /* @__PURE__ */ new WeakMap();
-var wired = /* @__PURE__ */ new WeakMap();
-var documentCopies = document.createElement("div");
-documentCopies.className = "lf-code-copy-home";
+// runtime/block-controls.js
+var home = document.createElement("div");
+home.className = "lf-block-controls";
 var cuts = /* @__PURE__ */ new WeakMap();
 var makeCut = () => {
   const frame = document.createElement("div");
-  frame.className = "lf-code-copy-cut";
+  frame.className = "lf-block-control-cut";
   return frame;
 };
 var placed = /* @__PURE__ */ new Map();
@@ -1464,34 +1464,83 @@ var resized = 0;
 addEventListener("resize", () => {
   resized ||= nextRender(() => {
     resized = 0;
-    const read = [...placed].map(([copy, pre]) => [copy, pre, headerLevels(pre)]);
-    for (const [copy, pre, levels] of read) standUnderHeaders(copy, pre, levels);
+    const read = [...placed].map(([control, block]) => [
+      control,
+      block,
+      headerLevels(block)
+    ]);
+    for (const [control, block, levels] of read) standInChrome(control, block, levels);
   });
 });
-function standUnderHeaders(copy, pre, levels) {
-  const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
-  cuts.set(copy, frames);
-  placed.set(copy, pre);
-  if (documentCopies.parentNode !== chromeRoot) move(chromeRoot, documentCopies, null);
-  if (frames[0] && frames[0].parentNode !== documentCopies)
-    move(documentCopies, frames[0], null);
-  const home = frames.at(-1) ?? documentCopies;
-  if (copy.parentNode !== home) move(home, copy, null);
+function standInChrome(control, block, levels) {
+  const frames = cutFrames(levels, cuts.get(control) ?? [], makeCut);
+  cuts.set(control, frames);
+  placed.set(control, block);
+  if (home.parentNode !== chromeRoot) move(chromeRoot, home, null);
+  if (frames[0] && frames[0].parentNode !== home) move(home, frames[0], null);
+  const frame = frames.at(-1) ?? home;
+  if (control.parentNode !== frame) move(frame, control, null);
 }
-var revealed = (pre, copy) => {
-  if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
-  const box = pre.getBoundingClientRect();
-  const at = anchorBox(pre);
-  for (const [property, length] of [
-    ["--lf-code-copy-dx", box.left - at.left],
-    ["--lf-code-copy-dy", box.top - at.top]
-  ]) {
+function anchorControl(control, block) {
+  const place2 = () => control.classList.toggle(
+    "lf-block-control-away",
+    !anchorView(control, block, place2)
+  );
+  return {
+    control,
+    near: anchorView(control, block, place2),
+    anchor: anchorReading(block)
+  };
+}
+function aimControl({ control, near, anchor }) {
+  control.classList.toggle("lf-block-control-away", !near);
+  const name = nameAnchor(anchor);
+  if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
+  return control;
+}
+function readInsets(block) {
+  const box = block.getBoundingClientRect();
+  const at = anchorBox(block);
+  return { dx: box.left - at.left, dy: box.top - at.top };
+}
+function writeInsets(control, { dx, dy }) {
+  for (
+    const [property, length] of
+    /** @type {[string, number][]} */
+    [
+      ["--lf-block-control-dx", dx],
+      ["--lf-block-control-dy", dy]
+    ]
+  ) {
     const value = length ? layoutPx(length) : "";
-    if (copy.style.getPropertyValue(property) !== value)
-      copy.style.setProperty(property, value);
+    if (control.style.getPropertyValue(property) !== value)
+      control.style.setProperty(property, value);
   }
-  refreshAnchorView(copy);
-};
+}
+function revealControl(control, block) {
+  if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
+  writeInsets(control, readInsets(block));
+  refreshAnchorView(control);
+}
+function tabFromBlock(control, block, signal) {
+  control.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key === "Tab") focusDestination(block, "step");
+    },
+    { signal }
+  );
+}
+function releaseControl(control) {
+  control.remove();
+  cuts.get(control)?.[0]?.remove();
+  cuts.delete(control);
+  placed.delete(control);
+}
+
+// runtime/code-copy.js
+var controls = /* @__PURE__ */ new WeakMap();
+var wired = /* @__PURE__ */ new WeakMap();
 var COPY_SCOPE = /* @__PURE__ */ Symbol("code copy");
 var pressedPath = /* @__PURE__ */ new WeakSet();
 addEventListener(
@@ -1504,7 +1553,7 @@ addEventListener(
 onStanding((node) => {
   for (let at = node; at; at = upFrom(at)) {
     const copy = controls.get(at);
-    if (copy) return revealed(at, copy);
+    if (copy) return revealControl(copy, at);
   }
 });
 function prepareCodeBlock(pre, source, noun) {
@@ -1529,18 +1578,10 @@ function prepareCodeBlock(pre, source, noun) {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");
     });
-    pre.addEventListener("pointerenter", () => revealed(pre, copy));
+    pre.addEventListener("pointerenter", () => revealControl(copy, pre));
     controls.set(pre, copy);
   }
-  const place2 = () => copy.classList.toggle("lf-code-copy-away", !anchorView(copy, pre, place2));
-  const near = anchorView(copy, pre, place2);
-  return { copy, near, anchor: anchorReading(pre) };
-}
-function positionCodeBlock({ copy, near, anchor }) {
-  copy.classList.toggle("lf-code-copy-away", !near);
-  const name = nameAnchor(anchor);
-  if (copy.style.positionAnchor !== name) copy.style.positionAnchor = name;
-  return copy;
+  return anchorControl(copy, pre);
 }
 function declareCopy(pre, copy, noun) {
   projectCommandScope(
@@ -1558,7 +1599,7 @@ function declareCopy(pre, copy, noun) {
   );
 }
 function copyBlock(block, source, noun) {
-  const copy = positionCodeBlock(prepareCodeBlock(block, source, noun));
+  const copy = aimControl(prepareCodeBlock(block, source, noun));
   declareCopy(block, copy, noun);
   return copy;
 }
@@ -1580,8 +1621,8 @@ function watchCodeBlocks() {
         )
       );
       for (const [pre, pending, levels] of prepared) {
-        const copy = positionCodeBlock(pending);
-        standUnderHeaders(copy, pre, levels);
+        const copy = aimControl(pending);
+        standInChrome(copy, pre, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {
@@ -1589,13 +1630,7 @@ function watchCodeBlocks() {
           wired.set(pre, events);
           declareCopy(pre, copy, "code");
           const options = { signal: events.signal };
-          copy.addEventListener(
-            "keydown",
-            (event) => {
-              if (event.key === "Tab") focusDestination(pre, "step");
-            },
-            options
-          );
+          tabFromBlock(copy, pre, events.signal);
           pre.addEventListener(
             "pointerenter",
             () => copy.classList.add("lf-code-copy-hover"),
@@ -1625,10 +1660,7 @@ function watchCodeBlocks() {
       const copy = controls.get(pre);
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
-      copy?.remove();
-      cuts.get(copy)?.[0]?.remove();
-      cuts.delete(copy);
-      placed.delete(copy);
+      if (copy) releaseControl(copy);
       releaseReachStop(pre);
       projectCommandScope(pre, COPY_SCOPE, null);
     }
@@ -2125,6 +2157,184 @@ function loadMarkdown(onError = null) {
   });
 }
 
+// runtime/video-controls.js
+var PLAYER = PAGE_PAINT_ATTRIBUTE.player;
+var SCOPE = /* @__PURE__ */ Symbol("recording");
+var STEP_SECONDS = 5;
+var players = /* @__PURE__ */ new Map();
+var clock = (seconds) => {
+  const whole = Math.floor(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+};
+var duration = (video) => Number.isFinite(video.duration) ? video.duration : 0;
+function toggle(video) {
+  if (!video.paused) return video.pause();
+  video.play().catch((error) => {
+    if (error.name !== "AbortError") throw error;
+  });
+}
+function paintTime({ video, time }) {
+  const at = String(video.currentTime);
+  if (time.value !== at) time.value = at;
+  keeps(
+    time,
+    "aria-valuetext",
+    `${clock(video.currentTime)} of ${clock(duration(video))}`
+  );
+}
+function paint(player) {
+  const { video, bar, play, time } = player;
+  const playing = !video.paused;
+  bar.classList.toggle("lf-video-playing", playing);
+  keeps(play, "aria-label", playing ? "Pause recording" : "Play recording");
+  keeps(time, "max", String(duration(video)));
+  keeps(time, "disabled", duration(video) ? null : "");
+  paintTime(player);
+}
+function prepare(video) {
+  const bar = offer("div", "lf-video-controls");
+  const play = offer("button", "lf-video-play");
+  play.tabIndex = -1;
+  play.append(
+    iconElement("play", "lf-video-icon"),
+    iconElement("pause", "lf-video-icon")
+  );
+  const time = offer("input", "lf-video-time", void 0, "range");
+  time.tabIndex = -1;
+  time.min = "0";
+  time.step = "any";
+  keeps(time, "aria-label", "Recording position");
+  bar.append(play, time);
+  keeps(bar, "role", "group");
+  keeps(bar, "aria-label", video.getAttribute("aria-label") || "Recording");
+  const player = {
+    video,
+    bar,
+    play,
+    time,
+    authoredTabindex: video.getAttribute("tabindex"),
+    events: new AbortController(),
+    /** @type {ReturnType<typeof commandScope> | null} */
+    scope: null
+  };
+  const { signal } = player.events;
+  const on = (target, type, listener) => target.addEventListener(type, listener, { signal });
+  for (const type of ["play", "pause", "ended", "loadedmetadata", "durationchange"])
+    on(video, type, () => paint(player));
+  on(video, "seeked", () => paintTime(player));
+  on(video, "timeupdate", () => paintTime(player));
+  let frame = 0;
+  const followFrames = () => {
+    paintTime(player);
+    frame = video.paused || signal.aborted ? 0 : video.requestVideoFrameCallback(followFrames);
+  };
+  on(video, "playing", () => {
+    if (frame) video.cancelVideoFrameCallback(frame);
+    frame = video.requestVideoFrameCallback(followFrames);
+  });
+  on(video, "click", (event) => {
+    if (plainPress(event)) toggle(video);
+  });
+  on(time, "input", () => video.currentTime = Number(time.value));
+  const show = (flag, force) => {
+    if (force) revealControl(bar, video);
+    bar.classList.toggle(flag, force);
+  };
+  on(video, "pointerenter", () => show("lf-video-hover", true));
+  on(video, "pointerleave", () => show("lf-video-hover", false));
+  on(video, "focus", () => show("lf-video-keyed", video.matches(":focus-visible")));
+  on(video, "blur", () => show("lf-video-keyed", false));
+  tabFromBlock(bar, video, signal);
+  player.scope = commandScope("On a recording", [
+    {
+      id: "recording.play",
+      keys: [" "],
+      title: () => video.paused ? "play recording" : "pause recording",
+      // The register runs the command when its control is pressed.
+      control: play,
+      run: () => {
+        if (focused() === video) show("lf-video-keyed", true);
+        toggle(video);
+      }
+    },
+    {
+      id: "recording.step",
+      keys: ["ArrowLeft", "ArrowRight"],
+      routes: [
+        {
+          id: "recording.back",
+          binding: "ArrowLeft",
+          title: `back ${STEP_SECONDS} seconds`
+        },
+        {
+          id: "recording.forward",
+          binding: "ArrowRight",
+          title: `forward ${STEP_SECONDS} seconds`
+        }
+      ],
+      title: `back / forward ${STEP_SECONDS} seconds`,
+      repeat: true,
+      run: (binding) => {
+        show("lf-video-keyed", true);
+        const step = binding === "ArrowLeft" ? -STEP_SECONDS : STEP_SECONDS;
+        video.currentTime = Math.min(
+          duration(video),
+          Math.max(0, video.currentTime + step)
+        );
+      }
+    }
+  ]);
+  players.set(video, player);
+  return player;
+}
+function trade(player) {
+  const { video, scope } = player;
+  projectCommandScope(video, SCOPE, scope);
+  keeps(video, PLAYER, "");
+  keeps(video, "controls", null);
+  if (player.authoredTabindex === null) keeps(video, "tabindex", "0");
+  paint(player);
+}
+function giveBack(video) {
+  const player = players.get(video);
+  if (!player) return;
+  players.delete(video);
+  player.events.abort();
+  releaseControl(player.bar);
+  projectCommandScope(video, SCOPE, null);
+  keeps(video, "tabindex", player.authoredTabindex);
+  keeps(video, "controls", "");
+  keeps(video, PLAYER, null);
+}
+function watchVideos() {
+  const root = document.documentElement;
+  const fallenBack = () => !root.hasAttribute("data-lf-interactive");
+  new MutationObserver(() => {
+    if (fallenBack()) for (const video of [...players.keys()]) giveBack(video);
+  }).observe(root, { attributes: true, attributeFilter: ["data-lf-interactive"] });
+  watchArrivals(`video[controls], video[${PLAYER}]`, [], {
+    arriveBatch(videos) {
+      if (fallenBack()) return;
+      const read = videos.filter(nameable).map((video) => {
+        const player = players.get(video) ?? prepare(video);
+        return {
+          player,
+          reading: anchorControl(player.bar, video),
+          levels: headerLevels(video),
+          insets: readInsets(video)
+        };
+      });
+      for (const { player, reading, levels, insets } of read) {
+        aimControl(reading);
+        writeInsets(player.bar, insets);
+        standInChrome(player.bar, player.video, levels);
+        trade(player);
+      }
+    },
+    leave: giveBack
+  });
+}
+
 // runtime/widget-imports.js
 function registeredTags(scope, registry3) {
   const tags = /* @__PURE__ */ new Set([
@@ -2250,6 +2460,7 @@ async function installDocument(scope) {
     commitWidgetDescriptors(descriptors);
     watchExternalLinks();
     watchCodeBlocks();
+    watchVideos();
     await importWidgets(scope);
     await settle(presentation, scope, [scope], whenApplicationPresented);
   } finally {
@@ -3134,9 +3345,9 @@ function threadRewrites({
   thread,
   views: views3,
   send,
-  paint,
+  paint: paint2,
   box,
-  home,
+  home: home2,
   opening = () => {
   },
   landInThread,
@@ -3152,7 +3363,7 @@ function threadRewrites({
   };
   return {
     edit: {
-      paint,
+      paint: paint2,
       send,
       // The rung above a rewrite is the thread's reply box, where ↑ came from, while it
       // is in view; a thread showing none, as a resolved one or a margin card not
@@ -3167,7 +3378,7 @@ function threadRewrites({
         };
         const input = shown();
         if (input) return landInThread(input);
-        landSent(home(message));
+        landSent(home2(message));
         const mayLand = retainUserIntent();
         void whenDocumentPresented().then(() => {
           const drawn3 = shown();
@@ -3203,7 +3414,7 @@ var MessageEditor = class {
   #reveal;
   #settling = null;
   #follow;
-  constructor(id, view, { wireInput, said: said2, base: currentBase, send, land: land2, paint, previous, reveal }) {
+  constructor(id, view, { wireInput, said: said2, base: currentBase, send, land: land2, paint: paint2, previous, reveal }) {
     const ctx = rewriteContext(id);
     let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
@@ -3241,7 +3452,7 @@ var MessageEditor = class {
       if (landing) land2();
       this.#stop();
       closeMessageEdit(id, { discard });
-      if (painting) paint();
+      if (painting) paint2();
       if (says) announce(says);
     };
     const close = () => leave(true, {
@@ -3250,7 +3461,7 @@ var MessageEditor = class {
     const putAside = () => {
       if (!unchanged()) return;
       leave(true, { landing: false, painting: false });
-      afterScript(paint);
+      afterScript(paint2);
     };
     this.#putAside = putAside;
     const sync = wireInput(this.input, {
@@ -3276,7 +3487,7 @@ var MessageEditor = class {
           sending.delete(id);
         }
         if (sent) forgetWritingPlace(ctx);
-        paint();
+        paint2();
       },
       rows: [
         {
@@ -4358,7 +4569,7 @@ function rowWalk({
   landed,
   scroll = true
 }) {
-  const [up, down, home, end] = steps;
+  const [up, down, home2, end] = steps;
   const route = (binding, step) => ({
     id: `${id}.${step}`,
     binding,
@@ -4387,8 +4598,8 @@ function rowWalk({
     {
       id: `${id}.edge`,
       keys: ["Home", "End"],
-      routes: [route("Home", home), route("End", end)],
-      title: `${home} / ${end}`,
+      routes: [route("Home", home2), route("End", end)],
+      title: `${home2} / ${end}`,
       run: (binding) => land2((list) => binding === "Home" ? list[0] : list.at(-1))
     }
   ];
@@ -5819,11 +6030,11 @@ var Transcript = class {
    * @param {() => HTMLElement} options.home The drawing of the thread a disclosure
    *   press keeps in view.
    */
-  constructor({ commands: commands2, messageCommands, repaint: repaint2, home }) {
+  constructor({ commands: commands2, messageCommands, repaint: repaint2, home: home2 }) {
     this.#commands = commands2;
     this.#messageCommands = messageCommands;
     this.#repaint = repaint2;
-    this.#home = home;
+    this.#home = home2;
     this.node = document.createElement("div");
     this.node.className = "lf-thread-transcript";
     this.#working.className = "lf-thread-working";
@@ -5967,10 +6178,10 @@ var Transcript = class {
           message.key,
           view = new MessageView(this.#messageCommands)
         );
-      const toggle = progressByReply.has(message.id) ? this.#summaryToggle(progressByReply.get(message.id), true) : nothing;
+      const toggle2 = progressByReply.has(message.id) ? this.#summaryToggle(progressByReply.get(message.id), true) : nothing;
       view.present(message, {
         arrived,
-        headerControls: notice2 && message === lead ? html`${notice2}${toggle}` : toggle
+        headerControls: notice2 && message === lead ? html`${notice2}${toggle2}` : toggle2
       });
       keeps(
         view.node,
@@ -6083,12 +6294,12 @@ var Transcript = class {
       else this.#expandedSummaries.delete(id);
     }
     this.#repaint();
-    const toggle = this.node.querySelector(
+    const toggle2 = this.node.querySelector(
       `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`
     );
-    if (toggle) {
-      focusDestination(toggle, "return");
-      scrollThreadIntoView(this.#home(), toggle, "instant");
+    if (toggle2) {
+      focusDestination(toggle2, "return");
+      scrollThreadIntoView(this.#home(), toggle2, "instant");
     }
   }
   commit() {
@@ -7127,11 +7338,11 @@ function renderSurfaces(collection, placements, commands2) {
   };
   const activeComposition = commands2.composition.active();
   let prepared = null;
-  const completion = prepare().then((plans) => {
+  const completion = prepare2().then((plans) => {
     prepared = plans;
   });
   return { completion, cancel, commit };
-  async function prepare() {
+  async function prepare2() {
     const plans = [];
     const ordered = [...registrations.values()].sort(
       (a, b) => Number(a.kind === "page") - Number(b.kind === "page")

@@ -6836,6 +6836,11 @@ function createFloatingPanel({
     ))
       return;
     outline = next;
+    setRuntimeRootStyle(
+      document.documentElement,
+      "--lf-panel-reach",
+      layoutPx(rect2.height > 0 ? room.bottom - rect2.top : 0)
+    );
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     const lift = getComputedStyle(ground);
     const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);

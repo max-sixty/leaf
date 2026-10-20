@@ -122,7 +122,8 @@ import {
 import { el, reveal } from "./widget-elements.js";
 import { iconElement, iconTemplate } from "./icons.js";
 import { copyControl } from "./copy-control.js";
-import { keeps, keepsHidden, keepsText } from "./keeps.js";
+import { keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
+import { setRuntimeRootStyle } from "./root-state.js";
 import {
   approvalReading,
   approve,
@@ -392,7 +393,8 @@ export function createFloatingPanel({
   // The row stands over the window's foot, so what the page reveals stands clear of it.
   // A view opened above it is itself read, and stands over the page only while it is
   // used, so it leaves the page's room alone; but what it stands over is hidden while it
-  // does (`declareOccluder`).
+  // does (`declareOccluder`), and a landing stands clear of it (`--lf-panel-reach`,
+  // `followBox`).
   declareWindowChrome(() => {
     const box = row.getBoundingClientRect();
     return box.width > 0 && box.height > 0 ? [box] : [];
@@ -1059,6 +1061,16 @@ export function createFloatingPanel({
     )
       return;
     outline = next;
+    // How far the box reaches up from the window's foot, which the root's
+    // `scroll-padding-bottom` keeps every landing clear of (theme.css), so `m`, `t`, a
+    // Go-to or an On me row's Show lands what it reaches above an open view rather than
+    // under it. The browser's own reveals read the same padding. CSS can't size the
+    // root's padding from a fixed box in the chrome's shadow tree, so the box states it.
+    setRuntimeRootStyle(
+      document.documentElement,
+      "--lf-panel-reach",
+      layoutPx(rect.height > 0 ? room.bottom - rect.top : 0),
+    );
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
     // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
     // blur dropped by its drop, theme.css), so it stands over nothing else in the window:

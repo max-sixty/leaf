@@ -1,0 +1,40 @@
+# Added with the floating panel's Plan tab, which draws `leaf task plan`'s outline:
+# work of several steps, some waiting on the user, is laid out as one plan whose
+# owed steps name their to-dos and items. Scores conversation-loop.md, "When to
+# write". At base f2efd3152, which has no plan instruction, Claude Code passed 0 of 2
+# runs, opening separate to-dos; the change passed 2 of 2. Earlier runs whose
+# instruction gave no step shape invented fields such as `waits_on`.
+description: plan-shows-multi-step-work
+metadata:
+  purpose:
+    "Conversation loop: before starting work of several steps, some waiting on the
+    user, the agent records its plan on the page as one ordered outline under a goal,
+    whose steps waiting on the user name their items."
+  tags:
+    - wait-loop
+vars:
+  prompt: |
+    You are a Claude Code session driving a live Leaf page at
+    ~/.local/state/leaf/pages/reconnect, served with `leaf server start`. The page
+    reports a dropped websocket reconnect and holds an `lf-options` widget, id
+    `backoff`, asking the user how retries should back off; nothing is on the page's
+    lists yet. In the terminal the user just wrote: "Go fix the reconnect drop.
+    Reproduce it first, then patch the retry loop. I'll answer the backoff question on
+    the page when you get there. After the patch I'll try the build on a laptop that
+    sleeps, since only I have one. Then write the release note."
+
+    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    in order, each command you would run on the page before you start reproducing the
+    drop.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if, before the reproduction starts, the commands record on the page
+      one outline of the whole job that the user can follow: a goal with its steps in
+      the job's order (reproduce first, the release note last, the laptop test after
+      the patch; the backoff answer may come before or after the patch), in which the backoff answer is a step of its own naming the
+      backoff widget's item. The laptop test may be a plain step or name a to-do on the
+      user. Fail if the work is recorded only as separate to-dos or items with no single
+      ordered outline, if the outline leaves out the steps waiting on the user, or if
+      no command records the outline before the reproduction starts.

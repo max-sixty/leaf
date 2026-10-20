@@ -78,6 +78,15 @@ leaf task end <page> <todo> done "<where the result is>"
 refuses. Housekeeping such as re-vendoring, restarting the server, or merging needs
 no to-do.
 
+When the work runs to several steps, some of which may wait on the user, write your plan
+so the user can follow it in the panel's Plan tab: the goal, its steps in order, the one
+under way, and those waiting on them. `leaf task plan <page>` takes the whole outline as
+a JSON list of steps: the goal at depth 0, each step one deeper than the step it belongs
+to, and each either a `title` and `state` or the `item` it names. Make each step that
+stays owed past your turn a to-do or item the plan names by id, so it follows that
+item's state; a plain step's state is yours to keep current. Write the plan again when a
+step finishes or the breakdown changes.
+
 When input arrives:
 
 1. If the delivery's `acknowledge` names a receipt command, run it first. If it is

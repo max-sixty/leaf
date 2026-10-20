@@ -2108,6 +2108,8 @@ function createSemanticApplication({
         gestured: [...new Set(unresolved.flatMap(threadsOfEntry))]
       },
       items: { phase, ...items },
+      // The agent's plan in force, as the server read it (`plans.plan_reading`).
+      plan: ready ? state?.browser.plan ?? null : null,
       // On me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {

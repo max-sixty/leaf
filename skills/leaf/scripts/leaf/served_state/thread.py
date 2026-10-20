@@ -132,7 +132,7 @@ def browser_thread(
                 thread
                 for thread in rendered_threads
                 if any(
-                    message["id"] == live_reply.get("reply_to")
+                    message["id"] == live_reply.get("parent")
                     for message in thread["msgs"]
                 )
             ),
@@ -151,7 +151,7 @@ def browser_thread(
                     "addressable": False,
                     "author": "agent",
                     "agent": live_reply["agent"],
-                    "parent": live_reply["reply_to"],
+                    "parent": live_reply["parent"],
                     "text": live_reply.get("text", ""),
                     "ts": live_reply["ts"],
                     "pending": live_reply.get("state") == "active",

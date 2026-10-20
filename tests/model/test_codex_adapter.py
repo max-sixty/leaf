@@ -390,7 +390,7 @@ def test_embedded_codex_delivery_abandons_only_its_mutable_delivery_record(page_
     codex_model.abandon_codex_delivery("hosted-thread", first["id"])
     thread_model.post_reply(
         page_dir,
-        {"to": first["id"], "for": first["id"]},
+        {"parent": first["id"], "responds": first["id"]},
         "try again later",
         identity={"agent": "Leaf guide", "session": "website-agent"},
     )
@@ -415,7 +415,7 @@ def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
     first = events_model.read_events(page_dir)[-1]
     thread_model.post_reply(
         page_dir,
-        {"to": first["id"], "for": first["id"]},
+        {"parent": first["id"], "responds": first["id"]},
         "try again later",
         identity={"agent": "Leaf guide", "session": "website-agent"},
     )
@@ -434,7 +434,7 @@ def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
     delivered_events = payload["batches"][0]["events"]
     assert [event["text"] for event in delivered_events] == ["first", "second"]
     assert "answer" not in delivered_events[0]
-    assert delivered_events[1]["answer"]["for"] == delivered_events[1]["id"]
+    assert delivered_events[1]["answer"]["responds"] == delivered_events[1]["id"]
 
 
 def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
@@ -1350,7 +1350,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page,
-            {"to": comment["id"], "for": comment["id"]},
+            {"parent": comment["id"], "responds": comment["id"]},
             "Competing reply",
             identity={"agent": "Codex", "session": "codex-thread"},
         )
@@ -1391,7 +1391,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     assert service_model.page_claim(page) == claim
     accepted = thread_model.post_reply(
         page,
-        {"to": comment["id"], "for": comment["id"]},
+        {"parent": comment["id"], "responds": comment["id"]},
         "Recovered outside the failed provider turn",
         identity={"agent": "Codex", "session": "codex-thread"},
     )

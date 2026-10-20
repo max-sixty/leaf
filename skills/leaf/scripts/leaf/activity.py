@@ -75,7 +75,7 @@ def _reply_evidence(reply: dict) -> dict:
     """Keep response settlement evidence in activity without duplicating its text."""
     return {
         key: reply.get(key)
-        for key in ("state", "session", "turn", "reply_to", "responds", "settles")
+        for key in ("state", "session", "turn", "parent", "responds", "settles")
     } | {
         **({"attempt": reply["attempt"]} if reply.get("attempt") else {}),
         "has_text": bool(reply.get("text")),
@@ -187,7 +187,7 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     )
     return (
         "`leaf response reply <answer.ref>` with the `answer.ref` that "
-        f"`leaf wait {page_dir}` delivers for {answer['for']}{claim}"
+        f"`leaf wait {page_dir}` delivers for {answer['responds']}{claim}"
     )
 
 

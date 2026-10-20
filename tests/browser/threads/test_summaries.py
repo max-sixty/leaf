@@ -53,7 +53,7 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     )
     reply = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Choose the first job.",
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
@@ -114,7 +114,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     )
     first = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "The first job establishes the dependency.",
     )
     middle = append_user_reply(
@@ -244,7 +244,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Checking the camera.",
         ephemeral=True,
     )
@@ -263,7 +263,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         owed = intervening["id"]
         folded = thread_model.post_reply(
             serve.page_dir,
-            {"to": owed, "for": owed},
+            {"responds": owed},
             "Checking the mount.",
             ephemeral=True,
         )
@@ -282,7 +282,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     expect(card.locator(".lf-thread-working").get_by_role("button")).to_have_count(0)
 
     answer = thread_model.post_reply(
-        serve.page_dir, {"to": owed, "for": owed}, "The schedule works."
+        serve.page_dir, {"responds": owed}, "The schedule works."
     )
     told(page)
     card.get_by_role("button", name="1 new reply", exact=True).click()
@@ -349,7 +349,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     root = roots[0]
     progress = [
         thread_model.post_reply(
-            serve.page_dir, {"to": root, "for": root}, text, ephemeral=True
+            serve.page_dir, {"responds": root}, text, ephemeral=True
         )
         for text in (
             "I'm checking the afternoon schedule against the break.",
@@ -359,7 +359,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     ]
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Three sessions, a fifteen-minute break, and the closing discussion fit before five.",
     )
     context = browser.new_context(
@@ -510,7 +510,9 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
     )
     reply = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "The constraint still applies."
+        serve.page_dir,
+        {"responds": root},
+        "The constraint still applies.",
     )
     end = reply["id"]
     for number in range(count - 2):
@@ -598,7 +600,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
         serve.page_dir, "Start with the measured constraint.", {"section": "how-store"}
     )
     first = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "The first constraint."
+        serve.page_dir, {"responds": root}, "The first constraint."
     )
     second = append_agent_reply(serve.page_dir, root, "The second constraint.")
     third = append_agent_reply(serve.page_dir, root, "The third constraint.")

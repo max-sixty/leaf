@@ -1082,14 +1082,14 @@ def test_a_watch_does_not_reopen_for_answered_unreceived_input(
     )
     thread_model.post_reply(
         claimed,
-        {"to": source["id"], "for": source["id"]},
+        {"parent": source["id"], "responds": source["id"]},
         "done",
         failure="turn_failed" if failure else None,
     )
     if failure == "recovered":
         thread_model.post_reply(
             claimed,
-            {"to": source["id"], "for": source["id"]},
+            {"parent": source["id"], "responds": source["id"]},
             "recovered answer",
             settlement=thread_model.ProviderFinal("test-final"),
         )

@@ -34,7 +34,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "I changed the route.",
         markup='<lf-ask id="route-answers">Does this answer your question?</lf-ask>',
     )
@@ -73,7 +73,7 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "The agent turn ended before completion.",
         failure="turn_failed",
         attempt="response-failed-attempt",
@@ -98,7 +98,13 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.set_status("waiting", "User feedback")
         transaction.set_stream_reply(
-            "codex-thread", "leaf-turn", root, root, attempt, None, "Draft", "active"
+            "codex-thread",
+            "leaf-turn",
+            {"parent": root, "responds": root},
+            attempt,
+            None,
+            "Draft",
+            "active",
         )
     page = open_page(browser, url)
     said(page).not_to_have_attribute(

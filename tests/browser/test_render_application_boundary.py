@@ -245,7 +245,7 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
     )
     answer = thread_model.post_reply(
         serve.page_dir,
-        {"to": question["id"], "for": question["id"]},
+        {"responds": question["id"]},
         "The roof comes first.",
     )
     told(page)

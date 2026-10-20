@@ -316,17 +316,32 @@ function reachReadingScroller(el) {
     if (!watched(el)) unwatchReach(el);
     el.removeEventListener("scroll", readingScrolled);
     afterScript(() => {
-      if (!downwards.has(el)) el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
+      if (!downwards.has(el)) keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
     });
   };
 }
+var readingPaints = /* @__PURE__ */ new Set();
+var readingPaintQueued = false;
 function paintReadingReach(el) {
-  afterScript(() => {
-    if (!downwards.has(el) || unpainted(el)) return;
+  readingPaints.add(el);
+  if (readingPaintQueued) return;
+  readingPaintQueued = true;
+  nextRender(paintReadingReachNow);
+}
+function paintReadingReachNow() {
+  readingPaintQueued = false;
+  const pending = [...readingPaints];
+  readingPaints.clear();
+  for (const el of pending) {
+    if (!downwards.has(el) || unpainted(el)) continue;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
-    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow, scrolling && !atScrollEnd(el));
-  });
+    keeps(
+      el,
+      PAGE_PAINT_ATTRIBUTE.moreBelow,
+      scrolling && !atScrollEnd(el) ? "" : null
+    );
+  }
 }
 var waiting = /* @__PURE__ */ new Set();
 function reachScrollers(root) {

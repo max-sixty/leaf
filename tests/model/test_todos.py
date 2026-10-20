@@ -1568,7 +1568,7 @@ def test_a_start_names_the_exact_move_and_covers_its_threads_answer(page_dir):
         {"kind": "reply", "author": "user", "parent": first["id"], "text": "A1."},
     )
     [workflow] = owed_answers(page_dir)
-    assert workflow["answer"]["to"] == answer["id"]
+    assert workflow["answer"]["parent"] == answer["id"]
 
     started = _start(page_dir, answer["id"], "Answering the comment")
     assert started.exit_code == 0, started.output

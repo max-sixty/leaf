@@ -60,8 +60,8 @@ Events keep their stored fields and log order, without the browser's retry key
   `suggestion: true` beside it means the message is a suggestion, so its new `text`
   is the exact replacement it proposes.
 - `answer`: the response the event owes. A `kind: "reply"` answer is a thread reply,
-  written with `leaf response reply <answer.ref>` ([threads](threads.md)); `to`
-  names the thread and `for` the input it answers. A `kind: "markup"` answer is the
+  written with `leaf response reply <answer.ref>` ([threads](threads.md)); `parent`
+  names the message it threads under and `responds` the exact input it answers. A `kind: "markup"` answer is the
   page revision its `handling` names, and a reply does not replace it. Until the
   answer is written, `leaf status idle` refuses, and the Stop hook holds the turn
   open unless the turn started the update (`references/conversation-loop.md`,

@@ -512,10 +512,10 @@ def test_a_delivered_reply_carries_the_thread_it_lands_in(page_dir, capsys):
     assert session_model.cmd_wait(page_dir) == 0
     _, header, shown = delivered(capsys)
     assert [e["id"] for e in shown] == [followed["id"]]
-    assert {key: shown[0]["answer"][key] for key in ("kind", "to", "for")} == {
+    assert {key: shown[0]["answer"][key] for key in ("kind", "parent", "responds")} == {
         "kind": "reply",
-        "to": followed["id"],
-        "for": followed["id"],
+        "parent": followed["id"],
+        "responds": followed["id"],
     }
     assert delivery_model.response_address(shown[0]["answer"]["ref"])["page"] == str(
         page_dir
@@ -773,8 +773,8 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     assert shown[0]["threads"] == [origin["id"], target["id"]]
     assert shown[0]["answer"] == {
         "kind": "reply",
-        "to": origin["id"],
-        "for": accepted["id"],
+        "parent": origin["id"],
+        "responds": accepted["id"],
         "ref": f"{payload['id']}:0:{accepted['id']}",
         "writer": "agent",
     }
@@ -790,7 +790,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
 
     reply = thread_model.post_reply(
         page_dir,
-        {"to": origin["id"], "for": accepted["id"]},
+        {"parent": origin["id"], "responds": accepted["id"]},
         "Applied the accepted wording.",
     )
     assert reply["parent"] == origin["id"]

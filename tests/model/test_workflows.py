@@ -88,7 +88,10 @@ def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
         (second["id"], f"update:{second['id']}"),
     ]
     assert [(item["input"], item["answer"]) for item in owed_answers(page_dir)] == [
-        (second["id"], {"kind": "reply", "to": second["id"], "for": second["id"]})
+        (
+            second["id"],
+            {"kind": "reply", "parent": second["id"], "responds": second["id"]},
+        )
     ]
 
     append_carried_log_record(
@@ -115,7 +118,7 @@ def test_terminal_harness_failure_keeps_exact_user_recovery_without_stop_obligat
     )
     failure = thread_model.post_reply(
         page_dir,
-        {"to": source["id"], "for": source["id"]},
+        {"parent": source["id"], "responds": source["id"]},
         "The agent's turn ended without an answer. Send it again to retry.",
         failure="turn_failed",
     )
@@ -168,7 +171,7 @@ def test_user_resend_clears_terminal_failure_recovery(page_dir):
     )
     failure = thread_model.post_reply(
         page_dir,
-        {"to": first["id"], "for": first["id"]},
+        {"parent": first["id"], "responds": first["id"]},
         "The agent's turn ended without an answer. Send it again to retry.",
         failure="turn_failed",
     )
@@ -229,7 +232,7 @@ def test_answering_an_older_input_leaves_the_newer_response_obligation(page_dir)
         f"update:{second['id']}",
     )
     assert [
-        (item["input"], item["answer"]["for"]) for item in owed_answers(page_dir)
+        (item["input"], item["answer"]["responds"]) for item in owed_answers(page_dir)
     ] == [(second["id"], second["id"])]
 
 
@@ -384,7 +387,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     )
     # The move owes a reply in its thread, and the agent starts the move itself.
     [owed] = owed_answers(page_dir)
-    assert owed["answer"]["to"] == asked["id"]
+    assert owed["answer"]["parent"] == asked["id"]
     claimed = _start(page_dir, answered["id"], "Checking East")
     assert claimed.exit_code == 0, claimed.output
 
@@ -783,7 +786,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "state": "active",
         "session": "session-1",
         "turn": "turn-1",
-        "reply_to": "input-1",
+        "parent": "input-1",
         "responds": "input-1",
         "settles": False,
         "text": "Fresh response",
@@ -867,15 +870,15 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
     assert before == [chose["id"], newer["id"]]
 
     replied = thread_model.post_reply(
-        page_dir, {"to": asked["id"], "for": chose["id"]}, "East noted."
+        page_dir, {"parent": asked["id"], "responds": chose["id"]}, "East noted."
     )
     assert replied["responds"] == chose["id"]
     after = state_json(page_dir)
     assert [item["input"] for item in owed(after)] == [newer["id"]]
     assert owed(after)[0]["answer"] == {
         "kind": "reply",
-        "to": newer["id"],
-        "for": newer["id"],
+        "parent": newer["id"],
+        "responds": newer["id"],
     }
 
 
@@ -966,6 +969,6 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     assert [item["input"] for item in owed(state_json(page_dir))] == [answered["id"]]
 
     thread_model.post_reply(
-        page_dir, {"to": asked["id"], "for": answered["id"]}, "East noted."
+        page_dir, {"parent": asked["id"], "responds": answered["id"]}, "East noted."
     )
     assert owed(state_json(page_dir)) == []

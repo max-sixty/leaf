@@ -57,69 +57,43 @@ from leaf.refusals import Refused
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
-    """A turn binds its messages to the delivery's one `turn` answer. A plain
-    `reply` is `leaf thread reply`'s even when a turn Leaf observes picks the delivery up,
-    as it does a pointer queued before Leaf observed the task."""
+    """Only a sole turn-written reply binds the provider final; keep its captured address."""
 
-    def payload(*answers):
-        return {
-            "id": "delivery-1",
-            "batches": [
-                {
-                    "page": "/tmp/page",
-                    "claim": None,
-                    "events": [
-                        {"id": f"input-{index}", "seq": index + 1, "answer": answer}
-                        for index, answer in enumerate(answers)
-                    ],
-                }
-            ],
-        }
+    def selected(*answers):
+        return codex_model.stream_reply_target(
+            {
+                "batches": [
+                    {
+                        "page": "/tmp/page",
+                        "claim": None,
+                        "events": [
+                            {"id": f"input-{index}", "seq": index + 1, "answer": answer}
+                            for index, answer in enumerate(answers)
+                        ],
+                    }
+                ],
+            }
+        )
 
-    def turn(to, event):
-        return {
-            "kind": "reply",
-            "writer": "turn",
-            "to": to,
-            "for": event,
-            "ref": f"ref:{event}",
-        }
-
-    assert codex_model.stream_reply_target(payload(turn("thread-1", "event-1"))) == {
-        "page": "/tmp/page",
-        "reply_to": "thread-1",
+    reply = {
+        "kind": "reply",
+        "parent": "thread-1",
         "responds": "event-1",
         "ref": "ref:event-1",
     }
-    assert (
-        codex_model.stream_reply_target(
-            payload({"kind": "reply", "to": "thread-1", "for": "event-1"})
-        )
-        is None
-    )
-    assert (
-        codex_model.stream_reply_target(
-            payload({"kind": "markup", "action": "event-1"})
-        )
-        is None
-    )
-    assert codex_model.stream_reply_target(
-        payload(
-            turn("thread-1", "event-1"),
-            {"kind": "markup", "action": "event-2"},
-        )
-    ) == {
+    turn = {**reply, "writer": "turn"}
+    markup = {"kind": "markup", "action": "event-2"}
+    expected = {
+        **turn,
         "page": "/tmp/page",
-        "reply_to": "thread-1",
-        "responds": "event-1",
-        "ref": "ref:event-1",
+        "claim": None,
+        "input": {"id": "input-0", "seq": 1},
     }
-    assert (
-        codex_model.stream_reply_target(
-            payload(turn("thread-1", "event-1"), turn("thread-2", "event-2"))
-        )
-        is None
-    )
+    assert selected(turn) == expected
+    assert selected(reply) is None
+    assert selected(markup) is None
+    assert selected(turn, markup) == expected
+    assert selected(turn, {**turn, "parent": "thread-2", "responds": "event-2"}) is None
 
 
 @pytest.fixture
@@ -1327,14 +1301,14 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
     assert workflow["stage"] == "picked_up"
     assert workflow["answer"] == {
         "kind": "reply",
-        "to": comment["id"],
-        "for": comment["id"],
+        "parent": comment["id"],
+        "responds": comment["id"],
         "ref": delivered_ref(page_dir, comment["id"]),
     }
 
     posted = thread_model.post_reply(
         page_dir,
-        {"for": comment["id"]},
+        {"responds": comment["id"]},
         "Answered with leaf thread reply",
         identity={"session": "codex-thread"},
     )
@@ -1492,7 +1466,7 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     target = {
         "page": str(page_dir),
-        "reply_to": comment["id"],
+        "parent": comment["id"],
         "responds": comment["id"],
         "ref": response_reference(page_dir, comment),
     }
@@ -1524,7 +1498,7 @@ def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir)
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     target = {
         "page": str(page_dir),
-        "reply_to": comment["id"],
+        "parent": comment["id"],
         "responds": comment["id"],
         "ref": response_reference(page_dir, comment),
     }
@@ -1565,7 +1539,7 @@ def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
     cleanup_model.open_session_turn("codex-thread", "turn-1")
     target = {
         "page": str(page_dir),
-        "reply_to": comment["id"],
+        "parent": comment["id"],
         "responds": comment["id"],
         "ref": response_reference(page_dir, comment),
     }
@@ -1585,7 +1559,7 @@ def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
     with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page_dir,
-            {"to": comment["id"], "for": comment["id"]},
+            {"parent": comment["id"], "responds": comment["id"]},
             "Anchored answer",
             identity={"agent": "Codex", "session": "codex-thread"},
         )
@@ -1608,7 +1582,7 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
     record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     target = {
         "page": str(page_dir),
-        "reply_to": comment["id"],
+        "parent": comment["id"],
         "responds": comment["id"],
         "ref": response_reference(page_dir, comment),
     }
@@ -1618,7 +1592,7 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
     with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page_dir,
-            {"to": comment["id"], "for": comment["id"]},
+            {"parent": comment["id"], "responds": comment["id"]},
             "Competing reply",
             identity={"agent": "Codex", "session": "codex-thread"},
         )
@@ -1641,7 +1615,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
         "delivery-1",
         {
             "page": str(page_dir),
-            "reply_to": comment["id"],
+            "parent": comment["id"],
             "responds": comment["id"],
             "ref": response_reference(page_dir, comment),
         },
@@ -1658,7 +1632,7 @@ def test_a_delivery_bound_final_cannot_append_after_claim_transfer(page_dir):
 
     successor = {
         "page": str(page_dir),
-        "reply_to": comment["id"],
+        "parent": comment["id"],
         "responds": comment["id"],
         "ref": response_reference(page_dir, comment),
     }
@@ -1680,7 +1654,7 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
     cleanup_model.open_session_turn("codex-thread", "turn-1")
     target = {
         "page": str(page_dir),
-        "reply_to": comment["id"],
+        "parent": comment["id"],
         "responds": comment["id"],
         "ref": response_reference(page_dir, comment),
     }
@@ -1716,7 +1690,7 @@ def test_partial_text_is_not_committed_without_a_completed_final(page_dir):
         "delivery-1",
         {
             "page": str(page_dir),
-            "reply_to": comment["id"],
+            "parent": comment["id"],
             "responds": comment["id"],
             "ref": response_reference(page_dir, comment),
         },
@@ -1758,8 +1732,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
         page.set_stream_reply(
             "codex-thread",
             "turn-1",
-            "comment",
-            "comment",
+            {"parent": "comment", "responds": "comment"},
             service_model.delivery_reply_attempt("delivery-1"),
             None,
             "",
@@ -1768,8 +1741,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
         page.set_stream_reply(
             "codex-thread",
             "turn-1",
-            "comment",
-            "comment",
+            {"parent": "comment", "responds": "comment"},
             service_model.delivery_reply_attempt("delivery-1"),
             "answer",
             "Now visible",
@@ -1888,13 +1860,13 @@ def test_a_reply_reservation_lapses_when_a_turn_it_does_not_name_opens(page_dir)
     [owed] = _obligations(page_dir)
     assert owed["answer"] == {
         "kind": "reply",
-        "to": comment["id"],
-        "for": comment["id"],
+        "parent": comment["id"],
+        "responds": comment["id"],
         "ref": delivered_ref(page_dir, comment["id"]),
     }
     posted = thread_model.post_reply(
         page_dir,
-        {"for": comment["id"]},
+        {"responds": comment["id"]},
         "Answered in the later turn",
         identity={"session": "codex-thread"},
     )
@@ -1965,13 +1937,13 @@ def test_a_reply_reservation_lapses_when_its_turn_closes(page_dir):
     [owed] = _obligations(page_dir)
     assert owed["answer"] == {
         "kind": "reply",
-        "to": comment["id"],
-        "for": comment["id"],
+        "parent": comment["id"],
+        "responds": comment["id"],
         "ref": delivered_ref(page_dir, comment["id"]),
     }
     posted = thread_model.post_reply(
         page_dir,
-        {"for": comment["id"]},
+        {"responds": comment["id"]},
         "Answered after the turn ended",
         identity={"session": "codex-thread"},
     )
@@ -3083,7 +3055,7 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
         cleanup_model.prompt_turn("codex-thread", "manual-turn")
         thread_model.post_reply(
             page_dir,
-            {"to": target["reply_to"], "for": target["responds"]},
+            target,
             text="Manual answer",
             markup="",
         )
@@ -3151,7 +3123,7 @@ def test_full_paginated_history_hydrates_an_accepted_delivery_omitted_from_resum
         cleanup_model.prompt_turn("codex-thread", "newer-turn")
     elif lifecycle == "resolved":
         target = codex_model.stream_reply_target(prepared.payload)
-        thread_model.cmd_resolve(page_dir, target["reply_to"])
+        thread_model.cmd_resolve(page_dir, target["parent"])
     if restart:
         connection = _observer()
     cursors = []
@@ -3536,7 +3508,7 @@ def test_manual_answer_retires_an_unknown_start_before_the_provider_becomes_idle
     cleanup_model.prompt_turn("codex-thread", "manual-turn")
     thread_model.post_reply(
         page_dir,
-        {"to": target["reply_to"], "for": target["responds"]},
+        target,
         text="Manual winner",
         markup="",
     )

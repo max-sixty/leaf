@@ -506,6 +506,8 @@ The records to read first:
 | `turn_delivery_bound`                                                    | The Leaf turn opened for that Codex turn                                                                                                                                     |
 | `turn_reply_first_text_published`                                        | The turn's first words reached the user's thread, its opening line or its answer, the first thing the user sees                                                              |
 | `turn_stream_completed`                                                  | The turn ended, whether it finished, lost its connection, went silent, or failed; carries status, fault, `modelRequests`, `inputTokens`, `cachedInputTokens`, `outputTokens` |
+| `turn_reply_published`                                                   | A completed reply update was published; carries item identity and phase, without text                                                                                        |
+| `turn_following_ended`                                                   | Follower cleanup and continuation ended; `completed` is false if that work raised                                                                                            |
 | `turn_reply_commit_failed`                                               | Leaf could not validate or append the reply                                                                                                                                  |
 | `turn_interrupted`, `turn_interrupt_failed`                              | The container stopped a turn it could no longer follow, or App Server refused, usually because the turn had already ended                                                    |
 | `turn_abandoned_interrupt_started`, `turn_abandoned_interrupt_completed` | The same for a turn found running on a resumed thread                                                                                                                        |
@@ -514,6 +516,13 @@ The records to read first:
 | `container_continuation_receipted`                                       | The container wrote `startup_failed` for a waiting message it could not start, and whether that settled it                                                                   |
 | `thread_title_generated`, `thread_title_skipped`, `thread_title_failed`  | The title request for an untitled thread                                                                                                                                     |
 | `page_fault`                                                             | The adapter answered `500`: route, method, page path, exception class, and `detail`                                                                                          |
+
+The page's private `observations.jsonl` also records these hosted-turn boundaries.
+Only that private diagnostic stream retains the complete published reply updates,
+including the opening before a final answer replaced it. Developer response evals
+query that stream through `read_interactions`; they install no observer inside the
+adapter. `turn_stream_completed` precedes reply accounting; `turn_following_ended`
+follows cleanup and scheduling, so the former alone does not establish completion.
 
 A failure record carries `error`, the exception's class, and `detail`, the message the
 refusing code wrote, cut to its last 500 characters with a leading ellipsis. A
@@ -564,7 +573,11 @@ an unstamped revision. A release selects fresh demo records, while container
 replacement preserves the current release's records. `docs/website.html`, **Private sessions**, owns the
 storage and identity contract.
 
-The append lease admits one staged successor per page. Replacing or committing it
+The append lease admits one staged successor per page. Preparation stores its descriptor
+and returns its content identity plus missing chunk digests. Commit names that identity;
+the stored descriptor supplies every file and response reference. Identical preparations
+share an identity; different content replaces it. Commit checks the stored page and
+release against the current site manifest before promotion. Replacing or committing it
 collects chunks no committed record, staged successor, delivery stream or restore
 snapshot uses.
 An interrupted upload therefore retains at most one successor until that page

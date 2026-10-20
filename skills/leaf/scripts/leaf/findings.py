@@ -1946,7 +1946,7 @@ _TEXT = {
         + (v.get("held") or f"this page's log holds no event {v['event']!r}")
     ),
     "superseded-reply": lambda at, v: (
-        f"event {v['event']!r} no longer requires a reply to {v['to']!r}; "
+        f"event {v['event']!r} no longer requires a reply to {v['parent']!r}; "
         + (v.get("held") or "read the current delivery or thread state")
     ),
     "reserved-answer": lambda at, v: (

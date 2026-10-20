@@ -343,7 +343,7 @@ def record(
 
     post_reply(
         page_dir,
-        {"for": comment_id},
+        {"responds": comment_id},
         "Yes. The fixed rate limit keeps the backfill online.",
         validate_source=True,
     )

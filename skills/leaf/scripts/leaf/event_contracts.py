@@ -779,7 +779,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     if progress_parent is not None and not any(
         record["source"]["id"] == event["item"]
         and record["next_actor"] == "agent"
-        and response_address(record).get("to") == progress_parent
+        and response_address(record).get("parent") == progress_parent
         for record in readings.work.updates["all"]
     ):
         return Finding("progress-parent", values={"parent": progress_parent})

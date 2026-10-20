@@ -1362,9 +1362,7 @@ def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
     settled(page)
 
     def say(text, **kwargs):
-        thread_model.post_reply(
-            serve.page_dir, {"to": root, "for": root}, text, **kwargs
-        )
+        thread_model.post_reply(serve.page_dir, {"responds": root}, text, **kwargs)
         told(page)
 
     press = view.locator(".lf-fp-new-reply")
@@ -1427,7 +1425,7 @@ def test_a_streaming_answer_grows_the_view_until_it_outgrows_its_cap(
     # The durable answer completes the streamed message with longer words.
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Recorded the release on the board. " + "Then I checked the totals. " * 200,
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -2085,7 +2083,7 @@ def test_floating_status_records_feedback_only_when_its_words_show(
         page.mouse.move(5, 5)
     progress = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Reading the diagnostic transport.",
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -2152,7 +2150,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     page.keyboard.press(".")
     progress = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Reading the diagnostic transport.",
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -2193,7 +2191,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     }""")
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Tracing the reply acknowledgements.",
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -3660,7 +3658,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
     root = panel_comment(serve.page_dir, "Should the rollout wait?")
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Which week suits?",
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
@@ -3704,7 +3702,7 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
     before = [box.bounding_box() for box in (marks, on_me)]
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Which week suits?",
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
@@ -3810,7 +3808,7 @@ def test_a_reply_its_card_cannot_draw_opens_in_the_panel(browser, serve):
     )
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Choose the first job.",
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'

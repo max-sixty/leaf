@@ -410,6 +410,7 @@ import {
   stateCoordinate,
   threadKey,
   tokenChoices,
+  turns,
   untracked
 } from "./bundle-queued-work.js";
 
@@ -6432,8 +6433,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
         throw new Error("Thread nominations belong to their current render callback");
       const thread = byKey.get(key);
       if (!thread) throw new Error(`No Thread has key ${key}`);
-      if (message !== null && !thread.msgs.some((item) => item.key === message))
-        throw new Error(`Thread ${key} has no message ${message}`);
+      if (message !== null && !turns(thread).some((item) => item.key === message))
+        throw new Error(`Thread ${key} has no turn ${message}`);
       const identity2 = JSON.stringify([kind, key, message]);
       if (nominations.some(
         (item) => item.identity === identity2 || item.key === key && (item.kind === "thread" || kind === "thread")

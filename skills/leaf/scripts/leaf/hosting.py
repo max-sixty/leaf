@@ -27,6 +27,7 @@ from .findings import Finding, note
 from .harness import Harness, claim_harness, harness_argument, session_harness
 from .leases import (
     end_if_terminated,
+    lock_is_held,
     page_locked,
     release_lease,
     take_lease,
@@ -783,12 +784,26 @@ def cmd_stop(
             if owner is not _StopScope.ANY_OWNER and not same_claim(page.claim, owner):
                 return stopped
             # The server may release its lease immediately after we disable it.
-            stopped = stopped or running_server(page_dir) is not None
             service = read_service(page_dir)
+            # Whether a server runs is the lease's to say: one an older Leaf started
+            # over a record this version cannot read holds it without a readable
+            # record to show it by. A private preparation holds the lease too, but
+            # has no service record and has not become a running service.
+            stopped = (
+                stopped
+                or running_server(page_dir) is not None
+                or (
+                    service is None
+                    and (page_dir / SERVICE_FILE).exists()
+                    and lock_is_held(page_dir / SERVER_LOCK)
+                )
+            )
             if service is None:
-                # No service to disable, so no server of this Leaf to wait for.
-                return stopped
-            if first:
+                # A record this version cannot read names no service it could
+                # disable. Discarding it is what stops a server an older Leaf
+                # started over it, which exits once its record is gone.
+                (page_dir / SERVICE_FILE).unlink(missing_ok=True)
+            elif first:
                 disabled = {
                     **{
                         key: value for key, value in service.items() if key != "restart"
@@ -845,6 +860,14 @@ def restarting_server(page_dir: Path, harness: Harness | None):
     next start or stop writes a record without it.
     """
     service = read_service(page_dir)
+    if service is None and lock_is_held(page_dir / SERVER_LOCK):
+        # A server runs over a record this version cannot read, as one an older Leaf
+        # started does. It has no lifetime this version could bring back, so it
+        # stops and stays stopped.
+        cmd_stop(page_dir)
+        note(Finding("server-stays-stopped", values={"page": str(page_dir)}))
+        yield
+        return
     if not service or not service["enabled"]:
         yield
         return

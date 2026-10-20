@@ -41,14 +41,13 @@ def read_document(
     events = page.events
     registry = page.registry
     projection = page.projection
-    parser = document
     spk = page.spoken
     passages = page.reading.decided_passages(retirement_outcomes(projection.actions))
     dropped = set(passages.retired) | set(passages.gone)
     items = page_obligation_readings(
-        parser,
+        page.reading.obligation_sources,
         projection,
-        parser.by_id,
+        document.by_id,
         spk,
         registry,
         dropped,

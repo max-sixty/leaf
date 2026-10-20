@@ -573,12 +573,65 @@ def answering_action(
     )
 
 
+class ObligationSources(NamedTuple):
+    """The widgets one document declares that can ask the user, read under one
+    vocabulary.
+
+    `asking` holds each declared widget except a frame around another that can ask
+    (`holds_obligations`), with whether it stands inside an exhibit (`quoted_in`).
+    `nodes` maps each id to its authoring node, whose words name an obligation's
+    prompt.
+
+    These depend on the document and the vocabulary alone, and finding them is most
+    of the cost of reading a page's obligations. A stored revision's reading
+    therefore holds them across requests (`passages.SourceReading`), and each reading
+    against the log, such as admission's before and after an event, reads only what
+    the log decides."""
+
+    asking: tuple[tuple[dict, bool], ...]
+    nodes: dict[str, dict]
+
+
+def obligation_sources(source, registry: dict) -> ObligationSources:
+    """Read `ObligationSources` from a page document or a frozen thread's structure,
+    whose fragments each hold one message's markup."""
+    documents = (
+        list(source.fragments.values()) if hasattr(source, "fragments") else [source]
+    )
+
+    def nodes(content):
+        for node in content:
+            if isinstance(node, dict):
+                yield node
+                yield from nodes(node["content"])
+
+    declared = [
+        record
+        for document in documents
+        for record in document.lf_elements
+        if local_obligation_entry(registry.get(record["tag"]) or {})
+    ]
+    return ObligationSources(
+        tuple(
+            (record, quoted_in(record, registry))
+            for record in declared
+            if not holds_obligations(record, declared, registry)
+        ),
+        {
+            node["attrs"]["id"]: node
+            for document in documents
+            for node in nodes(document.authoring.content)
+            if node["attrs"].get("id")
+        },
+    )
+
+
 class _ObligationReducer:
     """One page or frozen-thread obligation fold over a shared state projection."""
 
     def __init__(
         self,
-        source,
+        sources: ObligationSources,
         projection,
         byid,
         spk,
@@ -593,47 +646,19 @@ class _ObligationReducer:
         self.registry = registry
         self.revision = revision
         self.events = events
-        documents = (
-            list(source.fragments.values())
-            if hasattr(source, "fragments")
-            else [source]
-        )
-        elements = [record for document in documents for record in document.lf_elements]
-
-        def nodes(content):
-            for node in content:
-                if isinstance(node, dict):
-                    yield node
-                    yield from nodes(node["content"])
-
-        self.nodes = {
-            node["attrs"]["id"]: node
-            for document in documents
-            for node in nodes(document.authoring.content)
-            if node["attrs"].get("id")
-        }
-        self.records = [record for record in elements if self._is_declared(record)]
-        self.yielded = {
-            id(record)
-            for record in self.records
-            if holds_obligations(record, self.records, registry)
-        }
+        self.nodes = sources.nodes
+        self.records = [record for record, _quoted in sources.asking]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
 
         self.exists: dict[int, bool] = {}
         self.local: dict[int, bool] = {}
-        for record in self.records:
+        for record, quoted in sources.asking:
             unit = record["attrs"].get("id")
-            self.exists[id(record)] = not (
-                (unit and unit in dropped) or quoted_in(record, registry)
-            )
+            self.exists[id(record)] = not ((unit and unit in dropped) or quoted)
             self.local[id(record)] = self.exists[id(record)] and self._local(record)
 
     def _entry(self, record):
         return self.registry[record["tag"]]
-
-    def _is_declared(self, record):
-        return local_obligation_entry(self.registry.get(record["tag"]) or {})
 
     def _declaration(self, record):
         return self._entry(record).get("x-awaits", {})
@@ -725,8 +750,6 @@ class _ObligationReducer:
                 yield previous
 
         for record in self.records:
-            if id(record) in self.yielded:
-                continue
             unit = record["attrs"].get("id")
             answered = self._answered(record)
             if not self.exists[id(record)] and not (unit in settled_away and answered):
@@ -859,7 +882,7 @@ class _ObligationReducer:
 
 
 def page_obligation_readings(
-    source,
+    sources: ObligationSources,
     projection,
     byid,
     spk,
@@ -882,7 +905,7 @@ def page_obligation_readings(
     `log` is the page's `todos.TodoReading`: its `ends` hold the agent's `todo_end` on
     each id, and its `owed` the work the agent's replies promised."""
     reducer = _ObligationReducer(
-        source, projection, byid, spk, registry, dropped, revision, events
+        sources, projection, byid, spk, registry, dropped, revision, events
     )
     records = reducer.inventory(settled_away or set(), prior)
     restated = {
@@ -937,7 +960,7 @@ def thread_obligation_readings(
     `todo_end` on each id."""
     reading = reading or frozen_thread_reading(events, registry)
     reducer = _ObligationReducer(
-        reading.structure,
+        obligation_sources(reading.structure, registry),
         reading.projection,
         reading.by_id,
         reading.spoken,

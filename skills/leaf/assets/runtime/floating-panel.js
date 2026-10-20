@@ -2070,7 +2070,9 @@ export function createFloatingPanel({
   const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
   // The agent's plan has a tab of its own beside the two lists, while there is a plan,
   // or while the view stands on it. The lists stay as they are, a planned to-do
-  // included, since the plan arranges items without owning them.
+  // included, since the plan arranges items without owning them. The user chose this
+  // on 2026-10-19 over the plan heading On <agent>, with the to-dos it leaves out
+  // following as rows.
   const queueTabs = () =>
     readPlan()?.steps.length || queueTab === "plan"
       ? [...Object.keys(QUEUE_TABS), "plan"]

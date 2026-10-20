@@ -493,8 +493,8 @@ customElements.define(
     }
 
     // The block this option is about. A pointer, not a voice: its text is the id it
-    // names, which is the same way the thread panel writes an element anchor, and
-    // chrome throughout — a thing to work and nothing else, so paper drops it.
+    // names, and chrome throughout — a thing to work and nothing else, so paper drops
+    // it.
     #reference(option) {
       const target = option.getAttribute("for");
       if (!target) return;

@@ -208,12 +208,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     background-color: var(--hi-tint);
   }
 }
-@keyframes lf-runtime-4f3c2a8d-grow {
-  0% {
-    opacity: 0;
-    transform: translateY(-6px) scale(0.985);
-  }
-}
 /* Everything below is private to the chrome: no widget or page class can match it. */
 @scope (.lf-chrome) {
   /* The foreground dialog (chrome.js) is an empty box at the document's origin, so what

@@ -461,14 +461,14 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
   // contributors, so a live one otherwise carried a dead one's keys into the reference
   // under the shared title — the versions menu named a walk on a page with one version,
   // where the only key it really has is the way out. That is the same "a key on screen is
-  // a key that works" the row `when` keeps for the line, asked one level up, and it is
+  // a key that works" the row `when` keeps for the press, asked one level up, and it is
   // what lets two capabilities of different liveness share a heading: the walk states
   // "somewhere to step" and the mode carrying the Escape states "there is a menu", which
   // is what a layer's way out has to hold wherever the layer does.
   //
   // Asked here rather than at the user, because the section is built once per open —
   // declaredStack has one caller, showCommandReference — where a `when` may be the whole event log
-  // folded and the line's own walk avoids it for exactly that reason.
+  // folded.
   if (when && !when()) return;
   const seen = sections.get(title);
   if (!seen) {
@@ -501,14 +501,15 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * what lets one declaration feed both surfaces. The scope's is the capability — does this
  * machine have neighbours to walk, does this page have a second version — and it gates the
  * reference. The row's is whether this press would move now — is a card held, has this
- * thread a box to reply into — and it gates the line, where the user is standing in the
- * scope and can see the answer. So the reference names Enter wherever the page has
- * threads, and the line offers it only on a focused thread with a reply or reopen action.
+ * thread a box to reply into — and it gates the press, and the reference's rows where the
+ * user is standing in the scope and can see the answer. So the reference names Enter
+ * wherever the page has threads, and Enter answers only on a focused thread with a reply
+ * or reopen action.
  * One `when` answering both left Enter live over the whole page, where the press no-opped.
  *
  * A control whose keys change with its state declares every state's rows at once, each
  * gated by its own row `when`, and calls paintKeys() when the state moves — a grab is
- * Enter on an already-focused grip, so no focus event would repaint the line.
+ * Enter on an already-focused grip, so no focus event would repaint its keys.
  *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * a module stays loaded after the last element it upgraded leaves — a version activation
@@ -931,7 +932,7 @@ export const saying = (rows) =>
     .join(", ");
 // A row's own label where it has one, read the way every other surface reads a cell, and
 // the bindings where it has none — which is what keeps a listener hearing "Escape" rather
-// than the line's "esc". Asking whether the label was written as a string made the same fact
+// than the keycap's "esc". Asking whether the label was written as a string made the same fact
 // announce two ways by accident: an option group's digits are spelled "1–3" because its label
 // happens to be a string, while the sequence's were read out as "1 or 2 or 3" because its label
 // counts what the page holds and so has to be a function.

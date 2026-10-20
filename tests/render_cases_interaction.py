@@ -441,11 +441,10 @@ SHORT_SUGGESTION = leaf_page(
 """,
 )
 # Every animation the page starts, held at time zero so a test can read it rather than
-# race it. What it catches is everything through `motion()`, which is the layer's only
-# caller of `animate` — folds and the board's FLIP, each started synchronously inside
-# the gesture that causes it. Opening a panel or drawer starts none. CSS animations run outside it
-# and are never seen, `grow` among them. Installed before anything runs, so the first
-# frame is already held.
+# race it. What it catches is every `Element.animate` call: `motion()`'s folds and the
+# board's FLIP, each started synchronously inside the gesture that causes it, and the
+# floating panel's own motion. CSS animations run outside it and are never seen.
+# Installed before anything runs, so the first frame is already held.
 #
 # `__lfHeld` is what is still held, which is what a test asks it: a count is "the gesture
 # started one motion", an index is "the motion this gesture started", and a sweep over it
@@ -823,7 +822,7 @@ def live_url(version_url):
 
 
 # A live page a user is mid-press on when the next revision lands: hyperlinks for the
-# generated target map, and a decision whose pick mark the shortcut bar offers digits over.
+# generated target map, and a decision whose pick marks take digits.
 # The second revision adds a paragraph above everything and takes the middle link away,
 # so a restored place has moved and a target has gone; the third adds another.
 #

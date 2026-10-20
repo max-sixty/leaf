@@ -1757,7 +1757,7 @@ def newest_move(page_dir, widget):
 
 
 def _start(page_dir, item, line):
-    """`leaf task start`: take a move or task in hand with the banner's line."""
+    """`leaf task start`: take a move or task in hand with the status's line."""
     return CliRunner().invoke(
         cli_model.cli, ["task", "start", str(page_dir), str(item), line]
     )

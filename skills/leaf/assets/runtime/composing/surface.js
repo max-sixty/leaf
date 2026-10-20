@@ -1118,8 +1118,8 @@ export function createResponseSurface({
       // A press that ends holding words it did not begin with took them, and is that
       // selection's mouseup rather than a click on whatever lies under it: the user was
       // reaching for the words, and the 💬 is already up on them (updateFab, on the same
-      // mouseup). The same complaint `offer` answers for a press on a control and the
-      // thread list for a press on a card (reachedForWords), and it governs the whole of
+      // mouseup). The same complaint `offer` answers for a press on a control
+      // (reachedForWords), and it governs the whole of
       // what a click on prose means — the block design mode comments on, and the thread a
       // mark opens. Marked words are where it showed: a gesture inside one travelled to its
       // thread, and with Threads open the reply box it landed in collapsed the selection

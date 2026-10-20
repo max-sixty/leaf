@@ -1125,7 +1125,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     """Several worker sessions report to one page. Each agent-authored event
     carries its poster's display name and session id from the poster's own
     environment, so the log tells the voices apart by id; the claim — the
-    watcher the banner names — and every publication stay the hub's, untouched
+    watcher the panel names — and every publication stay the hub's, untouched
     by a worker's post."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "hub")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
@@ -1186,7 +1186,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     """Progress on a move the agent owes is the user's first sign it is handled: one
     write posts it in the thread and takes the move in hand, Working with the update's text as its line,
-    while the answer stays owed. The line is the banner's, so the update is one line."""
+    while the answer stays owed. The line is the status's, so the update is one line."""
     published(claimed)
     root = append_command(
         claimed,

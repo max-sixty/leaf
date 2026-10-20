@@ -99,7 +99,7 @@ def arrival_findings(browser, url):
     write and cannot fix.
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
-    is of a first visit — the thread panel shut, no drawer open, design mode off —
+    is of a first visit — design mode off, the annotations shown —
     and each of those is something a user turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
     watching it, and a drawer someone had left open came up as a ReferenceError
@@ -188,11 +188,11 @@ def motions(events):
     """The settling motions the browser reported, keyed by the motion, not by its target.
 
     Settling and not living, which is the render gate's `moving` distinction and is here for
-    its reason: the banner's dot pulses for as long as the tab is open, and something
+    its reason: the panel's status sheens for as long as the agent works, and something
     that never ends never arrived anywhere. An unbounded iteration count cannot cross
     JSON, so the browser omits it, and that omission is the reading.
 
-    A target is a backend node id, and the same drawer over two loads is two of them,
+    A target is a backend node id, and the same panel over two loads is two of them,
     so an id cannot say whether the second load moved what the first one did. The kind
     of motion, the property or keyframes it plays and how long it runs are one string
     whichever load painted it, and that is the key. The id rides along beside it for
@@ -772,9 +772,8 @@ def displaced(before, boxes, news=False):
     `news` reads the rule for a change nobody gestured (`skills/leaf/assets/AGENTS.md`,
     "Stability"): a box whose own words changed may grow or shrink into free room, so its
     width is its own, but its place is not, and no other box may move or resize. The
-    free room may lie on either side: a box packed against the run to its right, as the
-    banner's queue counts are, grows leftward into the status's room, and the edge that
-    holds still is its place. A box that grew by pushing its neighbours still fails, as
+    free room may lie on either side: a box packed against the run to its right grows
+    leftward into the room before it, and the edge that holds still is its place. A box that grew by pushing its neighbours still fails, as
     they do."""
 
     def moved(was, now):
@@ -807,7 +806,7 @@ def aim_targets(page_dir):
 
 # Where in a target to aim, asked of the rendered page rather than assumed: near its
 # leading corner, since the middle of a container is usually one of its children, and only
-# where the point is really the target's — an element under the banner or clipped to
+# where the point is really the target's — an element under the panel or clipped to
 # nothing is somewhere no aim can land, which is a skip rather than a failure.
 AIM_POINT = """(el) => {
   const r = el.getBoundingClientRect();

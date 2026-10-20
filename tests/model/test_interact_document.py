@@ -2322,7 +2322,7 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
 
 
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
-    """`page state` is /api/state folded for the agent: the banner's decision list,
+    """`page state` is /api/state folded for the agent: the On me list,
     the current state replay paints, as one queryable
     object — the position a session picking up a persistent page would otherwise
     re-derive from the raw log."""

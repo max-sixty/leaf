@@ -51,7 +51,7 @@ function standingOn(name, title, sel, rows) {
     },
     // Across the declared shadow roots, where the addresses stop at the document: a row on
     // a staged disclosure names a key the browser does not answer, so a scope that could
-    // not see one would leave the line promising a press nothing makes.
+    // not see one would leave the reference promising a press nothing makes.
     when: () => pageQueryAll(sel).some((el) => !inChrome(el)),
     rows,
   });

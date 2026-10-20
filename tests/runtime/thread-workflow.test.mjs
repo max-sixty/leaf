@@ -7,8 +7,6 @@ import {
   workflowLabel,
 } from "../../skills/leaf/assets/runtime/thread/workflow.js";
 import {
-  awaitsAgent,
-  awaitsUser,
   foldThreads,
   readThreadRecords,
 } from "../../skills/leaf/assets/runtime/thread/model.js";
@@ -106,7 +104,6 @@ test("a thread an open to-do holds waits on the agent under the to-do's title", 
     workflow: null,
     secondary: "Rebuild the banner quieter",
   });
-  assert.ok(awaitsAgent(thread));
 });
 
 test("a frozen move that owes nothing leaves an owed thread on the user alone", () => {
@@ -219,7 +216,6 @@ test("a pending reply shows on its message and leaves whose turn it is to the lo
     ],
   );
   assert.deepEqual(record.attention, thread.attention);
-  assert.equal(awaitsUser(record), true);
 });
 
 test("a local rewrite shows on its message and reopens a closed thread", () => {

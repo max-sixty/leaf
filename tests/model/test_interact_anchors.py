@@ -1387,7 +1387,7 @@ def test_a_comment_without_an_anchor_asks_the_page_whole(page_dir):
 
 
 def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
-    """`leaf wait` and the banner's unread count both turn on author, so a note
+    """`leaf wait` and the panel's unread count both turn on author, so a note
     Claude leaves can't wake its own watcher or read as a comment nobody answered."""
     published(page_dir)
     assert comment(page_dir, "--quote", "Ship dark", "--text", "x").exit_code == 0

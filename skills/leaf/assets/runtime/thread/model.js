@@ -5,11 +5,9 @@
    the names `events.py` reads them by. The panel lists `discussed` threads only;
    a card shows its turns and its root, so a
    thread that grew out of a reaction opens on the mark, whose body
-   thread/messages.js writes as the glyph and its word. Whose turn a thread is
-   (`awaitsUser`, `awaitsAgent`) is read from the complete browser Thread's
-   `attention` and nothing else, so a filter and the card it lists agree: a user
-   obligation outranks concurrent agent work, which stays the card's secondary
-   status.
+   thread/messages.js writes as the glyph and its word. Whose turn a thread is is read
+   from the complete browser Thread's `attention` and nothing else: a user obligation
+   outranks concurrent agent work, which stays the card's secondary status.
 
    A thread's `id` is its one identity: the id the server keys it by, which every obligation,
    workflow, placement, and view names it by. Its `root` is its opening message, a
@@ -278,16 +276,10 @@ export const reactionsAt = (threads, anchor) =>
     .map((thread) => thread.root);
 
 /** @param {Thread} thread */
-export const awaitsAgent = (thread) =>
-  !thread.resolved && thread.attention?.kind === "waiting";
-/** @param {Thread} thread */
-export const awaitsUser = (thread) =>
-  !thread.resolved && thread.attention?.kind === "needs_user";
-/** @param {Thread} thread */
 export const seatRoot = (thread) => thread.seat;
 
 // When a message last moved: its latest edit, else its own arrival. Every ordering that
-// asks what is newest in a thread — Recent, the first unread, news — reads this,
+// asks what is newest in a thread — the first unread, news — reads this,
 // so an agent message edited today is today's in all of them. A message still being
 // sent carries the clock the user's gesture gave it and no log position yet.
 /** @param {{edited?: {seq?: number, ts: string}, seq?: number, ts?: string}} message */

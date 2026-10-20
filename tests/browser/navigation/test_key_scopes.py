@@ -220,7 +220,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     assert page.evaluate(on_body)
 
 
-def test_a_drawer_reached_from_another_drawer_leaves_both_of_them_shut(browser, serve):
+def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serve):
     """The surface a user was already in does not come back when the next one goes.
 
     `g T` from On me puts Threads up in its place, and the one Escape that takes
@@ -1123,7 +1123,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     browser, serve, live_leaf
 ):
     """A held key repeats keydown where a real button fires once. A walk wants that — t
-    down threads, q down obligations, arrows down the drawer — and a press that toggles or
+    down threads, q down obligations, arrows down a panel view — and a press that toggles or
     navigates does not: a held `]` was a page navigation per repeat, and a held pick a
     `choose` per repeat, each of them one decision the user made once. So a row says
     whether it repeats and the default is no, where before only `offer`'s own listener
@@ -1152,12 +1152,12 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     page.evaluate(press, ["m", True])  # the same grammar repeats for obligations
     expect(page.locator("#sug-refill[data-lf-obligation]")).to_have_count(1)
 
-    drawer = page.locator('.lf-fp-view[data-view="leaves"]')
+    leaves = page.locator('.lf-fp-view[data-view="leaves"]')
     page.keyboard.press("g")
     page.evaluate(press, ["l", True, True])  # a panel destination does not repeat
-    expect(drawer).to_be_hidden()
+    expect(leaves).to_be_hidden()
     page.evaluate(press, ["l", False, True])  # the same event, answered
-    expect(drawer).to_be_visible()
+    expect(leaves).to_be_visible()
 
 
 def test_a_select_keeps_its_native_typeahead_letters(browser, serve):

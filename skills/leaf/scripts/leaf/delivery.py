@@ -642,26 +642,29 @@ def record_pickup(
         for event in pickups
         for event_id in event["events"]
     }
-    # Each input and claim some recorded ref was captured under.
+    # The newest ref recorded for each input under each claim, the one `workflows`
+    # binds.
     referenced = {
-        (event_id, ref["claim"])
+        (event_id, ref["claim"]): ref["ref"]
         for event in pickups
         for event_id, ref in event.get("refs", {}).items()
     }
     refs = refs or {}
-    # A transition already on record is recorded again only to give an input its
-    # first ref under a claim, as when a delivery hands the page's owner debt an
-    # older receipt, or an earlier owner's, left without one it can use, and the
-    # prompt has already re-presented it.
+
+    def usable(event_id: str) -> bool:
+        held = referenced.get((event_id, refs[event_id]["claim"]))
+        return held is not None and reads_reference(held)
+
+    # A transition already on record is recorded again only to give an input a ref
+    # its claim can use, as when a delivery hands the page's owner debt an older
+    # receipt, or an earlier owner's, left without one (`unreferenced`), and the
+    # prompt has already re-presented it. Otherwise that debt stays deliverable.
     fresh = list(
         dict.fromkeys(
             event_id
             for event_id in wanted
             if (event_id, phase, session, turn) not in picked
-            or (
-                event_id in refs
-                and (event_id, refs[event_id]["claim"]) not in referenced
-            )
+            or (event_id in refs and not usable(event_id))
         )
     )
     if not fresh:

@@ -1111,6 +1111,10 @@ def test_a_prompt_captures_again_an_update_whose_delivery_an_older_leaf_wrote(
     handed = output[hook_transport_model.DELIVERY_FIELD]["id"]
     [batch] = delivery_model.read_delivery(handed)["batches"]
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
+    # Its receipt records the new ref, so no later hook hands it over again.
+    assert delivered_ref(claimed, asked["id"]).startswith(f"{handed}:")
+    with service_model.PageTransaction(claimed) as page:
+        assert delivery_model.deliverable(page) == []
 
 
 def test_a_hook_renews_no_page_another_session_took_after_it_listed_its_pages(

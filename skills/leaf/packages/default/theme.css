@@ -3247,19 +3247,12 @@
   outline: none;
   box-shadow: none;
 }
-.lf-draft-footer {
+.lf-draft-tools {
   display: none;
 }
 @media screen {
-  @scope (html[data-lf-interactive] :scope) {
-    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
-      display: grid;
-      grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
-      gap: 8px;
-    }
-    :scope:is(lf-draft) > .lf-draft-edit {
-      margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - var(--lf-draft-inset) - 1px);
-    }
+  :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
+    position: relative;
   }
   :scope:is(lf-draft):has(.lf-draft-edit) {
     border-color: var(--muted);
@@ -3271,29 +3264,90 @@
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body {
     display: none;
   }
-  .lf-draft-footer {
-    display: flex;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    min-width: 0;
-    font: var(--t-5)/var(--lf-ui-lh) var(--sans);
-  }
   .lf-draft-tools {
+    --lf-draft-mark: 26px;
+    position: absolute;
+    z-index: 1;
+    inset-block-start: 0;
+    inset-inline-end: calc(var(--lf-draft-inset) - 6px);
+    translate: 0 calc(-50% - 0.5px);
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-inline-start: auto;
-  }
-  .lf-draft-action {
-    min-height: max(32px, var(--aim-floor));
+    gap: 2px;
+    padding: 1px;
+    border: 1px solid var(--border-2);
+    border-radius: var(--r);
+    background: var(--card);
+    box-shadow: var(--raise-1);
+    opacity: 0;
+    transition: opacity 120ms;
   }
   .lf-draft-status {
-    color: var(--danger-ink);
     align-self: center;
+    padding-inline: 6px 2px;
+    color: var(--danger-ink);
+    font: var(--t-5)/var(--lf-ui-lh) var(--sans);
+    white-space: nowrap;
   }
   .lf-draft-status:empty {
     display: none;
+  }
+  :scope:is(lf-draft):is(:hover, [data-lf-focus-within], :has(> .lf-draft-edit)) .lf-draft-tools {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .lf-draft-tools {
+      inset-block: auto 0;
+      translate: 0 calc(50% + 0.5px);
+      opacity: 1;
+    }
+  }
+  .lf-draft-action,
+  .lf-draft-tools > .lf-code-copy::part(button) {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    inline-size: max(var(--lf-draft-mark), var(--aim-floor));
+    min-inline-size: 0;
+    block-size: var(--lf-draft-mark);
+    min-block-size: 0;
+    padding: 0;
+    border: 0;
+    border-radius: calc(var(--r) - 2px);
+    background: transparent;
+    color: var(--muted);
+  }
+  .lf-draft-action::before {
+    content: "";
+    position: absolute;
+    inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
+  }
+  .lf-draft-tools > .lf-code-copy::part(button)::before {
+    content: "";
+    position: absolute;
+    inset: min(0px, (var(--lf-draft-mark) - var(--aim-floor)) / 2) 0;
+  }
+  .lf-draft-action:hover,
+  .lf-draft-tools > .lf-code-copy::part(button):hover {
+    color: var(--ink);
+    background: var(--chip);
+    box-shadow: none;
+  }
+  .lf-draft-action[data-lf-focus],
+  .lf-draft-tools > .lf-code-copy::part(lf-focus) {
+    outline-offset: calc(-1 * var(--focus-ring-w));
+  }
+  .lf-draft-tools > .lf-code-copy {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .lf-draft-icon {
+    inline-size: 16px;
+    block-size: 16px;
   }
 }
 @media (forced-colors: active) {

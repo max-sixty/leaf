@@ -6,8 +6,18 @@
  * clicked caret through the shared source/visible alignment. Links and selections
  * keep their native gestures. Quoted drafts are read-only exhibits.
  *
- * Editing controls belong to the box, in a persistent local footer, and its Copy
- * control at its top right copies the Markdown source the box shows. The same
+ * Editing controls belong to the box, as marks on a small toolbar hovering over its
+ * edge at the right, the top edge for a pointer and the bottom under a finger
+ * (draft.css): Edit (a pencil) and Copy at rest, Save, Cancel and Copy while editing. Copy copies the Markdown source the box shows. The toolbar takes no room,
+ * so the box is the same size with its controls as without them, and opening the
+ * editor adds no row of buttons under it; a refused save's status joins the toolbar.
+ * Copy keeps the last seat, and Cancel opens where Edit stood, so a second press on
+ * the pencil gives the box back unchanged. A pointer sees the toolbar while over the
+ * box or a key stands in it, and the open editor and a finger always; clicking the
+ * prose still opens the editor at that spot. Rejected: a resting row under the prose
+ * holding only Edit, which doubled a one-line box, and marks set into the box's
+ * corner, which either covered the first line's last words or took room from them
+ * and changed the box's size as the editor opened. The same
  * command declarations own pointer activation, keyboard routes, availability and
  * accessible shortcut hints. The editor's own keys, Save's and Escape's, show in the
  * shared command reference (`?`). The controls take no context keys, so an item lends them
@@ -35,6 +45,7 @@
  */
 import {
   commandScope,
+  iconTemplate,
   html,
   render,
   offered,
@@ -67,10 +78,11 @@ import {
   PRESSABLE,
 } from "/runtime/widget-api.js";
 
+// Each control's key, name and mark.
 const ACTIONS = [
-  ["edit", "Edit"],
-  ["save", "Save"],
-  ["cancel", "Cancel"],
+  ["edit", "Edit", "edit"],
+  ["save", "Save", "check"],
+  ["cancel", "Cancel", "cross"],
 ];
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -103,7 +115,8 @@ customElements.define(
     #editor = null;
     #sending = false;
     #failed = false;
-    #footer = null;
+    #tools = null;
+    #copy = null;
     #commandScope = null;
     #resumeProjection = null;
     #recovered = false;
@@ -185,7 +198,7 @@ customElements.define(
     }
 
     #watchDraft() {
-      if (quoted(this) || !this.#footer) return;
+      if (quoted(this) || !this.#tools) return;
       return watchDraft(
         ctx(this.id),
         (text) => {
@@ -208,19 +221,17 @@ customElements.define(
     }
 
     #offerControls() {
-      if (quoted(this) || this.#footer) return;
-      this.#footer = offer("div", "lf-draft-footer");
-      // Copy stands at the box's top right but follows the footer in Tab order, so Tab
-      // from the editor still reaches Save first.
-      this.append(
-        this.#footer,
-        copyBlock(
-          this,
-          () => this.#editor?.value ?? this.controller.read().state.edit.value,
-          "Markdown",
-        ),
+      if (quoted(this) || this.#tools) return;
+      this.#tools = offer("div", "lf-draft-tools");
+      this.#tools.dataset.lfRuntime = "";
+      this.append(this.#tools);
+      // Copy is the toolbar's last mark, so Tab from the editor reaches Save first.
+      this.#copy = copyBlock(
+        this,
+        () => this.#editor?.value ?? this.controller.read().state.edit.value,
+        "Markdown",
       );
-      this.#paintFooter();
+      this.#paintTools();
       this.#ensureCommands();
     }
 
@@ -264,32 +275,36 @@ customElements.define(
     }
 
     #control(key) {
-      return this.#footer?.querySelector(`[data-lf-draft-action="${key}"]`) ?? null;
+      return this.#tools?.querySelector(`[data-lf-draft-action="${key}"]`) ?? null;
     }
 
-    // The editor and the footer's controls follow one reading of availability.
-    #paintFooter() {
-      if (!this.#footer) return;
+    // The editor and the toolbar's controls follow one reading of availability. A
+    // refused save's status stands in the toolbar, before its marks, so saying it
+    // moves no words either.
+    #paintTools() {
+      if (!this.#tools) return;
       const editing = Boolean(this.#editor);
       if (this.#editor) this.#editor.readOnly = !this.#available();
       render(
         html`<span ${offered("lf-draft-status")} role="status"
             >${this.#failed ? "Save failed. The edit is kept." : ""}</span
           >
-          <div ${offered("lf-draft-tools")} data-lf-runtime>
-            ${ACTIONS.map(
-              ([key, title]) =>
-                html`<button
-                  ${offered("lf-btn lf-draft-action")}
-                  data-lf-draft-action=${key}
-                  ?hidden=${key === "edit" ? editing : !editing}
-                  aria-expanded=${key === "edit" ? String(editing) : nothing}
-                >
-                  ${key === "save" && this.#failed ? "Retry" : title}
-                </button>`,
-            )}
-          </div>`,
-        this.#footer,
+          ${ACTIONS.map(([key, title, icon]) => {
+            const retry = key === "save" && this.#failed;
+            const name = retry ? "Retry" : title;
+            return html`<button
+              ${offered("lf-btn lf-draft-action")}
+              data-lf-draft-action=${key}
+              ?hidden=${key === "edit" ? editing : !editing}
+              aria-expanded=${key === "edit" ? String(editing) : nothing}
+              aria-label=${name}
+              title=${name}
+            >
+              ${iconTemplate(retry ? "retry" : icon, "lf-draft-icon")}
+            </button>`;
+          })}
+          ${this.#copy}`,
+        this.#tools,
       );
       paintKeys();
     }
@@ -325,7 +340,7 @@ customElements.define(
         saveEdit(this.id, editor.value);
         if (this.#failed) {
           this.#failed = false;
-          this.#paintFooter();
+          this.#paintTools();
         }
       });
       // The composer's bindings on the box that replaces the page's own words. Escape
@@ -334,7 +349,7 @@ customElements.define(
       this.#editor = editor;
       commands(editor, this.#commandScope);
       this.#body.after(editor);
-      this.#paintFooter();
+      this.#paintTools();
       // A pointer is already on visible words. Opening their editor preserves that
       // place before handing the clicked caret across; the Edit control instead reveals
       // the initial caret at the end of the text. A padding press carries null.
@@ -362,7 +377,7 @@ customElements.define(
       this.#editor.remove();
       this.#editor = null;
       this.#failed = false;
-      this.#paintFooter();
+      this.#paintTools();
       if (stood) {
         if (this.#sending) focusDestination(this, "return");
         else
@@ -397,7 +412,7 @@ customElements.define(
       );
       this.#sending = false;
       this.removeAttribute("aria-busy");
-      this.#paintFooter();
+      this.#paintTools();
       if (ok) {
         notice(`Edited “${this.id}” — sent`);
       } else {
@@ -424,7 +439,7 @@ customElements.define(
       // Recovery chooses the first action face: an unsent editor opens with Save
       // and Cancel, without briefly publishing the resting Edit control.
       this.#recoverEdit();
-      this.#paintFooter();
+      this.#paintTools();
       if (this.#editor && !this.#resumeProjection && actions.edit.available)
         this.#resumeProjection = this.controller.defer();
       return nothing;

@@ -44,8 +44,8 @@ from .state import SESSION_SUFFIX, session_claims, session_file, state_home, sti
 # changes on the clock alone.
 REVIVAL_CHECK_S = 5
 
-# How long a normal turn-end watch gives the concurrent Stop hook to carry input:
-# this is that hook's timeout (`hooks/hooks.json`), not evidence of pickup.
+# How long a normal turn-end watch gives the concurrent Stop hook to close the turn
+# before waking for input already pending: that hook's timeout (`hooks/hooks.json`).
 STOP_HOOK_S = 20
 
 
@@ -620,9 +620,10 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
 def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str | None:
     """Wake for meaningful unreceived input, without treating a log look as pickup.
 
-    A normal watch gives the concurrent Stop hook its bounded opportunity to
-    carry input already present at startup. The turn's closing ends that grace;
-    input arriving while the watch runs wakes immediately. A watch after Escape
+    Input already present at startup waits for the concurrent Stop hook to close
+    the turn, since that hook may still continue it over what the turn owes; the
+    input then gets a turn of its own (`hook_transport`). The turn's closing ends
+    that bounded grace; input arriving while the watch runs wakes immediately. A watch after Escape
     trusts the receipt cursor: input held outside the stopped turn's context can
     wake, while that turn's received input waits for a prompt.
     Settled thread input alone never wakes; it remains in the next receipt batch.

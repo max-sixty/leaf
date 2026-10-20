@@ -64,10 +64,9 @@ import psutil
 from leaf.codex import private_app_server
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
-from leaf.leases import adapter_is_live, lock_is_held, titles_log
+from leaf.leases import adapter_is_live, lock_is_held
 from leaf.server import running_server
 from leaf.service import page_claim
-from leaf.thread_titles import TIMEOUT
 
 from leaf_dev import ROOT
 from leaf_dev.arms import PageClient, codex_home, environment, now, run_leaf
@@ -139,26 +138,6 @@ def adapter_processes(codex: str) -> list[psutil.Process]:
     ]
 
 
-def page_server_title(codex: Codex, thread: str) -> dict | None:
-    """The page server's record of the title it generated for `thread`, hearing the
-    task as long as the request may take, or None where it made none. The log names
-    a thread's title but not who made it; this is what says the page server did."""
-    log = titles_log(codex.task.thread)
-    deadline = time.monotonic() + TIMEOUT
-    while True:
-        records = log.read_text().splitlines() if log.exists() else []
-        for line in records:
-            record = json.loads(line)
-            if (record["event"], record["thread"]) == (
-                "thread_title_generated",
-                thread,
-            ):
-                return record
-        if time.monotonic() > deadline:
-            return None
-        codex.hear(0.5)
-
-
 def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     """What holds between steps (`settled`), the last comment's thread titled by the
     page server, and the claim's turn being the task's last. `sent` names each
@@ -167,7 +146,7 @@ def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     titled = None
     if sent:
         last = list(sent)[-1]
-        record = page_server_title(codex, sent[last])
+        record = codex.page_server_title(codex.task.thread, sent[last])
         require(record is not None, f"the page server did not title `{last}`'s thread")
         titled = (
             f"titled in {record['durationMs']} ms, {record['inputTokens']} input tokens"

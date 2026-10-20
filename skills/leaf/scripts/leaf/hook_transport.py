@@ -20,6 +20,14 @@ input pending or a status other than idle (`stop_continues`). A repeated Stop
 (`stop_hook_active`) continues only for a newly delivered update that owes an
 answer.
 
+Where a watch follows the turn (`Harness.watches_between_turns`), Stop hands no
+input over: the watch wakes once the turn closes and opens a turn whose prompt hook
+does. Continuing the turn for the input would have the agent write one more message,
+and a harness that shows each turn's final message alone, as Claude Code's focus
+view does, would show that reply in place of the answer the turn had written. Under
+plain `--print` nothing watches after the run, so Stop hands the input into the turn
+it continues.
+
 For an update already picked up and still owed an answer, the hook reminds the
 agent by naming the delivery that holds its answer reference. It captures the
 update again only when the page's current owner has no usable reference, as when
@@ -47,13 +55,11 @@ timeout, and prints afterwards. It never waits for a lock past that deadline, an
 page whose lock is still held goes unconfirmed. If an interrupt ends a turn just
 after it starts, its updates still read Picked up; App Server turns behave the same.
 
-Confirmed input can still miss the context, as when Leaf's Claude Code hooks module
-runs Stop and finds the session ended before it appends the output
-(`hooks/claude-code.ts`). The input is not offered again as new. An update that owes
-an answer stays owed, and the owner's next prompt or first Stop hook names its
-original pointer or captures it again; an update that owes none is lost. Confirming
-only after the module appends was rejected: if that confirmation were refused or
-never ran, input the turn already holds would stay pending and be offered again.
+Confirmed input can still miss the context, as when the session ends after the hook
+confirms and before the harness reads its output. The input is not offered again as
+new. An update that owes an answer stays owed, and the owner's next prompt or first
+Stop hook names its original pointer or captures it again; an update that owes none
+is lost.
 """
 
 import json
@@ -360,25 +366,11 @@ HOOK_CONTEXT_LIMIT = 10_000
 CONFIRM_WITHIN = 10.0
 
 
-# The words that open a delivery's context, inline or by pointer: prose for the
-# model alone. What reads a hook's output for its delivery reads `DELIVERY_FIELD`.
-# TODO: without the hooks module, Claude Code prints a Stop hook's inline delivery
-# in full in the terminal. Hiding it there means handing over a pointer, which
-# needs a record of offered, unread deliveries that a repeated Stop and the watch
-# both respect; otherwise each re-offers it as new. Moot once the module is Claude
-# Code's only watcher and transport.
+# The words that open a delivery's context, inline or by pointer.
 INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
 POINTED_OPENING = "Leaf has new input for this turn. Read it with"
-
-# The hook output's field naming the delivery its context hands the turn: its
-# `id`, and whether it went `inline` or as a pointer. Claude Code leaves a field
-# it does not know out of what it hands the model and a hooks module, and keeps
-# the hook's whole stdout in a trace's `hook_response` (measured at 2.1.296). So
-# the field reaches Leaf's hooks module, which runs the Stop hook itself to read
-# it (`hooks/claude-code.ts`).
-DELIVERY_FIELD = "leaf_delivery"
 
 
 def render(
@@ -393,7 +385,7 @@ def render(
     `delivery` over inline only where the whole message fits under
     `HOOK_CONTEXT_LIMIT` and `confirm` then confirms every batch; otherwise it hands
     over the pointer its reader's `leaf delivery ack` confirms after complete
-    reading. Either way `DELIVERY_FIELD` names what it handed over."""
+    reading."""
     if delivery is None:
         return harness.hook_context(event, "\n".join(attention)) if attention else None
     message = "\n".join(
@@ -410,10 +402,7 @@ def render(
                 *attention,
             ]
         )
-    return {
-        **harness.hook_context(event, message),
-        DELIVERY_FIELD: {"id": delivery["id"], "inline": inline},
-    }
+    return harness.hook_context(event, message)
 
 
 def carry_turn(
@@ -440,9 +429,12 @@ def carry_turn(
         plan.claim["turn"] != payload["turn_id"] for plan in plans
     ):
         return
+    carries = event in {"UserPromptSubmit", "PostToolBatch"} or (
+        event == "Stop" and not harness.watches_between_turns()
+    )
     batches = (
         [plan.batch for plan in plans if plan.batch and plan.harness.hooks_carry()]
-        if event in {"UserPromptSubmit", "PostToolBatch", "Stop"}
+        if carries
         else []
     )
     if event == "PostToolBatch" and not batches:

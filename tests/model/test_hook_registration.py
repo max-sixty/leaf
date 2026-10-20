@@ -220,7 +220,7 @@ def test_cancelling_the_background_registration_never_wakes_the_session(
     assert (watching.returncode, out, err) == (0, "", "")
 
 
-@pytest.mark.parametrize("event", ["PostToolBatch", "Stop"])
+@pytest.mark.parametrize("event", ["PostToolBatch", "UserPromptSubmit"])
 def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
     """The harness command calls Leaf's launcher, and Leaf answers under uv.
 

@@ -12,6 +12,7 @@
     --lf-fp-folded: 42px;
     --lf-fp-aim: 32px;
     --lf-fp-press: 28px;
+    --lf-fp-inset: 8px;
     --lf-fp-max: 540px;
     --lf-fp-gutter: 24px;
     --lf-fp-width: min( var(--lf-fp-max), calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right)) );
@@ -602,7 +603,7 @@
     align-items: center;
     gap: 4px;
     min-height: 42px;
-    padding: 6px 6px 0 14px;
+    padding: 6px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
   }
   .lf-fp-head:empty {
@@ -936,6 +937,7 @@
   }
   .lf-fp-quote-head > .lf-fp-quote {
     margin: 0;
+    padding-inline-start: calc(var(--lf-fp-inset) - 1px);
     min-width: 0;
     min-height: 0;
     cursor: default;
@@ -1126,7 +1128,11 @@
   .lf-fp-messages {
     display: grid;
     gap: 8px;
-    padding: 0 8px;
+    padding-inline-end: 8px;
+  }
+  .lf-fp-messages > .lf-primary-part {
+    --lf-thread-text-inset: var(--lf-fp-inset);
+    padding-inline-start: var(--lf-thread-text-inset);
   }
   .lf-fp-messages > .lf-primary-part > .lf-msg {
     margin-top: 0;
@@ -2227,13 +2233,38 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: var(--raise-2);
   }
   .lf-page-search-status {
-    min-width: 0;
+    min-width: min-content;
+    margin-inline-start: 6px;
     min-height: 1lh;
     color: var(--muted);
     font-size: var(--t-6);
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
+  }
+  .lf-page-search-box::part(input) {
+    flex: 1 1 4em;
+  }
+  .lf-page-search-status > span {
+    min-inline-size: max(100%, max-content);
+  }
+  .lf-page-search-box::part(end) {
+    flex-shrink: 1;
+    min-inline-size: 0;
+  }
+  .lf-page-search-step {
+    flex: none;
+    margin-inline-start: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+  }
+  .lf-page-search-status + .lf-page-search-step {
+    margin-inline-start: 4px;
+  }
+  .lf-page-search-step:not([aria-disabled=true]):hover {
+    background: var(--chip);
+    color: var(--ink);
   }
   .lf-legend-box {
     position: absolute;

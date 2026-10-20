@@ -165,8 +165,12 @@ function sameClause(consumer, producer) {
 
 const show = (value) => JSON.stringify(value);
 
+// Whether an object refuses every field it doesn't name: a schema-valued
+// `additionalProperties` evaluates them, so `unevaluatedProperties` beside it closes
+// nothing.
 const closed = (schema) =>
-  schema.additionalProperties === false || schema.unevaluatedProperties === false;
+  schema.additionalProperties === false ||
+  (!("additionalProperties" in schema) && schema.unevaluatedProperties === false);
 
 /** Each place the consumer's schema refuses a value the producer's allows, as
  * `[path, message]`. `oldConsumes` says which of the two is the old schema, and

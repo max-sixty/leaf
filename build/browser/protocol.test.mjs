@@ -214,6 +214,16 @@ test("the walk sees through browser contracts, unions, references and maps", () 
     changed((s) => (note(s).box.additionalProperties = false), tagged),
     ["event note.box.*: a closed object refuses fields it took"],
   );
+  // A map beside `unevaluatedProperties: false` still takes the fields it matches.
+  const sealed = structuredClone(tagged);
+  Object.assign(note(sealed).box, {
+    additionalProperties: { type: "string" },
+    unevaluatedProperties: false,
+  });
+  assert.deepEqual(
+    changed((s) => (note(s).box.additionalProperties = false), sealed),
+    ["event note.box.*: a closed object refuses fields it took"],
+  );
   // A bound beside a union holds in every branch.
   const branched = structuredClone(baseline);
   note(branched).slug = { type: "string", anyOf: [{ maxLength: 100 }] };

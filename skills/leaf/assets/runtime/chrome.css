@@ -1986,9 +1986,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     font-size: var(--t-6);
   }
   .lf-command-reference-results {
-    --lf-command-key-column: 104px;
     min-height: 0;
     overflow-y: auto;
+    margin-inline: -10px;
+    padding-inline: 10px;
   }
   .lf-command-reference-empty {
     padding: 20px 0 8px;
@@ -1996,35 +1997,35 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: center;
   }
   .lf-command-reference h3 {
-    margin: 12px 0 4px;
+    margin: 16px 0 4px;
   }
-  .lf-command-reference table {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
-    border-collapse: collapse;
+  .lf-command-reference-row:not([hidden]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) fit-content(50%);
+    column-gap: 12px;
+    margin-inline: -6px;
+    padding-inline: 6px;
+    border-radius: 4px;
   }
-  .lf-command-reference-key-column {
-    width: var(--lf-command-key-column);
+  .lf-command-reference-row > * {
+    min-width: 0;
+    padding-block: 4px;
   }
-  .lf-command-reference th {
-    padding: 0;
-    text-align: left;
+  .lf-command-reference-row.lf-sequence-command > * {
+    padding-top: 10px;
   }
-  .lf-command-reference td {
-    padding: 3px 0;
-    vertical-align: top;
+  .lf-command-reference-key {
+    text-align: right;
   }
-  .lf-command-reference tr.lf-sequence-command td {
-    padding-top: 8px;
-    border-top: 1px solid var(--rule);
-  }
-  .lf-command-reference td:first-child {
-    padding-right: 8px;
-    white-space: nowrap;
+  .lf-command-reference .lf-binding-sequence {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: 100%;
+    min-height: max(var(--aim-floor), calc(1lh + 6px));
+    margin-block: -3px;
   }
   .lf-command-reference .lf-binding-sequence > kbd {
-    max-width: calc(var(--lf-command-key-column) - 8px);
+    max-width: 100%;
     height: auto;
     min-height: var(--lf-key-badge-size);
     padding-block: 1px;
@@ -2076,11 +2077,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: left;
     cursor: pointer;
   }
-  .lf-command-reference-command:is(:hover, [data-lf-focus]),
-  .lf-command-reference-command[data-lf-selected=true] {
+  .lf-command-reference-row:has(.lf-command-reference-command:is(:hover, [data-lf-focus], [data-lf-selected=true])) {
     background: var(--chip);
   }
   .lf-command-reference-command[data-lf-focus] {
+    outline: none;
+  }
+  .lf-command-reference-row:has(.lf-command-reference-command[data-lf-focus]) {
     outline: var(--focus-ring);
     outline-offset: 1px;
   }

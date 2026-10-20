@@ -22,6 +22,7 @@ from render_harness import (
     resized,
     round_trip,
     stamp_page,
+    told,
 )
 
 from browser.navigation import expect_walk_position
@@ -199,10 +200,12 @@ Adds --dry-run to every mutating command.
         )
 
 
-def test_obligation_cards_keep_identity_and_publisher_order_when_the_live_dom_moves(
+def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
     browser, serve
 ):
-    """A keyed card follows the published document, not later presentation DOM edits."""
+    """A keyed card keeps its node and focus however the page's DOM moves, and stands
+    where the `m` walk reaches its item: an item whose element leaves the page goes
+    after those still on it, as the walk takes it last."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     open_on_me(page)
     cards = page.locator(f"{ON_ME} .lf-fp-on-item")
@@ -236,8 +239,9 @@ def test_obligation_cards_keep_identity_and_publisher_order_when_the_live_dom_mo
     sug_refill = on_card(page, "widget:sug-refill")
     expect(sug_refill).to_be_focused()
 
-    # Removing a presentation node does not rewrite the application inventory. The
-    # route and its keyed card remain exactly as they were published.
+    # Removing a presentation node does not rewrite the application inventory: the
+    # keyed card stays, focus with it, and takes the walk's place for an item with no
+    # place on the page, after the rest of the list.
     page.evaluate(
         """() => {
           document.querySelector('#sug-refill').remove();
@@ -245,8 +249,14 @@ def test_obligation_cards_keep_identity_and_publisher_order_when_the_live_dom_mo
         }"""
     )
     page.wait_for_function("__lfReadObligationPresentation().pending.length === 0")
+    assert cards.evaluate_all("items => items.map(item => item.dataset.key)") == [
+        order[0],
+        order[2],
+        order[3],
+        order[1],
+        order[4],
+    ]
     expect(sug_refill).to_be_focused()
-    assert cards.evaluate_all("items => items.map(item => item.dataset.key)") == order
     assert cards.evaluate_all(
         "items => items.every(item => window.__lfObligationCards.get(item.dataset.key) === item)"
     )
@@ -491,3 +501,39 @@ def test_on_me_lists_its_cards_in_the_order_m_walks_them(browser, serve):
     for step in (1, 2, 3):
         page.keyboard.press("m")
         expect(cards.nth((first + step) % 3)).to_have_attribute("data-walked", "")
+
+
+def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
+    browser, serve
+):
+    """An item that joins On me while it is open takes its place in the walk's order,
+    so a to-do arriving at the page's head is the first card as `m` reaches it first.
+    The list scrolled to a later card keeps that card where it stood on screen: the
+    browser's scroll anchoring holds it as the new card grows the list above."""
+    url = serve(WALKED_PAGE)
+    page = open_page(browser, url)
+    resized(page, 1000, 560)
+    view = open_on_me(page)
+    cards = view.locator(".lf-fp-on-item")
+    expect(cards).to_have_count(8)
+    view.evaluate("view => { view.scrollTop = view.scrollHeight; }")
+    read = on_card(page, "widget:pick-7")
+    before = read.bounding_box()
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "todo",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "walk-order",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "title"},
+            "title": "Check the title",
+        },
+    )
+    told(page)
+    expect(cards).to_have_count(9)
+    expect(cards.first).to_contain_text("Check the title")
+    # Scroll anchoring restores the offset to the scroller's subpixel precision.
+    after = read.bounding_box()
+    assert after["y"] == pytest.approx(before["y"], abs=1), (before, after)

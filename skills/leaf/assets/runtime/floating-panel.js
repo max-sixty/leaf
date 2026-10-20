@@ -2646,15 +2646,18 @@ export function createFloatingPanel({
     const all = [...lists.you, ...lists.agent, ...lists.done];
     const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
     const current = lists[queueTab].map(queueItemKey);
-    // The seats this opening of the view holds: those it showed, still in the reading
-    // wherever they now stand, then any that joined this list since.
+    // The cards this opening of the view holds: those it showed, still in the reading
+    // wherever they now stand, so an answered one stays, and any that joined this list
+    // since. They stand in the walk's order, a card joining included, so `m` reaches
+    // them down the list; a card joining above the one being read moves nothing on
+    // screen, since the view's scroll anchoring holds the card in view where it was.
     seated = [
       ...(seated ?? []).filter((key) => byKey.has(key)),
       ...current.filter((key) => !(seated ?? []).includes(key)),
     ];
     const listOf = (item) =>
       lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
-    const items = seated.map((key) => byKey.get(key));
+    const items = inWalkOrder(seated.map((key) => byKey.get(key)));
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
     return html`${
       items.length

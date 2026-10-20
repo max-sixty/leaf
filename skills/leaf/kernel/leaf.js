@@ -7908,7 +7908,7 @@ function createFloatingPanel({
       ...current.filter((key) => !(seated ?? []).includes(key))
     ];
     const listOf = (item) => lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
-    const items2 = seated.map((key) => byKey.get(key));
+    const items2 = inWalkOrder(seated.map((key) => byKey.get(key)));
     const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
     return html`${items2.length ? repeat(items2, queueItemKey, (item) => onItemCard(item, listOf(item))) : html`<p class="lf-fp-empty">
             Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.

@@ -8,10 +8,10 @@
    a thread the user opened takes its attention from it. Every message, compact thread row and margin entry reads
    these values; none reclassifies receipts, streams, turn ownership, whose turn a
    thread is, or which workflow is stronger. `strongestWorkflow` only places this tab's
-   own sends against the served order. A workflow's word is `workflowLabel` and its face
-   on a control `progressFace`, on every surface; a thread's word is `threadAttention`'s
-   label, which Threads states as its status and the margin and Page Map as its line
-   (`margin-model.js`, `threadMarks`). */
+   own sends against the served order. A workflow's word is `workflowLabel`, its last
+   step's line `workflowStep`, and its face on a control `progressFace`, on every
+   surface; a thread's word is `threadAttention`'s label, which Threads states as its
+   status and the margin and Page Map as its line (`margin-model.js`, `threadMarks`). */
 
 const STAGE_LABELS = Object.freeze({
   sending: "Sending",
@@ -66,6 +66,12 @@ export const progressFace = (workflow) =>
         : null;
 
 export const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
+
+// What the agent's last step on a workflow says while it is at work on it: the line of
+// the start or progress reply that holds it (`detail`), which the page's status says of
+// the newest it holds. Before it says one, and once the work stalls, the workflow's word.
+export const workflowStep = (workflow) =>
+  (progressFace(workflow) === "working" && workflow.detail) || workflowLabel(workflow);
 
 export const isPageWidgetWorkflow = (workflow, revision) =>
   workflow.subject.kind === "widget" &&

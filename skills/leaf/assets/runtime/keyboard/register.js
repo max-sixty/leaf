@@ -252,29 +252,33 @@ export function pageScopes() {
   }
   return resolved;
 }
+const namedScopes = () =>
+  STACK.flatMap((name) => (typeof name === "string" ? (scopes.get(name) ?? []) : []));
+const exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
 // The presses a finger reaches through a row of the page's controls rather than a key (AGENTS.md,
 // "Touch routes"): each a page command declares, in line order, and each a page scope's
 // rows declare, scope by scope in STACK order, so the first that stands is the one the
-// user is innermost in. Read from the live register, since a scope may join or leave it.
+// user is innermost in. A stance takes its place in that order with no steps of its
+// own, so it stands down the steps of scopes outside it. Read from the live register,
+// since a scope may join or leave it.
 export function touchPresses() {
   pageScopes();
-  const named = STACK.flatMap((name) =>
-    typeof name === "string" ? (scopes.get(name) ?? []) : [],
-  );
   return {
     commands: PAGE_COMMANDS.flatMap((id) =>
       commands.has(id) ? pressesOf(commands.get(id)) : [],
     ),
-    steps: named
+    steps: namedScopes()
       .map((scope) => ({ scope, presses: scope.rows.flatMap(pressesOf) }))
-      .filter(({ presses }) => presses.length),
-    // A stance's way out, the one row of its scope marked `exit`, innermost first.
-    exits: named.flatMap((scope) =>
-      scope.rows
-        .filter((row) => row.exit)
-        .map((row) => ({ scope, press: { id: row.id, row, binding: undefined } })),
-    ),
+      .filter(({ scope, presses }) => presses.length || exitOf(scope)),
   };
+}
+// The stances, innermost first: each scope with a row marked `exit`, its way out.
+export function stances() {
+  pageScopes();
+  return namedScopes().flatMap((scope) => {
+    const exit = exitOf(scope);
+    return exit ? [{ scope, exit }] : [];
+  });
 }
 export const universalCommandReference = () =>
   offlineInteractive ? undefined : commands.get(COMMAND_REFERENCE);

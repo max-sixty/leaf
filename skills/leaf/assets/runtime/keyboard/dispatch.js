@@ -96,6 +96,7 @@ import {
 import {
   ELEMENTS,
   pageScopes,
+  stances,
   textEntryScope,
   universalCommandReference,
 } from "./register.js";
@@ -127,6 +128,10 @@ export const userIn = (scope) => {
 // decisions fold and then every link on the page, once per keydown, from the first keystroke of
 // the first comment.
 export const standing = (scope) => userIn(scope) && pageHas(scope);
+/** The stance the user stands in, innermost, with its way out (register.js, `stances`),
+ * or null. */
+export const innermostStance = () =>
+  stances().find(({ scope }) => standing(scope)) ?? null;
 const nativeBoundary = (claims) => ({
   get rows() {
     const reference = universalCommandReference();

@@ -4039,21 +4039,23 @@ function pageScopes() {
   }
   return resolved;
 }
+var namedScopes = () => STACK.flatMap((name) => typeof name === "string" ? scopes.get(name) ?? [] : []);
+var exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
 function touchPresses2() {
   pageScopes();
-  const named = STACK.flatMap(
-    (name) => typeof name === "string" ? scopes.get(name) ?? [] : []
-  );
   return {
     commands: PAGE_COMMANDS.flatMap(
       (id) => commands.has(id) ? touchPresses(commands.get(id)) : []
     ),
-    steps: named.map((scope) => ({ scope, presses: scope.rows.flatMap(touchPresses) })).filter(({ presses }) => presses.length),
-    // A stance's way out, the one row of its scope marked `exit`, innermost first.
-    exits: named.flatMap(
-      (scope) => scope.rows.filter((row) => row.exit).map((row) => ({ scope, press: { id: row.id, row, binding: void 0 } }))
-    )
+    steps: namedScopes().map((scope) => ({ scope, presses: scope.rows.flatMap(touchPresses) })).filter(({ scope, presses }) => presses.length || exitOf(scope))
   };
+}
+function stances() {
+  pageScopes();
+  return namedScopes().flatMap((scope) => {
+    const exit = exitOf(scope);
+    return exit ? [{ scope, exit }] : [];
+  });
 }
 var universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);
 var textEntryScope = () => scopes.get("text entry")?.[0];
@@ -7305,6 +7307,7 @@ export {
   pageRung,
   pageScopes,
   touchPresses2 as touchPresses,
+  stances,
   universalCommandReference,
   textEntryScope,
   allButCommandReference,

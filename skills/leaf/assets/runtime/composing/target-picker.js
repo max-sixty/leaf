@@ -648,6 +648,9 @@ export function createTargetPicker({
         : hints.prefix()
           ? "back one letter"
           : "close picker",
+    // The ✕ of both stances (keyboard/AGENTS.md, "Touch routes"). While the user
+    // has typed part of a hint it takes back a letter, as its words say; a finger,
+    // which types none, always closes.
     exit: true,
     run: back,
   };

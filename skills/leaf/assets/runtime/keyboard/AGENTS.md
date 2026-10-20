@@ -84,8 +84,8 @@ row's control stands in the panel's row as a gesture's step while its scope is t
 innermost one offering steps. A stance a finger can enter, such as page search, the
 target picker or Draw mode, marks its way out `exit` instead of giving it words: while
 it is the innermost stance standing, the panel says the scope's title and offers that
-row as one ✕ at the row's end, beside the counts or the steps, whatever Escape would
-close first. The register refuses a page command without `touch`; `false` says a finger
+row as one ✕ at the row's end, beside the counts or the steps. The ✕ runs that row,
+which leaves the stance, even where Escape would first close something inside it. The register refuses a page command without `touch`; `false` says a finger
 reaches the result directly, as it does for walks and Go-to by scrolling and tapping.
 
 The comment field has one primary action, Dictate while empty and Send once it has
@@ -106,7 +106,7 @@ activation), `layer-stack.js` (popovers and dialogs over the page), `page.js` (t
 page's own scope and the last Escape step), `go-to-sequence.js` (the `g` keys),
 `hints.js` and `command-hints.js` (hint chips), `chip-seats.js` and
 `key-badge-placement.js` (where chips sit), `touch-controls.js` (a finger's controls
-for the keys), `status-context.js` (what the panel says of a walk or a Go-to filter),
+for the keys), `status-context.js` (what the panel says of a walk, a Go-to filter or a stance),
 and `control-keys.js`, `key-sequence.js`, `command-reference.js`, `disclosure.js`.
 
 Test a changed binding inside and outside its scope and inside any native editor the

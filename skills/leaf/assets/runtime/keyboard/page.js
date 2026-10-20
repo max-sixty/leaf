@@ -61,7 +61,7 @@ function standingOn(name, title, sel, rows) {
 // nothing the browser does not already do, and what it adds is the promise being on
 // screen. Enter alone, Space under a link being the page's own scroll.
 standingOn("link", "On a link", LINK, [
-  { id: "link.follow", keys: ["Enter"], title: "Follow" },
+  { id: "link.follow", keys: ["Enter"], title: "Follow", touch: false },
 ]);
 
 // A disclosure, in either spelling the page has for one. The platform's <details> keeps the
@@ -79,6 +79,7 @@ standingOn("link", "On a link", LINK, [
 standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
   {
     id: "disclosure.toggle",
+    touch: false,
     keys: () => DISCLOSE(focused()),
     description: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
@@ -137,6 +138,7 @@ export function declareStanding({ pageState }) {
     rows: [
       {
         id: "navigation.release",
+        touch: false,
         keys: ["Escape"],
         description: "Let go of the current item",
         title: "let go",

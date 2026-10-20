@@ -326,19 +326,21 @@
   }
   /* The anchored comment box on a page drawing its own annotations, standing in the
      field's place while its composer is open and no view is open above the row
-     (floating-panel.js, `responseSeat`). */
+     (floating-panel.js, `responseSeat`). While the field offers words selected on the
+     page (`data-offers`), the field stands there instead, so the finger that selected
+     them has its route to them, and the box comes back with its draft once they go. */
   .lf-fp-response {
     display: none;
     flex: 1;
     min-width: 0;
     align-self: center;
   }
-  .lf-floating-panel:not([data-open])
+  .lf-floating-panel:not([data-open], [data-offers])
     .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
     > .lf-fp-field {
     display: none;
   }
-  .lf-floating-panel:not([data-open])
+  .lf-floating-panel:not([data-open], [data-offers])
     .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open])
     > .lf-fp-response {
     display: block;
@@ -405,6 +407,11 @@
   .lf-fp-field leaf-text[data-says="notice"]::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
+  }
+  /* Selected words the field comments on are the press it offers, so they read in ink
+     rather than a report's dim face. */
+  .lf-fp-field leaf-text[data-says="selection"]::part(placeholder) {
+    color: var(--ink);
   }
   /* An error the field says stands in its status's place, in the danger's ink, until
      the user's first edit (errors.js). One about the field's editor covers it as at any
@@ -487,7 +494,7 @@
   .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-submit {
     display: grid;
   }
-  .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {
+  .lf-floating-panel[data-typing] .lf-fp-quick {
     display: none;
   }
   .lf-fp-field .lf-compose-dictate {
@@ -501,9 +508,6 @@
   }
 
   /* Marks with counts: what waits on the user, the threads, and annotating. */
-  /* A gesture's steps that the row can't hold on one line, as search's four can't on
-     the narrowest phone, wrap onto a line above, the field having given up its room
-     first; the row grows into the window to hold them. */
   .lf-fp-quick {
     flex: 0 1 auto;
     min-width: 0;
@@ -622,19 +626,13 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
-  /* The way out of the stance the user stands in, after the counts or the steps. */
+  /* The way out of the stance the user stands in, after the counts. */
   .lf-fp-exit-seat {
     flex: none;
     display: flex;
   }
   .lf-fp-exit-seat[hidden] {
     display: none;
-  }
-  /* A gesture's next step, in the counts' place while the gesture holds it. */
-  .lf-fp-step {
-    color: var(--ink);
-    box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
-    padding-inline: 10px;
   }
 
   /* One quiet line over the field, there only while it has something to say and no

@@ -28,6 +28,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    selection_field,
     sending,
     told,
     write,
@@ -325,7 +326,7 @@ def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
 
 @pytest.mark.parametrize("viewport", [None, "width=device-width, initial-scale=1"])
 def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, viewport):
-    """The runtime starts in WebKit; selection offers an explicit Comment action.
+    """The runtime starts in WebKit; the panel's field offers to comment on a selection.
 
     A module feature WebKit lacks fails the whole module graph before the runtime runs:
     CSS module scripts did, and an iPhone user saw only that Leaf could not start. A
@@ -352,14 +353,12 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     }""")
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
-    # The selection's next step stands on the panel's row in the marks' place, where
-    # the finger that made the selection finds it; the leaf's menu stays shut.
-    comment = page.locator(".lf-fp-row .lf-fp-step").filter(
-        has_text="Comment on selection"
-    )
-    expect(comment).to_be_visible()
+    # The panel's field quotes the selection, where the finger that made it finds it,
+    # and the marks keep their seats; the leaf's menu stays shut.
+    comment = selection_field(page)
+    expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
-    expect(page.locator(".lf-fp-threads")).to_be_hidden()
+    expect(page.locator(".lf-fp-threads")).to_be_visible()
     box = comment.bounding_box()
     assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
     comment.tap()

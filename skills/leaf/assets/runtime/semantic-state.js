@@ -311,8 +311,9 @@ export const projectionRegionsPresented = (widgets) =>
   applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 export const watchPresentation = presentation.subscribe;
 // A reading of presentation proof itself, such as whether the regions a report waits
-// on have committed. A paint that follows one draws again when it moves without
+// on have committed. A paint that follows one draws again when it rises without
 // claiming its own region for it: a claim moves presentation, and the reading with it.
+// Its fall owes no paint, since a paint that reads it false holds what it would say.
 const proofReadings = new WeakSet();
 export const proofReading = (read) => {
   const reading = outsideReading(read, (moved) => watchPresentation(() => moved({})));

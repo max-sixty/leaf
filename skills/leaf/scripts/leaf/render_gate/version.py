@@ -14,7 +14,8 @@ from .readings import (
     shrunk_label_advice,
     squeezed_table_advice,
     sweep,
-    swept_overflow,
+    swept_faults,
+    unrendered,
     unreserved_height_advice,
 )
 from .scheme import _render_scheme
@@ -92,14 +93,14 @@ def _render_version_attempt(
     in that scheme. Once per version, on the settled desktop page in the light scheme,
     it reads, as advice, whether a widget declaring x-height drew at a height its first
     paint did not hold; and then, resizing that loaded page through every width from
-    360px to 1920px, the sideways readings again: a version holds at each of them, not
-    only at the two it renders. There it also reads, as advice naming the widths it
-    spans, whether a drawing's fit to its box shrinks its labels past reading, and
-    whether a table scrolls sideways with a cell in it wrapped. That pass
-    also finds each width where the page's margin content changes (a sidebar, contents
-    map or note first standing in the margin), and the gate renders the page there too,
-    in the light scheme: what stands in the margin is layout, which the scheme does not
-    change. No failures is a pass.
+    360px to 1920px, the sideways readings and clipped controls again: a version holds
+    at each of them, not only at the two it renders. There it also reads, as advice
+    naming the widths it spans, whether a drawing's fit to its box shrinks its labels
+    past reading, and whether a table scrolls sideways with a cell in it wrapped. That
+    pass also finds each width where the page's margin content changes (a sidebar,
+    contents map or note first standing in the margin), and the gate renders the page
+    there too, in the light scheme: what stands in the margin is layout, which the
+    scheme does not change. No failures is a pass.
 
     One implementation with two callers — `page check --render` on the page an agent
     just wrote, and the render suite on the shipped examples
@@ -114,6 +115,7 @@ def _render_version_attempt(
     )
     opened_pages = []
     failures = []
+    rendered = []
     notices = []
     completed = []
     swept = []
@@ -128,7 +130,6 @@ def _render_version_attempt(
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
         advice.extend(shrunk_label_advice(widths))
         advice.extend(squeezed_table_advice(widths))
-        swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
         arrangement.extend(arrangement_changes(widths))
         fixed = {viewport["width"] for viewport in RENDER_VIEWPORTS}
         changes.extend(
@@ -136,6 +137,7 @@ def _render_version_attempt(
             for width in margin_changes(page, widths, desktop["height"])
             if width not in fixed
         )
+        swept.extend(swept_faults(widths))
         # Back to the desktop viewport for the readings `_render_scheme` takes last.
         settle_at(page, desktop["width"], desktop["height"])
 
@@ -145,6 +147,7 @@ def _render_version_attempt(
             browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=then
         )
         failures.extend((finding, viewport_label) for finding in found)
+        rendered.extend((finding, viewport["width"]) for finding in found)
         notices.extend((notice, viewport_label) for notice in found_notices)
         completed.append(complete)
 
@@ -165,7 +168,13 @@ def _render_version_attempt(
                 page.close()
         raise
     reading = RenderReading(
-        [*_findings_with_viewports(failures), *swept, *advice], changes, arrangement
+        [
+            *_findings_with_viewports(failures),
+            *unrendered(swept, rendered),
+            *advice,
+        ],
+        changes,
+        arrangement,
     )
     return reading, _findings_with_viewports(notices), all(completed)
 

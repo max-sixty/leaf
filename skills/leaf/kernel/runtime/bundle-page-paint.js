@@ -726,13 +726,7 @@ var live = (row) => {
   return routes.length ? routes.some((route) => commandAvailable(row, route)) : commandAvailable(row);
 };
 var availableBindings = (row, declared) => declared.filter((binding) => commandEntries(row, [binding]).length > 0);
-var touchPresses = (row) => row.routes ? commandRoutes(row).filter((route) => route.touch).map((route) => ({
-  id: route.id,
-  row,
-  binding: route.binding,
-  words: route.touch
-})) : row.touch ? [{ id: row.id, row, binding: void 0, words: row.touch }] : [];
-var answersTouch = (row) => row.touch !== void 0 || commandRoutes(row).length > 0 && commandRoutes(row).every((route) => route.touch !== void 0);
+var touchPresses = (row) => row.touch ? [{ id: row.id, row, binding: void 0, words: row.touch }] : [];
 var COMMAND_ID = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/;
 var canonicalBinding = (binding) => {
   const { key: declaredKey, mods } = parsed(binding);
@@ -893,13 +887,9 @@ function checked(rows, where, ready) {
       );
     if (row.touch && (!row.run || row.routes))
       throw new Error(
-        `leaf: ${row.id} stands in for its keys under a finger, so it needs a run, and a routed row names its words on each route`
+        `leaf: ${row.id} stands in for its keys under a finger, so it needs a run and makes one press, with no routes`
       );
     const routes = commandRoutes(row);
-    if (routes.some((route) => route.touch) && (!row.run || row.touch === false))
-      throw new Error(
-        `leaf: ${row.id} gives a route a finger's words, so it needs a run and no row-level touch: false`
-      );
     if (routes.length && contextBindings(row).length)
       throw new Error(
         `leaf: ${row.id} owns distinct routes; declare contextKeys on each route`
@@ -3249,11 +3239,16 @@ var KEY_REFUSED = 401;
 function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
-var { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
+var { promise: layerReady, resolve: layerRevealed } = Promise.withResolvers();
+var layerKnown = false;
+var revealLayer = () => {
+  layerKnown = true;
+  layerRevealed();
+};
 var postEvent = async (event, held = runtime.data) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
-  await layerReady;
+  if (!layerKnown) await layerReady;
   countTraffic("sends");
   recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
   let response;
@@ -3418,7 +3413,6 @@ export {
   referencedCommandEntry,
   live,
   touchPresses,
-  answersTouch,
   decisionControls,
   ariaShortcuts,
   answers,

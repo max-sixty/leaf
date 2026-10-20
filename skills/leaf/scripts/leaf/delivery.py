@@ -53,8 +53,8 @@ from .files import read_json
 from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
-from .registry.kernel import record_format
-from .schema import CURSOR_FILE, WIDGET_KINDS
+from .registry.kernel import record_format, verb_writers
+from .schema import CURSOR_FILE
 from .service import (
     PageTransaction,
     may_receive,
@@ -172,7 +172,7 @@ def _registry(page_dir: Path):
 
 def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
     """Name what one event changes without using prose as an identifier."""
-    if event["kind"] in WIDGET_KINDS:
+    if event["kind"] in verb_writers():
         return {"kind": "widget", "id": event["widget"]}
     if event["kind"] == "undo":
         original = by_id.get(event["undoes"])

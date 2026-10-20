@@ -994,8 +994,8 @@ _TEXT = {
     ),
     "undeclared-event-kind": _declared(
         lambda v: (
-            f"$events.handling names {v['kind']!r}, which $events.kinds does"
-            " not declare"
+            f"$events.{v['key']} names {v['kind']!r}, which is none of"
+            f" {', '.join(v['declared'])}"
         )
     ),
     "invalid-when": _declared(

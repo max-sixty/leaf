@@ -9,6 +9,7 @@ from leaf.files import read_json
 from leaf.schema import WIDGET_NAME
 
 from ..findings import Finding, Rejected, element_at
+from .kernel import verb_writers
 
 
 def is_element_name(name: str) -> bool:
@@ -313,12 +314,6 @@ def deciding_outcomes(entry: dict) -> list[str]:
     return list(schema.get("enum", [])) if isinstance(schema, dict) else []
 
 
-# Who writes a verb's state, by the event kind that carries it: the user's gesture
-# is an `action`, the agent's news a `report`. A verb declares one writer, so its
-# coordinate is only ever written from one side.
-WRITERS = {"action": "user", "report": "agent"}
-
-
 def verb_writer(spec: dict) -> str:
     """The side that writes one x-state verb: `agent` where it says so, else `user`.
     The browser reads it from `$states` (`stamp_states`)."""
@@ -449,9 +444,12 @@ def same_state_operation(recorded, current) -> bool:
 
 
 def event_spec(entry: dict, event: dict) -> dict | None:
-    """The x-state verb an action or report names, when its writer sent it."""
+    """The x-state verb an action or report names, when its writer sent it: a verb
+    declares one writer, and the kind that carries it says which side sent it
+    (`registry.kernel.verb_writers`), so its coordinate is only ever written from one
+    side."""
     spec = entry.get("x-state", {}).get(event["action"])
-    if spec is None or verb_writer(spec) != WRITERS[event["kind"]]:
+    if spec is None or verb_writer(spec) != verb_writers()[event["kind"]]:
         return None
     return spec
 

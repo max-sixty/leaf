@@ -1,14 +1,13 @@
 """Layer registry composition and contract validation."""
 
 import json
-from copy import deepcopy
 
 import jmespath
 import turbohtml
 from jmespath.exceptions import JMESPathError
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import DECLARED_MARKS, EXTENSION_SCHEMA, LAYER_FACTS_SCHEMA
+from leaf.schema import EXTENSION_SCHEMA, LAYER_FACTS_SCHEMA
 
 from .contract import (
     is_element_name,
@@ -16,6 +15,7 @@ from .contract import (
     stamp_decisions,
     stamp_states,
 )
+from .kernel import answer_kinds
 from .schema import (
     check_schema,
     json_validator,
@@ -72,9 +72,8 @@ def _canonical(value) -> str:
 
 def stamp_composition(registry: dict) -> dict:
     """Write into a validated vocabulary what the browser reads rather than derives:
-    `$decisions` (`registry.contract.stamp_decisions`), `$states`
-    (`registry.contract.stamp_states`), and `$marks`, the declared marks
-    (`schema.DECLARED_MARKS`) it paints on a message it renders.
+    `$decisions` (`registry.contract.stamp_decisions`) and `$states`
+    (`registry.contract.stamp_states`).
 
     Each composition that ends in a vocabulary stamps it, `page init`'s layer and a
     page's own declarations over it, overwriting whatever a layer declared under
@@ -82,7 +81,6 @@ def stamp_composition(registry: dict) -> dict:
     """
     stamp_decisions(registry)
     stamp_states(registry)
-    registry["$marks"] = deepcopy(DECLARED_MARKS)
     return registry
 
 
@@ -102,10 +100,19 @@ def validate_layer_declarations(registry: dict, path) -> None:
     Schema, each `resources` entry JMESPath, the documented keys, and the idioms."""
     check_layer_facts(registry, path)
     events = registry["$events"]
+    # A layer instructs only the kinds there are: events of a declared kind, and the
+    # answers the kernel's own `answering` instructs.
+    declared = {"handling": sorted(events["kinds"]), "answering": answer_kinds()}
     for key in ("handling", "answering"):
         for kind, clauses in events[key].items():
-            if key == "handling" and kind not in events["kinds"]:
-                raise registry_error("undeclared-event-kind", path, kind=kind)
+            if kind not in declared[key]:
+                raise registry_error(
+                    "undeclared-event-kind",
+                    path,
+                    key=key,
+                    kind=kind,
+                    declared=declared[key],
+                )
             for clause in clauses:
                 if "when" not in clause:
                     continue

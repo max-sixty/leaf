@@ -427,6 +427,9 @@ async function main(args) {
     await writeFile(path.join(root, sourceRoot, "contract.d.ts"), contract);
     if ((await protocolHeader()) !== protocol.header)
       await writeFile(protocolContractPath, protocol.text);
+    // The modules generated from the registry are the typecheck's inputs too.
+    for (const [name, bytes] of await registryOutputs())
+      await writeFile(path.join(root, name), bytes);
   }
   const outputs = await buildOutputs();
   if (args[0] !== "--check") await writeFile(protocolContractPath, protocol.text);

@@ -51,7 +51,7 @@ from leaf.projection import (
     projected_action_holders,
     state_projection,
 )
-from leaf.registry.contract import WRITERS
+from leaf.registry.kernel import verb_writers
 from leaf.structure import review_mode
 from leaf.thread_context import widget_messages
 
@@ -610,7 +610,7 @@ class _ItemReducer:
         # there (`previously_requested`). Other log entries need no historical parse.
         written = {}
         for event in self.events:
-            if event["kind"] in WRITERS:
+            if event["kind"] in verb_writers():
                 written.setdefault((event["revision"], event["widget"]), set()).add(
                     event["action"]
                 )
@@ -642,7 +642,7 @@ class _ItemReducer:
         state_events = [
             event
             for event in self.events
-            if event["kind"] in WRITERS or event["kind"] == "note"
+            if event["kind"] in verb_writers() or event["kind"] == "note"
         ]
         withdrawals = sorted(taken_back(self.events))
         earlier = []

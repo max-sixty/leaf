@@ -3,7 +3,7 @@
 from ..document_reading import DocumentReading
 from ..events import UndoReading, action_retracted
 from ..projection import StateProjection
-from ..registry.kernel import bookkeeping_kinds
+from ..registry.kernel import kinds_declaring
 from .wire import browser_projection
 
 
@@ -47,7 +47,7 @@ def browser_undo_candidates(
     exact control that names it."""
     candidates = []
     withdrawn = undo_reading.withdrawn
-    bookkeeping = bookkeeping_kinds()
+    bookkeeping = kinds_declaring("bookkeeping")
     newest = next(
         (
             event["id"]

@@ -187,13 +187,11 @@
   --lf-diff-actions: var(--lf-diff-action-h);
   --lf-diff-head-h: 35px;
 }
-.lf-diff-file:nth-child(1 of .lf-diff-file:not(.lf-diff-filtered)),
-.lf-diff-file:has(> .lf-diff-file-thread-outlet) + .lf-diff-file {
+.lf-diff-run-start {
   margin-top: 8px;
   --lf-diff-r-start: var(--r);
 }
-.lf-diff-file:nth-last-child(1 of .lf-diff-file:not(.lf-diff-filtered)),
-.lf-diff-file:has(> .lf-diff-file-thread-outlet) {
+.lf-diff-run-end {
   --lf-diff-r-end: var(--r);
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) {

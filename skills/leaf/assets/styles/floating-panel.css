@@ -295,6 +295,7 @@
     outline: var(--focus-ring);
     outline-offset: 0;
     border-radius: var(--r);
+    --lf-wears-ring: 1;
   }
   /* What the field's draft carries, its attached images, hangs off the box rather
      than standing in it: the shelf stands just over the box's top edge, above the
@@ -1158,6 +1159,11 @@
   .lf-fp-thread[data-resolved] .lf-fp-label {
     color: var(--lf-fp-muted);
   }
+  /* The row half of the mark the pointer is indicating (anchor-paint.js, `markRow`):
+     its passage's hover wash, so the row and the lit words read as one thread. */
+  .lf-fp-thread.lf-mark-hover {
+    background: var(--mark-hover);
+  }
   /* The words a thread in the panel is about, over its messages, as a card's head
      quotes them (chrome.css, `.lf-quote`): three lines, the whole on Full quote, its
      press above the words it grows (floating-panel.js, `quoteHead`). */
@@ -1583,7 +1589,7 @@
     color: var(--lf-fp-muted);
     font-size: 12px;
   }
-  .lf-fp-state b {
+  .lf-fp-summary {
     color: var(--ink);
     font-size: 13px;
     font-weight: 600;
@@ -1604,22 +1610,23 @@
   }
   /* A tone's words wear its ink, which reads as text on the menu's ground; the bare
      tone is for marks, and the amber one reads 3.65:1 there. */
-  .lf-fp-state[data-tone="working"] b {
+  .lf-fp-state[data-tone="working"] .lf-fp-summary {
     color: var(--accent);
   }
-  .lf-fp-state[data-tone="listening"] b {
+  .lf-fp-state[data-tone="listening"] .lf-fp-summary {
     color: var(--ok-ink);
   }
-  .lf-fp-state[data-tone="away"] b {
+  .lf-fp-state[data-tone="away"] .lf-fp-summary {
     color: var(--warn-ink);
   }
-  .lf-fp-state[data-tone="offline"] b {
+  .lf-fp-state[data-tone="offline"] .lf-fp-summary {
     color: var(--danger-ink);
   }
 
-  /* The status in full, on hover or focus of the folded leaf; and a passing notice,
-     over the folded leaf or, unfolded, over an open view's foot from the leaf's left
-     edge, where it reads along the panel rather than out past its side. */
+  /* The status in full, on hover or focus of the leaf, or what the field says on hover
+     of it (floating-panel.js, `paintPeek`); and, folded, a passing notice. In the row it
+     stands over the row from the leaf's left edge, where it reads along the panel
+     rather than out past its side. */
   .lf-fp-leaf {
     anchor-name: --lf-fp-leaf;
   }

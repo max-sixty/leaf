@@ -1955,9 +1955,10 @@ def append_batch(
 
 
 def offer_hook_delivery(
-    session_id: str, expected: dict | None
+    session_id: str, expected: dict | None, *, received: bool = True
 ) -> tuple[str | None, dict | None]:
     """Offer one plain-reply pointer through a tool or Stop hook, without receipt.
+    `received` is `delivery.deliverable`'s: the tool hook leaves it false.
 
     The agent's explicit `delivery ack` confirms complete input in its turn. If the
     hook output arrives after the turn ends, the adapter queues the same frozen
@@ -1983,7 +1984,7 @@ def offer_hook_delivery(
                     if session_record(session_id) != expected:
                         return None, expected
                     expected = renew_turn(expected)
-                    if batch := deliverable(page):
+                    if batch := deliverable(page, received=received):
                         append_batch(session_id, page_dir, page, batch)
         except FileNotFoundError:
             continue

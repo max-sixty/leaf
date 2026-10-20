@@ -351,14 +351,15 @@ def held_page(browser, serve):
     return page
 
 
-@pytest.mark.parametrize("move", list(HELD_PAGE_MOVES))
-def test_a_script_scroll_moves_a_held_page(browser, serve, move):
+def test_a_script_scroll_moves_a_held_page(browser, serve, subtests):
     """After a width change the page holds the reader's place and applies it again as
     the layout settles. A page script that scrolls, before the restore has landed, as it
     lands, or after, with the layout growing around it or not, has moved the page: the
     page keeps that scroll through the next layout change, and the next width change
-    starts from where the script left it, not from the held place."""
-    when, by, script = HELD_PAGE_MOVES[move]
+    starts from where the script left it, not from the held place.
+
+    Each move needs a page of its own, held fresh; the control they are measured
+    against is the same for every move, so it is read once."""
     scrolled = "document.scrollingElement.scrollTop"
     # Where the restore alone leaves the page, with no script.
     control = held_page(browser, serve)
@@ -367,41 +368,46 @@ def test_a_script_scroll_moves_a_held_page(browser, serve, move):
     restored = control.evaluate(scrolled)
     control.context.close()
 
-    page = held_page(browser, serve)
-    if when == "armed":
-        page.evaluate(script)
-    resized(page, 390, 800)
-    rendered(page)
-    if when == "settled":
-        page.evaluate(script)
-    scroll_settled(page)
-    rendered(page)
-    moved = page.evaluate(scrolled)
-    assert moved > restored + by - 100, f"the script's scroll was undone ({moved})"
-    page.evaluate(
-        "document.querySelector('main').append("
-        "Object.assign(document.createElement('p'), {textContent: 'More.'}))"
-    )
-    rendered(page)
-    assert page.evaluate(scrolled) == pytest.approx(moved, abs=2)
-    line = page.evaluate(
-        """() => {
-          const band = parseFloat(getComputedStyle(document.scrollingElement)
-            .scrollPaddingTop) || 0;
-          const line = [...document.querySelectorAll('main p')]
-            .find(p => p.getBoundingClientRect().top >= band);
-          line.id = 'read-line';
-          return line.getBoundingClientRect().top - band;
-        }"""
-    )
-    resized(page, 1280, 800)
-    rendered(page)
-    after = page.evaluate(
-        """() => document.getElementById('read-line').getBoundingClientRect().top
-          - (parseFloat(getComputedStyle(document.scrollingElement)
-            .scrollPaddingTop) || 0)"""
-    )
-    assert 0 <= after <= line + 60, (line, after)
+    for move, (when, by, script) in HELD_PAGE_MOVES.items():
+        with subtests.test(move=move):
+            page = held_page(browser, serve)
+            if when == "armed":
+                page.evaluate(script)
+            resized(page, 390, 800)
+            rendered(page)
+            if when == "settled":
+                page.evaluate(script)
+            scroll_settled(page)
+            rendered(page)
+            moved = page.evaluate(scrolled)
+            assert moved > restored + by - 100, (
+                f"the script's scroll was undone ({moved})"
+            )
+            page.evaluate(
+                "document.querySelector('main').append("
+                "Object.assign(document.createElement('p'), {textContent: 'More.'}))"
+            )
+            rendered(page)
+            assert page.evaluate(scrolled) == pytest.approx(moved, abs=2)
+            line = page.evaluate(
+                """() => {
+                  const band = parseFloat(getComputedStyle(document.scrollingElement)
+                    .scrollPaddingTop) || 0;
+                  const line = [...document.querySelectorAll('main p')]
+                    .find(p => p.getBoundingClientRect().top >= band);
+                  line.id = 'read-line';
+                  return line.getBoundingClientRect().top - band;
+                }"""
+            )
+            resized(page, 1280, 800)
+            rendered(page)
+            after = page.evaluate(
+                """() => document.getElementById('read-line').getBoundingClientRect().top
+                  - (parseFloat(getComputedStyle(document.scrollingElement)
+                    .scrollPaddingTop) || 0)"""
+            )
+            assert 0 <= after <= line + 60, (line, after)
+            page.context.close()
 
 
 def test_a_bounded_box_holds_its_place_while_its_layout_settles(browser, serve):

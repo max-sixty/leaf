@@ -338,15 +338,19 @@ export function createQueueWalk({
     touch: false,
     keys: ["m", "Shift+m"],
     routes: [
+      // The whole page's list, which a tally's Next on me, walking one region, is not.
       {
         id: "queue.next",
         binding: "m",
         title: "Next on me",
+        description: "Go to the next of everything waiting on me, anywhere on the page",
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
         title: "Previous on me",
+        description:
+          "Go to the previous of everything waiting on me, anywhere on the page",
       },
     ],
     title: "On me",

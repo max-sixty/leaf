@@ -202,6 +202,7 @@ html:not([data-lf-live]) {
 @property --lf-frame-end { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-holds-edge { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-holds-height { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --lf-wears-ring { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   * {
     --lf-block-frame: 0;

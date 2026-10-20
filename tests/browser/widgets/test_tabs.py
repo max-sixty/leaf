@@ -745,10 +745,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
 
 
 def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve):
-    """A row's mark says its obligation's obligations are open until every one is answered, and
-    withdrawal retires a request without claiming the user answered it: a row whose
-    only obligation was withdrawn shows no mark, and one whose other obligation is answered shows
-    the answer."""
+    """A row's mark, and the words beside it, say its obligations are open until every
+    one is answered, and withdrawal retires a request without claiming the user
+    answered it: a row whose only obligation was withdrawn shows no mark, and one whose
+    other obligation is answered shows the answer."""
     source = leaf_page(
         "Question outcomes",
         '<lf-tabs id="queue" list="side">'
@@ -763,6 +763,8 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     marks = page.locator("#queue .lf-tab-answer")
     expect(marks.nth(0)).to_have_attribute("data-lf-obligations", "open")
     expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "open")
+    # The open mark is said in words beside it, the words a tally counts by.
+    expect(marks.nth(0)).to_have_text("To answer")
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -840,6 +842,10 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
 
     undo(page)
     expect(answer).to_have_text("Fix")
+    # The undo is announced by the name the gesture's own acknowledgement used.
+    expect(page.locator(".lf-live")).to_have_text(
+        "Undid: Chose “Escalate to engineering” — sent"
+    )
     assert row.bounding_box() == before
     page.locator("#o-a-long").get_by_role("checkbox").click()
     expect(words).to_have_text(

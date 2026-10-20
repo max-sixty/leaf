@@ -1,8 +1,9 @@
 /* Press and hold to read, release to press.
 
-   Some controls show only part of their word: a reaction shows its glyph, and a diff
-   file's row narrower than its path cuts it short, from the folders. The whole word is
-   the control's tooltip, which a finger never sees, so such a control wears `HOLDS_WORD`,
+   Some controls show only part of their word: a reaction shows its glyph, a margin
+   entry its icon (its label and status are its tooltip), and a diff file's row
+   narrower than its path cuts it short, from the folders. The whole word is the
+   control's tooltip, which a finger never sees, so such a control wears `HOLDS_WORD`,
    and a press held on it reads the word. The control under the pointer wears
    `data-lf-held-word` for as long as the press is held, and its surface paints the word
    for that state as it does while the keyboard stands on the control (shadow.css for a
@@ -16,7 +17,9 @@
    The release presses by dispatching the control's click, counted as the pointer's
    (surfaces read the count to tell a pointer from the keyboard), and the browser's own
    click after it is swallowed: a finger held long enough to read may get none, so the
-   release, not the click, is the commit. A keyboard press carries no count and passes
+   release, not the click, is the commit. The swallowed click is the next pointer click
+   wherever it lands, since the press may have put something else under the finger,
+   such as the thread a margin entry opens. A keyboard press carries no count and passes
    untouched; the keyboard reads a word by focusing its control, which paints the same.
    Touch capture is released at the press so the slide is heard over each control. A
    finger that starts scrolling instead ends the press with `pointercancel`, which
@@ -105,13 +108,7 @@ export function holdToRead() {
   document.addEventListener(
     "click",
     (event) => {
-      if (
-        !released ||
-        !event.isTrusted ||
-        pressIsKeyboardActivation(event) ||
-        !holderIn(event)
-      )
-        return;
+      if (!released || !event.isTrusted || pressIsKeyboardActivation(event)) return;
       released = null;
       event.preventDefault();
       event.stopImmediatePropagation();

@@ -41,9 +41,12 @@ uv run leaf-dev eval website-replies 'website-replies/follow-up' \
 
 For actionable input, the claim should precede substantive source reads, edits,
 tests and delegation. A queued pointer may first read its immutable delivery to
-resolve the address. A settled retry should not briefly appear active. During
-delegation, retain the original work and the newer queued count while the observer
-can still prove the delegate is live.
+resolve the address. A claim on an update that settled after the agent read it
+is refused, so a settled update never reads Working. Both claims,
+`leaf task start` and a progress reply, check that the update is still owed
+while holding the log lock they append under (`todos.todo_error`,
+`thread._resolve_obligation`). During delegation, retain the original work and
+the newer queued count while the observer can still prove the delegate is live.
 
 Read deterministic sequence and state at their owners: projection tests for
 sent/queued/opened/active/stale/settled evidence; real gestures for local results;
@@ -229,9 +232,6 @@ In `document/idle` the first reply came 3.9–5.6 s after each comment; in
 - **Cheap claims:** test a typed harness operation against the CLI path before adding
   another interface. The [Codex brief](codex-integration.md#typed-operations) owns
   that experiment.
-- **Claim admission:** check whether the claim door can atomically require an
-  outstanding subject, avoiding an active flash for a retry that was settled in
-  the meantime. Reproduce the race before changing admission.
 
 Move a validated rule into its existing owner and retire the corresponding part
 of this brief. Keep transport evidence, work selection and settlement distinct.

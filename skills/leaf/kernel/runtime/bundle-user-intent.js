@@ -3307,8 +3307,7 @@ function holdToRead() {
   document.addEventListener(
     "click",
     (event) => {
-      if (!released || !event.isTrusted || pressIsKeyboardActivation(event) || !holderIn(event))
-        return;
+      if (!released || !event.isTrusted || pressIsKeyboardActivation(event)) return;
       released = null;
       event.preventDefault();
       event.stopImmediatePropagation();

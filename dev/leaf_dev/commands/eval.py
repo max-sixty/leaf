@@ -68,7 +68,7 @@ def context_case(source: dict, address: str) -> dict:
     return {
         **primary,
         **variant,
-        "metadata": {**primary["metadata"], **variant["metadata"]},
+        "metadata": {**primary["metadata"], **variant.get("metadata", {})},
     }
 
 
@@ -384,10 +384,15 @@ def prepare(
                 ]
                 sample["vars"] = {"prompt": address}
             else:
+                # A prompt may reuse another task's request, named under `evals/`.
+                prompt = sample["vars"]["prompt"]
+                if prompt.startswith("file://"):
+                    prompt = (
+                        ROOT / "evals" / prompt.removeprefix("file://")
+                    ).read_text()
                 sample["vars"] = {
                     **sample["vars"],
-                    "prompt": ("" if instructions else SKILL_PREFIX)
-                    + sample["vars"]["prompt"],
+                    "prompt": ("" if instructions else SKILL_PREFIX) + prompt,
                 }
                 if authoring:
                     for assertion in sample["assert"]:

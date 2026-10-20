@@ -192,9 +192,15 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
         "() => !document.querySelector('.lf-floating-panel').contains(document.activeElement)"
     )
 
+    # A view a pointer opens names its keys as one a key opens does: the field its
+    # Escape, and Threads its `/`.
     page.locator(".lf-fp-threads").click()
     inventory = page.locator(".lf-fp-view[data-view=threads]")
     expect(inventory).to_be_visible()
+    expect(page.locator(".lf-fp-field")).to_have_attribute(
+        "aria-keyshortcuts", "Escape"
+    )
+    expect(page.locator(".lf-fp-opened")).to_have_attribute("aria-keyshortcuts", "/")
     field(page).click()
     page.keyboard.press("Escape")
     expect(inventory).to_be_visible()
@@ -202,6 +208,9 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)
     expect(page.locator(".lf-fp-leaf")).not_to_be_focused()
+    expect(page.locator(".lf-fp-field")).not_to_have_attribute(
+        "aria-keyshortcuts", "Escape"
+    )
 
 
 def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
@@ -884,9 +893,12 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     previous = search.get_by_role("button", name="Previous match")
     following = search.get_by_role("button", name="Next match")
     expect(following).to_have_attribute("aria-disabled", "true")
-    page.keyboard.type("Paragraph 1")
+    # A query that arrives with no key, as a paste or a phone's suggestion does, offers
+    # the arrows as soon as it matches.
+    search.get_by_role("searchbox").fill("Paragraph 1")
     count = search.locator(".lf-page-search-status")
     expect(count).to_have_text("1 of 11")
+    expect(following).not_to_have_attribute("aria-disabled", "true")
     expect(page.locator(".lf-fp-threads")).to_be_visible()
     following.click()
     expect(count).to_have_text("2 of 11")
@@ -896,9 +908,18 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     page.keyboard.type("0")
     expect(count).to_have_text("1 of 1")
     # A press on the marked match selects it, as Enter does, even once focus has left
-    # the box; a control painted over the words keeps its own press.
-    mark = page.locator(".lf-page-search-match").first.bounding_box()
-    at = (mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
+    # the box; a control painted over the words keeps its own press. The press aims at
+    # the words, since the mark moves to them a frame after the count changes.
+    at = page.evaluate(
+        """() => {
+          const text = document.querySelector("#p10").firstChild;
+          const words = document.createRange();
+          words.setStart(text, 0);
+          words.setEnd(text, "Paragraph 10".length);
+          const box = words.getBoundingClientRect();
+          return [box.x + box.width / 2, box.y + box.height / 2];
+        }"""
+    )
     page.evaluate(
         """([x, y]) => {
           const cover = Object.assign(document.createElement("button"), { id: "cover" });
@@ -1444,7 +1465,9 @@ def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
     """A thread's view draws its messages as the thread's card on the page does
     (thread/transcript.js): the progress the answer completed stands folded behind Show 2
     progress messages at the answer's head, and work still under way stands as one dim
-    working message at the transcript's foot rather than as a reply."""
+    working message at the transcript's foot rather than as a reply. What anyone wrote,
+    messages and the working line alike, reads in the page's serif, as On me's
+    questions do, while the panel's own controls keep its sans."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Can you check that the workshop fits the afternoon?"
@@ -1475,6 +1498,14 @@ def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
     working = view.locator(".lf-thread-working")
     expect(working).to_be_visible()
     expect(working).to_contain_text("Checking whether the room stays free after five")
+    face = "(node) => getComputedStyle(node).fontFamily"
+    serif = page.evaluate("getComputedStyle(document.body).fontFamily")
+    for words in (
+        shown.last.locator(".lf-msg-body"),
+        working.locator(".lf-thread-working-words"),
+    ):
+        assert words.evaluate(face) == serif
+    assert page.locator(".lf-fp-head .lf-fp-title").evaluate(face) != serif
 
     toggle.click()
     expect(shown).to_have_count(4)
@@ -3583,9 +3614,7 @@ def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     view = page.locator(".lf-fp-view[data-view=threads]")
     expect(view).to_be_visible()
     field(page).click()
-    for n in range(40):
-        page.keyboard.type(f"Line {n} of a long draft")
-        page.keyboard.press("Shift+Enter")
+    page.keyboard.insert_text("".join(f"Line {n} of a long draft\n" for n in range(40)))
     page.locator(".lf-fp-head .lf-fp-expand").click()
     settled(page)
     head = page.locator(".lf-fp-head").bounding_box()

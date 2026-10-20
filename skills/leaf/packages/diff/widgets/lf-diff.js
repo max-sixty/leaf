@@ -72,6 +72,7 @@ import {
   scrollIntoView,
   layoutPx,
   focused,
+  standingIn,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -1056,10 +1057,7 @@ customElements.define(
             when: () => {
               const search = this.diffTools?.search;
               if (!search) return false;
-              return Boolean(
-                this.matches(":focus-within") &&
-                (search.value || search.matches(":focus-within")),
-              );
+              return standingIn(this) && Boolean(search.value || standingIn(search));
             },
             title: () => (this.diffTools?.search.value ? "show all files" : "back"),
             description: () =>

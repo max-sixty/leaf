@@ -1100,37 +1100,33 @@ svg[data-lf-icon] {
 [data-lf-holds] {
   position: relative;
 }
+@property --lf-more-across { syntax: "*"; inherits: false; }
+@property --lf-more-down { syntax: "*"; inherits: false; }
 @media screen {
   [data-lf-more-after]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-before])),
   [data-lf-more-before]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-after])) {
-    mask-image:
-      linear-gradient(
-        to right,
-        #000 calc(100% - var(--lf-more-fade, 24px)),
-        var(--lf-more-fade-to, transparent));
+    --lf-more-across: #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-before]:where([data-lf-scroll-direction=ltr]:not([data-lf-more-after])),
   [data-lf-more-after]:where([data-lf-scroll-direction=rtl]:not([data-lf-more-before])) {
-    mask-image:
-      linear-gradient(
-        to right,
-        var(--lf-more-fade-to, transparent),
-        #000 var(--lf-more-fade, 24px));
+    --lf-more-across: var(--lf-more-fade-to, transparent), #000 var(--lf-more-fade, 24px);
   }
   [data-lf-more-before][data-lf-more-after] {
-    mask-image:
-      linear-gradient(
-        to right,
-        var(--lf-more-fade-to, transparent),
-        #000 var(--lf-more-fade, 24px),
-        #000 calc(100% - var(--lf-more-fade, 24px)),
-        var(--lf-more-fade-to, transparent));
-  }
-  :is([data-lf-more-before], [data-lf-more-after]):is([data-lf-focus], :has([data-lf-focus])) {
-    mask-image: none;
+    --lf-more-across:
+      var(--lf-more-fade-to, transparent),
+      #000 var(--lf-more-fade, 24px),
+      #000 calc(100% - var(--lf-more-fade, 24px)),
+      var(--lf-more-fade-to, transparent);
   }
   [data-lf-more-below] {
-    box-shadow: inset 0 -8px 8px -8px var(--shade);
+    --lf-more-down: #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
+  }
+  :is([data-lf-more-before], [data-lf-more-after], [data-lf-more-below]) {
+    mask-image: linear-gradient(to right, var(--lf-more-across, #000, #000)), linear-gradient(var(--lf-more-down, #000, #000));
+    mask-composite: intersect;
+  }
+  :is([data-lf-more-before], [data-lf-more-after], [data-lf-more-below]):is([data-lf-focus], :has([data-lf-focus])) {
+    mask-image: none;
   }
 }
 @media print {

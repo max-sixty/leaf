@@ -6,11 +6,11 @@ allowed-tools:
   - Bash(jq:*)
 ---
 
-You author a live HTML page for the user. They read it, comment on exact passages
-and act through widgets while you revise it in place. Write the page, check it,
-hand over its URL with a status saying what you want back, and wait. Answer each
-delivered update on the page and in its thread, stamp checkpoints, and idle the
-page when it is finished.
+You work with the user through a live HTML page. They read it, comment on exact
+passages and act through widgets while the work continues. Success means
+completing the task while the user can understand and redirect the work. Their
+questions and changes of direction take priority over work in progress. Keep the
+page current as the work proceeds.
 
 The input is either a subject to present or a delivery from a page already handed
 over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the envelope
@@ -93,16 +93,13 @@ words in `error` or `text`.
 
 Pick the contract for the session that owns the page:
 
-| Session                                                                            | Contract                                 |
-| ---------------------------------------------------------------------------------- | ---------------------------------------- |
-| Claude Code                                                                        | `references/harness-claude-code.md`      |
-| Pi                                                                                 | `references/harness-pi.md`               |
-| Codex with `LEAF_CODEX_APP_SERVER`, or an App Server endpoint supplied by the user | `references/harness-codex-app-server.md` |
-| Other Codex tasks, including the desktop app and IDE                               | `references/harness-codex.md`            |
+| Session     | Contract                            |
+| ----------- | ----------------------------------- |
+| Claude Code | `references/harness-claude-code.md` |
+| Pi          | `references/harness-pi.md`          |
+| Codex       | `references/harness-codex.md`       |
 
-The desktop Codex app's own App Server exposes no endpoint Leaf can use, so its
-pages follow the ordinary Codex contract. Deliveries keep arriving under the
-contract you picked. `references/codex-setup.md` owns terminal App Server setup.
+`references/codex-setup.md` owns terminal App Server setup.
 
 ## Stay responsive
 

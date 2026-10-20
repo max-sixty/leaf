@@ -439,8 +439,8 @@ def post_reply(
 
 
 class _Published(NamedTuple):
-    """A reply that published a checked source: the log before it, the revision it
-    published, the check, and the thread the reply moves itself, if it does."""
+    """A successful reply's checked publication: its preceding log, the revision,
+    the source check, and the thread the reply moves itself, if it does."""
 
     events: list
     revision: int
@@ -450,10 +450,12 @@ class _Published(NamedTuple):
 
 def _revision_advice(page_dir: Path, published: _Published) -> list[Finding]:
     """What `page check` would advise on the revisions published since the agent's
-    last reply, which the first agent reply on a revision reports beside its result;
-    nothing for a later reply.
+    last successful reply, which the first successful reply on a revision reports
+    beside its result; nothing for a later reply. Failure reports can name the
+    active revision without checking source, so they neither emit nor consume advice.
+    Progress carries no revision: it cannot include markup or move a thread.
 
-    Every agent reply publishes the source it checked, so a revision that answers a
+    A successful reply publishes the source it checked, so a revision that answers a
     message needs no check before its reply. The server may have activated the
     revision on save, before the reply, so the threads it moved are read from the
     log's `reanchor` events, each where it stands now, as well as from the moves
@@ -464,7 +466,9 @@ def _revision_advice(page_dir: Path, published: _Published) -> list[Finding]:
         (
             event.get("revision", 0)
             for event in events
-            if event["kind"] == "reply" and event["author"] == "agent"
+            if event["kind"] == "reply"
+            and event["author"] == "agent"
+            and "failure" not in event
         ),
         default=0,
     )
@@ -656,9 +660,10 @@ def _compose_and_append(
     title: str | None,
 ) -> tuple[dict, "_Published | None"]:
     """Check the reply's content against the page, compose its event and append it
-    at `obligation`, publishing saved page edits first where `validate_source` or a
-    detach reads them; the appended record, and what it published for
-    `_revision_advice` to read."""
+    at `obligation`. Successful replies publish saved edits when `validate_source`
+    requests it. Progress and failure reports use the active revision; detaching
+    still checks saved source. Return the appended record and any checked
+    publication for `_revision_advice` to read."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand = obligation
     event = {
@@ -689,7 +694,7 @@ def _compose_and_append(
     prospective_anchor = None
     source_events = events
     checked = None
-    if validate_source or detach:
+    if (validate_source and not ephemeral and failure is None) or detach:
         if relocating:
             source_events = [
                 *events,
@@ -737,7 +742,9 @@ def _compose_and_append(
             quote,
             section,
             part,
-            revision=reply_revision,
+            revision=require_revision(page_dir)
+            if failure is not None
+            else reply_revision,
             transaction=page,
         )
     elif detach:
@@ -808,9 +815,10 @@ def _compose_and_append(
         from leaf.revisioning import publish_checked_event
 
         record = publish_checked_event(page, checked, event)
-        published = _Published(
-            events, record["revision"], checked, thread_id if relocating else None
-        )
+        if failure is None:
+            published = _Published(
+                events, record["revision"], checked, thread_id if relocating else None
+            )
     else:
         record, _ = append_admitted(page, event)
     if in_hand is not None and page.status["state"] == "idle":

@@ -63,6 +63,51 @@ QUEUE_PAGE = leaf_page(
 )
 
 
+@pytest.mark.parametrize("kind", ["approval", "thread"])
+def test_m_keeps_its_position_at_a_chrome_stop_without_a_page_target(
+    browser, serve, kind
+):
+    source = leaf_page(
+        "Chrome queue stops",
+        "<h1>Release</h1><p>Review the release.</p>",
+        head='<meta name="lf-review" content="sign-off">' if kind == "approval" else "",
+    )
+    url = serve(source)
+    if kind == "thread":
+        comment = append_carried_log_record(
+            serve.page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Ready?"},
+        )
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Agent",
+                "parent": comment["id"],
+                "responds": comment["id"],
+                "revision": 1,
+                "text": "Which channel?",
+                "markup": '<lf-ask id="page-question">Which channel?</lf-ask>',
+            },
+        )
+    page = open_page(browser, url)
+    page.evaluate("getSelection().removeAllRanges()")
+    page.keyboard.press("m")
+    rendered(page)
+    if kind == "approval":
+        expect(page.locator(".lf-fp-view [data-approval] button")).to_be_focused()
+    else:
+        assert page.evaluate(
+            "id => document.activeElement.closest('[data-thread]')?.dataset.thread === id",
+            comment["id"],
+        )
+    noun = "Approval" if kind == "approval" else "Question"
+    position = walk_position(page)
+    assert position is not None
+    assert position["text"] == f"1 of 1 waiting on me · {noun}"
+
+
 def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     """`m` stops, in page order, at a thread whose question waits on the user as well
     as at an open obligation, and passes a thread waiting on the agent; `t` still walks both
@@ -275,7 +320,10 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     assert page.locator("#left").bounding_box() == box
 
 
-def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, serve):
+@pytest.mark.parametrize("idle_setup", ["at_rest", "layout_clamp"])
+def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(
+    browser, serve, idle_setup
+):
     """A task the agent put on the user ends at their Done. Where `m` lands on it, `x`
     is Done; its card in On me carries a Done button. Either leaves the user's queue
     in the turn it is pressed, and writes the user's `todo_end`; the obligation beside them
@@ -302,12 +350,38 @@ def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, 
     page = open_page(browser, url)
     resized(page, 1280, 900)
     expect_on_me(page, 3)
+    assert not x_ends(page), "the viewport alone selects no task to finish"
+    if idle_setup == "layout_clamp":
+        page.evaluate("""() => {
+          const tail = document.createElement('div');
+          tail.id = 'temporary-tail';
+          tail.style.height = '3000px';
+          document.querySelector('main').append(tail);
+          window.scrollTo({top: 1000, behavior: 'instant'});
+        }""")
+        scroll_settled(page)
+        page.evaluate("document.querySelector('#temporary-tail').remove()")
+        scroll_settled(page)
+        assert page.evaluate("scrollY") == 0
 
     # The page as a whole is arrived at its head, which comes first.
     page.locator("#cadence").click()
+    page.evaluate("""() => {
+      document.addEventListener('keydown', function read(event) {
+        if (event.key.toLowerCase() !== 'm') return;
+        document.removeEventListener('keydown', read, true);
+        requestAnimationFrame(() => {
+          window.todoAtFirstFrame = document.activeElement.id;
+        });
+      }, true);
+    }""")
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "1 of 3 waiting on me · To-do")
     expect(page.locator("#h")).to_be_focused()
+    assert page.evaluate("todoAtFirstFrame") == "h", (
+        "an idle arrival paints in its first frame"
+    )
+    assert x_ends(page), "standing at the page's head selects the page task"
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 3 waiting on me · Options")
     assert not x_ends(page)

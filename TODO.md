@@ -23,6 +23,10 @@
   slow development. Reduce their runtime and the work needed to run them while
   preserving useful coverage. `notes/shift-watch-cost.md` records what the
   Stability sensor costs and when a cheaper gate would be worth revisiting.
+  Sharing one page across a test's cases (`tests/AGENTS.md`, "One page for the
+  cases that can share it") reaches only cases that leave the log and the page's
+  own UI alone, so most of the time spent opening pages needs each opening to
+  cost less.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -392,9 +396,6 @@ on 2026-10-07.
 
 ### The agent's text interface
 
-- **Answer a comment that arrived before the page changed hands.** Its new owner
-  has no delivery to answer it from. A command that hands out a fresh recovery
-  delivery for it would give one.
 - **Decide whether an owed answer may continue a turn whose answer is written.**
   Where a watch follows the turn, Stop no longer hands new input into it
   (`hook_transport`), but it still continues the turn once for an update picked up

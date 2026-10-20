@@ -45,12 +45,8 @@ BUNDLED = re.compile(r"(^|/)vendor/|^skills/leaf/kernel/")
 # A third-party bundle's own input under `build/` exports the surface of the package
 # it stands in for, which the bundled dependency reads and this tree never names
 # (`build/AGENTS.md`). Its own imports are still readers. `contract.d.ts` exports a
-# type for each definition its schemas declare, whichever a reader selects, and
-# `protocol-contract.d.ts` is that file as it last stood at this protocol, which
-# `build/browser/build.mjs` copies whole.
-UNCHECKED = re.compile(
-    r"^build/(?!browser/)[^/]+/|^build/browser/(?:protocol-)?contract\.d\.ts$"
-)
+# type for each definition its schemas declare, whichever a reader selects.
+UNCHECKED = re.compile(r"^build/(?!browser/)[^/]+/|^build/browser/contract\.d\.ts$")
 # An escape is consumed whole, so `"\ndefine(…)"` in a Python string reads `define`.
 WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")
 WORKER = "worker/wrangler.toml"

@@ -5,9 +5,11 @@ skills/leaf/packages/**/vendor/
 # Corpus markup is assembled verbatim; its registry uses multiline JSON arrays.
 examples/corpus.html
 examples/corpus.page/registry.json
-# Package locks, Tend workflows, and recorded test output keep their producers' bytes.
+# Package locks, Tend workflows, recorded test output and the protocol baseline
+# keep their producers' bytes.
 **/pnpm-lock.yaml
 .github/workflows/tend-*.yaml
 **/_regtest_outputs/
+build/browser/protocol-baseline.json
 # Frozen, hash-checked source evidence must retain its original bytes.
 evals/ui-review-detection/fixtures/public/

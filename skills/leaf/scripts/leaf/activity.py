@@ -85,23 +85,16 @@ def _reply_evidence(reply: dict) -> dict:
 def _receipt_bindings(workflows: list[dict], present: dict) -> dict[str, dict]:
     """Take each workflow's `receipt_refs` off it, and return, by input, what its
     receipts give an answer owed to it: the `ref` recorded under the page's current
-    claim (`workflows`, `receipt_refs`), or `received`.
+    claim (`workflows`, `receipt_refs`), or nothing.
 
     A reference authorizes only the claim its delivery was captured under, and
     `post_reply` refuses it once another session claims the page, so a ref
-    captured under an earlier owner is withheld. An update the page's cursor has
-    passed without a usable ref is marked `received`, since `leaf wait` will not
-    hand that update out again (`reply_command`)."""
+    captured under an earlier owner is withheld. The update is then deliverable to
+    the new owner again (`delivery.deliverable`), whose receipt records its ref."""
     bindings = {}
     for item in workflows:
         usable = item.pop("receipt_refs", {}).get(present.get("claim_session"))
-        bindings[item["input"]] = (
-            {"ref": usable}
-            if usable is not None
-            else {"received": True}
-            if item["seq"] <= present["cursor"]
-            else {}
-        )
+        bindings[item["input"]] = {"ref": usable} if usable is not None else {}
     return bindings
 
 
@@ -173,18 +166,15 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     """The `leaf response reply` that answers a reply `answer`.
 
     It names the exact `ref` its update's receipt recorded where the page's owner can
-    still use it (`_receipt_bindings`). An update the page has not received has
-    none, and minting one would deliver the page's whole pending batch and mark its
-    other input Picked up unseen, so the command names the `leaf wait` that
-    delivers it, after the claim its receipt needs where this command's session
-    does not hold the page (`service.may_receive`). An update received without a
-    reference the owner can use, as one received while it was owed nothing or under
-    a claim another session has since taken, is named by id: `leaf wait` will not
-    hand it out again, and only a hook's recovery reading mints its reference."""
+    still use it (`_receipt_bindings`). An update the owner holds no ref for, as one
+    the page has not received or one another session received before the page
+    changed hands, is deliverable (`delivery.deliverable`). Minting a ref here would
+    deliver the page's whole pending batch and mark its other input Picked up
+    unseen, so the command names the `leaf wait` that delivers it, after the claim
+    its receipt needs where this command's session does not hold the page
+    (`service.may_receive`)."""
     if "ref" in answer:
         return f"`leaf response reply {answer['ref']}`"
-    if answer.get("received"):
-        return f"`leaf response reply <answer.ref>` for {answer['for']}"
     from .harness import session_harness
     from .service import may_receive, page_claim
 
@@ -233,8 +223,8 @@ def _turn_wrote(obligation: dict, state: dict) -> bool:
 
 
 def acknowledged_obligations(state: dict) -> list[dict]:
-    """The owed answers whose updates the page cursor has passed, which nothing will
-    deliver again."""
+    """The owed answers whose updates the page cursor has passed. A delivery brings
+    one back only to an owner holding no usable ref for it (`delivery.unreferenced`)."""
     return [
         obligation
         for obligation in state["activity"]["obligations"]

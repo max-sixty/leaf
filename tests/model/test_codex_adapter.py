@@ -3113,8 +3113,8 @@ def test_a_codex_stop_keeps_the_revision_returned_by_its_offer(
     offering = codex_model.offer_hook_delivery
     newer = []
 
-    def renew_after_offer(*args):
-        result = offering(*args)
+    def renew_after_offer(*args, **kwargs):
+        result = offering(*args, **kwargs)
         newer.append(cleanup_model.prompt_turn("codex-thread", "provider"))
         return result
 

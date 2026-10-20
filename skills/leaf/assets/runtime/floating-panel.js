@@ -133,7 +133,7 @@ import { pageControls, watchPageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
-import { threadAttention, workflowLabel } from "./thread/workflow.js";
+import { threadAttention, workflowStep } from "./thread/workflow.js";
 import { messageReading, threadName } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/focus.js";
@@ -2439,9 +2439,11 @@ export function createFloatingPanel({
       answers = html`<span class="lf-fp-said"
           >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
         >${thread ? discuss : nothing}`;
+    // What the agent is doing about it: the line its last step wrote, as the status
+    // says it of the whole page, else the stage it stands at.
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.todo?.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
+          >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
       answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${

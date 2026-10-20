@@ -3386,6 +3386,7 @@ var workflowTitle = (workflow) => {
 };
 var progressFace = (workflow) => !workflow || workflow.condition ? null : workflow.stage === "picked_up" ? "picked_up" : ["working", "replying"].includes(workflow.stage) ? "working" : null;
 var isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
+var workflowStep = (workflow) => progressFace(workflow) === "working" && workflow.detail || workflowLabel(workflow);
 var isPageWidgetWorkflow = (workflow, revision) => workflow.subject.kind === "widget" && workflow.thread === null && workflow.revision <= revision;
 var handedBack = (workflow) => workflow.stage === "answered" || workflow.stage === "sending" && workflow.condition?.kind === "failed";
 var tier = (workflow) => (handedBack(workflow) ? 0 : 2) + Number(workflow.stage === "sending");
@@ -7444,6 +7445,7 @@ export {
   workflowLabel,
   progressFace,
   isWorkflowProgress,
+  workflowStep,
   isPageWidgetWorkflow,
   strongestWorkflow,
   todoLabel,

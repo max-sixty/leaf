@@ -179,7 +179,7 @@ import {
   walkOrigin,
   walkPosition,
   walkPositionLabel,
-  workflowLabel
+  workflowStep
 } from "./runtime/bundle-user-intent.js";
 import "./runtime/bundle-widget-upgrade.js";
 import {
@@ -7754,7 +7754,7 @@ function createFloatingPanel({
         >${thread ? discuss : nothing}`;
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.todo?.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
+          >${item.todo?.running?.text ?? workflowStep(item.workflow)}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
       answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${gesture ? html`<button

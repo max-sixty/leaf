@@ -442,7 +442,6 @@ def handed_over(
                     "id": record["id"],
                     "attempt": record.get("attempt"),
                     "state": "failed",
-                    "responds": source["id"],
                 },
             }
         )

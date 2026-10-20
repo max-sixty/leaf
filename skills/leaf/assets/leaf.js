@@ -148,7 +148,6 @@ import {
 } from "./runtime/focus.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
-import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent, restrictUserIntent } from "./runtime/user-intent.js";
 
 await document.documentElement.lfSample?.ready;
@@ -657,10 +656,6 @@ const standingPainters = {
   paintInputs: inputs.paintInputs,
 };
 
-// Skip to Leaf controls lands in the floating panel.
-const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
-skipToChrome.onclick = floatingPanel.enter;
-
 if (!offlineInteractive) {
   document.adoptedStyleSheets = [
     ...document.adoptedStyleSheets,
@@ -685,7 +680,6 @@ if (!offlineInteractive) {
     fabBar,
     chromeForeground,
   );
-  document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
   version.mount();
   mountPageStatus({
@@ -761,7 +755,7 @@ const initialStateRead = beginRead();
 if (!offlineInteractive) {
   restoreUserView({ setDesignMode: designMode.setActive });
   annotationRenderer?.restoreAnnotations();
-  // A page nobody has used starts Tab at the skip link. Inputs before the
+  // A page nobody has used starts Tab at the first control. Inputs before the
   // module graph arrived already gave this document a place to keep.
   recoverComposer.handoff(releaseFocus);
 }

@@ -1485,7 +1485,9 @@ def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
     )
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert found(findings, "parts-in-layout", "<lf-parts id=parts>", layout="layout-column")
+    assert found(
+        findings, "parts-in-layout", "<lf-parts id=parts>", layout="layout-column"
+    )
     (page_dir / "index.html").write_text(PAGE.replace("<main>", "<main>" + parts))
     _, findings = check_findings(page_dir)
     assert not found(findings, "parts-in-layout")

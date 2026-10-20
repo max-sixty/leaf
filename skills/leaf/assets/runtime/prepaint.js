@@ -847,7 +847,11 @@
         ? main.querySelector(':scope > [data-lf-views="parts"]')
         : null;
     let height = 0;
-    for (let node = parts?.previousElementSibling; node; node = node.previousElementSibling)
+    for (
+      let node = parts?.previousElementSibling;
+      node;
+      node = node.previousElementSibling
+    )
       height = Math.max(height, node.getBoundingClientRect().height);
     const value = height ? `${Math.round(height)}px` : "";
     if (body.style.getPropertyValue(TITLE) === value) return false;

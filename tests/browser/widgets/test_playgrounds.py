@@ -474,7 +474,9 @@ def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_sh
     }
 
 
-def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(browser, serve):
+def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
+    browser, serve
+):
     """The stage starts its artifacts at its top, so an artifact a control shrinks or
     grows moves nothing above or beside it, even where the rail holds the stage taller
     than what stands on it."""

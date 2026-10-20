@@ -1507,6 +1507,13 @@ export function createMarginProjection({
   const threadIdOf = (entry) => sourceItem(threadReading(entry).items[0]).thread.id;
   // The thread a margin entry stands for, the one its card shows first, or null.
   const entryThread = (node) => {
+    if (under(node, preview) && previewOpen()) {
+      const selected = card.selection();
+      const item = selected && threadReading(selected.entry)?.items.find(
+        (candidate) => candidate.id === selected.threadItem,
+      );
+      if (item) return sourceItem(item).thread.id;
+    }
     const entry = closestAcross(node, ".lf-margin-entry")?.lfEntry;
     return entry && threadReading(entry) ? threadIdOf(entry) : null;
   };

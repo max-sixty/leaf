@@ -7,11 +7,10 @@
   // not going to produce a different one. `t` is the host key a handover link carries;
   // the server has already answered it with the cookie every later request rides on,
   // so what stays in the address bar is a link the user can copy, share, or screen
-  // without handing out every page on the machine. `lf-chrome` chooses the chrome
-  // once, which prepaint.js has already stored. All four leave before the user sees
-  // them.
+  // without handing out every page on the machine. All three leave before the user
+  // sees them.
   const recovered = arrived.searchParams.has("_leaf-recovered");
-  const marks = ["_leaf-revision", "_leaf-recovered", "t", "lf-chrome"];
+  const marks = ["_leaf-revision", "_leaf-recovered", "t"];
   if (marks.some((mark) => arrived.searchParams.has(mark))) {
     for (const mark of marks) arrived.searchParams.delete(mark);
     history.replaceState(history.state, "", arrived);
@@ -78,9 +77,6 @@
           settings.window ? null : "",
         );
         dress(worn);
-        // A sample keeps no store of its own across loads, so its chrome is the one its
-        // containing page names for it (sample.js), before the runtime builds any.
-        if (settings.chrome) root.lfChrome?.adopt(settings.chrome);
         for (const type of ["pointerdown", "keydown"])
           window.addEventListener(type, enterSample, true);
       };
@@ -119,21 +115,27 @@
         root.lfInitial.setRuntimeRootAttribute(root, "data-lf-sample-connecting", "");
       window.addEventListener("message", connect);
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
-      window.addEventListener("pagehide", () => send({ type: "departed" }));
-    }
-    window.addEventListener("lf-startup-failed", () => {
-      if (!root.lfDocumentLifetime.active) return;
-      root.lfSample.send({
-        type: "error",
-        detail: root.lfStartupException ?? {
-          message:
-            document.documentElement.dataset.lfStartupError || "Sample could not start",
-        },
+      // A frame's own navigation never keeps its document in the page cache, so a
+      // persisted pagehide is the containing page's, which takes this document and
+      // its port along and brings both back together (sample.js keeps the host then).
+      window.addEventListener("pagehide", (event) => {
+        if (!event.persisted) send({ type: "departed" });
       });
-    });
+    }
+    window.addEventListener("lf-startup-failed", () =>
+      root.lfDocumentLifetime.whenActive("sample error", () =>
+        root.lfSample.send({
+          type: "error",
+          detail: root.lfStartupException ?? {
+            message:
+              document.documentElement.dataset.lfStartupError ||
+              "Sample could not start",
+          },
+        }),
+      ),
+    );
   }
-  // A served page draws the live chrome, the floating panel or the banner and the bottom
-  // bar, so the theme reserves its room from the first paint (`html[data-lf-live]`). An export runs the
+  // A served page draws the live chrome, the floating panel, so the theme reserves its room from the first paint (`html[data-lf-live]`). An export runs the
   // runtime without them (prepaint.js).
   root.toggleAttribute("data-lf-live", true);
   const incarnation = script.dataset.lfServer;
@@ -157,24 +159,7 @@
   // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
   // press, which neither starts nor ends one. After a beat the held keys are shown, so a
   // press visibly landed; a runtime that takes the run within the beat shows nothing.
-  const TYPED_TYPES = new Set([
-    "text",
-    "search",
-    "url",
-    "tel",
-    "email",
-    "password",
-    "number",
-    "date",
-    "time",
-    "datetime-local",
-    "month",
-    "week",
-  ]);
-  const takesLetters = (node) =>
-    node.isContentEditable ||
-    node.matches('textarea, leaf-text, select, [role="option"]') ||
-    (node.localName === "input" && TYPED_TYPES.has(node.type));
+  const { takesLetters } = root.lfInputs;
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",
@@ -239,9 +224,8 @@
         queue(event);
       } else {
         // Only a printed page key starts a run. One typed into a field is the field's,
-        // and Space on its own scrolls. Which fields take one is focus.js's
-        // `takesLetters`, spelled again here because this script runs before any
-        // module, so a checkbox or radio the user stands on, which takes no letters,
+        // and Space on its own scrolls. The prepaint's `takesLetters` is also the
+        // runtime's rule, so a checkbox or radio, which takes no letters,
         // holds the key as the presented page would act on it. `leaf-text` is the
         // runtime's text field; its closed root makes the host the event's origin.
         const origin = event.composedPath()[0];

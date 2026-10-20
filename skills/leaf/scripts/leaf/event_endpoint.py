@@ -20,8 +20,7 @@ from .harness import claim_harness
 from .presence import nudge_unwatched
 from .refusals import Refused
 from .registry.contract import RegistryError
-from .registry.kernel import kernel_event_kinds, kernel_event_ownership
-from .schema import MESSAGE_KINDS
+from .registry.kernel import kernel_event_kinds, kernel_event_ownership, kinds_declaring
 from .service import PageTransaction, requires_agent_attention
 from .thread_titles import name_admitted_thread
 
@@ -117,7 +116,7 @@ def _execute_event(
             # Input that asks for the agent reaches it even when no watcher will.
             if requires_agent_attention(admitted):
                 nudge_unwatched(page)
-            if event["kind"] in MESSAGE_KINDS and claim:
+            if event["kind"] in kinds_declaring("message") and claim:
                 spoken = admitted["id"], claim
     # A comment opens a thread with no name, and the claimant's harness names it from
     # its words while the agent is still reading them; a reply names a thread its

@@ -17,6 +17,7 @@ import shutil
 import socket
 import subprocess
 import sys
+from functools import partial
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -313,11 +314,15 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     assert str(existing_script) in watched().paths
     assert str(source) in watched().paths
 
-    # Fictional history and data are read only while building a fresh slot.
-    for companion in (source.with_suffix(".jsonl"), source.with_suffix(".data.json")):
-        companion.write_text("{}")
-        assert not initial.relevant(str(companion))
-        assert str(companion) not in watched().paths
+    # History remains a seed; data companions also declare live capture inputs.
+    history = source.with_suffix(".jsonl")
+    history.write_text("{}")
+    assert not initial.relevant(str(history))
+    assert str(history) not in watched().paths
+    data = source.with_suffix(".data.json")
+    data.write_text("{}")
+    assert initial.relevant(str(data))
+    assert str(data) in watched().paths
 
     ignored = scripts / "README.md"
     ignored.write_text("ignored", encoding="utf-8")
@@ -921,12 +926,10 @@ def test_service_publication_failure_keeps_previous_preview_claim(
             commit()
             return True
 
-    def unavailable(path, record):
-        if path == page_dir / "service.json":
-            raise PermissionError("service cannot be published")
-        write_json(path, record)
+    def unavailable(_directory, _record):
+        raise PermissionError("service cannot be published")
 
-    monkeypatch.setattr(hosting, "write_json", unavailable)
+    monkeypatch.setattr(hosting, "write_service", unavailable)
     try:
         with pytest.raises(PermissionError, match="service cannot be published"):
             hosting.cmd_serve(
@@ -993,7 +996,191 @@ def test_fixture_captures_use_the_selected_runtime_producer(
     )
     fixture = read_fixture(source, runtime=runtime, env=consumer_env)
     assert fixture.data == (
-        {"source": "patch", "value": {"producer": "selected arm", "patch": patch}},
-        {"source": "notes", "value": "second\n"},
-        {"source": "written", "value": "Authored value"},
+        {
+            "kind": "capture",
+            "source": "patch",
+            "value": {"producer": "selected arm", "patch": patch},
+        },
+        {"kind": "capture", "source": "notes", "value": "second\n"},
+        {"kind": "seed", "source": "written", "value": "Authored value"},
     )
+
+
+def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_seeds(
+    tmp_path,
+):
+    """A retained page adopts new capture names and later edits to their files.
+
+    The source and value publication use the same real refresh as a resumed or
+    live preview; a literal seed edited on the page remains that page's data.
+    """
+    from leaf.data import read_data
+    from leaf.publishing import authored_digest
+    from leaf.registry.storage import load_registry
+    from leaf_dev.commands.distribution import cached_installation
+
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head><body><main>"
+        '<h1>Reading</h1><lf-text-document id="capture" source="before"></lf-text-document>'
+        '<lf-text-document id="notes" source="notes"></lf-text-document></main></body></html>'
+    )
+    (tmp_path / "layer.json").write_text('["default"]')
+    captured = tmp_path / "code.txt"
+    captured.write_text("First capture")
+    companion = source.with_suffix(".data.json")
+    companion.write_text(
+        json.dumps(
+            {"$captures": {"before": {"file": "code.txt"}}, "notes": "Initial seed"}
+        )
+    )
+    installed = cached_installation(ROOT)
+    run_leaf = partial(preview.leaf, installed / "bin/leaf", ROOT)
+    page = tmp_path / "page"
+    prepare_page(page, read_fixture(source, runtime=installed), run_leaf)
+    state = {"authored": authored_digest(preview.incoming_files(source))}
+    run_leaf("data", "set", str(page), "notes", input_text=json.dumps("Page edit"))
+    retained_log = (page / "events.jsonl").read_bytes()
+
+    # This is the existing-slot path: its old data remains while the new fixture
+    # binds a different source. Seeds must not overwrite the page's current data.
+    source.write_text(source.read_text().replace('source="before"', 'source="after"'))
+    companion.write_text(
+        json.dumps(
+            {"$captures": {"after": {"file": "code.txt"}}, "notes": "Replacement seed"}
+        )
+    )
+    service = preview.PreviewService(page, False)
+    try:
+        assert preview.refresh_preview(
+            source, page, installed / "bin/leaf", ROOT, state, service
+        )
+        values = read_data(page, load_registry(page))["sources"]
+        assert values["after"]["value"] == "First capture"
+        assert values["before"]["value"] == "First capture"
+        assert values["notes"]["value"] == "Page edit"
+        run = values["after"]["run"]
+        watched = preview.watch_paths(source, ROOT, [])
+        assert watched.relevant(str(companion))
+        assert watched.relevant(str(captured))
+
+        captured.write_text("Edited capture")
+        assert preview.refresh_preview(
+            source, page, installed / "bin/leaf", ROOT, state, service
+        )
+        values = read_data(page, load_registry(page))["sources"]
+        assert values["after"]["value"] == "Edited capture"
+        assert values["after"]["run"] != run
+        assert values["notes"]["value"] == "Page edit"
+        run = values["after"]["run"]
+        assert preview.refresh_preview(
+            source, page, installed / "bin/leaf", ROOT, state, service
+        )
+        assert read_data(page, load_registry(page))["sources"]["after"]["run"] == run
+        assert (page / "events.jsonl").read_bytes().startswith(retained_log)
+        # Refused captures must not publish a source that would draw empty.
+        published = (page / "index.html").read_bytes()
+        source.write_text(
+            source.read_text().replace('source="after"', 'source="invalid"')
+        )
+        for spec in ({"file": "missing.txt"}, {"file": "code.txt", "format": "json"}):
+            captured.write_text("42")
+            companion.write_text(json.dumps({"$captures": {"invalid": spec}}))
+            assert not preview.refresh_preview(
+                source, page, installed / "bin/leaf", ROOT, state, service
+            )
+            assert (page / "index.html").read_bytes() == published
+            assert (
+                read_data(page, load_registry(page))["sources"]["after"]["run"] == run
+            )
+        # A current binding supersedes the stored contract even for equal values.
+        source.write_bytes(published)
+        captured.write_text("1")
+        companion.write_text(json.dumps({"$captures": {"after": {"file": "code.txt"}}}))
+        assert preview.refresh_preview(
+            source, page, installed / "bin/leaf", ROOT, state, service
+        )
+        source.write_text(
+            source.read_text().replace(
+                '<lf-text-document id="capture" source="after"></lf-text-document>',
+                '<lf-num id="capture" source="after" run="initial">1</lf-num>',
+            )
+        )
+        assert preview.refresh_preview(
+            source, page, installed / "bin/leaf", ROOT, state, service
+        )
+        assert (
+            read_data(page, load_registry(page))["sources"]["after"]["contract"]
+            == "measured-scalar"
+        )
+        companion.write_text(
+            json.dumps({"$captures": {"after": {"file": "code.txt", "format": "json"}}})
+        )
+        assert preview.refresh_preview(
+            source, page, installed / "bin/leaf", ROOT, state, service
+        )
+        captured.write_text(
+            "true"
+        )  # Python compares True == 1; JSON distinguishes them.
+        assert not preview.refresh_preview(
+            source, page, installed / "bin/leaf", ROOT, state, service
+        )
+        assert (
+            type(read_data(page, load_registry(page))["sources"]["after"]["value"])
+            is int
+        )
+    finally:
+        service.stop()
+
+
+def test_preview_keeps_watching_after_an_invalid_capture_companion(
+    tmp_path, monkeypatch, capsys
+):
+    """An interrupted JSON save refuses one refresh, then its repair reaches the page."""
+    from leaf.data import read_data
+    from leaf.registry.storage import load_registry
+
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head><body><main><h1>Reading</h1>"
+        '<lf-text-document id="reading" source="text"></lf-text-document></main></body></html>'
+    )
+    (tmp_path / "layer.json").write_text('["default"]')
+    captured = tmp_path / "code.txt"
+    captured.write_text("First capture")
+    companion = source.with_suffix(".data.json")
+    declaration = json.dumps({"$captures": {"text": {"file": "code.txt"}}})
+    companion.write_text(declaration)
+    page = tmp_path / "page"
+
+    def edits():
+        companion.write_text("{")
+        yield {str(companion)}
+        assert (
+            read_data(page, load_registry(page))["sources"]["text"]["value"]
+            == "First capture"
+        )
+        assert "Preview update refused" in capsys.readouterr().err
+        for incomplete in (
+            {"$captures": {"text": {}}},
+            {"$captures": {"text": {"file": None}}},
+            {"$captures": []},
+            [],
+        ):
+            companion.write_text(json.dumps(incomplete))
+            yield {str(companion)}
+            assert "Preview update refused" in capsys.readouterr().err
+        captured.write_text("Repaired capture")
+        companion.write_text(declaration)
+        yield {str(companion)}
+        assert (
+            read_data(page, load_registry(page))["sources"]["text"]["value"]
+            == "Repaired capture"
+        )
+
+    batches = edits()
+    monkeypatch.setattr(
+        preview, "watch_changes", lambda watched: _ScriptedChanges(batches, watched)
+    )
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)

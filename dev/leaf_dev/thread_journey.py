@@ -14,8 +14,8 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from leaf.registry.kernel import kinds_declaring
 from leaf.render_checks import rendered, wait_for_probe
-from leaf.schema import MESSAGE_KINDS
 from playwright.sync_api import Locator, Page, expect
 
 from leaf_dev.browser import scroll_settled
@@ -31,18 +31,26 @@ STAGES = (
     "accepted",
 )
 Checkpoint = Callable[[str, Page, dict], None]
+# The floating panel's view of a thread, rather than one still leaving.
+THREAD_VIEW = ".lf-fp-view[data-view=thread]:not([data-leaving])"
+# Where the floating panel says a passing notice: in its empty field's place, on the
+# line over its field, or, while a view stands open, in the leaf's peek.
+NOTICE = (
+    ".lf-fp-field leaf-text[data-says=notice],"
+    " .lf-fp-context[data-notice]:not([hidden]), .lf-fp-peek[data-shown]"
+)
 
 
 def retire_notice(page: Page) -> None:
-    """Run the page's timer clock until its notice has retired.
+    """Run the page's timer clock until the floating panel's notice has retired.
 
     The caller fixes the context's wall clock (`clock.set_fixed_time`), which leaves
     timers on a clock `run_for` advances, so the notice's own timer retires it
     without the journey waiting out its interval in real time.
     """
-    notice = page.locator(".lf-notice")
+    notice = page.locator(NOTICE)
     deadline = time.monotonic() + 6
-    while notice.is_visible():
+    while notice.count():
         assert time.monotonic() < deadline, "the notice never retired"
         page.clock.run_for(250)
 
@@ -95,31 +103,34 @@ class ThreadSurface:
 
 
 def open_surface(page: Page, surface: str) -> ThreadSurface:
-    """Open the existing last thread, or the page comment card beside Threads."""
+    """Open the existing last thread in the floating panel, or its field at rest, which
+    starts a page thread; either way the panel's field is the box written in."""
     if surface in {"panel", "general"}:
-        page.locator(".lf-threads-toggle").click()
-        expect(page.locator(".lf-thread-panel")).to_be_visible()
-        wait_for_probe(page, "pageSettled")
+        field = page.locator(".lf-fp-field leaf-text")
+        view = page.locator(THREAD_VIEW)
         if surface == "general":
-            # The card starts the thread; Threads, open beside it, shows it arrive.
-            page.locator(".lf-banner-actions > .lf-page-comment").click()
+            # The send opens its new thread's view over the field, which shows it
+            # arrive, the field becoming its reply box.
+            wait_for_probe(page, "pageSettled")
             return ThreadSurface(
-                page.locator(".lf-page-comment-card leaf-text"),
-                page.locator(".lf-threads .lf-msg.user"),
+                field,
+                view.locator(".lf-msg.user"),
                 page.locator("body"),
-                ".lf-threads .lf-msg",
-                page.locator(".lf-thread-panel"),
+                f"{THREAD_VIEW} .lf-msg",
+                page.locator(".lf-floating-panel"),
                 "comment",
             )
-        thread = page.locator(".lf-threads > .lf-thread").last
-        if thread.get_attribute("open") is None:
-            thread.locator(".lf-thread-summary").click()
+        page.locator(".lf-fp-threads").click()
+        page.locator(".lf-fp-filters button", has_text="Open").click()
+        page.locator(".lf-fp-thread").last.click()
+        expect(view).to_be_visible()
+        wait_for_probe(page, "pageSettled")
         return ThreadSurface(
-            thread.locator("leaf-text"),
-            thread.locator(".lf-msg"),
+            field,
+            view.locator(".lf-msg"),
             page.locator("body"),
-            ".lf-threads .lf-msg",
-            thread,
+            f"{THREAD_VIEW} .lf-msg",
+            page.locator(".lf-floating-panel"),
             "reply",
         )
     if surface == "margin":
@@ -201,8 +212,8 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
         )
         # Send/open has already initiated any landing scroll. Scroll belongs to
         # the browser, and its smooth travel is not a Web Animation.
-        if surface in {"panel", "general"}:
-            scroll_settled(page, ".lf-threads")
+        if page.locator(THREAD_VIEW).count():
+            scroll_settled(page, THREAD_VIEW)
         scroll_settled(page)
         reading = {
             "intent": intent,
@@ -232,7 +243,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
     held = []
 
     def hold(route):
-        if route.request.post_data_json.get("kind") in MESSAGE_KINDS:
+        if route.request.post_data_json.get("kind") in kinds_declaring("message"):
             held.append(route)
         else:
             route.continue_()
@@ -246,7 +257,7 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
             with page.expect_request(
                 lambda request: (
                     request.url.endswith("/api/event")
-                    and request.post_data_json.get("kind") in MESSAGE_KINDS
+                    and request.post_data_json.get("kind") in kinds_declaring("message")
                 )
             ):
                 page.keyboard.press("Enter")
@@ -265,15 +276,19 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
         route = held.pop()
         attempt = route.request.post_data_json["attempt"]
         # Observe feedback in its mutation turn, before transport or capture time
-        # can spend its actual four-second interval.
-        page.locator(".lf-notice").evaluate(
+        # can spend its actual four-second interval. The panel says it over the
+        # words it returned, or in the leaf's peek while a view stands open.
+        page.locator(".lf-floating-panel").evaluate(
             """node => {
               window.__refusalFeedback = null;
               const observer = new MutationObserver(() => {
-                const words = node.textContent.trim();
-                if (!words.startsWith("Couldn't send")) return;
+                const said = [
+                  ...node.querySelectorAll(".lf-fp-context-words, .lf-fp-peek"),
+                ].find(said => said.textContent.trim().startsWith("Couldn't send"));
+                if (!said) return;
                 window.__refusalFeedback = {
-                  words, visible: node.checkVisibility({
+                  words: said.textContent.trim(),
+                  visible: said.checkVisibility({
                     opacityProperty: true, visibilityProperty: true,
                   }),
                 };
@@ -307,11 +322,6 @@ def delivery_journey(page: Page, surface: str, checkpoint: Checkpoint) -> dict:
         observe("refused")
         send()
         observe("retry-pending")
-        if surface == "general":
-            # Keep the next edit inside the provisional card while its parent's
-            # name is adopted, so focus/caret proof covers that card's lifetime.
-            field = page.locator(".lf-threads > .lf-thread").last.locator("leaf-text")
-            expect(field).to_be_visible()
         focus_field(page, field)
         page.keyboard.insert_text(NEXT_WORDS)
         page.keyboard.press("ArrowLeft")

@@ -26,23 +26,27 @@ from leaf.event_log import (
     _parse_events,
     read_cursor,
 )
-from leaf.files import read_json, unfinished_publications
+from leaf.files import unfinished_publications
 from leaf.interaction_log import append_interactions, session_context
-from leaf.machine import pid_alive, sandbox_remedy, state_home
+from leaf.machine import pid_alive, sandbox_remedy
 from leaf.refusals import Refused
 from leaf.schema import STATUS_FILE
 from leaf.state import (
     EVENTS_FILE,
+    STRING,
+    TIME,
+    Record,
     chat_exists,
     ensure_session,
     flocked,
     fsync_parents,
     now_iso,
+    object_schema,
     page_key,
     session_claims,
     session_lock_path,
     session_record,
-    write_json,
+    state_home,
 )
 
 if TYPE_CHECKING:
@@ -64,8 +68,34 @@ def claim_path(page_dir: Path) -> Path:
     return state_home().resolve() / "claims" / f"{page_key(page_dir)}.json"
 
 
+CLAIM = Record(
+    "claim",
+    object_schema(
+        {
+            "page": STRING,
+            "ts": TIME,
+            # The claimant session, and the generation of it this claim names
+            # (`state.SESSION`).
+            "id": STRING,
+            "generation": STRING,
+            # This publication's own identity (`same_claim`).
+            "acquisition": STRING,
+            # The claimant's `Harness.name`, and the name it shows.
+            "harness": STRING,
+            "agent": STRING,
+            "cwd": STRING,
+        },
+        # The turn ending after which input last messaged the session
+        # (`note_messaged`).
+        {"messaged_ending": STRING},
+    ),
+    since=13,
+)
+
+
 def publish_claim(page_dir: Path, claim: dict) -> None:
-    """Prepare discovery, then commit ownership in the canonical payload.
+    """Prepare discovery, then commit ownership in the canonical payload: the one
+    writer of a claim.
 
     Discovery validates the payload's owner against the partition. A transfer's
     old locator therefore stops being current at the canonical commit, which also
@@ -74,7 +104,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     cannot destroy discovery.
     """
     path = claim_path(page_dir)
-    previous = read_json(path)
+    previous = CLAIM.read(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     locator = session_claims(claim["id"]) / path.name
     locator.parent.mkdir(parents=True, exist_ok=True)
@@ -85,42 +115,26 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
         fsync_parents([locator])
     finally:
         staged.unlink(missing_ok=True)
-    write_json(path, claim)
-    if (
-        isinstance(previous, dict)
-        and isinstance(previous.get("id"), str)
-        and previous["id"] != claim["id"]
-    ):
+    CLAIM.write(path, claim)
+    if previous is not None and previous["id"] != claim["id"]:
         (session_claims(previous["id"]) / path.name).unlink(missing_ok=True)
 
 
-# What a reader takes straight off a claim: these fields by name, one of the
-# lifetime keys `claim_is_active` cascades on, and a `harness` whose value
-# `harness.claim_harness` looks up in `HARNESSES`.
-CLAIM_IDENTITY = frozenset(
-    {"page", "ts", "id", "harness", "agent", "generation", "acquisition"}
-)
+# The keys a claim's reading takes from its session's lifetime (`claim_reading`).
 CLAIM_LIFETIMES = frozenset({"job", "chat", "pid"})
 
 
-def readable_claim(claim: dict | None) -> dict | None:
-    """The record if this version can read it as a claim, else None.
+def claim_reading(claim: dict | None) -> dict | None:
+    """A claim as its readers take it: the record, with its session's lifetime and
+    turn while the session is still in the generation the claim names.
 
-    Another version may have written the record (root AGENTS.md, "Stage"). One the
-    readings above cannot take their answers from is not a claim, so the page reads
-    as unclaimed until something claims it again.
-
-    A harness the table no longer holds is such a record: the name is a value this
-    version dispatches on, so it is decided here rather than raising two calls
-    further in.
-
-    Every reader goes through `page_claim` or `claim_records`, so this is the only
-    place that decides it."""
-    if not isinstance(claim, dict) or not CLAIM_IDENTITY <= claim.keys():
-        return None
+    A claim naming a harness this Leaf does not know, as a later Leaf's may, reads
+    as no claim: the name is a value this Leaf dispatches on
+    (`harness.claim_harness`). Every reader goes through `page_claim` or
+    `claim_records`."""
     from leaf.harness import HARNESSES
 
-    if claim["harness"] not in HARNESSES:
+    if claim is None or claim["harness"] not in HARNESSES:
         return None
     record = session_record(claim["id"])
     if record is None or claim["generation"] != record["generation"]:
@@ -136,7 +150,7 @@ def readable_claim(claim: dict | None) -> dict | None:
 
 def page_claim(page_dir: Path) -> dict | None:
     """The page's last claim, including one whose session or lifetime ended."""
-    return readable_claim(read_json(claim_path(page_dir)))
+    return claim_reading(CLAIM.read(claim_path(page_dir)))
 
 
 def claim_is_active(claim: dict | None) -> bool:
@@ -248,23 +262,13 @@ def claim_records(session_id: str | None = None) -> list:
         return []
     claims = []
     for path in directory.glob("*.json"):
-        record = read_json(path)
-        page = record.get("page") if isinstance(record, dict) else None
-        if isinstance(page, str) and claim_path(Path(page)) != path.resolve():
-            continue
+        claim = claim_reading(CLAIM.read(path))
         if (
-            session_id is not None
-            and isinstance(record, dict)
-            and isinstance(record.get("id"), str)
-            and path.parent != session_claims(record["id"])
+            claim is not None
+            and claim_path(Path(claim["page"])) == path.resolve()
+            and (session_id is None or claim["id"] == session_id)
+            and Path(claim["page"]).is_dir()
         ):
-            continue
-        if isinstance(page, str) and not Path(page).is_dir():
-            continue
-        elif (
-            session_id is None
-            or (isinstance(record, dict) and record.get("id") == session_id)
-        ) and (claim := readable_claim(record)):
             claims.append(claim)
     return claims
 
@@ -316,9 +320,7 @@ class PageTransaction:
         (`delivery` header)."""
         from leaf.activity import reply_reservation_stands
 
-        reservation = (
-            (self.status.get("stream") or {}).get("reply_reservations") or {}
-        ).get(responds)
+        reservation = self.status["stream"]["reply_reservations"].get(responds)
         claim = self.active_claim
         if claim and reply_reservation_stands(
             reservation, claim["id"], claim["turn"], claim["turn_closed"]
@@ -363,7 +365,7 @@ class PageTransaction:
         ownership is the final mutation, after those resources are ready.
         """
         with flocked(session_lock_path(claim["id"])):
-            projected = readable_claim(claim)
+            projected = claim_reading(claim)
             if not claim_is_active(projected):
                 raise Refused(dead_session(projected))
             previous = self.claim
@@ -404,39 +406,44 @@ class PageTransaction:
         later ending, whether a close under a new id or an interrupt after a new
         prompt renewed the same one, never matches the ending a message already
         went out for."""
-        write_json(
-            claim_path(self.page_dir),
-            {**read_json(claim_path(self.page_dir)), "messaged_ending": ending},
-        )
+        claim = CLAIM.read(claim_path(self.page_dir))
+        publish_claim(self.page_dir, {**claim, "messaged_ending": ending})
 
     @property
     def status(self) -> dict:
         return read_status(self.page_dir)
 
+    def _write_status(self, status: dict) -> None:
+        """The one writer of `status.json` (`STATUS`)."""
+        STATUS.write(self.page_dir / STATUS_FILE, status)
+
+    def _write_stream(self, stream: dict) -> None:
+        """Replace the stream and keep the declaration."""
+        self._write_status({**self.status, "stream": stream})
+
     def set_status(self, state: str, detail: str) -> dict:
-        """Write the page's `waiting` or `idle` declaration and return it as written.
+        """Write the page's `waiting` or `idle` declaration and return it.
 
         The work the agent has in hand is no status: it is the log's `start` events,
         and the `put_down` that `leaf status` writes beside a declaration takes them
         back (`todos`). The stream the harness observes carries across a `waiting`,
         and `idle` clears it with the leaf."""
-        status = {"state": state, "detail": detail, "ts": now_iso()}
-        if state != "idle" and (stream := self.status.get("stream")):
-            status["stream"] = stream
-        write_json(self.page_dir / STATUS_FILE, status)
-        return status
+        declaration = {"state": state, "detail": detail, "ts": now_iso()}
+        stream = no_stream() if state == "idle" else self.status["stream"]
+        self._write_status({**declaration, "stream": stream})
+        return declaration
 
     def set_stream_activity(
         self, session_id: str, turn_id: str, activity: dict
     ) -> None:
         """Record activity observed directly from the task's live event stream."""
-        status = dict(self.status)
+        status = self.status
         if status["state"] == "idle":
             return
-        stream = dict(status.get("stream") or {})
+        stream = status["stream"]
         now = now_iso()
         after = self.events[-1]["seq"] if self.events else 0
-        previous = stream.get("activity")
+        previous = stream["activity"]
         observed = {
             "session": session_id,
             "turn": turn_id,
@@ -447,52 +454,30 @@ class PageTransaction:
         }
         if (
             previous
-            and (
-                previous["session"],
-                previous["turn"],
-                previous.get("kind"),
-                previous.get("detail"),
-                previous["after"],
-            )
-            == (
-                observed["session"],
-                observed["turn"],
-                observed["kind"],
-                observed.get("detail"),
-                observed["after"],
-            )
+            and {**previous, "ts": now} == observed
             and datetime.fromisoformat(now) - datetime.fromisoformat(previous["ts"])
             < STREAM_ACTIVITY_RENEWAL
         ):
             return
-        stream["activity"] = observed
-        status["stream"] = stream
-        write_json(self.page_dir / STATUS_FILE, status)
+        self._write_stream({**stream, "activity": observed})
 
     def clear_stream_activity(
         self, session_id: str, turn_id: str | None = None
     ) -> None:
         """Remove this task's live reading without changing its declaration."""
-        status = dict(self.status)
-        stream = dict(status.get("stream") or {})
-        activity = stream.get("activity")
-        if not activity or activity.get("session") != session_id:
+        stream = self.status["stream"]
+        activity = stream["activity"]
+        if not activity or activity["session"] != session_id:
             return
-        if turn_id is not None and activity.get("turn") != turn_id:
+        if turn_id is not None and activity["turn"] != turn_id:
             return
-        stream.pop("activity")
-        if stream:
-            status["stream"] = stream
-        else:
-            status.pop("stream", None)
-        write_json(self.page_dir / STATUS_FILE, status)
+        self._write_stream({**stream, "activity": None})
 
     def set_stream_reply(
         self,
         session_id: str,
         turn_id: str,
-        reply_to: str,
-        responds: str,
+        address: dict,
         attempt: str,
         item_id: str | None,
         text: str,
@@ -500,13 +485,14 @@ class PageTransaction:
         *,
         settles: bool = False,
     ) -> None:
-        """Replace the provisional reply owned by one delivered response."""
-        status = dict(self.status)
-        stream = dict(status.get("stream") or {})
-        previous = stream.get("reply") or {}
+        """Replace the provisional reply at a delivery's captured response address."""
+        stream = self.status["stream"]
+        previous = stream["reply"]
         timestamp = (
-            previous.get("ts")
-            if previous.get("session") == session_id and previous.get("turn") == turn_id
+            previous["ts"]
+            if previous
+            and previous["session"] == session_id
+            and previous["turn"] == turn_id
             else None
         )
         updated_at = now_iso()
@@ -514,8 +500,8 @@ class PageTransaction:
             "session": session_id,
             "turn": turn_id,
             "attempt": attempt,
-            "reply_to": reply_to,
-            "responds": responds,
+            "parent": address["parent"],
+            "responds": address["responds"],
             "item": item_id,
             "text": text,
             "state": state,
@@ -524,23 +510,22 @@ class PageTransaction:
             "ts": timestamp or updated_at,
             "updated_at": updated_at,
         }
-        reservations = self._reserved(stream, session_id, responds, attempt, turn_id)
-        if previous == reply and reservations == stream.get("reply_reservations"):
+        reservations = self._reserved(
+            stream, session_id, address["responds"], attempt, turn_id
+        )
+        if previous == reply and reservations == stream["reply_reservations"]:
             return
-        stream["reply_reservations"] = reservations
-        self._publish_stream_reply(status, stream, previous, reply)
+        self._publish_stream_reply(
+            {**stream, "reply_reservations": reservations}, previous, reply
+        )
 
-    def _publish_stream_reply(
-        self, status: dict, stream: dict, previous: dict, reply: dict
-    ) -> None:
+    def _publish_stream_reply(self, stream: dict, previous: dict, reply: dict) -> None:
         """Publish provisional words and record their availability, not visibility.
 
         A nonblank transition records no text. Reconnects may repeat it; readers
         select the first observation for the exact input and attempt.
         """
-        stream["reply"] = reply
-        status["stream"] = stream
-        write_json(self.page_dir / STATUS_FILE, status)
+        self._write_stream({**stream, "reply": reply})
         if reply["text"].strip() and (
             not previous.get("text", "").strip()
             or any(
@@ -555,7 +540,7 @@ class PageTransaction:
                         "source": "server",
                         "type": "reply_stream_words",
                         "input_id": reply["responds"],
-                        "reply_to": reply["reply_to"],
+                        "parent": reply["parent"],
                         "attempt": reply["attempt"],
                         "session": reply["session"],
                         "turn": reply["turn"],
@@ -577,16 +562,12 @@ class PageTransaction:
         own turn does not exist yet; that turn takes the reservation over when its
         reply opens (`set_stream_reply`). Reserving again, as a retried start
         does, names the claim's turn as it stands then."""
-        status = dict(self.status)
-        stream = dict(status.get("stream") or {})
+        stream = self.status["stream"]
         reservations = self._reserved(
             stream, session_id, responds, attempt, self.claim["turn"]
         )
-        if reservations == stream.get("reply_reservations"):
-            return
-        stream["reply_reservations"] = reservations
-        status["stream"] = stream
-        write_json(self.page_dir / STATUS_FILE, status)
+        if reservations != stream["reply_reservations"]:
+            self._write_stream({**stream, "reply_reservations": reservations})
 
     def _reserved(
         self,
@@ -599,18 +580,15 @@ class PageTransaction:
         """The stream's reservations with one response address reserved for `attempt`
         in `turn_id`, refusing an address another delivery's reservation holds while
         it stands (`activity.reply_reservation_stands`)."""
-        reservations = dict(stream.get("reply_reservations") or {})
         reserved = self.open_reply_reservation(responds)
         if reserved is not None and not _held_by(reserved, session_id, attempt):
             raise RuntimeError(
                 f"response {responds!r} is already reserved by another delivery"
             )
-        reservations[responds] = {
-            "session": session_id,
-            "attempt": attempt,
-            "turn": turn_id,
+        return {
+            **stream["reply_reservations"],
+            responds: {"session": session_id, "attempt": attempt, "turn": turn_id},
         }
-        return reservations
 
     def set_stream_reply_state(
         self,
@@ -621,13 +599,12 @@ class PageTransaction:
         state: str,
     ) -> bool:
         """Finish the matching displayed draft without changing its reservation."""
-        status = dict(self.status)
-        stream = dict(status.get("stream") or {})
-        reply = stream.get("reply") or {}
-        if (
-            reply.get("session") != session_id
-            or reply.get("turn") != turn_id
-            or reply.get("attempt") != attempt
+        stream = self.status["stream"]
+        reply = stream["reply"]
+        if not reply or (reply["session"], reply["turn"], reply["attempt"]) != (
+            session_id,
+            turn_id,
+            attempt,
         ):
             return False
         finished = {
@@ -638,9 +615,8 @@ class PageTransaction:
             "settles": False,
             "updated_at": now_iso(),
         }
-        if finished == reply:
-            return True
-        self._publish_stream_reply(status, stream, reply, finished)
+        if finished != reply:
+            self._publish_stream_reply(stream, reply, finished)
         return True
 
     def clear_delivery_reply_reservation(
@@ -650,44 +626,25 @@ class PageTransaction:
         attempt: str,
     ) -> None:
         """Release one response address without changing its visible draft."""
-        status = dict(self.status)
-        stream = dict(status.get("stream") or {})
-        reservations = dict(stream.get("reply_reservations") or {})
-        if not _held_by(reservations.get(responds), session_id, attempt):
-            return
-        reservations.pop(responds)
-        if reservations:
-            stream["reply_reservations"] = reservations
-        else:
-            stream.pop("reply_reservations", None)
-        if stream:
-            status["stream"] = stream
-        else:
-            status.pop("stream", None)
-        write_json(self.page_dir / STATUS_FILE, status)
+        stream = self.status["stream"]
+        reservations = dict(stream["reply_reservations"])
+        if _held_by(reservations.pop(responds, None), session_id, attempt):
+            self._write_stream({**stream, "reply_reservations": reservations})
 
     def clear_stream_reply(self, session_id: str, turn_id: str | None = None) -> None:
         """Remove this task's provisional reply without changing thread history."""
-        status = dict(self.status)
-        stream = dict(status.get("stream") or {})
-        reply = stream.get("reply")
-        if not reply or reply.get("session") != session_id:
+        stream = self.status["stream"]
+        reply = stream["reply"]
+        if not reply or reply["session"] != session_id:
             return
-        if turn_id is not None and reply.get("turn") != turn_id:
+        if turn_id is not None and reply["turn"] != turn_id:
             return
-        stream.pop("reply")
-        reservations = dict(stream.get("reply_reservations") or {})
+        reservations = dict(stream["reply_reservations"])
         if _held_by(reservations.get(reply["responds"]), session_id, reply["attempt"]):
-            reservations.pop(reply["responds"])
-        if reservations:
-            stream["reply_reservations"] = reservations
-        else:
-            stream.pop("reply_reservations", None)
-        if stream:
-            status["stream"] = stream
-        else:
-            status.pop("stream", None)
-        write_json(self.page_dir / STATUS_FILE, status)
+            del reservations[reply["responds"]]
+        self._write_stream(
+            {**stream, "reply": None, "reply_reservations": reservations}
+        )
 
     @property
     def events(self) -> list:
@@ -786,18 +743,83 @@ def restore_page_claim(
         page.restore_claim(expected, previous)
 
 
-def read_status(page_dir: Path) -> dict:
-    """The page's work declaration, `status.json`, as every reader takes it.
+def no_stream() -> dict:
+    """What `status.json` carries beside the declaration while the harness observes
+    nothing of the claimant's task: no live activity, no reply it is drafting, and
+    no response address it has reserved (`delivery` header)."""
+    return {"activity": None, "reply": None, "reply_reservations": {}}
 
-    A page whose agent has declared nothing, such as a copy served before any
-    `leaf status`, reads as a bare `waiting`: no work under way and nothing ended,
-    so the page waits on its user and a wait keeps watching it. A record without
-    a `state` describes no declaration either, and reads the same (`AGENTS.md`,
-    "Stage"). The first status write replaces it."""
-    record = read_json(page_dir / STATUS_FILE)
-    if record is None or "state" not in record:
-        return {"state": "waiting", "detail": ""}
-    return record
+
+def undeclared() -> dict:
+    """The status of a page whose agent has declared nothing, such as a copy served
+    before any `leaf status`: no work under way and nothing ended, so the page waits
+    on its user and a wait keeps watching it."""
+    return {"state": "waiting", "detail": "", "stream": no_stream()}
+
+
+_TURN = {"session": STRING, "turn": STRING}
+STATUS = Record(
+    "status",
+    object_schema(
+        {
+            "state": {"enum": ["waiting", "idle"]},
+            "detail": STRING,
+            "stream": object_schema(
+                {
+                    # What the task is doing now (`set_stream_activity`).
+                    "activity": {
+                        **object_schema(
+                            {
+                                **_TURN,
+                                "kind": STRING,
+                                "ts": TIME,
+                                "after": {"type": "integer"},
+                            },
+                            {"detail": STRING},
+                        ),
+                        "type": ["object", "null"],
+                    },
+                    # The reply it is drafting (`set_stream_reply`).
+                    "reply": {
+                        **object_schema(
+                            {
+                                **_TURN,
+                                "attempt": STRING,
+                                "parent": STRING,
+                                "responds": STRING,
+                                "item": {"type": ["string", "null"]},
+                                "text": STRING,
+                                "state": STRING,
+                                "settles": {"type": "boolean"},
+                                "agent": STRING,
+                                "ts": TIME,
+                                "updated_at": TIME,
+                            }
+                        ),
+                        "type": ["object", "null"],
+                    },
+                    # By response address.
+                    "reply_reservations": {
+                        "type": "object",
+                        "additionalProperties": object_schema(
+                            {**_TURN, "attempt": STRING}
+                        ),
+                    },
+                }
+            ),
+        },
+        # When the agent declared it; a stream observed before any declaration
+        # carries none.
+        {"ts": TIME},
+    ),
+    since=14,
+)
+
+
+def read_status(page_dir: Path) -> dict:
+    """The page's work declaration, `status.json`, as every reader takes it, or
+    `undeclared` before the first."""
+    return STATUS.read(page_dir / STATUS_FILE) or undeclared()
 
 
 def owned_pages(session_id: str | None) -> list:

@@ -11,7 +11,12 @@ from render_cases_interaction import (
     PANEL_PAGE,
     panel_comment,
 )
-from render_harness import open_page, told
+from render_harness import open_page, panel_field, told
+
+
+def said(page):
+    """The panel's empty field, whose placeholder says a passing notice."""
+    return expect(panel_field(page))
 
 
 def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
@@ -20,36 +25,40 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What should change?")
     page = open_page(browser, url)
-    toggle = page.locator(".lf-threads-toggle")
+    toggle = page.locator(".lf-fp-threads")
     toggle.focus()
     expect(toggle).to_be_focused()
-    expect(page.locator(".lf-notice")).to_be_hidden()
+    said(page).not_to_have_attribute(
+        "placeholder", re.compile("replied|commented|Response")
+    )
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "I changed the route.",
         markup='<lf-ask id="route-answers">Does this answer your question?</lf-ask>',
     )
     told(page)
     notice = re.compile(r".+ replied; Input needed")
-    expect(page.locator(".lf-notice")).to_have_text(notice)
+    said(page).to_have_attribute("placeholder", notice)
     expect(page.locator(".lf-live")).to_have_text(notice)
     expect(toggle).to_be_focused()
 
 
 def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
     page = open_page(browser, serve(PANEL_PAGE))
-    toggle = page.locator(".lf-threads-toggle")
+    toggle = page.locator(".lf-fp-threads")
     toggle.focus()
     expect(toggle).to_be_focused()
-    expect(page.locator(".lf-notice")).to_be_hidden()
+    said(page).not_to_have_attribute(
+        "placeholder", re.compile("replied|commented|Response")
+    )
 
     thread_model.cmd_comment(
         serve.page_dir, None, None, None, "A new page-wide agent note.", None
     )
     told(page)
-    expect(page.locator(".lf-notice")).to_have_text(re.compile(r".+ commented"))
+    said(page).to_have_attribute("placeholder", re.compile(r".+ commented"))
     expect(page.locator(".lf-live")).to_have_text(re.compile(r".+ commented"))
     expect(toggle).to_be_focused()
 
@@ -58,17 +67,19 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Please run this request.")
     page = open_page(browser, url)
-    expect(page.locator(".lf-notice")).to_be_hidden()
+    said(page).not_to_have_attribute(
+        "placeholder", re.compile("replied|commented|Response")
+    )
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "The agent turn ended before completion.",
         failure="turn_failed",
         attempt="response-failed-attempt",
     )
     told(page)
-    expect(page.locator(".lf-notice")).to_have_text("Response failed")
+    said(page).to_have_attribute("placeholder", re.compile("^Response failed"))
     expect(page.locator(".lf-live")).to_have_text("Response failed")
 
 
@@ -87,15 +98,23 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     with service_model.PageTransaction(serve.page_dir) as transaction:
         transaction.set_status("waiting", "User feedback")
         transaction.set_stream_reply(
-            "codex-thread", "leaf-turn", root, root, attempt, None, "Draft", "active"
+            "codex-thread",
+            "leaf-turn",
+            {"parent": root, "responds": root},
+            attempt,
+            None,
+            "Draft",
+            "active",
         )
     page = open_page(browser, url)
-    expect(page.locator(".lf-notice")).to_be_hidden()
+    said(page).not_to_have_attribute(
+        "placeholder", re.compile("replied|commented|Response")
+    )
 
     with service_model.PageTransaction(serve.page_dir) as transaction:
         assert transaction.set_stream_reply_state(
             "codex-thread", "leaf-turn", attempt, "Draft", "interrupted"
         )
     told(page)
-    expect(page.locator(".lf-notice")).to_have_text("Response interrupted")
+    said(page).to_have_attribute("placeholder", re.compile("^Response interrupted"))
     expect(page.locator(".lf-live")).to_have_text("Response interrupted")

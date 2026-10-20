@@ -19,7 +19,7 @@ from interact_support import (
     drafted,
     edit,
     found,
-    items_on_user,
+    obligations_on_user,
     page_state,
     publish,
     published,
@@ -444,7 +444,9 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     )
     events = events_model.read_events(page_dir)
     pressed = next(event for event in events if event["kind"] == "action")
-    assert current_responses(page_dir, events)[pressed["id"]]["for"] == pressed["id"]
+    assert (
+        current_responses(page_dir, events)[pressed["id"]]["responds"] == pressed["id"]
+    )
     mistaken = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1387,7 +1389,7 @@ def test_a_comment_without_an_anchor_asks_the_page_whole(page_dir):
 
 
 def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
-    """`leaf wait` and the banner's unread count both turn on author, so a note
+    """`leaf wait` and the panel's unread count both turn on author, so a note
     Claude leaves can't wake its own watcher or read as a comment nobody answered."""
     published(page_dir)
     assert comment(page_dir, "--quote", "Ship dark", "--text", "x").exit_code == 0
@@ -1488,7 +1490,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
 
 
 def test_a_closed_thread_stops_asking(page_dir):
-    """Resolving a thread suppresses its item attention while retaining inventory."""
+    """Resolving a thread suppresses its obligation attention while retaining inventory."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = append_carried_log_record(
@@ -1505,7 +1507,7 @@ def test_a_closed_thread_stops_asking(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert items_on_user(state_json(page_dir)) == [
+    assert obligations_on_user(state_json(page_dir)) == [
         {
             "id": "widget:gm",
             "tag": "lf-options",
@@ -1517,10 +1519,10 @@ def test_a_closed_thread_stops_asking(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "agent", "parent": root["id"]}
     )
-    assert items_on_user(state_json(page_dir)) == []
+    assert obligations_on_user(state_json(page_dir)) == []
 
 
-def test_thread_items_share_one_projection_across_open_fragments(page_dir):
+def test_thread_obligations_share_one_projection_across_open_fragments(page_dir):
     """Independent thread widgets fold together while retaining their threads."""
     publish(page_dir)
     roots = []
@@ -1542,7 +1544,7 @@ def test_thread_items_share_one_projection_across_open_fragments(page_dir):
                 },
             )
         )
-    assert items_on_user(state_json(page_dir)) == [
+    assert obligations_on_user(state_json(page_dir)) == [
         {
             "id": "widget:group-a",
             "tag": "lf-options",
@@ -1570,7 +1572,7 @@ def test_thread_items_share_one_projection_across_open_fragments(page_dir):
             "detail": {"value": ["option-a"]},
         },
     )
-    assert items_on_user(state_json(page_dir)) == [
+    assert obligations_on_user(state_json(page_dir)) == [
         {
             "id": "widget:group-b",
             "tag": "lf-options",

@@ -140,37 +140,49 @@ def init_refusal(page_dir) -> Finding:
     return refused
 
 
+def _handling(clauses):
+    return {"handling": clauses}
+
+
 @pytest.mark.parametrize(
-    ("handling", "code"),
+    ("events", "code"),
     [
-        ({"bogus-kind": [{"text": "A clause for no kind."}]}, "undeclared-event-kind"),
-        ({"comment": []}, "layer-facts"),
-        ({"comment": "Reply in French."}, "layer-facts"),
-        ({"comment": [{"text": ""}]}, "layer-facts"),
-        ({"comment": [{"text": "Reply in French.", "tone": "warm"}]}, "layer-facts"),
         (
-            {"comment": [{"text": "Reply in French.", "when": {"type": 5}}]},
+            _handling({"bogus-kind": [{"text": "A clause for no kind."}]}),
+            "undeclared-event-kind",
+        ),
+        (
+            {"answering": {"markdown": [{"text": "A clause for no answer."}]}},
+            "undeclared-event-kind",
+        ),
+        (_handling({"comment": []}), "layer-facts"),
+        (_handling({"comment": "Reply in French."}), "layer-facts"),
+        (_handling({"comment": [{"text": ""}]}), "layer-facts"),
+        (
+            _handling({"comment": [{"text": "Reply in French.", "tone": "warm"}]}),
+            "layer-facts",
+        ),
+        (
+            _handling({"comment": [{"text": "Reply in French.", "when": {"type": 5}}]}),
             "invalid-when",
         ),
-        ("Reply in French.", "layer-facts"),
-        (None, "layer-facts"),
+        (_handling("Reply in French."), "layer-facts"),
+        (_handling(None), "layer-facts"),
     ],
 )
-def test_init_refuses_handling_that_a_batch_could_not_carry(
-    page_dir, tmp_path, handling, code
+def test_init_refuses_instructions_that_a_batch_could_not_carry(
+    page_dir, tmp_path, events, code
 ):
-    """Every delivered event reads `$events.handling` directly, so the door holds a
-    layer to declared kinds and well-formed clauses rather than passing junk to the
-    agent."""
+    """Every delivered event reads `$events.handling` and `$events.answering`
+    directly, so the door holds a layer to declared kinds and answers and to
+    well-formed clauses rather than passing junk to the agent."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(
-        json.dumps({"$events": {"handling": handling}})
-    )
+    (overlay / "registry.json").write_text(json.dumps({"$events": events}))
 
     finding = init_refusal(page_dir)
     assert finding.code == code
-    assert "handling" in json.dumps(finding.values)
+    assert next(iter(events)) in json.dumps(finding.values)
 
 
 def test_the_events_reference_names_the_fields_each_kind_declares():
@@ -622,12 +634,12 @@ A route is how new user input reaches the agent's task:
                      follows every `next` command, and confirms complete receipt
                      with `leaf delivery ack <id>` before answering with
                      `leaf response reply <answer.ref>`.
-  Codex App Server   Leaf starts a turn with `turn/start`, carrying the
-                     delivery as a `leaf_delivery` tool output, and binds the
-                     turn's opening and final messages as the reply. Leaf
-                     acknowledges the delivery once it enters that turn.
-                     leaf.page's hosted agent and a `leaf codex launch`
-                     terminal use this route.
+  Codex App Server   Leaf adds the delivery to the task's queue with
+                     `thread/queue/add`, as the user message of the turn App
+                     Server starts for it, and binds that turn's opening and
+                     final messages as the reply. Leaf acknowledges the
+                     delivery once it enters that turn. leaf.page's hosted
+                     agent and a `leaf codex launch` terminal use this route.
 
 CLI readings print bounded, indented JSON. Large deliveries expose numbered
 parts and a `next` command; read all parts before acknowledging. A CLI reading
@@ -656,8 +668,9 @@ One top-level key per route, holding exactly what reaches the agent's task:
                      after it.
   Codex queue:       the `--message` given to `codex queue`, and the output of
                      the `leaf delivery read` it points at.
-  Codex App Server:  the `turn/start` params. `toolOutput.output` is the
-                     delivery serialized as one line of JSON; it is shown
+  Codex App Server:  the `thread/queue/add` params. The input's text is one
+                     line saying Leaf has new input, then the delivery
+                     serialized as one line of JSON; it is shown split and
                      decoded here.
 
 JSON is shown as YAML, and each clause in a batch's `handling` as wrapped prose,
@@ -721,9 +734,11 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
     prepared = codex_model.prepare_codex_delivery(
         page_dir, harness_model.EmbeddedHarness(thread, "Codex", os.getpid())
     )
-    started = codex_model.app_server_turn_start_params(thread, prepared.payload)
+    submitted = codex_model.app_server_queue_params(thread, prepared.payload)
     reader = delivery_model.cmd_delivery_read(prepared.payload["id"])
-    assert json.loads(started["toolOutput"]["output"]) == prepared.payload
+    [message] = submitted["input"]
+    opening, carried = message["text"].split("\n")
+    assert json.loads(carried) == prepared.payload
     assert reader["batches"] == prepared.payload["batches"]
     assert f"leaf delivery ack {prepared.payload['id']}" in reader["acknowledge"]
 
@@ -772,8 +787,11 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
             }
         return delivery
 
-    started = json.loads(pin(json.dumps(started)))
-    started["toolOutput"]["output"] = readable(started["toolOutput"]["output"])
+    submitted = json.loads(pin(json.dumps(submitted)))
+    submitted["input"][0]["text"] = {
+        "opening": Prose(opening),
+        "delivery": readable(carried),
+    }
     snapshot.check(
         yaml_document(
             ROUTE_WALKTHROUGH,
@@ -791,7 +809,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
                     "codex queue --message": Prose(pin(queued.prompt)),
                     "leaf delivery read 22222222": readable(read),
                 },
-                "Codex App Server": {"turn/start": started},
+                "Codex App Server": {"thread/queue/add": submitted},
             },
         )
     )
@@ -858,6 +876,25 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert keys["x-says"]  # the rest of the shipped members stand
 
 
+@pytest.mark.parametrize("fact", ["$state", "$awaits"])
+def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
+    """`$state` documents the fields of an x-state verb and `$awaits` those of
+    x-awaits, held to their schemas as `$keys` is to the x- keys: a field the schema
+    admits with no member is one an author reads the registry for and finds unsaid."""
+    kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
+    registry_layer.validate_layer_declarations(kernel, "kernel")
+    documented = deepcopy(kernel)
+    field = min(registry_layer.DOCUMENTED_KEYS[fact]["properties"])
+    del documented[fact][field]
+    documented[fact]["nope"] = "?"
+    refused = registry_refusal(
+        lambda: registry_layer.validate_layer_declarations(documented, "kernel")
+    )
+    assert found(
+        [refused], "keys-documentation", fact=fact, missing=[field], unadmitted=["nope"]
+    )
+
+
 @pytest.mark.parametrize("key", ["kinds", "ownership", "protocol"])
 def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, key):
     """A layer cannot change the event kinds, their ownership, or the protocol
@@ -881,6 +918,21 @@ def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, 
     (overlay / "registry.json").write_text(json.dumps({"$events": {key: None}}))
     finding = init_refusal(page_dir)
     assert found([finding], "fixed-events", key=key)
+
+
+@pytest.mark.parametrize("fact", ["$passages", "$names", "$marks"])
+def test_the_kernel_facts_are_not_a_layer_extension(page_dir, tmp_path, fact):
+    """Python reads the running Leaf's kernel facts and the browser a copy generated
+    from them, so a layer's change to one, even taking a member out, would reach
+    neither runtime; a page's older runtime still reads `$marks` from its vocabulary."""
+    overlay = tmp_path / ".leaf"
+    overlay.mkdir(parents=True)
+    shipped = json.loads((page_dir / "registry.json").read_text())[fact]
+    member = next(key for key in shipped if key != "description")
+    (overlay / "registry.json").write_text(json.dumps({fact: {member: None}}))
+
+    finding = init_refusal(page_dir)
+    assert found([finding], "fixed-kernel-fact", name=fact)
 
 
 def test_shared_package_declarations_compose_by_member():

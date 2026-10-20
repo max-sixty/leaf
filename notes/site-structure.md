@@ -12,8 +12,8 @@ meaning; word counts describe the cut, not its quality.
 
 ## Proposed routes
 
-The current routes are `PRODUCT_ROUTES` in `dev/leaf_dev/commands/site.py`. The proposal
-gives each page one reader:
+`leaf_dev.docs` discovers the top-level documents under `docs/` and derives their
+routes from their filenames. The proposal gives each page one reader:
 
 | Route            | Reader and purpose                                                       |
 | ---------------- | ------------------------------------------------------------------------ |
@@ -34,7 +34,7 @@ canonical harness contract rather than prescribe one command for every harness.
 
 ## Decision A: status depth
 
-Recommendation: show the banner readings with a short explanation, and link to the
+Recommendation: show the status readings with a short explanation, and link to the
 protocol references for how the server derives them. The alternatives are the same
 derivation under a closed disclosure, or a full explanation of the mechanism on the
 site. Both alternatives keep a second copy of the protocol material.
@@ -43,8 +43,8 @@ site. Both alternatives keep a second copy of the protocol material.
 
 Recommendation: adopt the reader-based routes above. The alternatives are keeping
 the current routes and regrouping their tabs, or rewriting every current page in
-place. A route change also updates the links between the site's pages,
-`PRODUCT_ROUTES`, the Worker's routing fixtures
+place. A route change renames its document and also updates the links between the
+site's pages, the Worker's routing fixtures
 (`worker/test/index.test.ts`) and `tests/*/test_product_page.py`. Removing
 `/registry/` also needs a new home for the `x-` key index, which `leaf_dev.docs`
 composes into `docs/registry.html`'s empty `nav.reference-index` and

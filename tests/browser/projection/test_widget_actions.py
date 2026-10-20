@@ -1,4 +1,4 @@
-"""Widget actions and decisions: verbs local to their owning widget, declared item
+"""Widget actions and decisions: verbs local to their owning widget, declared obligation
 conditions, replay and undo, and suggestion settlements retiring their slots."""
 
 import json
@@ -24,13 +24,13 @@ from render_cases_interaction import (
     drifting_widget,
     live_url,
 )
-from render_cases_layout import banner_control, unfolded_button
+from render_cases_layout import unfolded_button
 from render_cases_navigation import composer_quote, painted
 from render_harness import (
     EXAMPLE_PACKAGES,
     REPLY_HOST_PAGE,
     consume_browser_errors,
-    expect_items_answered,
+    expect_obligations_answered,
     leaf_page,
     open_page,
     panel_settled,
@@ -45,13 +45,27 @@ from render_harness import (
     write,
 )
 
+from browser.threads import open_panel_thread
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_a_projected_attribute_opens_an_item_captured_from_authored_markup(
+def thread_quote(page, page_dir):
+    """The quote of the page's first thread, in that thread's view in the panel, once
+    every gesture the page sent has been delivered."""
+    round_trip(page)
+    thread = next(
+        event["id"]
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "comment"
+    )
+    return open_panel_thread(page, thread).locator(".lf-fp-quote")
+
+
+def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup(
     browser, serve
 ):
-    """Predicate operands survive upgrade even when the item starts closed."""
+    """Predicate operands survive upgrade even when the obligation starts closed."""
     entry = {
         "description": "A test-owned conditional Ask.",
         "type": "object",
@@ -102,7 +116,9 @@ customElements.define("lf-conditional", class extends LeafElement {
             layer_widgets={"lf-conditional.js": module},
         ),
     )
-    expect(page.locator(".lf-queue")).to_have_text("On me: 0")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On me")
+    view = page.locator('.lf-fp-view[data-view="queue"]:not([data-leaving])')
+    items = ".lf-fp-on-item[data-key^='[\"widget\"']"
 
     for phase, count in (("open", 1), ("closed", 0)):
         append_command(
@@ -118,16 +134,17 @@ customElements.define("lf-conditional", class extends LeafElement {
         )
         told(page)
         if count:
-            expect_items_answered(page, "0/1")
-            banner_control(page, ".lf-queue").click()
-        # The phase move is the agent's to answer. The item leaves the user's
-        # queue when its condition closes, retaining its withdrawn inventory row.
-        expect(
-            page.locator("[data-lf-queue='you'] .lf-queue-row[data-lf-kind='widget']")
-        ).to_have_count(count)
-        withdrawn = page.locator(
-            "[data-lf-queue='done'] .lf-queue-row[data-lf-kind='widget']"
-        )
+            expect_obligations_answered(page, "0/1")
+        # The phase move is the agent's to answer. The obligation leaves the user's
+        # queue when its condition closes, retaining its withdrawn card under Done.
+        # An open view keeps its cards seated, so each reading is a fresh opening.
+        if view.count():
+            page.locator(".lf-fp-close").click()
+            panel_settled(page, open=False)
+        page.locator(".lf-fp-on-user").click()
+        panel_settled(page, view="queue")
+        expect(view.locator(f'{items}[data-list="you"]')).to_have_count(count)
+        withdrawn = view.locator(f'{items}[data-list="done"]')
         expect(withdrawn).to_have_count(1 - count)
         if not count:
             expect(withdrawn).to_contain_text("Withdrawn")
@@ -463,7 +480,7 @@ def test_a_page_at_rest_is_read_across_a_widgets_own_root(
     page = open_page(browser, url)
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
 
-    # The banner's dot pulses forever and is deliberately not the page moving, so the
+    # The status dot pulses forever and is deliberately not the page moving, so the
     # control asks after a finite end rather than after an empty list.
     assert (
         page.evaluate(
@@ -672,11 +689,11 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
 
     inline = page.locator(".lf-margin-thread")
     expect(inline.locator(".lf-msg-body")).to_have_text("Half-empty by whose reading?")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    thread = page.locator(".lf-thread .lf-quote").first
+    thread = thread_quote(page, serve.page_dir)
     expect(thread).to_be_visible()
     expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
     assert (
         painted(page, "lf-mark")
         == "Refill a feeder when its camera shows it half-empty."
@@ -685,7 +702,9 @@ def test_a_pending_suggestion_can_be_discussed_instead_of_decided(browser, serve
     unfolded_button(
         suggestion_control(page, "sug-refill", "reject", visible=False)
     ).click()
-    expect(thread).to_have_class(re.compile(r"\bdetached\b"))
+    expect(thread_quote(page, serve.page_dir)).to_have_class(
+        re.compile(r"\bdetached\b")
+    )
     assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
     )
@@ -716,7 +735,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     )
     page = open_page(browser, url)
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
+    expect(thread_quote(page, serve.page_dir)).to_have_class(
         re.compile(r"\bdetached\b")
     )
     assert painted(page, "lf-mark") == "", (
@@ -747,7 +766,7 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     )
     page = open_page(browser, url)
     expect(page.locator("#th-cache lf-proposed")).to_be_visible()
-    expect(page.locator(".lf-thread .lf-quote").first).not_to_have_class(
+    expect(thread_quote(page, serve.page_dir)).not_to_have_class(
         re.compile(r"\bdetached\b")
     )
     assert painted(page, "lf-mark") != "", (
@@ -795,7 +814,7 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
         },
     )
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
+    open_panel_thread(page, "c-trial")
     expect(page.locator("#rq-now")).to_be_visible()
     expect(page.locator("#rq-cache")).to_have_attribute("data-lf-state", "shelve")
     expect(page.locator("#rq-next")).to_be_hidden()
@@ -938,7 +957,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
         )
         == "Settled: Lax cookie"
     ), "fixture is not exercising the case — the label the slot hides never rendered"
-    expect(page.locator(".lf-thread .lf-quote").first).to_have_class(
+    expect(thread_quote(page, serve.page_dir)).to_have_class(
         re.compile(r"\bdetached\b")
     )
     assert painted(page, "lf-mark") == "", (
@@ -965,8 +984,11 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
         },
     )
     page = open_page(browser, url)
-    thread = page.locator(".lf-thread .lf-quote").first
-    expect(thread).not_to_have_class(re.compile(r"\bdetached\b"))
+    expect(thread_quote(page, serve.page_dir)).not_to_have_class(
+        re.compile(r"\bdetached\b")
+    )
+    page.locator(".lf-fp-close").click()
+    panel_settled(page, open=False)
     # Pending, the outline hangs on a box the user can see, and it is read as a box
     # rather than as a class: the class sat on the wrapper while the wrapper was
     # display: contents and painted no outline, so the half of this docstring about
@@ -982,7 +1004,9 @@ def test_a_decision_that_empties_its_widget_detaches_the_element_anchor(browser,
     unfolded_button(
         suggestion_control(page, "sug-thistle", "reject", visible=False)
     ).click()
-    expect(thread).to_have_class(re.compile(r"\bdetached\b"))
+    expect(thread_quote(page, serve.page_dir)).to_have_class(
+        re.compile(r"\bdetached\b")
+    )
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
 
 

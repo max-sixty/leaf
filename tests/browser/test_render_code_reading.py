@@ -5,7 +5,18 @@ from html import escape
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, scroll_settled, told
+from render_harness import PANEL, leaf_page, open_page, scroll_settled, told
+
+
+def open_keyboard_shortcuts(page):
+    """Tap the panel's leaf, unfolding it first where it rests as the mark, then its
+    menu's Keyboard shortcuts row: a finger's door to the command reference."""
+    leaf = page.locator(".lf-fp-leaf")
+    if page.locator(PANEL).get_attribute("data-rest") == "mark":
+        leaf.tap()
+        expect(page.locator(PANEL)).to_have_attribute("data-rest", "row")
+    leaf.tap()
+    page.locator('.lf-fp-menu .lf-fp-item[data-row="keyboard"]').tap()
 
 
 def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
@@ -31,8 +42,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     )
     # A finger starts at the source, then uses the existing command reference.
     pre.tap(position={"x": 30, "y": 20})
-    page.get_by_role("button", name="More page controls", exact=True).tap()
-    page.get_by_role("button", name="Keyboard shortcuts", exact=True).tap()
+    open_keyboard_shortcuts(page)
     page.get_by_role("button", name="Unwrap lines", exact=True).tap()
     expect(pre).to_be_focused()
     assert pre.evaluate("e => e.scrollWidth > e.clientWidth")
@@ -55,8 +65,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     rendered(page)
     expect(pre).to_be_focused()
     assert pre.evaluate("e => e.scrollLeft") >= horizontal
-    page.get_by_role("button", name="More page controls", exact=True).tap()
-    page.get_by_role("button", name="Keyboard shortcuts", exact=True).tap()
+    open_keyboard_shortcuts(page)
     page.locator(".lf-command-reference").get_by_role(
         "button", name="Copy code", exact=True
     ).tap()
@@ -99,27 +108,26 @@ def test_code_reference_keeps_command_context_and_cancel_destination(browser, se
     )
     page = open_page(browser, live_url(serve(source)), context=context)
     pre = page.locator("#code pre")
-    more = page.get_by_role("button", name="More page controls", exact=True)
+    # The leaf's menu goes away as its row opens the reference, so the leaf is the
+    # door the reference returns to.
+    leaf = page.locator(".lf-fp-leaf")
     reference = page.locator(".lf-command-reference")
     pre.tap()
     expect(pre).to_be_focused()
-    more.tap()
-    page.get_by_role("button", name="Keyboard shortcuts", exact=True).tap()
+    open_keyboard_shortcuts(page)
     page.keyboard.press("Escape")
-    expect(more).to_be_focused()
+    expect(leaf).to_be_focused()
     pre.tap()
-    more.tap()
-    page.get_by_role("button", name="Keyboard shortcuts", exact=True).tap()
+    open_keyboard_shortcuts(page)
     reference.locator(".lf-command-reference-close").tap()
-    expect(more).to_be_focused()
+    expect(leaf).to_be_focused()
     pre.tap()
     page.keyboard.press("?")
     reference.get_by_role("button", name="Unwrap lines", exact=True).tap()
     expect(pre).to_be_focused()
     assert pre.evaluate("e => e.scrollWidth > e.clientWidth")
     page.locator("#code").get_by_role("button", name="Copy code", exact=True).tap()
-    more.tap()
-    page.get_by_role("button", name="Keyboard shortcuts", exact=True).tap()
+    open_keyboard_shortcuts(page)
     reference.get_by_role("button", name="Wrap lines", exact=True).tap()
     rendered(page)
     assert pre.evaluate("e => e.scrollWidth <= e.clientWidth")
@@ -128,7 +136,6 @@ def test_code_reference_keeps_command_context_and_cancel_destination(browser, se
     page.keyboard.type("w")
     expect(notes).to_have_value("w")
     assert pre.evaluate("e => e.scrollWidth <= e.clientWidth")
-    more.tap()
-    page.get_by_role("button", name="Keyboard shortcuts", exact=True).tap()
+    open_keyboard_shortcuts(page)
     page.keyboard.press("Escape")
-    expect(more).to_be_focused()
+    expect(leaf).to_be_focused()

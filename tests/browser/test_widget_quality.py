@@ -267,7 +267,7 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
 ):
     """An export runs the runtime, so its widgets take the boxes their modules will
     draw from the first paint, as a served page's do; it draws no live chrome, so it
-    reserves no banner. Its first paint is the export without its entry module, which
+    reserves no room for the panel. Its first paint is the export without its entry module, which
     is the document the browser lays out before the module graph runs. One whose entry
     cannot load falls back to the readable page."""
     serve(
@@ -336,12 +336,7 @@ def test_an_export_first_paints_its_widgets_at_their_presented_boxes(
         22
     )
     assert first == presented
-    assert (
-        page.evaluate(
-            "getComputedStyle(document.documentElement).getPropertyValue('--lf-banner-h')"
-        )
-        == "0px"
-    )
+    expect(page.locator("html")).not_to_have_attribute("data-lf-live", "")
 
     # An export whose runtime cannot start has no server to wait for, but it still
     # gives back the readable fallback: every panel, under its label.

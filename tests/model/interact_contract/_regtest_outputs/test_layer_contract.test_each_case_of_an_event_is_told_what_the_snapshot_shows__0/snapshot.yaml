@@ -65,22 +65,20 @@
 #        when: {"required": ["about"], "properties": {"about": {"const": "design"}}}
 #        text: A design comment is about how the page looks or behaves, not what it
 #              says. Its anchor's `section` is an authored element's id or, if it
-#              starts `lf-`, a part of Leaf's chrome, such as `lf-banner`,
-#              `lf-threads` (the Threads panel), `lf-queue` (the On panel),
-#              `lf-versions` or `lf-composer`. `part`, when present, describes the
-#              control, region or picture the user clicked. Fix it in this page's
-#              source. If the behavior belongs to a package's widget, or the user asks
-#              for a wider fix, change the package as the Leaf skill's
-#              `references/packages.md` says, re-vendor, and note the re-vendor on the
-#              stamp. A fix to Leaf itself is the user's to raise (the Leaf skill's
-#              "Improve Leaf through use"). Your reply reports the stamped version
-#              that carries the fix.
+#              starts `lf-`, a part of Leaf's chrome, such as `lf-fp-menu` (the
+#              floating panel's menu), `lf-composer` or `lf-command-reference`.
+#              `part`, when present, describes the control, region or picture the user
+#              clicked. Fix it in this page's source. If the behavior belongs to a
+#              package's widget, or the user asks for a wider fix, change the package
+#              as the Leaf skill's `references/packages.md` says, re-vendor, and note
+#              the re-vendor on the stamp. A fix to Leaf itself is the user's to raise
+#              (the Leaf skill's "Improve Leaf through use"). Your reply reports the
+#              stamped version that carries the fix.
 #      clause 5, applies:
 #        when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
 #        text: The thread has no title yet. Name it with `--title "<a few words>"` on
-#              your reply, so the Threads panel lists its subject instead of its
-#              opening words. If Leaf has already named it from its first message,
-#              that name stays.
+#              your reply, so Threads lists its subject instead of its opening words.
+#              If Leaf has already named it from its first message, that name stays.
 #      clause 6, does not apply:
 #        when: {"required": ["token"]}
 #        text: A reaction is a mark, not a question. Act on the token if it calls for
@@ -111,14 +109,14 @@
 #              there.
 #      clause 8, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
-#        text: Leaf streams your opening message into the thread and posts your final
-#              message as the reply, unless an explicit reply already answered this
-#              input. Before your first tool call, tell the user briefly the answer or
-#              what you are about to do; later working messages stay in Codex. End
-#              with the answer, or what changed and where it shows. For widgets, a
-#              question awaiting the user (an `lf-ask` in `--markup`), work promised
-#              beyond this turn (`--todo`), a title or moving the thread, reply
-#              explicitly with `leaf response reply <answer.ref>`
+#        text: Leaf posts your opening message in the thread as your progress line and
+#              your final message as the reply, unless an explicit reply already
+#              answered this input. Before your first tool call, tell the user briefly
+#              the answer or what you are about to do; later working messages stay in
+#              Codex. End with the answer, or what changed and where it shows. For
+#              widgets, a question awaiting the user (an `lf-ask` in `--markup`), work
+#              promised beyond this turn (`--todo`), a title or moving the thread,
+#              reply explicitly with `leaf response reply <answer.ref>`
 #              (`references/threads.md`); it posts at once, and your final message is
 #              then not posted.
 #      clause 9, applies:
@@ -142,7 +140,7 @@
 #    This comment fits in one reading, shown here as the wait prints it:
 #
 #      {
-#        "format": "leaf-delivery/9",
+#        "format": "leaf-delivery/14",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
 #        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's updates read Sent rather than Picked up. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
@@ -171,7 +169,7 @@
 #              }
 #            ],
 #            "handling": {
-#              "h1": "The thread has no title yet. Name it with `--title \"<a few words>\"` on your reply, so the Threads panel lists its subject instead of its opening words. If Leaf has already named it from its first message, that name stays.",
+#              "h1": "The thread has no title yet. Name it with `--title \"<a few words>\"` on your reply, so Threads lists its subject instead of its opening words. If Leaf has already named it from its first message, that name stays.",
 #              "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even reading the source: `leaf response reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. It shows at once and starts the update, which reads Working until you answer. Do the work and put the result on the page, with what shows it (captures, a figure, the numbers). Then answer with `leaf response reply <answer.ref> --done < reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, as a question may not, answer it with that reply at once. The page holds the work; the thread holds only the conversation about it. `leaf response reply` checks any saved page edit and makes it live before posting. If the revision removes the thread's anchor, move the thread in the same reply with `--section <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject left the page. Each answer takes `--done` when it delivers what was asked, or `--todo \"<what you owe>\"` when it promises work beyond this turn, which stays on you until `leaf task end` (`references/conversation-loop.md`, \"Long-running work\"). To ask the user something back, put the question in an `lf-ask` in `--markup`; it waits on them until their next message there.",
 #              "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
 #            },
@@ -203,8 +201,8 @@
 #                ],
 #                "answer": {
 #                  "kind": "reply",
-#                  "to": "1946b466",
-#                  "for": "1946b466",
+#                  "parent": "1946b466",
+#                  "responds": "1946b466",
 #                  "ref": "e8417b8a:0:1946b466",
 #                  "writer": "agent"
 #                }
@@ -255,8 +253,8 @@
 #          - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
 #            text: >-
 #              The thread has no title yet. Name it with `--title "<a few words>"` on your
-#              reply, so the Threads panel lists its subject instead of its opening words.
-#              If Leaf has already named it from its first message, that name stays.
+#              reply, so Threads lists its subject instead of its opening words. If Leaf
+#              has already named it from its first message, that name stays.
 #          - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
 #            text: >-
 #              If the event asks for work, first post one line in its thread saying what
@@ -298,8 +296,8 @@ comment:
     - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
       text: >-
         The thread has no title yet. Name it with `--title "<a few words>"` on your
-        reply, so the Threads panel lists its subject instead of its opening words.
-        If Leaf has already named it from its first message, that name stays.
+        reply, so Threads lists its subject instead of its opening words. If Leaf
+        has already named it from its first message, that name stays.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
@@ -336,15 +334,15 @@ comment over App Server:
   told:
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
       text: >-
-        Leaf streams your opening message into the thread and posts your final message
-        as the reply, unless an explicit reply already answered this input. Before
-        your first tool call, tell the user briefly the answer or what you are about
-        to do; later working messages stay in Codex. End with the answer, or what
-        changed and where it shows. For widgets, a question awaiting the user (an
-        `lf-ask` in `--markup`), work promised beyond this turn (`--todo`), a title
-        or moving the thread, reply explicitly with `leaf response reply <answer.ref>`
-        (`references/threads.md`); it posts at once, and your final message is then
-        not posted.
+        Leaf posts your opening message in the thread as your progress line and
+        your final message as the reply, unless an explicit reply already answered
+        this input. Before your first tool call, tell the user briefly the answer
+        or what you are about to do; later working messages stay in Codex. End with
+        the answer, or what changed and where it shows. For widgets, a question
+        awaiting the user (an `lf-ask` in `--markup`), work promised beyond this
+        turn (`--todo`), a title or moving the thread, reply explicitly with `leaf
+        response reply <answer.ref>` (`references/threads.md`); it posts at once,
+        and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -492,15 +490,14 @@ design comment:
       text: >-
         A design comment is about how the page looks or behaves, not what it says.
         Its anchor's `section` is an authored element's id or, if it starts `lf-`,
-        a part of Leaf's chrome, such as `lf-banner`, `lf-threads` (the Threads
-        panel), `lf-queue` (the On panel), `lf-versions` or `lf-composer`. `part`,
-        when present, describes the control, region or picture the user clicked.
-        Fix it in this page's source. If the behavior belongs to a package's widget,
-        or the user asks for a wider fix, change the package as the Leaf skill's
-        `references/packages.md` says, re-vendor, and note the re-vendor on the
-        stamp. A fix to Leaf itself is the user's to raise (the Leaf skill's "Improve
-        Leaf through use"). Your reply reports the stamped version that carries
-        the fix.
+        a part of Leaf's chrome, such as `lf-fp-menu` (the floating panel's menu),
+        `lf-composer` or `lf-command-reference`. `part`, when present, describes
+        the control, region or picture the user clicked. Fix it in this page's source.
+        If the behavior belongs to a package's widget, or the user asks for a wider
+        fix, change the package as the Leaf skill's `references/packages.md` says,
+        re-vendor, and note the re-vendor on the stamp. A fix to Leaf itself is
+        the user's to raise (the Leaf skill's "Improve Leaf through use"). Your
+        reply reports the stamped version that carries the fix.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
@@ -594,8 +591,8 @@ reply in an untitled thread:
     - when: {"required": ["thread", "answer"], "properties": {"thread": {"required": ["title"], "properties": {"title": {"type": "null"}}}, "answer": {"properties": {"kind": {"const": "reply"}, "writer": {"const": "agent"}}}}}
       text: >-
         The thread has no title yet. Name it with `--title "<a few words>"` on your
-        reply, so the Threads panel lists its subject instead of its opening words.
-        If Leaf has already named it from its first message, that name stays.
+        reply, so Threads lists its subject instead of its opening words. If Leaf
+        has already named it from its first message, that name stays.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         If the event asks for work, first post one line in its thread saying what
@@ -825,11 +822,11 @@ pick on the page:
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
-        It answers the page's item, which shows as waiting on you until the markup
-        records the answer. Name the work it selects or unblocks with `leaf task
-        start <page> <event-id> "<the work, in a line>"` before starting it; then
-        do it, write the answer in, and stamp a version. An option the user added
-        needs no writing in: the page keeps it where the user put it.
+        It answers the page's obligation, which shows as waiting on you until the
+        markup records the answer. Name the work it selects or unblocks with `leaf
+        task start <page> <event-id> "<the work, in a line>"` before starting it;
+        then do it, write the answer in, and stamp a version. An option the user
+        added needs no writing in: the page keeps it where the user put it.
 
 option the user added:
   event:
@@ -855,9 +852,9 @@ option the user added:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This action owes no answer of its own: it answers no item, a later action
-        on the same widget carries the answer, or the answer is not complete yet,
-        as with a pick before the Done its group waits for.
+        This action owes no answer of its own: it answers no obligation, a later
+        action on the same widget carries the answer, or the answer is not complete
+        yet, as with a pick before the Done its group waits for.
 
 pick before Done:
   event:
@@ -878,9 +875,9 @@ pick before Done:
         the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
-        This action owes no answer of its own: it answers no item, a later action
-        on the same widget carries the answer, or the answer is not complete yet,
-        as with a pick before the Done its group waits for.
+        This action owes no answer of its own: it answers no obligation, a later
+        action on the same widget carries the answer, or the answer is not complete
+        yet, as with a pick before the Done its group waits for.
 
 decided suggestion:
   event:
@@ -904,11 +901,11 @@ decided suggestion:
         the pick in a later version, mark the element `restated` and say why in
         the version note.
     - text: >-
-        It answers the page's item, which shows as waiting on you until the markup
-        records the answer. Name the work it selects or unblocks with `leaf task
-        start <page> <event-id> "<the work, in a line>"` before starting it; then
-        do it, write the answer in, and stamp a version. An option the user added
-        needs no writing in: the page keeps it where the user put it.
+        It answers the page's obligation, which shows as waiting on you until the
+        markup records the answer. Name the work it selects or unblocks with `leaf
+        task start <page> <event-id> "<the work, in a line>"` before starting it;
+        then do it, write the answer in, and stamp a version. An option the user
+        added needs no writing in: the page keeps it where the user put it.
 
 pick inside a thread:
   event:
@@ -963,15 +960,15 @@ pick inside a thread over App Server:
         The user already sees the action applied.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
       text: >-
-        Leaf streams your opening message into the thread and posts your final message
-        as the reply, unless an explicit reply already answered this input. Before
-        your first tool call, tell the user briefly the answer or what you are about
-        to do; later working messages stay in Codex. End with the answer, or what
-        changed and where it shows. For widgets, a question awaiting the user (an
-        `lf-ask` in `--markup`), work promised beyond this turn (`--todo`), a title
-        or moving the thread, reply explicitly with `leaf response reply <answer.ref>`
-        (`references/threads.md`); it posts at once, and your final message is then
-        not posted.
+        Leaf posts your opening message in the thread as your progress line and
+        your final message as the reply, unless an explicit reply already answered
+        this input. Before your first tool call, tell the user briefly the answer
+        or what you are about to do; later working messages stay in Codex. End with
+        the answer, or what changed and where it shows. For widgets, a question
+        awaiting the user (an `lf-ask` in `--markup`), work promised beyond this
+        turn (`--todo`), a title or moving the thread, reply explicitly with `leaf
+        response reply <answer.ref>` (`references/threads.md`); it posts at once,
+        and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,

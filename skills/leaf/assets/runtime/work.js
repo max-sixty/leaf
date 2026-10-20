@@ -3,8 +3,8 @@
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
 import { declarationFor, layerFact, registry } from "./registry.js";
-import { readItems } from "./items/model.js";
-import { itemsIn } from "./items/place.js";
+import { readPart } from "./semantic-state.js";
+import { obligationsIn } from "./obligations/place.js";
 import { elementById } from "./passages.js";
 import { quietSince } from "./presence.js";
 import { quoted } from "./widget-descriptors.js";
@@ -114,13 +114,13 @@ const done = (goal, read) => {
   return role.done.includes(roleState(goal, "goal", read));
 };
 
-// The elements of the items waiting on the user that `goal` holds (`itemsIn`) and owns
+// The elements of the obligations waiting on the user that `goal` holds (`obligationsIn`) and owns
 // itself: in its scope, under no nearer goal, and not a goal.
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
   return (
-    itemsIn(goal, open)
-      // `itemsIn` holds widgets' items, which each name their widget.
+    obligationsIn(goal, open)
+      // `obligationsIn` holds widgets' obligations, which each name their widget.
       .map((item) => elementById(/** @type {{id: string}} */ (item.source).id))
       .filter(
         (item) =>
@@ -181,15 +181,21 @@ function goalView(goal, open, read) {
   };
 }
 
+// The obligations that stop work: a widget's, while it waits on the user; one they left
+// with the agent does not (obligations/place.js). Selected as one part, so a paint
+// that reads work repaints only when one of these moves, not on every change to the
+// inventory, which a comment makes.
+const openWidgetObligations = readPart((root) =>
+  root.effective.obligations.user.filter((item) => item.source.kind === "widget"),
+);
+
 export function readWork(scope) {
   const readings = new Map();
   const read = (element) => {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  // An item stops work only while it waits on the user; one they left with the agent
-  // does not (items/place.js).
-  const open = readItems().user.filter((item) => item.source.kind === "widget");
+  const open = openWidgetObligations();
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map((worker) =>

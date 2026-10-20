@@ -8,6 +8,7 @@ headers, and the finite freshness reading a visible tab asks for.
 
 import html
 import json
+import math
 import re
 import secrets
 import time
@@ -38,7 +39,7 @@ from .files import (
     version_revisions,
 )
 from .findings import Rejected
-from .interaction_log import append_interactions, client_records
+from .interaction_log import admit_batch, append_interactions, client_records
 from .layer import incompatible_layer, incompatible_revision, running_leaf, same_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
@@ -86,6 +87,23 @@ TOO_DEEP = f"event nests deeper than {MAX_POSTED_DEPTH} levels"
 def reject_json_constant(value: str) -> None:
     """Reject Python's non-standard NaN and infinity JSON extensions."""
     raise ValueError(f"invalid JSON constant {value}")
+
+
+def json_number(parse):
+    """`parse` for a JSON number, refusing one past a double's range: a browser, and
+    leaf.page's Worker, read it as infinity, which no schema here would refuse."""
+
+    def read(text: str):
+        value = parse(text)
+        try:
+            finite = math.isfinite(value)
+        except OverflowError:
+            finite = False
+        if not finite:
+            raise ValueError(f"JSON number {text} is past a double's range")
+        return value
+
+    return read
 
 
 def nests_deeper_than(value, limit: int) -> bool:
@@ -229,8 +247,8 @@ class PageEndpoint:
     read the request off `self` and return the response they answer with. The transport
     underneath is uvicorn's: framing, keep-alive, the peer that closes mid-answer, and
     the body a route never asked for are its business, not this file's. What stays here
-    is the page's own boundary — selection, the key, the layer gate, and the faults a
-    banner has to be able to show.
+    is the page's own boundary — selection, the key, the layer gate, and the faults the
+    page's status has to be able to show.
     """
 
     def __init__(
@@ -265,7 +283,7 @@ class PageEndpoint:
         self.preview = preview
         self.page_snapshot = page_snapshot
         # Published website pages use the complete server contract without a Leaf work
-        # claim. Their banner reads this explicit presentation fact instead of mistaking
+        # claim. Their panel reads this explicit presentation fact instead of mistaking
         # the deliberately unattended page for an abandoned ordinary Leaf.
         self.publication = publication
         # A website release spans its document, static layer and container image.
@@ -419,7 +437,7 @@ class PageEndpoint:
         stale on arrival, which costs one more request and no news.
 
         Where the Leaf this server runs is another than the one that vendored the
-        page, `leaf` names it, and the banner shows it beside the page's own
+        page, `leaf` names it, and the leaf's menu shows it beside the page's own
         (`AGENTS.md`, "Pages across Leaf updates").
 
         A tab names the data version it holds in `Leaf-Data-Version`, and an answer
@@ -672,7 +690,12 @@ class PageEndpoint:
             self.body_unread = True
             return {}, "event exceeds the 10 MiB limit"
         try:
-            posted = json.loads(body, parse_constant=reject_json_constant)
+            posted = json.loads(
+                body,
+                parse_constant=reject_json_constant,
+                parse_float=json_number(float),
+                parse_int=json_number(int),
+            )
         except RecursionError:
             # The parser's own stack ran out, far deeper than the bound.
             return {}, TOO_DEEP
@@ -728,8 +751,8 @@ class PageEndpoint:
         """One boundary for page selection, authorization, preparation, and faults.
 
         Unanswered, a fault would reach the transport, which has no page to say it
-        about — and the banner would read "Server offline" about a server that is
-        up. So every fault becomes a 500 naming itself, which the banner can show to
+        about — and the page's status would read "Server offline" about a server that is
+        up. So every fault becomes a 500 naming itself, which the status can show to
         the one person still looking, and `record_fault` keeps a copy for whoever
         else reads this host. This is the only place a 500 is written: a route that
         cannot answer raises rather than composing one of its own, so no fault
@@ -1053,8 +1076,6 @@ class PageEndpoint:
             return self._serve_root()
         if path == "/api/news":
             return self._news()
-        if path == "/api/user-view":
-            return self._json(self.source.user_views())
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.
@@ -1192,12 +1213,10 @@ class PageEndpoint:
         return self._content(204, "text/plain", b"")
 
     def _record_interactions(self) -> Response:
-        session = self.posted.get("session")
-        entries = self.posted.get("entries")
-        if not isinstance(session, str) or not session:
-            return self._refuse("interaction requires a nonempty session")
-        if not isinstance(entries, list) or not entries:
-            return self._refuse("interaction requires a nonempty array of entries")
+        try:
+            batch = admit_batch(self.posted)
+        except ValueError as error:
+            return self._refuse(str(error))
         # Every sample directory is temporary, including a nested sample's
         # parent. Retain all descendants in the authored page's trace, with
         # their complete root-relative addresses surviving ancestor release.
@@ -1207,11 +1226,9 @@ class PageEndpoint:
             if owner is not self
             else "/"
         )
-        try:
-            records = client_records(session, page, entries)
-        except (TypeError, ValueError) as error:
-            return self._refuse(str(error))
-        append_interactions(owner.page_dir, records)
+        append_interactions(
+            owner.page_dir, client_records(batch["session"], page, batch["entries"])
+        )
         return self._content(204, "text/plain", b"")
 
     def _create_sample(self) -> Response:

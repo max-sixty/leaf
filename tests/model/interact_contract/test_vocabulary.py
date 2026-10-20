@@ -237,17 +237,17 @@ def test_a_page_with_no_revision_reads_its_candidate_vocabulary(page_dir):
         assert vocabulary["lf-local"] == declaration
 
 
-@pytest.mark.parametrize("active_item", [True, False])
-def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_item):
+@pytest.mark.parametrize("active_obligation", [True, False])
+def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_obligation):
     """An old tab validates under its capture and changes the current page's debt."""
     from leaf.state import write_json
 
     layer = deepcopy(registry_storage.load_registry(page_dir))
     awaits = layer["lf-options"].pop("x-awaits")
 
-    def publish_choice(has_item):
+    def publish_choice(has_obligation):
         vocabulary = deepcopy(layer)
-        if has_item:
+        if has_obligation:
             vocabulary["lf-options"]["x-awaits"] = awaits
         write_json(page_dir / "registry.json", vocabulary)
         group = (
@@ -255,14 +255,14 @@ def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_item):
             '<lf-option id="first">First</lf-option>'
             '<lf-option id="second">Second</lf-option></lf-options>'
         )
-        if has_item:
+        if has_obligation:
             group = '<lf-ask id="ask"><h2>Which one?</h2>' + group + "</lf-ask>"
         (page_dir / "index.html").write_text(model.leaf_page("Choice", group))
         publish(page_dir)
 
-    publish_choice(not active_item)
+    publish_choice(not active_obligation)
     original = files_model.latest_revision(page_dir)
-    publish_choice(active_item)
+    publish_choice(active_obligation)
     assert files_model.latest_revision(page_dir) > original
 
     action = append_command(
@@ -276,10 +276,10 @@ def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_item):
             "detail": {"value": ["first"]},
         },
     )
-    assert action["attention"] is active_item
-    assert ("answer" in action["meaning"]) is not active_item
+    assert action["attention"] is active_obligation
+    assert ("answer" in action["meaning"]) is not active_obligation
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == (
-        [action] if active_item else []
+        [action] if active_obligation else []
     )
 
 
@@ -538,7 +538,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
     )
     thread_model.post_reply(
         page_dir,
-        {"to": "c1", "for": "c1"},
+        {"parent": "c1", "responds": "c1"},
         "Use this control.",
         '<lf-thread-local id="thread-choice" value="author">Local</lf-thread-local>',
     )

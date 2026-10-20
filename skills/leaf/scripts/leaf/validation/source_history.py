@@ -5,6 +5,7 @@ surviving section when its passage or part disappears, and detaches when its
 section leaves the page. The original anchor remains in the append-only log.
 """
 
+from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
@@ -12,7 +13,7 @@ from leaf.anchor_capture import resolve_quote
 from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.findings import Finding
-from leaf.passages import SourceReading, page_passages
+from leaf.passages import SourceReading
 from leaf.projection import (
     generated_children,
     page_reading,
@@ -65,13 +66,16 @@ def revision_reanchors(
     previous = page_reading(revision.previous, events, revision.predecessor)
     current = page_reading(reading, events, candidate_revision)
 
+    # Each reading holds its passages, so a stamp's second look at the same
+    # candidate, and the next activation's look at this one as its predecessor,
+    # walk neither page again. Only a thread a revision may have moved asks.
     def passages(page):
-        return page_passages(
-            page.document,
-            page.registry,
-            retirement_outcomes(page.projection.actions),
-            rewritten_bodies(page.projection.actions),
-            generated_children(page.projection.desired, page.document.ids),
+        return cache(
+            lambda: page.reading.decided_passages(
+                retirement_outcomes(page.projection.actions),
+                rewritten_bodies(page.projection.actions),
+                generated_children(page.projection.desired, page.document.ids),
+            )
         )
 
     previous_passages, current_passages = passages(previous), passages(current)
@@ -86,9 +90,9 @@ def revision_reanchors(
         if section and section not in previous.document.ids:
             continue
         surviving = (
-            section in current_passages.enclosing
-            and section not in current_passages.retired
-            and section not in current_passages.gone
+            section in current_passages().enclosing
+            and section not in current_passages().retired
+            and section not in current_passages().gone
         )
         missing = bool(section) and not surviving
         if (
@@ -97,8 +101,8 @@ def revision_reanchors(
             and not (anchor.get("source") or anchor.get("datum"))
         ):
             missing = (
-                resolve_quote(previous_passages, anchor) is not None
-                and resolve_quote(current_passages, anchor) is None
+                resolve_quote(previous_passages(), anchor) is not None
+                and resolve_quote(current_passages(), anchor) is None
             )
         if surviving and anchor.get("visual"):
             part = anchor["visual"]
@@ -113,8 +117,8 @@ def revision_reanchors(
             and not (anchor.get("source") or anchor.get("datum"))
         ):
             missing = (
-                resolve_quote(previous_passages, anchor) is not None
-                and resolve_quote(current_passages, anchor) is None
+                resolve_quote(previous_passages(), anchor) is not None
+                and resolve_quote(current_passages(), anchor) is None
             )
         if not missing:
             continue

@@ -13,10 +13,9 @@
      in this tab and in every other.
    - That an editor stands open is disclosure, this document's mechanical state, held
      here by message id. One view of the message draws it: the one it was opened in,
-     or, once that view is gone, the next view of the message on the same surface
-     (the Threads panel, or the page), which takes the editor as a replacement node
-     takes words and caret. A view on the other surface, or in another tab, draws the
-     message as it was, since nothing the user did there asked it to change. A thread
+     or, once that view is gone, the next view of the message, which takes the editor as
+     a replacement node takes words and caret. A view in another tab draws the message as
+     it was, since nothing the user did there asked it to change. A thread
      holds one open editor whose words are the message's own: opening another closes
      it, as ↑ to an earlier message does. One whose words the user changed stays open
      until a key or press of theirs puts it away, so a second press elsewhere in the
@@ -49,8 +48,7 @@
    mode does among them: one owner per thread (`threadRewrites`) gives each the same
    ↑, landing and putting aside, over the views that reader draws. Resume writing
    (`g i`) opens a rewrite whose words were kept on the message where a message part
-   opens, the page's primary reader where it has one and the Threads panel otherwise
-   (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
+   opens, the page's primary reader (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
    Cancel close it, discarding changed words; opening another rewrite in the thread
    puts this one aside, keeping them. The
    editor is a rung below the thread's reply box, so Enter, Escape and Cancel each hand
@@ -85,30 +83,30 @@ import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
 import { announce } from "../notifications.js";
 import { afterScript, sizeObserver } from "../rendering.js";
+import { whenDocumentPresented } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
 import { raiseError } from "../errors.js";
 
 // What a message's view answers by opening its rewrite, as a press on its Edit control.
 export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
-// message id -> {view, panel, thread}: the view drawing its editor, null once that
-// view is gone, whether it stood in the Threads panel, and the key of its thread.
+// message id -> {view, thread}: the view drawing its editor, null once that view is
+// gone, and the key of its thread.
 const open = new Map();
 // Rewrites whose words are on their way to the log: neither open nor kept.
 const sending = new Set();
 
-// Whether `view`, on the surface `panel` says, draws the editor for message `id`: the
-// view holding it, or the first on the same surface to ask once no view does.
-export function holdsMessageEdit(id, view, panel) {
+// Whether `view` draws the editor for message `id`: the view holding it, or the first to
+// ask once no view does.
+export function holdsMessageEdit(id, view) {
   const holder = open.get(id);
-  if (!holder || holder.panel !== panel) return false;
+  if (!holder) return false;
   if (holder.view !== null && holder.view !== view) return false;
   holder.view = view;
   return true;
 }
 
-// The view drawing `id`'s editor is gone; the next view of the message on its surface
-// takes it.
+// The view drawing `id`'s editor is gone; the next view of the message takes it.
 export function releaseMessageEdit(id, view) {
   const holder = open.get(id);
   if (holder?.view === view) holder.view = null;
@@ -118,7 +116,7 @@ export function releaseMessageEdit(id, view) {
 // elsewhere, in another reader of the thread, draws the message as it stands again, so
 // one editor shows it; and one rewrite stands open in a thread unless the user changed
 // its words, so another left as its message says it closes, whichever reader holds it.
-function openMessageEdit(id, view, panel, thread) {
+function openMessageEdit(id, view, thread) {
   for (const [other, holder] of [...open]) {
     if (other === id || holder.thread !== thread) continue;
     // One no view draws any longer closes as an editor would: words the user left as
@@ -127,7 +125,7 @@ function openMessageEdit(id, view, panel, thread) {
     else if (!draftHasContent(rewriteContext(other))) open.delete(other);
   }
   const displaced = open.get(id)?.view;
-  open.set(id, { view, panel, thread });
+  open.set(id, { view, thread });
   if (displaced && displaced !== view) displaced.closeEdit();
 }
 
@@ -144,7 +142,7 @@ export const watchRewrite = (id, changed) => watchDraft(rewriteContext(id), chan
 // user may rewrite.
 export function openMessageEditIn(thread, id) {
   const message = [...(thread?.querySelectorAll(".lf-msg") ?? [])].find(
-    (node) => (node.dataset.mid ?? node.dataset.event) === id,
+    (node) => node.dataset.event === id,
   );
   message?.dispatchEvent(new CustomEvent(OPEN_MESSAGE_EDIT));
   return (
@@ -214,18 +212,29 @@ export function threadRewrites({
       // The rung above a rewrite is the thread's reply box, where ↑ came from, while it
       // is in view; a thread showing none, as a resolved one or a margin card not
       // replying, or one whose box is off screen, hands the user on as a sent reply
-      // does, which moves nothing.
+      // does, which moves nothing. A save in a resolved thread reopens it, so the box
+      // its presentation draws then takes the caret, as Reopen's landing gives it
+      // (#46, the user's decision, 2026-10-07).
       land: (message) => {
-        const input = box();
-        if (input && seenRect(input, new Map())) landInThread(input);
-        else landSent(home(message));
+        const shown = () => {
+          const input = box();
+          return input && seenRect(input, new Map()) ? input : null;
+        };
+        const input = shown();
+        if (input) return landInThread(input);
+        landSent(home(message));
+        const mayLand = retainUserIntent();
+        void whenDocumentPresented().then(() => {
+          const drawn = shown();
+          if (drawn && mayLand()) landInThread(drawn);
+        });
       },
       previous: (id) => lastEditable(id),
       // A rewrite of message `id` opens in `view`. It starts from the words as they
       // stand, so opening one is acting in the thread (`openMessageEdit`).
-      opening: (id, view, panel) => {
+      opening: (id, view) => {
         opening(id);
-        openMessageEdit(id, view, panel, thread());
+        openMessageEdit(id, view, thread());
       },
       reveal: (message, caretLine) => revealEditor(message, caretLine),
     },

@@ -46,7 +46,7 @@ def stills_catalogue(tmp_path, monkeypatch):
         yield arm_dir.name
 
     @contextmanager
-    def tab(browser, viewport, scheme, touch, *, scale, classic):
+    def tab(browser, viewport, scheme, touch, *, scale):
         yield SimpleNamespace(
             url="",
             screenshot=lambda *, path: Image.new("RGB", (4, 4), "white").save(path),

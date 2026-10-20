@@ -27,15 +27,15 @@ def test_session_discovery_reads_only_its_canonical_claim_partition(
         if n < 4:
             pages.append(page)
     reads = []
-    read_json = service.read_json
+    read = service.CLAIM.read
 
     def own_read(path):
         assert path.parent == service.session_claims("own"), path
         reads.append(path)
-        return read_json(path)
+        return read(path)
 
     with monkeypatch.context() as measured:
-        measured.setattr(service, "read_json", own_read)
+        measured.setattr(service.CLAIM, "read", own_read)
         assert {Path(record["page"]) for record in claim_records("own")} == set(pages)
     assert len(reads) == 4
     record_claim(pages[0], id="successor")

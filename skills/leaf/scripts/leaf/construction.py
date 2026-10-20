@@ -41,7 +41,7 @@ def input_readings(
     """Read the current value of the source that constructs each input."""
     inputs = {}
     for name, spec in entry.get("x-data", {}).items():
-        source = attrs.get(spec["source"])
+        source = attrs.get(spec.get("source"))
         if source is None:
             continue
         reading = stored["sources"].get(source, {})

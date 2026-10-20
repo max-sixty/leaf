@@ -8,6 +8,7 @@
  */
 
 import { anchorKey } from "./anchor-coordinate.js";
+import { documentChanged } from "./semantic-state.js";
 import {
   resolvedElement,
   resolvedPassage,
@@ -28,7 +29,6 @@ import {
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
-  authoredScope,
   blockAt,
   closestAcross,
   cut,
@@ -48,7 +48,6 @@ import {
   fileModelsPassage,
   inChrome,
   leafSurface,
-  pageDocument,
   pageQueryAll,
   settledAway,
 } from "./passages.js";
@@ -98,9 +97,11 @@ export const projectedDatum = (source, key) => {
 // What an anchor's datum is called: the label its projection gave the element drawn
 // for it, found as resolution finds it, or for a datum its lazy widget has not drawn,
 // what that widget calls it (`lfDatumLabel`), so a thread on a line of a closed file
-// is named as its row would be.
+// is named as its row would be. It reads the page's nodes, so a paint that draws it
+// follows the document changing (`documentChanged`), as a projection relabelling it does.
 export function datumLabel(anchor) {
   if (!anchor?.datum) return "";
+  documentChanged();
   const source = sectionOf(anchor);
   const datums = currentDatums(
     source,
@@ -122,44 +123,6 @@ function suppliedDatum(source, key) {
       source.id
     ? supplied
     : null;
-}
-
-// The verbs that follow an `x-refers` attribute (`navigateToDatum`, `indicate`) are
-// handed it by package code, so an undeclared one is that code's error, thrown at the
-// call rather than read as a reference to nothing.
-export function requireReference(verb, owner, attribute) {
-  if (
-    typeof attribute !== "string" ||
-    !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute)
-  )
-    throw new TypeError(
-      `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`,
-    );
-}
-
-// The element an `x-refers` attribute names. A keyed contract names the member whose
-// key holds the value inside the owner's nearest enclosing scope, the scope the
-// member's x-unique declares for that key. Any other names an id: in the owner's own
-// authored document first, so a widget in a message finds its message's element before
-// a page element with the same id, as the server's request check does, and then in the
-// page beside it, which a message's widget may name.
-export function referencedProjection(owner, attribute) {
-  const id = owner.getAttribute(attribute);
-  if (!id) return null;
-  const { tag, key } = registry[owner.localName]["x-refers"][attribute];
-  if (tag) {
-    const within = registry[tag]["x-unique"][key];
-    const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
-    const scope = scopeOf(owner);
-    return (
-      [...(scope?.querySelectorAll(tag) ?? [])].find(
-        (member) => scopeOf(member) === scope && member.getAttribute(key) === id,
-      ) ?? null
-    );
-  }
-  const scope = authoredScope(owner);
-  const page = pageDocument();
-  return elementById(id, scope) ?? (scope === page ? null : elementById(id, page));
 }
 
 // The elements under a referenced widget that a key addresses, in the one key space

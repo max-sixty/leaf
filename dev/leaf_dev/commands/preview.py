@@ -36,9 +36,10 @@ actually changed; identical saves leave the browser and server alone. A source o
 (a vendored file, the runtime's Python, its lock)
 re-vendors through `page init`, which mints a new layer generation the browser follows
 into a fresh document. A refused update is printed and retried after the next edit.
-Fixture history, data and earlier versions initialize a fresh slot. Live updates
-follow current markup, page-owned files, media and the runtime; restarting a user
-preview preserves the history and data its page already holds.
+Fixture history, literal data seeds and earlier versions initialize a fresh slot.
+Live updates follow current markup, page-owned files, captured data files, media
+and the runtime; restarting preserves the page's history and current seed data,
+while captures continue following their authored companion declarations.
 
     uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
         [--slot NAME] [--user] [--export]
@@ -77,7 +78,13 @@ from leaf_dev.commands.distribution import (
     cached_installation,
     compiler_root,
 )
-from leaf_dev.example_data import named_source, page_files
+from leaf_dev.example_data import (
+    capture_file,
+    data_companion,
+    data_file,
+    named_source,
+    page_files,
+)
 from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
@@ -90,6 +97,7 @@ from leaf_dev.page_fixtures import (
     prepare_page,
     read_fixture,
     record_run_context,
+    refresh_captures,
     source_manifest,
     source_manifest_candidates,
     source_packages,
@@ -187,9 +195,9 @@ def mark_preview(
     watcher can distinguish source edits from competing page edits. The page's own
     authored files and event log remain authoritative.
     """
-    from leaf.state import write_json
+    from leaf.server import PREVIEW
 
-    write_json(
+    PREVIEW.write(
         page / "preview.json",
         {
             "example": source.stem,
@@ -307,6 +315,31 @@ class PreviewService:
         from leaf.hosting import server_reading
 
         return json.dumps(server_reading(self.page)) if self.user else WATCHER_NOTE
+
+    def follow_runtime(self, launcher: Path) -> None:
+        """Move user delivery to the immutable runtime the initiating checkout built.
+
+        A source path alone cannot identify loaded Python modules: a preview
+        keeps watching when that checkout changes its protocol. The prepared
+        installation gives hooks and the adapter the same stable identity, so
+        selecting its successor retires the former adapter through its owner.
+        Explicit comparison renderers still keep their selected checkout.
+        """
+        from leaf.harness import claim_harness
+        from leaf.session_runtime import select_launcher
+
+        # Initial resume refresh precedes the server acquisition and the child's
+        # readiness handshake. Its parent still holds delivery preparation; move
+        # delivery only once that handshake has made forward progress possible.
+        if not self.user or self.claim is None:
+            return
+        if self.ended:
+            raise Refused(
+                "this preview no longer owns its page; delivery stays with its successor"
+            )
+        harness = claim_harness(self.claim)
+        select_launcher(harness.session, launcher)
+        harness.ensure_delivery()
 
     def serve_again(self) -> None:
         """Put a `--user` service that is down but still wanted back up.
@@ -435,6 +468,7 @@ def refresh_preview(
     """
     try:
         launcher = cached_installation(runtime) / "bin/leaf"
+        fixture = read_fixture(source, runtime=launcher.parent.parent)
         incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
         source_changed = incoming_digest != state["authored"]
@@ -482,7 +516,11 @@ def refresh_preview(
                 # Media's ordinary CLI door needs an initialized, isolated log.
                 # The candidate holds no history or feedback from the served page.
                 (candidate / "events.jsonl").write_text("")
+                (candidate / "data").mkdir()
                 write_authored_files(candidate, incoming, {})
+                # Check capture bindings and values against the complete candidate
+                # before replacing the source that the reader currently has.
+                refresh_captures(fixture, candidate, partial(leaf, launcher, runtime))
                 refresh_media(source, candidate, partial(leaf, launcher, runtime))
                 copy_media(candidate / "media", page)
                 leaf(
@@ -500,8 +538,15 @@ def refresh_preview(
                 )
         else:
             refresh_media(source, page, partial(leaf, launcher, runtime))
+        refresh_captures(
+            fixture,
+            page,
+            partial(leaf, launcher, runtime),
+        )
         state["authored"] = incoming_digest
         mark_preview(source, page, runtime, service.user, state["authored"])
+        if service.user:
+            service.follow_runtime(cached_installation(compiler_root()) / "bin/leaf")
     except (
         LeafFailed,
         Refused,
@@ -565,6 +610,12 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
         path.resolve()
         for path in (
             source,
+            data_file(source),
+            *(
+                capture_file(source, spec)
+                for spec in data_companion(source).get("$captures", {}).values()
+                if "asset" not in spec
+            ),
             *composition_inputs(source),
             companions,
             *companions.rglob("*"),
@@ -707,6 +758,7 @@ def serve_preview(
     """Build this slot's page, serve it, and follow its inputs until stopped."""
     from leaf.files import read_json
     from leaf.layer import layer_inputs
+    from leaf.server import PREVIEW
 
     # Fixture progress is distinct from the page's own authored inputs: an agent
     # may have revised those while this watcher was absent.
@@ -715,18 +767,16 @@ def serve_preview(
     }
     resumed = user and page.exists()
     if resumed:
-        record = read_json(page / "preview.json")
-        inputs = record.get("input") if isinstance(record, dict) else None
+        record = PREVIEW.read(page / "preview.json")
         if (
-            not isinstance(inputs, dict)
-            or inputs.get("source") != fixture_identity(source)
-            or not isinstance(inputs.get("authored"), str)
-            or record.get("interaction") != "user"
+            record is None
+            or record["input"]["source"] != fixture_identity(source)
+            or record["interaction"] != "user"
         ):
             raise ValueError(
                 f"{page} belongs to another preview; choose another --slot"
             )
-        state["authored"] = inputs["authored"]
+        state["authored"] = record["input"]["authored"]
     service = None
     changes = None
     try:
@@ -767,6 +817,10 @@ def serve_preview(
         changes = watch_changes(watched)
         if handshake is not None and not handshake.announce({"url": url}):
             return
+        if service.user:
+            # The parent can now release its delivery-preparation lock. Re-read
+            # the immutable runtime in case an edit overtook initial preparation.
+            service.follow_runtime(cached_installation(compiler_root()) / "bin/leaf")
         print(
             preparation_note(source, prepared_page.data_sources, prepared_page.versions)
             if prepared_page is not None
@@ -799,7 +853,11 @@ def serve_preview(
                 # An added input is only in the reading taken after it arrived, and a
                 # deleted one only in the reading taken while it was still there.
                 if not reported & watched.paths:
-                    current = watch_paths(source, runtime, roots)
+                    try:
+                        current = watch_paths(source, runtime, roots)
+                    except (ValueError, OSError) as error:
+                        refused(error)
+                        continue
                     if not reported & current.paths:
                         continue
             refreshed = refresh_preview(source, page, launcher, runtime, state, service)
@@ -809,7 +867,13 @@ def serve_preview(
             roots = layer_inputs(
                 tuple(read_json(page / "registry.json")["$layer"]["packages"])
             )
-            rebuilt = watch_paths(source, runtime, roots)
+            try:
+                rebuilt = watch_paths(source, runtime, roots)
+            except (ValueError, OSError) as error:
+                # A companion being edited can be temporarily unreadable. Keep
+                # its previous subscription so its repair reaches this preview.
+                refused(error)
+                continue
             if not changes.matches(watch_roots(rebuilt)):
                 # A refresh can change which packages the page vendors, and a
                 # subscription is fixed for its lifetime. Holding the old one
@@ -896,12 +960,18 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
     from leaf.detached import starting_detached
     from leaf.hosting import server_reading
     from leaf.service import prepare_claim
+    from leaf.session_runtime import select_launcher
 
     log = page.with_name(f"{page.name}.log")
     log.parent.mkdir(parents=True, exist_ok=True)
-    with harness.preparing_delivery():
-        claim = prepare_claim(harness, page)
-        with starting_detached(
+    # The checkout launching an explicit user review owns this session's hooks
+    # and delivery, including a comparison whose renderers use other runtimes.
+    # Prepare the lifetime before choosing it, and choose before the adapter.
+    claim = prepare_claim(harness, page)
+    select_launcher(harness.session, cached_installation(compiler_root()) / "bin/leaf")
+    with (
+        harness.preparing_delivery(),
+        starting_detached(
             [
                 "--source",
                 str(source),
@@ -920,8 +990,9 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
             log=log,
             cwd=runtime,
             timeout=120,
-        ) as ready:
-            pass
+        ) as ready,
+    ):
+        pass
     print(json.dumps(server_reading(page)), file=sys.stderr, flush=True)
     print(ready["url"], flush=True)
     print(f"Watching {source}; detached preview log: {log}", flush=True)
@@ -1005,6 +1076,15 @@ def preview(
                 if harness and harness.lifetime() == {"chat": True}:
                     start_desktop_preview(source, page, runtime, harness)
                 else:
+                    if harness:
+                        from leaf.service import prepare_claim
+                        from leaf.session_runtime import select_launcher
+
+                        prepare_claim(harness, page)
+                        select_launcher(
+                            harness.session,
+                            cached_installation(compiler_root()) / "bin/leaf",
+                        )
                     run_preview(source, page, runtime / "bin" / "leaf", runtime, user)
         elif export:
             export_preview(*checkout(runtime), authored_source(example, source), slot)

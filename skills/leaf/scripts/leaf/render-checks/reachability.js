@@ -1,19 +1,12 @@
 import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
 import { shownBox, userScrollport } from "/runtime/check-api.js";
-import { restsOverPage } from "./layout.js";
-import { at, unique } from "./locate.js";
-import { coveredWords } from "./words.js";
+import { at, place, unique } from "./locate.js";
 
-// One read-only view of controls and words a reader cannot reach. The render gate
-// takes this after its table experiment has restored wrapping; no field advances or
-// changes the page. Individual readers remain available for their own controls.
-export function reachabilityReading() {
-  return {
-    clipped: clippedControls(),
-    unreachable: unreachableWords(),
-    covered: coveredWords(),
-  };
-}
+// An overlay that takes no presses at rest, such as the contents map's spine, stands
+// over the page by design and reveals over it when the user reaches for it, so the box
+// it has at rest is not the room it shows in.
+export const restsOverPage = (style) =>
+  style.position === "fixed" && style.pointerEvents === "none";
 
 // A control drawn where no user can reach it. `TINY_BOXES` asks whether a widget got a
 // box at all; this asks the question one level down, of the chrome inside it, and the
@@ -96,6 +89,7 @@ export function clippedControls() {
           out.push({
             code: "clipped-control",
             at: at(el),
+            place: place(el),
             control: el.className,
             id: el.id,
             by: `<${a.tagName.toLowerCase()}${a.id ? " id=" + a.id : ""}>`,
@@ -220,9 +214,9 @@ export function unmarkableElements() {
 // page's, be a control's own label, or be the line the paint pass writes to say how
 // many comments a block carries: that one is about the document rather than of it,
 // which is the same reason it wears .lf-ui at all, and it lands inside a widget
-// whenever a comment does. The thread panel is out of scope: a widget in a reply is
-// markup frozen in the event log, not the document.
-function unreachableWords() {
+// whenever a comment does. The thread chrome around a message is out of scope: a widget
+// in a reply is markup frozen in the event log, not the document; its own chrome is not.
+export function unreachableWords() {
   const found = [];
   // The lf-* element something stands in, if any. A .lf-ui is a widget's own
   // chrome by standing in one of these, and the runtime's layer is appended to
@@ -256,10 +250,13 @@ function unreachableWords() {
     if (!n.data.trim()) continue;
     // Whose the .lf-ui is, per `widget` above. A widget's own chrome is read
     // here wherever the widget stands, a message included; the panel around a
-    // widget riding one is not, which is what the note on the panel means.
+    // widget riding one is not, which is what the note on thread chrome means.
     const chrome = el.closest(".lf-ui");
-    if (!chrome || !widget(chrome)) continue;
-    if (speaks(el) || el.closest(CONTROL)) continue;
+    const owner = chrome && widget(chrome);
+    if (!owner) continue;
+    // Only a control inside the widget labels its words: a message the runtime draws
+    // as an offer around a widget riding it labels nothing inside that widget.
+    if (speaks(el) || owner.contains(el.closest(CONTROL))) continue;
     // A message workflow line is runtime chrome about its owning widget, not authored
     // words of that widget. Its subject is the anchor; the provisional sentence
     // deliberately is not another passage the user can thread.

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import click
 
-from leaf_dev.arrangement_eval import WIDTHS, judge_pages
+from leaf_dev.arrangement_eval import judge_pages
 from leaf_dev.commands.eval_pairs import comparison_pages, samples, saved_comparison
 from leaf_dev.eval_cases import definition
 
@@ -54,7 +54,7 @@ def eval_discover(run: Path, sample: str, focus: str):
     attempt = Path(tempfile.mkdtemp(prefix="attempt-", dir=directory))
     response = judge_pages(
         pages,
-        {name: viewport for name, (viewport, _) in WIDTHS.items()},
+        comparison["widths"],
         DEFINITION["prompt"].format(
             comparison=json.dumps(comparison, indent=2),
             focus=focus or "Find useful observations about completing the user's task.",

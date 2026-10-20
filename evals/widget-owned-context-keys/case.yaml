@@ -11,7 +11,7 @@ vars:
   prompt: |
     An existing Leaf package widget owns a classifier with passButton and keepButton,
     canClassify(), and classify(verdict) called by its button click handlers. Add its keyboard integration:
-    Left/Right act only inside the classifier, while 1/2 also work at its enclosing Ask's
+    Left/Right act only inside the classifier, while 1/2 also work at its enclosing `lf-ask`'s
     opening and associated thread or margin representative. The classifier also works
     standalone. Disabled actions must retain their numbers, and typing digits in
     an editor must remain native. Show a concise JavaScript registration snippet.
@@ -31,8 +31,8 @@ assert:
       declaration owns native button clicks and disabled state, so the response removes
       the separate click listeners and disabled painters instead of calling click(). It attaches the
       declaration to the classifier and calls paintKeys when availability changes.
-      It does not attach the complete local-arrow scope to the Ask, assign numbers
-      from live actions, duplicate callbacks into a second Ask row list, install
+      It does not attach the complete local-arrow scope to the `lf-ask`, assign numbers
+      from live actions, duplicate callbacks into a second `lf-ask` row list, install
       keydown listeners, or calculate focus/hint visibility itself. It leaves native
       input precedence and forwarding to Leaf. Optional description or short line
       wording is fine but no duplicate action-name decision string or does field.

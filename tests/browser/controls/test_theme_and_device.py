@@ -2,8 +2,6 @@
 default width, elevation, coarse-pointer aims, safe areas, and phone-width wrapping."""
 
 import pytest
-from leaf.render_checks import wait_until_ready
-from playwright.sync_api import expect
 from render_cases_layout import UNBREAKABLE_PAGE
 from render_harness import (
     LONG_PAGE,
@@ -13,10 +11,6 @@ from render_harness import (
     panel_settled,
     resized,
     write,
-)
-
-from browser.controls import (
-    _touch_drag,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -67,40 +61,6 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
     }
 
 
-def test_a_panel_uses_the_stylesheet_default_until_the_user_draws_it(browser, serve):
-    """The default is a theme input; a retained user choice is a separate authority."""
-    source = leaf_page(
-        "Panel width input",
-        "<h1>Panel width input</h1><p>Keep the chosen edge.</p>",
-        head="<style>:root {--lf-thread-panel-default-width:calc(30rem + 16px)}</style>",
-    )
-    page = open_page(browser, serve(source))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    panel = page.locator(".lf-thread-panel")
-    initial = page.evaluate("""() => parseFloat(getComputedStyle(document.documentElement)
-      .getPropertyValue('--lf-thread-panel-default-width'))""")
-    assert initial > 480
-    assert panel.bounding_box()["width"] == pytest.approx(initial)
-    page.evaluate("""() => {
-      document.documentElement.style.setProperty('--lf-thread-panel-default-width','508px');
-      dispatchEvent(new Event('resize'));
-    }""")
-    assert panel.bounding_box()["width"] == pytest.approx(508)
-    edge = panel.get_by_role("separator")
-    edge.focus()
-    edge.press("ArrowLeft")
-    assert panel.bounding_box()["width"] == pytest.approx(532)
-    page.evaluate("""() => {
-      document.documentElement.style.setProperty('--lf-thread-panel-default-width','600px');
-      dispatchEvent(new Event('resize'));
-    }""")
-    assert panel.bounding_box()["width"] == pytest.approx(532)
-    page.reload()
-    wait_until_ready(page)
-    assert panel.bounding_box()["width"] == pytest.approx(532)
-
-
 def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     """The JS motion contract follows a live media preference, like the CSS does."""
     page = open_page(browser, serve(LONG_PAGE))
@@ -149,8 +109,9 @@ def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     ), "an active glide kept moving after the user asked for reduced motion"
 
 
-def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, serve):
-    """Touch keeps Leaf's compact paint while expanding the boxes a finger works."""
+def test_coarse_pointer_panel_lists_give_humane_aims(browser, serve):
+    """Touch keeps the panel's compact paint while its lists' rows take a finger-sized
+    aim."""
     html = LONG_PAGE.replace(
         "<title>long</title>",
         '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -163,143 +124,23 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         "the touch fixture never reached Leaf's coarse-pointer rules"
     )
 
-    # A phone's row holds Threads and More; Approval leads More.
-    primary = page.locator(".lf-threads-toggle, .lf-banner-more")
-    expect(primary).to_have_count(2)
-    for index in range(primary.count()):
-        box = primary.nth(index).bounding_box()
-        assert box["width"] >= 43.9 and box["height"] >= 43.9, (
-            f"a primary touch aim stayed at {box}"
-        )
+    def humane(locator, what):
+        assert locator.count() >= 1, f"no {what} to aim at"
+        for index in range(locator.count()):
+            box = locator.nth(index).bounding_box()
+            assert box["width"] >= 43.9 and box["height"] >= 43.9, (
+                f"a {what} kept a mouse-sized aim: {box}"
+            )
 
-    page.locator(".lf-threads-toggle").tap()
-    panel_settled(page)
-    # The shortcut bar is not among them: a touch device has no keyboard to advertise, so
-    # the whole line stands down and takes its More control with it.
-    expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
-    compact = page.locator(
-        ".lf-thread-panel .lf-react:visible, .lf-thread-panel-head .lf-btn:visible"
-    )
-    assert compact.count() >= 1, "the covering panel exposed no compact touch controls"
-    for index in range(compact.count()):
-        box = compact.nth(index).bounding_box()
-        assert box["width"] >= 43.9 and box["height"] >= 43.9, (
-            f"a compact panel control kept a mouse-sized aim: {box}"
-        )
-    page.get_by_role("button", name="Close threads").tap()
+    # The rows of the panel's lists, which a finger picks among.
+    page.locator(".lf-fp-threads").tap()
+    panel_settled(page, view="threads")
+    page.locator(".lf-fp-filters button", has_text="Open").tap()
+    humane(page.locator(".lf-fp-thread:visible"), "Threads row")
+    page.locator(".lf-fp-close").tap()
     panel_settled(page, open=False)
-
-    # The page comment's empty action and Send both keep a finger-sized aim.
-    page_comment(page)
-    for words in ("", "Review this page"):
-        write(page.locator(".lf-page-comment-card leaf-text"), words)
-        action = page.locator(".lf-page-comment-card .lf-general button:visible")
-        expect(action).to_be_visible()
-        box = action.bounding_box()
-        assert box["width"] >= 43.9 and box["height"] >= 43.9, (
-            f"the page comment card's action kept a mouse-sized aim: {box}"
-        )
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
-
-    # Across the covering boundary the banner fits the same touch aims. Its toolbar and
-    # a keyboard ring remain inside the derived edge rather than centred through it.
-    for width in (840, 841, 900, 1200, 1440):
-        resized(page, width, 844)
-        page.locator(".lf-threads-toggle").focus()
-        geometry = page.locator(".lf-threads-toggle").evaluate(
-            """control => {
-                  const banner = control.closest('.lf-banner').getBoundingClientRect();
-                  const toolbar = control.parentElement.getBoundingClientRect();
-                  const box = control.getBoundingClientRect();
-                  const style = getComputedStyle(control);
-                  const outset = parseFloat(style.outlineWidth) +
-                    parseFloat(style.outlineOffset);
-                  return {banner: {top: banner.top, bottom: banner.bottom},
-                          toolbar: {top: toolbar.top, bottom: toolbar.bottom},
-                          ring: {top: box.top - outset, bottom: box.bottom + outset}};
-                }"""
-        )
-        for item in ("toolbar", "ring"):
-            # Centered flex boxes round to device pixels independently of the
-            # banner's stated height; subpixel overhang is not a clipped aim.
-            assert (
-                geometry[item]["top"] >= geometry["banner"]["top"] - 1
-                and geometry[item]["bottom"] <= geometry["banner"]["bottom"] + 1
-            ), f"the wide coarse {item} escaped its banner at {width}px: {geometry}"
-
-    # The browser's root is Leaf's page scrollport, and native touch beginning in
-    # fixed chrome reaches it. The row itself has nothing to travel along: what it
-    # cannot hold is behind its menu, so a finger dragged sideways across it moves
-    # nothing rather than uncovering a control that was hiding off the edge.
-    cdp = context.new_cdp_session(page)
-    resized(page, 390, 700)
-    page.wait_for_function(
-        "() => getComputedStyle(document.scrollingElement).overflowY !== 'hidden'"
-    )
-    actions = page.locator(".lf-banner-actions")
-    page.evaluate(
-        """async () => {
-              const toolbar = await window.__lfCheckApi();
-              for (let i = 0; i < 3; i++) {
-                const button = document.createElement('button');
-                button.className = 'lf-ui lf-btn';
-                button.textContent = `Secondary touch destination ${i + 1}`;
-                toolbar.registerBannerControl({
-                  key: `test-touch-secondary-${i}`,
-                  control: button,
-                  rank: toolbar.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
-                  row: { label: button.textContent, group: "page" },
-                });
-              }
-            }"""
-    )
-    crowded = actions.evaluate(
-        "el => ({shown: el.clientWidth, needed: el.scrollWidth,"
-        " folded: document.querySelector('.lf-banner-menu').children.length})"
-    )
-    assert crowded["folded"] >= 3 and crowded["shown"] == crowded["needed"], (
-        f"the crowded touch row did not fold what it could not hold: {crowded}"
-    )
-    point = actions.bounding_box()
-    x = point["x"] + point["width"] / 2
-    y = point["y"] + point["height"] / 2
-    page.evaluate("() => { document.scrollingElement.scrollTop = 200; }")
-    _touch_drag(cdp, x, y, dy=-160)
-    page.wait_for_function("() => document.scrollingElement.scrollTop > 200")
-    vertical = page.evaluate(
-        "() => ({toolbar: document.querySelector('.lf-banner-actions').scrollLeft,"
-        " page: document.scrollingElement.scrollTop,"
-        " overflow: getComputedStyle(document.scrollingElement).overflowY})"
-    )
-    assert (
-        vertical["toolbar"] == 0
-        and vertical["page"] > 200
-        and vertical["overflow"] != "hidden"
-    ), f"a vertical touch over the row never reached the page: {vertical}"
-    page.evaluate("() => { document.scrollingElement.scrollTop = 200; }")
-    _touch_drag(cdp, x, y, dx=-160)
-    horizontal = page.evaluate(
-        "() => ({toolbar: document.querySelector('.lf-banner-actions').scrollLeft,"
-        " page: document.scrollingElement.scrollTop})"
-    )
-    assert horizontal["toolbar"] == 0, (
-        f"the row still had a strip of itself to drag along: {horizontal}"
-    )
-
-    resized(page, 1200, 700)
-    status = page.locator(".lf-banner-status").bounding_box()
-    page.evaluate("() => { document.scrollingElement.scrollTop = 200; }")
-    _touch_drag(
-        cdp,
-        status["x"] + status["width"] / 2,
-        status["y"] + status["height"] / 2,
-        dy=-160,
-    )
-    page.wait_for_function("() => document.scrollingElement.scrollTop > 200")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") > 200, (
-        "the status half of the fixed banner remained a dead touch-scroll strip"
-    )
+    page.locator(".lf-fp-leaf").tap()
+    humane(page.locator(".lf-fp-menu .lf-fp-item:visible"), "menu row")
 
 
 def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser, serve):
@@ -324,11 +165,11 @@ def test_a_run_with_nothing_to_break_on_stays_inside_the_box_holding_it(browser,
 
 
 def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, serve):
-    """The bottom bar keeps the inset tokens stated by the stylesheet: it stands on the
-    window's foot, grows by the bottom inset, and holds its hints inside the side insets.
-    The insets are stated on the root, where the band's own height reads them."""
+    """The panel keeps the inset tokens stated by the stylesheet: it stands clear of the
+    window's foot by the bottom inset, and inside the side insets, with a view open as
+    with none. The insets are stated on the root, where the panel's own offsets read
+    them."""
     page = open_page(browser, serve(LONG_PAGE))
-    resized(page, 500, 700)
     insets = {"left": 17, "right": 31, "bottom": 23}
     page.evaluate(
         """insets => {
@@ -337,77 +178,27 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
         }""",
         insets,
     )
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator(".lf-shortcut-bar")).to_be_visible()
-    boxes = page.evaluate(
-        """() => {
-          const rect = node => {
-            const r = node.getBoundingClientRect();
-            return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
-          };
-          const bar = document.querySelector('.lf-shortcut-bar');
-          const hints = [...bar.querySelectorAll(".lf-shortcut:not([data-lf-off-line])")];
-          return {shortcut_bar: rect(bar), first: rect(hints[0]),
-                  width: innerWidth, height: innerHeight};
-        }"""
-    )
-    band = boxes["shortcut_bar"]
-    assert abs(band["bottom"] - boxes["height"]) < 1, boxes
-    assert abs(band["bottom"] - band["top"] - (44 + insets["bottom"])) < 1, boxes
-    assert boxes["first"]["left"] >= 18 + insets["left"] - 1, boxes
-    assert boxes["first"]["bottom"] <= boxes["height"] - insets["bottom"] + 1, boxes
-
-
-def test_the_page_comment_card_keeps_its_action_inside_the_side_safe_area(
-    browser, serve
-):
-    """The page comment card stays inside both unsafe side edges, on a phone where it
-    spans the window and beside it where it hangs from its control."""
-    page = open_page(browser, serve(LONG_PAGE))
-    page.evaluate(
-        """() => {
-          document.body.style.setProperty('--lf-safe-right', '31px');
-          document.body.style.setProperty('--lf-safe-left', '23px');
-        }"""
-    )
+    reading = """() => {
+      const r = document.querySelector('.lf-floating-panel').getBoundingClientRect();
+      return {left: r.left, right: r.right, bottom: r.bottom,
+              width: innerWidth, height: innerHeight};
+    }"""
     for width in (500, 420):
         resized(page, width, 700)
-        page_comment(page)
-        expect(
-            page.locator(".lf-page-comment-card .lf-general button:visible")
-        ).to_be_visible()
-        boxes = page.evaluate(
-            """() => {
-              const rect = selector => {
-                const r = document.querySelector(selector).getBoundingClientRect();
-                return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
-              };
-              return {card: rect('.lf-page-comment-card'),
-                      action: rect('.lf-page-comment-card .lf-general button:not([hidden])'),
-                      viewport: {width: innerWidth, height: innerHeight}};
-            }"""
-        )
-        assert boxes["action"]["right"] <= boxes["viewport"]["width"] - 31 + 1, (
-            f"the page comment card's action sat under the side safe area at {width}px: "
-            f"{boxes}"
-        )
-        assert boxes["card"]["left"] >= 23 - 1, (
-            f"the page comment card sat under the left safe area at {width}px: {boxes}"
-        )
-        page.keyboard.press("Escape")
-        expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+        for opened in (False, True):
+            if opened:
+                page.locator(".lf-fp-threads").click()
+            panel_settled(page, open=opened)
+            box = page.evaluate(reading)
+            assert box["bottom"] <= box["height"] - insets["bottom"], (width, box)
+            assert box["left"] >= insets["left"] - 1, (width, box)
+            assert box["right"] <= box["width"] - insets["right"] + 1, (width, box)
+        page.locator(".lf-fp-close").click()
 
-    # The banner declares its face once; the page comment card follows that face
-    # even when its declaration changes independently of the viewport width.
-    resized(page, 1000, 700)
-    page.evaluate(
-        "document.documentElement.style.setProperty('--lf-banner-face', 'phone')"
-    )
-    page_comment(page)
-    box = page.locator(".lf-page-comment-card").bounding_box()
-    assert box["x"] == pytest.approx(23 + 8)
-    assert box["x"] + box["width"] == pytest.approx(1000 - 31 - 8)
+    # The page comment's Send stands inside the side insets too, where words are typed.
+    write(page_comment(page), "Review this page")
+    send = page.locator(".lf-fp-send:visible").bounding_box()
+    assert send["x"] + send["width"] <= 420 - insets["right"] + 1, send
 
 
 # Every declaration in the page's composed layer that spells a lift: a box-shadow, a
@@ -437,6 +228,11 @@ ELEVATION_SHADOWS = """() => {
     }
     return layers;
   };
+  // A height is written from its drop and blur tokens (theme.css), so those read as
+  // the lengths they hold, and a rule spelling a lift from them is still a lift.
+  const theme = getComputedStyle(document.documentElement);
+  const parts = (value) => value.replace(/var\\((--raise-\\d-(?:drop|blur))\\)/g,
+    (_, name) => theme.getPropertyValue(name).trim());
   const found = [];
   const eaten = new Set();
   const eat = (sheet) => {
@@ -449,7 +245,7 @@ ELEVATION_SHADOWS = """() => {
         const named = rule.style ? [...rule.style] : [];
         const lifted = (name) => ['box-shadow', 'filter'].includes(name) || name.startsWith('--');
         for (const property of named.filter(lifted)) {
-          const value = rule.style.getPropertyValue(property).trim();
+          const value = parts(rule.style.getPropertyValue(property).trim());
           if (!value || value === 'none') continue;
           // The blur, which is the third length of a layer, past the two offsets. A ring
           // writes `0 0 0 Npx` and has none; an inset band is not a lift at all. Read per

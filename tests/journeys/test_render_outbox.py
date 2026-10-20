@@ -10,19 +10,21 @@ from render_cases_navigation import (
     pending_text,
 )
 from render_harness import (
+    AVAILABLE_COMMANDS,
     BOARD_PAGE,
     INLINE_PAGE,
+    PANEL_THREAD,
     CutOff,
     _traffic,
     _until,
-    banner_control,
     consume_browser_errors,
-    expect_banner_control_offered,
+    expect_panel_offers,
     http_error_console,
     navigate,
     open_page,
     page_comment,
-    panel_settled,
+    panel_control,
+    panel_menu,
     round_trip,
     stamp_page,
     told,
@@ -38,10 +40,10 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
 
     A server restarted onto a different key cookie refused every request from a tab
     left open, and the tab folded each refused send as the server's verdict on it: the
-    comment came out of its thread and the pick unticked, under a banner that said the
+    comment came out of its thread and the pick unticked, under a status that said the
     server was offline and reconnecting when it was up and never would. The tab here
     loses its key the way that one did, from its cookie jar, and opening the printed
-    link in another tab is the recourse the banner names, so the moves it held go out
+    link in another tab is the recourse the status names, so the moves it held go out
     without the user doing them again."""
     url = serve(INLINE_PAGE)
     context = browser.new_context(viewport={"width": 1200, "height": 900})
@@ -54,22 +56,23 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
     pick = page.locator("#opt-a .lf-pick")
     with page.expect_response(refused):
         pick.click()
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     field = page_comment(page)
     write(field, "Words the server never read")
     field.press("ControlOrMeta+Enter")
     # Retried rather than dropped: the same send goes out again on the outbox's clock.
     with page.expect_response(refused):
         pass
-    expect(page.locator(".lf-status-text")).to_have_text(
+    leaf = page.locator(".lf-fp-leaf")
+    expect(leaf).to_have_attribute(
+        "aria-label", "Page menu · Key refused — open Leaf's link in a new tab"
+    )
+    expect(page.locator(PANEL_THREAD)).to_contain_text("Words the server never read")
+    # The leaf's menu says what the user can do about it, and that the tab stays open.
+    expect(panel_menu(page).locator(".lf-fp-state")).to_have_text(
         "Key refused — open Leaf's link in a new tab"
+        "Keep this tab open so pending changes can send."
     )
-    expect(page.locator(".lf-notice")).to_contain_text("open Leaf's link in a new tab")
-    expect(page.locator(".lf-status-detail")).to_contain_text(
-        "Open the link Leaf printed in a new tab"
-    )
-    expect(page.locator(".lf-thread")).to_contain_text("Words the server never read")
+    leaf.click()
     expect(pick).to_have_attribute("aria-checked", "true")
     assert len(_traffic(page).pending) == 2
     assert [
@@ -86,7 +89,7 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
         {"value": ["opt-a"]}
     ]
     expect(pick).to_have_attribute("aria-checked", "true")
-    expect(page.locator(".lf-status-text")).not_to_contain_text("Key refused")
+    expect(leaf).not_to_have_attribute("aria-label", re.compile("Key refused"))
     consume_browser_errors(
         page,
         http_error_console(401),
@@ -141,9 +144,12 @@ def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, se
 
     # Not undo(): the helper ends in round_trip, and this tab's polls are stopped, so
     # what it sends can never come back to it. The offer the helper waits on first is
-    # the part that still applies — the line and the dispatcher ask one predicate, so
-    # a press made before it stands is one the dispatcher refuses.
-    expect(stale.locator(".lf-shortcut-bar")).to_contain_text("undo")
+    # the part that still applies — a press made before the dispatcher takes `z` is one
+    # it refuses.
+    stale.evaluate(AVAILABLE_COMMANDS)
+    stale.wait_for_function(
+        "() => window.__lfAvailableCommands()['history.undo']?.includes('z') ?? false"
+    )
     stale.keyboard.press("z")
     # The server answering the post is the fact this wait consumes.
     _until(stale, lambda t: t.acked >= 2, "heard the server take the undo")
@@ -178,8 +184,8 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     assert not composer_quote(page)["shown"], "the passage is right here, and marked"
 
     # Claude ships a version that rewrites the passage out. The page holds still — a
-    # draft is mid-composition — and offers the new version as a chip, which the
-    # user takes.
+    # draft is mid-composition — and offers the new version in the leaf's menu, which
+    # the user takes.
     d = serve.page_dir
     rewritten = INLINE_PAGE.replace(
         "A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,\n"
@@ -188,8 +194,8 @@ def test_a_draft_that_outlives_its_passage_returns_with_that_passage(browser, se
     )
     stamp_page(d, rewritten, "two")
     told(page)
-    expect_banner_control_offered(page.locator(".lf-latest-chip"))
-    banner_control(page, ".lf-latest-chip").click()
+    expect_panel_offers(page, "latest")
+    panel_control(page, "latest").click()
     wait_for_revision(page, 2)
     expect(page).not_to_have_url(re.compile("/versions/"))
     expect(page.locator(".lf-composer")).to_be_visible()

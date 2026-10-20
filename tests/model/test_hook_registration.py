@@ -35,6 +35,70 @@ from leaf import state as cleanup_model
 REGISTRATIONS = {"claude-code": "hooks.json", "codex": "codex.json"}
 
 
+def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):
+    """An installed hook preserves stdin and defers lifecycle to the checkout.
+
+    The other executable stands for an independently installed Leaf; it records
+    what crossed the executable boundary instead of importing this test's runtime.
+    A large payload also proves delegation is not bounded by an unwritten pipe.
+    """
+    from leaf.session_runtime import select_launcher
+
+    selected = tmp_path / "checkout with spaces" / "bin" / "leaf"
+    selected.parent.mkdir(parents=True)
+    selected.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        "print(json.dumps({'argv': sys.argv[1:], 'payload': json.load(sys.stdin), "
+        "'host': os.environ.get('LEAF_HOST_LAUNCHER')}))\n"
+        "sys.exit(23)\n"
+    )
+    selected.chmod(0o755)
+    cleanup_model.ensure_session("selected-runtime", {})
+    select_launcher("selected-runtime", selected)
+    before = cleanup_model.session_record("selected-runtime")
+    payload = {
+        "hook_event_name": "UserPromptSubmit",
+        "session_id": "selected-runtime",
+        "tool_input": "a" * 256_000,
+    }
+    monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
+    result = subprocess.run(
+        [*LEAF_COMMAND, "hook", "--harness", "codex"],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert result.returncode == 23, result.stderr
+    assert json.loads(result.stdout) == {
+        "argv": ["hook", "--harness", "codex"],
+        "payload": payload,
+        "host": None,
+    }
+    assert cleanup_model.session_record("selected-runtime") == before
+
+    selected.unlink()
+    refused = subprocess.run(
+        [*LEAF_COMMAND, "hook", "--harness", "codex"],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert refused.returncode == 1
+    assert "selected Leaf launcher is unavailable" in refused.stderr
+    assert cleanup_model.session_record("selected-runtime") == before
+
+    # A new generation returns to the installed default; the stale selection is
+    # never silently substituted while its generation still owns feedback.
+    cleanup_model.end_session("selected-runtime")
+    cleanup_model.ensure_session("selected-runtime", {})
+    assert "launcher" not in cleanup_model.session_record("selected-runtime")
+
+
 def _registrations(harness):
     path = PLUGIN_ROOT / "hooks" / REGISTRATIONS[harness]
     return json.loads(path.read_text())["hooks"]
@@ -220,7 +284,7 @@ def test_cancelling_the_background_registration_never_wakes_the_session(
     assert (watching.returncode, out, err) == (0, "", "")
 
 
-@pytest.mark.parametrize("event", ["PostToolBatch", "Stop"])
+@pytest.mark.parametrize("event", ["PostToolBatch", "UserPromptSubmit"])
 def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
     """The harness command calls Leaf's launcher, and Leaf answers under uv.
 
@@ -462,9 +526,10 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
 ):
     """A fresh install releases another checkout's claims within harness shutdown.
 
-    Only the launcher and standalone stdlib cleanup exist in this install. No
-    package can be imported and uv refuses to run; macOS's system Python 3.9
-    exercises the same entry without site packages.
+    Only the launcher, standalone stdlib cleanup and the registry naming the
+    protocol its records carry exist in this install. No package can be imported
+    and uv refuses to run; macOS's system Python 3.9 exercises the same entry
+    without site packages.
     """
     project = tmp_path / "cold-plugin"
     launcher = project / "bin/leaf"
@@ -475,6 +540,11 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
     program.parent.mkdir(parents=True)
     program.write_bytes(
         (PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py").read_bytes()
+    )
+    registry = project / "skills/leaf/assets/registry.json"
+    registry.parent.mkdir(parents=True)
+    registry.write_bytes(
+        (PLUGIN_ROOT / "skills/leaf/assets/registry.json").read_bytes()
     )
     tools = tmp_path / "tools"
     tools.mkdir()

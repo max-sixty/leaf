@@ -21,7 +21,7 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.registry.contract import is_element_name, retirement_slots
-from leaf.render_checks import evaluate_probe, one_frame, rendered
+from leaf.render_checks import evaluate_probe, one_frame, rendered, wait_for_probe
 from leaf.structure import SourceDocument
 
 # A probe's arguments cross as JSON, so a node only CDP can name is handed to the
@@ -240,20 +240,45 @@ def _retired_holders(context: _SchemeContext) -> list[dict]:
 def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     """Every finding read from one settled scheme, without the scheme it was read in."""
     page = context.page
+    unmarkable = evaluate_probe(page, "unmarkableElements")
+    missing_threads = []
+    retired = []
+    if context.light:
+        # x-thread-seat promises one page view per matching instance. A widget in
+        # thread chrome already has the thread's reply surface and threadBox
+        # deliberately returns none there. Everywhere else, ask the merged registry
+        # for the instances and the module's own marker for the host it placed.
+        missing_threads = evaluate_probe(page, "missingThreads", context.declarations)
+        # Behind the caught-up wait: the settlement mark is replay's own write, so a
+        # reading taken earlier asks after paint the page has not been asked to make
+        # yet. Before the widget readings, whose replay is the last.
+        if context.replayed and (holders := _retired_holders(context)):
+            retired = evaluate_probe(page, "retiredSlots", holders)
+    found = [*context.errors, *_widget_findings(context)]
+    found += map(Finding.read, unmarkable)
+    found += context.devtools.findings()
+    found += map(Finding.read, missing_threads)
+    found += map(Finding.read, retired)
+    found += context.unsettled
+    return found
+
+
+def _widget_findings(context: _SchemeContext) -> list[Finding]:
+    """The readings of what widgets render, wherever they are drawn: the page, and an
+    open thread's messages (`thread_findings`)."""
+    page = context.page
     declarations = context.declarations
     replayed = context.replayed
     invalid_paints = evaluate_probe(page, "invalidPaints")
     missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
-    unmarkable = evaluate_probe(page, "unmarkableElements")
-    column = evaluate_probe(page, "columnGeometry")
-    scrollbars = evaluate_probe(page, "scrollbarClearance")
-    reachability = evaluate_probe(page, "reachabilityReading")
     # Shadow roots the registry doesn't declare: the passage walk, the
     # capture and the id lookups cross exactly the declared ones, so an
     # undeclared root's words silently anchor quotes astray. Generated controls
     # are UI rather than page words, so their implementation roots are exempt.
     undeclared_shadow = evaluate_probe(page, "undeclaredShadowRoots", context.registry)
+    # Words a widget's own chrome holds with nothing saying whose they are.
+    unreachable = evaluate_probe(page, "unreachableWords")
     # x-verbatim promises the words this scheme renders. Source provenance was
     # captured before upgrade, so anonymous page and frozen-message owners have the
     # same coordinate as the file reading without acquiring authored ids. Its file
@@ -262,66 +287,74 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     dishonest_verbatim = _verbatim_findings(context) if replayed else []
     # Replay is scheme-blind, so one scheme's reading covers both.
     silent = []
-    missing_threads = []
     undeclared_attrs = []
-    retired = []
     relative = []
-    if context.light:
-        # x-thread-seat promises one page view per matching instance. A widget in
-        # thread chrome already has the thread's reply surface and threadBox
-        # deliberately returns none there. Everywhere else, ask the merged registry
-        # for the instances and the module's own marker for the host it placed.
-        missing_threads = evaluate_probe(page, "missingThreads", declarations)
-        # Behind the caught-up wait above: a report moves a declared attribute, so
-        # a reading taken any earlier asks after a word the page has not been asked
-        # to say yet. A page that never caught up is already reported there and
-        # read no further.
-        if replayed:
-            silent = evaluate_probe(page, "silentWords", declarations)
-            # Behind the same wait, because reconciliation is one of the two
-            # writers: a widget's render states one declared fact whole, and a
-            # record form is exactly the attribute it may state that fact in.
-            undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", declarations)
-            # Behind it too: the settlement mark is replay's own write, so a
-            # reading taken earlier asks after paint the page has not been
-            # asked to make yet.
-            if holders := _retired_holders(context):
-                retired = evaluate_probe(page, "retiredSlots", holders)
-            # Last: render the complete state again to prove idempotence.
-            # The caught-up wait ensures they observe the same settled projection as
-            # the preceding read-only probes.
-            relative = evaluate_probe(page, "relativeReplays")
+    # Behind the caught-up wait: a report moves a declared attribute, so a reading
+    # taken any earlier asks after a word the page has not been asked to say yet. A
+    # page that never caught up is already reported there and read no further.
+    if context.light and replayed:
+        silent = evaluate_probe(page, "silentWords", declarations)
+        # Behind the same wait, because reconciliation is one of the two writers: a
+        # widget's render states one declared fact whole, and a record form is
+        # exactly the attribute it may state that fact in.
+        undeclared_attrs = evaluate_probe(page, "undeclaredAttrs", declarations)
+        # Last: render the complete state again to prove idempotence, against the
+        # same settled projection the read-only probes before it observed.
+        relative = evaluate_probe(page, "relativeReplays")
     # The replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
     # would call an attempt complete before its last error channel had spoken.
     one_frame(page)
-    found = [*context.errors, *map(Finding.read, invalid_paints)]
+    found = list(map(Finding.read, invalid_paints))
     if missing_upgrades:
         found.append(Finding("missing-upgrades", values={"tags": missing_upgrades}))
     if tiny:
         found.append(Finding("tiny-boxes", values={"boxes": tiny}))
-    found += map(Finding.read, unmarkable)
-    found += _overflow(column["overflow"], column["misplaced"]).values()
-    found += _scrollbars(scrollbars).values()
-    for kind in ("clipped", "unreachable", "covered"):
-        found += map(Finding.read, reachability[kind])
     if undeclared_shadow:
         found.append(Finding("undeclared-shadow", values={"hosts": undeclared_shadow}))
-    found += context.devtools.findings()
+    found += map(Finding.read, unreachable)
     found += dishonest_verbatim
     found += map(Finding.read, silent)
-    found += map(Finding.read, missing_threads)
     # One mistake is on every instance, so one finding per tag and attribute.
     found += {(u["tag"], u["attr"]): Finding.read(u) for u in undeclared_attrs}.values()
-    found += map(Finding.read, retired)
-    found += context.unsettled
     found += map(Finding.read, relative)
     return found
 
 
-def _scrollbars(boxes: list) -> dict[tuple[str, str], Finding]:
-    """Overlay track collisions, keyed like other width-dependent geometry."""
-    return {(box["place"], box["code"]): Finding.read(box) for box in boxes}
+def thread_findings(context: _SchemeContext, known: list[Finding]) -> list[Finding]:
+    """The widget readings of each thread whose messages carry markup, read with that
+    thread open, less what `known` already reports.
+
+    A message's widgets render only where its thread is drawn, and the page draws one
+    thread at a time: in its margin card, or in the floating panel's thread view where
+    nothing on the page shows it. So each such thread is opened where a reader would
+    find it, and the widget readings run again. The page's own widgets answer the same
+    each time, so a finding is reported once. A page with no such thread pays one
+    reading."""
+    page = context.page
+    found = dict.fromkeys(known)
+    for thread in evaluate_probe(page, "threadsHoldingMarkup"):
+        evaluate_probe(page, "openThreadToCheck", thread)
+        wait_for_probe(page, "threadOpening", thread)
+        answer = evaluate_probe(page, "threadOpening", thread)
+        if not answer["shown"]:
+            error = answer.get("error", "nothing drew it")
+            failed = f"opening thread {thread} to read its widgets: {error}"
+            found[Finding("gate-failed", values={"error": failed})] = None
+        else:
+            rendered(page)
+            wait_for_probe(page, "pageSettled")
+            found.update(dict.fromkeys(_widget_findings(context)))
+    return [finding for finding in found if finding not in known]
+
+
+def _keyed(records: list) -> dict[tuple[str, str], Finding]:
+    """Width-dependent readings, such as overlay track collisions and clipped
+    controls, each keyed by its element's place and kind. Covered words name the
+    places of both elements as theirs."""
+    return {
+        (record["place"], record["code"]): Finding.read(record) for record in records
+    }
 
 
 def _overflow(overflow: int, misplaced: list) -> dict[tuple[str, str], Finding]:
@@ -331,22 +364,35 @@ def _overflow(overflow: int, misplaced: list) -> dict[tuple[str, str], Finding]:
         found["<root scrollport>", "page-scrolls"] = Finding(
             "page-scrolls", values={"past": overflow}
         )
-    return found | {(m["place"], m["code"]): Finding.read(m) for m in misplaced}
+    return found | _keyed(misplaced)
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
-# the narrowest phone to a wide desktop window, and the fixed viewports read it at two. A
+# the narrowest phone to a wide desktop window, not only at the gate's fixed viewports. A
 # grid that stacks at one width can leave its narrow track narrower than what it holds
-# just above it, a band neither viewport lands in, and the margin's residents arrive
-# above the desktop viewport.
+# just above it, a band neither fixed viewport lands in, and the margin's residents
+# arrive above the desktop viewport.
 SWEEP_WIDTHS = range(360, 1921, 40)
 
 
 def settle_at(page, width: int, height: int) -> None:
+    """Resize the loaded page and stand it at its top, as a load at that size opens.
+
+    A resize that reflows the page scrolls it, as the browser and the runtime keep the
+    words in view where they were: the stacked workspace pages stood 169px down by
+    360px, and rust-sort over 1000px down at 680px, with their sticky header over the
+    words beneath it. So once the resize has settled the page jumps back to its top,
+    without the smooth scrolling a page can ask for, which would still be on its way
+    when the reading is taken."""
     page.set_viewport_size({"width": width, "height": height})
     # What the resize set moving in script (an observer, the layout that observer's
     # write causes, and whatever that chains into) has run and been laid out.
     rendered(page)
+    if page.evaluate(
+        "() => { const down = scrollY;"
+        " scrollTo({ top: 0, left: 0, behavior: 'instant' }); return down; }"
+    ):
+        rendered(page)
 
 
 def open_widgets(registry: dict) -> list[str]:
@@ -358,21 +404,17 @@ def open_widgets(registry: dict) -> list[str]:
     ]
 
 
-def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
-    """The loaded page's geometry at every sweep width, widest first.
+def sweep(page, widths, open_tags) -> list[tuple[int, dict]]:
+    """The loaded page's geometry (`geometryReading`) at each of `widths`, in the order
+    given, at the page's height.
 
-    Resizes the loaded page rather than rendering it again, and reads only the
-    geometry the functions below report across widths (`geometryReading`): the rest
-    of the gate is read at the fixed viewports. The fixed widths are swept too. The
-    sweep runs at the desktop height, so a fault only a phone-height workspace
-    posture shows is the phone viewport's to report."""
-    height = viewports[0]["height"]
-    fixed = {viewport["width"] for viewport in viewports}
+    Resizes the loaded page rather than rendering it again. Callers walk in steps,
+    widest first, so a layout script settles from the width before: a jump from
+    1200px straight to 360px left an lf-shot laid out for the desktop for a frame
+    under load, and the sweep read that frame."""
+    height = page.viewport_size["height"]
     readings = []
-    # Widest first, in steps, so a layout script settles from the width before rather
-    # than from the desktop: a jump from 1200px straight to 360px left an lf-shot laid
-    # out for the desktop for a frame under load, and the sweep read that frame.
-    for width in sorted({*SWEEP_WIDTHS, *fixed}, reverse=True):
+    for width in widths:
         settle_at(page, width, height)
         readings.append((width, evaluate_probe(page, "geometryReading", open_tags)))
     return readings
@@ -450,24 +492,35 @@ def margin_changes(page, readings, height: int) -> list[int]:
     return changes
 
 
-def swept_overflow(readings, viewports) -> list[Finding]:
-    """Sideways overflow and scrollbar collisions the fixed viewports miss, with
-    the widths each run spans and what it reads at the narrowest.
+def swept_faults(samples) -> list[Finding]:
+    """Sideways overflow, misplaced boxes, scrollbar collisions, clipped controls and
+    covered words across the gate's geometry samples, with the widths each run spans
+    and what it reads at the narrowest. Each refuses the version, since a control cut
+    off at 400px is as far out of reach as one cut off at 540px.
 
-    A run that takes in a fixed width is dropped here, because that viewport's own
-    reading already reports it in both schemes."""
-    fixed = {viewport["width"] for viewport in viewports}
-    return [
-        finding
-        for finding in _swept(
-            readings,
-            lambda reading: (
-                _overflow(reading["overflow"], reading["misplaced"])
-                | _scrollbars(reading["scrollbars"])
-            ),
+    `samples` are (width, `geometryReading`) pairs, several at a width where the gate
+    read it more than once (`version._render_version_attempt` says where). A fault any
+    of them reads stands at that width, as the first of them to read it says, so a
+    fault read at several is one run."""
+
+    def faults(reading):
+        return (
+            _overflow(reading["overflow"], reading["misplaced"])
+            | _keyed(reading["scrollbars"])
+            | _keyed(reading["clipped"])
+            | _keyed(reading["covered"])
         )
-        if not any(finding.widths[0] <= width <= finding.widths[1] for width in fixed)
-    ]
+
+    def at_any(readings):
+        found = {}
+        for reading in readings:
+            found = faults(reading) | found
+        return found
+
+    by_width = {}
+    for width, reading in samples:
+        by_width.setdefault(width, []).append(reading)
+    return _swept(sorted(by_width.items(), reverse=True), at_any)
 
 
 # The advice below is read from the sweep, at every swept width, since a narrower window

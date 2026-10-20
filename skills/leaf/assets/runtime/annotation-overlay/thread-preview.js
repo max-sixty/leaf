@@ -2,8 +2,9 @@
 
    One Floating UI driver follows this card across conversation changes and stops
    when the card closes. Each selected conversation owns its originating control,
-   reading region, held edge and pending placement/focus. Replacing it retires that
-   work before margin preparation can synchronously render again.
+   reading region, held edge, pending placement/focus, and growth out of the comment
+   box Send replaced (`growOut`). Replacing it retires that work before margin
+   preparation can synchronously render again.
    A retained refresh preserves the selection's reading and draft continuity.
    Margin disclosure remains the margin's; selection records only whether a walk
    opened a cluster so its end can return that disclosure.
@@ -42,7 +43,6 @@ import { cancelRender, nextRender } from "../rendering.js";
 import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
-import { mapButton } from "../page-map-dialog.js";
 import {
   focusDestination,
   holdFocus,
@@ -50,6 +50,7 @@ import {
   onStanding,
   onUserInput,
   focused,
+  tabStops,
 } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { closeControl, el, offer } from "../widget-elements.js";
@@ -59,13 +60,13 @@ import { move } from "../dom-move.js";
 import { effectiveScroller, registerReadingRegion } from "../reading-regions.js";
 import { declareOffFlowSurface } from "../off-flow.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
+import { reducedMotion } from "../motion.js";
 import { closestAcross } from "../passages.js";
 import { threadIdNamed } from "../thread/state.js";
 import { turns } from "../thread/model.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { iconElement } from "../icons.js";
 import { anchorLabel } from "../thread/messages.js";
-import { bannerControlDoor } from "../banner-toolbar.js";
 import { coarsePointer } from "../pointer.js";
 import {
   cardMeasure,
@@ -80,7 +81,8 @@ import { passageGeometry } from "../resolved-target.js";
 import { floatingPlacement, floatingUi } from "./floating.js";
 import { surfaceGrip } from "./surface-grip.js";
 import { placeKeeper } from "../user-place.js";
-import { under } from "../shadow.js";
+import { renderedOrder, renderedUnder, under } from "../shadow.js";
+import { keys } from "../keyboard/scopes.js";
 import { retainUserIntent } from "../user-intent.js";
 import { threadFocusDestination } from "../thread/focus.js";
 import { claimSeatReplies } from "../thread/inline.js";
@@ -91,13 +93,19 @@ import { writingIn } from "../thread/replies.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
+// Where a reading region cuts the card, inward from each of its edges.
+const CUT_EDGES = [
+  "--lf-cut-top",
+  "--lf-cut-right",
+  "--lf-cut-bottom",
+  "--lf-cut-left",
+];
 
 export function createThreadPreview({
   inventory,
   renderMarginThread,
   placedAt,
   openPageThread,
-  panelIsOpen,
   scrollThreadIntoView,
   scrollToElement,
   onClose,
@@ -151,6 +159,77 @@ export function createThreadPreview({
     },
   });
   preview.append(carry.grip, previewList);
+  // The card follows the margin entry it hangs from (`session.control`) in the Tab
+  // order, as a popover follows its invoker: Tab on the entry enters the card, Shift+Tab
+  // from before the card's first stop returns to the entry, and Tab past the card's last
+  // stop, or Shift+Tab from the entry, goes on from the entry as though the card weren't
+  // there. The browser's own order doesn't: the card stands in the chrome after the
+  // page and just before the margin, so Shift+Tab out of it reached the page's last
+  // stop, which scrolled the page there and, standing away from the card's target,
+  // closed the card. To pass over the card, a row puts the user on the entry, or on the
+  // card's own box just before the margin, and leaves the browser to take the step from
+  // there, as the floating panel's menu does.
+  const opener = () =>
+    previewSession?.control?.checkVisibility() ? previewSession.control : null;
+  const onOpener = () => Boolean(opener()) && focused() === opener();
+  // The stops in `root` before (-1) or after (1) `at`, in the browser's order.
+  const stopsBeside = (root, at, side) =>
+    tabStops(root).filter(
+      (stop) =>
+        stop !== at &&
+        !renderedUnder(at, stop) &&
+        Math.sign(renderedOrder(stop, at)) === side,
+    );
+  const atCardEdge = (side) =>
+    Boolean(opener()) && stopsBeside(preview, focused(), side).length === 0;
+  keys(preview, null, [
+    {
+      id: "margin.card.back",
+      keys: ["Shift+Tab"],
+      title: "back to the margin entry",
+      description: "Leave the thread card for the margin entry it hangs from",
+      repeat: true,
+      runFromCommandReference: false,
+      when: () => atCardEdge(-1),
+      run: () => focusDestination(opener(), "step"),
+    },
+    {
+      id: "margin.card.onward",
+      keys: ["Tab"],
+      title: "on past the margin entry",
+      description: "Leave the thread card for the stop after the margin entry",
+      native: true,
+      repeat: true,
+      runFromCommandReference: false,
+      when: () => atCardEdge(1),
+      run: () => focusDestination(opener(), "return"),
+    },
+  ]);
+  // The entry's half, which the margin declares on its rows.
+  const openerKeys = [
+    {
+      id: "margin.card.enter",
+      keys: ["Tab"],
+      title: "into the thread card",
+      description: "Enter the thread card the margin entry opened",
+      repeat: true,
+      runFromCommandReference: false,
+      when: () => onOpener() && tabStops(preview).length > 0,
+      run: () => focusDestination(tabStops(preview)[0], "step"),
+    },
+    {
+      id: "margin.card.over",
+      keys: ["Shift+Tab"],
+      title: "back past the thread card",
+      description: "Go back from the margin entry to the stop before it",
+      native: true,
+      repeat: true,
+      runFromCommandReference: false,
+      when: () =>
+        onOpener() && under(stopsBeside(chromeRoot, opener(), -1).at(-1), preview),
+      run: () => focusDestination(preview, "return"),
+    },
+  ];
   // A press in the card changes what it shows from where the user pressed, so the
   // placement that change causes keeps the pressed spot still (`holding`'s `pressed`)
   // until the user's next input. The press, by pointer, touch or key, is read at the input
@@ -232,6 +311,7 @@ export function createThreadPreview({
     carry.placed();
     const session = previewSession;
     if (!session) return;
+    keeps(preview, "data-lf-grows", null);
     session.positionResult?.resolve(false);
     cancelRender(session.positionFrame);
     placementDriver.supersede();
@@ -514,18 +594,22 @@ export function createThreadPreview({
         // Leaving with what it is about, the card passes under the chrome, which stacks
         // over it, and a reading region it stands in cuts it at the region's edge as it
         // cuts the words. An edge further out than the card paints cuts nothing, and
-        // stands at that reach, so a scroll that moves it there writes nothing.
+        // stands at that reach, so a scroll that moves it there writes nothing. Each
+        // edge's cut is its own property, which the card's clip and its growth out of
+        // the comment box both read (annotation-chrome.css).
         const region = boundary.inRegion;
-        if (region) {
-          const reach = -paintReach(preview);
-          const inset = [
-            (region.top - card.top) / scale.y,
-            (card.right - region.right) / scale.x,
-            (card.bottom - region.bottom) / scale.y,
-            (region.left - card.left) / scale.x,
-          ].map((cut) => Math.max(cut, reach));
-          preview.style.clipPath = `inset(${inset.map(layoutPx).join(" ")})`;
-        } else preview.style.removeProperty("clip-path");
+        const cuts = region
+          ? [
+              (region.top - card.top) / scale.y,
+              (card.right - region.right) / scale.x,
+              (card.bottom - region.bottom) / scale.y,
+              (region.left - card.left) / scale.x,
+            ].map((cut) => layoutPx(Math.max(cut, -paintReach(preview))))
+          : [];
+        CUT_EDGES.forEach((edge, i) => {
+          if (region) preview.style.setProperty(edge, cuts[i]);
+          else preview.style.removeProperty(edge);
+        });
         keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
         keepThreadLanding(previewList.querySelector(".lf-page-thread"));
         session.positionResult?.resolve(true);
@@ -727,8 +811,7 @@ export function createThreadPreview({
           const thread = sourceItem(item).thread.id;
           const mayLand = retainUserIntent({
             source: focused(),
-            available: () => Boolean(target?.isConnected) && !panelIsOpen(),
-            fallback: bannerControlDoor(mapButton),
+            available: () => Boolean(target?.isConnected),
           });
           return {
             optimistic: () => {
@@ -815,8 +898,22 @@ export function createThreadPreview({
     }
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
-    return placedThreadPreview();
+    const positioned = placedThreadPreview();
+    return session.sent ? growOut(session, positioned) : positioned;
   }
+
+  // A card Send opened grows out of the comment box it replaces, once it stands
+  // (`data-lf-grows`, annotation-chrome.css).
+  function growOut(session, positioned) {
+    return positioned.then((placed) => {
+      if (placed && previewSession === session && !reducedMotion())
+        keeps(preview, "data-lf-grows", "");
+      return placed;
+    });
+  }
+  preview.addEventListener("animationend", (event) => {
+    if (event.target === preview) keeps(preview, "data-lf-grows", null);
+  });
 
   function refresh(entry, control, carry = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;
@@ -831,7 +928,7 @@ export function createThreadPreview({
     retirePreviewSession();
     placementDriver.stop();
     delete preview.dataset.lfThreadPlacement;
-    preview.style.removeProperty("clip-path");
+    for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
     keepsHidden(preview, true);
     onClose(closed);
   }
@@ -889,12 +986,18 @@ export function createThreadPreview({
     close,
     focusThread,
     focusTarget,
+    openerKeys,
     thread: () => previewList.querySelector(".lf-page-thread"),
     accompanied: () =>
       previewSession && !previewSession.away
         ? previewList.querySelector(".lf-page-thread")
         : null,
     closeFocused: () => focused() === previewClose,
+    // Whether the user stands in the card's reply box.
+    replying: () =>
+      under(focused(), preview) && Boolean(closestAcross(focused(), REPLY_BOX)),
+    // Whether the open card has somewhere to stand (`threadCardPlace`).
+    stands: () => Boolean(previewSession && threadCardPlace(previewSession)),
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount,

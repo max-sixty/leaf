@@ -1,6 +1,7 @@
 """Unsent words on a rendered page, in drafts, comments and replies, from editing
 through sending, sharing and revisions, with the helpers their modules share."""
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
@@ -13,6 +14,33 @@ from render_harness import (
     wait_for_revision,
     write,
 )
+
+# The words in the panel's one seat for what passes, such as a notice (floating-panel.js,
+# `passing`): the leaf's peek while it shows one over an open view, else the line over
+# the field while it stands, else an error standing over the field's words
+# (composing/input.js), else the empty field's placeholder.
+PANEL_SAYS = """() => {
+  const peek = document.querySelector('.lf-fp-peek');
+  if (peek?.hasAttribute('data-shown')) return peek.textContent.trim();
+  const line = document.querySelector('.lf-fp-context');
+  if (line && !line.hidden && line.textContent.trim()) return line.textContent.trim();
+  const cover = document.querySelector('.lf-fp-field .lf-compose-error:not([hidden])');
+  if (cover) return cover.textContent.trim();
+  return document.querySelector('.lf-fp-field leaf-text')?.getAttribute('placeholder')
+    ?? '';
+}"""
+
+
+def expect_panel_says(page, words):
+    """Wait until the panel's seat for passing words says `words`, among others."""
+    try:
+        page.wait_for_function(f"w => ({PANEL_SAYS})().includes(w)", arg=words)
+    except PlaywrightTimeout:
+        said = page.locator(".lf-live").text_content()
+        raise AssertionError(
+            f"the panel says {page.evaluate(PANEL_SAYS)!r}, not {words!r} "
+            f"(the live region last said {said!r})"
+        ) from None
 
 
 def choose_comment_target(page, selector):
@@ -48,12 +76,13 @@ def editing_revision_source(mode, body=None):
     module = """<script type="module">
 window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
 addEventListener('renderer-lifetime-probe',()=>window.__rendererLifetime.hits++);
-// Native prototype activation route: activate the offered Latest control without
-// transferring the editor's focus to the toolbar before the carry is captured.
+// Native prototype activation route: activate the panel's offered Latest, its row
+// notice's press, without transferring the editor's focus to the panel before the
+// carry is captured.
 addEventListener('keydown',event=>{
   if(event.code==='KeyR' && event.ctrlKey && event.altKey){
     event.preventDefault();
-    document.querySelector('.lf-latest-chip')?.click();
+    document.querySelector('.lf-floating-panel .lf-fp-row-notice-press')?.click();
   }
 });
 </script>""".replace("MODE", mode)

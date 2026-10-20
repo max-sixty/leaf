@@ -14,7 +14,10 @@ import pytest
 from interact_support import (
     PAGE,
     STATED_TIMEOUT,
+    activity_reading,
     append_command,
+    owed_answers,
+    page_state,
     publish,
     running_http_server,
 )
@@ -31,6 +34,7 @@ from process.website_server import (
     get,
     hosted_follower,
     post,
+    queued_turn,
     write_manifest,
 )
 
@@ -90,7 +94,7 @@ def test_a_turn_that_completes_without_an_answer_is_still_receipted(
     # The turn ended by itself, so there is nothing to stop.
     assert interrupts == []
     assert website_server.page_claim(page_dir)["turn_closed"] is not None
-    assert website_server.full_state(page_dir, events)["activity"]["obligations"] == []
+    assert owed_answers(page_dir) == []
 
 
 def _page_pick(page_dir: Path) -> dict:
@@ -134,7 +138,7 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     """A turn that ends without answering settles what it was given, whatever it was.
 
     The hosted site starts a turn for every move that owes an answer: a message or
-    an answer to a page item. Each takes the failure its own answer takes, and each
+    an answer to a page obligation. Each takes the failure its own answer takes, and each
     leaves the next step with the user, so none stays owed with no turn coming for
     it. A pick stays in force on the page, and the workflow says it was
     not answered until the user answers again. A message is told in its own
@@ -173,8 +177,8 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     hosted_follower(harness, page_dir, prepared, Socket()).follow()
 
     events = read_events(page_dir)
-    state = website_server.full_state(page_dir, events)
-    assert state["activity"]["obligations"] == []
+    state = page_state(page_dir)
+    assert owed_answers(page_dir) == []
     assert website_server.next_unaccepted_agent_event(page_dir) is None
     returned = [
         workflow for workflow in state["workflows"] if workflow["input"] == move["id"]
@@ -191,7 +195,15 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
         assert (reply["responds"], reply["failure"]) == (move["id"], "turn_failed")
     [workflow] = returned
     assert workflow["condition"] == {"kind": "failed", "operation": "response"}
-    assert (workflow["next_actor"], workflow["answer"]) == ("user", None)
+    [record] = [
+        item
+        for item in state["browser"]["views"][str(state["active"]["revision"])][
+            "obligations"
+        ]
+        if item["id"] == workflow["obligation"]
+    ]
+    assert record["next_actor"] == "user"
+    assert owed_answers(page_dir) == []
 
 
 def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
@@ -296,9 +308,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
     with website_server.PageTransaction(page_dir) as page:
         page.set_status("idle", "")
     harness = website_server.WebsiteCodexHarness("codex")
-    monkeypatch.setattr(
-        harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
-    )
+    monkeypatch.setattr(harness, "_send", queued_turn("app-server-turn"))
 
     class LostSocket:
         def recv(self, timeout):
@@ -312,9 +322,10 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
         page_dir,
         "hosted-thread",
         type("Process", (), {"pid": os.getpid()})(),
+        [],
     )
     assert follow.reply_target is not None
-    assert follow.reply_target["reply_to"] != follow.reply_target["responds"]
+    assert follow.reply_target["parent"] != follow.reply_target["responds"]
 
     monkeypatch.setattr(harness, "_interrupt", lambda *args, **kwargs: None)
     follow.follow()
@@ -407,10 +418,7 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
     assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert [
-        obligation["input"]
-        for obligation in website_server.full_state(page_dir, events)["activity"][
-            "obligations"
-        ]
+        obligation["input"] for obligation in activity_reading(page_dir)["obligations"]
     ] == [comment["id"]]
 
 
@@ -487,9 +495,13 @@ def test_a_rejected_streamed_reply_starts_a_website_correction(
             lambda *_: (Socket(), {"thread": {"status": {"type": "idle"}}}, []),
         )
 
+        queue = queued_turn("repair-turn")
+
         def send(socket, method, params, pending):
-            restarted.append(json.loads(params["toolOutput"]["output"]))
-            return {"turn": {"id": "repair-turn"}}
+            if method == "thread/queue/add":
+                [message] = params["input"]
+                restarted.append(json.loads(message["text"].split("\n")[1]))
+            return queue(socket, method, params, pending)
 
         monkeypatch.setattr(harness, "_send", send)
         monkeypatch.setattr(harness, "_follow", lambda *_: None)

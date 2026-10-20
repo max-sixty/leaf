@@ -9,7 +9,6 @@ from functools import cache
 from pathlib import Path
 
 from leaf.render_checks import wait_for_probe, wait_until_ready
-from leaf.render_gate.browser import ending
 from playwright.sync_api import Browser, Page, sync_playwright
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -18,14 +17,6 @@ from leaf_dev import ROOT
 DESKTOP = (1440, 900)
 # The width of a window beside an editor.
 BESIDE = (900, 900)
-
-# Pages open in the banner and bottom bar rather than the default Leaf panel until a page
-# stores another choice (prepaint.js, `lfChrome`): for checks and tools that drive the
-# banner's controls. A sample's child has no storage, so it asks nothing there.
-CLASSIC_CHROME = (
-    "try { localStorage.getItem('lf-chrome') ??"
-    " localStorage.setItem('lf-chrome', 'classic') } catch {}"
-)
 
 # The fixed fontconfig that lays text out in DejaVu faces on Linux (`use_linux_fonts`).
 LINUX_FONTCONFIG = ROOT / "tests/fonts.conf"
@@ -64,8 +55,7 @@ def use_linux_fonts():
 @contextmanager
 def headless_shell(**options):
     """Playwright's pinned Chromium headless shell, the build the suite drives,
-    launched with Playwright's launch `options` and ended as the render gate ends its
-    browser (`ending`), however the block is left.
+    launched with Playwright's launch `options` and closed however the block is left.
 
     Not the host's browser that `launch_browser` finds for a user's `page check`:
     leaf-dev runs on a developer's machine or CI, where `leaf-dev setup` installs the
@@ -74,7 +64,7 @@ def headless_shell(**options):
     """
     with (
         sync_playwright() as playwright,
-        ending(playwright.chromium.launch(**options)) as browser,
+        playwright.chromium.launch(**options) as browser,
     ):
         yield browser
 
@@ -83,14 +73,9 @@ def headless_shell(**options):
 def headless_firefox():
     """Playwright's Firefox, for a probe of a Gecko-only difference: some readers use
     Leaf in Firefox, and the suite and `headless_shell` drive Chromium alone. A host
-    without it gets Playwright's own error, which names the install command. It ends
-    with a plain close: `ending` reads Chromium's process tree over CDP."""
-    with sync_playwright() as playwright:
-        browser = playwright.firefox.launch()
-        try:
-            yield browser
-        finally:
-            browser.close()
+    without it gets Playwright's own error, which names the install command."""
+    with sync_playwright() as playwright, playwright.firefox.launch() as browser:
+        yield browser
 
 
 @cache
@@ -100,15 +85,16 @@ def shell_executable() -> str:
     `page check` that runs a page's code or takes `--render` draws with the build
     `headless_shell` drives. Left unnamed, each would launch installed Google Chrome
     afresh: about three seconds apiece against the shell's 0.3 (measured over the
-    suite in #1488), and on macOS each new profile leaves a key in Chrome's keychain
-    group that every later Chrome launch makes `secd` read back, so that cost grows
-    with every launch.
+    suite in #1488). On macOS each Google Chrome launch also runs a Secure Enclave
+    self-test that creates two keychain keys and deletes them when it finishes, and a
+    Chrome that ends first leaves both behind for every later launch to make `secd`
+    read back. The shell has no keychain access and creates none.
 
-    Playwright reports where its full Chromium build would be whether or not that
-    build is installed, and `leaf-dev setup` installs the shell alone. Both sit under
-    one registry root at one build number, so the shell's path follows from
-    Chromium's; where a developer installed the full build instead, that is the
-    browser to hand over. The `chromium-<build>` directory is found by name rather
+    Playwright reports where its full Chromium build (Chrome for Testing) would be,
+    and `leaf-dev setup` installs it beside the shell for the evals that need full
+    Chrome. Both sit under one registry root at one build number, so the shell's path
+    follows from Chromium's; where a developer installed only the full build, that is
+    the browser to hand over. The `chromium-<build>` directory is found by name rather
     than by depth, because macOS nests the executable inside an app bundle and Linux
     does not.
 
@@ -158,14 +144,12 @@ def tab(
     *,
     motion="reduce",
     scale=1,
-    classic=False,
 ):
     """A fresh blank tab at `viewport` and in `scheme`, with reduced motion so a still
     never catches a transition midway (pass motion="no-preference" for a journey),
     and under a finger (a coarse pointer, a mobile
-    viewport) when `touch`, drawing `scale` device pixels to a CSS pixel, and in the
-    banner where `classic` (`CLASSIC_CHROME`). A caller listens on it before
-    it `load`s."""
+    viewport) when `touch`, drawing `scale` device pixels to a CSS pixel. A caller
+    listens on it before it `load`s."""
     context = browser.new_context(
         viewport={"width": viewport[0], "height": viewport[1]},
         device_scale_factor=scale,
@@ -174,8 +158,6 @@ def tab(
         has_touch=touch,
         is_mobile=touch,
     )
-    if classic:
-        context.add_init_script(CLASSIC_CHROME)
     try:
         page = context.new_page()
         page.set_default_timeout(15_000)

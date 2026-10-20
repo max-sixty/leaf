@@ -169,6 +169,13 @@ const bundles = {
   // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
   // SnapDOM then warns on the console that text may wrap differently. The capture's own
   // `warnings` keep that notice; the console copy would read as a page problem.
+  //
+  // SnapDOM sends a resource's cookies when its origin is `location.origin`, which is
+  // the URL's origin rather than the document's. In a live sample's sandboxed child the
+  // document's origin is opaque, so every request is cross-origin and Leaf's server
+  // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
+  // read: the child's own icon.svg mask failed with a CORS error in every capture.
+  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.4).
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entry: 'export { snapdom } from "@zumer/snapdom";\n',
@@ -179,7 +186,12 @@ const bundles = {
           seam(
             seam(
               seam(
-                source,
+                seam(
+                  source,
+                  'y.origin===location.origin?"include":"omit"',
+                  'y.origin===self.origin?"include":"omit"',
+                  "SnapDOM credentials origin",
+                ),
                 "for(;r;r=r.parentElement||r.getRootNode?.()?.host)",
                 "for(;r;r=r.parentElement||(r.parentNode?.nodeType===11?r.parentNode.host:null))",
                 "SnapDOM mutation-ancestor",
@@ -642,6 +654,97 @@ const bundles = {
     ],
   }),
 
+  // The optional file navigator uses Trees' vanilla model and its own shadow-DOM
+  // renderer. Upstream includes its styles and Preact runtime; no React wrapper,
+  // external stylesheet, or consumer build reaches the page.
+  trees: () => ({
+    out: `${packageVendor("file-tree")}/pierre-trees.esm.js`,
+    entryPoints: [input("trees/entry.mjs")],
+    platform: "browser",
+    target: "chrome105",
+    // Keep upstream's core/override ordering inside the page's vendor tier, so
+    // authored styles retain the same precedence as every other widget's.
+    adapt: [
+      {
+        file: /@pierre\/trees\/dist\/model\/FileTreeController\.js$/,
+        // beta.6 treats a nonempty query with no matches as unfiltered, exposing
+        // unrelated root rows. The controller must retain an empty filtered set;
+        // its existing empty-query branch remains the route back to all files.
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              'this.#searchMode === "hide-non-matches" && matchingPaths.length > 0',
+              'this.#searchMode === "hide-non-matches"',
+              "Trees empty search-result set",
+            ),
+            'this.#searchMode !== "hide-non-matches" || this.#searchMatchPathSet.size === 0',
+            'this.#searchMode !== "hide-non-matches"',
+            "Trees empty search-result visibility",
+          ),
+      },
+      {
+        file: /@pierre\/trees\/dist\/render\/FileTreeView\.js$/,
+        // Retain is a persistent filter, not a transient search mode: rows keep
+        // ordinary pointer focus and tree navigation while the field owns match
+        // navigation. Blur and activation keep the query; Escape dismisses it.
+        edit: (source) => {
+          source = seam(
+            source,
+            'if (searchBlurBehavior === "retain" && !searchInputUserInteractedRef.current) return;',
+            'if (searchBlurBehavior === "retain") return;',
+            "Trees retained search on blur",
+          );
+          source = seam(
+            source,
+            "if (plan.closeSearch) controller.closeSearch();",
+            'if (plan.closeSearch && searchBlurBehavior !== "retain") controller.closeSearch();',
+            "Trees retained search on pointer activation",
+          );
+          source = seam(
+            source,
+            "if (controller.isSearchOpen()) event.preventDefault();",
+            'if (controller.isSearchOpen() && frame.searchBlurBehavior !== "retain") event.preventDefault();',
+            "Trees retained-filter row focus",
+          );
+          source = seam(
+            source,
+            "const flowRowFrame = {\n\t\tcontextHoverPath:",
+            "const flowRowFrame = {\n\t\tsearchBlurBehavior,\n\t\tcontextHoverPath:",
+            "Trees retained-filter row policy",
+          );
+          // A retained filter is hosted navigation: yield Enter to the exact
+          // control's declared command instead of swallowing it in the model.
+          // Search arrows and Escape keep their ordinary upstream behavior.
+          return seam(
+            source,
+            'if (isSearchOpen) {\n\t\t\tif (event.key === "Escape")',
+            'if (isSearchOpen && (event.key === "Escape" || searchBlurBehavior !== "retain" || getActiveTreeElement(rootRef.current) === searchInputRef.current)) {\n\t\t\tif (event.key === "Enter" && searchBlurBehavior === "retain") return;\n\t\t\tif (event.key === "Escape")',
+            "Trees retained-search Enter delegation",
+          );
+        },
+      },
+      {
+        file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "return `${LAYER_ORDER}\n@layer base {\n  ${coreCSS}\n}`;",
+              "return `@layer lf-base {\n${LAYER_ORDER}\n@layer base {\n  ${coreCSS}\n}\n}`;",
+              "Trees core CSS cascade",
+            ),
+            "return `${LAYER_ORDER}\n@layer unsafe {\n  ${unsafeCSS}\n}`;",
+            "return `@layer lf-base {\n${LAYER_ORDER}\n@layer unsafe {\n  ${unsafeCSS}\n}\n}`;",
+            "Trees override CSS cascade",
+          ),
+      },
+    ],
+    banner: {
+      js: `/*! @pierre/trees ${version("@pierre/trees")} — Apache-2.0 — licenses: pierre-trees.LICENSES.txt */`,
+    },
+  }),
+
   // Split chrome controls from optional widgets, sharing their dependency graph. Both
   // entry points register the same components once. Optional controls remain on
   // demand; the shared chunks are core payload because chrome also reads them. Lit
@@ -659,7 +762,27 @@ const bundles = {
     splitting: true,
     chunkNames: "webawesome/[name]-[hash]",
     external: ["/runtime/shadow-stage.js"],
-    adapt: [{ file: /webawesome\/dist\/chunks\/.*\.js$/, edit: patchTransitions }],
+    // Web Awesome 3.14.0 prepends a comment naming its docs to an element's shadow root
+    // on every `connectedCallback`, so an element the chrome keeps and connects again,
+    // as the floating panel's menu does its copy rows, grows by a node each time it
+    // shows. The element module's adaptation, listed first so it wins its chunk, keeps
+    // the one comment the first connection writes.
+    adapt: [
+      {
+        file: /webawesome\/dist\/chunks\/chunk\.AOKMSJXD\.js$/,
+        edit: (source) =>
+          patchTransitions(
+            seam(
+              source,
+              "this.shadowRoot?.prepend(",
+              "this.shadowRoot?.firstChild?.nodeType !== Node.COMMENT_NODE && this.shadowRoot?.prepend(",
+              "Web Awesome docs comment",
+              2,
+            ),
+          ),
+      },
+      { file: /webawesome\/dist\/chunks\/.*\.js$/, edit: patchTransitions },
+    ],
     platform: "browser",
     target: "chrome105",
     banner: {

@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { summaryRanges, withPendingProgress } from "/runtime/thread/summary-ranges.js";
-import { threadSearchReading } from "/runtime/thread/narrowing.js";
+import {
+  summaryRanges,
+  withPendingProgress,
+  workingPlace,
+} from "/runtime/thread/summary-ranges.js";
 
 const messages = ["a", "b", "c", "d", "e"].map((id) => ({ id, key: id }));
 
@@ -66,23 +69,20 @@ test("reaction ids inside canonical coverage do not break the visible range", ()
   );
 });
 
-test("thread search identifies matching originals independently of summary prose", () => {
-  const thread = {
-    msgs: [
-      {
-        id: "a",
-        text: "opening words",
-        body: { kind: "prose", text: "opening words" },
-      },
-      {
-        id: "b",
-        text: "original camera detail",
-        body: { kind: "authored", text: "Measured in 18 minutes" },
-      },
-    ],
-    summaries: [{ id: "s1", text: "checkpoint about the schedule" }],
-  };
-  assert.deepEqual(threadSearchReading(thread, "camera").messages, ["b"]);
-  assert.deepEqual(threadSearchReading(thread, "schedule").messages, []);
-  assert.deepEqual(threadSearchReading(thread, "18 minutes").messages, ["b"]);
+test("the working message stands after the range holding the last message said before it", () => {
+  const thread = [
+    { id: "a", key: "a" },
+    { id: "b", key: "b", progress: true },
+    { id: "c", key: "c" },
+    { id: "d", key: "d", progress: true },
+    { id: "e", key: "e" },
+  ];
+  const folded = { id: "s1", covers: ["c", "d"], protected: [], text: "Checkpoint" };
+  const ranges = withPendingProgress(summaryRanges(thread, [folded]));
+  // A step's run, a summary holding the message, and a message of its own.
+  assert.deepEqual(
+    ["b", "d", "e"].map((after) => workingPlace(ranges, after)),
+    [1, 2, 3],
+  );
+  assert.throws(() => workingPlace(ranges, "z"));
 });

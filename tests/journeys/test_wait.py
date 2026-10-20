@@ -15,6 +15,7 @@ from interact_support import (
     fetch,
     publish,
     record_claim,
+    write_record,
     yaml_document,
 )
 from leaf import files as files_model
@@ -144,7 +145,7 @@ def test_a_user_move_no_watcher_will_pick_up_messages_its_claude_code_session(
         )
         opened = datetime.now().astimezone() - timedelta(minutes=20)
         record_claim(page_dir, turn="turn-4", turn_opened=opened.isoformat())
-        cleanup_model.write_json(
+        write_record(
             page_dir / "status.json",
             {"state": "waiting", "detail": "", "ts": opened.isoformat()},
         )

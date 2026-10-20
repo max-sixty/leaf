@@ -153,6 +153,10 @@ export default function leaf(pi: ExtensionAPI) {
     hasUI = ctx.hasUI;
     process.env.LEAF = LEAF;
     process.env.LEAF_PI_PID = String(process.pid);
+    // Whether a watch follows each run, which Leaf's Stop hook reads
+    // (`PiHarness.watches_between_turns`).
+    if (hasUI) process.env.LEAF_PI_WATCH = "1";
+    else delete process.env.LEAF_PI_WATCH;
     const bin = path.dirname(LEAF);
     if (!(process.env.PATH ?? "").split(path.delimiter).includes(bin)) {
       process.env.PATH = [bin, process.env.PATH].filter(Boolean).join(path.delimiter);
@@ -226,7 +230,7 @@ export default function leaf(pi: ExtensionAPI) {
   });
 
   pi.on("agent_before_settle", async () => {
-    // The Stop hook hands over whatever is pending.
+    // The Stop hook hands over no input; the watch gives it a run of its own.
     handOff = false;
     const context = await hook({
       hook_event_name: "Stop",

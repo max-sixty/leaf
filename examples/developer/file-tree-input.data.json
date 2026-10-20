@@ -1,0 +1,28 @@
+{
+  "proposed-layout": {
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "src/importer.py",
+        "status": "modified"
+      },
+      {
+        "path": "src/formats/csv.py",
+        "status": "added"
+      },
+      {
+        "path": "src/formats/json.py",
+        "status": "renamed"
+      },
+      {
+        "path": "tests/test_importer.py"
+      },
+      {
+        "path": "legacy/parser.py",
+        "status": "deleted"
+      }
+    ]
+  }
+}

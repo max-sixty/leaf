@@ -115,6 +115,8 @@ and every thread that quotes it. To keep evidence exactly as it was reviewed, gi
 its own source id, such as `pr-patch-8f61c2a` for one commit's patch, and never write to
 that id again. Evidence that should follow later `data set` calls shares one id. Add
 `collapsed` to a large `lf-diff` so each file starts closed.
+Markdown and plain-text files wrap long lines by default. For a patch where all files
+should share one mode, set `overflow="wrap"` or `overflow="scroll"` on `lf-diff`.
 
 Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for images,
 video and audio; never inline media bytes. To let the reader zoom into an image, link it
@@ -124,8 +126,10 @@ Keep each capture in its own image file; never join captures into one. Where cap
 vary along named axes, such as the moment in an interaction, the case, the window width
 or the colour scheme, put them in a `<table>` with one linked capture per cell, a
 `<th scope="col">` naming each column's value and a `<th scope="row">` naming each
-row's, so each axis is labelled once. Place captures the reader compares side by side
-or one above the other, so whatever moved shows as a misalignment.
+row's, so each axis is labelled once. Captures that show what each option of a decision
+gives stand in their options instead (`authoring-decisions.md`). Place captures the
+reader compares side by side or one above the other, so whatever moved shows as a
+misalignment.
 
 Use a recording for a fixed demo and a live widget where the user should operate the
 subject. Show a browser journey recorded with Playwright as a trace in `lf-trace`
@@ -146,8 +150,8 @@ Put invented examples inside `lf-sample` and make them visibly fictional. Render
 tickets, source locations and URLs as real links.
 
 `lf-shot` shows two versions of an interface, before and after, captured at the same
-viewport. It draws each capture across the column, about 720px, so a whole 1440px window
-shows at half size. For a smaller change, capture the subject in a reading column
+viewport. It draws each capture across the column (`--col`), so a capture of a whole
+window shows well below its real size. For a smaller change, capture the subject in a reading column
 rather than the whole window and crop both frames to the change, or show the element at
 real size. Before writing the prose and `alt`, open both images and compare them where
 the change should be.

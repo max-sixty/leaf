@@ -4,7 +4,6 @@ from interact_support import (
     append_carried_log_record,
     page_state,
     publish,
-    served_thread,
 )
 from leaf import activity, thread
 
@@ -51,7 +50,7 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
     )
     failure = thread.post_reply(
         page_dir,
-        {"to": source["id"], "for": source["id"]},
+        {"parent": source["id"], "responds": source["id"]},
         "The agent turn ended.",
         failure="turn_failed",
         attempt="response-attempt",
@@ -65,61 +64,3 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
         "state": "failed",
         "responds": source["id"],
     }
-
-
-def test_user_prompt_names_the_latest_item_content_version(page_dir):
-    publish(page_dir)
-    root = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "root", "author": "user", "text": "Help"},
-    )
-    first = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "first-question",
-            "author": "agent",
-            "parent": root["id"],
-            "responds": root["id"],
-            "revision": 1,
-            "text": "First:",
-            "markup": '<lf-ask id="first">First question?</lf-ask>',
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "status-update",
-            "author": "agent",
-            "parent": first["id"],
-            "text": "Still checking.",
-        },
-    )
-    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert thread["user_prompt"] == {"message": first["id"], "version": first["id"]}
-
-    second = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "id": "second-question",
-            "author": "agent",
-            "parent": first["id"],
-            "revision": 1,
-            "text": "Second:",
-            "markup": '<lf-ask id="second">Second question?</lf-ask>',
-        },
-    )
-    edited = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "edit",
-            "id": "second-edit",
-            "author": "agent",
-            "message": second["id"],
-            "text": "Reworded second:",
-        },
-    )
-    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
-    assert thread["user_prompt"] == {"message": second["id"], "version": edited["id"]}

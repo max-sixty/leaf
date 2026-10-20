@@ -78,7 +78,7 @@ from leaf_website import (
 from leaf_dev import LEAF_COMMAND, ROOT, docs
 from leaf_dev.arms import environment
 from leaf_dev.commands.distribution import prepare
-from leaf_dev.docs import PRODUCT_ROUTES, catalog_preview, media_url
+from leaf_dev.docs import catalog_preview, media_url, product_route, product_sources
 from leaf_dev.example_data import catalog_sources, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 from leaf_dev.page_fixtures import (
@@ -141,7 +141,7 @@ def published_pages(
     """The page directories and clean public roots the website server projects."""
     product = (
         [
-            (product_page(out, source.name), PRODUCT_ROUTES[source.name].rstrip("/"))
+            (product_page(out, source.name), product_route(source).rstrip("/"))
             for source in product_sources()
         ]
         if include_products
@@ -235,11 +235,6 @@ def published_page_sources() -> list[Path]:
     return [*worked, *DEVELOPER_PAGES]
 
 
-def product_sources() -> list[Path]:
-    """The product documents, one per public route."""
-    return [docs.DOCS / name for name in PRODUCT_ROUTES]
-
-
 def product_page(out: Path, source_name: str) -> Path:
     """The independent page directory behind one product source's public route."""
     return out / "_leaf" / "pages" / Path(source_name).stem
@@ -280,7 +275,7 @@ def social_images(assets: Path) -> dict[str, str]:
     site root, and an example's preview in the catalog, whose authored markup selects
     those images. These website paths address the publishing page from any link.
     """
-    catalog = PRODUCT_ROUTES["examples.html"].rstrip("/")
+    catalog = product_route(docs.DOCS / "examples.html").rstrip("/")
     images = {
         f"{catalog}/{source.stem}": catalog
         + media_url(catalog_preview(assets, source.stem))
@@ -332,7 +327,7 @@ def deduplicate_tree(root: Path, *, mutable_names: set[str] = frozenset()) -> No
         body = path.read_bytes()
         identity = (len(body), hashlib.sha256(body).digest())
         existing = canonical.setdefault(identity, path)
-        if existing == path:
+        if existing == path or existing.samefile(path):
             continue
         path.unlink()
         os.link(existing, path)

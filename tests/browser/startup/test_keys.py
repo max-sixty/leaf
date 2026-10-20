@@ -1,22 +1,25 @@
 """Keys before the page presents: printed keys held and replayed at upgrade, keys and
 controls waiting for saved history, and the help overlay."""
 
+import re
+
 import pytest
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_navigation import JOURNEY_V1, _publish
 from render_harness import (
+    PANEL,
     consume_browser_errors,
     holding,
     leaf_page,
     open_page,
-    page_comment,
+    panel_field,
+    panel_menu,
     refuse,
     round_trip,
     select_words,
     watched,
-    write,
 )
 
 from browser.startup import (
@@ -97,9 +100,9 @@ def test_history_dependent_keys_wait_for_the_first_read(browser, serve, command)
     release()
     wait_until_ready(page)
     if command == "unread":
-        expect(page.locator('.lf-msg[data-mid="unread-note"]')).to_be_focused()
+        expect(page.locator('.lf-msg[data-event="unread-note"]')).to_be_focused()
     elif command == "version":
-        expect(page.locator(".lf-version-menu")).to_be_visible()
+        expect(page.locator('.lf-fp-menu[data-level="versions"]')).to_be_visible()
     else:
         round_trip(page)
         events = [
@@ -163,62 +166,6 @@ def test_response_reaction_controls_wait_for_history(browser, serve, route):
     ]
     assert len(reactions) == 1
     assert reactions[0]["anchor"]["section"] == "said"
-
-
-@pytest.mark.parametrize("command", ["find", "waiting", "walk"])
-def test_local_thread_keys_distinguish_local_matches_from_complete_history(
-    browser, serve, command
-):
-    """Enter can find a local send; waiting-on-user must include saved agent asks."""
-    agent_note = {
-        "id": "agent-question",
-        "kind": "comment",
-        "author": "agent",
-        "revision": 1,
-        "text": "A question for the reader.",
-        "markup": '<lf-ask id="agent-question-widget">A question for the reader.</lf-ask>',
-    }
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
-    held, release = _hold_startup(page, "state")
-    posts = []
-    page.route("**/api/event", lambda route: posts.append(route))
-    page.goto(serve(HELD_KEYS_PAGE, events=[agent_note]), wait_until="load")
-    holding(page, held, 1, "the first private-state read")
-    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-    page.locator(".lf-threads-toggle").click()
-    write(page_comment(page), "Local words")
-    page.locator(".lf-page-comment-card .lf-general").get_by_role(
-        "button", name="Send", exact=True
-    ).click()
-    local = page.locator('.lf-thread[data-id^="pending:"] > .lf-thread-summary')
-    expect(local).to_have_count(1)
-    holding(page, posts, 1, "the local send")
-    if command == "find":
-        search = page.get_by_role("searchbox", name="Find in threads")
-        search.fill("Local")
-        search.press("Enter")
-        expect(local).to_be_focused()
-        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    elif command == "walk":
-        page.locator(".lf-thread-filter-toggle").focus()
-        page.keyboard.press("t")
-        expect(local).to_be_focused()
-        expect(page.locator(".lf-held-keys")).to_have_count(0)
-        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    else:
-        local.focus()
-        page.keyboard.press("w")
-        expect(page.locator(".lf-held-keys kbd")).to_have_text("w")
-    release()
-    wait_until_ready(page)
-    if command == "waiting":
-        expect(page.locator(".lf-thread-view-summary")).to_contain_text("On me")
-        expect(page.locator('.lf-thread[data-id="agent-question"]')).to_be_visible()
-        expect(page.locator('.lf-thread[data-id^="pending:"]')).to_be_hidden()
-    for route in posts:
-        route.continue_()
-    page.unroute("**/api/event")
-    round_trip(page)
 
 
 def test_package_reading_keys_work_while_history_waits_and_after_offline_fallback(
@@ -330,8 +277,8 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
     holding(page, held, 1, "the clock's retry of the malformed first read")
     rendered(page)
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Page couldn't apply current state — reload"
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", re.compile("^Page couldn't apply current state — reload")
     )
     assert (
         page.evaluate(
@@ -447,14 +394,50 @@ def test_a_key_pressed_on_a_checkbox_before_the_runtime_loads_is_held(browser, s
 
 
 @pytest.mark.parametrize("stage", ["module", "state"])
+def test_editors_and_select_typeahead_keep_letters_before_presentation(
+    browser, serve, stage
+):
+    """A native field keeps typing and a select keeps typeahead while page keys wait."""
+    url = serve(
+        leaf_page(
+            "Typing while loading",
+            '<h1>Typing while loading</h1><p id="said">A commented sentence.</p>'
+            '<textarea id="editor" aria-label="Notes"></textarea>'
+            '<select id="pick" aria-label="Animal"><option>dog</option>'
+            "<option>cat</option></select>",
+        ),
+        events=[HELD_KEYS_THREAD],
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, stage)
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, f"the {stage} request")
+    if stage == "state":
+        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    page.locator("#editor").click()
+    page.keyboard.press("c")
+    expect(page.locator("#editor")).to_have_value("c")
+    page.locator("#pick").focus()
+    page.keyboard.press("c")
+    expect(page.locator("#pick")).to_have_value("cat")
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    page.locator("#said").click()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
+    release()
+    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator("#editor")).to_have_value("c")
+
+
+@pytest.mark.parametrize("stage", ["module", "state"])
 def test_disabled_quick_shortcuts_are_not_held_before_presentation(
     browser, serve, stage
 ):
     """The saved preference applies before either bootstrap or controller can act."""
     url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
     page = open_page(browser, url)
-    page.locator(".lf-banner-more").click()
-    page.get_by_role("button", name="Keyboard shortcuts", exact=True).click()
+    panel_menu(page).locator(".lf-fp-item", has_text="Keyboard shortcuts").click()
     page.get_by_role("checkbox", name="Quick keyboard shortcuts").uncheck()
     page.keyboard.press("Escape")
     held, release = _hold_startup(page, stage)
@@ -489,9 +472,7 @@ def test_disabling_quick_shortcuts_discards_keys_already_held(browser, serve):
         release()
     wait_until_ready(page)
     expect(page.locator(".lf-held-keys")).to_have_count(0)
-    expect(page.locator("body")).not_to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
+    expect(page.locator(PANEL)).not_to_have_attribute("data-open", "threads")
     page.keyboard.press("t")
     expect(page.locator('[data-thread="held-thread"]:focus')).to_have_count(0)
 
@@ -518,9 +499,7 @@ def test_a_key_pressed_while_held_keys_run_waits_its_turn(browser, serve):
     expect(page.locator(".lf-held-keys kbd")).to_have_text("g")
 
     release()
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-auxiliary-surface", "threads"
-    )
+    expect(page.locator(PANEL)).to_have_attribute("data-open", "threads")
 
 
 def test_held_keys_after_one_that_opens_a_box_are_typed_into_it(browser, serve):
@@ -642,10 +621,10 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
         page.locator(".lf-command-reference", has_text="Edit the text in place")
     ).to_be_visible()
     # Help is a scope: the table stands down behind it, so c must open nothing under
-    # the sheet, neither Threads nor the page comment card.
+    # the sheet, neither a panel view nor the page comment in the panel's field.
     page.keyboard.press("c")
-    expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+    expect(page.locator(f"{PANEL}[data-open]")).to_have_count(0)
+    expect(panel_field(page)).not_to_be_focused()
     expect(page.locator(".lf-command-reference")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()

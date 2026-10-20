@@ -117,7 +117,7 @@ lf-atlas-worker > details > summary {
       display: block;
       margin-block: var(--sp-4);
       /* The sample rows stack from the room the gallery has. A gallery in a narrow
-       * column or beside an open drawer has less than the page shell does. */
+       * column has less than the page shell does. */
       container: lf-margin-entry-gallery / inline-size;
     }
 

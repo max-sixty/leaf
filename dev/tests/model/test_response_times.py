@@ -377,7 +377,7 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
                 "type": "reply_stream_words",
                 "ts": at(8),
                 "input_id": "one",
-                "reply_to": "one",
+                "parent": "one",
                 "attempt": "answer-attempt",
                 "session": "model-session",
                 "turn": "stream-turn",
@@ -412,9 +412,9 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
             1300,
             input_id="two",
             reply_id=None,
-            presentation_kind="queue_words",
+            presentation_kind="status_words",
             reply_kind="work",
-            surface="queue",
+            surface="panel",
         ),
         row(
             4,
@@ -490,7 +490,7 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
     assert rows["three"]["provenance"]["purpose"] == "user-review"
     assert rows["one"]["milestones"]["send_to_visible"]["elapsed_s"] == 0.5
     assert rows["two"]["milestones"]["send_to_visible"]["elapsed_s"] == 0.2
-    assert rows["two"]["milestones"]["send_to_visible"]["surface"] == "queue"
+    assert rows["two"]["milestones"]["send_to_visible"]["surface"] == "panel"
     assert "send_to_visible" not in rows["three"]["milestones"]
     assert report["summary"]["send_to_visible"]["missing"] == 1
     selected = CliRunner().invoke(cli, [*args, "--exclude-purpose", "test"])

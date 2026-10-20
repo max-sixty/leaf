@@ -28,7 +28,7 @@ def test_demo_recording_drives_the_browser_journey(tmp_path):
     assert (output / "demo.gif").read_bytes().startswith(b"GIF89a")
     # One staged scene, photographed for each surface that shows it: the landing
     # page's figure in both schemes, and the card, at the 1.91:1 an unfurler draws.
-    # Shot at that shape rather than cropped to it, so the banner survives the trip.
+    # Shot at that shape rather than cropped to it, so the floating panel survives the trip.
     for name, size in (
         ("session-light.png", (1280, 953)),
         ("session-dark.png", (1280, 953)),

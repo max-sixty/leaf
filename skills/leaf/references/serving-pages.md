@@ -74,8 +74,8 @@ A page vendored by a newer Leaf than the one you run is refused as well, and `pa
 won't take it back to an older protocol; the refusal says how to load a newer Leaf.
 
 While Leaf is in alpha, an update can also break an older page without a protocol
-change. `page check` and the page's banner menu name the Leaf that vendored the page and
-the one running, with their dates. If a page misbehaves and its Leaf is much older,
+change. `page check` and the leaf's menu in the page's panel name the Leaf that
+vendored the page and the one running, with their dates. If a page misbehaves and its Leaf is much older,
 re-vendor it rather than working around the fault. Don't re-vendor a working page for
 its age alone, since that reloads the user's open tabs.
 
@@ -117,7 +117,7 @@ leaf page state <page>
 ```
 
 Read the active revision's HTML (`active.file`) and the `state` over it, then the open
-items, the threads, and `measurement_lag` for figures whose sources have run again, as
+obligations, the threads, and `measurement_lag` for figures whose sources have run again, as
 `authoring-revisions.md`, "Read before editing", describes. Then run
 `leaf page claim <page>`, which moves the page to your session and stops another
 session's watcher from watching it, and watch it as your harness's reference says.

@@ -8,7 +8,7 @@ import { labelOf, spell, word } from "./bindings.js";
 // A sequence row may name several presses, while an ordinary row still carries one compact
 // label. Keep that distinction structured until the DOM is built: spaces in a label are
 // words inside one step, never guessed back into a sequence.
-export const rowSteps = (row, route = null) => {
+const rowSteps = (row, route = null) => {
   if (route) return [spell(route.binding)];
   const label = labelOf(row);
   return word(row.sequenceSteps) ?? (label ? [label] : []);

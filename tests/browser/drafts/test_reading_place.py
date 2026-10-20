@@ -6,7 +6,6 @@ from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_harness import (
     LANDING_TOP,
-    ROOT,
     leaf_page,
     open_page,
     resized,
@@ -114,18 +113,15 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
 
 
 @pytest.mark.parametrize("region", [False, True], ids=["page", "pane"])
-def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
-    browser, serve, region
-):
-    """The banner takes a second row when the window narrows. The browser's scroll
-    anchoring holds the line the reader landed on where it stood in the window, which is
-    now under the banner; the page moves with the banner instead, in a document as in
-    a pane the page carries, and back again when the window widens. A control the reader
-    has focused at the top of the page, where the browser anchors nothing, stays in view
-    as the words above it rewrap."""
+def test_a_page_keeps_its_place_as_the_window_changes_width(browser, serve, region):
+    """The words above the line the reader landed on rewrap as the window narrows; the
+    line stays where it stood below the landing band, in a document as in a pane the
+    page carries, and back again when the window widens. A control the reader has
+    focused at the top of the page, where the browser anchors nothing, stays in view as
+    the words above it rewrap."""
     lines = "".join(
         f'<p id="line-{n}">Line {n} of the incident, long enough to rewrap when the '
-        "window narrows to a phone and the banner takes its second row.</p>"
+        "window narrows to a phone.</p>"
         for n in range(60)
     )
     lines = (
@@ -164,7 +160,6 @@ def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
     resized(page, 700, 800)
     rendered(page)
     narrowed = page.evaluate(reading, "line-30")
-    assert narrowed["band"] > landed["band"], "the banner should take a second row"
     assert narrowed["top"] - narrowed["band"] == pytest.approx(below, abs=2), narrowed
     resized(page, 1280, 800)
     rendered(page)
@@ -195,9 +190,9 @@ def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_wi
     """The reader landed on a section's heading; a pane the page carries starts lower in
     the window. Text between them rewraps as the window changes width, so the pane's own
     first line and the heading cannot both keep their distances. The heading is what the
-    reader reads, so it stays where it stood below the banner, at each width and back,
-    even after they turned the wheel with the pointer over the pane's words, as a finger
-    scrolling a phone over a queue does."""
+    reader reads, so it stays where it stood below the landing band, at each width and
+    back, even after they turned the wheel with the pointer over the pane's words, as a
+    finger scrolling a phone over a queue does."""
     filler = "".join(
         f"<p>Paragraph {n} sets the scene in enough words to rewrap to more lines when "
         "the window narrows to a phone, pushing what follows further down.</p>"
@@ -355,14 +350,15 @@ def held_page(browser, serve):
     return page
 
 
-@pytest.mark.parametrize("move", list(HELD_PAGE_MOVES))
-def test_a_script_scroll_moves_a_held_page(browser, serve, move):
+def test_a_script_scroll_moves_a_held_page(browser, serve, subtests):
     """After a width change the page holds the reader's place and applies it again as
     the layout settles. A page script that scrolls, before the restore has landed, as it
     lands, or after, with the layout growing around it or not, has moved the page: the
     page keeps that scroll through the next layout change, and the next width change
-    starts from where the script left it, not from the held place."""
-    when, by, script = HELD_PAGE_MOVES[move]
+    starts from where the script left it, not from the held place.
+
+    Each move needs a page of its own, held fresh; the control they are measured
+    against is the same for every move, so it is read once."""
     scrolled = "document.scrollingElement.scrollTop"
     # Where the restore alone leaves the page, with no script.
     control = held_page(browser, serve)
@@ -371,41 +367,46 @@ def test_a_script_scroll_moves_a_held_page(browser, serve, move):
     restored = control.evaluate(scrolled)
     control.context.close()
 
-    page = held_page(browser, serve)
-    if when == "armed":
-        page.evaluate(script)
-    resized(page, 390, 800)
-    rendered(page)
-    if when == "settled":
-        page.evaluate(script)
-    scroll_settled(page)
-    rendered(page)
-    moved = page.evaluate(scrolled)
-    assert moved > restored + by - 100, f"the script's scroll was undone ({moved})"
-    page.evaluate(
-        "document.querySelector('main').append("
-        "Object.assign(document.createElement('p'), {textContent: 'More.'}))"
-    )
-    rendered(page)
-    assert page.evaluate(scrolled) == pytest.approx(moved, abs=2)
-    line = page.evaluate(
-        """() => {
-          const band = parseFloat(getComputedStyle(document.scrollingElement)
-            .scrollPaddingTop) || 0;
-          const line = [...document.querySelectorAll('main p')]
-            .find(p => p.getBoundingClientRect().top >= band);
-          line.id = 'read-line';
-          return line.getBoundingClientRect().top - band;
-        }"""
-    )
-    resized(page, 1280, 800)
-    rendered(page)
-    after = page.evaluate(
-        """() => document.getElementById('read-line').getBoundingClientRect().top
-          - (parseFloat(getComputedStyle(document.scrollingElement)
-            .scrollPaddingTop) || 0)"""
-    )
-    assert 0 <= after <= line + 60, (line, after)
+    for move, (when, by, script) in HELD_PAGE_MOVES.items():
+        with subtests.test(move=move):
+            page = held_page(browser, serve)
+            if when == "armed":
+                page.evaluate(script)
+            resized(page, 390, 800)
+            rendered(page)
+            if when == "settled":
+                page.evaluate(script)
+            scroll_settled(page)
+            rendered(page)
+            moved = page.evaluate(scrolled)
+            assert moved > restored + by - 100, (
+                f"the script's scroll was undone ({moved})"
+            )
+            page.evaluate(
+                "document.querySelector('main').append("
+                "Object.assign(document.createElement('p'), {textContent: 'More.'}))"
+            )
+            rendered(page)
+            assert page.evaluate(scrolled) == pytest.approx(moved, abs=2)
+            line = page.evaluate(
+                """() => {
+                  const band = parseFloat(getComputedStyle(document.scrollingElement)
+                    .scrollPaddingTop) || 0;
+                  const line = [...document.querySelectorAll('main p')]
+                    .find(p => p.getBoundingClientRect().top >= band);
+                  line.id = 'read-line';
+                  return line.getBoundingClientRect().top - band;
+                }"""
+            )
+            resized(page, 1280, 800)
+            rendered(page)
+            after = page.evaluate(
+                """() => document.getElementById('read-line').getBoundingClientRect().top
+                  - (parseFloat(getComputedStyle(document.scrollingElement)
+                    .scrollPaddingTop) || 0)"""
+            )
+            assert 0 <= after <= line + 60, (line, after)
+            page.context.close()
 
 
 def test_a_bounded_box_holds_its_place_while_its_layout_settles(browser, serve):
@@ -461,52 +462,9 @@ def test_a_bounded_box_holds_its_place_while_its_layout_settles(browser, serve):
     )
 
 
-def test_a_script_scroll_as_content_grows_above_ends_the_hold(browser, serve):
-    """Long after a width change restored the gallery's place, one frame grows content
-    above the reader, which anchoring answers, and a script scrolls on. The box and its
-    landmark moved by different distances, which reads as layout's only while the
-    shift's layout settles; after that it is a move someone made, so the next width
-    change starts from where the script left the page, not from the held place."""
-    gallery = ROOT / "examples/developer/feature-gallery.html"
-    page = open_page(browser, serve(gallery))
-    resized(page, 390, 800)
-    rendered(page)
-    page.evaluate("location.hash = 'bg-side-list'")
-    rendered(page)
-    box = page.locator("#bg-side-list-guide").bounding_box()
-    page.mouse.move(box["x"] + 20, box["y"] + 5)
-    page.mouse.wheel(0, 8)
-    scroll_settled(page)
-    rendered(page)
-    resized(page, 1200, 800)
-    rendered(page)
-    heading = """() => document.querySelector('#bg-side-list h2').getBoundingClientRect().top
-      - (parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0)"""
-    held = page.evaluate(heading)
-    page.evaluate(
-        """() => new Promise(done => requestAnimationFrame(() => {
-          const late = document.createElement('div');
-          late.style.height = '300px';
-          const section = document.getElementById('bg-side-list');
-          section.parentNode.insertBefore(late, section);
-          document.scrollingElement.scrollBy(0, 400);
-          done();
-        }))"""
-    )
-    scroll_settled(page)
-    rendered(page)
-    assert page.evaluate(heading) < held - 300, "the script's scroll was undone"
-    resized(page, 390, 800)
-    rendered(page)
-    assert page.evaluate(heading) < held - 300, "the held place came back"
-
-
-def test_a_page_that_never_settles_lets_the_held_place_go_after_a_while(browser, serve):
-    """A chart whose box breathes forever keeps the page's rendering from ever reading
-    settled. A width change restores the reader's place and holds it while the layout
-    settles, but no longer than a moment: well after, a script that scrolls as content
-    grows above the reader moved the page, and the next width change starts from
-    there rather than putting the held place back."""
+def reading_section_page(title, before=""):
+    """A page whose `#read` section, a heading over forty paragraphs, stands below
+    thirty lead paragraphs, all long enough to rewrap at a phone's width."""
     lead = "".join(
         f"<p>Lead paragraph {n} has enough words to rewrap at a phone width and push"
         " what follows further down the page.</p>"
@@ -517,15 +475,71 @@ def test_a_page_that_never_settles_lets_the_held_place_go_after_a_while(browser,
         " what follows further down the page.</p>"
         for n in range(40)
     )
-    source = leaf_page(
+    return leaf_page(
+        title,
+        f'{before}{lead}<section id="read"><h2>The section the reader reads</h2>'
+        f"{body}</section>",
+    )
+
+
+# Where `#read`'s heading stands below the landing band.
+READ_HEADING = """() => document.querySelector('#read h2').getBoundingClientRect().top
+  - (parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0)"""
+# In one frame, content grows above `#read`, which anchoring answers, and a script
+# scrolls on.
+GROW_ABOVE_AND_SCROLL = """() => new Promise(done => requestAnimationFrame(() => {
+  const late = document.createElement('div');
+  late.style.height = '300px';
+  const section = document.getElementById('read');
+  section.parentNode.insertBefore(late, section);
+  document.scrollingElement.scrollBy(0, 400);
+  done();
+}))"""
+
+
+def test_a_script_scroll_as_content_grows_above_ends_the_hold(browser, serve):
+    """Once the layout a width change restored the reader's place in has settled, one
+    frame grows content above the reader, which anchoring answers, and a script scrolls
+    on. The box and its landmark moved by different distances, which reads as layout's
+    only while the shift's layout settles; after that it is a move someone made, so the
+    next width change starts from where the script left the page, not from the held
+    place."""
+    page = open_page(browser, serve(reading_section_page("Content grows above")))
+    resized(page, 390, 800)
+    rendered(page)
+    page.evaluate("location.hash = 'read'")
+    rendered(page)
+    box = page.locator("#read p").first.bounding_box()
+    page.mouse.move(box["x"] + 20, box["y"] + 5)
+    page.mouse.wheel(0, 8)
+    scroll_settled(page)
+    rendered(page)
+    resized(page, 1200, 800)
+    rendered(page)
+    held = page.evaluate(READ_HEADING)
+    page.evaluate(GROW_ABOVE_AND_SCROLL)
+    scroll_settled(page)
+    rendered(page)
+    assert page.evaluate(READ_HEADING) < held - 300, "the script's scroll was undone"
+    resized(page, 390, 800)
+    rendered(page)
+    assert page.evaluate(READ_HEADING) < held - 300, "the held place came back"
+
+
+def test_a_page_that_never_settles_lets_the_held_place_go_after_a_while(browser, serve):
+    """A chart whose box breathes forever keeps the page's rendering from ever reading
+    settled. A width change restores the reader's place and holds it while the layout
+    settles, but no longer than a moment: well after, a script that scrolls as content
+    grows above the reader moved the page, and the next width change starts from
+    there rather than putting the held place back."""
+    source = reading_section_page(
         "A page that never settles",
         "<style>@keyframes breathe { from { width: 60%; } to { width: 100%; } }"
         " .breathe #breathing { animation: breathe 3s linear infinite alternate; }"
         "</style>"
         '<div id="breathing"><lf-chart id="spin" data-height="120"><pre>\n'
         '{ ariaLabel: "Two teams", marks: [Plot.barY([{team: "a", n: 12},'
-        ' {team: "b", n: 19}], {x: "team", y: "n"})] }\n</pre></lf-chart></div>'
-        f'{lead}<section id="read"><h2>The section the reader reads</h2>{body}</section>',
+        ' {team: "b", n: 19}], {x: "team", y: "n"})] }\n</pre></lf-chart></div>',
     )
     page = open_page(browser, serve(source))
     page.evaluate("document.documentElement.classList.add('breathe')")
@@ -546,25 +560,14 @@ def test_a_page_that_never_settles_lets_the_held_place_go_after_a_while(browser,
     settle()
     resized(page, 1200, 800)
     settle()
-    heading = """() => document.querySelector('#read h2').getBoundingClientRect().top
-      - (parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) || 0)"""
-    held = page.evaluate(heading)
+    held = page.evaluate(READ_HEADING)
     page.wait_for_timeout(1500)
-    page.evaluate(
-        """() => new Promise(done => requestAnimationFrame(() => {
-          const late = document.createElement('div');
-          late.style.height = '300px';
-          const section = document.getElementById('read');
-          section.parentNode.insertBefore(late, section);
-          document.scrollingElement.scrollBy(0, 400);
-          done();
-        }))"""
-    )
+    page.evaluate(GROW_ABOVE_AND_SCROLL)
     settle()
-    assert page.evaluate(heading) < held - 300, "the script's scroll was undone"
+    assert page.evaluate(READ_HEADING) < held - 300, "the script's scroll was undone"
     resized(page, 390, 800)
     settle()
-    assert page.evaluate(heading) < held - 300, "the held place came back"
+    assert page.evaluate(READ_HEADING) < held - 300, "the held place came back"
 
 
 def edge_word(blocks):

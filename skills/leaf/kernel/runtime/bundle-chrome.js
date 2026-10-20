@@ -57,6 +57,9 @@ import {
   watchArrivals
 } from "./bundle-page-paint.js";
 import {
+  documentChanged
+} from "./bundle-semantic-state.js";
+import {
   PRESSES,
   WORKS,
   keeps,
@@ -68,7 +71,7 @@ import {
   sizeObserver,
   under,
   upFrom
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   anchorKey,
   isElementName
@@ -78,6 +81,9 @@ import {
 var chromeRoot = document.createElement("div");
 chromeRoot.className = "lf-chrome";
 var chromeForeground = document.createElement("dialog");
+chromeForeground.className = "lf-ui lf-foreground";
+chromeForeground.setAttribute("open", "");
+chromeForeground.setAttribute("role", "presentation");
 
 // runtime/visual-parts.js
 var registrations = /* @__PURE__ */ new WeakMap();
@@ -269,6 +275,14 @@ var resolvedPassage = ({ place, segments }) => ({
   place,
   segments
 });
+var resolvedInMessage = ({ message }) => ({
+  exact: true,
+  status: "exact",
+  datumElement: null,
+  kind: "message",
+  message,
+  place: null
+});
 var targetElement = (resolved) => resolved?.kind === "element" ? resolved.element : null;
 var targetSegments = (resolved) => resolved?.kind === "passage" ? resolved.segments : [];
 var targetPlace = (resolved) => resolved?.place ?? null;
@@ -321,6 +335,7 @@ var projectedDatum = (source, key) => {
 };
 function datumLabel(anchor) {
   if (!anchor?.datum) return "";
+  documentChanged();
   const source = sectionOf(anchor);
   const datums = currentDatums(
     source,
@@ -335,28 +350,6 @@ function suppliedDatum(source, key) {
   const supplied = source?.lfDataDatum?.(key);
   return supplied instanceof Element && under(supplied, source) && /** @type {HTMLElement | SVGElement} */
   supplied.dataset.lfProjection === source.id ? supplied : null;
-}
-function requireReference(verb, owner, attribute) {
-  if (typeof attribute !== "string" || !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute))
-    throw new TypeError(
-      `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`
-    );
-}
-function referencedProjection(owner, attribute) {
-  const id = owner.getAttribute(attribute);
-  if (!id) return null;
-  const { tag, key } = registry[owner.localName]["x-refers"][attribute];
-  if (tag) {
-    const within = registry[tag]["x-unique"][key];
-    const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
-    const scope2 = scopeOf(owner);
-    return [...scope2?.querySelectorAll(tag) ?? []].find(
-      (member) => scopeOf(member) === scope2 && member.getAttribute(key) === id
-    ) ?? null;
-  }
-  const scope = authoredScope(owner);
-  const page = pageDocument();
-  return elementById(id, scope) ?? (scope === page ? null : elementById(id, page));
 }
 function addressedElements(source, key) {
   if (typeof source.lfElementsFor === "function")
@@ -796,8 +789,11 @@ function resolveAnchor(anchor) {
 }
 var fragmentTarget = (fragment) => fragment ? targetElement(resolveAnchor({ section: fragmentId(fragment) })) : null;
 
+// runtime/marks.js
+var marks = { "x-content": { "paint": "data-lf-content", "message": true }, "x-verbatim": { "paint": "data-lf-verbatim", "message": true }, "x-space": { "paint": "data-lf-space", "authored": "data-width", "authored_on": "content", "message": false }, "x-inline": { "paint": "data-lf-inline", "message": true }, "x-exhibit": { "paint": "data-lf-exhibit", "message": true }, "x-bound": { "paint": "data-lf-bound", "authored": "data-bound", "authored_on": "content", "message": true }, "x-height": { "paint": "data-lf-height", "authored": "data-height", "authored_on": "declared", "message": true }, "x-reading-role": { "paint": "data-lf-reading-role", "message": true }, "x-resident": { "paint": "data-lf-resident", "message": false }, "x-views": { "paint": "data-lf-views", "message": true }, "x-visual": { "paint": "data-lf-visual", "presence": true, "message": true }, "x-awaits": { "paint": "data-lf-awaits", "presence": true, "message": true } };
+
 // runtime/bounds.js
-var BOUND = "data-lf-bound";
+var BOUND = marks["x-bound"].paint;
 var BOUNDED = `[${BOUND}]`;
 var FOLLOWING = `[${BOUND}="end"]`;
 var holds = /* @__PURE__ */ new WeakMap();
@@ -1452,6 +1448,7 @@ function anchorView(node, target, changed) {
 export {
   chromeRoot,
   chromeForeground,
+  resolvedInMessage,
   targetElement,
   targetSegments,
   targetPlace,
@@ -1475,8 +1472,6 @@ export {
   sectionOf,
   projectedDatum,
   datumLabel,
-  requireReference,
-  referencedProjection,
   addressedElements,
   revealAddressed,
   visualParts,
@@ -1496,15 +1491,16 @@ export {
   aimTargets,
   resolveAnchor,
   fragmentTarget,
+  marks,
   followingItsEnd,
   boundedBlockOf,
   holdArrivingBounds,
   elementFrame,
-  elementBorderFrame,
   scrollAxes,
   localScrollBy,
   anchorReading,
   nameAnchor,
+  nameable,
   anchorElement,
   anchorReaches,
   scrollsWith,

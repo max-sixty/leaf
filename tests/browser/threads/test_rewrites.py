@@ -30,7 +30,8 @@ from render_harness import (
 )
 
 from browser.threads import (
-    focus_panel_thread,
+    PANEL_REPLY,
+    open_panel_thread,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -139,7 +140,6 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
             "author": "user",
             "revision": 1,
             "text": "Fit the north bracket.",
-            "anchor": {"section": "cd-q"},
         },
     )
     answer = append_carried_log_record(
@@ -160,14 +160,13 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{first["id"]}"])')
+    thread = open_panel_thread(page, first["id"])
     expect(thread.locator(".lf-msg-edit").first).to_have_attribute("tabindex", "-1")
 
-    thread.locator(".lf-thread-reply leaf-text").focus()
+    page.locator(PANEL_REPLY).focus()
     page.keyboard.press("ArrowUp")
     latest = thread.locator(
-        f'.lf-msg[data-mid="{second["id"]}"] .lf-msg-editor leaf-text'
+        f'.lf-msg[data-event="{second["id"]}"] .lf-msg-editor leaf-text'
     )
     expect(latest).to_be_focused()
     # ↑ on the box's first line goes to its start, as in any box, and ↑ from there on.
@@ -178,7 +177,7 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     expect(latest).to_have_js_property("selectionStart", 0)
     page.keyboard.press("ArrowUp")
     earlier = thread.locator(
-        f'.lf-msg[data-mid="{first["id"]}"] .lf-msg-editor leaf-text'
+        f'.lf-msg[data-event="{first["id"]}"] .lf-msg-editor leaf-text'
     )
     expect(earlier).to_be_focused()
     expect(thread.locator(".lf-msg-editor")).to_have_count(1)
@@ -213,10 +212,10 @@ def _rewrite_surface(
     browser, serve, surface, size=(1400, 900), resolved=False, thanks=False
 ):
     """A thread holding the user's message and the agent's answer, drawn on `surface`:
-    the Threads panel, the seat in the page's flow, the margin card, or a package
-    reader's Feed mode; `resolved`, in the panel, under its Resolved filter; `thanks`,
-    with the user's own reply after the answer. Returns the page, the thread, and the
-    message as that surface draws it."""
+    the floating panel's view of a thread about the whole page, the seat in the
+    page's flow, the margin card, or a package reader's Feed mode; `resolved`, resolved;
+    `thanks`, with the user's own reply after the answer. Returns the page, the thread,
+    and the message as that surface draws it."""
     url = (
         serve(PANEL_PAGE)
         if surface == "card"
@@ -232,7 +231,7 @@ def _rewrite_surface(
             "author": "user",
             "revision": 1,
             "text": "Fit the north bracket.",
-            "anchor": {"section": anchor},
+            **({} if surface == "panel" else {"anchor": {"section": anchor}}),
         },
     )
     answer = append_carried_log_record(
@@ -264,12 +263,8 @@ def _rewrite_surface(
     page = open_page(browser, url)
     resized(page, *size)
     if surface == "panel":
-        page.locator(".lf-threads-toggle").click()
-        if resolved:
-            page.locator(".lf-thread-filter-toggle").click()
-            page.locator('[data-filter-value="resolved"]').click()
-        thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{mine["id"]}"])')
-        message = thread.locator(f'.lf-msg[data-mid="{mine["id"]}"]')
+        thread = open_panel_thread(page, mine["id"])
+        message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
     elif surface == "seat":
         thread = page.locator("#cd-q .lf-page-thread").first
         message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
@@ -284,6 +279,14 @@ def _rewrite_surface(
     expect(message).to_be_visible()
     rendered(page)
     return page, thread, message
+
+
+def reply_row(page, thread):
+    """The thread's reply row: the panel's field for a thread open in the panel, else
+    the one the thread draws."""
+    if thread.evaluate("node => node.matches('.lf-fp-view')"):
+        return page.locator(".lf-fp-field .lf-thread-reply")
+    return thread.locator(".lf-thread-reply")
 
 
 # Where the first line of a node's words stands: its first text box's left and top.
@@ -321,7 +324,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     the word it selected took the caret the editor had just set. A package reader's
     Feed mode, drawing each message on its own, offered no rewrite at all."""
     page, thread, message = _rewrite_surface(browser, serve, surface)
-    reply = thread.locator(".lf-thread-reply leaf-text").first
+    reply = reply_row(page, thread).locator("leaf-text").first
     reply.click()
     rendered(page)
     words = message.locator(".lf-msg-text")
@@ -348,8 +351,11 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     # there the message keeps its height and the words their line.
     assert abs(message.bounding_box()["y"] - rest["message"]["y"]) < 0.5
     field = message.locator(".lf-msg-editor > .lf-compose-field").bounding_box()
-    reply_field = thread.locator(".lf-thread-reply .lf-compose-field").bounding_box()
-    for side in ("x", "width") if surface == "card" else ("x", "width", "height"):
+    reply_field = reply_row(page, thread).locator(".lf-compose-field").bounding_box()
+    # The panel's reply box stands in its field, under the view and across the row, so
+    # there the rewrite takes its height alone; a card's rewrite fits its message's lines.
+    sides = {"panel": ("height",), "card": ("x", "width")}
+    for side in sides.get(surface, ("x", "width", "height")):
         assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
     # Feed mode draws its messages at the reply box's edge, not inset in a transcript,
     # so there the words take the reply box's inset instead.
@@ -489,15 +495,15 @@ def test_a_rewrite_opened_on_held_words_starts_from_the_words_as_they_stand(
 
 def test_one_editor_shows_a_message_across_its_readers(browser, serve):
     """A rewrite opened on a message in Feed stayed open there when the same message's
-    rewrite was opened in the Threads panel, so two editors of one draft stood at once.
+    rewrite was opened in another reader, so two editors of one draft stood at once.
     Opening it in one reader closes it in the other, the message there reading as it
     stands."""
     page, _workspace, message = _rewrite_surface(browser, serve, "feed")
     mine = message.get_attribute("data-event")
     message.locator(".lf-msg-text").dblclick()
     expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    page.locator(".lf-threads-toggle").click()
-    card = page.locator(f'.lf-thread .lf-msg[data-mid="{mine}"]')
+    page.locator('[data-lf-margin-for="cd-q"] .lf-margin-marker').click()
+    card = page.locator(f'.lf-margin-preview .lf-msg[data-event="{mine}"]')
     card.locator(".lf-msg-text").dblclick()
     expect(card.locator(".lf-msg-editor leaf-text")).to_be_focused()
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
@@ -509,16 +515,16 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
 ):
     """Opening a rewrite of one message closes a rewrite of another in the same thread
     whose words the user left as they were, in a thread card. A rewrite left open in
-    Feed stayed open when another message's rewrite opened in the Threads panel, since
+    Feed stayed open when another message's rewrite opened in another reader, since
     each reader put aside only its own."""
     page, workspace, message = _rewrite_surface(browser, serve, "feed", thanks=True)
     message.locator(".lf-msg-text").dblclick()
     expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    page.locator(".lf-threads-toggle").click()
-    said = page.locator(".lf-thread .lf-msg.user").filter(has_text="Thanks.")
+    page.locator('[data-lf-margin-for="cd-q"] .lf-margin-marker').click()
+    said = page.locator(".lf-margin-preview .lf-msg.user").filter(has_text="Thanks.")
     # Named by its id, since an open rewrite holds its words in the box, not as text.
     thanks = page.locator(
-        f'.lf-thread .lf-msg[data-mid="{said.get_attribute("data-mid")}"]'
+        f'.lf-margin-preview .lf-msg[data-event="{said.get_attribute("data-event")}"]'
     )
     thanks.locator(".lf-msg-text").dblclick()
     expect(thanks.locator(".lf-msg-editor leaf-text")).to_be_focused()
@@ -541,7 +547,6 @@ def test_walking_up_through_rewrites_shows_each_one(browser, serve):
             "author": "user",
             "revision": 1,
             "text": "Fit the north bracket.",
-            "anchor": {"section": "cd-q"},
         },
     )
     long = " ".join(["The steel pair held through the frost of February."] * 12)
@@ -571,16 +576,17 @@ def test_walking_up_through_rewrites_shows_each_one(browser, serve):
         mine.append(said["id"])
     page = open_page(browser, url)
     resized(page, 1400, 600)
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{first["id"]}"])')
-    thread.locator(".lf-thread-reply leaf-text").focus()
+    thread = open_panel_thread(page, first["id"])
+    page.locator(PANEL_REPLY).focus()
     page.keyboard.press("ArrowUp")
     for name in [*reversed(mine), first["id"]]:
-        editor = thread.locator(f'.lf-msg[data-mid="{name}"] .lf-msg-editor leaf-text')
+        editor = thread.locator(
+            f'.lf-msg[data-event="{name}"] .lf-msg-editor leaf-text'
+        )
         expect(editor).to_be_focused()
         rendered(page)
         # The words' first line is what the hit test at its middle finds.
-        assert editor.evaluate(
+        seen = editor.evaluate(
             """n => {
               const b = n.getBoundingClientRect();
               let at = document.elementFromPoint(b.left + 4, b.top + 8);
@@ -589,9 +595,11 @@ def test_walking_up_through_rewrites_shows_each_one(browser, serve):
                 if (!inner || inner === at) break;
                 at = inner;
               }
-              return n === at || n.contains(at) || n.shadowRoot.contains(at);
+              return n === at || n.contains(at) || Boolean(n.shadowRoot?.contains(at))
+                || [at?.localName, at?.className, b.top, b.bottom].join(' ');
             }"""
-        ), name
+        )
+        assert seen is True, (name, seen)
         page.keyboard.press("Home")
         page.keyboard.press("ArrowUp")
 
@@ -608,10 +616,10 @@ def test_an_emptied_rewrite_keeps_nothing(browser, serve):
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.press("Backspace")
     rendered(page)
+    mine = message.get_attribute("data-event")
     page.reload()
     wait_until_ready(page)
-    if not message.is_visible():
-        page.locator(".lf-threads-toggle").click()
+    open_panel_thread(page, mine)
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     words.dblclick()
     expect(editor).to_have_js_property("value", "Fit the north bracket.")
@@ -654,7 +662,6 @@ def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
             "author": "user",
             "revision": 1,
             "text": "Fit the north bracket.",
-            "anchor": {"section": "cd-q"},
         },
     )
     answer = append_carried_log_record(
@@ -677,8 +684,8 @@ def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
         is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
     )
     page = open_page(browser, url, context=context)
-    page.locator(".lf-threads-toggle").click()
-    message = page.locator(f'.lf-thread .lf-msg[data-mid="{second["id"]}"]')
+    thread = open_panel_thread(page, first["id"])
+    message = thread.locator(f'.lf-msg[data-event="{second["id"]}"]')
     expect(message).to_be_visible()
     rendered(page)
     head = message.locator(".lf-msg-head")
@@ -699,8 +706,8 @@ def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve):
     """Resume writing returned to a rewrite Escape had just discarded, reopening it on
     the message's own words, ahead of the reply the user had been writing. A rewrite
     put away hands Resume writing back to the place written in before it."""
-    page, thread, message = _rewrite_surface(browser, serve, "panel")
-    reply = thread.locator(".lf-thread-reply leaf-text").first
+    page, _, message = _rewrite_surface(browser, serve, "panel")
+    reply = page.locator(PANEL_REPLY)
     reply.click()
     page.keyboard.type("A reply in progress")
     message.locator(".lf-msg-text").dblclick()
@@ -732,25 +739,24 @@ def test_a_long_rewrite_opens_where_its_caret_stands(browser, serve):
             "author": "user",
             "revision": 1,
             "text": long,
-            "anchor": {"section": "cd-q"},
         },
     )
     page = open_page(browser, url)
     resized(page, 1400, 900)
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{mine["id"]}"])')
-    thread.locator(".lf-thread-reply leaf-text").focus()
+    thread = open_panel_thread(page, mine["id"])
+    page.locator(PANEL_REPLY).focus()
     page.keyboard.press("ArrowUp")
     editor = thread.locator(
-        f'.lf-msg[data-mid="{mine["id"]}"] .lf-msg-editor leaf-text'
+        f'.lf-msg[data-event="{mine["id"]}"] .lf-msg-editor leaf-text'
     )
     expect(editor).to_be_focused()
     rendered(page)
     last = editor.evaluate(
         """n => { const box = n.getBoundingClientRect();
           const line = parseFloat(getComputedStyle(n).lineHeight);
-          const list = document.querySelector('.lf-threads').getBoundingClientRect();
-          const reply = document.querySelector('.lf-threads .lf-thread-reply')
+          const list = document.querySelector('.lf-fp-view[data-view="thread"]')
+            .getBoundingClientRect();
+          const reply = document.querySelector('.lf-fp-field .lf-thread-reply')
             .getBoundingClientRect();
           return [box.bottom - line, box.bottom, list.top,
             Math.min(list.bottom, reply.top)]; }"""
@@ -773,7 +779,6 @@ def test_changed_words_are_not_walked_past(browser, serve):
             "author": "user",
             "revision": 1,
             "text": "Fit the north bracket.",
-            "anchor": {"section": "cd-q"},
         },
     )
     answer = append_carried_log_record(
@@ -794,11 +799,10 @@ def test_changed_words_are_not_walked_past(browser, serve):
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    page.locator(".lf-threads-toggle").click()
-    thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{first["id"]}"])')
-    latest = thread.locator(f'.lf-msg[data-mid="{second["id"]}"]')
-    earlier = thread.locator(f'.lf-msg[data-mid="{first["id"]}"]')
-    thread.locator(".lf-thread-reply leaf-text").focus()
+    thread = open_panel_thread(page, first["id"])
+    latest = thread.locator(f'.lf-msg[data-event="{second["id"]}"]')
+    earlier = thread.locator(f'.lf-msg[data-event="{first["id"]}"]')
+    page.locator(PANEL_REPLY).focus()
     page.keyboard.press("ArrowUp")
     editor = latest.locator(".lf-msg-editor leaf-text")
     expect(editor).to_be_focused()
@@ -904,13 +908,12 @@ def test_a_second_rewrite_lands_over_a_first_still_sending(browser, serve):
             "author": "user",
             "revision": 1,
             "text": "Fit the north bracket.",
-            "anchor": {"section": "cd-q"},
         },
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    page.locator(".lf-threads-toggle").click()
-    message = page.locator(f'.lf-thread .lf-msg[data-mid="{mine["id"]}"]')
+    thread = open_panel_thread(page, mine["id"])
+    message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
     held = []
     page.route(
         "**/api/event",
@@ -958,13 +961,12 @@ def test_a_second_rewrite_over_a_refused_first_goes_with_it(browser, serve):
             "author": "user",
             "revision": 1,
             "text": "Fit the north bracket.",
-            "anchor": {"section": "cd-q"},
         },
     )
     page = open_page(browser, url)
     resized(page, 1200, 900)
-    page.locator(".lf-threads-toggle").click()
-    message = page.locator(f'.lf-thread .lf-msg[data-mid="{mine["id"]}"]')
+    thread = open_panel_thread(page, mine["id"])
+    message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
     held = []
     later = []
 
@@ -1297,14 +1299,15 @@ def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
 
 
 @pytest.mark.watch_shifts
-def test_a_rewrite_saved_under_the_resolved_filter_goes_with_its_thread(browser, serve):
-    """Saving a rewrite reopens its thread, which took the card out of the Resolved
-    filter it was written under and dropped the user's focus on the list. The save
-    carries them into the open thread, landing in its reply box, with nothing moving
-    after the key (#46, the user's decision, 2026-10-07)."""
-    page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
-    resolved_filter = page.locator('[data-filter-value="resolved"]')
-    reply = thread.locator(":scope > .lf-thread-reply leaf-text")
+def test_a_rewrite_saved_in_a_resolved_thread_goes_with_its_thread(browser, serve):
+    """Saving a rewrite reopens its thread, which dropped the user's focus on the list
+    the thread was read from. The save carries them into the open thread, landing in its
+    reply box, with nothing moving after the key (#46, the user's decision,
+    2026-10-07)."""
+    page, _, message = _rewrite_surface(browser, serve, "panel", resolved=True)
+    settle = page.locator(".lf-fp-settle")
+    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    reply = page.locator(PANEL_REPLY)
     held = []
     page.route(
         "**/api/event",
@@ -1317,8 +1320,8 @@ def test_a_rewrite_saved_under_the_resolved_filter_goes_with_its_thread(browser,
     page.keyboard.type(" Now.")
     page.keyboard.press("Enter")
     holding(page, held, 1, "the rewrite")
+    expect(settle).to_have_text("Resolve", use_inner_text=True)
     expect(reply).to_be_focused()
-    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
     held.pop().continue_()
     round_trip(page)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket. Now.")
@@ -1327,12 +1330,12 @@ def test_a_rewrite_saved_under_the_resolved_filter_goes_with_its_thread(browser,
 
 
 @pytest.mark.watch_shifts
-def test_a_refused_rewrite_puts_the_resolved_filter_back(browser, serve):
-    """A refused rewrite saved under the Resolved filter puts that filter and the user
-    back on the thread, and its words wait on the message. The refusal lands after
-    the input window, so nothing it puts back may move."""
+def test_a_refused_rewrite_puts_the_resolved_thread_back(browser, serve):
+    """A refused rewrite saved in a resolved thread puts the thread back as it was,
+    resolved, with the user on it, and its words wait on the message. The refusal lands
+    after the input window, so nothing it puts back may move."""
     page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
-    resolved_filter = page.locator('[data-filter-value="resolved"]')
+    settle = page.locator(".lf-fp-settle")
     held = []
     page.route(
         "**/api/event",
@@ -1345,7 +1348,7 @@ def test_a_refused_rewrite_puts_the_resolved_filter_back(browser, serve):
     page.keyboard.type(" Now.")
     page.keyboard.press("Enter")
     holding(page, held, 1, "the refused rewrite")
-    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
+    expect(settle).to_have_text("Resolve", use_inner_text=True)
     rendered(page)
     # Chrome reports no shift within 500ms of input, so the refusal lands after it.
     page.wait_for_function(
@@ -1353,96 +1356,7 @@ def test_a_refused_rewrite_puts_the_resolved_filter_back(browser, serve):
     )
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     round_trip(page)
-    expect(resolved_filter).to_have_attribute("aria-pressed", "true")
-    expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
+    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    expect(thread).to_be_visible()
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
-    # The reply box still holds the card open, so Reopen stands in Resolve's place in
-    # the head, in the room the head keeps for it: the word ran over the pencil.
-    pencil = message.locator(".lf-msg-edit").bounding_box()
-    reopen = thread.locator(".lf-thread-meta-actions .lf-reopen").bounding_box()
-    assert pencil["x"] + pencil["width"] <= reopen["x"], (pencil, reopen)
     page.unroute_all(behavior="wait")
-
-
-def test_a_refusal_leaves_the_view_on_a_thread_the_user_spoke_in_since(browser, serve):
-    """A refused rewrite puts back the view it left only while the user has not acted
-    since: once they have replied in the reopened thread, the Resolved view would take
-    away the thread they are working in."""
-    page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
-    resolved_filter = page.locator('[data-filter-value="resolved"]')
-    reply = thread.locator(":scope > .lf-thread-reply leaf-text")
-    held = []
-    posts = []
-
-    def hold_first(route):
-        if route.request.method != "POST":
-            return route.continue_()
-        posts.append(route)
-        if len(posts) == 1:
-            return held.append(route)
-        return route.continue_()
-
-    page.route("**/api/event", hold_first)
-    message.locator(".lf-msg-text").dblclick()
-    page.keyboard.press("End")
-    page.keyboard.type(" Now.")
-    page.keyboard.press("Enter")
-    holding(page, held, 1, "the rewrite")
-    expect(reply).to_be_focused()
-    write(reply, "And the south one.")
-    page.keyboard.press("ControlOrMeta+Enter")
-    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
-    round_trip(page)
-    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
-    expect(thread).to_be_visible()
-    page.unroute_all(behavior="wait")
-
-
-def test_a_reopen_in_a_view_that_still_holds_its_thread_keeps_that_view(browser, serve):
-    """Reopening a thread the current view goes on showing, as under All with a search
-    its words match, leaves the view as the user set it: only a view that leaves the
-    thread out is changed to one that holds it."""
-    page, thread, _ = _rewrite_surface(browser, serve, "panel", resolved=True)
-    page.locator('[data-filter-value="resolved"]').click()
-    search = page.get_by_role("searchbox", name="Find in threads")
-    search.fill("north bracket")
-    expect(thread).to_be_visible()
-    focus_panel_thread(thread)
-    with sending(page, "the reopen"):
-        page.keyboard.press("r")
-    round_trip(page)
-    expect(search).to_have_value("north bracket")
-    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
-        "aria-pressed", "false"
-    )
-    expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_focused()
-
-
-def test_a_rewrite_in_a_card_news_kept_goes_with_its_thread(browser, serve):
-    """A card news keeps in a view it no longer belongs to, as the agent reopening a
-    thread shown under Resolved does, becomes the user's once they send words in it:
-    their rewrite takes them with the thread into the view that holds it, rather than
-    leaving an open thread under a Resolved view that counts none."""
-    page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
-    thread.locator(":scope > .lf-thread-summary").click()
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "unresolve",
-            "author": "agent",
-            "agent": "Indexer",
-            "parent": thread.get_attribute("data-id"),
-        },
-    )
-    told(page)
-    rendered(page)
-    resolved_filter = page.locator('[data-filter-value="resolved"]')
-    expect(resolved_filter).to_have_attribute("aria-pressed", "true")
-    expect(thread).to_be_visible()
-    message.locator(".lf-msg-text").dblclick()
-    page.keyboard.press("End")
-    page.keyboard.type(" Now.")
-    page.keyboard.press("Enter")
-    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
-    expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_focused()
-    round_trip(page)

@@ -16,28 +16,21 @@ First test a complete feedback turn with the smallest useful tool set. Compare
 it with the CLI path for target-selection errors and unnecessary model work.
 The model still decides whether feedback calls for a reply, a revision, or both.
 
-## Delivery-start race
-
-Leaf starts a delivery turn after checking that the task is idle. Before adding steering,
-define what a user should see when their message joins a turn already answering
-other input: which message the final answer settles, where that answer appears,
-and what remains outstanding if the turn fails.
-
-`TaskConnection._start_delivery` checks fresh provider status before starting,
-but another client can start a turn between those requests. The installed App
-Server schema exposes no atomic idle precondition; it says `turnTrigger` is ignored
-when a start steers an active turn. Test that race against the real provider before
-changing delivery policy. Generate its current schema with
-`codex app-server generate-json-schema`; do not infer turn preconditions from an
-older protocol snapshot.
-
 ## Evaluate a typed reply body
 
-A typed reply tool could own both streamed text and the durable reply event if
-App Server exposes its argument deltas. Verify that capability with the installed
-server first. Complete arguments alone would delay the visible reply until the
-call finishes. Any experiment must preserve the canonical reply writer and avoid
-committing the same answer through both a tool and final-message handling.
+A typed reply tool would own both the streamed text and the durable reply event only
+if App Server streamed its arguments, and 0.160.0 does not. Its schema, experimental
+methods included, streams agent messages, plans, reasoning, command and file output,
+and file-change patches (`item/fileChange/patchUpdated`). No notification carries a
+tool call's arguments while the model writes them, and a dynamic tool call's request
+(`DynamicToolCallParams`) receives them complete. A typed reply would
+therefore appear only when its call finished, later than today's streamed final
+message. Check a later Codex with:
+
+```bash
+codex app-server generate-json-schema --experimental --out .tmp/schema
+jq -r '.oneOf[].properties.method.enum[0]' .tmp/schema/ServerNotification.json
+```
 
 ## Broader product choices
 

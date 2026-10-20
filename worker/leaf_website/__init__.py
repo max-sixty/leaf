@@ -8,16 +8,16 @@ state store or event semantics.
 
 The adapter also runs the hosted agent. The Worker posts each accepted event that owes
 a reply to `/_leaf/agent/start`, and `attach` starts or resumes one Codex App Server
-thread rooted at the page directory and hands it the event in Leaf's delivery envelope;
-while a turn is running, Leaf holds the delivery and starts it when that turn ends. A
-repeated start for the same event starts nothing new. Codex has the prepared Leaf plugin
-installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS` adds only the
-session's environment and scope. Each turn is bound to its delivery id, sent as
-`clientUserMessageId`, so the turn's follower knows its turn from the start. A delivery
-carries at most one plain reply, which streams into its thread and is committed through
+thread rooted at the page directory and queues the event on it in Leaf's delivery
+envelope; while a turn is running, Leaf holds the delivery and queues it when that
+turn ends. A repeated start for the same event starts nothing new. Codex has the
+prepared Leaf plugin installed, as a terminal agent's Codex does, and
+`CODEX_INSTRUCTIONS` adds only the session's environment and scope. The container is
+the thread's only client, so the next turn to start after a delivery is queued is
+that delivery's (`next_turn`). A delivery carries at most one plain reply, which streams into its thread and is committed through
 Leaf's reply writer even if the connection drops or the next turn opens first.
 
-`HostedTurn` follows a turn on the connection that started it. Completion ends it, and
+`HostedTurn` follows a turn on the connection that queued its delivery. Completion ends it, and
 so do a dropped connection, silence past `STREAM_SILENCE`, and any fault; for those the
 follower interrupts the provider turn, since nothing else is reading it. Every ending
 closes the Leaf turn and gives each update the turn still owed an answer the
@@ -55,6 +55,8 @@ from typing import TYPE_CHECKING
 import click
 from leaf.codex import (
     APP_SERVER_ENV,
+    START_TIMEOUT,
+    AppServerDeliveryUncertain,
     CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
@@ -63,7 +65,9 @@ from leaf.codex import (
     delivery_owed_updates,
     open_app_server_delivery,
     prepare_codex_delivery,
-    start_app_server_delivery,
+    queue_app_server_delivery,
+    queued_submissions,
+    start_queued_delivery,
     stop_app_server,
 )
 from leaf.delivery import read_delivery, stream_reply_target
@@ -72,6 +76,7 @@ from leaf.files import latest_revision, revision_path
 from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, PostRoute, scope_page_urls
+from leaf.interaction_log import append_interactions
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.page_memory import Slot, memo
 from leaf.page_snapshot import capture_page_snapshot
@@ -81,7 +86,7 @@ from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
 from leaf.schema import PAGE_ROUTE_DIRS, VENDORED_FILES
-from leaf.served_state.page import full_state
+from leaf.served_state.context import read_page
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import (
@@ -95,6 +100,7 @@ from leaf.state import (
     flocked,
     session_lock_path,
     session_record,
+    start_session_turn,
 )
 from leaf.thread import (
     fail_answer,
@@ -181,6 +187,13 @@ AGENT_START_PATH = "/_leaf/agent/start"
 AGENT_FAIL_PATH = "/_leaf/agent/fail"
 STARTUP_REPORT_PATH = "/api/performance"
 LEAF_COMMAND = str(Path(sys.executable).with_name("leaf"))
+# The private diagnostic milestones consumed by hosted reply evaluations. Their
+# producer owns these names; an arm lacking them cannot supply that experiment.
+HOSTED_TURN_RECORDS = {
+    "reply": "turn_reply_published",
+    "terminal": "turn_stream_completed",
+    "following": "turn_following_ended",
+}
 # Environment facts supplement the installed Leaf skill. The agent discovers and
 # reads that skill and its references through Codex's ordinary plugin mechanism.
 CODEX_INSTRUCTIONS = """## On leaf.page
@@ -190,9 +203,10 @@ This harness already serves the page in your working directory and delivers its
 input through Codex App Server. The `leaf` command takes `.` as the page path.
 
 Answer questions in the conversation; change the document only when the request
-calls for a page edit. Your opening commentary and final answer appear together
-as your reply to the user. If you need to read first, a brief acknowledgement
-tells them what you are checking; an immediate answer needs no preamble.
+calls for a page edit. Your opening commentary shows in the thread at once as your
+progress line, and your final answer is your reply to the user. If you need to read
+first, a brief acknowledgement tells them what you are checking; an immediate
+answer needs no preamble.
 
 This page is the scope of your work. Use its normal Leaf controls. Saving valid
 index.html publishes its revision. Leave status to the harness: it projects your
@@ -376,9 +390,10 @@ def pending_agent_inputs(page_dir: Path) -> dict[str, str | None]:
         activation = activate_source(page_dir, transaction=page)
         if activation.error:
             raise ValueError(activation.error)
-        # Obligations already are canonical workflows, including their delivery
-        # session. Joining a second workflow list would repeat the owner’s reading.
-        obligations = full_state(page_dir, page.events)["activity"]["obligations"]
+        # The owed answers already carry their update's workflow, including its
+        # delivery session (`activity.canonical_activity`). Joining a second workflow
+        # list would repeat the owner’s reading.
+        obligations = read_page(page_dir, page.events).work.obligations
         return {item["input"]: item["delivery_session"] for item in obligations}
 
 
@@ -401,7 +416,7 @@ def next_unaccepted_agent_event(
     who to tell.
     """
     with PageTransaction(page_dir) as page:
-        obligations = full_state(page_dir, page.events)["activity"]["obligations"]
+        obligations = read_page(page_dir, page.events).work.obligations
         return next(
             (
                 item["input"]
@@ -410,6 +425,37 @@ def next_unaccepted_agent_event(
             ),
             None,
         )
+
+
+def next_turn(socket, pending: list[dict], thread_id: str) -> str:
+    """The id of the next turn to start on the thread, read off its subscription.
+
+    The container is App Server's only client and queues one delivery at a time,
+    so the next turn to start is the one that took the delivery just queued. It is
+    named at `turn/started` rather than by the user message that carries the
+    delivery, which a thread's first turn reported 2.4 s later in the runs measured
+    with codex-cli 0.160.0. Every notification read stays on `pending`, in order,
+    for the turn's follower.
+    """
+    deadline = time.monotonic() + START_TIMEOUT
+    read = 0
+    while True:
+        for message in pending[read:]:
+            params = message.get("params") or {}
+            if (
+                message.get("method") == "turn/started"
+                and params["threadId"] == thread_id
+            ):
+                return params["turn"]["id"]
+        read = len(pending)
+        if time.monotonic() >= deadline:
+            raise AppServerDeliveryUncertain(
+                "no Codex App Server turn took the queued delivery"
+            )
+        try:
+            pending.append(json.loads(socket.recv(timeout=1)))
+        except TimeoutError:
+            continue
 
 
 class HostedTurn(CarriedTurn):
@@ -424,6 +470,11 @@ class HostedTurn(CarriedTurn):
     silence past `STREAM_SILENCE`, and any fault in this code are endings as well,
     and this host closes those by interrupting the provider turn, so a turn the
     page has stopped watching is not left running.
+
+    Boundary readings also enter the page's private diagnostic log. Completed reply
+    updates retain exactly the text published, the opening's and the final answer's;
+    public operator records remain content-free. The follower's
+    final record comes after cleanup and continuation, not just provider completion.
     """
 
     silence = STREAM_SILENCE
@@ -466,7 +517,20 @@ class HostedTurn(CarriedTurn):
     def elapsed(self) -> int:
         return elapsed_ms(self.started)
 
-    def record(self, event: str, **fields) -> None:
+    def record(self, event: str, *, reply: dict | None = None, **fields) -> None:
+        append_interactions(
+            self.page_dir,
+            [
+                {
+                    "source": "server",
+                    "type": event,
+                    **self.fields,
+                    "turnId": self.turn_id,
+                    **fields,
+                    **({"reply": reply} if reply is not None else {}),
+                }
+            ],
+        )
         log_agent(event, **self.fields, turnId=self.turn_id, **fields)
 
     def milestone(self, event: str, **fields) -> None:
@@ -479,10 +543,8 @@ class HostedTurn(CarriedTurn):
     def begin(self) -> None:
         """Open this delivery's Leaf turn and reply reservation for its provider turn.
 
-        The `turn/start` request carried this delivery both as its
-        `clientUserMessageId` and as its `leaf_delivery` tool output, and App Server
-        answered with the turn it made from it, so the turn named here is this
-        delivery's without anything having to read it back off the stream.
+        The turn named here is the one that took this delivery from App Server's
+        queue (`next_turn`), named as it started.
         """
         self.record("turn_following_started")
         if not self.open():
@@ -540,13 +602,23 @@ class HostedTurn(CarriedTurn):
             )
 
     def observe_reply(self, update: dict | None, published: bool) -> None:
-        """Record the first of the turn's answer to reach the user's reply."""
+        """Record published reply milestones, keeping text in private diagnostics."""
         message_update = update.get("message") if update is not None else None
-        if published and message_update is not None and bool(message_update["text"]):
+        if published and (
+            update.get("opening")
+            or (message_update is not None and bool(message_update["text"]))
+        ):
             self.milestone(
                 "turn_reply_first_text_published",
                 durationMs=self.elapsed(),
                 recovered=False,
+            )
+        if published and message_update is not None and message_update["complete"]:
+            self.record(
+                HOSTED_TURN_RECORDS["reply"],
+                itemId=message_update["item"],
+                phase=message_update["phase"],
+                reply=message_update,
             )
 
     def ended(self, error: BaseException) -> dict:
@@ -569,7 +641,7 @@ class HostedTurn(CarriedTurn):
         the turn ended rather than how accounting for it went.
         """
         self.record(
-            "turn_stream_completed",
+            HOSTED_TURN_RECORDS["terminal"],
             durationMs=self.elapsed(),
             status=terminal.get("status"),
             **self.tokens,
@@ -854,40 +926,45 @@ class WebsiteCodexHarness:
         the page refuses here, such as one waiting on a reply the turn still holds, is
         recorded rather than ending the thread before the page is handed on.
         """
-        page_dir = turn.page_dir
+        completed = False
         try:
-            turn.follow()
-        finally:
-            with self.lock:
-                self.following_threads.discard(turn.session_id)
-            restarted = False
-            if turn.correction is not None and not self.stop_event.is_set():
-                try:
-                    with self.lock:
-                        process = self._ensure_server()
-                        restarted = self._resume_and_start(
-                            page_dir, turn.session_id, process, turn.event_ids[0]
-                        )
-                except Exception as error:  # noqa: BLE001 - daemon owns failure feedback
-                    log_agent(
-                        "turn_correction_start_failed",
-                        **agent_event_fields(turn.event_ids),
-                        error=type(error).__name__,
-                        detail=str(error),
-                    )
-            if not restarted:
-                if turn.correction is not None:
-                    for event_id in turn.event_ids:
-                        abandon_codex_delivery(turn.session_id, event_id)
+            page_dir = turn.page_dir
+            try:
+                turn.follow()
+            finally:
+                with self.lock:
+                    self.following_threads.discard(turn.session_id)
+                restarted = False
+                if turn.correction is not None and not self.stop_event.is_set():
                     try:
-                        turn._receipt_unanswered()
-                    except Refused as error:
+                        with self.lock:
+                            process = self._ensure_server()
+                            restarted = self._resume_and_start(
+                                page_dir, turn.session_id, process, turn.event_ids[0]
+                            )
+                    except Exception as error:  # noqa: BLE001 - daemon owns failure feedback
                         log_agent(
-                            "turn_receipt_refused",
+                            "turn_correction_start_failed",
                             **agent_event_fields(turn.event_ids),
-                            **fault_fields(error),
+                            error=type(error).__name__,
+                            detail=str(error),
                         )
-                self._continue_page(page_dir, turn.event_ids)
+                if not restarted:
+                    if turn.correction is not None:
+                        for event_id in turn.event_ids:
+                            abandon_codex_delivery(turn.session_id, event_id)
+                        try:
+                            turn._receipt_unanswered()
+                        except Refused as error:
+                            log_agent(
+                                "turn_receipt_refused",
+                                **agent_event_fields(turn.event_ids),
+                                **fault_fields(error),
+                            )
+                    self._continue_page(page_dir, turn.event_ids)
+            completed = True
+        finally:
+            turn.record(HOSTED_TURN_RECORDS["following"], completed=completed)
 
     def _continue_page(self, page_dir: Path, excluding: tuple[str, ...]) -> None:
         """Start the page's next unanswered move, receipting each start that cannot.
@@ -1005,6 +1082,33 @@ class WebsiteCodexHarness:
             if socket is not None:
                 socket.close()
 
+    def _unqueue(self, thread_id: str, delivery_id: str, **fields) -> None:
+        """Remove a delivery no follower took from the thread's App Server queue.
+
+        After an interrupt App Server holds its queue, and Leaf starts a delivery
+        only from the queue's head, so a submission left there would hold back
+        every later delivery on the thread. Like `_interrupt`, this takes its own
+        connection and records a failure rather than raising it.
+        """
+        socket = None
+        try:
+            socket = app_server_connect(self.endpoint)
+            app_server_handshake(
+                socket, self._request_id(), "leaf-website", "Leaf website"
+            )
+            send = partial(self._send, socket)
+            for submission in queued_submissions(send, thread_id):
+                if submission["clientUserMessageId"] == delivery_id:
+                    send(
+                        "thread/queue/delete",
+                        {"threadId": thread_id, "queuedSubmissionId": submission["id"]},
+                    )
+        except Exception as error:  # noqa: BLE001 - reported, never raised
+            log_agent("turn_unqueue_failed", **fields, **fault_fields(error))
+        finally:
+            if socket is not None:
+                socket.close()
+
     def _send(
         self,
         socket,
@@ -1032,7 +1136,7 @@ class WebsiteCodexHarness:
         page_dir: Path,
         thread_id: str,
         process: subprocess.Popen,
-        pending: list[dict] | None = None,
+        pending: list[dict],
     ) -> HostedTurn:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
@@ -1049,40 +1153,44 @@ class WebsiteCodexHarness:
         )
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
         reply_target = stream_reply_target(prepared.payload)
+        delivery_id = prepared.payload["id"]
         try:
-            admitted = start_app_server_delivery(
-                lambda method, params: self._send(socket, method, params, pending),
-                thread_id,
-                prepared.payload,
-            )
-        except (RuntimeError, Refused) as error:
-            # No turn to follow, and after an uncertain start possibly one this
-            # request made and never named. This harness owns the thread, so it tells
-            # the provider to drop whatever it began rather than waiting to adopt it,
-            # and gives up the delivery and any reply reservation it holds rather than
-            # leaving them held, because both would otherwise block the
-            # `startup_failed` receipt the Worker writes when this raises — the
+            expected = session_record(thread_id)
+            send = partial(self._send, socket, pending=pending)
+            queue_app_server_delivery(send, thread_id, prepared.payload)
+            # An interrupt this harness sent holds the queue until a client starts
+            # it; on a thread that ended its last turn normally, adding the
+            # delivery started it.
+            start_queued_delivery(send, thread_id, delivery_id)
+            turn_id = next_turn(socket, pending, thread_id)
+            admitted = start_session_turn(thread_id, turn_id, expected)
+            if admitted is None:
+                raise AppServerDeliveryUncertain(
+                    "a newer session epoch superseded the provider start"
+                )
+        # Every class: once the submission went out, any failure leaves a delivery
+        # App Server may hold, and only the withdrawal below gives it back.
+        except Exception as error:
+            # No turn to follow, and after an uncertain submission possibly one
+            # App Server began and this never named. This harness owns the thread,
+            # so it tells the provider to drop whatever it began rather than waiting
+            # to adopt it, and gives up the delivery and any reply reservation it
+            # holds rather than leaving them held, because both would otherwise block
+            # the `startup_failed` receipt the Worker writes when this raises — the
             # receipt that tells the user to send the message again.
             self._withdraw_delivery(
-                thread_id, prepared.payload["id"], prepared_events, reply_target
+                thread_id, delivery_id, prepared_events, reply_target
             )
             restore_page_claim(page_dir, prepared.claim_transition)
             raise RuntimeError(f"Codex App Server did not start a turn: {error}") from (
                 error
             )
-        turn_id = admitted["turn"]
         log_agent(
             "turn_start_acknowledged",
             **agent_event_fields(prepared_events),
             turnId=turn_id,
             durationMs=elapsed_ms(started),
         )
-        # App Server answered for the turn it made from this delivery, so the follower
-        # knows which turn is its own before it reads anything. The answer names a turn
-        # of this delivery's rather than another request's because `turn/start` steers
-        # into a turn already running, and every caller here sends one against a thread
-        # it has read as not active — the container being App Server's only client,
-        # nothing starts one in between.
         return HostedTurn(
             self,
             page_dir,
@@ -1093,7 +1201,7 @@ class WebsiteCodexHarness:
             socket,
             lifecycle=admitted,
             reply_target=reply_target,
-            buffered=tuple(pending or ()),
+            buffered=tuple(pending),
         )
 
     def _end_unfollowed_turn(
@@ -1150,11 +1258,13 @@ class WebsiteCodexHarness:
     ) -> None:
         """Retire offered input that no follower took, so the Worker can receipt it.
 
-        Interrupt any provider turn the request started, release its reply
-        reservation, and give the moves back as unanswered input. The Worker's
-        failure receipt then invites the user to send again; an offered delivery
-        still holding those moves would swallow the retry.
+        Take the delivery out of App Server's queue, interrupt any provider turn
+        the request started, release its reply reservation, and give the moves
+        back as unanswered input. The Worker's failure receipt then invites the
+        user to send again; an offered delivery still holding those moves would
+        swallow the retry.
         """
+        self._unqueue(thread_id, delivery_id, **agent_event_fields(event_ids))
         self._interrupt(thread_id, "", **agent_event_fields(event_ids))
         if reply_target is not None:
             release_delivery_reply(thread_id, delivery_id, reply_target)

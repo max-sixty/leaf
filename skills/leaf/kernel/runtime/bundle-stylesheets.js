@@ -15,7 +15,7 @@ import {
 import {
   move,
   watchStandingIn
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 
 // runtime/stylesheets.js
 var sheets = JSON.parse(
@@ -355,9 +355,12 @@ function shadowStage(host, nodes) {
   const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   watchArrivalsIn(root);
   root.adoptedStyleSheets = [
-    ...annotationMarkSheets,
-    marksSheet,
-    ...widgetSheets.values()
+    .../* @__PURE__ */ new Set([
+      ...root.adoptedStyleSheets,
+      ...annotationMarkSheets,
+      marksSheet,
+      ...widgetSheets.values()
+    ])
   ];
   watchDisclosures(root);
   watchLayers(root);

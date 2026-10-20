@@ -160,7 +160,9 @@ def execute_scenario(
                         if not ready:
                             continue
                         client = PageClient(live.url)
-                        attempt = f"delivery-eval-input-{move['name']}"
+                        # The log admits a retry key of 16 to 128 characters, and a
+                        # comment's name may be a single character.
+                        attempt = f"delivery-eval-comment-{move['name']}"
                         current = client.post(
                             {
                                 "kind": "comment",

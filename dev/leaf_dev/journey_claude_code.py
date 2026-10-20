@@ -33,27 +33,30 @@ The steps, in order:
   its PostToolBatch context carries the exact input
   before another model call, rather than waiting for Stop;
 - `ending`: a comment sent during a shell command wakes the watch, and one sent
-  after that pickup enters the same turn while no watch runs;
+  after that pickup enters the same turn at its next tool boundary while no watch
+  runs;
 - `escape`: Escape during a shell command ends the turn; a comment sent afterwards
   opens a turn that answers it;
 - `woken`: a comment sent during a shell command wakes the watch, and Escape ends
-  that turn while the command still runs, before the turn reads the comment; a
-  comment sent afterwards is answered, and so is the first, carried by the next
-  prompt;
+  that turn while the command still runs, before the turn reads the comment at its
+  next tool boundary. With the hooks module, the watch after Escape wakes for that
+  comment and a turn of its own answers it; a comment sent afterwards is answered
+  too;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
-Between steps every comment sent so far has exactly one reply and a pickup, and the
-page's claim names the session with its turn closed. With the hooks module, Escape
-closes the turn, a watch runs after each turn, an interrupted one included, and no
-delivery shows in the terminal; Claude Code drops the prompt that watch wakes the
+Between steps every comment sent so far has exactly one reply and a pickup, the
+page's claim names the session with its turn closed, no Stop hook has continued a
+turn with input, so each turn ends on its own answer, and no delivery shows in the
+terminal. With the hooks module, Escape closes the turn and a watch runs after each
+turn, an interrupted one included; Claude Code drops the prompt that watch wakes the
 stopped session with, so the page nudges it. Without it, what follows an Escape is
 reported rather than required: the watch from before goes on only if it has not
 woken, and otherwise admission's nudge carries the next comment.
 
 A step with comments also prints whether the page nudged the session, and a step
 with an Escape whether it left the turn open, a watch running, and what the page's
-banner read. That is the reading that compares the two watchers. The session's
+status read. That is the reading that compares the two watchers. The session's
 screen at the end of each step and Claude Code's debug log join the run's evidence.
 It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
 does not run it.
@@ -72,10 +75,10 @@ from pathlib import Path
 
 import click
 import psutil
-from leaf.delivery import DELIVERY_FORMAT, pickup_receipts
+from leaf.delivery import DELIVERY, INLINE_OPENING, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.hook_transport import INLINE_OPENING
+from leaf.hook_transport import POINTED_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -88,7 +91,6 @@ from leaf_dev.review_scenario import (
     REQUEST,
     SLEEP,
     USER_TURN,
-    answers,
     prepare,
     require,
     settled,
@@ -160,14 +162,17 @@ class ClaudeCode(Terminal):
         time.sleep(0.5)
         self.tmux("send-keys", "-t", self.pane, "Enter")
 
-    def escape(self) -> None:
-        """Press Escape until the turn has ended. A second press on an idle prompt
-        opens Claude Code's rewind menu, so each waits to see the first land."""
+    def escape(self, ended: Callable[[], bool]) -> None:
+        """Press Escape until `ended` says the turn has, waiting up to 5 s after
+        each press before pressing again. A press after the turn ended does harm:
+        on an idle prompt it opens Claude Code's rewind menu, and otherwise it
+        interrupts the turn a watch or a nudge opened next, which can start before
+        Claude Code's record reads idle."""
         for _ in range(3):
             self.tmux("send-keys", "-t", self.pane, "Escape")
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:
-                if self.idle():
+                if ended():
                     return
                 time.sleep(0.25)
         raise click.ClickException(f"the turn went on after Escape\n{self.screen()}")
@@ -245,7 +250,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     page, sent = place.page, []
 
     def activity() -> str:
-        """What the page's banner reads: its canonical activity's kind."""
+        """What the page's status reads: its canonical activity's kind."""
         served = run_leaf(ROOT, place.state, "page", "state", str(page), check=True)
         return json.loads(served.stdout)["activity"]["kind"]
 
@@ -277,11 +282,22 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     ) -> None:
         sent.extend(names)
         settled(page, cc.session, {name: user.ids[name] for name in sent})
-        # The hooks module keeps a delivery out of the user's sight; without it,
-        # Claude Code prints the one the Stop hook hands over, whose envelope names
-        # its format.
+        # A watch follows every turn, so no Stop hook continued one with input,
+        # which would have put the reply to it in place of the turn's own answer,
+        # and Claude Code printed no delivery, whose envelope names its format.
         require(
-            not module or DELIVERY_FORMAT not in cc.shown(),
+            not any(
+                (attachment := record.get("attachment", {})).get("hookEvent") == "Stop"
+                and any(
+                    content.startswith((INLINE_OPENING, POINTED_OPENING))
+                    for content in attachment.get("content") or []
+                )
+                for record in native_records(cc.home, cc.session)
+            ),
+            f"{name}: a Stop hook continued a turn with input",
+        )
+        require(
+            DELIVERY.format not in cc.shown(),
             f"{name}: a delivery was printed in the terminal",
         )
         # The turn that answers ends with a watch running, under either watcher.
@@ -292,18 +308,33 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
         user.passed(name, started, *details)
         cc.keep(name)
 
-    def after_escape(name: str) -> str:
-        """What an Escape left: required with the hooks module, reported without."""
+    def closed(turn: str) -> bool:
+        """Whether the page's claim has closed `turn`, or opened another after it."""
+        claim = page_claim(page)
+        return claim["turn_closed"] is not None or claim["turn"] != turn
+
+    def escape(turn: str) -> None:
+        """Press Escape on `turn` until Claude Code is idle or the claim has moved
+        past it."""
+        cc.escape(lambda: cc.idle() or closed(turn))
+
+    def after_escape(name: str, turn: str) -> str:
+        """What an Escape that ended `turn` left: required with the hooks module,
+        reported without. The watch after Escape may already have woken a turn of
+        its own, which opens only once `turn` has closed."""
         cc.until(
-            lambda: page_claim(page)["turn_closed"] is not None or not module,
+            lambda: closed(turn) or not module,
             f"{name}: Escape left the turn open",
             30,
         )
         if module:
-            cc.until(watched, f"{name}: no watch after Escape", 30)
-        closed = page_claim(page)["turn_closed"] is not None
+            cc.until(
+                lambda: watched() or page_claim(page)["turn"] != turn,
+                f"{name}: no watch after Escape",
+                30,
+            )
         return (
-            f"after Escape: turn {'closed' if closed else 'open'}, "
+            f"after Escape: turn {'closed' if closed(turn) else 'open'}, "
             f"{'a' if watched() else 'no'} watch running, the page reads "
             f"{activity()}"
         )
@@ -371,8 +402,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
 
     started = time.monotonic()
     user_turn("escape")
-    cc.escape()
-    escaped = after_escape("escape")
+    turn = page_claim(page)["turn"]
+    escape(turn)
+    escaped = after_escape("escape", turn)
     before = nudged()
     user.comment("escape")
     cc.until(answered("escape"), "escape: the comment was not answered")
@@ -382,34 +414,23 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     user_turn("woken")
     turn = page_claim(page)["turn"]
     woken = user.comment("woken")
-
-    def pickups() -> list[dict]:
-        return pickup_receipts(read_events(page), phase="opened", input_id=woken)
-
-    # The watch has woken, and the hooks module has handed the comment to the turn,
-    # which reads it only once its command ends.
-    cc.until(
-        lambda: not watched() and (pickups() or not module),
-        "woken: the watch did not wake on the comment",
-        60,
-    )
-    require(cc.sleeping(), "woken: the command ended before Escape")
-    cc.escape()
-    escaped = after_escape("woken")
-    # Nothing new has arrived, so no turn follows the Escape: the comment the
-    # stopped turn was handed waits for the next one.
+    # The watch wakes on the comment, which the turn reads only at its next tool
+    # boundary, once its command ends.
+    cc.until(lambda: not watched(), "woken: the watch did not wake on the comment", 60)
     require(
-        page_claim(page)["turn"] == turn
-        and all(event["turn"] == turn for event in pickups()),
-        "woken: a turn started after Escape with no new input",
+        cc.sleeping()
+        and not pickup_receipts(read_events(page), phase="opened", input_id=woken),
+        "woken: the turn read the comment before Escape",
     )
     before = nudged()
+    escape(turn)
+    escaped = after_escape("woken", turn)
+    if module:
+        # The stopped turn never read the comment, so the watch after Escape wakes
+        # for it, and a turn of its own answers it.
+        cc.until(answered("woken"), "woken: the watch after Escape did not answer it")
     user.comment("after-wake")
-    cc.until(answered("after-wake"), "woken: the comment after Escape was not answered")
-    if not answers(page, woken):
-        # The comment the stopped turn was handed waits for the user's next prompt.
-        cc.say("Carry on with the review.")
-        cc.until(answered("woken"), "woken: the next prompt did not answer it")
+    cc.until(answered("woken", "after-wake"), "woken: the comments were not answered")
     step("woken", started, "woken", "after-wake", before=before, escaped=escaped)
 
     started = time.monotonic()
@@ -526,7 +547,7 @@ def answering(
             )
             settled(place.page, cc.session, {})
             require(
-                not hooks_module or DELIVERY_FORMAT not in cc.shown(),
+                DELIVERY.format not in cc.shown(),
                 "setup: a delivery was printed in the terminal",
             )
             cc.keep("setup")

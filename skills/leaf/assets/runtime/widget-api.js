@@ -65,6 +65,7 @@ export {
   focused,
   handBack,
   holdFocus,
+  onStanding,
   openLayer,
   openerOf,
   rove,
@@ -74,11 +75,11 @@ export {
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
-export { answeredInWords, readItems } from "./items/model.js";
-// The items a region of the page holds, by the rule every count and walk of them reads.
-export { itemsIn } from "./items/place.js";
+export { answeredInWords, readObligations } from "./obligations/model.js";
+// The obligations a region of the page holds, by the rule every count and walk of them reads.
+export { obligationsIn } from "./obligations/place.js";
 export { comparisonChanges, watchComparison } from "./version.js";
-export { answerWords } from "./items/answer.js";
+export { answerWords } from "./obligations/answer.js";
 export {
   readWork,
   workRole,
@@ -86,7 +87,7 @@ export {
   directWorkElements,
   workAncestor,
 } from "./work.js";
-export { itemActions } from "./application.js";
+export { obligationActions } from "./application.js";
 export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
@@ -161,7 +162,7 @@ export {
   differenceKind,
 } from "./image-difference.js";
 export { atScrollEnd, pageScroller, scrollLimit } from "./scrolling.js";
-export { scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
+export { fitsWhole, scrollIntoReadingBand, scrollIntoView } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";
 export { claimTraversals, pushEntry, replaceEntry } from "./history.js";
@@ -182,7 +183,7 @@ export { ago, clockValue, quietSince, readingPaint, shortAgo } from "./presence.
 export { shadowStage } from "./shadow-stage.js";
 export { inBaseLayer } from "./stylesheets.js";
 export { revisionLabel } from "./context.js";
-export { loadDeferred } from "./data.js";
+export { loadDeferred, publishOutput } from "./data.js";
 export { boundFile } from "./file-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
 export {
@@ -269,3 +270,4 @@ export { shownParts } from "./geometry.js";
 export { renderRetired, textNodesUnder } from "./passages.js";
 export { isPagePaint } from "./declared-words.js";
 export { heldGrowth } from "./thread/held-news.js";
+export { PRESSABLE } from "./widget-elements.js";

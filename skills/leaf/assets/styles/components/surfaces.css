@@ -12,7 +12,8 @@
  * The two halves are not written alike, because a duration is a way of keeping
  * an animation and no way at all of keeping a transition. An animation is
  * declared and named, and `animationend` is how the layer knows one has run —
- * the thread list takes `grow` off a card that way — so the near-zero duration
+ * a control takes its agent-arrival mark off that way (contribution-controls.js) —
+ * so the near-zero duration
  * keeps that event and spends no time on it. It runs once, since an endless
  * animation at that duration repeats on every frame, showing a different point
  * of its keyframes each time: a pulse becomes a flicker, and the page never
@@ -314,18 +315,30 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-gap);
 }
+/* A landing clears the sticky headers stacked over what it lands on. Its scroller's
+   `scroll-padding` clears those over the whole scroller (the head room, a page tab
+   strip); this margin clears the rest, those over part of it, such as a framed tab
+   set's strip or a diff's file header: the slot (`--lf-top`, theme.css) less what the
+   band covers whole (`--lf-top-covered`). Content the band covers past, beside a page
+   tab strip rather than under it, keeps no margin. The browser's own scroll to a
+   target reads it, and so does the runtime's landing (landing-scroll.js), as one
+   reading of the same clearance. */
+:where(*) {
+  scroll-margin-top: max(0px, var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
+}
 /* Where the user stands wears a ring outside its box, so a scroll that brings the focus
    into view, the browser's or a landing's (anchor-travel.js reads it), keeps the ring's
    room at the scroller's edge: an item landed at the top of a scrolling pane stood flush
-   with it, the top of its ring cut off under the pane's header rule. `:focus` makes
-   that room available to the landing before the focus mark paints after the script.
-   At no weight, like the ring. */
+   with it, the top of its ring cut off under the pane's header rule. On every side,
+   since the ring is: a link Tab brought in from a wide table's end stood flush with it.
+   `:focus` makes that room available to the landing before the focus mark paints
+   after the script. At no weight, like the ring. */
 :where(:focus, [data-lf-focus]) {
-  scroll-margin-block: var(--focus-ring-landing);
+  scroll-margin: var(--focus-ring-landing);
 }
 /* A control in a stuck sticky header stands where the header sticks, which its
    scroller's landing band can count as covered: the root's band starts
-   `--lf-landing-room` below where headers stick under the banner. The browser then
+   `--lf-landing-room` below where headers stick. The browser then
    scrolled toward the control on every focus, and a stuck header never comes out from
    under the band, so each Tab crept the page: 17px under a diff's file header, 14px
    under a trace's toolbar, and a page tab strip, which stands wholly inside the band,
@@ -423,10 +436,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-msg-control,
 .lf-margin-entry,
 .lf-thread-action,
-.lf-preview,
-.lf-layer-reference,
-.lf-version-diff,
-.lf-version-row,
 .lf-command-reference-command,
 .lf-quote {
   min-width: var(--aim-floor);
@@ -437,9 +446,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     [data-lf-offer="checkbox"],
     [data-lf-offer="radio"],
     .lf-skip,
-    .lf-btn,
-    .lf-version-row,
-    .lf-version-diff
+    .lf-btn
   )
 ),
 .lf-outline-chip:is(button, [role="button"]),
@@ -489,7 +496,11 @@ summary {
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-.lf-page-thread[data-lf-focus-within] {
+/* A whole thread holding focus wears a quiet ground. A primary reader's part is one
+   message of a thread its presentation draws whole around it (`.lf-primary-part`
+   below), so focus inside a part leaves that ground to the drawing and the focused
+   control to its own ring. */
+.lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
   background: var(--focus-surface);
@@ -514,7 +525,7 @@ summary {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media (forced-colors: active) {
-  .lf-page-thread[data-lf-focus-within] {
+  .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
     outline: 2px solid Highlight;
     outline-offset: -2px;
     box-shadow: none;
@@ -533,10 +544,15 @@ summary {
 .lf-thread-seat > .lf-say {
   margin-top: 0;
 }
-.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
+/* Threads stacked in one seat are ruled apart. Parts are pieces of one thread, so a
+   part on either side takes no rule: the presentation drawing them spaces them as its
+   transcript (floating-panel.css, `.lf-fp-messages`). */
+.lf-page-thread:not(.lf-primary-part)
+  + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads) {
   margin-top: var(--sp-3);
 }
-.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before {
+.lf-page-thread:not(.lf-primary-part)
+  + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads)::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
@@ -551,12 +567,23 @@ summary {
    there (`--lf-transcript-room`, annotation-chrome.css). */
 :root,
 .lf-page-thread,
-.lf-thread,
 .lf-fab-bar {
   --lf-thread-text-inset: 13px;
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: max(28px, var(--aim-floor));
   --lf-msg-body-gap: 4px;
+  /* A message's control, and the Cancel and Save an open rewrite stands in its place:
+     the head keeps their room (controls.css), and so does the thread's own controls'
+     row beside a first message (below). */
+  --lf-msg-control-size: max(26px, var(--aim-floor));
+  --lf-msg-edit-cancel: max(52px, var(--aim-floor));
+  --lf-msg-edit-save: max(40px, var(--aim-floor));
+  --lf-msg-edit-gap: 4px;
+  --lf-msg-edit-room: calc(
+    var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save)
+  );
+  /* The widest a primary reader's news notice stands, in a message head or a part. */
+  --lf-primary-news-width: 5rem;
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -571,10 +598,7 @@ summary {
   --lf-thread-notice-room: var(--lf-msg-head-height);
   --lf-thread-message-control-room: 0px;
 }
-/* A semantic separator draws its boundary without sizing the transcript. */
-.lf-read-boundary {
-  height: 0;
-}
+
 /* One animated phase feeds every painted part of a message. Animating the
    background itself lets Firefox's compositor leave an inheriting sticky head
    behind; a typed inherited ground keeps both paints on the same frame. */
@@ -620,16 +644,18 @@ summary {
   flex: 0 1 auto;
   overflow: hidden;
 }
-/* A primary reader's message part holds its thread's news notice at the head's end,
-   beside the message's own control rather than under it (controls.css), unless its
-   presentation stands the notice elsewhere (thread/primary-reader.js). */
-.lf-primary-message > .lf-msg-head:has(> .lf-primary-news) {
+/* A primary reader's first message part, or the first message of its transcript part,
+   holds its thread's news notice at the head's end, beside the message's own control
+   rather than under it (controls.css), unless its presentation stands the notice
+   elsewhere (thread/primary-reader.js). */
+.lf-msg > .lf-msg-head:has(> .lf-primary-news) {
   position: relative;
-  --lf-msg-head-room: 5rem;
+  --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);
 }
 .lf-primary-part {
   position: relative;
+  border-radius: var(--r);
 }
 .lf-primary-part[data-lf-part="reply"] {
   padding-block-start: max(28px, var(--aim-floor));
@@ -638,7 +664,7 @@ summary {
   position: absolute;
   inset-block-start: 0;
   inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
-  max-inline-size: 5rem;
+  max-inline-size: var(--lf-primary-news-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -720,19 +746,20 @@ summary {
   font: 600 11px/1.4 var(--sans);
   cursor: pointer;
 }
-/* Progress belongs to the completing reply's metadata, with no summary row.
-   Flex wrapping keeps its complete label and hit target at narrow widths. */
-.lf-msg-head:has(> .lf-summary-expand) {
+/* Progress belongs to the completing reply's metadata, or to the face of a run no
+   reply folds, with no summary row. Flex wrapping keeps its complete label and hit
+   target at narrow widths. */
+:is(.lf-msg-head, .lf-thread-working-head):has(> .lf-summary-expand) {
   flex-wrap: wrap;
   overflow: visible;
   white-space: normal;
   row-gap: 0;
 }
-.lf-msg-head > .lf-thread-disclosure {
+:is(.lf-msg-head, .lf-thread-working-head) > .lf-thread-disclosure {
   padding-block: 0;
 }
 /* The age can change without a gesture; keep its progress control at the row end. */
-.lf-msg-head > .lf-progress-expand {
+:is(.lf-msg-head, .lf-thread-working-head) > .lf-progress-expand {
   margin-inline-start: auto;
 }
 .lf-thread-disclosure:hover {
@@ -750,13 +777,13 @@ summary {
 .lf-summary-originals > .lf-msg {
   margin-block: 8px;
 }
-/* The working message: the step of work in hand, at the transcript's foot just above
-   the reply box. It takes a message's head and body faces, but its words stay dim, and
-   while the work runs a sheen passes over them, as over a title being generated, so a
-   step reads as work under way rather than as a reply. Its words wrap as a message's
-   do, so the whole step shows however narrow the surface. Its arrival, its departure
-   and a new step that replaces its words are held when they would move what the
-   reader sees (held-news.js). */
+/* A progress run's face, the working message among them: its latest step, where it
+   was said (thread/transcript.js). It takes a message's head and body faces, but its
+   words stay dim, and while the work runs a sheen passes over them, as over a title
+   being generated, so a step reads as work under way rather than as a reply. Its words
+   wrap as a message's do, so the whole step shows however narrow the surface. Its
+   arrival, its departure and a new step that replaces its words are held when they
+   would move what the reader sees (held-news.js). */
 .lf-thread-working {
   margin-top: 16px;
 }
@@ -870,7 +897,7 @@ summary {
       > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
       > :is(.lf-react-strip, .lf-msg-control)
   ) {
-  --lf-thread-message-control-room: calc(max(26px, var(--aim-floor)) + var(--sp-2));
+  --lf-thread-message-control-room: calc(var(--lf-msg-control-size) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(
     > .lf-thread-transcript
@@ -878,9 +905,7 @@ summary {
       > .lf-msg-body
       > .lf-msg-editor
   ) {
-  --lf-thread-message-control-room: calc(
-    max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor)) + var(--sp-2)
-  );
+  --lf-thread-message-control-room: calc(var(--lf-msg-edit-room) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript
@@ -961,6 +986,33 @@ button.lf-thread-notice[data-lf-focus] {
 .lf-thread-news {
   flex: none;
   align-self: center;
+}
+/* Each fact of the news has a span of its own (held-news.js, `newsNotice`). Where the
+   notice is narrower than all of them, as when its room holds the news it first said,
+   the facts that don't fit wrap onto lines it doesn't show: a later fact drops whole
+   rather than cutting the one before it mid-word. Only a first fact too wide alone is
+   cut. The clip reaches half a line below the words, outside their box, so the hover
+   underline shows, and the gap between lines keeps a wrapped fact past it. */
+.lf-thread-news > span {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 1lh;
+  block-size: 1lh;
+  padding-block-end: 0.5lh;
+  margin-block-end: -0.5lh;
+  overflow: clip;
+}
+.lf-thread-news > span > span {
+  flex: none;
+  white-space: pre;
+}
+.lf-thread-news > span > :first-child {
+  flex-shrink: 1;
+  min-inline-size: 0;
+  padding-block-end: 0.5lh;
+  margin-block-end: -0.5lh;
+  overflow: clip;
+  text-overflow: ellipsis;
 }
 .lf-seat-news {
   display: flex;

@@ -1,7 +1,7 @@
 # What needs you: research notes
 
-Research gathered 2026-09-29 behind the asks, to-dos and On lists, whose contracts now
-live in `asks.py`, `todos.py` and `served_state/queues.py`, and behind the plan outline
+Research gathered 2026-09-29 behind the obligations, to-dos and On lists, whose contracts now
+live in `obligations.py`, `todos.py` and `served_state/queues.py`, and behind the plan outline
 (`plans.py`). It still informs the open TODO entries on when the agent asks before
 ending its own to-do and on independent jobs.
 

@@ -1,7 +1,7 @@
 /* A moving widget for readiness and covered-word checks.
  * Its offset is authoritative; deep stages animated words in a shadow root, and
  * bare deliberately omits their element so the page must refuse presentation. */
-import { LeafElement, motion, nothing } from "/runtime/widget-api.js";
+import { LeafElement, motion, nothing, shadowStage } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-drift",
@@ -10,16 +10,15 @@ customElements.define(
       // `deep` renders the same words from inside the widget's own root, and moves
       // them there: an animation a document-level reading cannot see.
       if (this.hasAttribute("deep")) {
-        const root = this.attachShadow({ mode: "open" });
         // `bare` stages the words with no element over them — the page refuses that,
         // and the refusal is what one of the tests below reads.
         if (this.hasAttribute("bare")) {
-          root.append(...this.childNodes);
+          shadowStage(this, [...this.childNodes]);
           return;
         }
         const held = document.createElement("div");
         held.append(...this.childNodes);
-        root.append(held);
+        shadowStage(this, [held]);
         held.animate([{ transform: "translateY(120px)" }, { transform: "none" }], {
           duration: 30000,
         });

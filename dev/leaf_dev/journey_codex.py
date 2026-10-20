@@ -1,7 +1,7 @@
 """The `codex-app-server` and `codex-queue` journeys: a real Codex task reaching Leaf
 through one transport, and the steps a user takes at its terminal.
 
-    uv run leaf-dev journey codex-app-server|codex-queue [--preview]
+    uv run leaf-dev journey codex-app-server|codex-queue [--preview] [--sandbox]
 
 The suite drives the adapter with scripted App Server messages; this drives it with
 Codex itself. It installs this working tree's plugin payload (`extract_payload`) into
@@ -17,7 +17,10 @@ claim in process, and stops at the first check that fails.
 The steps, in order:
 
 - `setup`: the user asks for a page to review; serving it automatically connects
-  delivery using this journey's transport;
+  delivery using this journey's transport. With `--sandbox`, the task's shell
+  commands run in Codex's `workspace-write` sandbox, which may write the task's
+  directory but not the state home, and nothing approves an escalation, so the task
+  must serve through the plugin's MCP server (`leaf.codex_tool`);
 - `release`: the journey's timed ask, sent while the task is idle, is answered in a
   turn Leaf starts (`journey.run_journey`);
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
@@ -64,10 +67,9 @@ import psutil
 from leaf.codex import private_app_server
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
-from leaf.leases import adapter_is_live, lock_is_held, titles_log
+from leaf.leases import adapter_is_live, lock_is_held
 from leaf.server import running_server
 from leaf.service import page_claim
-from leaf.thread_titles import TIMEOUT
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -108,8 +110,6 @@ RESUME_TURN = (
     "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
     "skip the remaining shell command and report the interruption."
 )
-# Where the queue wrapper finds the private App Server the task's `codex queue` reaches.
-ENDPOINT = "LEAF_JOURNEY_CODEX_ENDPOINT"
 
 
 class Codex(Terminal):
@@ -146,26 +146,6 @@ def adapter_processes(codex: str) -> list[psutil.Process]:
     ]
 
 
-def page_server_title(codex: Codex, thread: str) -> dict | None:
-    """The page server's record of the title it generated for `thread`, hearing the
-    task as long as the request may take, or None where it made none. The log names
-    a thread's title but not who made it; this is what says the page server did."""
-    log = titles_log(codex.task.thread)
-    deadline = time.monotonic() + TIMEOUT
-    while True:
-        records = log.read_text().splitlines() if log.exists() else []
-        for line in records:
-            record = json.loads(line)
-            if (record["event"], record["thread"]) == (
-                "thread_title_generated",
-                thread,
-            ):
-                return record
-        if time.monotonic() > deadline:
-            return None
-        codex.hear(0.5)
-
-
 def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     """What holds between steps (`settled`), the last comment's thread titled by the
     page server, and the claim's turn being the task's last. `sent` names each
@@ -174,7 +154,7 @@ def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     titled = None
     if sent:
         last = list(sent)[-1]
-        record = page_server_title(codex, sent[last])
+        record = codex.page_server_title(codex.task.thread, sent[last])
         require(record is not None, f"the page server did not title `{last}`'s thread")
         titled = (
             f"titled in {record['durationMs']} ms, {record['inputTokens']} input tokens"
@@ -187,9 +167,18 @@ def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     return titled
 
 
-def setup(codex: Codex, page: Path, executable: str, transport: str, preview: bool):
+def setup(
+    codex: Codex,
+    page: Path,
+    executable: str,
+    transport: str,
+    *,
+    preview: bool,
+    sandbox: bool,
+):
     """Ask for the page and require it served, with delivery connected through
-    `transport`."""
+    `transport`, and in the sandbox by a `leaf` command run through the plugin's
+    MCP server."""
     if preview:
         command = shlex.join(
             [
@@ -229,6 +218,16 @@ def setup(codex: Codex, page: Path, executable: str, transport: str, preview: bo
         ),
         f"the adapter did not select the {transport} transport",
     )
+    if sandbox:
+        require(
+            any(
+                block.get("name") == "mcp__leaf__run"
+                for record in codex.trace
+                if record["type"] == "assistant"
+                for block in record["message"]["content"]
+            ),
+            "the sandboxed task ran no `leaf` command through the plugin's MCP server",
+        )
 
 
 def steps(
@@ -490,21 +489,27 @@ def steps(
 
 def task_codex(root: Path, executable: str, transport: str) -> str:
     """Route the queue to the private server without exposing Leaf's observed
-    App Server transport to the task. Both transports use the real Codex executable."""
+    App Server transport to the task. Both transports use the real Codex executable.
+
+    The server's endpoint is kept in a file beside the wrapper rather than in the
+    environment, since Codex starts a plugin's MCP server, through which a sandboxed
+    task runs `leaf`, with only the variables the plugin names."""
     directory = root / "bin"
     directory.mkdir()
     wrapper = directory / "codex"
+    endpoint = directory / "endpoint"
     wrapper.write_text(
         f"#!{sys.executable}\n"
         "import os, sys\n"
+        "from pathlib import Path\n"
         "arguments = sys.argv[1:]\n"
+        f"endpoint = Path({str(endpoint)!r})\n"
         f"if {transport!r} == 'queue':\n"
         "    if arguments[0] == 'app-server':\n"
-        f"        os.environ[{ENDPOINT!r}] = "
-        "arguments[arguments.index('--listen') + 1]\n"
+        "        endpoint.write_text(arguments[arguments.index('--listen') + 1])\n"
         "        os.environ.pop('LEAF_CODEX_APP_SERVER', None)\n"
         "    elif arguments[0] == 'queue':\n"
-        f"        arguments += ['--remote', os.environ[{ENDPOINT!r}]]\n"
+        "        arguments += ['--remote', endpoint.read_text()]\n"
         f"os.execv({executable!r}, [{executable!r}, *arguments])\n"
     )
     wrapper.chmod(0o700)
@@ -513,10 +518,12 @@ def task_codex(root: Path, executable: str, transport: str) -> str:
 
 @contextmanager
 def answering(
-    browser, transport: str, *, preview: bool
+    browser, transport: str, *, preview: bool, sandbox: bool
 ) -> Iterator[tuple[User, Callable]]:
     """The user at the page a Codex task serves through `transport`, once it has,
-    and the steps that follow."""
+    and the steps that follow. With `sandbox`, the task's shell commands run in
+    Codex's sandbox and nothing approves an escalation, so a `leaf` command the
+    sandbox refuses reaches Leaf only through the plugin's MCP server."""
     codex_path = shutil.which("codex")
     if codex_path is None:
         raise click.ClickException("cannot find the `codex` executable on PATH")
@@ -526,7 +533,19 @@ def answering(
         nonlocal executable
         # Keep the journey's isolated executable on PATH; a login shell would
         # replace it with the user's Codex and bypass the queue wrapper.
-        home = codex_home(place.root / "codex-home", "allow_login_shell = false\n")
+        config = "allow_login_shell = false\n"
+        if sandbox:
+            # The journey's state home is under TMPDIR, which the sandbox otherwise
+            # lets a command write, where a user's is not. And the journey cannot
+            # answer Codex's question whether to allow Leaf's MCP tool, so it
+            # allows it as a user who answered "always" has.
+            config += (
+                "[sandbox_workspace_write]\n"
+                "exclude_tmpdir_env_var = true\n"
+                '[plugins."leaf@leaf".mcp_servers.leaf]\n'
+                'default_tools_approval_mode = "approve"\n'
+            )
+        home = codex_home(place.root / "codex-home", config)
         executable = task_codex(place.root, codex_path, transport)
         return environment(
             XDG_STATE_HOME=str(place.state),
@@ -559,11 +578,20 @@ def answering(
                     {
                         "cwd": str(place.work),
                         "approvalPolicy": "never",
-                        "sandbox": "danger-full-access",
+                        "sandbox": "workspace-write"
+                        if sandbox
+                        else "danger-full-access",
                     },
                 )["thread"]["id"]
                 started = time.monotonic()
-                setup(codex, place.page, executable, transport, preview)
+                setup(
+                    codex,
+                    place.page,
+                    executable,
+                    transport,
+                    preview=preview,
+                    sandbox=sandbox,
+                )
                 check(place.page, codex, {})
                 with user_at(browser, place, codex, started) as user:
                     yield (

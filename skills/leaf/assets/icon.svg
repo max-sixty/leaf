@@ -7,8 +7,8 @@
      out because a favicon cannot link a stylesheet.
 
      The whole mark is `lf-tone`, and that is a contract with the runtime:
-     a served page paints this element in whatever colour the banner's dot is
-     wearing, so the tab says what the leaf is doing (paintTab). A layer
+     a served page paints this element in whatever colour the floating panel's dot
+     is wearing, so the tab says what the leaf is doing (paintTab). A layer
      overriding this file keeps the class or the tab stops saying anything. -->
 <style>
   .lf-tone { fill: #2f5480; }

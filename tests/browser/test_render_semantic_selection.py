@@ -7,10 +7,7 @@ import pytest
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_layout import (
-    DRAFT_MARK,
-    banner_control,
-)
+from render_cases_layout import DRAFT_MARK
 from render_cases_navigation import (
     TARGETS_PAGE,
     pending_text,
@@ -21,9 +18,14 @@ from render_cases_widgets import (
 from render_harness import (
     EXAMPLES,
     ROOT,
+    available_commands,
+    expect_panel_says,
     leaf_page,
     open_page,
+    panel_control,
+    panel_field,
     resized,
+    selection_field,
     sending,
     write,
 )
@@ -82,7 +84,7 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
 
     for term in ("x", "id"):
         page.get_by_text(term, exact=True).select_text()
-        expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+        expect(selection_field(page)).to_be_visible()
         assert page.evaluate("() => getSelection().toString()") == term
         expect(page.locator(".lf-fab-input:focus")).to_have_count(0)
 
@@ -100,50 +102,6 @@ def test_short_inline_code_selection_offers_comment(browser, serve):
         "prefix": "Compare x with",
         "suffix": ".",
     }
-
-
-def test_touch_user_selects_an_element_comments_and_finds_its_thread(browser, serve):
-    """A touch target press comments on the innermost element without activating its link."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Touch targets",
-                '<section id="outer" style="padding-top:100px"><h1>Touch targets</h1>'
-                '<p id="inner"><a href="#elsewhere">A paragraph link to comment on</a></p>'
-                '<p id="elsewhere">Another place on this page.</p></section>',
-            )
-        ),
-        context=context,
-    )
-    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Select element')").tap()
-    expect(page.locator(".lf-banner-menu")).to_be_hidden()
-    cancel = page.get_by_role("button", name="Cancel selection", exact=True)
-    page.locator(".lf-banner-actions").get_by_role(
-        "button", name="Cancel selection", exact=True
-    ).tap()
-    expect(page.locator(".lf-banner-menu")).to_be_hidden()
-    expect(cancel).to_be_hidden()
-    banner_control(page, ".lf-banner-menu .lf-btn:text-is('Select element')").tap()
-    page.locator("#inner a").tap()
-    expect(cancel).to_be_hidden()
-    assert not page.url.endswith("#elsewhere"), (
-        "target selection activated the authored link"
-    )
-    field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused()
-    write(field, "Please clarify this paragraph.")
-    with sending(page, "the touch element comment"):
-        page.locator(".lf-fab-bar .lf-compose-submit").tap()
-    comment = events_model.read_events(serve.page_dir)[-1]
-    assert comment["anchor"] == {"section": "inner"}
-    page.locator(".lf-threads-toggle").tap()
-    expect(page.locator(".lf-thread-panel")).to_contain_text(
-        "Please clarify this paragraph."
-    )
 
 
 def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
@@ -199,58 +157,37 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
 
 
 def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve):
-    """The picker shares Design targets, while Draw mode and covering panels own input."""
-    context = browser.new_context(has_touch=True)
-    page = open_page(browser, serve(TARGETS_PAGE), context=context)
-    select = page.get_by_role(
-        "button", name="Select element", exact=True, include_hidden=True
-    )
+    """The picker shares Design targets, while Draw mode owns input."""
+    page = open_page(browser, serve(TARGETS_PAGE))
     for key, available in (("l", True), ("w", False)):
         page.keyboard.press(key)
-        if available:
-            expect(select).to_be_enabled()
-        else:
-            expect(select).to_be_disabled()
+        assert ("target.picker.open" in available_commands(page)) is available, key
         # Text search remains available inside these pointer modes.
         page.keyboard.press("/")
         page.get_by_role("searchbox", name="Search page text").fill("paragraph")
         expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
         page.keyboard.press("Escape")
         page.keyboard.press("Escape")
-    page.set_viewport_size({"width": 390, "height": 844})
-    page.locator(".lf-threads-toggle").click()
-    expect(select).to_be_disabled()
 
 
-def test_selection_banner_controls_stay_available_across_pointer_changes(
-    browser, serve
-):
-    """Selection controls remain usable as the primary pointer changes."""
+def test_the_picker_s_way_out_stays_available_across_pointer_changes(browser, serve):
+    """The picker's ✕ stays in the panel's row as the primary pointer changes under
+    it."""
     page = open_page(browser, serve(TARGETS_PAGE))
-    select = page.get_by_role("button", name="Select element", exact=True)
-    cancel = page.get_by_role("button", name="Cancel selection", exact=True)
-    page.get_by_role("button", name="More page controls", exact=True).click()
-    expect(page.locator(".lf-banner-menu")).to_be_visible()
-    expect(select).to_be_visible()
-    page.keyboard.press("Escape")
+    cancel = page.locator('.lf-fp-exit[aria-label="Close picker"]')
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(3)
-    page.get_by_role("button", name="More page controls", exact=True).click()
     expect(cancel).to_be_visible()
 
     cdp = page.context.new_cdp_session(page)
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": True})
     expect(cancel).to_be_visible()
     cancel.click()
-    page.get_by_role("button", name="More page controls", exact=True).click()
-    expect(select).to_be_visible()
-    select.click()
-    page.get_by_role("button", name="More page controls", exact=True).click()
+    expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
+    page.keyboard.press("s")
     expect(cancel).to_be_visible()
     cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
-    expect(page.locator(".lf-banner-menu")).to_be_visible()
     expect(cancel).to_be_visible()
-    expect(select).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
 
@@ -263,19 +200,10 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
 
     hints = page.locator(".lf-target-picker-hint")
     expect(hints).to_have_count(3)  # heading, paragraph, and figure
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("type hint")
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-walk-position")).to_have_text("Target 1 of 3")
+    expect_panel_says(page, "Target 1 of 3")
     expect(page.locator(".lf-target-picker-hint.lf-current")).to_have_count(1)
     expect(page.locator(".lf-live")).to_contain_text("Hint a: heading: Targets")
-    page.keyboard.press("?")
-    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
-        "data-lf-expanded", "true"
-    )
-    expect(page.locator(".lf-command-reference")).to_be_hidden()
-    expect(page.locator(".lf-live")).to_contain_text(
-        "Shortcut bar expanded. Press question mark again for Command reference"
-    )
     page.keyboard.press("?")
     expect(
         page.locator(".lf-command-reference").get_by_role(
@@ -283,15 +211,8 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
         )
     ).to_be_visible()
     page.keyboard.press("Escape")
+    expect(page.locator(".lf-command-reference")).to_be_hidden()
     expect(hints).to_have_count(3)  # help was a layer over the picker, not its end
-    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
-        "data-lf-expanded", "true"
-    )
-    page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-bar")).to_have_attribute(
-        "data-lf-expanded", "false"
-    )
-    expect(hints).to_have_count(3)
     prose_code = page.evaluate(
         """() => {
           const top = document.querySelector('#prose').getBoundingClientRect().top;
@@ -310,12 +231,6 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(hints).to_have_count(0)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
-    expect(shown).to_have_count(2)
-    expect(shown.nth(0).locator("kbd")).to_have_text(re.compile(r"^⏎$"))
-    expect(shown.nth(0)).to_contain_text("comment")
-    expect(shown.nth(1).locator("kbd")).to_have_text("⇥")
-    expect(shown.nth(1)).to_contain_text("other responses")
 
     # Text entry owns letters. Tab extends the same response surface; Escape restores
     # the same draft.
@@ -333,56 +248,6 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     assert pending_text(page) == ""
     page.keyboard.press("Escape")
     expect(field).to_be_hidden()
-
-
-def test_a_chrome_reflow_repositions_target_hints_in_its_first_layout_frame(
-    browser, serve
-):
-    """A line resize and its dependent target placement land in one visible frame."""
-    page = open_page(browser, serve(TARGETS_PAGE))
-    page.keyboard.press("s")
-    hints = page.locator(".lf-target-picker-hint")
-    expect(hints).to_have_count(3)
-    rendered(page)
-
-    page.evaluate(
-        """() => {
-          const line = document.querySelector('.lf-shortcut-bar');
-          const oldHints = [...document.querySelectorAll('.lf-target-picker-hint')]
-            .map(node => node.getBoundingClientRect().toJSON());
-          window.__lfFirstChromeResize = null;
-          const overlap = (one, other) =>
-            one.left < other.right && other.left < one.right &&
-            one.top < other.bottom && other.top < one.bottom;
-          const observer = new ResizeObserver(() => {
-            observer.disconnect();
-            requestAnimationFrame(() => {
-              const lineBox = line.getBoundingClientRect().toJSON();
-              const currentHints = [...document.querySelectorAll('.lf-target-picker-hint')]
-                .map(node => node.getBoundingClientRect().toJSON());
-              window.__lfFirstChromeResize = {
-                crossedOldHints: oldHints.filter(box => overlap(box, lineBox)).length,
-                overlaps: currentHints.filter(box => overlap(box, lineBox)).length,
-                currentHints: currentHints.length,
-              };
-            });
-          });
-          observer.observe(line);
-          line.style.height = '700px';
-        }"""
-    )
-    page.wait_for_function("() => window.__lfFirstChromeResize !== null")
-    frame = page.evaluate("() => window.__lfFirstChromeResize")
-
-    assert frame["crossedOldHints"] > 0, (
-        f"the resized line crossed no prior hint, so it cannot expose stale placement: {frame}"
-    )
-    assert frame["currentHints"] == 3, (
-        f"the target map dropped a reachable command instead of repositioning it: {frame}"
-    )
-    assert frame["overlaps"] == 0, (
-        f"the first layout frame left target hints under the resized line: {frame}"
-    )
 
 
 def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, serve):
@@ -416,7 +281,7 @@ def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, se
 
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
-    """Without reactions, the focused composer offers no dead Tab route."""
+    """Without reactions, the focused composer still takes Escape."""
     registry = json.loads(
         (ROOT / "skills/leaf/packages/default/registry.json").read_text()
     )
@@ -435,15 +300,71 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     expect(bar).to_be_visible()
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to "))
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
-    expect(shown).to_have_count(2)
-    expect(shown.nth(1).locator("kbd")).to_have_text("esc")
     expect(page.locator(".lf-fab-input")).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
+
+
+def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
+    """Words a script selects are quoted in the panel's field, and only a press there
+    comments on them: a Tab into the field writes on the page. A page draft hiding the
+    quote moves it to the line over the field, and on a page drawing its own
+    annotations the field stands in an open comment box's place while it quotes."""
+    source = leaf_page(
+        "Offered words",
+        '<p id="first">The first passage holds its words.</p>'
+        '<p id="second">A second passage comes after it.</p>',
+    )
+    page = open_page(browser, serve(source))
+    field = panel_field(page)
+    offered = selection_field(page)
+    composer = page.locator(".lf-fab-input")
+
+    def select(paragraph):
+        page.locator(paragraph).evaluate("el => getSelection().selectAllChildren(el)")
+
+    select("#first")
+    expect(offered).to_have_attribute(
+        "placeholder", "“The first passage holds its words.”"
+    )
+    expect(offered).to_have_attribute("aria-label", "Comment on the selection")
+    page.locator(".lf-fp-leaf").focus()
+    page.keyboard.press("Tab")
+    expect(field).to_be_focused()
+    page.keyboard.type("A page note")
+    expect(field).to_have_js_property("value", "A page note")
+    expect(field).to_have_attribute("aria-label", "Comment on the page")
+    expect(composer).to_be_hidden()
+
+    page.locator(".lf-fp-leaf").focus()
+    select("#first")
+    context = page.locator(".lf-fp-context-words")
+    expect(context).to_have_text("“The first passage holds its words.”")
+    field.click()
+    expect(composer).to_be_focused()
+    expect(field).to_have_js_property("value", "A page note")
+    expect(context).to_have_text("")
+
+    # Where the open box stands in the field's place, it leaves that place to the field
+    # while new words are offered.
+    page = open_page(
+        browser,
+        serve(source.replace("<body>", '<body data-annotations="page">', 1)),
+    )
+    offered = selection_field(page)
+    composer = page.locator(".lf-fab-input")
+    select("#first")
+    offered.click()
+    expect(composer).to_be_focused()
+    composer.blur()
+    select("#second")
+    expect(offered).to_be_visible()
+    offered.click()
+    expect(composer).to_be_focused()
+    expect(page.locator("#lf-composer-quote")).to_contain_text("A second passage")
 
 
 def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser, serve):
@@ -461,7 +382,7 @@ def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser,
     prose = page.locator("#prose")
     prose.select_text()
     field = page.locator(".lf-fab-input")
-    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
     # The composer has not opened, so its field is not on the page to hold focus.
     expect(page.locator(".lf-fab-input:focus")).to_have_count(0)
     page.keyboard.press("c")
@@ -513,7 +434,6 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     page.keyboard.press(last[1])
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("comment")
     geometry = page.evaluate(
         """() => {
           const figure = document.querySelector('#visual-59').getBoundingClientRect();
@@ -657,7 +577,7 @@ def test_selection_opens_the_same_comment_field_on_a_declared_visual_part(
     context = browser.new_context(has_touch=route == "touch")
     page = open_page(browser, serve(PART_DIAGRAM_PAGE), context=context)
     if route == "touch":
-        banner_control(page, ".lf-banner-menu .lf-btn:text-is('Select element')").tap()
+        panel_control(page, "command:target.picker.open", at="annotate").tap()
         page.locator('#flow [data-id="S"]').tap()
     else:
         page.keyboard.press("s")
@@ -706,9 +626,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     first."""
     page = open_page(browser, serve(TARGETS_PAGE))
 
-    # Selection is named on the resting line and whole-page search in the reference.
-    # `to_contain_text` on the line would read hidden register rows as well.
-    page.keyboard.press("?")
+    # Selection and whole-page search are named in the reference.
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
     search_command = help_el.locator('tr[data-lf-command="page.search.open"]')
@@ -764,24 +682,21 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(status).to_have_text("1 of 1")
     assert search_field.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("select match")
     page.keyboard.press("Tab")
-    expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 1")
+    expect_panel_says(page, "Match 1 of 1")
     expect(page.locator(".lf-live")).to_contain_text(
         "raises the button the key then presses"
     )
 
     page.keyboard.press("Enter")
     expect(page.locator(".lf-page-search")).to_be_hidden()
-    expect(page.locator(".lf-walk-position")).to_be_hidden()
+    expect_panel_says(page, "Match 1 of 1", says=False)
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
     expect(page.locator(".lf-composer")).to_be_visible()
     assert page.evaluate("() => getSelection().toString()") == "button the key"
     assert pending_text(page) == "button the key"
     page.keyboard.press("n")
-    expect(page.locator(".lf-walk-position")).to_have_text("Match 1 of 1")
-    page.keyboard.press("n")
-    expect(page.locator(".lf-walk-position")).to_have_attribute("data-lf-boundary", "")
+    expect_panel_says(page, "Match 1 of 1")
 
 
 def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, serve):
@@ -842,10 +757,6 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     expect(page.get_by_role("searchbox", name="Search page text")).to_have_value(
         "needle"
     )
-    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
-    expect(shown).to_have_count(2)
-    expect(shown.filter(has_text="select match")).to_have_count(1)
-    expect(shown.filter(has_text="matches")).to_have_count(1)
     page.keyboard.press("Enter")
     expect(page.locator(".lf-live")).to_contain_text(
         "Press n for next, Shift+n for previous, or c to comment"
@@ -860,7 +771,6 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     assert page.evaluate(selected_in) == "first"
 
     page.keyboard.press("?")
-    page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
     expect(help_el.locator('tr[data-lf-command="page.search.next"] kbd')).to_have_text(
         "n"
@@ -872,11 +782,10 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
 
     page.keyboard.press("n")
     assert page.evaluate(selected_in) == "second"
-    expect(page.locator(".lf-walk-position")).to_have_text("Match 2 of 2")
+    expect_panel_says(page, "Match 2 of 2")
     page.keyboard.press("Shift+n")
     assert page.evaluate(selected_in) == "first"
-    position = page.locator(".lf-walk-position")
-    expect(position).to_have_text("Match 1 of 2")
+    expect_panel_says(page, "Match 1 of 2")
 
     # A page rewrite can split the text node under a captured match. Its old offsets
     # then retire the walk rather than throwing from Range construction on every paint.
@@ -887,11 +796,11 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
           dispatchEvent(new Event('resize'));
         }"""
     )
-    expect(position).to_be_hidden()
+    expect_panel_says(page, "Match", says=False)
     page.keyboard.press("Shift+n")
-    expect(position).to_have_text("Match 2 of 2")
+    expect_panel_says(page, "Match 2 of 2")
     page.keyboard.press("n")
-    expect(position).to_have_text("Match 1 of 2")
+    expect_panel_says(page, "Match 1 of 2")
 
     composer = page.locator(".lf-fab-input")
     composer.focus()
@@ -910,7 +819,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
           dispatchEvent(new Event('resize'));
         }"""
     )
-    expect(position).to_be_hidden()
+    expect_panel_says(page, "Match", says=False)
 
 
 def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serve):
@@ -951,52 +860,17 @@ def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serv
     )
 
 
-def test_slash_stays_native_in_text_entry_and_searches_the_scope_in_front(
-    browser, serve
-):
-    """An editable field owns slash as text. From a thread in the panel, the same key
-    opens that panel's find box rather than the page search standing behind it."""
+def test_slash_stays_native_in_text_entry(browser, serve):
+    """An editable field owns slash as text."""
     html = leaf_page(
         "scoped slash",
         '<label>Path <input id="path"></label><p>Searchable page words.</p>',
     )
-    page = open_page(browser, serve(html, comments=2))
+    page = open_page(browser, serve(html))
     path = page.locator("#path")
     path.focus()
     page.keyboard.type("/")
     expect(path).to_have_value("/")
-    expect(page.locator(".lf-page-search")).to_be_hidden()
-
-    page.keyboard.press("Escape")
-    assert page.evaluate("() => document.activeElement === document.body")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(
-        page.locator(
-            ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
-        )
-    ).to_be_focused()
-    page.keyboard.press("/")
-    thread_search = page.get_by_role("searchbox", name="Find in threads")
-    expect(thread_search).to_be_focused()
-    expect(page.locator(".lf-page-search")).to_be_hidden()
-    page.keyboard.type("Comment 1")
-    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
-
-
-def test_empty_thread_scope_keeps_slash_in_its_search(browser, serve):
-    """An empty thread list still has a usable find box. Slash focuses that nearest
-    search rather than opening page search behind the panel."""
-    html = leaf_page("empty scoped slash", "<p>Searchable page words.</p>")
-    page = open_page(browser, serve(html))
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    threads = page.locator(".lf-threads")
-    expect(threads).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("search page")
-    page.keyboard.press("/")
-    expect(page.get_by_role("searchbox", name="Find in threads")).to_be_focused()
     expect(page.locator(".lf-page-search")).to_be_hidden()
 
 
@@ -1090,8 +964,8 @@ def test_selection_search_scrolls_to_the_match_inside_a_tall_text_block(browser,
         }"""
     )
     assert mark is not None
-    shortcut_bar_top = page.locator(".lf-shortcut-bar").bounding_box()["y"]
-    assert mark["y"] > 42 and mark["y"] + mark["height"] < shortcut_bar_top
+    row_top = page.locator(".lf-fp-row").bounding_box()["y"]
+    assert mark["y"] > 0 and mark["y"] + mark["height"] < row_top
 
     page.keyboard.press("Enter")
     expect(page.locator(".lf-fab-input")).not_to_be_focused()
@@ -1119,7 +993,6 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
 
     page.evaluate("() => { document.scrollingElement.scrollTop = 1050; }")
     expect(page.locator(".lf-target-picker-hint.lf-current")).to_have_count(0)
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("select target")
     page.keyboard.press("Enter")
     assert page.evaluate("() => getSelection().toString()") == ""
 
@@ -1135,8 +1008,7 @@ def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serv
     alphabet.
 
     Before that, a letter the map does not hold is reported and costs the user nothing
-    else: resetting instead would throw away the letters they had already typed right.
-    And after it, a covering panel removes the inert document from the picker."""
+    else: resetting instead would throw away the letters they had already typed right."""
     page = open_page(browser, serve(TARGETS_PAGE))
     codes = """() => [...document.querySelectorAll('.lf-target-picker-hint')]
       .map(chip => chip.dataset.lfHintCode)"""
@@ -1170,15 +1042,6 @@ def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serv
     expect(hints).not_to_have_count(0)
     page.keyboard.press("Escape")
     expect(hints).to_have_count(0)
-    page.locator(".lf-threads-toggle").click()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    assert page.locator(".lf-thread-panel").evaluate(
-        "surface => surface.closest('dialog').matches(':modal')"
-    )
-    page.keyboard.press("s")
-    assert hints.count() == 0, (
-        "page target picker crossed the covering auxiliary surface boundary"
-    )
 
 
 def test_an_open_search_mark_follows_the_page_it_marks(browser, serve):
@@ -1241,7 +1104,7 @@ def test_a_nested_target_hint_follows_when_the_nesting_changes(browser, serve):
     page.evaluate(
         """() => {
           document.querySelector('#inner').style.marginLeft = '-60px';
-          document.querySelector('.lf-shortcut-bar').style.height = '80px';
+          document.querySelector('.lf-fp-row').style.height = '80px';
         }"""
     )
     page.wait_for_function(
@@ -1250,68 +1113,6 @@ def test_a_nested_target_hint_follows_when_the_nesting_changes(browser, serve):
         arg=chip_left,
     )
     assert page.evaluate(step) == indented
-
-
-def test_the_key_line_moves_a_hint_rather_than_dropping_its_target(browser, serve):
-    """Chrome at the foot does not decide who is in the map.
-
-    The shortcut bar states the armed map's own keys and changes width as the user
-    filters it, so a map that read it would lose members as it armed and swap codes under
-    the user as its own legend grew. A chip that would land on the bar is moved clear
-    instead, which keeps the route where dropping the member loses it."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "targets at the key line",
-                """
-<h1 id="head">Targets by the foot</h1>
-<p id="behind">Behind the key line.</p>
-<p id="gutter">Below the key line.</p>
-""",
-                head="""<style>
-  #behind, #gutter { position: fixed; width: 120px; height: 12px; margin: 0;
-    overflow: hidden; white-space: nowrap; }
-  #behind { left: 30px; top: calc(100vh - 30px); }
-  #gutter { left: 170px; top: calc(100vh - 6px); }
-</style>""",
-            )
-        ),
-    )
-    page.keyboard.press("s")
-    hints = page.locator(".lf-target-picker-hint")
-    expect(hints).to_have_count(3)
-
-    # The premise. Both targets stand wholly inside the bottom bar's box, one in its
-    # row and one at the window's foot.
-    room = page.evaluate(
-        """() => {
-          const box = selector => document.querySelector(selector).getBoundingClientRect();
-          const bar = box('.lf-shortcut-bar');
-          const hit = a => a.left < bar.right && bar.left < a.right
-                        && a.top < bar.bottom && bar.top < a.bottom;
-          const behind = box('#behind'), gutter = box('#gutter');
-          return {
-            covered: bar.left <= behind.left && behind.right <= bar.right
-                  && bar.top <= behind.top && behind.bottom <= bar.bottom,
-            below: bar.left <= gutter.left && gutter.right <= bar.right
-                && bar.top <= gutter.top && gutter.top < innerHeight,
-            fouled: [...document.querySelectorAll('.lf-target-picker-hint')]
-              .filter(chip => hit(chip.getBoundingClientRect())).length,
-          };
-        }"""
-    )
-    assert room["covered"] and room["below"], room
-    assert room["fouled"] == 0, room
-
-    # Both are named, and the walk reaches them in the order they stand.
-    said = page.locator(".lf-live")
-    page.keyboard.press("Tab")
-    expect(said).to_contain_text("Targets by the foot")
-    page.keyboard.press("Tab")
-    expect(said).to_contain_text("Behind the key line.")
-    page.keyboard.press("Tab")
-    expect(said).to_contain_text("Below the key line.")
 
 
 def test_a_target_behind_a_page_sheet_is_offered_no_letter(browser, serve):
@@ -1471,8 +1272,6 @@ def test_cancelling_page_search_restores_the_control_that_opened_it(browser, ser
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
     page.locator("main p").click()
     page.keyboard.press("/")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close search")
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("back to hints")
     page.keyboard.press("Escape")
     expect(opener).to_be_focused()
 
@@ -1496,7 +1295,6 @@ def test_cancelling_selection_restores_an_opener_inside_shadow_dom(browser, serv
     page.keyboard.press("s")
     page.keyboard.press("/")
     expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("back to hints")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     assert (
@@ -1526,8 +1324,6 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
 
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("search page")
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("choose hint")
     page.keyboard.press("/")
     page.keyboard.type("phrase only appears")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
@@ -1539,16 +1335,15 @@ def test_selection_search_opens_when_the_viewport_has_no_hint_targets(browser, s
     assert pending_text(page) == "phrase only appears"
 
 
-def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
-    browser, serve
-):
-    """A line beginning behind the fixed banner can still be visibly selectable below
-    it. Its hint sits at the clipped edge instead of putting half its key under chrome."""
+def test_a_partly_clipped_passage_keeps_its_hint_in_sight(browser, serve):
+    """A line beginning above the window's head can still be visibly selectable below
+    it, and one running under the panel's row above that. Its hint sits at the clipped
+    edge instead of putting half its key out of sight or under chrome."""
     html = leaf_page(
         "top-edge target",
         """
 <div style="height: 300px" aria-hidden="true"></div>
-<p id="edge">This passage begins beneath the banner edge.</p>
+<p id="edge">This passage begins beyond the window's edge.</p>
 <div style="height: 1200px" aria-hidden="true"></div>
 """,
     )
@@ -1558,20 +1353,14 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
           const text = document.querySelector('#edge').firstChild;
           const range = document.createRange();
           range.selectNodeContents(text);
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (banner.bottom - 5);
+          document.scrollingElement.scrollTop += range.getBoundingClientRect().top + 5;
         }"""
     )
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(1)
 
-    geometry = page.evaluate(
-        """() => ({
-          bannerBottom: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
-          hintTop: document.querySelector('.lf-target-picker-hint').getBoundingClientRect().top,
-        })"""
-    )
-    assert geometry["hintTop"] >= geometry["bannerBottom"], geometry
+    hint_top = page.locator(".lf-target-picker-hint").bounding_box()["y"]
+    assert hint_top >= 0, hint_top
 
     page.keyboard.press("Escape")
     page.evaluate(
@@ -1579,28 +1368,28 @@ def test_a_partly_banner_clipped_passage_keeps_its_hint_below_the_banner(
           const text = document.querySelector('#edge').firstChild;
           const range = document.createRange();
           range.selectNodeContents(text);
-          const shortcut_bar = document.querySelector('.lf-shortcut-bar').getBoundingClientRect();
-          document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (shortcut_bar.top - 5);
+          const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
+          document.scrollingElement.scrollTop += range.getBoundingClientRect().top - (row.top - 5);
         }"""
     )
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(1)
     geometry = page.evaluate(
         """() => ({
-          shortcutBarTop: document.querySelector('.lf-shortcut-bar').getBoundingClientRect().top,
+          rowTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
           hintBottom: document.querySelector('.lf-target-picker-hint').getBoundingClientRect().bottom,
         })"""
     )
-    assert geometry["hintBottom"] <= geometry["shortcutBarTop"], geometry
+    assert geometry["hintBottom"] <= geometry["rowTop"], geometry
 
 
-def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser, serve):
-    """Fixed nested targets standing in the bottom bar stay reachable: the selector
-    spreads both hints inside the viewport but outside the band. A scalar boundary at the
+def test_the_panel_only_hides_targets_in_the_lane_it_paints(browser, serve):
+    """Fixed nested targets standing under the panel's row stay reachable: the selector
+    spreads both hints inside the viewport but outside the row. A scalar boundary at the
     band's top dropped both targets, while a center left on their covered part put
     replacement hints on the band or below the viewport."""
     html = leaf_page(
-        "target beside the shortcut bar",
+        "target beside the panel's row",
         """
 <section id="right-edge"
   style="position: fixed; left: 250px; bottom: 35px; width: 500px; padding-bottom: 1px">
@@ -1618,7 +1407,7 @@ def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser,
     target, line, hints = page.evaluate(
         """() => [
           document.querySelector('#right-edge').getBoundingClientRect().toJSON(),
-          document.querySelector('.lf-shortcut-bar').getBoundingClientRect().toJSON(),
+          document.querySelector('.lf-fp-row').getBoundingClientRect().toJSON(),
           [...document.querySelectorAll('.lf-target-picker-hint')].map(
             hint => hint.getBoundingClientRect().toJSON()
           ),
@@ -1645,11 +1434,15 @@ def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser,
 
     page.keyboard.press("Escape")
     page.keyboard.press("/")
-    page.keyboard.type("crosses the edge")
+    # The search box stands centred above the panel, over the middle of the target's
+    # first line, and a match it covers takes no mark. Its opening words stand left of
+    # both the box and the row whatever the fonts' widths, as "crosses the edge" did
+    # not on Linux, where they went under the box.
+    page.keyboard.type("This target")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
     expect(page.locator(".lf-page-search-match")).to_have_count(1)
     line, mark = page.evaluate(
-        """() => ['.lf-shortcut-bar', '.lf-page-search-match'].map(
+        """() => ['.lf-fp-row', '.lf-page-search-match'].map(
           selector => document.querySelector(selector).getBoundingClientRect().toJSON()
         )"""
     )
@@ -1661,11 +1454,9 @@ def test_the_shortcut_bar_text_only_hides_targets_in_the_lane_it_paints(browser,
     ), (mark, line)
 
 
-def test_a_partly_banner_clipped_atomic_element_keeps_its_hint_below_the_banner(
-    browser, serve
-):
+def test_a_partly_clipped_atomic_element_keeps_its_hint_in_sight(browser, serve):
     """Atomic visuals use element geometry rather than text ranges, but obey the same
-    upper chrome boundary when only their lower edge is exposed."""
+    upper boundary, the window's head, when only their lower edge is exposed."""
     html = leaf_page(
         "top-edge visual",
         """
@@ -1679,17 +1470,11 @@ def test_a_partly_banner_clipped_atomic_element_keeps_its_hint_below_the_banner(
     page.evaluate(
         """() => {
           const visual = document.querySelector('#edge-visual').getBoundingClientRect();
-          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
-          document.scrollingElement.scrollTop += visual.top - (banner.bottom - 8);
+          document.scrollingElement.scrollTop += visual.top + 8;
         }"""
     )
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(1)
 
-    geometry = page.evaluate(
-        """() => ({
-          bannerBottom: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
-          hintTop: document.querySelector('.lf-target-picker-hint').getBoundingClientRect().top,
-        })"""
-    )
-    assert geometry["hintTop"] >= geometry["bannerBottom"], geometry
+    hint_top = page.locator(".lf-target-picker-hint").bounding_box()["y"]
+    assert hint_top >= 0, hint_top

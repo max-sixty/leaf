@@ -29,10 +29,12 @@ run its `leaf delivery read <id>` and read every part. Follow the delivery's
 
 When the task is idle, or a hook's input wasn't confirmed before the turn ended, the
 adapter either queues a `leaf-delivery` pointer as the task's next user message or
-starts an App Server turn with a `leaf_delivery` tool output, one slice per turn.
-Leaf acknowledges input it queues or starts. A pointer still needs complete reading
-and the confirmation on its last part; inline tool output needs no acknowledgement
-command. Run no `leaf wait` or `leaf wait --ack`.
+adds a complete delivery to App Server's queue, behind any input the user queued.
+App Server starts that delivery as its own turn, with a user message from Leaf:
+a line saying Leaf has new input, then the delivery envelope as JSON, one slice per
+turn. Leaf acknowledges queued input. A pointer still needs complete reading and
+the confirmation on its last part; an inline envelope in a queued user message
+needs no acknowledgement command. Run no `leaf wait` or `leaf wait --ack`.
 The same delivery id can come back after an uncertain queue response; that is the
 retry `event-batches.md` describes. Input confirmed during a turn isn't queued again.
 
@@ -48,9 +50,10 @@ Follow every event's `handling`. For a thread reply, use its supplied `answer.wr
   in the Codex chat and never reaches the page.
 - `"turn"`: the delivery reserves at most one thread reply for this turn. Before
   your first tool call, write a short message to the user: the answer, or what you
-  are about to do. Leaf streams this opening into the thread at once; later working
-  messages stay in Codex. When the turn completes, your final message joins the
-  opening as one reply. A turn with no final message posts none.
+  are about to do. Leaf posts this opening in the thread as your progress line once
+  you finish it; later working messages stay in Codex. When the turn completes,
+  your final message posts as the reply and folds the opening behind it. A turn
+  with no final message posts no reply.
 
 For a `"turn"` reply that needs widgets, a question for the user (an `lf-ask`), work
 promised beyond this turn (`--todo`), a title or a changed anchor, use
@@ -70,9 +73,10 @@ App Server. The supplied writer determines the reply route for that delivery.
 ## Activity
 
 When connected to App Server, Leaf shows the task's current step, such as a tool
-call or a wait for approval, in the page's banner as what the agent is doing on the
-page as a whole. If you started an item with `leaf task start`, its line stays the
-banner's sentence and the step appears in the banner's details.
+call or a wait for approval, in the status of Leaf's panel as what the agent is doing on the page as a whole.
+If you started an update or to-do with `leaf task start`, its line stays the status's
+sentence and the step appears in the status's full text, which the user reads by
+pointing at it.
 
 ## Routes without the adapter
 

@@ -4,6 +4,7 @@ from ..events import (
     active_summaries,
     awaits_agent,
     bare_reaction,
+    is_answer,
     seat_root,
     turn_message,
     unanswered_agent_turn,
@@ -11,7 +12,6 @@ from ..events import (
 from ..projection import FrozenThreadReading
 from ..read_state import content_version, unread_content
 from ..schema import agent_name
-from ..thread import is_answer
 from .wire import browser_projection
 
 
@@ -38,15 +38,18 @@ def _response_key(responds: str) -> dict:
     under: an explicit `response reply` takes an author's retry key from a namespace of
     its own, so it can never consume the provider final's append identity. The input
     they both answer is the identity they share. A failure receipt is no answer
-    (`thread.is_answer`), so it keeps its own name. The log can hold a second answer to
+    (`events.is_answer`), so it keeps its own name. The log can hold a second answer to
     an input though no writer gives one; a name stands for one message, so only the
     input's first answer in the log takes it."""
     return {"key": f"response:{responds}"}
 
 
 def _named(event: dict) -> dict:
-    """One served thread event carrying the name it is shown under (`agent_name`)."""
-    return {**event, "agent": agent_name(event)}
+    """One served thread event, an agent's carrying the name it is shown under
+    (`agent_name`). Any other author's carries no `agent`, so the event stays the record
+    its kind declares."""
+    name = agent_name(event)
+    return {**event, "agent": name} if name is not None else event
 
 
 def _answer_key(event: dict, first_answers: dict[str, str]) -> dict:
@@ -68,7 +71,7 @@ def browser_thread(
     workflow says the agent is replying, and an empty message would only reserve a
     bubble with nothing in it."""
     events, threads = work.events, work.threads
-    reading, widget_items = work.thread, work.widget_items
+    reading, widget_obligations = work.thread, work.widget_obligations
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
@@ -79,25 +82,22 @@ def browser_thread(
         if is_answer(event):
             first_answers.setdefault(event["responds"], event["id"])
     for thread_id, thread in threads.items():
-        prompt = work.prompts.get(thread_id)
         protected = set()
         if awaits_agent(thread):
             protected.add(turn_message(unanswered_agent_turn(thread)))
-        item_sources = {
+        obligation_sources = {
             item["source"]["id"]
-            for item in widget_items["unanswered"]
+            for item in widget_obligations["unanswered"]
             if item["thread"] == thread_id
         }
         for message_id, fragment in reading.structure.fragments.items():
-            if item_sources.intersection(fragment.by_id):
+            if obligation_sources.intersection(fragment.by_id):
                 protected.add(message_id)
         summaries = summaries_for[thread_id]
         for summary in summaries:
             summary["protected"] = [
                 identity for identity in summary["covers"] if identity in protected
             ]
-        # Each message names its current content version (`read_state`), the one the
-        # browser marks read once its words have been shown.
         messages = [
             {
                 **_named(message),
@@ -116,7 +116,6 @@ def browser_thread(
                     if message["id"] == thread["root"]["id"]
                 ),
                 "resolved": thread["resolved"] and _named(thread["resolved"]),
-                "user_prompt": prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
                 "summaries": summaries,
@@ -133,7 +132,7 @@ def browser_thread(
                 thread
                 for thread in rendered_threads
                 if any(
-                    message["id"] == live_reply.get("reply_to")
+                    message["id"] == live_reply.get("parent")
                     for message in thread["msgs"]
                 )
             ),
@@ -152,7 +151,7 @@ def browser_thread(
                     "addressable": False,
                     "author": "agent",
                     "agent": live_reply["agent"],
-                    "parent": live_reply["reply_to"],
+                    "parent": live_reply["parent"],
                     "text": live_reply.get("text", ""),
                     "ts": live_reply["ts"],
                     "pending": live_reply.get("state") == "active",
@@ -163,7 +162,6 @@ def browser_thread(
             "projection": browser_projection(
                 reading.projection, scope="thread", within={}, floors={}
             ),
-            "items": work.items,
             "threads": rendered_threads,
         },
         reading,

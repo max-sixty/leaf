@@ -4,7 +4,7 @@
       "unified-diff": {
         "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
         "instructions": {
-          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script preserves native Git evidence keyed by destination path. It leaves judgment to `lf-diff`: each file’s patch is delivered and checked before its row appears, and textual hunks render when their file opens. A file the widget cannot present shows its refusal and reports it to you as the page's error."
+          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script preserves native Git evidence keyed by destination path. It leaves judgment to `lf-diff`: each file\u2019s patch is delivered and checked before its row appears, and textual hunks render when their file opens. A file the widget cannot present shows its refusal and reports it to you as the page's error."
         },
         "records": {
           "items": "files",
@@ -20,8 +20,14 @@
               "items": {
                 "type": "object",
                 "properties": {
-                  "path": { "type": "string", "minLength": 1 },
-                  "patch": { "type": "string", "minLength": 1 }
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "patch": {
+                    "type": "string",
+                    "minLength": 1
+                  }
                 },
                 "required": ["path", "patch"],
                 "additionalProperties": false
@@ -112,7 +118,7 @@
   },
   "lf-diff": {
     "description": "A unified patch with per-file navigation and commentable source lines.",
-    "x-instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Keep Git's file headers and metadata, and make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave the `<pre>` empty. Add `collapsed` to start every file closed.",
+    "x-instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Keep Git's file headers and metadata, and make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave the `<pre>` empty. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget.",
     "type": "object",
     "properties": {
       "id": {
@@ -125,6 +131,12 @@
       },
       "collapsed": {
         "type": "boolean"
+      },
+      "view": {
+        "enum": ["patch", "file"]
+      },
+      "overflow": {
+        "enum": ["wrap", "scroll"]
       }
     },
     "required": ["id"],
@@ -134,6 +146,11 @@
       "document": {
         "contract": "unified-diff",
         "source": "source"
+      }
+    },
+    "x-output": {
+      "files": {
+        "contract": "file-list"
       }
     },
     "x-upgrade": true,

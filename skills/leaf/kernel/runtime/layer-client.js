@@ -15,7 +15,7 @@ import {
   uploadMedia
 } from "./bundle-page-paint.js";
 import "./bundle-semantic-state.js";
-import "./bundle-sample-visibility.js";
+import "./bundle-frame-visibility.js";
 import "./bundle-queued-work.js";
 import "./bundle-__export.js";
 export {

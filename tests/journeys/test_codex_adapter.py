@@ -19,8 +19,10 @@ from interact_support import (
     append_carried_log_record,
     codex_records,
     declare_idle,
+    owed_answers,
     page_state,
     publish,
+    read_record,
     release_codex_command,
     spawn_probe,
     wait_for,
@@ -32,7 +34,6 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
-from leaf import machine as machine_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -132,7 +133,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
                         }
                     )
                 )
-            elif method == "thread/turns/list":
+            elif method in {"thread/turns/list", "thread/queue/list"}:
                 socket.send(
                     json.dumps(
                         {
@@ -141,13 +142,9 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
                         }
                     )
                 )
-            elif method == "turn/start":
+            elif method == "thread/queue/add":
                 starts.append(request)
-                socket.send(
-                    json.dumps(
-                        {"id": request["id"], "result": {"turn": {"id": "again"}}}
-                    )
-                )
+                socket.send(json.dumps({"id": request["id"], "result": {}}))
 
     endpoint = app_server(handle)
     finished = tmp_path / "codex-start-finished"
@@ -185,7 +182,7 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
             failure="the restarted turn's answer did not reach the page",
         )
         wait_for(
-            lambda: files_model.read_json(page / "cursor.json"),
+            lambda: read_record(page / "cursor.json"),
             lambda cursor: cursor == {"seq": delivered["seq"]},
             failure="the accepted delivery cursor was not recovered",
         )
@@ -215,7 +212,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
-        "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
+        "FAKE_CODEX_EXPECT_CWD": str(cleanup_model.state_home()),
     }
     if delivery_fault == "retry":
         environment["FAKE_CODEX_QUEUE_FAILURE_ONCE"] = str(
@@ -277,7 +274,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         )
         comments = [events_model.read_events(page)[-1]]
         wait_for(
-            lambda: files_model.read_json(page / "cursor.json"),
+            lambda: read_record(page / "cursor.json"),
             lambda cursor: cursor == {"seq": 1},
             failure=lambda: (
                 "the adapter did not acknowledge its batch: "
@@ -296,9 +293,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"},
         )
         assert capsys.readouterr().out == ""
-        assert [
-            item["stage"] for item in page_state(page)["activity"]["obligations"]
-        ] == ["picked_up"]
+        assert [item["stage"] for item in owed_answers(page)] == ["picked_up"]
         hooks_model.cmd_hook(
             "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
         )
@@ -311,7 +306,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             )
             comments.append(events_model.read_events(page)[-1])
         wait_for(
-            lambda: files_model.read_json(page / "cursor.json"),
+            lambda: read_record(page / "cursor.json"),
             lambda cursor: cursor == {"seq": comments[-1]["seq"]},
             failure="the cursor did not reach the later delivery",
         )
@@ -333,7 +328,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             payload_path = delivery_model.delivery_path(delivery.attrib["id"])
             assert payload_path.exists()
             payload = files_model.read_json(payload_path)
-            assert payload["format"] == delivery_model.DELIVERY_FORMAT
+            assert payload["format"] == delivery_model.DELIVERY.format
             assert all(
                 set(batch)
                 == {"page", "claim", "through_seq", "threads", "handling", "events"}
@@ -364,15 +359,11 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             for batch in payload["batches"]
             for event in batch["events"]
         ] == [comment["id"] for comment in comments]
-        assert files_model.read_json(page / "cursor.json") == {
-            "seq": comments[-1]["seq"]
-        }
+        assert read_record(page / "cursor.json") == {"seq": comments[-1]["seq"]}
         assert codex_adapter_model.adapter_is_live("codex-thread")
 
         for comment in comments:
-            thread_model.post_reply(
-                page, {"to": comment["id"], "for": comment["id"]}, "received"
-            )
+            thread_model.post_reply(page, {"responds": comment["id"]}, "received")
         declare_idle(page)
     finally:
         cleanup_model.end_session("codex-thread")

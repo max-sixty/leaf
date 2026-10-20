@@ -2,13 +2,10 @@
 
 import json
 import re
-import time
 
 import pytest
 from browser.test_render_application_boundary import (
-    PAGE_DECLARATION,
     PAGE_MODULE,
-    PAGE_WIDGET,
     THREAD_ACTIONS,
     THREAD_ACTIONS_DECLARATION,
     THREAD_FILTER,
@@ -18,6 +15,7 @@ from browser.test_render_application_boundary import (
     activation_page,
     package_workspace,
 )
+from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
@@ -25,26 +23,24 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_V1,
     LIVE_V2,
-    SEATED_ITEM_ENTRY,
-    SEATED_ITEM_MODULE,
     live_url,
 )
 from render_harness import (
-    banner_control,
+    PANEL,
+    PANEL_THREAD,
     consume_browser_errors,
     holding,
     http_error_console,
     leaf_page,
     open_page,
     page_comment,
+    panel_control,
     panel_settled,
-    reported_browser_errors,
     round_trip,
-    said,
     scroll_settled,
     sending,
     stamp_page,
-    take_browser_errors,
+    stored_draft_text,
     told,
     wait_for_revision,
     write,
@@ -101,11 +97,11 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert reply["body"]["kind"] == "authored"
     assert "North" in reply["body"]["text"]
     assert '"markup"' not in json.dumps(record) and '"html"' not in json.dumps(record)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
     # The agent answered without naming the thread, so it reads its opening words.
-    expect(page.locator(".lf-thread-topic")).to_have_text("Decision")
-    page.locator(".lf-thread-summary").click()
+    expect(page.locator(".lf-fp-thread")).to_contain_text("Decision")
+    open_panel_thread(page, "question")
     expect(page.locator("#direction")).to_have_count(1)
     message_top = page.locator("#direction").evaluate(
         "node => node.getBoundingClientRect().top"
@@ -123,7 +119,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     box = page_comment(page)
-    send = page.locator(".lf-page-comment-card .lf-general .lf-compose-submit")
+    send = page.locator(".lf-fp-field .lf-compose-submit")
     write(box, "Pending **words**")
     send.click()
     holding(page, held, 1, "the shared collection's pending root")
@@ -131,9 +127,8 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     pending = reader.evaluate(
         "node => node.reading.threads.find(thread => thread.root.pending)"
     )
-    expect(page.locator(f'.lf-thread[data-id="{pending["id"]}"]')).to_have_attribute(
-        "open", ""
-    )
+    # The send opens the pending thread's view in the panel.
+    expect(page.locator(PANEL_THREAD)).to_contain_text("Pending words")
     held.pop().continue_()
     round_trip(page)
     admitted = reader.evaluate(
@@ -142,23 +137,24 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     )
     assert admitted["id"] != pending["id"]
     assert admitted["root"]["key"] == pending["root"]["key"]
-    selected = page.locator(f'.lf-thread[data-id="{admitted["id"]}"]')
-    expect(selected).to_have_attribute("open", "")
+    selected = page.locator(f'{PANEL_THREAD}[data-thread="{admitted["id"]}"]')
+    expect(selected).to_be_visible()
 
-    page_comment(page)
+    box = page_comment(page)
     write(box, "Refused words")
     send.click()
     holding(page, held, 1, "the shared collection's refused root")
     expect(reader).to_contain_text("Refused words")
-    expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_attribute(
-        "open", ""
-    )
+    expect(page.locator(PANEL_THREAD)).to_contain_text("Refused words")
     if while_pending == "choose-earlier":
         # Refusal restores the earlier selection only while the provisional root
         # still owns it; a later user choice must remain the selected conversation.
-        selected = page.locator('.lf-thread[data-id="question"]')
-        selected.locator(".lf-thread-summary").click()
-        expect(selected).to_have_attribute("open", "")
+        selected = open_panel_thread(page, "question")
+    # Chrome reports no shift within 500ms of input, so the refusal lands after it:
+    # taking back the view the send opened moves nothing the pointer was not near.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
     route = held.pop()
     route.fulfill(
         status=400,
@@ -172,16 +168,20 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     round_trip(page)
     consume_browser_errors(page, http_error_console(400))
     expect(reader).not_to_contain_text("Refused words")
-    expect(box).to_have_js_property("value", "Refused words")
+    assert stored_draft_text(page, "general") == "Refused words"
     if while_pending == "choose-earlier":
-        # The card takes no keys from a user who has moved on; the words wait in it.
-        expect(box).to_be_hidden()
-        expect(selected.locator(".lf-thread-summary")).to_be_focused()
+        # The field takes no keys from a user who has moved on: the thread they chose
+        # stays open in it, and the words wait in the page comment.
+        expect(box).to_have_count(0)
+        expect(selected).to_be_visible()
+        page.locator(".lf-fp-close").click()
+        panel_settled(page, open=False)
+        expect(box).to_have_js_property("value", "Refused words")
     else:
-        # Where the send left the user, the card opens again on the refused words.
+        # Where the send left the user, the field returns to the refused words.
         expect(box).to_be_focused()
-    expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
-    expect(selected).to_have_attribute("open", "")
+        expect(page.locator(PANEL)).not_to_have_attribute("data-open", re.compile("."))
+    expect(page.locator('[data-thread^="pending:"]')).to_have_count(0)
     page.unroute("**/api/event")
 
 
@@ -222,7 +222,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     before = [widget.evaluate("node => node.updates") for widget in (first, second)]
     with sending(page, "a Thread visible to both package widgets"):
         write(page_comment(page), "Cedar")
-        page.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
+        page.locator(".lf-fp-field .lf-compose-submit").click()
     expect(second.locator("li")).to_have_text("Cedar")
     expect(first.locator("li")).to_have_text("Alpine")
     for widget, count in zip((first, second), before):
@@ -241,7 +241,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     first_before = first.evaluate("node => node.updates")
     with sending(page, "another Thread after one widget disconnected"):
         write(page_comment(page), "Delta")
-        page.locator(".lf-page-comment-card .lf-general .lf-compose-submit").click()
+        page.locator(".lf-fp-field .lf-compose-submit").click()
     expect(first.locator("li")).to_have_text("Delta")
     assert first.evaluate("node => node.updates") > first_before
     assert removed.evaluate("node => node.updates") == stopped_at
@@ -249,9 +249,9 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     thread_id = first.evaluate(
         "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
     )
-    # The widget's route through core opens the shut Threads on that thread.
+    # The widget's route through core opens the thread's view in the panel.
     first.locator("button", has_text="Delta").click()
-    expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()
+    expect(page.locator(f'{PANEL_THREAD}[data-thread="{thread_id}"]')).to_be_visible()
 
 
 def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
@@ -304,7 +304,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
         # The explicit door may release a composition hold, but it cannot release the
         # delivery hold.
-        latest = banner_control(page, ".lf-latest-chip")
+        latest = panel_control(page, "latest")
         with page.expect_response("**/api/state*"):
             latest.click()
         told(page)
@@ -336,589 +336,6 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
 
     historical = open_page(browser, version_url, pin=True)
     expect(historical.locator("html")).to_have_attribute("data-page-module", "first:1")
-
-
-@pytest.mark.parametrize(
-    "place",
-    ["inline-editor", "page-comment", "choose-earlier", "leave-displaced-title"],
-)
-def test_a_failed_list_candidate_restores_its_complete_committed_reading(
-    browser, serve, place
-):
-    """Rows, count, narrowing, and native islands roll back as one checkpoint."""
-    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ITEM_ENTRY}
-    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ITEM_MODULE}
-    url = serve(
-        leaf_page(
-            "Thread rollback",
-            '<h1>Review</h1><p id="earlier">An earlier passage.</p>'
-            '<p id="selected">The selected passage.</p><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
-        ),
-        layer_registry=layer,
-        layer_widgets=widgets,
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "earlier-thread",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "earlier"},
-            "text": "An earlier accepted conversation.",
-        },
-    )
-    selected_record = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "selected-thread",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "selected"},
-            "text": "The selected accepted conversation.",
-        },
-    )
-    kept = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "kept-thread",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "proposal"},
-            "text": "Keep this thread and its editor.",
-        },
-    )
-    # A fixed wall clock keeps every age label still, so no clock repaint starts a
-    # reading of its own while the failing ones are arranged.
-    context = browser.new_context(
-        viewport={"width": 1200, "height": 900}, color_scheme="light"
-    )
-    context.clock.set_fixed_time(time.time())
-    page = open_page(browser, live_url(url), context=context)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    selected = page.locator('.lf-thread[data-id="selected-thread"]')
-    expect(page.locator(".lf-thread").first).not_to_have_attribute(
-        "data-id", "selected-thread"
-    )
-    selected.locator(".lf-thread-summary").click()
-    expect(selected).to_have_attribute("open", "")
-    inline = page.locator(f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]')
-    editor = inline.locator(":scope > .lf-thread-reply leaf-text")
-    write(editor, "draft survives sibling rollback")
-    editor.evaluate("node => node.setSelectionRange(6, 14, 'backward')")
-    expect(editor).to_be_focused()
-    general = page.locator(".lf-page-comment-card .lf-general leaf-text")
-    if place == "page-comment":
-        page_comment(page)
-    elif place in {"choose-earlier", "leave-displaced-title"}:
-        selected.locator(".lf-thread-summary").click()
-
-    # Choosing an earlier thread while the failing reading is in flight keeps that
-    # disclosure open through rollback. Opening it does not start another list paint.
-    choose_earlier = place == "choose-earlier"
-    failures = 1
-    page.evaluate(
-        "([failures, gateBeforePaint]) => {"
-        " window.listFailures = failures; window.gateBeforePaint = gateBeforePaint; }",
-        [failures, choose_earlier],
-    )
-    page.evaluate(
-        """async id => {
-          const presentation = await window.__lfCheckApi();
-          let release;
-          const promise = new Promise(done => { release = done; });
-          window.threadPreparation = {promise, release};
-          window.threadPreparationSettled = false;
-          promise.then(() => { window.threadPreparationSettled = true; });
-          window.__heldLocalPresentations = new Map([['thread-held', promise]]);
-          window.readLeafPresentation = presentation.readApplicationPresentation;
-          window.keptPanel = document.querySelector(
-            `.lf-thread[data-id="${id}"]`
-          );
-          window.keptInline = document.querySelector(
-            `#proposal > .lf-thread-seat > [data-thread="${id}"]`
-          );
-          window.keptEditor = keptInline.querySelector(':scope > .lf-thread-reply leaf-text');
-
-          const list = document.querySelector('leaf-thread-list');
-          const present = list.present.bind(list);
-          let failures = window.listFailures;
-          let releaseFailure;
-          const failedCandidate = new Promise(done => { releaseFailure = done; });
-          window.releaseFirstListFailure = releaseFailure;
-          let releaseNext;
-          const next = new Promise(done => { releaseNext = done; });
-          window.releaseNextReading = releaseNext;
-          window.nextReadingReleased = false;
-          list.present = async model => {
-            const candidate = model.rows.some(
-              row => row.kind === 'thread' &&
-                row.descriptor.id === 'held-widget-thread'
-            );
-            if (!candidate) return present(model);
-            if (failures > 0) {
-              const attempt = failures--;
-              if (window.gateBeforePaint) {
-                window.heldCandidates = (window.heldCandidates ?? 0) + 1;
-                await failedCandidate;
-                await present(model);
-              } else {
-                await present(model);
-                window.heldCandidates = 1;
-                await failedCandidate;
-              }
-              window.completeListFailures = (window.completeListFailures ?? 0) + 1;
-              throw new Error('injected complete-list failure');
-            }
-            if (!window.nextReadingReleased) {
-              window.nextReadingHeld = true;
-              await next;
-            }
-            return present(model);
-          };
-        }""",
-        kept["id"],
-    )
-
-    # One departed root and two arrivals distinguish candidate and committed counts.
-    # Hold delivery while the admitted undo and arriving frozen content become one
-    # application reading. The failed candidate removes the selected root; retention
-    # must restore the complete committed reading before the next reading, held here,
-    # proceeds.
-    held_readings = []
-    page.route("**/api/state*", lambda route: held_readings.append(route))
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "undo", "author": "user", "undoes": selected_record["id"]},
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "held-widget-thread",
-            "author": "user",
-            "revision": 1,
-            "text": "Prepare the frozen widget.",
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "id": "held-widget-reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "held-widget-thread",
-            "text": "This preparation remains held.",
-            "markup": '<lf-local id="thread-held" choice="idle"></lf-local>',
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "another-arriving-thread",
-            "author": "user",
-            "revision": 1,
-            "text": "Another accepted conversation arrived.",
-        },
-    )
-    page.unroute("**/api/state*")
-    for route in held_readings:
-        route.continue_()
-    page.wait_for_function("() => window.heldCandidates === 1")
-    # Later state reads wait too while the failures are arranged, so no reading but
-    # the ones the test starts can supersede them.
-    held_readings = []
-    page.route("**/api/state*", lambda route: held_readings.append(route))
-    if choose_earlier:
-        selected = page.locator('.lf-thread[data-id="earlier-thread"]')
-        selected.locator(".lf-thread-summary").click()
-        expect(selected).to_have_attribute("open", "")
-        page.evaluate("window.releaseFirstListFailure()")
-    else:
-        expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")
-        if place == "leave-displaced-title":
-            expect(
-                page.locator('[data-withdrawn="selected-thread"] button')
-            ).to_be_focused()
-            page_comment(page)
-        page.evaluate("window.releaseFirstListFailure()")
-    page.wait_for_function(
-        "failures => window.completeListFailures === failures", arg=failures
-    )
-    page.unroute("**/api/state*")
-    for route in held_readings:
-        route.continue_()
-    page.wait_for_function(
-        """failures => window.completeListFailures === failures &&
-          window.nextReadingHeld === true""",
-        arg=failures,
-    )
-
-    assert page.evaluate("() => !window.threadPreparationSettled")
-    expect(page.locator("#thread-held")).to_have_count(0)
-    expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(0)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 3")
-    expect(page.locator(".lf-thread-view-summary")).to_have_text("3 open threads")
-    expect(selected).to_have_attribute("open", "")
-    assert page.evaluate(
-        """id => {
-          const panel = document.querySelector(`.lf-thread[data-id="${id}"]`);
-          const inline = document.querySelector(
-            `#proposal > .lf-thread-seat > [data-thread="${id}"]`
-          );
-          return panel === window.keptPanel && inline === window.keptInline &&
-            inline.querySelector(':scope > .lf-thread-reply leaf-text') === window.keptEditor;
-        }""",
-        kept["id"],
-    ), "list retention replaced a committed panel card, seat, or editor"
-    expect(editor).to_have_js_property("value", "draft survives sibling rollback")
-    if place == "inline-editor":
-        expect(editor).to_be_focused()
-    elif place == "choose-earlier":
-        expect(selected.locator(".lf-thread-summary")).to_be_focused()
-    else:
-        expect(general).to_be_focused()
-    assert editor.evaluate(
-        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
-    ) == [6, 14, "backward"]
-    assert "thread" in page.evaluate("window.readLeafPresentation().pending")
-    # The restored card must stand for a frame before the next reading withdraws it;
-    # the choice made while the reading failed cannot hide a later jump.
-    page.evaluate("lfShiftsJudged()")
-    restored_top = page.evaluate("window.keptPanel.getBoundingClientRect().top")
-
-    # The next reading paints the whole candidate again and then reaches the
-    # independently held frozen-widget preparation. Only that complete reading may commit.
-    page.evaluate(
-        """() => {
-          window.nextReadingReleased = true;
-          window.releaseNextReading();
-        }"""
-    )
-    page.wait_for_function(
-        """() => document.querySelector('#thread-held') &&
-          document.querySelector('.lf-threads-toggle')?.textContent === 'Threads: 4' &&
-          window.readLeafPresentation().pending.includes(
-            'widget:thread-held:preparation'
-          )""",
-    )
-    page.evaluate("window.threadPreparation.release('prepared')")
-    page.wait_for_function("() => window.threadPreparationSettled === true")
-    page.wait_for_function(
-        "() => !window.readLeafPresentation().pending.includes('thread')",
-    )
-    expect(page.locator("#thread-held")).to_have_count(1)
-    expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(1)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 4")
-    expect(page.locator(".lf-thread-view-summary")).to_have_text("4 open threads")
-    if place == "choose-earlier":
-        expect(selected).to_have_attribute("open", "")
-    else:
-        expect(selected).to_have_count(0)
-    assert page.evaluate(
-        """id => {
-          const panel = document.querySelector(`.lf-thread[data-id="${id}"]`);
-          const inline = document.querySelector(
-            `#proposal > .lf-thread-seat > [data-thread="${id}"]`
-          );
-          return panel === window.keptPanel && inline === window.keptInline &&
-            inline.querySelector(':scope > .lf-thread-reply leaf-text') === window.keptEditor;
-        }""",
-        kept["id"],
-    ), "the next reading replaced a committed panel card, seat, or editor"
-    expect(editor).to_have_js_property("value", "draft survives sibling rollback")
-    if place == "choose-earlier":
-        expect(page.locator('[data-withdrawn="selected-thread"]')).to_have_count(1)
-        assert page.evaluate(
-            "window.keptPanel.getBoundingClientRect().top"
-        ) == pytest.approx(restored_top, abs=0.1)
-    expected_errors = ["leaf: Presentation failed: injected complete-list failure"]
-    page.evaluate("lfShiftsJudged()")
-    errors = take_browser_errors(page)
-    assert [said(error) for error in errors] == expected_errors, errors
-
-
-@pytest.mark.parametrize("place", ["closed", "selected", "scrolled", "scaled"])
-def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, place):
-    """Absent threads retain room, never live controls or semantic membership."""
-    selected = place not in {"closed", "scaled"}
-    url = serve(
-        leaf_page(
-            "Withdrawn thread",
-            '<h1>Review</h1><p id="one">First passage.</p><p id="two">Next passage.</p>',
-        ),
-        layer_registry=PAGE_DECLARATION,
-        layer_widgets={"lf-local.js": PAGE_WIDGET},
-    )
-    first = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "first-thread",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "one"},
-            "text": "The conversation that will be withdrawn."
-            + (
-                "\n\n"
-                + "\n\n".join(
-                    f"Paragraph {i}: A long conversation stays readable while the panel scrolls."
-                    for i in range(28)
-                )
-                if place == "scrolled"
-                else ""
-            ),
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "next-thread",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "two"},
-            "text": "The conversation that stays.",
-        },
-    )
-    if place == "scrolled":
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "id": "long-reply",
-                "author": "agent",
-                "revision": 1,
-                "parent": first["id"],
-                "text": "\n\n".join(
-                    f"Paragraph {i}: The full conversation remains available as the reader scrolls."
-                    for i in range(28)
-                ),
-            },
-        )
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "reply",
-                "id": "widget-reply",
-                "author": "agent",
-                "revision": 1,
-                "parent": first["id"],
-                "text": "A frozen control in the withdrawn thread.",
-                "markup": '<lf-local id="withdraw-widget" choice="idle"></lf-local>',
-            },
-        )
-    page = open_page(browser, live_url(url))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    if place == "scaled":
-        page.evaluate("""() => {
-            const style = document.createElement('style');
-            style.setAttribute('data-controls', '');
-            style.textContent =
-              '.lf-thread-panel { transform:scale(1.2); transform-origin:top right; }';
-            document.head.append(style);
-        }""")
-        assert (
-            page.locator(".lf-thread-panel").evaluate(
-                "node => getComputedStyle(node).transform"
-            )
-            == "matrix(1.2, 0, 0, 1.2, 0, 0)"
-        )
-    first_card = page.locator('.lf-threads > [data-id="first-thread"]')
-    next_card = page.locator('.lf-threads > [data-id="next-thread"]')
-    (first_card if selected else next_card).locator(".lf-thread-summary").click()
-    if place == "scrolled":
-        write(
-            first_card.locator(":scope > .lf-thread-reply leaf-text"),
-            "A draft for this conversation",
-        )
-        expect(page.locator("#withdraw-widget")).not_to_have_count(0)
-        panel = page.locator("leaf-thread-list")
-        box = panel.bounding_box()
-        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-        page.mouse.wheel(0, 600)
-        page.wait_for_function(
-            "document.querySelector('leaf-thread-list').scrollTop > 0"
-        )
-        scroll_settled(page, "leaf-thread-list")
-        assert first_card.evaluate(
-            "node => node.getBoundingClientRect().top < node.parentElement.getBoundingClientRect().top"
-        )
-    rendered(page)
-    allocation = first_card.evaluate("node => node.getBoundingClientRect().height")
-    position = next_card.evaluate("node => node.getBoundingClientRect().top")
-    if place == "scrolled":
-        for reply in ["long-reply", "widget-reply"]:
-            append_carried_log_record(
-                serve.page_dir, {"kind": "undo", "author": "agent", "undoes": reply}
-            )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "undo",
-            "id": "withdraw-first",
-            "author": "user",
-            "revision": 1,
-            "undoes": first["id"],
-        },
-    )
-    told(page)
-    withdrawn = page.locator('[data-withdrawn="first-thread"]')
-    expect(withdrawn).to_contain_text("Thread withdrawn")
-    expect(first_card).to_have_count(0)
-    expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
-    expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
-    assert withdrawn.evaluate(
-        "node => node.getBoundingClientRect().height"
-    ) == pytest.approx(allocation, abs=0.1)
-    assert next_card.evaluate(
-        "node => node.getBoundingClientRect().top"
-    ) == pytest.approx(position, abs=0.1)
-    if selected:
-        expect(withdrawn.locator("button")).to_be_focused()
-        expect(next_card).not_to_have_attribute("open", "")
-        assert withdrawn.locator("button").evaluate("""node => {
-            const box = node.getBoundingClientRect();
-            const panel = node.closest('leaf-thread-list').getBoundingClientRect();
-            return box.top >= panel.top && box.bottom <= panel.bottom;
-        }""")
-    else:
-        expect(next_card.locator(".lf-thread-summary")).to_be_focused()
-        expect(next_card).to_have_attribute("open", "")
-    if place == "scrolled":
-        expect(page.locator("#withdraw-widget")).to_have_count(0)
-        # The subject has left the document: its editor ends, while the draft's
-        # independent saved owner keeps the words for a genuine return.
-        page.evaluate("lfWordsJudged()")
-        consume_browser_errors(
-            page,
-            {
-                "code": "words-left-screen",
-                "words": "A draft for this conversation",
-                "place": ["leaf-text.lf-ui"],
-            },
-        )
-    # A view change or choosing another conversation releases retained news too.
-    if place == "scaled":
-        find = page.get_by_role("searchbox", name="Find in threads")
-        find.fill("stays")
-        rendered(page)
-        expect(withdrawn).to_have_count(0)
-        expect(find).to_be_focused()
-        find.press("Escape")
-    elif place == "selected":
-        page.keyboard.press("t")
-    else:
-        withdrawn.get_by_role("button", name="Dismiss").focus()
-        page.keyboard.press("Enter")
-    rendered(page)
-    expect(withdrawn).to_have_count(0)
-    expect(next_card).to_have_attribute("open", "")
-    expect(next_card.locator(".lf-thread-summary")).to_be_focused()
-
-    if place == "scrolled":
-        assert (
-            page.evaluate("""async () => {
-            const {loadDraft} = await window.__lfWidgetApi();
-            return loadDraft('reply:first-thread');
-        }""")
-            == "A draft for this conversation"
-        )
-
-
-def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
-    browser, serve
-):
-    """A seat the user left while a reading waited does not pull them back to it.
-
-    Rolling back a refused reading puts back only what the reading itself took: a user
-    who stood in one seat's reply when it began and moved to another seat's box before
-    it failed keeps the box they moved to, caret included."""
-    layer = {**PAGE_DECLARATION, "lf-verdict": SEATED_ITEM_ENTRY}
-    widgets = {"lf-local.js": PAGE_WIDGET, "lf-verdict.js": SEATED_ITEM_MODULE}
-    url = serve(
-        leaf_page(
-            "Thread rollback",
-            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>'
-            '<lf-verdict id="other" asks>Hold it?</lf-verdict>',
-        ),
-        layer_registry=layer,
-        layer_widgets=widgets,
-    )
-    kept = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "kept-thread",
-            "author": "user",
-            "revision": 1,
-            "anchor": {"section": "proposal"},
-            "text": "The user starts here.",
-        },
-    )
-    page = open_page(browser, live_url(url))
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    left = page.locator(
-        f'#proposal > .lf-thread-seat > [data-thread="{kept["id"]}"]'
-        " > .lf-thread-reply leaf-text"
-    )
-    went = page.locator("#other > .lf-thread-seat leaf-text")
-    write(left, "where the user was")
-    expect(left).to_be_focused()
-
-    # The reading that brings the arriving thread waits at a gate, and its paint fails,
-    # so the whole reading is refused.
-    page.evaluate(
-        """() => {
-          const list = document.querySelector('leaf-thread-list');
-          const present = list.present.bind(list);
-          let open;
-          window.gate = new Promise(done => { open = done; });
-          window.openGate = open;
-          list.present = async model => {
-            if (!model.rows.some(row => row.descriptor?.id === 'arriving')) {
-              return present(model);
-            }
-            window.waiting = true;
-            await window.gate;
-            throw new Error('injected refusal');
-          };
-        }"""
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "arriving",
-            "author": "user",
-            "revision": 1,
-            "text": "A thread whose reading is refused once.",
-        },
-    )
-    page.wait_for_function("() => window.waiting === true")
-
-    write(went, "where the user went")
-    went.evaluate("node => node.setSelectionRange(6, 10, 'backward')")
-    page.evaluate("() => window.openGate()")
-    reported_browser_errors(
-        page,
-        "leaf: Presentation failed: injected refusal",
-    )
-    expect(page.locator('[data-id="arriving"]')).to_have_count(0)
-
-    expect(went).to_be_focused()
-    expect(went).to_have_js_property("value", "where the user went")
-    assert went.evaluate(
-        "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
-    ) == [6, 10, "backward"]
-    expect(left).to_have_js_property("value", "where the user was")
 
 
 def test_package_thread_actions_share_core_admission_and_current_availability(
@@ -960,11 +377,8 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
     assert (
         events_model.read_events(serve.page_dir)[-1]["parent"] == "thread-action-root"
     )
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    expect(page.locator('.lf-thread[data-id="thread-action-root"]')).to_contain_text(
-        "Package answer"
-    )
+    view = open_panel_thread(page, "thread-action-root")
+    expect(view).to_contain_text("Package answer")
 
     with sending(page, "a package resolution"):
         actions.get_by_role("button", name="Resolve").click()
@@ -990,8 +404,11 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
       const agent = thread.msgs.find(message => message.author === 'agent');
       return threadActions.setReaction(thread.key, agent.key, 'keep', true) === null;
     }""")
+    # The package's resolve moved the panel on from the thread; the user reads its
+    # reaction back in the thread's view.
+    open_panel_thread(page, "thread-action-root")
     pressed = page.locator(
-        '.lf-thread[data-id="thread-action-root"] .lf-react[aria-pressed="true"]'
+        f'{PANEL_THREAD}[data-thread="thread-action-root"] .lf-react[aria-pressed="true"]'
     )
     expect(pressed).to_have_count(1)
     # Taking the reaction back is drawn while the log has yet to answer it.
@@ -1014,17 +431,18 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
 
 @pytest.mark.parametrize("width", [693, 1440])
 def test_panel_authored_message_button_reaches_primary_reader(browser, serve, width):
-    """The panel's compact message routes to the primary that owns its widget."""
+    """Threads routes a thread whose widget a primary reader owns to that reader."""
     page = open_page(browser, package_workspace(serve))
     page.set_viewport_size({"width": width, "height": 900})
     workspace = page.locator("#workspace")
     page.evaluate("window.nativeEmail = document.querySelector('#email')")
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    panel = page.locator(".lf-thread-panel")
-    panel.get_by_role("button", name="Open interactive reply", exact=True).click()
+    # The thread's row in Threads takes the user to the reader that owns its widget.
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    page.locator(".lf-fp-filters button").filter(has_text="Open").click()
+    page.locator('.lf-fp-thread[data-key="channel-question"]').click()
+    panel_settled(page, open=False)
     message = workspace.locator('.lf-msg[data-event="channel-question"]')
-    expect(message).to_be_focused()
     email = message.locator("#email")
     expect(email).to_be_in_viewport()
     assert email.evaluate("node => node === nativeEmail")
@@ -1149,7 +567,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     page.evaluate(
         "window.originalOption = document.querySelector('#workspace').querySelector('#email')"
     )
-    with sending(page, "answer the package's native item"):
+    with sending(page, "answer the package's native obligation"):
         email.get_by_role("checkbox").click()
     expect(workspace.locator(".counts")).to_contain_text("Email")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
@@ -1496,8 +914,11 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
         "Replace the reader owner while retaining its conversations",
     )
     told(page)
-    banner_control(page, ".lf-latest-chip").focus()
-    page.keyboard.press("Enter")
+    # The panel's row notice for the newer version, pressed without taking the
+    # editor's focus first, as a press on it does.
+    page.locator(".lf-fp-row-notice-press").filter(has_text="Latest").dispatch_event(
+        "click"
+    )
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin === originalDocument")
     assert page.evaluate("!originalWorkspace.isConnected")
@@ -1514,7 +935,9 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
     assert email.evaluate(
         "node => node === originalOption && node.getRootNode() === document"
     )
-    with sending(page, "answer the unchanged native item after reader replacement"):
+    with sending(
+        page, "answer the unchanged native obligation after reader replacement"
+    ):
         email.click()
     expect(replacement.locator(".counts")).to_contain_text("Email")
     replacement.get_by_role("button", name="Keep it concise.", exact=True).click()

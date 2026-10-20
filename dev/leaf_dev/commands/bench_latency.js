@@ -79,9 +79,12 @@
         shown(node)
       );
     },
+    // The floating panel's leaf: its name carries the status in the paint that colours
+    // its dot. The empty field's placeholder says the status too, but only once a
+    // passing notice, such as the agent becoming active, has had its seat.
     status: (detail) => {
-      const node = document.querySelector(".lf-status-text");
-      return shown(node) && node.textContent.includes(detail);
+      const node = document.querySelector(".lf-fp-leaf");
+      return shown(node) && Boolean(node.getAttribute("aria-label")?.includes(detail));
     },
     revision: ({ revision, id, words }) => {
       const node = document.getElementById(id);
@@ -134,6 +137,9 @@
       url: entry.name,
       initiator: entry.initiatorType,
       bytes: entry.transferSize,
+      // When it started and its last byte arrived, in epoch milliseconds.
+      start: performance.timeOrigin + entry.startTime,
+      end: performance.timeOrigin + entry.responseEnd,
     })),
   });
   Object.defineProperty(window, "__leafBench", {

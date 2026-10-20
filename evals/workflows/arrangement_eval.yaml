@@ -1,16 +1,12 @@
 preference:
-  "A lasting preference for all my pages from now on: I use them fullscreen on my
-  desktop, in a window about 1600px wide and 1000px tall. Make evidence, decisions and
-  navigation comfortable to work through at that size, using the available space
+  "A lasting preference for all my pages from now on: I use them in these windows:
+  {windows}. Make evidence, decisions and
+  navigation comfortable to work through at those sizes, using the available space
   where it helps the task."
 reachable:
   A labeled control whose content is out of view, such as a collapsed section, an unselected
   item or a scroll region's remainder, counts as reachable but costs the user a step; content
   cut off with no visible way to reach it does not count.
-widths:
-  desktop:
-    viewport: [1600, 1000]
-    description: a fullscreen 1600px by 1000px desktop window
 prompts:
   first:
     leaf: |-
@@ -196,17 +192,6 @@ cases:
     assert:
       - *id001
   sidebar-page-at-900px:
-    preference:
-      "A lasting preference for all my pages from now on: I read them in a window about
-      900px wide, beside my editor. At that width, keep the page's summary, status, contents or
-      queue beside the main content rather than stacked above or below it."
-    widths:
-      short:
-        viewport: [900, 600]
-        description: a short 900px by 600px window
-      phone:
-        viewport: [390, 844]
-        description: a 390px phone
     inputs:
       comment: null
       decision: null
@@ -221,9 +206,9 @@ cases:
             for the user's task, makes its evidence readable and reachable, and provides the decisions
             or navigation the request requires. The completed rollout's forty entries must remain
             readable in the document's scroll, rather than showing only one screen of a separate
-            listing. At the short 900px window, all six checks and their failing result stay
+            listing. At desktop sizes, all six checks and their failing result stay
             accessible beside the log as it scrolls. Page navigation and any supporting sidebar
-            content remain reachable; a sticky box must not hold them below the window. On a phone,
+            content remain reachable; a sticky box must not hold them below the window. At phone sizes,
             the regions stack without covering the log or hiding its entries.
   patch-review:
     inputs:
@@ -248,8 +233,22 @@ cases:
         value: file://../dev/leaf_dev/authoring_assertion.mjs
         config:
           rubric:
-            "At every declared width, the substantive review evidence and navigation remain
-            readable and reachable, and the final decision is clear. The displayed selected patch
+            "At the declared window sizes, the substantive review evidence and navigation remain
+            readable and reachable, and the final decision is clear. Inspect the implementation,
+            acceptance tests and both documentation files through the offered directory and file
+            navigation. Use an ordinary mouse click and release on a file, then arrow keys and
+            Enter to reach and select another file, expanding directories as needed. Verify the
+            selected path and actual displayed change agree; programmatic focus or a held mouse
+            button does not establish this route. Scroll the longer test file, then select the
+            implementation and a documentation file: each selected file's heading and beginning
+            of its change should be visible immediately, without scrolling back through the
+            previous file or opening an unrelated disclosure. Inspect
+            whether the code uses the available reading area and whether navigation, code and
+            review controls remain usable as content grows. Judge wasted space or clipped focus
+            by its effect on reading, navigation and decisions, without requiring a particular
+            pane arrangement, widget, pixel dimension or visual style. Exercise meaningful offered
+            controls, inspect keyboard focus, and report a runtime limitation separately from an
+            authoring choice where the evidence establishes the distinction. The displayed selected patch
             agrees with that decision: its default cap is two attempts, and its stable idempotency
             key includes tenant_id and job.id and is computed once before the retry loop. The
             cross-tenant same-job-ID check is included. Proposed tests and approval remain distinct

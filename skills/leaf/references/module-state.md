@@ -29,9 +29,11 @@ take back; check it before changing anything for the action. Before the document
 loaded, `authored` and `state` may be missing, and a `LeafElement` draws nothing until
 `state` holds every declared verb.
 
-Record a gesture with `dispatch({kind: "action", verb, detail, attempt?})`, and undo one
-with `dispatch({kind: "undo", target})`, naming an `id` or `attempt` from the action's
-Undo candidates. `dispatch` returns `null` when the action isn't available, throws for a
+Record a gesture with `dispatch({kind: "action", verb, detail, attempt?, says?})`, and
+undo one with `dispatch({kind: "undo", target})`, naming an `id` or `attempt` from the
+action's Undo candidates. `says` names the gesture in the widget's words, such as
+`Chose “Fast”`: Leaf shows "Chose “Fast” — sent" once the server admits it, and
+"Undid: Chose “Fast” — sent" when the user undoes it, so post no notice of your own for it. `dispatch` returns `null` when the action isn't available, throws for a
 verb the widget doesn't declare, and otherwise returns `{reading, delivery}`. The reading
 already shows the result; `delivery` resolves to the event the server admitted, or
 `null`, and a refusal restores the server's state.
@@ -77,11 +79,11 @@ container's id, and `rankAt(state.<verb>, container, index, unit)`, which places
 unit at `index` among the container's others and keeps it there however other units
 move. A verb with no record sends what its `detail` schema declares.
 
-A widget that puts an item on On me can give its class `static answerWords(value,
-element)`, returning short words for the answer in the On panel. `value` is the item's
+A widget that puts an obligation on On me can give its class `static answerWords(value, element)`,
+returning short words for the answer in the On lists. `value` is the obligation's
 `answer.value`, and `element` gives the authored markup, such as option labels; read
-only that, not what the module draws. Without it, the On panel shows no words for the
-answer (`module-reading.md`, "Reading items and obligation queues").
+only that, not what the module draws. Without it, the On lists show no words for the
+answer (`module-reading.md`, "Reading obligations and the On lists").
 
 ## Bound data and projections
 
@@ -106,6 +108,17 @@ starts it from `updated()` and passes it to `this.drawing(promise)`, so Leaf cou
 source as shown only once it settles.
 
 `this.data` throws for an undeclared input and reads the element's binding once.
+
+A widget-output binding uses the same `this.data(input)` reader.
+Its snapshot is `{contract, value, origin: {derived: [{widget: producerId}]}}`,
+without source revision, run, or update time. `publishOutput(element, name, value)`
+requires a declared `x-output` and an id. Publishing `null` clears the output;
+repeating an unchanged value does not redraw. The producer publishes only values
+that satisfy its declared contract, just as its other module-owned facts do.
+Consumers receive independent copies and pass asynchronous drawing to
+`this.drawing(promise)` through the same presentation boundary. Publish the value that
+matches the rendering in the turn that commits it; clear an unreadable output rather than retaining stale
+records after a failed replacement.
 
 Rows whose contract declares a `deferred` field arrive without it. Fetch one row's field
 with `loadDeferred(snapshot, key)`, which throws if the source changed in the meantime.

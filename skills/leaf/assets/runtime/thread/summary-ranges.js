@@ -5,7 +5,8 @@
    mechanical. Original message nodes remain connected inside their range, so frozen
    authored widgets, direct arrivals, and focus identities keep their native lifetime.
    Progress no answer has folded yet is gathered the same way (`withPendingProgress`),
-   so when the answer's fold arrives its messages move from one range to the next. */
+   so when the answer's fold arrives its messages move from one range to the next. The
+   working message stands among the ranges where its words were said (`workingPlace`). */
 
 export function summaryRanges(messages, summaries = []) {
   const index = new Map(messages.map((message, at) => [message.id, at]));
@@ -51,10 +52,11 @@ export function summaryRanges(messages, summaries = []) {
 }
 
 // The ranges with each run of pending progress gathered into a range of its own. A
-// progress message no summary covers is one no answer has folded yet (the server folds
-// completed progress, `events._ephemeral_ranges`), so it is a step of work still in hand:
-// the thread draws it as its working message, and keeps the messages behind that
-// message's disclosure. The range is named for its first message, so it keeps its identity, and
+// progress message no summary covers is one no answer has folded (the server folds
+// completed progress the user did not speak after, `events._ephemeral_ranges`): a step
+// of work still in hand, or one the user's message followed. The thread draws each run
+// as its face, its latest step, where it was said (transcript.js), and keeps its messages
+// behind it. The range is named for its first message, so it keeps its identity, and
 // its disclosure state, as the run grows.
 export function withPendingProgress(ranges) {
   const gathered = [];
@@ -92,22 +94,18 @@ export function withPendingProgress(ranges) {
   );
 }
 
-// Where each run of unread messages starts ("new") and where the read message after one
-// stands ("end"), keyed by message key, across the ranges as the panel shows them. A
-// collapsed summary shows none of its messages, so a run does not continue across it.
-export function unreadBoundaries(ranges) {
-  const boundaries = new Map();
-  let precedingUnread = false;
-  for (const range of ranges) {
-    if (range.kind === "summary" && !range.expanded) {
-      precedingUnread = false;
-      continue;
-    }
-    for (const message of range.kind === "message" ? [range.message] : range.messages) {
-      if (message.unread && !precedingUnread) boundaries.set(message.key, "new");
-      if (!message.unread && precedingUnread) boundaries.set(message.key, "end");
-      precedingUnread = Boolean(message.unread);
-    }
-  }
-  return boundaries;
+// The index of the range the working message stands after: the one holding `after`, the
+// last message said before its words (thread-card.js, `workingMessage`). A thread reads
+// in the order it was said, so a message the user sends after those words stands below
+// them. Rejected: the transcript's foot, which drew the agent's earlier words below
+// every message said since, the user's newest among them.
+export function workingPlace(ranges, after) {
+  const at = ranges.findIndex((range) =>
+    range.kind === "message"
+      ? range.message.key === after
+      : range.messages.some((message) => message.key === after),
+  );
+  if (at < 0)
+    throw new Error(`The working message follows ${after}, which no range holds`);
+  return at;
 }

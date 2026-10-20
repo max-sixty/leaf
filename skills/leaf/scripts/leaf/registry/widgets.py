@@ -153,13 +153,13 @@ def _validate_widget_structure(
             )
     for input_name, spec in entry.get("x-data", {}).items():
         contract = spec["contract"]
-        source_attr = spec["source"]
+        source_attr = spec.get("source")
         if contract not in data["contracts"]:
             raise registry_error(
                 "data-contract", path, tag, input=input_name, contract=contract
             )
         source_schema = properties.get(source_attr, {})
-        if (
+        if source_attr and (
             not isinstance(source_schema, dict)
             or source_schema.get("type") != "string"
             or source_schema.get("pattern") != f"^{DATA_SOURCE_NAME}$"
@@ -167,11 +167,28 @@ def _validate_widget_structure(
             raise registry_error(
                 "data-source", path, tag, input=input_name, attr=source_attr
             )
+    for output_name, spec in entry.get("x-output", {}).items():
+        if spec["contract"] not in data["contracts"]:
+            raise registry_error(
+                "unknown-output-contract",
+                path,
+                tag,
+                output=output_name,
+                contract=spec["contract"],
+            )
+    for input_name, spec in entry.get("x-data", {}).items():
+        if (reference := spec.get("reference")) and (
+            reference not in entry.get("x-refers", {})
+            or entry["x-refers"][reference].get("key")
+        ):
+            raise registry_error(
+                "data-reference", path, tag, input=input_name, attr=reference
+            )
     if measured := entry.get("x-measured"):
         input_name = measured["input"]
         if input_name not in entry.get("x-data", {}):
             raise registry_error("measured-input", path, tag, input=input_name)
-        source_attr = entry["x-data"][input_name]["source"]
+        source_attr = entry["x-data"][input_name].get("source")
         if source_attr not in entry.get("required", []):
             raise registry_error(
                 "measured-source", path, tag, input=input_name, attr=source_attr
@@ -309,7 +326,12 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     }
     if dynamic := sorted(set(thread.get("when", {})) & mutable_values):
         raise registry_error("seat-written", path, tag, attrs=dynamic)
-    data_bindings = {spec["source"] for spec in entry.get("x-data", {}).values()}
+    data_bindings = {
+        spec[key]
+        for spec in entry.get("x-data", {}).values()
+        for key in ("source", "reference")
+        if key in spec
+    }
     if dynamic := sorted(data_bindings & mutable_values):
         raise registry_error("binding-written", path, tag, attrs=dynamic)
     if (measured := entry.get("x-measured")) and measured["run"] in mutable_values:
@@ -334,19 +356,19 @@ def _validate_widget_interactions(
     answered = awaits.get("answered", {})
     if entry.get("x-awaits") is not None and not answered and not awaits.get("reply"):
         raise registry_error("awaits-unanswered", path, tag)
-    # The user answers their own item, so only a verb the user writes can answer it.
+    # The user answers their own obligation, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):
         raise registry_error("awaits-verbs", path, tag, verbs=unknown)
     if awaits and not awaits.get("reply") and awaits["value"] not in user_verbs:
         raise registry_error("awaits-value", path, tag)
-    # A retired item was asked and has ended, so the flag that retires it has to be
+    # A retired obligation was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.
     retired = awaits.get("retired")
     if retired and awaits.get("when", {}).get(retired) != [False]:
         raise registry_error("awaits-retired", path, tag, flag=retired)
-    # A blanket answer is one decision per item, taken through the widget's deciding
-    # verb, so it names an outcome that verb declares and the verb answers the item.
+    # A blanket answer is one decision per obligation, taken through the widget's deciding
+    # verb, so it names an outcome that verb declares and the verb answers the obligation.
     if (blanket := awaits.get("all")) and (
         deciding_verb(entry) not in answered or blanket not in deciding_outcomes(entry)
     ):

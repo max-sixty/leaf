@@ -14,7 +14,7 @@ const runtimePrimitives = [
   "shadow-tree.js",
   "keeps.js",
   "rendering.js",
-  "sample-visibility.js",
+  "frame-visibility.js",
   "queued-work.js",
   "repaint.js",
   "root-state.js",
@@ -1545,6 +1545,9 @@ export default [
           // within the gloss, and the contents link the user last stood on.
           "skills/leaf/packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
           "skills/leaf/packages/default/widgets/lf-toc.js": ["focusin"],
+          // The text field's empty line hands focus that lands on it to the editor it
+          // builds, in its own shadow tree.
+          "skills/leaf/assets/runtime/composing/text-field.js": ["focusin"],
         },
       ],
       "architecture/placements": [
@@ -1682,7 +1685,7 @@ export default [
           patterns: [
             {
               regex:
-                "^(?!\\.\\./(?:anchor-coordinate|collapse|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
+                "^(?!\\.\\./(?:anchor-coordinate|collapse|event-kinds|semantic-state)\\.js$|(?:\\.\\./thread/|\\./)(?:identity|workflow)\\.js$|\\./model\\.js$)",
               message: "Thread readings depend only on pure record operations.",
             },
           ],

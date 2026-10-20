@@ -20,8 +20,8 @@ instructions for using the sample go outside it.
 
 The sample uses the parent's layer and has its own event log, so its decisions and
 comments never reach the parent's log or On me. It sits in the parent as a block as tall
-as its content, showing only the Threads row of Leaf's controls. When the sample is
-about the window itself, such as Leaf's banner or drawers, add the boolean `window`
+as its content, with Leaf's panel row beneath it. When the sample is
+about the window itself, such as Leaf's panel and its views, add the boolean `window`
 attribute to show a whole Leaf window at a fixed height. The user can click or Tab into
 the sample and use it fully; Escape returns to the parent. **Full view** shows the
 sample at viewport size, and Reset starts it fresh from the template. A sample's
@@ -88,9 +88,9 @@ sample through the element's API:
 - The bubbling `lf-sample-ready` event, with `detail.sample`, fires after every load,
   including Reset and reloads; reapply any view your controls chose there.
 - `await sample.showThread(id)` shows a thread by its root event id, as its marker
-  would; `{surface: "panel"}` shows it in Threads, and the panel also takes
-  `status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`. It
-  returns false when a newer selection or Reset replaces it.
+  would; `{surface: "panel"}` shows it in the sample's Leaf panel, or with no id the
+  panel's Threads, on its resolved threads with `status: "resolved"`. It returns false
+  when a newer selection or Reset replaces it.
 
 Use these rather than clicking the sample's controls or reading its DOM. Write the
 sample's content in the template rather than copying rendered controls from the parent.

@@ -9,7 +9,8 @@ description: sidebar-page-at-900px
 metadata:
   purpose:
     Author a completed rollout record, render and repair it, then revise it for the user's 900px
-    reading window. Score the log and checklist as the reader sees them, including a short window.
+    reading window. Score the log and checklist at the run's centrally selected viewport;
+    select the short or phone preset explicitly to inspect those layouts.
   tags:
     - layout
     - workflow

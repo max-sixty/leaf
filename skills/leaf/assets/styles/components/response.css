@@ -285,9 +285,12 @@ button.lf-media-open {
   box-shadow: none;
 }
 /* Every press in an item besides its picture is a mark on a top corner: removal on the
-   right, and a drawing's Undo last stroke on the left. */
+   right, and a drawing's Undo last stroke on the left. A mark stands over the box's
+   carry band (`.lf-surface-grip`), which its reach can cross, so the press is the
+   mark's. */
 .lf-composer-media-item > button:not(.lf-media-open) {
   position: absolute;
+  z-index: 1;
   inset-block-start: -6px;
   inset-inline-end: -6px;
   display: grid;

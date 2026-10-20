@@ -14,6 +14,7 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
     _codex_delivery,
+    _delivery_item,
     _observer,
     append_carried_log_record,
     append_command,
@@ -703,12 +704,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
                     "status": "completed",
                     "itemsView": "full",
                     "items": [
-                        {
-                            "id": "delivery",
-                            "type": "functionCallOutput",
-                            "name": "leaf_delivery",
-                            "output": json.dumps(payload),
-                        },
+                        _delivery_item(payload),
                         {
                             "id": "final",
                             "type": "agentMessage",

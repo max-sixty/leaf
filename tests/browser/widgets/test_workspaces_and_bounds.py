@@ -572,6 +572,9 @@ def test_an_lf_ask_gives_its_answer_what_its_context_leaves(browser, serve):
     )
     assert geometry["options"]["top"] >= geometry["context"] - 1, geometry
     assert geometry["options"]["height"] > 40, geometry
+    ask = page.locator("#workspace-ask")
+    assert ask.evaluate("node => node.scrollHeight > node.clientHeight")
+    ask.evaluate("node => { node.scrollTop = node.scrollHeight; }")
     end = clear_of_the_bottom_chrome(page, "#workspace-options")
     assert end["clear"], end
     page.close()

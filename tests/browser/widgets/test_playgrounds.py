@@ -474,6 +474,38 @@ def test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_sh
     }
 
 
+def test_a_playground_followed_by_a_note_keeps_its_instruction_off_the_note(
+    browser, serve
+):
+    # From the bad-pages eval (notes/agent-usability-evals.md): two of three authors
+    # put an open note after the playground, and the instruction drew over it at 900px.
+    source = leaf_page(
+        "Alert workspace with a note",
+        '<lf-ask id="noted-ask"><h1>Tune alert policies</h1>'
+        '<lf-playground id="noted-config" data-width="available">'
+        "<lf-playground-preview>"
+        + "<p>Checkout latency fired seven times last month.</p>" * 12
+        + '<lf-playground-control name="latency" label="Latency window" kind="range" '
+        'value="5" min="1" max="15" unit="min"></lf-playground-control>'
+        "</lf-playground-preview><lf-playground-output>"
+        "Apply the chosen latency window.</lf-playground-output></lf-playground>"
+        '<details id="tally-note" open><summary>How the tally counts</summary>'
+        + "<p>Each firing counts once per alert.</p>" * 6
+        + "</details></lf-ask>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 900, 700)
+    instruction = page.locator("#noted-config .lf-playground-instruction-region")
+    note = page.locator("#tally-note")
+    assert (
+        instruction.bounding_box()["y"] + instruction.bounding_box()["height"]
+        <= note.bounding_box()["y"] + 0.5
+    )
+    note.scroll_into_view_if_needed()
+    expect(note.get_by_text("How the tally counts")).to_be_in_viewport()
+
+
 def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
     browser, serve
 ):

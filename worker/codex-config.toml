@@ -1,3 +1,8 @@
 [shell_environment_policy]
 inherit = "all"
 exclude = ["OPENAI_API_KEY"]
+
+# Codex here runs unsandboxed, so it needs no route out of the sandbox, and each
+# session would otherwise start Leaf's MCP server (`codex_tool.py`).
+[plugins."leaf@leaf".mcp_servers.leaf]
+enabled = false

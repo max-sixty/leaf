@@ -162,7 +162,14 @@ def exit_serving(status: int) -> NoReturn:
 
 def stop_when_service_ends(page_dir: Path) -> None:
     """Apply desired state and session ownership from inside the server, exiting
-    as the shutdown operation (`exit_serving`)."""
+    as the shutdown operation (`exit_serving`).
+
+    Each pass also holds the next title's App Server for the page's claimant
+    (`thread_titles.prepare_for_claimant`), whatever the server's lifetime. A pass
+    runs on each write to the page's inputs and at least every two seconds, since a
+    claimant that dies without ending its session writes nothing."""
+    from .thread_titles import prepare_for_claimant
+
     # Keep the shared native owner through neighboring gallery reads and LRU
     # eviction for this independent supervisor's entire service lifetime.
     _memory = memory_of(page_dir)
@@ -173,6 +180,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
         service = read_service(page_dir)
         if not service or not service["enabled"]:
             exit_serving(0)
+        prepare_for_claimant(page_dir)
         if service["lifetime"] == "persistent":
             changes.wait(mark, 2.0)
             continue

@@ -3152,9 +3152,16 @@ export function createFloatingPanel({
     ];
     const asked = peekAsks();
     const said = asked === STATUS ? parts : asked ? [{ text: asked }] : null;
-    if (!asked || !readingIsContinuous()) peekReading = null;
-    if (asked && !telling && pagePresented()) peekReading ??= said;
-    render(telling ? notice.message : statusParts(peekReading ?? said ?? parts), peek);
+    // The status it opened with stands through one exposure, so aging words move
+    // nothing being read; a different thing to say, such as the field's error once the
+    // pointer leaves the focused leaf for it, or a newer error, is said at once.
+    if (!asked || !readingIsContinuous() || peekReading?.asked !== asked)
+      peekReading = null;
+    if (asked && !telling && pagePresented()) peekReading ??= { asked, parts: said };
+    render(
+      telling ? notice.message : statusParts(peekReading?.parts ?? said ?? parts),
+      peek,
+    );
     keeps(peek, "data-shown", telling || asked ? "" : null);
   }
   // A pointer that asks nothing new, such as one passing over a field holding words,

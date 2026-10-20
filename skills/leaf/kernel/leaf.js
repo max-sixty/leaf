@@ -7987,9 +7987,13 @@ function createFloatingPanel({
     ];
     const asked2 = peekAsks();
     const said = asked2 === STATUS ? parts : asked2 ? [{ text: asked2 }] : null;
-    if (!asked2 || !readingIsContinuous()) peekReading = null;
-    if (asked2 && !telling && pagePresented()) peekReading ??= said;
-    render(telling ? notice2.message : statusParts(peekReading ?? said ?? parts), peek);
+    if (!asked2 || !readingIsContinuous() || peekReading?.asked !== asked2)
+      peekReading = null;
+    if (asked2 && !telling && pagePresented()) peekReading ??= { asked: asked2, parts: said };
+    render(
+      telling ? notice2.message : statusParts(peekReading?.parts ?? said ?? parts),
+      peek
+    );
     keeps(peek, "data-shown", telling || asked2 ? "" : null);
   }
   const showPeek = (asker) => {

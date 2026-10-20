@@ -377,8 +377,12 @@ SESSION = Record(
             # What keeps the session alive (`Harness.lifetime`).
             "lifetime": {"type": "object"},
         },
-        # The native chat a desktop Codex lifetime stands on (`chat_exists`).
-        {"transcript_path": STRING},
+        {
+            # The native chat a desktop Codex lifetime stands on (`chat_exists`).
+            "transcript_path": STRING,
+            # The developer-selected delivery runtime (`session_runtime`).
+            "launcher": STRING,
+        },
     ),
     since=13,
 )

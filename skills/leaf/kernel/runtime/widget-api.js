@@ -15,13 +15,16 @@ import {
   obligationActions,
   placePageThreads,
   projectData,
+  publishOutput,
   pushEntry,
   queueActions,
   queueItemKey,
   queueTitle,
   readQueues,
+  referencedProjection,
   registerThreadPresentation,
   replaceEntry,
+  requireReference,
   stagesOnly,
   threadActions,
   threadBox,
@@ -125,9 +128,7 @@ import {
   addressedElements,
   fragmentTarget,
   projectedDatum,
-  referencedProjection,
-  registerVisualParts,
-  requireReference
+  registerVisualParts
 } from "./bundle-chrome.js";
 import {
   initialRender
@@ -260,6 +261,7 @@ import {
   nextAnimation,
   nextFrame,
   nextRender,
+  onStanding,
   onUserInput,
   openLayer,
   openerOf,
@@ -549,7 +551,7 @@ var LeafElement = class extends LitElement {
   get controller() {
     return this.#controller;
   }
-  /** The bound source of a declared `x-data` input, one copy a delivery (data.js). */
+  /** The bound reading of a declared `x-data` input, one copy a delivery (data.js). */
   data(input) {
     let read = this.#data.get(input);
     if (!read) this.#data.set(input, read = dataReader(this, input));
@@ -1756,6 +1758,7 @@ export {
   offer,
   offered,
   onMotionPreferenceChange,
+  onStanding,
   onUserInput,
   once,
   openLayer,
@@ -1773,6 +1776,7 @@ export {
   pressIsKeyboardActivation,
   projectData,
   projectedDatum,
+  publishOutput,
   pushEntry,
   queueActions,
   queueItemKey,

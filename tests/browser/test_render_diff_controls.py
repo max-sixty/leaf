@@ -1,5 +1,6 @@
 """Diff controls share canonical fields and preserve the compact source reader."""
 
+import re
 from html import escape
 
 import pytest
@@ -16,6 +17,234 @@ from render_harness import (
     resized,
     sending,
 )
+
+
+@pytest.mark.parametrize("view", ["patch", "file"])
+def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
+    browser, serve, view
+):
+    """A separately mounted navigator follows a diff's output and travels through
+    the ordinary datum route, including reactivation and updated source evidence."""
+
+    def patch(path, value):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{value}\n"
+        )
+
+    url = serve(
+        leaf_page(
+            "Browse patch files",
+            "<h1>Review the importer</h1>"
+            '<lf-file-tree id="files" for="patch" data-height="250"></lf-file-tree>'
+            f'<lf-diff id="patch" source="change" view="{view}" collapsed><pre></pre></lf-diff>',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(
+            patch("src/importer.py", "keep_names = True")
+            + patch("tests/importer.py", "assert keep_names")
+        ),
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#files")
+    row = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).first
+    expect(row).to_be_visible()
+    folds = page.locator("#patch .lf-diff-fold")
+    if view == "patch":
+        expect(folds.first).not_to_have_attribute("open", "")
+    else:
+        expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
+        expect(folds.first).to_have_attribute("open", "")
+    # Narrowing remains in place while visiting more than one related file.
+    search = tree.get_by_role("textbox")
+    search.fill("importer")
+    row.click()
+    expect(search).to_have_value("importer")
+    expect(row).to_be_focused()
+    expect(folds.first).to_have_attribute("open", "")
+    expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
+    # The same selected file still has an activation route after its patch closes.
+    folds.first.locator("summary").click()
+    row.click()
+    expect(folds.first).to_have_attribute("open", "")
+    # A released pointer activation keeps this navigator's keyboard ownership.
+    # The tree's folders remain part of its ordinary arrow-key traversal.
+    expect(row).to_be_focused()
+    search.fill("")
+    search.press("Tab")
+    expect(row).to_be_focused()
+    folder = tree.get_by_role("treeitem", name="src", exact=True)
+    page.keyboard.press("ArrowLeft")
+    expect(folder).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    expect(folder).to_have_attribute("aria-expanded", "false")
+    page.keyboard.press("ArrowRight")
+    expect(folder).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("ArrowDown")
+    expect(row).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(tree.get_by_role("treeitem", name="tests", exact=True)).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    other = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).last
+    expect(other).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(folds.last).to_have_attribute("open", "")
+    expect(folds.last.locator("pre")).to_contain_text("assert keep_names")
+    expect(other).to_be_focused()
+    if view == "file":
+        expect(folds.first).not_to_be_visible()
+        expect(folds.last).to_be_visible()
+        expect(other).to_have_attribute("aria-selected", "true")
+        # Search is an activation route too, even while its text field owns focus.
+        for path, visible in [
+            ("src/importer.py", folds.first),
+            ("tests/importer.py", folds.last),
+        ]:
+            search.fill(path)
+            search.press("ArrowDown")
+            search.press("Enter")
+            expect(visible).to_be_visible()
+            expect(search).to_have_value(path)
+            expect(search).to_be_focused()
+        search.fill("importer")
+        folds.last.locator("summary").press("{")
+        expect(folds.first).to_be_visible()
+        expect(folds.last).not_to_be_visible()
+        expect(row).to_have_attribute("aria-selected", "true")
+        expect(other).to_have_attribute("aria-selected", "false")
+        # Reading new evidence does not take ownership of a selection made while
+        # that read is in flight. Hold one boundary to make the ordering exact.
+        page.evaluate("""() => {
+          const diff = document.getElementById('patch');
+          const readEntry = diff.readEntry.bind(diff);
+          const held = new Promise(resolve => window.releaseEvidence = resolve);
+          diff.readEntry = async (...args) => {
+            window.evidenceHeld = true;
+            await held;
+            return readEntry(...args);
+          };
+        }""")
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "change",
+            patch_manifest(
+                patch("src/importer.py", "new_names = True")
+                + patch("tests/importer.py", "assert new_names")
+            ),
+        )
+        page.wait_for_function("window.evidenceHeld === true")
+        folds.first.locator("summary").press("}")
+        page.evaluate("window.releaseEvidence()")
+        expect(folds.last.locator("pre")).to_contain_text("assert new_names")
+        expect(folds.last).to_be_visible()
+        expect(folds.first).not_to_be_visible()
+        expect(other).to_have_attribute("aria-selected", "true")
+        expect(row).to_have_attribute("aria-selected", "false")
+    search.fill("")
+    # A source update replaces the producer inventory, rather than leaving stale rows.
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(patch("src/reader.py", "preserve_case = True")),
+    )
+    next_row = tree.get_by_role("treeitem", name=re.compile(r"reader\.py"))
+    expect(next_row).to_be_visible()
+    expect(
+        tree.get_by_role("treeitem", name=re.compile(r"importer\.py"))
+    ).to_have_count(0)
+    next_row.click()
+    expect(page.locator("#patch pre")).to_contain_text("preserve_case = True")
+    # Clearing the input clears the derived inventory too.
+    data_model.cmd_data_clear(serve.page_dir, "change")
+    expect(tree.get_by_role("treeitem")).to_have_count(0)
+
+
+def test_file_tree_lands_at_the_file_start_in_a_scrolled_patch_pane(browser, serve):
+    """Choosing another file, or returning to the current one, starts its evidence
+    below the pane header rather than preserving or centering a mid-file offset."""
+
+    def patch(path):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            "@@ -1,100 +1,100 @@\n"
+            + "".join(f"-old line {line}\n+new line {line}\n" for line in range(100))
+        )
+
+    url = serve(
+        leaf_page(
+            "Navigate a long patch",
+            '<header><h1>Review two long files</h1></header><div id="regions">'
+            '<lf-pane id="files-pane" label="Files"><header>Files</header>'
+            '<lf-file-tree id="files" for="patch"></lf-file-tree></lf-pane>'
+            '<lf-pane id="patch-pane" label="Patch"><header>Patch</header>'
+            '<div id="evidence"><p>Inspect the changes in each file.</p>'
+            '<lf-diff id="patch" source="change" view="file"><pre></pre></lf-diff>'
+            "</div></lf-pane></div>",
+            head="""<style>
+              #regions { display:grid; grid-template-columns:240px minmax(0,1fr); }
+              #files { --lf-pane-top:0px; margin:0; padding:0; }
+              #patch { margin:0; }
+            </style>""",
+            layout="workspace",
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(patch("first.md") + patch("second.md")),
+    )
+    context = browser.new_context(viewport={"width": 810, "height": 990})
+    page = open_page(browser, url, context=context)
+    tree = page.locator("#files")
+    evidence = page.locator("#evidence")
+    visible = page.locator("#patch .lf-diff-fold:visible")
+    expect(visible).to_contain_text("first.md")
+    tree_box = tree.bounding_box()
+    pane = page.locator("#files-pane")
+    pane_box = pane.bounding_box()
+    border = pane.evaluate(
+        "node => parseFloat(getComputedStyle(node).borderBottomWidth)"
+    )
+    assert tree_box["y"] + tree_box["height"] == pytest.approx(
+        pane_box["y"] + pane_box["height"] - border, abs=0.5
+    ), "the navigator must fill the pane without an authored height override"
+    second = tree.get_by_role("treeitem", name="second.md", exact=True)
+
+    def scroll_into_file():
+        evidence.hover()
+        page.mouse.wheel(0, 900)
+        page.wait_for_function("document.getElementById('evidence').scrollTop > 400")
+
+    def starts_below_header():
+        page.wait_for_function("""() => {
+          const body = document.getElementById('evidence');
+          const fold = [...document.getElementById('patch').shadowRoot
+            .querySelectorAll('.lf-diff-fold')].find(node => node.checkVisibility());
+          const summary = fold?.querySelector('summary');
+          const firstLine = fold?.querySelector('[data-content] > [data-line]');
+          if (!summary || !firstLine?.textContent.includes('old line 0')) return false;
+          const top = summary.getBoundingClientRect().top;
+          const edge = body.getBoundingClientRect().top + body.clientTop;
+          const padding = parseFloat(getComputedStyle(body).paddingTop);
+          const line = firstLine.getBoundingClientRect();
+          return top >= edge - 1 && top <= edge + padding + 4
+            && line.top >= summary.getBoundingClientRect().bottom - 1
+            && line.bottom <= body.getBoundingClientRect().bottom;
+        }""")
+
+    scroll_into_file()
+    second.click()
+    expect(visible).to_contain_text("second.md")
+    starts_below_header()
+    expect(second).to_be_focused()
+    # A file already selected still has a route back to the start after reading down.
+    scroll_into_file()
+    second.click()
+    starts_below_header()
+    expect(second).to_be_focused()
 
 
 @pytest.mark.parametrize("bound", [False, True], ids=["inline", "bound"])
@@ -680,3 +909,59 @@ def test_a_live_line_reply_wraps_without_resize_observer_feedback(
     expect(outlet).to_be_visible()
     rendered(page)
     assert outlet.bounding_box()["width"] <= code.bounding_box()["width"]
+
+
+def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
+    """The optional tree consumes a path list on its own and retains its mounted
+    navigation when an unrelated data value changes."""
+    url = serve(
+        leaf_page(
+            "Explore project files",
+            "<h1>Project files</h1>"
+            '<a href="#project-files">Back to files</a>'
+            '<lf-file-tree id="project-files" source="project" '
+            'data-height="280"></lf-file-tree>',
+            head="<style>#project-files { --lf-file-tree-height:280px; }</style>",
+        ),
+        packages=("file-tree",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "README.md"},
+                {"path": "src/main.py", "status": "added"},
+            ],
+        },
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#project-files")
+    assert tree.bounding_box()["height"] == 280, "flow keeps the authored height"
+    row = tree.get_by_role("treeitem", name=re.compile(r"README\.md"))
+    expect(row).to_be_visible()
+    row.click()
+    expect(row).to_have_attribute("aria-selected", "true")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "README.md", "status": "modified"},
+                {"path": "src/main.py"},
+            ],
+        },
+    )
+    expect(row).to_have_attribute("aria-selected", "true")
+    search = tree.get_by_role("textbox")
+    page.get_by_role("link", name="Back to files").click()
+    expect(search).to_be_focused()
+    search.fill("main")
+    expect(tree.get_by_role("treeitem", name=re.compile(r"README\.md"))).to_have_count(
+        0
+    )
+    search.fill("no-such-file")
+    expect(tree.get_by_role("treeitem")).to_have_count(0)
+    expect(tree).to_contain_text("No matching files.")
+    search.fill("")
+    expect(row).to_be_visible()

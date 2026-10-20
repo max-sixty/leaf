@@ -109,6 +109,17 @@ source as shown only once it settles.
 
 `this.data` throws for an undeclared input and reads the element's binding once.
 
+A widget-output binding uses the same `this.data(input)` reader.
+Its snapshot is `{contract, value, origin: {derived: [{widget: producerId}]}}`,
+without source revision, run, or update time. `publishOutput(element, name, value)`
+requires a declared `x-output` and an id. Publishing `null` clears the output;
+repeating an unchanged value does not redraw. The producer publishes only values
+that satisfy its declared contract, just as its other module-owned facts do.
+Consumers receive independent copies and pass asynchronous drawing to
+`this.drawing(promise)` through the same presentation boundary. Publish the value that
+matches the rendering in the turn that commits it; clear an unreadable output rather than retaining stale
+records after a failed replacement.
+
 Rows whose contract declares a `deferred` field arrive without it. Fetch one row's field
 with `loadDeferred(snapshot, key)`, which throws if the source changed in the meantime.
 

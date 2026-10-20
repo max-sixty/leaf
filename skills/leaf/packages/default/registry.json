@@ -1,6 +1,45 @@
 {
   "$data": {
     "contracts": {
+      "file-list": {
+        "description": "File paths with optional Git status, opaque datum keys, and the path currently displayed by a file viewer.",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "key": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "status": {
+                    "enum": ["added", "modified", "deleted", "renamed"]
+                  }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+              }
+            },
+            "current": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": ["files"],
+          "additionalProperties": false
+        },
+        "records": {
+          "items": "files",
+          "key": "path"
+        }
+      },
       "measured-scalar": {
         "description": "The latest scalar emitted by a repeatable measurement source. Authored lf-num text freezes the value a version states; the source snapshot records whether that measurement ran again.",
         "schema": {
@@ -20,8 +59,13 @@
     "x-instructions": "Around decision widgets, give it a heading that states the shared question or context without leaning on the prose around it, with any eyebrow beside it in an `<hgroup>`. Include the evidence the user needs to answer. Each widget inside that asks for input stays its own obligation with its own answer, and the frame asks nothing itself. With no widget inside, it is a question answered in words: in a reply's markup, by the user's next message in that thread; on the page, by their comment on it. Write the question itself as its content, with no heading needed. Wrap the context in a `section` when the document needs a section landmark.",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "restated": { "type": "boolean" }
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "restated": {
+        "type": "boolean"
+      }
     },
     "required": ["id"],
     "additionalProperties": false,
@@ -138,7 +182,7 @@
     "x-example": "<lf-text-document id=\"leaf-skill\" source=\"leaf-skill\" language=\"markdown\"></lf-text-document>"
   },
   "lf-toc": {
-    "description": "An outline of the document’s h2–h6 headings for navigating its sections and showing the reader’s position.",
+    "description": "An outline of the document\u2019s h2\u2013h6 headings for navigating its sections and showing the reader\u2019s position.",
     "x-instructions": "Write it empty with a stable id. Set `max-level` to leave out deeper headings that are local detail; by default it lists h2 to h6. Give sections or headings ids of your own where a link must keep its target across versions, since the ids Leaf generates aren't stable.",
     "type": "object",
     "properties": {
@@ -160,7 +204,7 @@
     "x-example": "<h1>Migration plan</h1>\n<aside class=\"sidebar\" id=\"plan-sidebar\">\n  <lf-toc id=\"plan-contents\"></lf-toc>\n</aside>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
   "lf-activity": {
-    "description": "A newest-first feed of the page’s comments, actions, reports, and published revisions.",
+    "description": "A newest-first feed of the page\u2019s comments, actions, reports, and published revisions.",
     "x-instructions": "Write it empty with a stable id.",
     "type": "object",
     "properties": {
@@ -347,7 +391,7 @@
     "x-upgrade": false
   },
   "lf-chart": {
-    "description": "An Observable Plot chart authored with Plot’s API and sized to its place in the page.",
+    "description": "An Observable Plot chart authored with Plot\u2019s API and sized to its place in the page.",
     "x-instructions": "Inside a `<pre>`, write a JavaScript expression for the options object you would pass to `Plot.plot`, HTML-escaping & before < and >. `Plot` and `width` are the names in scope, and the data goes inline. The chart requires an `ariaLabel` describing it. Leave `width` and `height` out of the options: read `width` to fit the ticks to the room, and set a height other than the default with `data-height` on the element. Write dates as ISO strings on an explicitly typed time scale, `utc` for days and months, and give moments a time zone, such as 2026-06-01T14:00Z. Use `var(--series-N)` for constant or categorical colors; a continuous color scale needs a Plot scheme. Title the chart in the heading or prose around it rather than with Plot's `title`. Label on the chart each value the page's argument cites, such as a spike the prose explains, with a text mark beside the point. When `page check --render` reports overlapping labels, use fewer category ticks, choose them by `width`, or give the axis label more margin.",
     "type": "object",
     "properties": {
@@ -659,12 +703,18 @@
   },
   "lf-pane": {
     "description": "A reading region with an optional header and footer, independently scrollable inside a full-height workspace.",
-    "x-instructions": "For independent scrolling, place the pane as a full-height workspace’s body or a direct cell; elsewhere the page scrolls. Wrap multiple body blocks in one div or section. Use label to name the region accessibly and its header for the visible heading. Put action widgets in the direct footer when they should remain reachable as the body scrolls.",
+    "x-instructions": "For independent scrolling, place the pane as a full-height workspace\u2019s body or a direct cell; elsewhere the page scrolls. Wrap multiple body blocks in one div or section. Use label to name the region accessibly and its header for the visible heading. Put action widgets in the direct footer when they should remain reachable as the body scrolls.",
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-      "label": { "type": "string", "minLength": 1 }
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "required": ["id", "label"],
     "additionalProperties": false,
@@ -676,12 +726,25 @@
   },
   "$reactions": {
     "tokens": {
-      "keep": { "glyph": "👍", "settles": true },
-      "change": { "glyph": "❌" },
-      "clarify": { "glyph": "🤔" },
-      "shorten": { "glyph": "✂️" },
-      "support": { "glyph": "🔎" },
-      "prioritize": { "glyph": "🎯" }
+      "keep": {
+        "glyph": "\ud83d\udc4d",
+        "settles": true
+      },
+      "change": {
+        "glyph": "\u274c"
+      },
+      "clarify": {
+        "glyph": "\ud83e\udd14"
+      },
+      "shorten": {
+        "glyph": "\u2702\ufe0f"
+      },
+      "support": {
+        "glyph": "\ud83d\udd0e"
+      },
+      "prioritize": {
+        "glyph": "\ud83c\udfaf"
+      }
     }
   }
 }

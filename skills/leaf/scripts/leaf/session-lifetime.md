@@ -187,6 +187,13 @@ turns is the to-do itself (`todos.py`), which no turn or session ending lapses.
 
 ### Turns and generations
 
+A developer user preview selects its immutable prepared installation as the session's
+delivery runtime. The lifecycle record's optional `launcher` names that installation; native
+hooks delegate before publishing a turn or reading pages, and the Codex adapter
+uses the same selection. `session_runtime.py` owns selection and its lifetime.
+Page servers keep their rendering runtime, and maintainer page commands use the
+checkout launcher explicitly.
+
 The turn id and `turn_closed` stamp a declaration is judged against are the session's
 rather than the page's: prompts and endings publish one atomic session record. Page
 claims reference its generation and derive the current turn; no opening or ending

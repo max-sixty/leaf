@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Review Worktrunk's diff pipeline</title>
+    <meta
+      name="description"
+      content="Navigate a real 46-file Worktrunk patch by directory, with a full-height file navigator beside the selected file's changes."
+    />
+    <style>
+      #file-review-regions {
+        display: grid;
+        grid-template-columns: clamp(16rem, 23vw, 18rem) minmax(0, 1fr);
+      }
+      #review-files {
+        --lf-pane-top: 0px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+      }
+      #files-pane > header,
+      #patch-pane > header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-block-size: var(--aim-floor);
+        box-sizing: border-box;
+      }
+      #review-patch {
+        margin: 0;
+      }
+      #files-return {
+        display: none;
+      }
+      @media (width < 720px) {
+        #file-review-regions {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        #review-files {
+          --lf-file-tree-height: 15rem;
+        }
+        #patch-pane {
+          --review-top: var(--lf-top);
+          --review-header-height: calc(var(--aim-floor) + 2px);
+        }
+        #patch-pane > header {
+          position: sticky;
+          top: var(--lf-top);
+          block-size: var(--review-header-height);
+          z-index: 1;
+          background: var(--paper);
+        }
+        #files-return {
+          display: grid;
+          place-items: center;
+          min-block-size: var(--aim-floor);
+        }
+        #patch-evidence {
+          --lf-top: calc(var(--review-top) + var(--review-header-height));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout-workspace density-working" id="file-review">
+      <header>
+        <h1>Review the diff pipeline</h1>
+        <p><span class="tag">Worktrunk · 46 changed files</span></p>
+      </header>
+      <div id="file-review-regions">
+        <lf-pane id="files-pane" label="Changed files">
+          <header id="changed-files-panel"><h2>Files</h2></header>
+          <lf-file-tree
+            id="review-files"
+            for="review-patch"
+            aria-label="Changed files"
+          ></lf-file-tree>
+        </lf-pane>
+        <lf-pane id="patch-pane" label="Selected file patch">
+          <header>
+            <h2>Patch</h2>
+            <a id="files-return" href="#review-files">Back to files</a>
+          </header>
+          <div id="patch-evidence">
+            <lf-diff id="review-patch" source="worktrunk-change" view="file">
+              <pre></pre>
+            </lf-diff>
+          </div>
+        </lf-pane>
+      </div>
+    </main>
+  </body>
+</html>

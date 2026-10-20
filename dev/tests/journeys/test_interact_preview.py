@@ -74,28 +74,32 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
     sid = "desktop-preview"
     transcript = native_codex_chat(sid)
     sibling = tmp_path / "sibling"
-    task = under_codex(
-        shlex.join(
-            [
-                sys.executable,
-                "-m",
-                "leaf_dev.commands.preview",
-                "--worker",
-                "--user",
-                "--source",
-                str(source),
-                "--runtime",
-                str(ROOT),
-                "--slot",
-                page.name,
-            ]
-        ),
+    command = shlex.join(
+        [
+            sys.executable,
+            "-m",
+            "leaf_dev.commands.preview",
+            "--worker",
+            "--user",
+            "--source",
+            str(source),
+            "--runtime",
+            str(ROOT),
+            "--slot",
+            page.name,
+        ]
+    )
+    environment = (
         codex_env
         | codex_queue
         | {
             "CODEX_THREAD_ID": sid,
             "LEAF_PREVIEWS_ROOT": str(page.parent),
-        },
+        }
+    )
+    task = under_codex(
+        command,
+        environment,
         app_server=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -108,6 +112,9 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         record_run_context(page, purpose="test", run=tmp_path, test=request.node.nodeid)
         acquired = service.page_claim(page)["acquisition"]
         before = state.session_record(sid)
+        delivery_runtime = Path(before["launcher"]).parent.parent
+        assert delivery_runtime.is_relative_to(ROOT / ".tmp/compiled-runtime")
+        assert (delivery_runtime / "leaf-distribution.json").is_file()
         old = time.time() - timedelta(hours=12).total_seconds()
         claim_path = service.claim_path(page)
         claim = json.loads(claim_path.read_text())
@@ -194,6 +201,24 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             lambda live: not live,
             failure=f"chat {retirement} kept its delivery adapter",
         )
+        if retirement == "stop":
+            # Resume the existing slot through the real detached handshake. Its
+            # parent holds delivery preparation while the child refreshes, so
+            # the child may hand delivery over only after announcing readiness.
+            resumed = under_codex(
+                command,
+                environment,
+                app_server=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            output, errors = resumed.communicate(timeout=STATED_TIMEOUT)
+            assert resumed.returncode == 0, f"{output}{errors}"
+            assert (
+                next(line for line in output.splitlines() if line.startswith("http://"))
+                == url
+            )
     finally:
         if (page / "events.jsonl").exists():
             hosting.cmd_stop(page)

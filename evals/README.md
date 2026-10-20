@@ -67,13 +67,25 @@ unobserved. The judge follows the requested output's scope.
 ## Desktop comparisons and exploratory discovery
 
 Routine authored-task comparisons use a 1600 × 1000 CSS-pixel desktop window.
+`evals/workflows/eval.yaml` owns the available viewport presets and default.
+Case definitions do not select resolutions. Use `--viewport short` or
+`--viewport phone` for an explicitly chosen alternative; repeat the option to
+inspect several sizes within each sample. The first selected size is used for
+the comment and decision journey, and all selected sizes reach the author’s
+window preference, report captures and final judge. This does not multiply
+author runs or judges.
+
+```bash
+uv run leaf-dev eval patch-review --harness codex --condition both
+uv run leaf-dev eval patch-review --harness codex --condition both --viewport short --repeat 3
+```
+
 The core loop keeps the task, screen size and requested journey fixed while
 changing the Leaf implementation or authoring guidance. `--base` compares a
 candidate against current Leaf. Occasional `--condition both` runs compare Leaf
 against ordinary HTML to check the product's value. Completion and preserved
 user decisions remain part of the judgment. Phone behavior stays visible in
-exploratory observations rather than contributing to a combined desktop/phone
-score.
+exploratory observations unless explicitly selected for a scored run.
 
 An optional relative quality comparison is `uv run leaf-dev eval-pairs RUN...`, which
 judges its samples in two columns side by side, each pair in both orders, and counts

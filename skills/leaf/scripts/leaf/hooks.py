@@ -47,7 +47,9 @@ Resume and prompt hooks also inspect retained claims for disconnected pages
 page or reopen a turn at SessionStart, and it persists across session generations.
 
 Each harness's registrations name it (`--harness`) and its payload names the
-session; `harness.hook_harness` says why neither comes from the environment."""
+session; `harness.hook_harness` says why neither comes from the environment. A
+developer-selected session runtime (`session_runtime`) owns the entire hook;
+`main` execs it before this module publishes lifecycle or reads pages."""
 
 import json
 import time
@@ -218,7 +220,11 @@ def main(harness: str, *, watch: bool = False) -> None:
     The application entry is the only caller.
     A watch owns leases, so it releases them when the harness terminates it.
     """
+    import os
     import sys
+    import tempfile
+
+    from .session_runtime import own_launcher, selected_launcher
 
     try:
         payload = json.load(sys.stdin)
@@ -226,6 +232,28 @@ def main(harness: str, *, watch: bool = False) -> None:
         raise Refused(
             f"hook expects the harness's JSON payload on stdin ({error.msg})"
         ) from error
+    launcher = selected_launcher(payload.get("session_id") or "")
+    if launcher is not None and launcher != own_launcher():
+        # Delegate the whole hook before publishing lifecycle or pickup. Keeping
+        # the stdin as a file avoids a pipe-size limit on large tool payloads;
+        # exec retains cancellation and the background watch's exact lifetime.
+        with tempfile.TemporaryFile() as incoming:
+            incoming.write(json.dumps(payload).encode())
+            incoming.seek(0)
+            os.dup2(incoming.fileno(), 0)
+        environment = dict(os.environ)
+        environment.pop("LEAF_HOST_LAUNCHER", None)
+        os.execve(
+            launcher,
+            [
+                str(launcher),
+                "hook",
+                "--harness",
+                harness,
+                *(["--watch"] if watch else []),
+            ],
+            environment,
+        )
     if watch:
         from .leases import release_on_termination
 

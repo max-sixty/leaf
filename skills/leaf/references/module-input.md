@@ -164,6 +164,11 @@ whether focus is in a scope. `whenLeft(element, leave)` runs `leave` once when f
 leaves an element. A group the user moves through with arrow keys offers one Tab stop
 with `rove(items, stop)`.
 
+`onStanding(read)` calls `read(node, cause, left)` synchronously when focus changes,
+including inside a declared shadow root, and returns its unsubscribe function. Register
+it inside `whileConnected` and call that function in the connection's cleanup. The
+causes are `return`, `press`, `step`, `move`, and `drop`; a dropped place is `null`.
+
 ### Layers
 
 A widget opening its own layer, such as a list over its contents, calls

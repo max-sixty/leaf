@@ -501,7 +501,10 @@ var restoring = false;
 var placements = 0;
 var stood = null;
 var readers = /* @__PURE__ */ new Set();
-var onStanding = (read2) => readers.add(read2);
+var onStanding = (read2) => {
+  readers.add(read2);
+  return () => readers.delete(read2);
+};
 var published = null;
 var departed = false;
 var readings2 = 0;

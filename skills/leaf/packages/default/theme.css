@@ -1550,10 +1550,10 @@
     text-decoration-thickness: 2px;
     text-underline-offset: 2px;
   }
-  :scope:is(lf-tabs)[data-lf-tabs-flow=page] > .lf-tabstrip .lf-tab-btn:not([aria-selected=true]) > .lf-tab-name {
+  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip .lf-tab-btn:not([aria-selected=true]) > .lf-tab-name {
     border-bottom-color: Canvas;
   }
-  :scope:is(lf-tabs)[data-lf-tabs-flow=page] > .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
+  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
     text-decoration: none;
   }
 }
@@ -1831,6 +1831,9 @@
     --lf-tabstrip-pad: 0px;
     --lf-tabstrip-bg: var(--paper);
   }
+  :scope:is(lf-tabs)[data-lf-tabs-flow=box]:not([list=side]) > .lf-tabstrip {
+    --lf-tabstrip-bg: var(--card);
+  }
   .lf-tabstrip-scroll {
     display: none;
     position: sticky;
@@ -1909,14 +1912,14 @@
   .lf-tabstrip-scroll[data-to=end]:dir(rtl) > span::before {
     content: "‹" / "";
   }
-  :scope:is(lf-tabs)[data-lf-tabs-flow=page] > .lf-tabstrip .lf-tab-btn {
+  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip .lf-tab-btn {
     padding-block: max(5px, (var(--aim-floor) - 1lh) / 2 - 4px) max(7px, (var(--aim-floor) - 1lh) / 2 - 2px);
   }
-  :scope:is(lf-tabs)[data-lf-tabs-flow=page] > .lf-tabstrip .lf-tab-btn > .lf-tab-name {
+  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom: 2px solid transparent;
     background: transparent;
   }
-  :scope:is(lf-tabs)[data-lf-tabs-flow=page] > .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
+  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
     border-bottom-color: currentColor;
     background: transparent;
     box-shadow: none;
@@ -1975,6 +1978,8 @@
         box-sizing: border-box;
         block-size: var(--lf-tabstrip-h);
         border-bottom: 1px solid var(--border-2);
+      }
+      &[list=side]::before {
         border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
         background: var(--field);
       }

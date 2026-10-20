@@ -79,13 +79,16 @@ has tried; settle that before building it.
   bar and the switch between them went. Work through its remaining list. The phone
   waits until the desktop design is firm, and where a passage thread opens from
   Threads waits until later.
-- **Fit a held-news notice's first fact in a phone-width seat.** A notice shows each
-  fact of its news whole or not at all (`newsNotice`), but the first is cut at its
-  end where it alone outgrows the notice: a seat's head row at 390px leaves it about
-  108px, so "1 new progress message" reads "1 new progress me…", and a count that
-  grows past the room the notice first held ("1 new reply", then "2 new replies")
-  cuts the same way. Both keep the count and most of the kind. A shorter form for a
-  narrow row, or more of the row for the notice, would read whole.
+- **Fit a held-news notice's first fact where its row is narrow.** A notice shows
+  each fact of its news whole or not at all (`newsNotice`), but cuts the first at its
+  end where it alone outgrows the notice. A seat's head row at 390px leaves it about
+  108px and a primary reader's head 5rem (`--lf-primary-news-width`), so "1 new
+  progress message" (about 126px) reads "1 new progress me…" or "1 new progr…"; and
+  a count growing past the room the notice first held ("1 new reply", then "2 new
+  replies") cuts the same way. A seat's notice stands absolutely over free head row,
+  so its room could be the whole slot up to the visible end (`thread-card.js`,
+  `#retainHeaderSlot`), which also shows facts it now drops at 1200px, if a notice
+  wider than its words under the pointer is acceptable; otherwise a shorter form.
 
 ### Agent and author experience
 

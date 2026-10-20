@@ -611,12 +611,16 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     rendered(page)
     assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
     facts = notice.locator(":scope > span > span")
-    first, later = facts.nth(0), facts.nth(1)
-    assert first.evaluate("fact => fact.scrollWidth <= fact.clientWidth")
-    # The later fact stands below the notice's one line, where it draws nothing.
-    assert (
-        later.bounding_box()["y"]
-        >= first.bounding_box()["y"] + (first.bounding_box()["height"])
+    assert facts.nth(0).evaluate("fact => fact.scrollWidth <= fact.clientWidth")
+    # The later fact wraps past the words' clip, so nothing of it draws or takes a press.
+    assert facts.nth(1).evaluate(
+        """fact => {
+            const box = fact.getBoundingClientRect();
+            const hit = fact
+                .getRootNode()
+                .elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+            return !fact.contains(hit);
+        }"""
     )
 
 

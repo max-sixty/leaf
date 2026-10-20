@@ -4871,7 +4871,7 @@ function difference(was, now, { progressOpen = false } = {}) {
   const settled = Boolean(was.resolved) === Boolean(now.resolved) ? null : now.resolved ? "Resolved" : "Reopened";
   const news = {
     settled,
-    working: was.working?.words === now.working?.words ? null : now.working?.live ? "Work in progress" : "Work updated",
+    working: was.working?.words === now.working?.words ? null : now.working?.live ? "Work in progress" : "Work changed",
     progress: 0,
     replies: 0,
     messages: 0,

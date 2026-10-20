@@ -55,7 +55,7 @@
    behind its control-row notice when that growth would move the reader. The notice
    counts each held progress message as it counts a held reply, "1 new progress
    message" (the user's choice, 2026-10-14), unless a held reply folds it, and says
-   "Work in progress" or "Work updated" only where the working message changed with
+   "Work in progress" or "Work changed" only where the working message changed with
    none. It names the message by its kind, as the thread's own disclosure does.
    "Update" names only the user's input (glossary), so "1 new update" read as news of
    the user's own.
@@ -239,7 +239,7 @@ function difference(was, now, { progressOpen = false } = {}) {
         ? null
         : now.working?.live
           ? "Work in progress"
-          : "Work updated",
+          : "Work changed",
     progress: 0,
     replies: 0,
     messages: 0,

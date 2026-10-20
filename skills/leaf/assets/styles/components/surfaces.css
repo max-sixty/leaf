@@ -989,11 +989,15 @@ button.lf-thread-notice[data-lf-focus] {
    notice is narrower than all of them, as when its room holds the news it first said,
    the facts that don't fit wrap onto lines it doesn't show: a later fact drops whole
    rather than cutting the one before it mid-word. Only a first fact too wide alone is
-   cut. */
+   cut. The clip reaches half a line below the words, outside their box, so the hover
+   underline shows, and the gap between lines keeps a wrapped fact past it. */
 .lf-thread-news > span {
   display: flex;
   flex-wrap: wrap;
+  row-gap: 1lh;
   block-size: 1lh;
+  padding-block-end: 0.5lh;
+  margin-block-end: -0.5lh;
   overflow: clip;
 }
 .lf-thread-news > span > span {
@@ -1003,6 +1007,8 @@ button.lf-thread-notice[data-lf-focus] {
 .lf-thread-news > span > :first-child {
   flex-shrink: 1;
   min-inline-size: 0;
+  padding-block-end: 0.5lh;
+  margin-block-end: -0.5lh;
   overflow: clip;
   text-overflow: ellipsis;
 }

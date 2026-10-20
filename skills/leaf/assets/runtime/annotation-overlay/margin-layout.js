@@ -91,6 +91,7 @@ import { passageBoxes, targetRange, targetSegments } from "../resolved-target.js
 import { railStands } from "../content-layout.js";
 import { keeps, layoutPx } from "../keeps.js";
 import { move } from "../dom-move.js";
+import { coarsePointer } from "../pointer.js";
 import { LAYOUT } from "../widget-elements.js";
 import { inChrome } from "../passages.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
@@ -399,9 +400,16 @@ function placeMarginEntryLabel(control) {
   const clusterLeft = Math.min(...clusterMarginEntries.map((box) => box.left));
   const clusterRight = Math.max(...clusterMarginEntries.map((box) => box.right));
   const centered = (marginEntryBox.top + marginEntryBox.bottom - labelBox.height) / 2;
+  const below = labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox);
+  const above = labelRect(
+    "above",
+    edgeAligned,
+    marginEntryBox.top - 6 - labelBox.height,
+    labelBox,
+  );
+  // A finger holding the entry to read its label covers what lies below it.
   const candidates = [
-    labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox),
-    labelRect("above", edgeAligned, marginEntryBox.top - 6 - labelBox.height, labelBox),
+    ...(coarsePointer.matches ? [above, below] : [below, above]),
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
   ];

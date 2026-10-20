@@ -5059,6 +5059,7 @@ function createAnchorNoteProjection({ openThread, labelAnchor }) {
 // runtime/anchor-controls.js
 var shownDocument = readPart((root) => root.document);
 var MSG_REF = '.lf-msg-body a[href^="#"]';
+var missingReference = (id) => `\xA7 ${id} isn't in the version shown`;
 function createAnchorControls({
   commentOnTarget,
   openThread,
@@ -5324,11 +5325,7 @@ function createAnchorControls({
       const alive = Boolean(fragmentTarget(href));
       anchor.classList.toggle("detached", !alive);
       keeps(anchor, "aria-disabled", alive ? null : "true");
-      keeps(
-        anchor,
-        "title",
-        alive ? `Jump to \xA7 ${id}` : `\xA7 ${id} isn't in the version shown`
-      );
+      keeps(anchor, "title", alive ? `Jump to \xA7 ${id}` : missingReference(id));
     }
   }
   function paintDraft({ open, anchor, about, resolved }) {
@@ -5387,8 +5384,10 @@ function createAnchorControls({
     queueInvalidation();
   };
   const onMessageReference = (event) => {
-    const anchor = event.target.closest(MSG_REF);
-    if (anchor && !fragmentTarget(anchor.getAttribute("href"))) event.preventDefault();
+    const href = event.target.closest(MSG_REF)?.getAttribute("href");
+    if (href == null || fragmentTarget(href)) return;
+    event.preventDefault();
+    raiseError(missingReference(fragmentId(href)));
   };
   const onOutsideReaction = (event) => {
     for (const record of reactionSeats.values())

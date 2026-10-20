@@ -1,4 +1,5 @@
 import {
+  HOLDS_WORD,
   progressFace,
   threadAttention,
   workflowLabel
@@ -612,6 +613,7 @@ function presentContributionEntry(control, offered, options = {}) {
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
   control.classList.toggle("lf-margin-entry", true);
+  control.classList.toggle(HOLDS_WORD, true);
   const priorClasses = contributorClasses.get(control) ?? [];
   const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
   for (const name of priorClasses)

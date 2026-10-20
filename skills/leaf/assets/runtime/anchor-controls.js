@@ -54,9 +54,12 @@ import { offer, reveal } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
+import { raiseError } from "./errors.js";
 
 const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';
+// Why a message's link to a section the shown version lacks goes nowhere.
+const missingReference = (id) => `§ ${id} isn't in the version shown`;
 
 export function createAnchorControls({
   commentOnTarget,
@@ -358,18 +361,14 @@ export function createAnchorControls({
 
   function paintMessageReferences() {
     // Missing targets share the quote's detached meaning, but retain the message
-    // link's own contour: muted ink and a dashed underline, with its press withheld.
+    // link's own contour: muted ink and a dashed underline, its press refused.
     for (const anchor of messageReferenceRoot.querySelectorAll(MSG_REF)) {
       const href = anchor.getAttribute("href");
       const id = fragmentId(href);
       const alive = Boolean(fragmentTarget(href));
       anchor.classList.toggle("detached", !alive);
       keeps(anchor, "aria-disabled", alive ? null : "true");
-      keeps(
-        anchor,
-        "title",
-        alive ? `Jump to § ${id}` : `§ ${id} isn't in the version shown`,
-      );
+      keeps(anchor, "title", alive ? `Jump to § ${id}` : missingReference(id));
     }
   }
 
@@ -445,9 +444,13 @@ export function createAnchorControls({
     queueInvalidation();
   };
 
+  // A press on a link to a missing section is refused and says why, which its title
+  // says only to a resting pointer.
   const onMessageReference = (event) => {
-    const anchor = event.target.closest(MSG_REF);
-    if (anchor && !fragmentTarget(anchor.getAttribute("href"))) event.preventDefault();
+    const href = event.target.closest(MSG_REF)?.getAttribute("href");
+    if (href == null || fragmentTarget(href)) return;
+    event.preventDefault();
+    raiseError(missingReference(fragmentId(href)));
   };
 
   const onOutsideReaction = (event) => {

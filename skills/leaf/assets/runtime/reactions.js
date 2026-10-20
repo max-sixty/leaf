@@ -270,7 +270,7 @@ export function createReactionController({
           glyph: choice.glyph,
           label: choice.label,
           rank: "secondary",
-          className: `lf-react ${HOLDS_WORD}`,
+          className: "lf-react",
           pressed: Boolean(choice.inForce),
         })),
         readings: [],

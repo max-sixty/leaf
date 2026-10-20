@@ -38,6 +38,7 @@ import {
   LAYOUT,
   clamp,
   clippingAxes,
+  coarsePointer,
   overlaps,
   overlapsAcross,
   renderedChildren,
@@ -388,9 +389,15 @@ function placeMarginEntryLabel(control) {
   const clusterLeft = Math.min(...clusterMarginEntries.map((box) => box.left));
   const clusterRight = Math.max(...clusterMarginEntries.map((box) => box.right));
   const centered = (marginEntryBox.top + marginEntryBox.bottom - labelBox.height) / 2;
+  const below = labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox);
+  const above = labelRect(
+    "above",
+    edgeAligned,
+    marginEntryBox.top - 6 - labelBox.height,
+    labelBox
+  );
   const candidates = [
-    labelRect("below", edgeAligned, marginEntryBox.bottom + 6, labelBox),
-    labelRect("above", edgeAligned, marginEntryBox.top - 6 - labelBox.height, labelBox),
+    ...coarsePointer.matches ? [above, below] : [below, above],
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox)
   ];

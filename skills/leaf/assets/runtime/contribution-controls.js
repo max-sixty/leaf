@@ -4,6 +4,7 @@
    containment, so a producer updates one registration whichever surface shows it. */
 import { html, render } from "/vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
+import { HOLDS_WORD } from "./held-word.js";
 import { progressFace, workflowLabel } from "./thread/workflow.js";
 import { elementDirective, offer } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -383,7 +384,9 @@ export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
+  // Its label shows to a resting pointer and the keyboard, and to a finger holding it.
   control.classList.toggle("lf-margin-entry", true);
+  control.classList.toggle(HOLDS_WORD, true);
   const priorClasses = contributorClasses.get(control) ?? [];
   const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
   for (const name of priorClasses)

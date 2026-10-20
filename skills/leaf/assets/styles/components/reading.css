@@ -287,6 +287,17 @@
   text-align: center;
   color: var(--ink);
 }
+/* A capture's frame is a box-shadow outside the image (theme.css, `img`), and the table
+   clips to its own edges because it scrolls its columns, so a capture in an outer
+   column lost the frame's outer side: the hairline and shadow right of every capture in
+   the last column. An outer cell holding an image, alone, linked or in a figure, keeps
+   room on its outer side for the frame's reach. */
+:where(:root, .lf-thread-transcript) tr > td:first-child:has(img) {
+  padding-inline-start: var(--raise-1-reach);
+}
+:where(:root, .lf-thread-transcript) tr > td:last-child:has(img) {
+  padding-inline-end: var(--raise-1-reach);
+}
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
   padding-inline-start: 24px;

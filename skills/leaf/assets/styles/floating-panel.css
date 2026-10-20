@@ -196,10 +196,11 @@
     min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {
+    position: relative;
     flex: none;
     display: grid;
     place-items: center;
-    width: 32px;
+    width: var(--lf-fp-aim);
     min-height: var(--lf-fp-line);
     padding: 0;
   }
@@ -207,9 +208,6 @@
     --lf-mark-w: 19px;
   }
   /* An error waiting unseen in the leaf's menu marks the leaf's corner. */
-  .lf-fp-leaf {
-    position: relative;
-  }
   .lf-fp-error-dot {
     position: absolute;
     top: 3px;
@@ -664,7 +662,6 @@
     }
     .lf-fp-leaf {
       width: var(--lf-fp-folded);
-      min-width: 0;
       height: var(--lf-fp-folded);
       min-height: 0;
       border-radius: var(--lf-fp-radius);
@@ -1547,9 +1544,6 @@
     .lf-fp-thread,
     .lf-fp-page {
       min-height: 44px;
-    }
-    .lf-fp-leaf {
-      min-width: var(--lf-fp-aim);
     }
   }
   @media (prefers-reduced-motion: reduce) {

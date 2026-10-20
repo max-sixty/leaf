@@ -1799,12 +1799,18 @@ export function createFloatingPanel({
   }
 
   // The rows read in the page's order, the one the `t` walk steps through
-  // (thread/placement.js), so each thread stands among its passage's neighbours.
+  // (thread/placement.js), so each thread stands among its passage's neighbours. A
+  // search reads a thread's name, its messages and the words it is about, as its head
+  // quotes them (`quoteReading`).
   function shownThreads() {
     const words = query.trim().toLowerCase();
     const shown = threads().filter((thread) => {
       if (words) {
-        const text = [threadName(thread), ...thread.msgs.map((m) => m.text ?? "")]
+        const text = [
+          threadName(thread),
+          quoteReading(thread, { placedAt })?.label ?? "",
+          ...thread.msgs.map((m) => m.text ?? ""),
+        ]
           .join(" ")
           .toLowerCase();
         return text.includes(words);

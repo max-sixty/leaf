@@ -1035,6 +1035,19 @@ def test_a_thread_s_row_and_its_passage_light_each_other(browser, serve):
     assert page.evaluate("() => document.activeElement === window.focusBefore")
 
 
+def test_threads_search_finds_a_thread_by_the_words_it_quotes(browser, serve):
+    """Searching Threads finds a thread by the words it is about as well as by its
+    name and messages: words only the passage holds find the thread on it."""
+    url = serve(AGENDA_PAGE)
+    agenda_threads(serve.page_dir)
+    page = floating(browser, url)
+    rows = threads_rows(page)
+    expect(rows).to_have_count(3)
+    page.get_by_role("button", name="Find a thread or message").click()
+    page.locator("input.lf-fp-search").fill("schedule leaves")
+    expect(rows.locator(".lf-fp-label")).to_have_text(["Is lunch provided?"])
+
+
 THREAD_FIT = """() => {
   const view = document.querySelector('.lf-fp-view[data-view=thread]');
   const box = view.getBoundingClientRect();

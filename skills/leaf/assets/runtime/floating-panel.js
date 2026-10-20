@@ -3829,14 +3829,6 @@ export function createFloatingPanel({
     },
   });
 
-  // Where Leaf's controls begin in this chrome, as the page's Skip to Leaf controls finds
-  // them: the field, where words go, or the leaf, while the panel is folded to it.
-  // A resolved thread's field takes no words, so there the leaf is where they begin.
-  function enter() {
-    const input = prefs().rest !== "mark" ? fieldInput() : null;
-    focusDestination(input ?? leaf, "move");
-  }
-
   function mount(parent) {
     parent.append(ground, host);
     follow.observe(card);
@@ -3915,7 +3907,6 @@ export function createFloatingPanel({
     mount,
     open,
     close,
-    enter,
     pageComment,
     doors,
     showForSample,

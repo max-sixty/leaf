@@ -313,7 +313,6 @@ RING_CASES = (
             # since every page carries the same chrome and each reading over a large
             # document costs seconds.
             RING_CHROME: (
-                (".lf-skip", ".lf-skip"),
                 (".lf-grip", ".lf-grip"),
                 (".lf-fp-leaf", PANEL_RING),
                 (".lf-fp-threads", PANEL_RING),

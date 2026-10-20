@@ -11,7 +11,7 @@
  * while it shows only the count, which the name begins with.
  *
  * A keyboard reaches a block's threads from the block itself (`c`, `t`) and through its
- * margin row. Focus on the note shows it in the skip link's face (chrome.css).
+ * margin row. Focus on the note shows it at the window's head (chrome.css).
  */
 import { aimTargetAt } from "./anchor-resolution.js";
 import { shelve, unshelve } from "./details-shelf.js";
@@ -26,7 +26,7 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
   const claims = new Map();
 
   function claim() {
-    const note = offer("button", "lf-skip lf-mark-note");
+    const note = offer("button", "lf-mark-note");
     note.tabIndex = -1;
     const record = { note, firstThreadId: null };
     note.addEventListener(

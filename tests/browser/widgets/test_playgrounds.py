@@ -1041,7 +1041,8 @@ def test_a_quoted_playground_draws_no_box_its_preview_wrote_only_for_controls(
     """The page styles each alert's settings box with a display of its own. Quoted,
     the controls are gone. The latency box held only its controls, each in a field
     of its own, so it goes with them rather than standing empty beside its alert;
-    the rate box also held a sentence, which stays."""
+    the rate box also held a sentence, which stays. The stage ends below its last
+    alert, rather than holding a live stage's minimum height empty under it."""
     source = ROOT / "tests/fixtures/pages/quoted-playground.html"
     page = open_page(browser, serve(source))
     playground = page.locator("#quoted-alerts")
@@ -1055,6 +1056,13 @@ def test_a_quoted_playground_draws_no_box_its_preview_wrote_only_for_controls(
     expect(page.locator("#quoted-alerts-instruction")).to_contain_text(
         "payments-p99-latency to page over 800ms"
     )
+    room = playground.locator("lf-playground-preview").evaluate(
+        """stage => stage.getBoundingClientRect().bottom
+          - parseFloat(getComputedStyle(stage).paddingBottom)
+          - parseFloat(getComputedStyle(stage).borderBottomWidth)
+          - stage.lastElementChild.getBoundingClientRect().bottom"""
+    )
+    assert room == pytest.approx(0, abs=1)
 
 
 def test_playground_labels_can_be_selected_without_changing_the_controls(

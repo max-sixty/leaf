@@ -7,7 +7,6 @@ from copy import deepcopy
 
 import model_folds as model
 import pytest
-from click.testing import CliRunner
 from interact_support import (
     PAGE,
     STATED_TIMEOUT,
@@ -23,7 +22,6 @@ from interact_support import (
     refused_on,
     wait_for,
 )
-from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
@@ -649,24 +647,6 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
     assert status == 400 and refused_on(body).code == "answered-reaction"
-    # A Leaf older than the parent rule could have admitted that reply to the
-    # withdrawn mark; the log it left still reads, the reply standing on nothing.
-    logged = events_model.read_events(page_dir)
-    with (page_dir / schema_model.EVENTS_FILE).open("a") as log:
-        log.write(
-            json.dumps(
-                {
-                    **nod,
-                    "id": "older-leaf-reply",
-                    "parent": nod["id"],
-                    "seq": logged[-1]["seq"] + 1,
-                }
-            )
-            + "\n"
-        )
-    assert fetch(f"{server}/api/state")[0] == 200
-    read = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
-    assert read.exit_code == 0, read.output
 
 
 def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(

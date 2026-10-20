@@ -2472,7 +2472,7 @@ def test_the_layer_composer_is_the_browser_module_population():
 
 def test_every_test_runs_against_a_throwaway_state_home(tmp_path_factory):
     """Fixture claims and installed packages stay outside the developer's state."""
-    assert machine_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
+    assert cleanup_model.state_home().is_relative_to(tmp_path_factory.getbasetemp())
 
 
 @pytest.mark.parametrize("launcher_ends", ["wait", "exit"])

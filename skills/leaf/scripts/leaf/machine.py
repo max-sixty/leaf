@@ -19,7 +19,7 @@ import errno
 import os
 from pathlib import Path
 
-from .state import state_home_path
+from .state import state_home
 
 
 def pid_alive(pid: int) -> bool:
@@ -135,26 +135,6 @@ def process_argv(pid: int) -> list[str] | None:
         return psutil.Process(pid).cmdline()
     except (psutil.NoSuchProcess, psutil.AccessDenied):
         return None
-
-
-def state_home() -> Path:
-    """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
-    directories by convention, claims/ the last claimant of every known page,
-    sessions/ the live watcher leases, packages/ the packages `package install` copied here,
-    screens/ the last render check's screens of each page, pictures/ the
-    pictures `page picture` drew of its drawing comments, and access.json
-    the one key every page here is served with (`host_key`). State, not config:
-    claim records carry pids and absolute paths, while page service records
-    carry ports, so this state is bound to this machine, as is the key that
-    reaches it.
-
-    Created here, owner-only: the key is what stands between another local user
-    and a log that outranks the document, and a 0644 file under a traversable
-    path hands it to anyone on a shared machine. One writer for the mode, since
-    every path into the state home resolves through this call."""
-    home = state_home_path()
-    home.mkdir(mode=0o700, parents=True, exist_ok=True)
-    return home
 
 
 def package_store() -> Path:

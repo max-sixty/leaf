@@ -38,8 +38,15 @@ Every transport delivers the same immutable object:
 ```
 
 Some harnesses put it in your context; others give a pointer, which
-`leaf delivery read <id>` resolves. A large envelope reads in numbered parts whose
-`text` values together make the envelope.
+`leaf delivery read <id>` resolves. A large envelope reads in numbered parts
+instead: each reading names its `part` of `parts` and holds a slice of the
+envelope's JSON in `text`, which you join in order, and its `next` is the command
+that reads the following part, or null on the last. Only the last part carries
+`acknowledge`.
+
+An envelope with `correction` retries one answer Leaf refused to post: its
+`diagnostic` says why, and its `instruction` asks you to fix that failure and answer
+the same input again, keeping the work you already did.
 
 Events keep their stored fields and log order, without the browser's retry key
 `attempt`, and add:
@@ -49,6 +56,9 @@ Events keep their stored fields and log order, without the browser's retry key
   page they pressed on wrote them. A later rewording does not change them.
 - `threads`: every thread the event belongs to. The event appears once in the batch
   however many threads it is in.
+- `was`: on the user's rewrite of their own message, the words it replaced.
+  `suggestion: true` beside it means the message is a suggestion, so its new `text`
+  is the exact replacement it proposes.
 - `answer`: the response the event owes. A `kind: "reply"` answer is a thread reply,
   written with `leaf response reply <answer.ref>` ([threads](threads.md)); `to`
   names the thread and `for` the input it answers. A `kind: "markup"` answer is the

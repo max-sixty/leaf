@@ -14,7 +14,6 @@ from .event_log import read_cursor
 from .files import file_stamp, read_json
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
-from .machine import state_home
 from .page_memory import memo
 from .schema import SERVER_LOCK, UNNAMED_AGENT, VIEWED_FILE
 from .server import running_server
@@ -25,7 +24,7 @@ from .service import (
     read_status,
     unacknowledged,
 )
-from .state import now_iso, write_json
+from .state import now_iso, state_home, write_json
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while

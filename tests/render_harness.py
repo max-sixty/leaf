@@ -61,7 +61,6 @@ from leaf import cli as cli_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
-from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
@@ -2170,7 +2169,7 @@ def live_leaf(tmp_path, monkeypatch):
     waiters = []
 
     def go(name, title):
-        d = machine_model.state_home() / "pages" / name
+        d = cleanup_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
         stamp_page(

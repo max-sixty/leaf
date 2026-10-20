@@ -76,7 +76,9 @@ import {
 } from "./bundle-user-intent.js";
 import "./bundle-widget-upgrade.js";
 import "./bundle-media.js";
-import "./bundle-motion.js";
+import {
+  reducedMotion
+} from "./bundle-motion.js";
 import {
   THREAD_CARD,
   cardMeasure,
@@ -290,6 +292,12 @@ function surfaceGrip({ surface, bounds, dropped }) {
 
 // runtime/annotation-overlay/thread-preview.js
 var REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
+var CUT_EDGES = [
+  "--lf-cut-top",
+  "--lf-cut-right",
+  "--lf-cut-bottom",
+  "--lf-cut-left"
+];
 function createThreadPreview({
   inventory,
   renderMarginThread,
@@ -448,6 +456,7 @@ function createThreadPreview({
     carry.placed();
     const session = previewSession;
     if (!session) return;
+    keeps(preview, "data-lf-grows", null);
     session.positionResult?.resolve(false);
     cancelRender(session.positionFrame);
     placementDriver.supersede();
@@ -647,16 +656,16 @@ function createThreadPreview({
       const card = placementDriver.clientBox(position);
       session.away = card.bottom <= boundary.top || card.top >= boundary.bottom;
       const region = boundary.inRegion;
-      if (region) {
-        const reach = -paintReach(preview);
-        const inset = [
-          (region.top - card.top) / scale.y,
-          (card.right - region.right) / scale.x,
-          (card.bottom - region.bottom) / scale.y,
-          (region.left - card.left) / scale.x
-        ].map((cut) => Math.max(cut, reach));
-        preview.style.clipPath = `inset(${inset.map(layoutPx).join(" ")})`;
-      } else preview.style.removeProperty("clip-path");
+      const cuts = region ? [
+        (region.top - card.top) / scale.y,
+        (card.right - region.right) / scale.x,
+        (card.bottom - region.bottom) / scale.y,
+        (region.left - card.left) / scale.x
+      ].map((cut) => layoutPx(Math.max(cut, -paintReach(preview)))) : [];
+      CUT_EDGES.forEach((edge, i) => {
+        if (region) preview.style.setProperty(edge, cuts[i]);
+        else preview.style.removeProperty(edge);
+      });
       keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);
       keepThreadLanding(previewList.querySelector(".lf-page-thread"));
       session.positionResult?.resolve(true);
@@ -886,8 +895,19 @@ function createThreadPreview({
     }
     keepsHidden(preview, false);
     buildThreadCard(entry, selected.id);
-    return placedThreadPreview();
+    const positioned = placedThreadPreview();
+    return session.sent ? growOut(session, positioned) : positioned;
   }
+  function growOut(session, positioned) {
+    return positioned.then((placed) => {
+      if (placed && previewSession === session && !reducedMotion())
+        keeps(preview, "data-lf-grows", "");
+      return placed;
+    });
+  }
+  preview.addEventListener("animationend", (event) => {
+    if (event.target === preview) keeps(preview, "data-lf-grows", null);
+  });
   function refresh(entry, control, carry2 = focused() === previewSession?.control) {
     if (!previewSession || previewSession.preparing) return;
     transferThreadCard(control, carry2);
@@ -900,7 +920,7 @@ function createThreadPreview({
     retirePreviewSession();
     placementDriver.stop();
     delete preview.dataset.lfThreadPlacement;
-    preview.style.removeProperty("clip-path");
+    for (const edge of CUT_EDGES) preview.style.removeProperty(edge);
     keepsHidden(preview, true);
     onClose(closed);
   }

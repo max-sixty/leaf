@@ -20,13 +20,13 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import BinaryIO
 
-from leaf.machine import state_home
 from leaf.schema import WAITER_LOCK
 from leaf.state import (
     HOOKS_SUFFIX,
     STEP_HOOK_SUFFIX,
     TITLES_SUFFIX,
     session_file,
+    state_home,
     still_named,
 )
 

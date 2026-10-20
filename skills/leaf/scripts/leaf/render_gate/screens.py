@@ -25,10 +25,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from leaf.machine import state_home
 from leaf.render_checks import RENDER_VIEWPORT, rendered, wait_until_ready
 from leaf.render_gate.readings import SWEEP_WIDTHS
-from leaf.state import page_key
+from leaf.state import page_key, state_home
 
 PHONE = {"width": 390, "height": 844}
 # How far down a long page the screens go.

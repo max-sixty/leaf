@@ -308,11 +308,11 @@ def app_server_request(
 ) -> dict:
     """Make one request on an App Server connection and return its result.
 
-    A notification read while waiting is not a stray: a turn can start while a
-    request is still waiting on its answer, as the turn `thread/queue/start` starts
-    can, and dropping its notifications would lose the binding a caller is watching for. Each caller
-    says what to do with those messages — buffer them to replay in arrival order, or
-    fold them immediately — because that choice is what separates a stream it is
+    A notification read while waiting is not a stray: the subscription carries
+    every turn's notifications while a request waits, and dropping one could lose
+    the binding a caller is watching for. Each caller says what to do with those
+    messages — buffer them to replay in arrival order, or fold them immediately —
+    because that choice is what separates a stream it is
     following from a snapshot request whose answer outranks everything sent before it.
 
     `stopped` lets a client being shut down stop waiting on a peer that is still

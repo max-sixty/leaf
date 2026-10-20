@@ -1018,17 +1018,20 @@ def check_delivery_queue(endpoint: str, session_id: str) -> None:
 
     The queue is experimental, and a Codex without it would refuse every delivery
     the adapter submits, each refusal only a retry in the adapter's log. Asking
-    once here puts the refusal in front of the agent that started delivery.
+    once here puts the refusal in front of the agent that started delivery, as is
+    an App Server it cannot reach.
     """
-    with app_server_connect(endpoint) as socket:
-        app_server_handshake(socket, 0, "leaf", "Leaf")
-        try:
+    try:
+        with app_server_connect(endpoint) as socket:
+            app_server_handshake(socket, 0, "leaf", "Leaf")
             app_server_request(socket, "thread/queue/list", 1, {"threadId": session_id})
-        except codex.AppServerRequestRejected as error:
-            raise Refused(
-                "Leaf delivers through the task's App Server queue, which this Codex "
-                f"refused (codex-cli 0.160.0 has it): {error}"
-            ) from error
+    except codex.AppServerRequestRejected as error:
+        raise Refused(
+            "Leaf delivers through the task's App Server queue, which this Codex "
+            f"refused (codex-cli 0.160.0 has it): {error}"
+        ) from error
+    except Exception as error:
+        raise Refused(f"Codex App Server connection failed: {error}") from error
 
 
 def _running_adapter(session_id: str) -> dict | None:

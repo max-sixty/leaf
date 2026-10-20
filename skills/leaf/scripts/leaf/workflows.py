@@ -382,6 +382,7 @@ def handed_over(
             "delivery_turn": fallback.get("turn") if fallback else None,
             "receipt_refs": refs.get(source["id"], {}),
             "detail": start["text"] if start else None,
+            "detail_seq": start["seq"] if start else None,
             "agent": start.get("agent") if start else None,
             "session": start.get("session") if start else None,
             "activity": (
@@ -424,6 +425,7 @@ def handed_over(
                 "stage": "answered",
                 "ts": record["ts"],
                 "detail": None,
+                "detail_seq": None,
                 "agent": record.get("agent"),
                 "session": record.get("session"),
                 "activity": [

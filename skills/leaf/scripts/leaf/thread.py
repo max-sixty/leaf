@@ -302,7 +302,7 @@ class Refuse:
 @dataclass(frozen=True)
 class ProviderFinal:
     """A provider turn's final message, committed at the address its delivery
-    reserved (`reserve_delivery_reply`).
+    reserved (`reserve_delivery_reply`), or its opening, posted there as progress.
 
     It keeps that address after the user settled the update, but yields to an answer
     another writer already gave it (a failure receipt is no answer), so a turn's

@@ -488,7 +488,7 @@
           }
         },
         {
-          "text": "Leaf streams your opening message into the thread and posts your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. For widgets, a question awaiting the user (an `lf-ask` in `--markup`), work promised beyond this turn (`--todo`), a title or moving the thread, reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`); it posts at once, and your final message is then not posted.",
+          "text": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. For widgets, a question awaiting the user (an `lf-ask` in `--markup`), work promised beyond this turn (`--todo`), a title or moving the thread, reply explicitly with `leaf response reply <answer.ref>` (`references/threads.md`); it posts at once, and your final message is then not posted.",
           "when": {
             "properties": {
               "answer": {

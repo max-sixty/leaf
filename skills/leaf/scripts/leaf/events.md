@@ -407,9 +407,12 @@ them:
   carries `start: {item, turn?}` naming that exact delivered update, with its text
   as the line. `todos.start_reading` reads this and explicit starts alike, so
   progress history and work in hand are one durable fact. The next ordinary agent reply in
-  its thread derives empty-prose “Previous progress messages” folds over the preceding
-  uncovered contiguous runs of ephemeral messages, including a single message.
-  User messages break those runs and remain outside them. Explicit summaries own
+  its thread derives an empty-prose “Previous progress messages” fold over each
+  preceding uncovered contiguous run of ephemeral messages, including a single message,
+  that no user message follows before it. User messages break those runs and remain
+  outside them, and a run a user message follows stays unfolded where it was said, so
+  the thread keeps reading in its order and nothing moves above the user's message.
+  Explicit summaries own
   overlapping ranges. Each derived fold names its completing reply as `trigger`,
   so a surface holding that reply also holds the fold; nothing is appended for
   this presentation change.

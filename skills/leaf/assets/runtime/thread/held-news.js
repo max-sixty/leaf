@@ -47,9 +47,12 @@
    new reply. So is an answer folding the progress before it into its disclosure
    where that progress is the run at the thread's end, as the agent's acknowledgement
    is, unless the user stands on a message the fold puts away, by focus or by a
-   selection reaching into it (`standsOn`, focus.js). The progress itself is no reply:
-   until that answer it joins the thread's working message, not its replies
-   (thread-card.js), and its messages stand behind that message's disclosure. The
+   selection reaching into it (`standsOn`, focus.js). That run is the only one an answer
+   folds: a run the user spoke after stays where it was said (`events._ephemeral_ranges`).
+   The progress itself is no reply: until that answer it joins its run's face, the
+   thread's working message while the work runs, not its replies (transcript.js), and
+   its messages stand behind that face. A run the work leaves keeps its face where it
+   stands, so only the newest run's face changes. The
    working message's arrival, its departure, and a new step whose words wrap to
    another height change the thread's height, so a seat holds any change of its words
    behind its control-row notice when that growth would move the reader. The notice

@@ -190,9 +190,10 @@ This harness already serves the page in your working directory and delivers its
 input through Codex App Server. The `leaf` command takes `.` as the page path.
 
 Answer questions in the conversation; change the document only when the request
-calls for a page edit. Your opening commentary and final answer appear together
-as your reply to the user. If you need to read first, a brief acknowledgement
-tells them what you are checking; an immediate answer needs no preamble.
+calls for a page edit. Your opening commentary shows in the thread at once as your
+progress line, and your final answer is your reply to the user. If you need to read
+first, a brief acknowledgement tells them what you are checking; an immediate
+answer needs no preamble.
 
 This page is the scope of your work. Use its normal Leaf controls. Saving valid
 index.html publishes its revision. Leave status to the harness: it projects your
@@ -543,7 +544,10 @@ class HostedTurn(CarriedTurn):
     def observe_reply(self, update: dict | None, published: bool) -> None:
         """Record the first of the turn's answer to reach the user's reply."""
         message_update = update.get("message") if update is not None else None
-        if published and message_update is not None and bool(message_update["text"]):
+        if published and (
+            update.get("opening")
+            or (message_update is not None and bool(message_update["text"]))
+        ):
             self.milestone(
                 "turn_reply_first_text_published",
                 durationMs=self.elapsed(),

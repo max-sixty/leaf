@@ -556,12 +556,20 @@ class AppServerEvents:
     turn reads as nothing: which turn a notification belongs to is the client's
     routing, not something this fold follows.
 
-    A turn's reply is its opening and its final answer. The opening is a `commentary`
-    agent message that is the turn's first, written before any item but the turn's
-    input and reasoning: the agent writes it to the user before its first tool call,
-    so the reply starts streaming as soon as the turn does. Every other commentary is
+    A turn's reply is its final answer. Its opening is a `commentary` agent message
+    that is the turn's first, written before any item but the turn's input and
+    reasoning: the agent writes it to the user before its first tool call, saying what
+    it is about to do. That is the line every harness's agent posts first
+    (`conversation-loop.md`, "When to write"), so once complete it posts as the turn's
+    progress (`AppServerReplyStream.open`): the thread shows it at once as its working
+    message, where it was said, and the answer folds it away. An update carries it as
+    `opening` once, when its completion arrives or, where that was missed, as the next
+    item begins. Every other commentary is
     the agent's working narration and stays in Codex, including narration written
     after a tool call by an agent that skipped the opening.
+    Rejected: streaming the opening as the head of the reply, which held words said at
+    the turn's start in a draft at the thread's end until the answer committed, so a
+    message the user sent meanwhile stood above them.
     """
 
     def __init__(self, thread_id: str, turn_id: str):
@@ -572,6 +580,9 @@ class AppServerEvents:
         self.message_order: list[str] = []
         self.opening: str | None = None
         self.opening_open = True
+        # Whether the opening is complete, and whether an update has said it.
+        self.opening_ended = False
+        self.opening_told = False
         self.item_started_at: dict[str, int] = {}
         self.active_items: dict[str, dict] = {}
         self.waiting_kind: str | None = None
@@ -583,6 +594,8 @@ class AppServerEvents:
         self.message_order.clear()
         self.opening = None
         self.opening_open = True
+        self.opening_ended = False
+        self.opening_told = False
         self.item_started_at.clear()
         self.active_items.clear()
         self.waiting_kind = None
@@ -593,7 +606,27 @@ class AppServerEvents:
                 self._close_opening(item)
 
     def read(self, message: dict) -> dict | None:
-        """Return one transient activity or turn-completion update."""
+        """Return one transient activity or turn-completion update, carrying the
+        turn's `opening` where this notification shows it complete."""
+        update = self._read(message)
+        opening = self.said_opening()
+        if not opening:
+            return update
+        return {**(update or {"turn": self.turn_id}), "opening": opening}
+
+    def said_opening(self) -> str:
+        """The opening's words, once it is complete and no update has said them."""
+        if (
+            self.opening_told
+            or not self.opening_ended
+            or not self._is_opening(self.opening)
+            or not self.text.get(self.opening)
+        ):
+            return ""
+        self.opening_told = True
+        return self.text[self.opening]
+
+    def _read(self, message: dict) -> dict | None:
         method = message.get("method")
         params = message.get("params") or {}
         message_thread = params.get("threadId")
@@ -671,6 +704,8 @@ class AppServerEvents:
             self.active_items.pop(item["id"], None)
             if item["type"] == "agentMessage":
                 self._record_message(item)
+                if item["id"] == self.opening:
+                    self.opening_ended = True
                 if not self._in_reply(item["id"]):
                     return {"turn": turn_id, "item": lifecycle}
                 return {
@@ -762,11 +797,14 @@ class AppServerEvents:
         self.message_order.append(item_id)
         if self.opening is None and self.opening_open:
             self.opening = item_id
+        elif self.opening is not None:
+            self.opening_ended = True
         self.opening_open = False
 
     def _close_opening(self, item: dict) -> None:
         if item["type"] not in OPENING_PRELUDE_ITEM_TYPES:
             self.opening_open = False
+            self.opening_ended = self.opening is not None
 
     def _record_message(self, item: dict) -> None:
         item_id = item["id"]
@@ -780,14 +818,12 @@ class AppServerEvents:
         phase = self.message_phases.get(item_id)
         return phase != "commentary" or item_id == self.opening
 
-    def _visible_text(self) -> str:
-        opening = (
-            [self.text[self.opening]]
-            if self.opening is not None
-            and self.message_phases.get(self.opening) == "commentary"
-            and self.text.get(self.opening)
-            else []
+    def _is_opening(self, item_id: str) -> bool:
+        return (
+            item_id == self.opening and self.message_phases.get(item_id) == "commentary"
         )
+
+    def _visible_text(self) -> str:
         final = [
             self.text[item_id]
             for item_id in self.message_order
@@ -801,28 +837,27 @@ class AppServerEvents:
                 if self.message_phases.get(item_id) is None and self.text.get(item_id)
             ]
             final = unknown[-1:]
-        return "\n\n".join(opening + final)
+        return "\n\n".join(final)
 
     @staticmethod
     def final_text(turn: dict) -> str:
-        """Return a completed turn's reply: its opening and final answer.
-
-        A turn with no final answer has no reply to publish, whatever its opening said.
-        """
-        opening, final = _reply_parts(turn)
-        return "\n\n".join(opening + final) if final else ""
+        """Return a completed turn's reply: its final answer, or nothing for a turn
+        with none, whatever its opening said."""
+        return "\n\n".join(_final_answer(turn))
 
     @staticmethod
     def reply_so_far(turn: dict) -> str:
-        """Return the reply a still-running turn has written, opening included."""
-        opening, final = _reply_parts(turn)
-        return "\n\n".join(opening + final)
+        """Return the reply a still-running turn has written."""
+        return "\n\n".join(_final_answer(turn))
 
     def _message_update(self, item_id: str, *, complete: bool) -> dict:
+        """One reply message's update: the opening's own words, or the answer so far."""
         return {
             "item": item_id,
             "phase": self.message_phases.get(item_id),
-            "text": self._visible_text(),
+            "text": self.text.get(item_id, "")
+            if self._is_opening(item_id)
+            else self._visible_text(),
             "complete": complete,
         }
 
@@ -886,37 +921,25 @@ class AppServerEvents:
         return None
 
 
-def _reply_parts(turn: dict) -> tuple[list[str], list[str]]:
-    """Split one turn's items into its reply's opening and final-answer texts."""
-    items = turn.get("items", [])
-    first = next(
-        (item for item in items if item["type"] not in OPENING_PRELUDE_ITEM_TYPES),
-        None,
-    )
-    opening = (
-        [first["text"]]
-        if first is not None
-        and first["type"] == "agentMessage"
-        and first.get("phase") == "commentary"
-        and first.get("text")
-        else []
-    )
-    final = [
+def _final_answer(turn: dict) -> list[str]:
+    """One turn's final-answer texts."""
+    return [
         item["text"]
-        for item in items
+        for item in turn.get("items", [])
         if item["type"] == "agentMessage"
         and item.get("phase") == "final_answer"
         and item.get("text")
     ]
-    return opening, final
 
 
 class AppServerReplyStream:
-    """Project one App Server turn's provisional reply and commit its final answer.
+    """Post one App Server turn's opening as progress, project its provisional reply
+    and commit its final answer.
 
     The provider owns this lifecycle; `thread.post_response` owns admission of the
-    durable answer. Partial text survives interruption and disconnect without
-    becoming thread history.
+    opening and the durable answer, both under the delivery's reply reservation.
+    Partial answer text survives interruption and disconnect without becoming thread
+    history.
     """
 
     def __init__(
@@ -938,27 +961,59 @@ class AppServerReplyStream:
     def update(self, update: dict | None) -> bool:
         """Publish a reply message's update, throttling only partial deltas.
 
-        Only the final answer's completion settles the reply; the opening streams it.
+        The opening posts once an update says it; only the final answer streams, and
+        only its completion settles the reply.
         """
-        message = update.get("message") if update is not None else None
-        if message is None or message["phase"] not in {"final_answer", "commentary"}:
+        if update is None:
             return False
+        opened = self.open(update.get("opening", ""))
+        message = update.get("message")
+        if message is None or message["phase"] != "final_answer":
+            return opened
         now = time.monotonic()
         if not message["complete"] and now - self.last_update < STREAM_UPDATE_INTERVAL:
-            return False
+            return opened
         published = self._replace(
             message["item"],
             message["text"],
-            settles=message["complete"]
-            and message["phase"] == "final_answer"
-            and bool(message["text"]),
+            settles=message["complete"] and bool(message["text"]),
         )
         self.last_update = now
-        return published
+        return published or opened
 
     def restore(self, text: str) -> bool:
         """Restore a still-running reply after reconnecting."""
         return self._replace(None, text)
+
+    def open(self, text: str) -> bool:
+        """Post the turn's opening as its progress at the reserved address, once: a
+        repeat names the same attempt and returns the first. An update another writer
+        answered, or another delivery holds, takes none (`ProviderFinal`).
+
+        Progress is one line, the update's Working line, so the opening's paragraphs
+        join into one. A refusal, such as a page whose saved source is mid-edit, costs
+        the user only the line: the turn goes on to its answer, so it is reported and
+        not raised into the notification loop, which would end the turn."""
+        if not text:
+            return False
+        from .thread import post_response
+
+        try:
+            posted = post_response(
+                self.target["ref"],
+                " ".join(text.split()),
+                reservation=self.attempt,
+                attempt=f"{self.attempt}-opening",
+                ephemeral=True,
+                identity={"session": self.session_id},
+                claimed_session=self.session_id,
+            )
+        except FileNotFoundError:
+            return False
+        except Refused as error:
+            print(f"Codex opening not posted: {error}", file=sys.stderr, flush=True)
+            return False
+        return posted is not None
 
     def _replace(
         self,
@@ -1210,6 +1265,8 @@ class TurnFold:
         """Take up a still-running turn from a snapshot of what it has said."""
         self.events.restore_turn(turn)
         if self.reply_stream is not None:
+            # An opening the turn completed while nobody was reading posts now.
+            self.reply_stream.open(self.events.said_opening())
             self.reply_stream.restore(self.events.reply_so_far(turn))
 
     def absorb(self, message: dict) -> dict | None:

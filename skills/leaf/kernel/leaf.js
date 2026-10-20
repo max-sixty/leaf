@@ -5429,6 +5429,7 @@ var TONE = {
   closed: ""
 };
 var WORK_WORDS = {
+  working: "working",
   thinking: "thinking",
   tool: "using a tool",
   awaiting_approval: "waiting for approval",
@@ -5449,7 +5450,7 @@ function activityFacts({ activity }) {
   const { counts } = activity;
   return Object.freeze({
     tone: TONE[activity.kind],
-    work: WORK_WORDS[activity.observed_kind] || "working",
+    work: activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working",
     left: Boolean(activity.dropped),
     silentSince: ago(activity.ts),
     listening: Boolean(counts.pending || counts.queued),
@@ -5788,9 +5789,11 @@ function paintStatus() {
   saidActionableWork = actionableWork;
   if (changed) announce(model.explanation);
 }
+var REVIEW = "lf-review";
+var SIGN_OFF = "sign-off";
 var isSignoffDeclared = () => (
   /** @type {HTMLMetaElement | null} */
-  document.querySelector('meta[name="lf-review"]')?.content === "sign-off"
+  document.querySelector(`meta[name="${REVIEW}"]`)?.content === SIGN_OFF
 );
 var signoff = false;
 var approving = false;

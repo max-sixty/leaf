@@ -3,6 +3,7 @@
 // the browser paints what has arrived well before that. Delivery places this script
 // after the head's canonical link, so the page root that link declares is in the
 // document when it runs, and before the bootstrap and the theme (`compose_document`).
+/** @typedef {import("../../../../build/browser/contract.js").AuthoredAllocations} Allocations */
 (() => {
   const root = document.documentElement;
   // A cross-document swap commits departure before Chrome rejects its aborted
@@ -567,9 +568,17 @@
     const allocate = (room, movable) => {
       const taken = { left: 0, right: 0 };
       const granted = [];
+      /** @type {Allocations["data-annotations"]} */
+      const annotations =
+        /** @type {Allocations["data-annotations"] | undefined} */ (
+          document.body.dataset.annotations
+        ) ?? "overlay";
+      const rail = /** @type {Allocations["data-rail"] | undefined} */ (
+        document.body.dataset.rail
+      );
       if (
-        (document.body.dataset.annotations ?? "overlay") === "overlay" &&
-        document.body.getAttribute("data-rail") !== "none" &&
+        annotations === "overlay" &&
+        rail !== "none" &&
         room.right >= need("--rail")
       ) {
         granted.push("rail");

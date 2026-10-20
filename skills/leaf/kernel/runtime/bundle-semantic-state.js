@@ -204,16 +204,16 @@ var PAGE_ROOT = (
 );
 var served = (
   /** @type {HTMLScriptElement | null} */
-  document.querySelector("script[data-lf-runtime][data-lf-server]")?.dataset
+  document.querySelector("script[data-lf-runtime][data-lf-server]")
 );
 var DELIVERY = Object.freeze({
-  layer: served?.lfLayer,
-  release: served?.lfRelease,
-  probe: served?.lfProbe
+  layer: served?.dataset.lfLayer,
+  release: served?.dataset.lfRelease,
+  probe: served?.dataset.lfProbe
 });
 var WEBSITE_DELIVERY = DELIVERY.release !== void 0;
 var layerRoot = (doc) => doc.querySelector("script[data-lf-runtime][data-lf-entry]")?.dataset.lfEntry.replace(/leaf\.js$/, "") ?? "";
-var SHARE_ROOT = served?.lfShareUrl;
+var SHARE_ROOT = served?.dataset.lfShareUrl;
 function shareUrl() {
   const url = new URL(SHARE_ROOT);
   url.pathname = location.pathname;
@@ -228,7 +228,10 @@ var offlineMarker = document.querySelector(
   'script[type="application/json"][data-lf-runtime][data-lf-offline]'
 );
 var offlinePayload = offlineMarker ? JSON.parse(offlineMarker.textContent || "null") : null;
-var annotationMode = document.body.getAttribute("data-annotations") ?? "overlay";
+var annotationMode = (
+  /** @type {AnnotationMode | null} */
+  document.body.getAttribute("data-annotations") ?? "overlay"
+);
 var offlineInteractive = offlinePayload !== null;
 var offlineState = () => offlineInteractive ? structuredClone(offlinePayload.state) : null;
 var offlineData = () => offlineInteractive ? offlinePayload.data : null;

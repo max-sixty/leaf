@@ -38,7 +38,7 @@ from .files import (
     version_revisions,
 )
 from .findings import Rejected
-from .interaction_log import append_interactions, client_records
+from .interaction_log import admit_batch, append_interactions, client_records
 from .layer import incompatible_layer, incompatible_revision, running_leaf, same_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
@@ -1190,12 +1190,10 @@ class PageEndpoint:
         return self._content(204, "text/plain", b"")
 
     def _record_interactions(self) -> Response:
-        session = self.posted.get("session")
-        entries = self.posted.get("entries")
-        if not isinstance(session, str) or not session:
-            return self._refuse("interaction requires a nonempty session")
-        if not isinstance(entries, list) or not entries:
-            return self._refuse("interaction requires a nonempty array of entries")
+        try:
+            batch = admit_batch(self.posted)
+        except ValueError as error:
+            return self._refuse(str(error))
         # Every sample directory is temporary, including a nested sample's
         # parent. Retain all descendants in the authored page's trace, with
         # their complete root-relative addresses surviving ancestor release.
@@ -1205,11 +1203,9 @@ class PageEndpoint:
             if owner is not self
             else "/"
         )
-        try:
-            records = client_records(session, page, entries)
-        except (TypeError, ValueError) as error:
-            return self._refuse(str(error))
-        append_interactions(owner.page_dir, records)
+        append_interactions(
+            owner.page_dir, client_records(batch["session"], page, batch["entries"])
+        )
         return self._content(204, "text/plain", b"")
 
     def _create_sample(self) -> Response:

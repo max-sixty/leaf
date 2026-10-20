@@ -146,5 +146,6 @@ generates the browser's copy of each (`build/registry.mjs`), so none is stamped 
 a layer that changes one is refused (`registry.layer.KERNEL_FACTS`):
 `$marks`, each declaration a stylesheet reads with the attribute it is painted as,
 which delivery paints into a page's document and the runtime into a message it
-renders; `$names`, the widget and attribute name grammars; and the classifications
-on each `$events.kinds` entry (`registry.kernel`).
+renders; `$names`, the widget and attribute name grammars; `$authored`, the page-wide
+declarations an author writes for the runtime, whose values type the runtime's
+readers; and the classifications on each `$events.kinds` entry (`registry.kernel`).

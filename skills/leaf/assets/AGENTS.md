@@ -413,11 +413,16 @@ can highlight, has one home. Either one language owns it and sends it to the oth
 data, as the server sends its state in `/api/state`, whose type the build generates
 from `served_state/state.schema.json`, or the registry declares it and the browser's
 copy is generated, as `build/registry.mjs` writes `runtime/syntax-languages.js` from
-`$languages`. Where only a literal can carry the fact, as a stylesheet's attribute
-selector spells a mark's paint, a check holds the spelling to the declaration
-(`build/registry.test.mjs`). A parity fixture, or a test that scans
-one language's source for the other's names, keeps two copies in step instead; in
-review, ask why that fact isn't generated.
+`$languages`. Where runtime code must spell a value, as a comparison does, a generated
+type makes a spelling the declaration lacks fail the type check, as `ServedWorkKind`
+and `AuthoredAllocations` do. Where only a literal can carry the fact, as a
+stylesheet's attribute selector spells a mark's paint or Python's markup names an
+attribute the runtime reads, a check holds the spelling to the declaration or to the
+other runtime's spelling (`build/registry.test.mjs`). An algorithm both runtimes run
+can't be generated, so a shared case file holds both to the same answers
+(`tests/*_cases.json`). Anywhere else, a parity fixture, or a test that scans one
+language's source for the other's names, keeps two copies in step instead; in review,
+ask why that fact isn't generated.
 
 ## Startup and presentation
 

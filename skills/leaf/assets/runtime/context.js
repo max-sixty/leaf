@@ -28,11 +28,11 @@ export const PAGE_ROOT =
 // seam a harness finds either delivery by.
 const served = /** @type {HTMLScriptElement | null} */ (
   document.querySelector("script[data-lf-runtime][data-lf-server]")
-)?.dataset;
+);
 export const DELIVERY = Object.freeze({
-  layer: served?.lfLayer,
-  release: served?.lfRelease,
-  probe: served?.lfProbe,
+  layer: served?.dataset.lfLayer,
+  release: served?.dataset.lfRelease,
+  probe: served?.dataset.lfProbe,
 });
 // The public website declares the release it serves; a local server declares none.
 export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
@@ -46,7 +46,7 @@ export const layerRoot = (doc) =>
 // A keyed transport declares its share address even on a cookie-authorized reload.
 // Samples and the public website have no share address. Preserve the current
 // version path, query and passage while taking access from the transport's URL.
-export const SHARE_ROOT = served?.lfShareUrl;
+export const SHARE_ROOT = served?.dataset.lfShareUrl;
 export function shareUrl() {
   const url = new URL(SHARE_ROOT);
   url.pathname = location.pathname;
@@ -70,8 +70,12 @@ const offlinePayload = offlineMarker
   : null;
 // This declaration participates in executable identity: changing it replaces this
 // document realm rather than switching initialized physical owners in place.
+/** @typedef {import("../../../../build/browser/contract.js").AuthoredAllocations["data-annotations"]} AnnotationMode */
+/** @type {AnnotationMode} */
 export const annotationMode =
-  document.body.getAttribute("data-annotations") ?? "overlay";
+  /** @type {AnnotationMode | null} */ (
+    document.body.getAttribute("data-annotations")
+  ) ?? "overlay";
 
 export const offlineInteractive = offlinePayload !== null;
 export const offlineState = () =>

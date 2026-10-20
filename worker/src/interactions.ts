@@ -1,19 +1,38 @@
 /**
  * The edge's projection of a browser interaction batch into its log record.
  *
- * One schema both admits a batch and redacts it. A batch whose session or size
- * fails, or with an entry whose common observation fields fails, is refused
- * whole. Every other field is `kept` only when it is valid, and otherwise dropped,
- * so a record holds only structural fields: event type, time, sequence,
- * coordinates, element tags and positions, node ids, command ids, bindings, and
- * statuses. Authored ids and names, typed or selected text, URL details, and
- * unknown client fields never reach the log, and a sample's capability and
- * document identity are logged only as support handles.
+ * A batch is admitted by the schema the local server admits it by
+ * (`interactionBatch`), so both doors take the same batches, and one that fails is
+ * refused whole. The projection then redacts it: every field that schema leaves open
+ * is `kept` only when it is valid, and otherwise dropped, so a record holds only
+ * structural fields: event type, time, sequence, coordinates, element tags and
+ * positions, node ids, command ids, bindings, and statuses. Authored ids and names,
+ * typed or selected text, URL details, and unknown client fields never reach the log,
+ * and a sample's capability and document identity are logged only as support handles.
  */
 
 import * as z from "zod/mini";
 
 import { sessionReference } from "./routing";
+
+// The batch the local server admits too: `test/interactions.test.ts` holds this to
+// `interaction-batch.schema.json`, whose JSON Schema is the one Python reads.
+export const interactionBatch = z.strictObject({
+  session: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
+  entries: z
+    .array(
+      z.looseObject({
+        observed_at: z
+          .string()
+          .check(z.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)),
+        monotonic_ms: z.number().check(z.gte(0)),
+        sequence: z.int().check(z.gte(1)),
+        visibility: z.enum(["visible", "hidden"]),
+        type: z.string().check(z.regex(/^[a-z][a-z0-9_-]{0,99}$/)),
+      }),
+    )
+    .check(z.minLength(1), z.maxLength(100)),
+});
 
 // A field the record keeps when it is valid; an invalid one is dropped without
 // refusing its entry.
@@ -71,14 +90,14 @@ const nodeId = z.int().check(z.positive());
 const httpStatus = z.int().check(z.gte(100), z.lte(599));
 const coordinates = z.tuple([z.number(), z.number()]);
 
+// The fields `interactionBatch` requires, which reach the record as the browser sent
+// them.
 const entryFields = {
-  observed_at: z
-    .string()
-    .check(z.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)),
-  monotonic_ms: z.number().check(z.nonnegative()),
-  sequence: z.int().check(z.positive()),
-  visibility: z.enum(["visible", "hidden"]),
-  type: token(100),
+  observed_at: z.string(),
+  monotonic_ms: z.number(),
+  sequence: z.number(),
+  visibility: z.string(),
+  type: z.string(),
   trusted: kept(z.boolean()),
   target: kept(validItems(locator, 8)),
   nodes: kept(validItems(nodeId, 8)),
@@ -225,22 +244,19 @@ const entrySchema = z.union([
   z.object({ ...entryFields, type: z.literal("sample"), ...sampleFields }),
   z.object(entryFields),
 ]);
-const interactionBatchSchema = z.strictObject({
-  session: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
-  entries: z
-    .array(
-      z.pipe(
-        entrySchema,
-        z.transform((entry: z.output<typeof entrySchema>) => compact(entry)),
-      ),
-    )
-    .check(z.minLength(1), z.maxLength(100)),
+const projection = z.object({
+  session: z.string(),
+  entries: z.array(
+    z.pipe(
+      entrySchema,
+      z.transform((entry: z.output<typeof entrySchema>) => compact(entry)),
+    ),
+  ),
 });
 
 // The batch as the edge logs it, or null when the batch is refused.
 export function projectInteractionBatch(
   value: unknown,
 ): { session: string; entries: Record<string, unknown>[] } | null {
-  const parsed = interactionBatchSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
+  return interactionBatch.safeParse(value).success ? projection.parse(value) : null;
 }

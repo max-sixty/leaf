@@ -3,13 +3,16 @@
 import re
 from functools import cached_property, lru_cache
 from html import escape
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 from urllib.parse import urlsplit
 
 import turbohtml
 
 from .registry.kernel import kernel_passages
 from .structure import VOID_TAGS, SourceDocument, pre_body
+
+if TYPE_CHECKING:
+    from .obligations import ObligationSources
 
 # ---------- passages: the text an anchor points at ----------
 # The runtime resolves an anchor against the DOM; `leaf thread open` writes one down
@@ -661,6 +664,14 @@ class SourceReading:
             obligation_registrations(self.document, self.registry),
             data_document_readings(self.document, "", self.registry),
         )
+
+    @cached_property
+    def obligation_sources(self) -> "ObligationSources":
+        """The widgets this version declares that can ask the user, which every
+        reading of its obligations starts from (`obligations.ObligationSources`)."""
+        from .obligations import obligation_sources
+
+        return obligation_sources(self.document, self.registry)
 
     @cached_property
     def passages(self) -> Passages:

@@ -120,11 +120,18 @@ has tried; settle that before building it.
   [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
   using current code and an unfamiliar author; two samples per task do not settle
   which compositions work generally.
-- **Keep agent activity intelligible throughout a task.** Run the
-  [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
-  multi-step work, and delegation. Show the plan as well as the current step;
-  check that the hosted website agent's status is readable without delaying its
-  reply. Keep delegated work visible while its watcher is live.
+- **Keep delegated work in the panel's status while its watcher is live.** The
+  [status evaluations](notes/user-feedback-responsiveness.md#status-evaluations)
+  pass, and the plan and to-do keep delegated work listed, but after the
+  coordinator's turn ends the status stops reading Working while its workers still
+  run. Decide whether Claude Code's `busy` record should keep it reading as work in
+  the background (the note's "Proposed improvements").
+- **Decide what the reply budget counts.** A small page change takes 21–42 s to
+  reply on every harness against a 7 s target, and Leaf's delivery and tool time is
+  0.3–2.6 s of it ([readings](notes/user-feedback-responsiveness.md#latency-targets-and-readings)).
+  Decide whether the target counts Leaf's share or the whole reply, and whether
+  `leaf response reply` should report what `leaf page check` does, saving the
+  agent a model call per revision.
 - **#24 — Measure time to an initial reviewable page and the value of review.**
   Retrospective replay now proves one usable Leaf candidate and one usable HTML
   candidate before their authors finished. Their observation triggers differ;
@@ -386,12 +393,6 @@ height and where a switch lands wait on the workspace decision under Layout.
 Keep the optional Leaf timeline alongside Playwright's viewer, as Max chose
 on 2026-10-07.
 
-- **Start videos without a flash or oversized play animation.** Provide shared,
-  quiet video controls with compact play/pause and a timeline, keeping the image
-  stable during startup. Firefox's native controls expand the initial play button
-  to three times its size while fading it out over 400 ms; rewinding and replaying
-  skips that effect. Verify first play and replay, including keyboard and touch
-  access ([Firefox implementation](https://github.com/mozilla-firefox/firefox/blob/main/toolkit/content/widgets/videocontrols.js)).
 - **Explore DOM selection in the imported timeline.** The optional `playwright`
   package imports native actions, checkpoint images, captured frames and saved
   accessibility elements; following their comments restores the moment. Reuse

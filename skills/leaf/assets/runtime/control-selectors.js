@@ -62,6 +62,9 @@ const PRESS_SELECTORS = [
   "summary",
   TEXT_BOX,
   "video[controls]",
+  // A recording whose browser controls the runtime has traded for its own
+  // (video-controls.js).
+  "video[data-lf-player]",
   "[role='button']",
   "[role='checkbox']",
   "[role='combobox']",

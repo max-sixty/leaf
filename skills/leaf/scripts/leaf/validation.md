@@ -116,32 +116,37 @@ shadow tree, one in an embedded frame placed at that frame (a widget failing sof
 is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
-declarations honored; no undeclared text nodes under widget chrome, sideways scroll,
-clipped control, or misplaced box; space below words and controls for a horizontal overlay scrollbar;
+declarations honored; no undeclared text nodes under widget chrome;
 and current state that replays without conflict and idempotently.
 Words a stylesheet paints with `content` have no text node and are outside these readings.
 `render_gate/readings.py` is the list. A message's widgets render only where its thread
 is drawn, so each thread whose messages carry markup is then opened in turn, where a
 reader would find it, and the widget readings run again (`thread_findings`). Those readings run
-at a desktop and a phone viewport; once they are done, the loaded desktop page is
-resized through the widths from 360px to 1920px and sideways overflow, misplaced boxes,
-scrollbar clearance and clipped controls are read again at each: a version holds at every width from
-the narrowest phone to a wide desktop, not only at the two the gate renders, and each fault the sweep alone finds is
-reported with the widths it spans. The sweep also finds each width where the page's own
-margin residents change (`data-lf-margin` on `main`, less the rail), and the readings
-run again there in the light scheme, where each resident has the least room it will
-ever have. It reads, too, how each flex or grid box the page wrote splits its children
-into rows, and the swept widths where that changes.
+at a desktop and a phone viewport.
+
+Geometry that moves with the window is one reading, taken by width: sideways
+overflow, misplaced boxes, room below words and controls for a horizontal overlay
+scrollbar, clipped controls and words drawn over other words. Each render takes it
+at the size it loaded at, after the page's other readings and before it opens a
+thread; then the light desktop page is resized through the widths from 360px to
+1920px, and the light phone page through the widths from 540px down at its 720px
+height. Each fault
+refuses the version and is reported once per unbroken run of widths where any of
+those samples reads it, with the widths the run spans and its reading at the
+narrowest: a version holds at every width from the narrowest phone to a wide
+desktop, not only at the two the gate renders (`version._render_version_attempt`
+says why the phone height and the other renders count). The sweep also finds each
+width where the page's own margin residents change (`data-lf-margin` on `main`, less
+the rail), and the gate renders the page there in the light scheme, where each
+resident has the least room it will ever have. It reads, too, how each flex or grid
+box the page wrote splits its children into rows, and the swept widths where that
+changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws
 labels under 10px and each table that scrolls with a cell wrapped, and reports each
 unbroken run of widths where one appears, with its reading at the narrowest of them.
 A squeezed table is advice at every width, the two the gate renders among them: the
 table still scrolls with every word in reach, and the remedy is a choice of
-composition. Swept sideways faults and clipped controls are reported by run the same
-way, and refuse the version as they do at the fixed viewports. A run is left to the
-report of a render inside its span, fixed or margin, that read the same fault on the
-same element; the sweep reads at the desktop height, so the 540x720 render can miss
-what the sweep reads at 540px.
+composition.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the

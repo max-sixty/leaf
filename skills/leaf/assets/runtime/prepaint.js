@@ -108,7 +108,10 @@
   // is often its consequence; the bootstrap's report keeps the first as well.
   const fault = (reason, incomplete, error = null, page = false) =>
     root.lfDocumentLifetime.whenActive(`fault ${reason}`, () => {
-      if (incomplete) root.toggleAttribute("data-lf-interactive", false);
+      if (incomplete) {
+        root.toggleAttribute("data-lf-interactive", false);
+        trade(PLAYER, "controls");
+      }
       if (root.hasAttribute("data-lf-startup-error")) return;
       root.dataset.lfStartupError = reason;
       // The attribute is the short display reason; this record retains the actual
@@ -386,6 +389,20 @@
     if (label !== undefined) node.textContent = label;
     return node;
   };
+  // A recording the runtime plays through its own bar (video-controls.js) shows no
+  // browser controls from its first paint, which would otherwise draw until that
+  // module arrives and then give way to the bar. Traded as the parser inserts each
+  // video while the runtime is still expected, and given back to a page that cannot
+  // start, as its readable fallback. A copy of what the author wrote (`authoredCopy`)
+  // takes the trade back, whoever made it, so a revision compares `controls` with
+  // `controls`.
+  const PLAYER = "data-lf-player";
+  const trade = (from, to) => {
+    for (const video of document.querySelectorAll(`video[${from}]`)) {
+      video.removeAttribute(from);
+      video.setAttribute(to, "");
+    }
+  };
   const authoredCopy = (node, target = null) => {
     if (target === null) {
       // A cloned live document retains custom-element definitions, so attaching
@@ -402,6 +419,10 @@
     origins.set(copy, origins.get(source) ?? node);
     copy.removeAttribute?.("data-lf-opening");
     copy.removeAttribute?.("data-lf-sole-content");
+    if (copy.hasAttribute?.(PLAYER)) {
+      copy.removeAttribute(PLAYER);
+      copy.setAttribute("controls", "");
+    }
     const held = source.localName === "template" ? source.content : source;
     const into = copy.localName === "template" ? copy.content : copy;
     if (source.localName === "template") origins.set(into, origins.get(held) ?? held);
@@ -1086,6 +1107,7 @@
   const initialLayout = () => {
     mark();
     residency();
+    if (root.hasAttribute("data-lf-interactive")) trade("controls", PLAYER);
   };
   const parsing = new MutationObserver(initialLayout);
   parsing.observe(root, { childList: true, subtree: true });

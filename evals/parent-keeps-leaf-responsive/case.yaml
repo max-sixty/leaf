@@ -7,6 +7,10 @@
 # both arms (1/1 each). Reading the initial known-answer output caught a page edit
 # before the answer despite a passing grade; after clarifying the source and rubric,
 # the candidate answered first (1/1), while the base read page state first (0/1).
+# `delegated-work-visible` was added on 2026-10-20 for the TODO item on keeping
+# delegated work visible. On e5113c687's instructions it passed 3/3 on Claude Code
+# and 2/2 on Codex, each run leaving a progress reply and then working plan steps, a
+# `--todo` reply or both, so it guards rather than separates.
 description: parent-keeps-leaf-responsive
 metadata:
   purpose: The parent owns the Leaf conversation while workers do substantive work; known answers and page integration stay with the parent.
@@ -50,6 +54,18 @@ assert:
       Fail if the parent runs the 160-second tests in the foreground, starts more
       measurements before checking setup, waits for a worker before the initial
       reply, or hands its Leaf conversation to a worker.
+  - type: llm-rubric
+    metric: delegated-work-visible
+    value: |
+      Pass if the page shows the delegated work for as long as the workers run:
+      the user's update is taken in hand while the turn runs (an ephemeral
+      progress reply or `leaf task start` does this), and if the parent ends its
+      turn before the workers report, it first leaves the pending work on the page,
+      for example with a `--todo` reply or an open to-do naming what the workers are
+      doing, so the page does not read as finished or idle while they run. Fail if
+      the parent ends its turn with the workers' work recorded nowhere on the page,
+      answers with `--done` before the workers report, or idles the page while
+      they run.
 variants:
   known-answer:
     metadata:

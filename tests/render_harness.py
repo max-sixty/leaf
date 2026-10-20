@@ -1275,9 +1275,7 @@ def clean_browser(test=None):
 def judge_watches():
     """Judge every layout shift each watched page makes, once the frames the test's
     last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
-    loss of typed words so far (`words_watch.js`, `lfWordsJudged`). The driver reads
-    frame-owner visibility across origins: an opaque child cannot inspect the
-    ancestor that suppresses its paint (`window.frameElement` is null there).
+    loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
 
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
@@ -1305,28 +1303,23 @@ def _judge_frame_watches(frame):
     """Drain a frame while its page owns it; the caller handles native detachment."""
     page = frame.page
     frame.evaluate(
-        """ancestorsDrawn => {
-            const judgement = window.lfWatchJudgement = {
-              ancestorsDrawn, complete: false, error: null,
-            };
+        """() => {
+            const judgement = window.lfWatchJudgement = { complete: false, error: null };
             Promise.resolve().then(async () => {
               await window.lfShiftsJudged?.();
               await window.lfWordsJudged?.();
             }).then(() => { judgement.complete = true; },
               error => { judgement.error = error; });
-        }""",
-        _frame_owners_drawn(frame),
+        }"""
     )
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while True:
         complete = frame.evaluate(
-            """ancestorsDrawn => {
+            """() => {
                 const judgement = window.lfWatchJudgement;
-                judgement.ancestorsDrawn = ancestorsDrawn;
                 if (judgement.error) throw judgement.error;
                 return judgement.complete;
-            }""",
-            _frame_owners_drawn(frame),
+            }"""
         )
         if complete:
             break
@@ -1336,20 +1329,6 @@ def _judge_frame_watches(frame):
         # browser tests a tenth of a second.
         page.wait_for_timeout(10)
     frame.evaluate("delete window.lfWatchJudgement")
-
-
-def _frame_owners_drawn(frame):
-    """Read current ancestor visibility across origin boundaries for the sensor."""
-    ancestor = frame
-    while ancestor.parent_frame is not None:
-        owner = ancestor.frame_element()
-        try:
-            if not owner.evaluate("element => element.checkVisibility()"):
-                return False
-        finally:
-            owner.dispose()
-        ancestor = ancestor.parent_frame
-    return True
 
 
 def watched(page, *, java_script_enabled=True):
@@ -1679,12 +1658,15 @@ def panel_settled(page, open=True, view=None):
         """([open, view]) => {
           const host = document.querySelector('.lf-floating-panel');
           const ground = document.querySelector('.lf-fp-ground');
-          const moving = [host, ground].flatMap((n) => n.getAnimations({subtree: true}));
+          // A working indicator may keep animating while the panel has settled.
+          const finite = (n) => n.getAnimations({subtree: true}).filter((move) =>
+            Number.isFinite(move.effect?.getComputedTiming().endTime));
+          const moving = [host, ground].flatMap(finite);
           for (const move of moving) move.finish();
           const shown = host.dataset.open ?? null;
           return (open ? shown !== null && (!view || shown === view) : shown === null)
             && !host.querySelector('.lf-fp-view[data-leaving]')
-            && [host, ground].every((n) => !n.getAnimations({subtree: true}).length);
+            && [host, ground].every((n) => !finite(n).length);
         }""",
         arg=[open, view],
         polling=render_checks_model.PROBE_POLL_MS,
@@ -2774,9 +2756,13 @@ REST_SECONDS = 5
 
 
 def left_alone(page):
-    """Prepare a still_page and its Leaf frames for their reading: rendered, arrival
-    notices retired, and the pointer off its controls. Advance its controlled timer
-    clock through every due callback while Date.now stays fixed.
+    """Prepare a still_page and its Leaf frames for their reading: rendered, the focus
+    released and the pointer off its controls, and arrival notices retired. Advance its
+    controlled timer clock through every due callback while Date.now stays fixed.
+
+    The leaf's peek also shows while the pointer rests on the leaf or the panel's
+    field, or the focus on the leaf, as after a press on the panel, so both leave
+    before the notices are waited out.
     """
 
     def prepare_children(parent):
@@ -2790,6 +2776,8 @@ def left_alone(page):
 
     rendered(page)
     prepare_children(page.main_frame)
+    page.evaluate(RELEASE_FOCUS)
+    page.mouse.move(2, 300)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     # A passing notice stands in the panel's empty field, in the line over it once the
     # field is written in, or in the leaf's peek (notifications.js).
@@ -2802,7 +2790,6 @@ def left_alone(page):
         # still_page fixes Date.now but its timer clock otherwise runs in real time.
         # Run every callback until the notice retires; fast_forward would skip ticks.
         page.clock.run_for(100)
-    page.mouse.move(2, 300)
     rendered(page)
 
 

@@ -14,7 +14,7 @@ import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 import { clippedControls, restsOverPage } from "./reachability.js";
 import { scrollbarClearance } from "./scrollbars.js";
-import { shrunkLabelReading } from "./words.js";
+import { coveredWords, shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
@@ -58,16 +58,13 @@ export function marginResidents() {
     .join(" ");
 }
 
-// One settled-width geometry sample: the readings the gate reports across the width
-// sweep, each field read by its own consumer in render_gate/readings.py. Which findings
-// the gate answers for at every width is its choice, not a property of the reader:
-// covered words also move with the width, and the gate reports them only at the
-// viewports it renders (validation.md). These readers are synchronous: taking them
-// in one browser turn preserves their findings while removing the protocol round trips
-// between fields. All but `squeezedTables` are read-only; it adds and removes a
-// wrapping rule, so it reads last and the others read the page as laid out. Resize and
-// rendering completion belong to the caller, so a sample neither advances the page nor
-// waits for a different layout.
+// One settled-size geometry sample: every reading that moves with the window, which the
+// gate takes only as these samples, across its sweep and at each render's own size
+// (render_gate/version.py), each field read by its own consumer in readings.py. These readers are synchronous: taking them in one browser turn
+// preserves their findings while removing the protocol round trips between fields. All
+// but `squeezedTables` are read-only; it adds and removes a wrapping rule, so it reads
+// last and the others read the page as laid out. Resize and rendering completion belong
+// to the caller, so a sample neither advances the page nor waits for a different layout.
 export function geometryReading(open) {
   return {
     overflow: rootOverflow(),
@@ -77,16 +74,8 @@ export function geometryReading(open) {
     arrangement: arrangedBoxes(open),
     labels: shrunkLabelReading(),
     clipped: clippedControls(),
+    covered: coveredWords(),
     squeezed: squeezedTables(),
-  };
-}
-
-// The fixed viewport's column and margin findings in one round trip. Keep singleton
-// readers for callers asking one fact.
-export function columnGeometry() {
-  return {
-    overflow: rootOverflow(),
-    misplaced: misplacedBoxes(),
   };
 }
 

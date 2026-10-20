@@ -3133,7 +3133,6 @@ function createFloatingResponsePlacement({
     release: () => {
       editingAttachment = null;
       windowPosture = false;
-      selectedPassage = null;
       fabWithheld = false;
       fabBar.removeAttribute("data-lf-withheld");
       fabWithheldFocus = null;

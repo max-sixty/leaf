@@ -205,10 +205,10 @@ test("a page nobody holds, and a closed one, say so without the agent", () => {
   assert.deepEqual(said({ kind: "closed" }), ["Page closed", "Page closed"]);
 });
 
-test("an unreachable server reports itself without a tone; a refused key and an unappliable state ask", () => {
+test("an unreachable server reports itself in the blocked tone; a refused key and an unappliable state ask", () => {
   assert.deepEqual(pageStatus(null, { reach: "unreachable" }), {
     kind: "unreachable",
-    tone: "",
+    tone: "blocked",
     summary: "Server offline — reconnecting",
     explanation:
       "Server offline — reconnecting. Keep this page open so pending changes can send.",

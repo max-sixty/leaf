@@ -325,6 +325,9 @@
   .lf-floating-panel[data-asks][data-tone=blocked] {
     --lf-fp-asks: var(--danger-ink);
   }
+  .lf-floating-panel[data-tone=blocked]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
+    color: color-mix(in srgb, var(--danger-ink) 62%, transparent);
+  }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
   }

@@ -2381,11 +2381,9 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
 
 
 def test_a_refused_key_is_an_error_the_field_says(browser, serve):
-    """A status that only reports reads in the dim face, with the status in full in the
-    leaf's peek on pointing at the field. Once the server refuses this tab's key, which
-    asks the user to act, that stands as an error: the field says it in the danger's
-    ink, and the peek over the still pointer says it in full in the status's place. The
-    caret going in leaves it in the field until the user writes."""
+    """A report reads dimly in the field. A refused key asks the user to act, so
+    the field says it as an error and the menu keeps the full status. Focus leaves
+    the error in the field until the user writes."""
     url = serve(LONG_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
@@ -2399,14 +2397,19 @@ def test_a_refused_key_is_an_error_the_field_says(browser, serve):
 
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Claude working"))
     page.locator(".lf-fp-field").hover()
-    expect(peek).to_have_text(re.compile("^Claude is working — Drafting the rollout"))
+    expect(peek).to_be_hidden()
 
     page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
     declare_idle(serve.page_dir)
     expect(field(page)).to_have_attribute("data-says", "error")
     expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
     assert alpha() > 0.6, "the refused key reads as dim as a report"
-    expect(peek).to_have_text(re.compile("^Key refused — open Leaf's link"))
+    expect(peek).to_be_hidden()
+    page.locator(".lf-fp-leaf").click()
+    expect(page.locator(".lf-fp-menu")).to_contain_text(
+        "Key refused — open Leaf's link in a new tab"
+    )
+    page.keyboard.press("Escape")
     field(page).click()
     expect(field(page)).to_have_attribute("data-says", "error")
     expect(peek).to_be_hidden()

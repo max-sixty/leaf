@@ -50,10 +50,10 @@ const modules = [
       `// prettier-ignore\nexport const drawingSchema = ${JSON.stringify(schema)};\n`,
   },
   {
-    // The composer draft's format, named for the protocol at which its drawing last
-    // changed shape, as `state.Record` names a record's.
+    // The composer draft's format, named for the protocol at which its shape last
+    // changed, as `state.Record` names a record's.
     out: `${assets}/runtime/protocol.js`,
-    from: ["$events", "draft_since"],
+    from: ["$events", "draft", "since"],
     code: (since) => `export const DRAFT_FORMAT = "leaf-draft/${since}";\n`,
   },
   {

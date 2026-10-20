@@ -5688,7 +5688,7 @@ function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } =
   if (reach2 !== "reached")
     return {
       kind: "unreachable",
-      tone: "",
+      tone: "blocked",
       summary: "Server offline \u2014 reconnecting",
       explanation: OFFLINE_LINE,
       adds: ""

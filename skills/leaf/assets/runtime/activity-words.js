@@ -267,12 +267,12 @@ export function pageStatus(state, { reach = "reached", fault = null } = {}) {
   }
   // An unreachable server is reported, not asked about: the page retries on its own, the
   // words being written are kept as drafts, and a change the user sends meanwhile says
-  // itself that it is waiting (delivery.js). With no current reading of the agent, the
-  // leaf has no tone to wear.
+  // itself that it is waiting (delivery.js). The leaf still turns red, since the page
+  // has lost its link to the agent, and the words stay a report (floating-panel.css).
   if (reach !== "reached")
     return {
       kind: "unreachable",
-      tone: "",
+      tone: "blocked",
       summary: "Server offline — reconnecting",
       explanation: OFFLINE_LINE,
       adds: "",

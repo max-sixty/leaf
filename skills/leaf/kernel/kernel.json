@@ -178,7 +178,7 @@
     "runtime/restore-state.js": "6d515f2f4742a3143687011991f681b91a4f3fdc95a7363b3eb53967ca3e83fa",
     "runtime/root-state.js": "3ac9489665e29556fb2ea8579fd77f4e71280ce29d12588a043074fc458823b9",
     "runtime/sample-child.js": "26288b19db93bdc4a08597568fe2764a901c9b992447c6a5ed95083b180bd1ed",
-    "runtime/sample-visibility.js": "0297a63cf900721d9e769c75937384fb0a39b48d9131e24b56e2bd2378f48d9a",
+    "runtime/sample-visibility.js": "0e20f15ef767fe7d06a83662233fc3d1f23551853add83b693df4a738807f69d",
     "runtime/sample.js": "544781466790b81d75e12ba92edd8e76ca22496ab5a4807d1aa24db2e8260c13",
     "runtime/scrolling.js": "167ad6e77a35637db366f8fcd6b53b410982ed7885cb3b02ec4506ce98e59501",
     "runtime/semantic-news.js": "b5c151a3fbdd13080d22a844b120cce2dcb9a838564d681730efef459a8e9d95",

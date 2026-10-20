@@ -60,7 +60,11 @@ if (child) {
     // makes the first painted pixel a delivery rather than leaving visibility stale.
     { threshold: [0, Number.EPSILON] }
   );
-  seen.observe(document.documentElement);
+  const screen = document.createElement("div");
+  screen.dataset.lfRuntime = "";
+  screen.style.cssText = "all:initial;position:fixed;inset:0;visibility:hidden;contain:strict;pointer-events:none";
+  document.documentElement.append(screen);
+  seen.observe(screen);
   addEventListener("pagehide", (event) => {
     if (!event.persisted) seen.disconnect();
   });

@@ -121,7 +121,7 @@ browser storage, which outlives a re-vendor. Each carries `leaf-<kind>/<number>`
 in its `format`, and a reader at another format leaves it alone: it reads the record
 as absent, or keeps a draft's words without its drawing.
 A record's number is its `since`, the protocol at which its own shape last changed,
-so a bump for another change leaves a session's claim, its delivery cursor and a
+so a bump for another change leaves a session's claim, its deliveries and a
 page's port readable. A change to a record's shape that a reader at the same format
 would misread sets its `since` to the current protocol, bumping the protocol first
 where `since` already names it. The same build check holds this: the baseline keeps

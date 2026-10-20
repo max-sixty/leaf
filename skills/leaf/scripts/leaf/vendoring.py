@@ -35,7 +35,6 @@ from .locations import located, locations_overlap, path_is_within, path_location
 from .refusals import Refused
 from .registry.storage import RegistryError, layer_metadata, layer_packages
 from .schema import (
-    CURSOR_FILE,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PAGE_OWNED_DIRS,
@@ -483,8 +482,4 @@ def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
     # the page transaction lease. Publish it only after the layer commits, so a
     # failed first write still takes the fresh-init path.
     if fresh:
-        # A log this page starts holds nothing the old one's user acknowledged,
-        # so the acknowledgement position goes with the log it named. Re-vendoring
-        # an existing page keeps both.
-        (page_dir / CURSOR_FILE).unlink(missing_ok=True)
         start_log(page_dir)

@@ -601,7 +601,7 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     delivery was never received. Unsettled inputs read their existing canonical
     workflow. A completed receipt advances the cursor, so handed input is already
     absent from this unreceived batch. An opened record without the completed
-    cursor write does not prove delivery. Other admitted attention (including
+    `receipt` does not prove delivery. Other admitted attention (including
     reports, errors, reactions and widget actions) remains
     transport input, independent of whether it carries a response obligation.
     """

@@ -9,10 +9,13 @@ its events refer to; the ids mean nothing outside that batch.
 
 Receipt (`receive_batch`) checks, under the page transaction, that the receiver
 still owns the page and the events are the ones captured, then advances the page's
-cursor. The pickup it records (`record_pickup`) says a harness accepted the delivery
-or a turn opened it, and answers nothing. The envelope's `acknowledge` says who
-confirms receipt: a hook confirms what it hands over inline, and the agent confirms
-a pointer it read with `leaf delivery ack`.
+acknowledgement cursor with a `receipt` event (`record_receipt`). The pickup it
+records (`record_pickup`) says a harness accepted the delivery or a turn opened it,
+and answers nothing. The two are separate events because neither implies the other:
+a failed or queued pickup confirms no receipt, and a receipt whose inputs were already
+picked up, or that the harness gave up on, records no opened pickup. The envelope's
+`acknowledge` says who confirms receipt: a hook confirms what it hands over inline,
+and the agent confirms a pointer it read with `leaf delivery ack`.
 
 A reply reservation lets a Codex App Server turn's final message become the reply
 to one delivered update. Freezing with `turn_replies` marks each reply answer
@@ -49,7 +52,7 @@ from pathlib import Path
 from typing import Literal
 from xml.etree import ElementTree
 
-from .event_log import jsonl_line, write_cursor
+from .event_log import jsonl_line
 from .harness import session_harness
 from .refusals import Refused
 from .registry.kernel import verb_writers
@@ -737,10 +740,11 @@ def unreferenced(
 
         obligations = read_page(page.page_dir, page.events).work.obligations
     by_id = {event["id"]: event for event in page.events}
+    cursor = page.cursor
     return [
         by_id[item["input"]]
         for item in obligations
-        if item["seq"] <= page.cursor
+        if item["seq"] <= cursor
         and ("ref" not in item["answer"] or not reads_reference(item["answer"]["ref"]))
     ]
 
@@ -757,7 +761,7 @@ def receive_batch(
     """Commit receipt after the consumer records its durable pickup evidence.
 
     Every transport confirms here once its durable consumer accepts input.
-    The body records pickup and turn entry before this advances the cursor, so
+    The body records pickup and turn entry before this records the receipt, so
     interruption leaves input available for retry. Work remains separate.
     Current ownership authorizes the write, not capture-time ownership: the
     page is still the receiver's (`service.claim_names_session`), even between a
@@ -771,7 +775,7 @@ def receive_batch(
     from .event_contracts import write_refusal
 
     # The page is already locked; keep lifecycle admission valid through pickup
-    # and cursor commit. SessionEnd cannot cross between those writes.
+    # and receipt. SessionEnd cannot cross between those writes.
     with (
         flocked(session_lock_path(session_id), deadline=page.deadline)
         if session_id
@@ -791,8 +795,20 @@ def receive_batch(
                 f"delivery no longer matches its page log: {page.page_dir}"
             )
         yield [delivered[seq] for seq in expected]
-        if max(expected) > page.cursor:
-            write_cursor(page.page_dir, max(expected))
+        record_receipt(page, max(expected))
+
+
+def record_receipt(page: PageTransaction, through: int) -> None:
+    """Confirm receipt of the page's input through seq `through`, under the
+    caller's page transaction: a `receipt` event, which moves the acknowledgement
+    cursor (`service.acknowledged`) and nothing else. A position the cursor has
+    already passed writes nothing, so the cursor only moves forward and a retried
+    receipt appends nothing."""
+    if through <= page.cursor:
+        return
+    from .event_contracts import append_admitted
+
+    append_admitted(page, {"kind": "receipt", "author": "page", "through": through})
 
 
 def receive_delivery(delivery_id: str) -> list[Path]:

@@ -877,7 +877,6 @@ def native_codex_chat(tmp_path):
 
 def _page_record(path):
     """The `state.Record` a page file's name declares."""
-    from leaf.event_log import CURSOR
     from leaf.presence import VIEWED
     from leaf.user_views import USER_VIEWS
 
@@ -885,10 +884,20 @@ def _page_record(path):
         schema_model.STATUS_FILE: service_model.STATUS,
         schema_model.SERVICE_FILE: server_model.SERVICE,
         schema_model.PREVIEW_FILE: server_model.PREVIEW,
-        schema_model.CURSOR_FILE: CURSOR,
         schema_model.VIEWED_FILE: VIEWED,
         schema_model.USER_VIEWS_FILE: USER_VIEWS,
     }[path.name]
+
+
+def acknowledged_through(page_dir):
+    """The page's acknowledgement cursor (`service.acknowledged`), read off its log."""
+    return service_model.acknowledged(events_model.read_events(page_dir))
+
+
+def acknowledge_through(page_dir, seq):
+    """Confirm receipt of the page's input through `seq`, as a receipt does."""
+    with service_model.PageTransaction(page_dir) as page:
+        delivery_model.record_receipt(page, seq)
 
 
 def read_record(path):

@@ -74,6 +74,9 @@ read, such as one an earlier Leaf wrote before that change, reads as absent
   Stored rows include private native session `context` when available. Application readers
   strip it before admission, projections, delivery or public event output.
   Diagnostic queries read raw events using the current application rules.
+  The log also holds how far its input is acknowledged: the `receipt` events, whose
+  greatest `through` is the acknowledgement cursor
+  ([session-lifetime.md](session-lifetime.md)), so a cursor lives and ends with its log.
 
 - `observations.jsonl` — private, best-effort diagnostic JSON-lines trace of
   server requests, browser observations and developer run context. It never enters
@@ -174,11 +177,6 @@ ID PATH` (`file_bindings.BINDINGS`).
   the server and absent until first viewed. `presence.py` owns throttled renewal,
   which the server runs as a
   visible tab asks for news; hidden tabs do not renew it.
-
-- `cursor.json` — durable acknowledged position in this page's event log
-  (`event_log.CURSOR`), retained
-  with that log when its serving process is replaced. Acknowledgement and
-  log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
 
 - `preview.json` — the preview identity browser chrome labels (`server.PREVIEW`),
   written by

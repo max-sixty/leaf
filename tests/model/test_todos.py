@@ -1714,7 +1714,9 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     assert service_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     delivered(capsys)
-    pickup = events_model.read_events(page_dir)[-1]
+    *_, pickup = (
+        e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
+    )
     assert pickup["kind"] == "pickup"
     assert pickup["events"] == ["c1", "c2"]
     assert [

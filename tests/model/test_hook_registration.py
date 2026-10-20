@@ -16,12 +16,12 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     PLUGIN_ROOT,
     STATED_TIMEOUT,
+    acknowledged_through,
     append_carried_log_record,
     record_claim,
     serving,
     wait_for,
 )
-from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hook_transport as hook_transport_model
@@ -315,7 +315,7 @@ def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
             )
         )
         assert (worker.returncode, worker.stdout, worker.stderr) == (0, "", "")
-        assert events_model.read_cursor(claimed) == 0
+        assert acknowledged_through(claimed) == 0
     answered = run(payload)
     assert answered.returncode == 0, answered.stderr
     assert answered.stdout, "nothing came back: the CLI never answered under uv"

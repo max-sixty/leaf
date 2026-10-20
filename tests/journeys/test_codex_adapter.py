@@ -16,13 +16,13 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     _delivery_item,
+    acknowledged_through,
     append_carried_log_record,
     codex_records,
     declare_idle,
     owed_answers,
     page_state,
     publish,
-    read_record,
     release_codex_command,
     spawn_probe,
     wait_for,
@@ -186,8 +186,8 @@ def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it
             failure="the restarted turn's answer did not reach the page",
         )
         wait_for(
-            lambda: read_record(page / "cursor.json"),
-            lambda cursor: cursor == {"seq": delivered["seq"]},
+            lambda: acknowledged_through(page),
+            lambda cursor: cursor == delivered["seq"],
             failure="the accepted delivery cursor was not recovered",
         )
         assert starts == []
@@ -278,8 +278,8 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         )
         comments = [events_model.read_events(page)[-1]]
         wait_for(
-            lambda: read_record(page / "cursor.json"),
-            lambda cursor: cursor == {"seq": 1},
+            lambda: acknowledged_through(page),
+            lambda cursor: cursor == 1,
             failure=lambda: (
                 "the adapter did not acknowledge its batch: "
                 f"deliveries={codex_records('codex-thread')!r}; "
@@ -310,8 +310,8 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             )
             comments.append(events_model.read_events(page)[-1])
         wait_for(
-            lambda: read_record(page / "cursor.json"),
-            lambda cursor: cursor == {"seq": comments[-1]["seq"]},
+            lambda: acknowledged_through(page),
+            lambda cursor: cursor == comments[-1]["seq"],
             failure="the cursor did not reach the later delivery",
         )
 
@@ -363,7 +363,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             for batch in payload["batches"]
             for event in batch["events"]
         ] == [comment["id"] for comment in comments]
-        assert read_record(page / "cursor.json") == {"seq": comments[-1]["seq"]}
+        assert acknowledged_through(page) == comments[-1]["seq"]
         assert codex_adapter_model.adapter_is_live("codex-thread")
 
         for comment in comments:

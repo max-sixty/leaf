@@ -25,7 +25,6 @@ from interact_support import (
     SKILL_ROOT,
     STATED_TIMEOUT,
     add_test_widget,
-    append_carried_log_record,
     case_alias,
     command_findings,
     element_declaration,
@@ -43,7 +42,6 @@ from interact_support import (
     vendored_before_a_key_rename,
     wait_for,
     words,
-    write_record,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -3208,22 +3206,6 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
 
     assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
     assert refused.values["finding"]["code"] == code
-
-
-def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
-    """The acknowledgement cursor is a position in the log. A directory whose log
-    is absent takes the fresh-page path, so the position it kept names nothing."""
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
-    )
-    write_record(page_dir / "cursor.json", {"seq": 1})
-    (page_dir / "events.jsonl").unlink()
-
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-
-    assert result.exit_code == 0, result.output
-    assert read_record(page_dir / "cursor.json") is None
-    assert events_model.read_cursor(page_dir) == 0
 
 
 def test_revendoring_removes_files_the_layer_retired(page_dir):

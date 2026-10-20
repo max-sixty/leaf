@@ -24,7 +24,6 @@ from leaf.event_log import (
     _append_event_unlocked,
     _matching_attempt,
     _parse_events,
-    read_cursor,
 )
 from leaf.files import unfinished_publications
 from leaf.interaction_log import session_context
@@ -645,7 +644,7 @@ class PageTransaction:
 
     @property
     def cursor(self) -> int:
-        return read_cursor(self.page_dir)
+        return acknowledged(self.events)
 
     def watch_state(self, harness: Harness | None) -> str:
         if not self.owned_by(harness):
@@ -799,6 +798,19 @@ def owned_pages(session_id: str | None) -> list:
         if claim_is_active(claim) and (Path(claim["page"]) / EVENTS_FILE).is_file()
     }
     return sorted(pages, key=str)
+
+
+def acknowledged(events: list) -> int:
+    """The acknowledgement cursor: the seq this log's input is confirmed received
+    through, the greatest `through` among its `receipt` events, or 0 before any.
+
+    Receipt (`delivery.receive_batch`) writes the event under the page transaction
+    in the log whose position it confirms, so a cursor is never past its own log's
+    end, and a log `page init` starts afresh has none."""
+    return max(
+        (event["through"] for event in events if event["kind"] == "receipt"),
+        default=0,
+    )
 
 
 def unacknowledged(events: list, cursor: int) -> list:

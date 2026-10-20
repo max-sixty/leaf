@@ -22,6 +22,8 @@ from interact_support import (
     _codex_delivery,
     _delivery_item,
     _observer,
+    acknowledge_through,
+    acknowledged_through,
     append_carried_log_record,
     append_command,
     codex_records,
@@ -36,7 +38,6 @@ from interact_support import (
     served_thread,
     take_stream_activity,
     wait_for,
-    write_record,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
@@ -1962,9 +1963,7 @@ def test_the_prompt_hook_and_the_observer_open_one_codex_turn(page_dir, capsys):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Handle me"}
     )
-    write_record(
-        page_dir / "cursor.json", {"seq": events_model.read_events(page_dir)[-1]["seq"]}
-    )
+    acknowledge_through(page_dir, events_model.read_events(page_dir)[-1]["seq"])
     cleanup_model.close_session_turn("codex-thread")
 
     hooks_model.cmd_hook(
@@ -3070,7 +3069,7 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
     assert replies[0]["text"] == (
         "Manual answer" if manual else codex_model.UNCONFIRMED_TEXT
     )
-    assert service_model.read_cursor(page_dir) > 0
+    assert acknowledged_through(page_dir) > 0
     # Late provider evidence keeps its exact delivery identity but cannot replace
     # the manual answer that won before this harness retired its unknown attempt.
     if manual:

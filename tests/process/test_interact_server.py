@@ -36,6 +36,7 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     TOKEN,
+    acknowledged_through,
     activity_reading,
     append_carried_log_record,
     append_command,
@@ -274,12 +275,9 @@ def test_interaction_trace_does_not_change_page_readings(page_dir):
     assert served_reading.source_readings(page_dir)[0] != sources[0]
 
 
-@pytest.mark.parametrize(
-    "name", (*schema_model.SESSION_FILES, *schema_model.LOG_STATE_FILES)
-)
+@pytest.mark.parametrize("name", schema_model.SESSION_FILES)
 def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, name):
-    """Declaring status, acknowledging a delivery, or taking a wait writes a session
-    file, and the next state read holds the activation it had rather than validating
+    """Declaring status or taking a wait writes a session file, and the next state read holds the activation it had rather than validating
     the whole page again: on a large page that re-validation was most of the time a
     status took to reach the panel."""
     assert revisioning_model.activate_source(page_dir).error is None
@@ -3080,7 +3078,7 @@ def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessio
     # The page error was an acknowledgeable target, so the cursor moved and the
     # re-armed wait ended on its own 2; a refused acknowledgement would be 1.
     assert result.exit_code == 2, result.output
-    assert read_record(page_dir / "cursor.json") == {"seq": error["seq"]}
+    assert acknowledged_through(page_dir) == error["seq"]
 
 
 def _news(server):

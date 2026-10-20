@@ -20,6 +20,7 @@ from interact_support import (
     _interaction_prompt_evidence,
     _start,
     _watched,
+    acknowledged_through,
     append_carried_log_record,
     append_command,
     codex_records,
@@ -1074,7 +1075,7 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
         event["id"]
         for event in service_model.unacknowledged(
             events_model.read_events(claimed),
-            read_record(claimed / "cursor.json")["seq"],
+            acknowledged_through(claimed),
         )
     ] == [resolve["id"]]
 
@@ -1125,7 +1126,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             )
             delivery_model.receive(original, "prior")
             codex_loop(page_dir)
-        cursor = events_model.read_cursor(page_dir)
+        cursor = acknowledged_through(page_dir)
         deliveries = set(
             delivery_model.state_home().joinpath("deliveries").glob("*.json")
         )
@@ -1159,7 +1160,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             assert envelope["id"] != original["id"]
             [(offered, _)] = codex_records("codex-thread")
             assert offered.stem == envelope["id"]
-        assert events_model.read_cursor(page_dir) == cursor
+        assert acknowledged_through(page_dir) == cursor
         [batch] = envelope["batches"]
         [event] = batch["events"]
         assert event["id"] == latest["id"]

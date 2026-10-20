@@ -297,19 +297,20 @@
   /* What the field's draft carries, its attached images, hangs off the box rather
      than standing in it: the shelf stands just over the box's top edge, above the
      field's start, so attaching neither grows the box nor moves a word, in the page's
-     field and an open thread's reply alike. With a view open it hangs over the view's
-     head. The user chose this on 19 October, comparing it live with the shelf taking
+     field, an open thread's reply and the comment box seated in the field's place
+     (`.lf-fp-response`) alike, one of which shows at a time. With a view open it hangs
+     over the view's head. The user chose this on 19 October, comparing it live with the shelf taking
      a line of its own over the words, which grew the box by a line the one thumbnail
      left mostly empty, and with thumbnails shrunk into the row beside the words,
      which kept the box whole but made each picture a chip. */
-  .lf-fp-field {
+  :is(.lf-fp-field, .lf-fp-response) {
     anchor-name: --lf-fp-field;
     --lf-media-ground: var(--lf-fp-surface);
     --lf-media-ring: var(--lf-fp-ring);
   }
   /* The shelf's padding holds its pictures' shadows and removal reach (response.css),
      so the offsets take that padding back. */
-  .lf-fp-field .lf-composer-media:not([hidden]) {
+  :is(.lf-fp-field, .lf-fp-response) .lf-composer-media:not([hidden]) {
     position: fixed;
     bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-media-room));
     left: calc(anchor(--lf-fp-field left) - var(--lf-media-room));

@@ -3224,6 +3224,27 @@ def test_a_comment_on_words_where_the_page_draws_no_margin_is_written_in_the_row
     expect(box).to_be_focused()
     expect(page.locator(".lf-fp-field")).to_be_hidden()
     page.keyboard.type("Is this paragraph needed?")
+    # An image it is given hangs over the panel as the field's does, so the box and
+    # its words stay where they are.
+    card = page.locator(".lf-fp-card")
+    before = (card.bounding_box(), box.bounding_box())
+    box.evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(solid_png(40, 30, (255, 128, 64))).decode(),
+    )
+    picture = response.locator(".lf-composer-media-open")
+    expect(picture).to_have_count(1)
+    expect(box).not_to_have_attribute("aria-busy", "true")
+    assert (card.bounding_box(), box.bounding_box()) == before
+    tile = picture.bounding_box()
+    assert tile["y"] + tile["height"] <= before[0]["y"], (tile, before)
     page.keyboard.press("Enter")
     reader = page.locator(".lf-fp-view[data-view=thread]")
     expect(reader.locator(".lf-msg")).to_contain_text("Is this paragraph needed?")

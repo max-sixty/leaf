@@ -195,8 +195,14 @@
 }
 /* Every composition input renders the same attachment shelf, including inputs seated
    in widget shadow trees. Surfaces place it and may set its pictures' height; the
-   shelf owns its controls, image inspection face, and drawing paint here. */
-:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])) {
+   shelf owns its controls, image inspection face, and drawing paint here. In a row
+   that holds a field, the shelf comes first and takes a line of its own, so it stands
+   above the field and never takes the field's width; a seated comment box's composer
+   adds no box of its own (`display: contents`). */
+:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])),
+.lf-fab-bar[data-lf-presentation="inline"]:has(
+    > .lf-composer > .lf-composer-media:not([hidden])
+  ) {
   flex-wrap: wrap;
 }
 /* The shelf scrolls sideways when its pictures outrun its field, and a scroller cuts
@@ -219,7 +225,10 @@
   min-width: 0;
   overflow-x: auto;
   padding: var(--lf-media-room);
-  margin: calc(4px - var(--lf-media-room)) calc(-1 * var(--lf-media-room));
+  /* In flow, the pictures stand 6px into their row, which keeps the removal mark on
+     their corner (6px over it) inside the row, and 4px over what follows. */
+  margin: calc(6px - var(--lf-media-room)) calc(-1 * var(--lf-media-room))
+    calc(4px - var(--lf-media-room));
   box-sizing: border-box;
 }
 .lf-composer-media-item {
@@ -662,20 +671,8 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-surface-grip {
   display: none;
 }
-.lf-fab-bar .lf-composer-media {
-  --lf-media-h: 34px;
-  flex: none;
-  max-width: calc(148px + 2 * var(--lf-media-room));
-}
-.lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
-  --lf-drawing-preview-width: 96px;
-  max-width: calc(
-    var(--lf-drawing-preview-width) + 2 * max(26px, var(--aim-floor)) + 2px + 2 *
-      var(--lf-media-room)
-  );
-}
 .lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
-  width: var(--lf-drawing-preview-width);
+  width: 96px;
   height: 64px;
 }
 @media print {

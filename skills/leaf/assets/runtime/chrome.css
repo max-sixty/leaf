@@ -204,12 +204,12 @@
     outline-offset: 0;
     border-radius: var(--r);
   }
-  .lf-fp-field {
+  :is(.lf-fp-field, .lf-fp-response) {
     anchor-name: --lf-fp-field;
     --lf-media-ground: var(--lf-fp-surface);
     --lf-media-ring: var(--lf-fp-ring);
   }
-  .lf-fp-field .lf-composer-media:not([hidden]) {
+  :is(.lf-fp-field, .lf-fp-response) .lf-composer-media:not([hidden]) {
     position: fixed;
     bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-media-room));
     left: calc(anchor(--lf-fp-field left) - var(--lf-media-room));

@@ -1344,7 +1344,8 @@ svg[data-lf-icon] {
 .lf-reopen.lf-icon-action:not([aria-disabled=true]):hover::before {
   background: color-mix(in srgb, var(--ok-ink) 18%, var(--ok-tint));
 }
-:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])) {
+:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])),
+.lf-fab-bar[data-lf-presentation=inline]:has(> .lf-composer > .lf-composer-media:not([hidden])) {
   flex-wrap: wrap;
 }
 .lf-composer-media {
@@ -1356,7 +1357,7 @@ svg[data-lf-icon] {
   min-width: 0;
   overflow-x: auto;
   padding: var(--lf-media-room);
-  margin: calc(4px - var(--lf-media-room)) calc(-1 * var(--lf-media-room));
+  margin: calc(6px - var(--lf-media-room)) calc(-1 * var(--lf-media-room)) calc(4px - var(--lf-media-room));
   box-sizing: border-box;
 }
 .lf-composer-media-item {
@@ -1727,17 +1728,8 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation=inline] > .lf-surface-grip {
   display: none;
 }
-.lf-fab-bar .lf-composer-media {
-  --lf-media-h: 34px;
-  flex: none;
-  max-width: calc(148px + 2 * var(--lf-media-room));
-}
-.lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
-  --lf-drawing-preview-width: 96px;
-  max-width: calc(var(--lf-drawing-preview-width) + 2 * max(26px, var(--aim-floor)) + 2px + 2 * var(--lf-media-room));
-}
 .lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
-  width: var(--lf-drawing-preview-width);
+  width: 96px;
   height: 64px;
 }
 @media print {

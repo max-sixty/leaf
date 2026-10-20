@@ -131,6 +131,12 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     image_open = bar.get_by_role("button", name="View attached image 1", exact=True)
     remove = bar.get_by_role("button", name="Remove attached image 1", exact=True)
     expect(image_open.locator("img")).to_be_visible()
+    # The shelf takes a line above the field rather than the field's width, and its
+    # removal stays inside the box rather than over the file row above.
+    picture, words = image_open.bounding_box(), field.bounding_box()
+    assert picture["y"] + picture["height"] <= words["y"], (picture, words)
+    assert remove.bounding_box()["y"] >= bar.bounding_box()["y"]
+    assert abs(words["width"] - bar.bounding_box()["width"]) < 1
     # The shelf's face, its picture alone with a round removal on its corner, reaches
     # the widget's tree too (response.css).
     expect(image_open).to_have_css("border-radius", "8px")

@@ -516,7 +516,7 @@ application. Recheck the affected Leaf journey when resolving this entry.
   canvas engine is not enabled.
 - **Recheck:** run
   `test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor`
-  and `test_touch_capture_can_cancel_and_reopen_before_attaching` in
+  and `test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing` in
   `tests/browser/threads/test_media.py` and `tests/journeys/test_render_threads.py`. Compare the rasterizer's same crop with a
   native screenshot in each installed engine when updating SnapDOM.
 

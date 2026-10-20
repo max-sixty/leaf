@@ -222,8 +222,9 @@ or the host:
   session's wait lease until a page has input, exits 2 to wake the session, and the
   prompt hook of the turn the wake opens or reaches puts the batch in that turn's
   context; its reader acknowledges the complete envelope before work. Input that was
-  already pending as the turn ended is the other Stop hook's to hand to the turn it
-  continues, so the watch carries it only once that hook lets the turn end over it.
+  already pending as the turn ended waits until the other Stop hook closes the turn,
+  since that hook may still continue it over what it owes, and then gets a turn of
+  its own.
   Claude Code leaves an earlier turn's watch running when it starts the next, so
   the newest takes the lease from it (`leases.supersede_lease`), and the one it
   displaces ends without waking the session. The newest runs the Leaf the harness
@@ -242,9 +243,7 @@ or the host:
   wakes during a turn leaves pending input to the native PostToolBatch boundary.
   An interrupted turn runs no Stop hook,
   but the module still sees it end, so it starts the watch with the Interrupt payload,
-  as Pi's extension does. Claude Code prints a Stop hook's context in the user's
-  terminal, so the module moves a delivery the Stop hook hands over into the session
-  as an appended row, which it does not show, and the turn goes on with one line.
+  as Pi's extension does.
 - A hook watch under Pi: the same watch, which Leaf's extension (`hooks/pi.ts`) starts
   as the session starts and as each run settles. When the watch exits with input and
   no run is going, the extension sends an unreceived notification to start one. The
@@ -273,9 +272,13 @@ or the host:
 
 Every watcher watches every page the session holds, re-reading the set on each pass,
 and every transport hands over the same envelope (`../../references/event-batches.md`,
-"One envelope on every transport"). On Codex, the adapter and the tool and Stop hooks
-share one task's delivery records; `codex.py` states how a record is captured,
-offered, accepted and receipted, and how an App Server client binds a turn's reply.
+"One envelope on every transport"). What each delivers is `delivery.deliverable`: the
+input past the cursor, and each update still owed whose `answer.ref` the page's owner
+cannot use, so a page that changes hands brings its new owner, in its first delivery,
+the updates the previous owner received and left unanswered. On Codex, the adapter and
+the tool and Stop hooks share one task's delivery records; `codex.py` states how a
+record is captured, offered, accepted and receipted, and how an App Server client
+binds a turn's reply.
 
 ### The hook
 
@@ -292,12 +295,17 @@ desktop chat's or background job's ownership when its instance ends.
 The Stop hook continues a turn only for what the turn owes. It keeps a turn going
 through the harness's continuation channel (`Harness.hook_context`): the non-error
 `additionalContext` Claude Code and Pi's extension read, or a block where, as in
-Codex, the harness's Stop output has nothing else. What the turn owes is input that
-arrives as it ends and is owed an answer, which the hook hands over, or an obligation
-above. Input that owes nothing, such as a resolve, a report or a page error, waits for
-the watcher and rides along when the turn goes on anyway. A repeated Stop
-(`stop_hook_active`) has named its obligations once and lets the turn end; only newly
-arrived owed input continues it again.
+Codex, the harness's Stop output has nothing else. What the turn owes is an
+obligation above, or, where no watch follows the turn (Codex, plain `--print`),
+input that arrives as it ends and is owed an answer, which the hook hands over.
+Where a watch follows (`Harness.watches_between_turns`), the hook hands no input
+over and the watch gives it a turn of its own: continuing the turn would have the
+agent write one more message, which Claude Code's focus view, showing a turn's final
+message alone, would show in place of the answer the turn had written. Input that
+owes nothing, such as a resolve, a report or a page error, waits for the watcher and
+rides along when the turn goes on anyway. A repeated Stop (`stop_hook_active`) has
+named its obligations once and lets the turn end; only newly arrived owed input
+continues it again.
 
 Each harness has its own registrations, which pass its name
 (`hook --harness <name>`); the hook takes the session from its payload and infers
@@ -309,8 +317,8 @@ background (`asyncRewake`) as the session's watch between turns
 startup or application failures retain stderr and return nonblocking exit 1.
 Cancellation stays quiet. Where the user turns on the plugin's `hooks_module` option
 and Claude Code loads hooks modules, Leaf's module (`hooks/claude-code.ts`) runs the
-watch itself and marks the Stop payloads it passes on. Both Stop registrations
-stand down (`hooks/scripts/background-watch.py`); the native PostToolBatch hook
+watch itself and marks the Stop payloads it passes on, which stands the background
+registration down (`hooks/scripts/background-watch.py`); the native PostToolBatch hook
 owns mid-turn delivery under either watcher, and a module wake during a turn
 leaves its input there rather than capturing a second delivery.
 Claude Code's worker tool batches name their parent session with a native

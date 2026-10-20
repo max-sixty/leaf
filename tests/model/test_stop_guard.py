@@ -29,6 +29,7 @@ from interact_support import (
     delivered_ref,
     delivery_through,
     end_work,
+    freeze_events,
     last_deliverable_seq,
     let_a_pick_settle_a_thread,
     obligations_on_user,
@@ -357,16 +358,17 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
         claimed,
         {"kind": "comment", "author": "user", "revision": 1, "text": "is this right?"},
     )
-    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    reason = continued(capsys.readouterr().out)
-    [batch] = json.loads(reason.split("\n")[1])["batches"]
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = json.loads(context.split("\n")[1])["batches"]
     assert batch["page"] == str(claimed)
     assert [event["text"] for event in batch["events"]] == ["is this right?"]
-    assert "no watcher" not in reason
-    # Handed over, the comment is owed an answer, and a later Stop holds for it.
-    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    reason = continued(capsys.readouterr().out)
-    consume_pending_input("s1")
+    assert "no watcher" not in context
+    # Handed over, the comment is owed an answer, and the turn's Stop holds for it.
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
     assert f"{claimed}: 1 acknowledged user update with no answer" in reason
@@ -526,14 +528,16 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
             "text": "but why not C?",
         },
     )
-    # The harness opens the follow-up turn; its Stop carries the new input, and a
-    # later Stop holds for an answer to the last word.
-    cleanup_model.prompt_turn("s1")
-    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    reason = continued(capsys.readouterr().out)
-    [batch] = json.loads(reason.split("\n")[1])["batches"]
+    # The watch opens the follow-up turn, whose prompt hook carries the new input,
+    # and that turn's Stop holds for an answer to the last word.
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
+        "additionalContext"
+    ]
+    [batch] = json.loads(context.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [follow["id"]]
-    consume_pending_input("s1")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert delivered_ref(claimed, follow["id"]) in continued(capsys.readouterr().out)
     thread_model.post_reply(
@@ -714,14 +718,20 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(claimed, capsys
         claimed, {"kind": "comment", "author": "user", "text": "one more thing"}
     )
     [comment] = events_model.read_events(claimed)
-    batch = {"events": [{"seq": comment["seq"], "id": comment["id"]}]}
+    [batch] = freeze_events(claimed, [comment])["batches"]
 
     def pickup(phase: str) -> None:
         with (
             service_model.PageTransaction(claimed) as page,
             delivery_model.receive_batch(page, batch, session_id="s1") as delivered,
         ):
-            delivery_model.record_pickup(page, delivered, phase=phase, session="s1")
+            delivery_model.record_pickup(
+                page,
+                delivered,
+                phase=phase,
+                session="s1",
+                refs=delivery_model.batch_refs(batch),
+            )
 
     def idle() -> str | None:
         result = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
@@ -1144,10 +1154,13 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
                 set(delivery_model.delivery_path(envelope["id"]).parent.glob("*.json"))
                 == deliveries
             )
+            assert not codex_records("codex-thread")
         else:
+            # The new owner is offered the update as Codex offers new input.
             assert envelope["id"] != original["id"]
+            [(offered, _)] = codex_records("codex-thread")
+            assert offered.stem == envelope["id"]
         assert events_model.read_cursor(page_dir) == cursor
-        assert not codex_records("codex-thread")
         [batch] = envelope["batches"]
         [event] = batch["events"]
         assert event["id"] == latest["id"]

@@ -76,8 +76,10 @@ class Harness:
     - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
       session's pages in the background and wakes the session when input arrives
       (`watches_between_turns`), and the prompt hook, which runs as the turn the
-      wake opens begins, and the other Stop hook put the input in the turn's
-      context and confirm it (`hook_delivers`). A turn that ends without its Stop
+      wake opens begins, and the tool-batch hook within a turn put the input in
+      the turn's context and confirm it (`hook_delivers`); the other Stop hook
+      does only under plain `--print`, where no watch follows the turn
+      (`hook_transport`). A turn that ends without its Stop
       hooks, as an interrupt does, leaves nothing watching while the session lives
       on, which is why this is the harness with a `nudge`. With its option on,
       Leaf's hooks module (`hooks/claude-code.ts`) keeps the watch in place of
@@ -567,6 +569,8 @@ class CodexHarness(EnvironmentHarness):
         reach Stop without running another tool. A tool hook also proves that
         Codex runs Leaf's hooks for this task (`turn_takes_input`). Stop offers
         only where the turn would continue for it (`hook_transport.stop_continues`).
+        The tool hook offers only input the cursor has not passed, and Stop also an
+        update the session holds no usable reference for (`delivery.deliverable`).
         """
         if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):
             return None, expected
@@ -588,7 +592,7 @@ class CodexHarness(EnvironmentHarness):
                 return None, expected
         from .codex import offer_hook_delivery
 
-        return offer_hook_delivery(self.session, expected)
+        return offer_hook_delivery(self.session, expected, received=event == "Stop")
 
     @classmethod
     def run_ack(cls, delivery_id: str) -> str:
@@ -629,10 +633,10 @@ class PiHarness(EnvironmentHarness):
     it starts the watch (`leaf hook --harness pi --watch`), with the Interrupt
     payload, which closes the turn, after a run that settles without going on
     from there, which is what an Escape does. When the watch wakes an idle
-    session, it calls the prompt hook itself and sends what that returns: a
-    message an extension sends to an idle Pi starts a run without its prompt
-    events (measured at 1.0.2). When it wakes during a run, the run's next turn
-    end calls the prompt hook and adds its context to the session."""
+    session, it sends a notification that starts a run, and the prompt hook
+    completes that run's accepted message before its first model request. When
+    it wakes during a run, the run's next turn end calls the prompt hook and
+    adds its context to the session."""
 
     name = "pi"
     default_agent = "Pi"
@@ -654,12 +658,18 @@ class PiHarness(EnvironmentHarness):
 
     def watches_between_turns(self) -> bool:
         """The extension starts the watch only in a Pi that can start a run, the
-        TUI or RPC mode. Under `--print` the session ends with its run, which
-        ends its claims, so no page is left that a watch would be owed."""
-        return True
+        TUI or RPC mode, and says so as LEAF_PI_WATCH. Under `--print` the
+        session ends with its run, so the Stop hook hands input that arrives as
+        the run ends into it."""
+        return os.environ.get("LEAF_PI_WATCH") == "1"
 
     def process_runs(self) -> bool:
         return pid_alive(int(os.environ["LEAF_PI_PID"]))
+
+    def title_generator(self) -> Callable[[str, Path], dict]:
+        from leaf.thread_titles import pi_title
+
+        return pi_title
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         return "Leaf's Pi extension puts them in your context at your next turn."

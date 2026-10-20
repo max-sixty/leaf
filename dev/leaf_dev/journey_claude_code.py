@@ -33,7 +33,8 @@ The steps, in order:
   its PostToolBatch context carries the exact input
   before another model call, rather than waiting for Stop;
 - `ending`: a comment sent during a shell command wakes the watch, and one sent
-  after that pickup enters the same turn while no watch runs;
+  after that pickup enters the same turn at its next tool boundary while no watch
+  runs;
 - `escape`: Escape during a shell command ends the turn; a comment sent afterwards
   opens a turn that answers it;
 - `woken`: a comment sent during a shell command wakes the watch, and Escape ends
@@ -43,10 +44,11 @@ The steps, in order:
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
-Between steps every comment sent so far has exactly one reply and a pickup, and the
-page's claim names the session with its turn closed. With the hooks module, Escape
-closes the turn, a watch runs after each turn, an interrupted one included, and no
-delivery shows in the terminal; Claude Code drops the prompt that watch wakes the
+Between steps every comment sent so far has exactly one reply and a pickup, the
+page's claim names the session with its turn closed, no Stop hook has continued a
+turn with input, so each turn ends on its own answer, and no delivery shows in the
+terminal. With the hooks module, Escape closes the turn and a watch runs after each
+turn, an interrupted one included; Claude Code drops the prompt that watch wakes the
 stopped session with, so the page nudges it. Without it, what follows an Escape is
 reported rather than required: the watch from before goes on only if it has not
 woken, and otherwise admission's nudge carries the next comment.
@@ -75,7 +77,7 @@ import psutil
 from leaf.delivery import DELIVERY, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.hook_transport import INLINE_OPENING
+from leaf.hook_transport import INLINE_OPENING, POINTED_OPENING
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -277,11 +279,22 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     ) -> None:
         sent.extend(names)
         settled(page, cc.session, {name: user.ids[name] for name in sent})
-        # The hooks module keeps a delivery out of the user's sight; without it,
-        # Claude Code prints the one the Stop hook hands over, whose envelope names
-        # its format.
+        # A watch follows every turn, so no Stop hook continued one with input,
+        # which would have put the reply to it in place of the turn's own answer,
+        # and Claude Code printed no delivery, whose envelope names its format.
         require(
-            not module or DELIVERY.format not in cc.shown(),
+            not any(
+                (attachment := record.get("attachment", {})).get("hookEvent") == "Stop"
+                and any(
+                    content.startswith((INLINE_OPENING, POINTED_OPENING))
+                    for content in attachment.get("content") or []
+                )
+                for record in native_records(cc.home, cc.session)
+            ),
+            f"{name}: a Stop hook continued a turn with input",
+        )
+        require(
+            DELIVERY.format not in cc.shown(),
             f"{name}: a delivery was printed in the terminal",
         )
         # The turn that answers ends with a watch running, under either watcher.
@@ -526,7 +539,7 @@ def answering(
             )
             settled(place.page, cc.session, {})
             require(
-                not hooks_module or DELIVERY.format not in cc.shown(),
+                DELIVERY.format not in cc.shown(),
                 "setup: a delivery was printed in the terminal",
             )
             cc.keep("setup")

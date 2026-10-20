@@ -28,7 +28,7 @@ interface LeafReading {
   changed: boolean;
 }
 
-/** A package's synchronous initial drawing of one host (`initial.js`). */
+/** A package's synchronous initial drawing of one host (`initial/<tag>.js`). */
 type LeafInitialRenderer = (
   host: HTMLElement,
   tools: {

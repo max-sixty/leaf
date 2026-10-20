@@ -36,7 +36,8 @@ under the page lock, that the claim the batch was captured under still owns the
 page and the input is still owed. The agent may pass a ref to a worker, which
 writes as the same author. Once another session claims the page, the ref stops
 working, even after that session releases or ends; a restart of the owning
-session's process keeps it working.
+session's process keeps it working. An update still owed then reaches the new
+owner in its next delivery, with a ref of its own (`deliverable`).
 """
 
 import re
@@ -317,9 +318,8 @@ def batch_refs(batch: dict) -> dict[str, dict]:
 
 def reads_reference(reference: str) -> bool:
     """Whether this Leaf reads the delivery that emitted `reference`. It may not
-    read one another Leaf wrote (`state.Record`), so the hooks treat the update it
-    owes an answer as having no usable reference and capture it again
-    (`hook_transport.read_plans`)."""
+    read one another Leaf wrote (`state.Record`), so the update it owes an answer
+    has no usable reference and is delivered again (`unreferenced`)."""
     return stored_delivery(reference.partition(":")[0]) is not None
 
 
@@ -498,8 +498,7 @@ def read_delivery(delivery_id: str) -> dict:
         raise Refused(
             f"delivery {delivery_id!r} was written by another Leaf, in a form this "
             f"one does not read ({DELIVERY.format!r}). The updates it carried that "
-            "still owe an answer are captured again in a delivery this Leaf writes, "
-            "which the session's next prompt or Stop names."
+            "still owe an answer come again in the page's next delivery."
         )
     if payload is None:
         raise Refused(f"unknown delivery {delivery_id!r}")
@@ -643,26 +642,29 @@ def record_pickup(
         for event in pickups
         for event_id in event["events"]
     }
-    # Each input and claim some recorded ref was captured under.
+    # The newest ref recorded for each input under each claim, the one `workflows`
+    # binds.
     referenced = {
-        (event_id, ref["claim"])
+        (event_id, ref["claim"]): ref["ref"]
         for event in pickups
         for event_id, ref in event.get("refs", {}).items()
     }
     refs = refs or {}
-    # A transition already on record is recorded again only to give an input its
-    # first ref under a claim, as when a recovery reading re-delivers debt an older
-    # receipt, or an earlier owner's, left without one the page's owner can use,
-    # and the prompt has already re-presented it.
+
+    def usable(event_id: str) -> bool:
+        held = referenced.get((event_id, refs[event_id]["claim"]))
+        return held is not None and reads_reference(held)
+
+    # A transition already on record is recorded again only to give an input a ref
+    # its claim can use, as when a delivery hands the page's owner debt an older
+    # receipt, or an earlier owner's, left without one (`unreferenced`), and the
+    # prompt has already re-presented it. Otherwise that debt stays deliverable.
     fresh = list(
         dict.fromkeys(
             event_id
             for event_id in wanted
             if (event_id, phase, session, turn) not in picked
-            or (
-                event_id in refs
-                and (event_id, refs[event_id]["claim"]) not in referenced
-            )
+            or (event_id in refs and not usable(event_id))
         )
     )
     if not fresh:
@@ -686,21 +688,66 @@ def record_pickup(
     return record
 
 
-def deliverable(page: PageTransaction) -> list[dict]:
-    """The page's unacknowledged input a session of this Leaf may be handed: none on
-    a page whose log this Leaf may not write (`event_contracts.write_refusal`), where
-    `receive_batch` refuses its receipt. Handed over anyway, it stayed pending, so a
-    watch woke its session on every pass and a Codex watch opened a turn for it each
-    time. Its session's hooks and commands re-vendor such a page before they read it
-    (`vendoring.renew_layer`), so input waits here only on a page whose re-vendor was
-    refused, and the hooks name why (`hook_transport.remedies`). A page with nothing pending
-    is answered without loading its layer, since Codex asks after every tool call."""
+def deliverable(
+    page: PageTransaction,
+    obligations: list[dict] | None = None,
+    *,
+    received: bool = True,
+) -> list[dict]:
+    """The input a session of this Leaf may hand the page's owner, in log order: what
+    the cursor has not passed, and each update it has passed that still owes an
+    answer the owner holds no usable `answer.ref` for (`unreferenced`, which reads
+    `obligations` where the caller has already folded the page).
+
+    The second kind is how a page that changed hands reaches its new owner: an
+    update the previous owner received but did not answer advanced the cursor, and
+    its ref names the previous claim, which `post_reply` refuses. So every transport
+    hands it to the new owner as it hands new input, and the receipt records the
+    owner's ref, after which it is no longer deliverable.
+
+    None on a page whose log this Leaf may not write
+    (`event_contracts.write_refusal`), where `receive_batch` refuses its receipt.
+    Handed over anyway, it stayed pending, so a watch woke its session on every pass
+    and a Codex watch opened a turn for it each time. Its session's hooks and
+    commands re-vendor such a page before they read it (`vendoring.renew_layer`), so
+    input waits here only on a page whose re-vendor was refused, and the hooks name
+    why (`hook_transport.remedies`).
+
+    Which updates are owed is the page's fold, whose page model costs about 70 ms
+    of CPU to import. Codex's tool hook runs after every tool call, so it passes
+    `received=False` and hands over only what the cursor has not passed, answered
+    without loading the page's layer where nothing is pending; its Stop hook hands
+    over the rest (`harness.CodexHarness.offer_at_step`)."""
     pending = unacknowledged(page.events, page.cursor)
-    if not pending:
+    owed = unreferenced(page, obligations) if received else []
+    if not pending and not owed:
         return []
     from .event_contracts import write_refusal
 
-    return [] if write_refusal(page.page_dir) else pending
+    if write_refusal(page.page_dir):
+        return []
+    return sorted([*owed, *pending], key=lambda event: event["seq"])
+
+
+def unreferenced(
+    page: PageTransaction, obligations: list[dict] | None = None
+) -> list[dict]:
+    """The updates the page's cursor has passed that still owe an answer its owner
+    holds no usable `answer.ref` for: received under another session's claim before
+    the page changed hands, received while they owed nothing, or referenced by a
+    delivery this Leaf cannot read (`reads_reference`). `obligations` is the
+    page's fold where the caller has one; otherwise this folds the page."""
+    if obligations is None:
+        from .served_state.context import read_page
+
+        obligations = read_page(page.page_dir, page.events).work.obligations
+    by_id = {event["id"]: event for event in page.events}
+    return [
+        by_id[item["input"]]
+        for item in obligations
+        if item["seq"] <= page.cursor
+        and ("ref" not in item["answer"] or not reads_reference(item["answer"]["ref"]))
+    ]
 
 
 class ReceiptRefused(Refused):

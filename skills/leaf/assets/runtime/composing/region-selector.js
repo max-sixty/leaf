@@ -3,19 +3,29 @@
  * The page command owner supplies input and registers this controller's rows with the
  * shared keyboard and the floating panel's controls. The overlay only paints: it never intercepts
  * hit testing or introduces a modal. Its outline leaves the selected content clear;
- * instructions and errors belong to the shared controls and notice line. Pointer
- * drags set a rectangle; arrows move it and
- * Shift+arrows resize it, so capturing never requires a drag. The selected pixels stay
- * in viewport coordinates until confirmation, when `pageImage` draws that
- * document-coordinate crop, excluding the selector and the floating panel. The crop
- * is approximate browser rendering, not privileged access to screen pixels.
+ * instructions and errors belong to the shared controls and notice line.
  *
- * The closest containing semantic target at the rectangle's center anchors its comment.
- * A canceled or superseded capture cannot create an attachment. Failed rasterization
- * leaves the rectangle available to retry; a part that could not be drawn attaches the
- * image anyway, with a notice naming what may be missing. Image upload and draft
- * ownership remain the composition input's, including its protection against a draft
- * changing mid-upload.
+ * A pointer drag draws a rectangle, and lifting the drag attaches it: the drag is a
+ * pointer's whole gesture, so the panel's row offers no Attach step, and the
+ * attachment's ✕ in the composer takes back a bad one, as a drawing's does. The user
+ * chose this over drawing the area and then pressing Attach, which made one intent two
+ * gestures; the cost is that neither a finger nor a mouse can adjust the area before it
+ * attaches, only drag it again. A press that travels less than `MIN_SIZE` along both
+ * axes is a tap, not a drag. A tap, or a pointer the browser cancels, attaches nothing
+ * and puts back the rectangle that stood before the press, with capture still standing
+ * so the user can drag again or leave by its ✕. Arrows move the rectangle,
+ * Shift+arrows resize it and Enter attaches it, so capturing never requires a drag.
+ *
+ * The selected pixels stay in viewport coordinates until confirmation, when
+ * `pageImage` draws that document-coordinate crop, excluding the selector and the
+ * floating panel. The crop is approximate browser rendering, not privileged access to
+ * screen pixels. The closest containing semantic target at the rectangle's center
+ * anchors its comment. A canceled or superseded capture cannot create an attachment.
+ * Failed rasterization keeps capture standing over the same rectangle: Enter retries
+ * it, and a pointer drags again. A part that could not be drawn attaches the image
+ * anyway, with a notice naming what may be missing. Image upload and draft ownership
+ * remain the composition input's, including its protection against a draft changing
+ * mid-upload.
  */
 import { el } from "../widget-elements.js";
 import { paintKeys } from "../keyboard/scopes.js";
@@ -190,7 +200,7 @@ export function createRegionSelector({
     if (ended) return false;
     if (event.type === "pointerdown") {
       if (busy || drag || !event.isPrimary || event.button !== 0) return false;
-      drag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, from: box };
       box = { x: drag.x, y: drag.y, width: MIN_SIZE, height: MIN_SIZE };
       fit();
       return true;
@@ -198,9 +208,15 @@ export function createRegionSelector({
     if (!drag || drag.id !== event.pointerId) return false;
     if (event.type === "pointermove") dragTo(event);
     else if (event.type === "pointerup" || event.type === "pointercancel") {
-      if (event.type === "pointerup") dragTo(event);
+      const drew =
+        event.type === "pointerup" &&
+        (Math.abs(event.clientX - drag.x) >= MIN_SIZE ||
+          Math.abs(event.clientY - drag.y) >= MIN_SIZE);
+      if (drew) dragTo(event);
+      else box = drag.from;
       drag = null;
-      paintKeys();
+      if (drew) capture();
+      else fit();
     } else return false;
     return true;
   }
@@ -212,7 +228,8 @@ export function createRegionSelector({
       id: "capture.region.attach",
       keys: ["Enter"],
       title: "Attach capture",
-      touch: "Attach capture",
+      // Lifting a pointer's drag attaches the area it drew.
+      touch: false,
       when: () => !ended && !busy && !drag,
       run: capture,
     },

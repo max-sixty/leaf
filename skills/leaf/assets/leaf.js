@@ -238,6 +238,9 @@ const anchorPaint = annotationRenderer?.createAnchorPaint({
   targetPaint: visualMarkPaint,
   pointer: pointerAt,
   standingThreadId,
+  rowThread: () => floatingPanel?.hoveredThread() ?? null,
+  threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
+  marginThread: () => app?.overlay?.pointedThread() ?? null,
 });
 const drawingPaint = createDrawingInk({
   drawings: () => [

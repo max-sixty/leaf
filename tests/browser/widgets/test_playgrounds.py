@@ -511,7 +511,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     stage, with the controls and the instruction they write in a rail beside it. While
     the root workspace fills the window each region scrolls on its own, the controls
     under their fixed presets and the instruction above its fixed actions; where it
-    doesn't, the page scrolls, and a narrow one stacks the regions. Either way each is a
+    doesn't, the page scrolls the stage while the rail beside it stays in the window and
+    scrolls what it holds, and a narrow one stacks the regions. Either way each is a
     named reading region."""
     source = ROOT / "examples" / "notification-playground.html"
     page = open_page(browser, serve(source))
@@ -539,7 +540,9 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
           leaf.readingPosture(region(body))),
         scrollers: [controls, preview, instruction].map((body) =>
           leaf.scrollerFor(body) === body ? 'own' :
-          leaf.scrollerFor(body) === document.scrollingElement ? 'page' : 'other'),
+          leaf.scrollerFor(body) === document.scrollingElement ? 'page' :
+          leaf.scrollerFor(body) === playground.querySelector('.lf-playground-rail')
+            ? 'rail' : 'other'),
         sideBySide: Math.abs(previewBox.top - controlsBox.top) < 1
           && controlsBox.left >= previewBox.right
           && Math.abs(instructionBox.left - controlsBox.left) < 1
@@ -668,15 +671,18 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     for width, height in [(1100, 300), (700, 500), (500, 900)]:
         resized(page, width, height)
         flow = page.evaluate(reading)
+        # Too short to hold the regions is not too narrow to set them side by side.
+        assert flow["stacked"] is (width < 1100), (width, height, flow)
+        # Beside the stage the rail stays in the window and scrolls what it holds;
+        # stacked, it flows with the page.
+        rail = "page" if flow["stacked"] else "rail"
         assert flow == {
             **flow,
             "postures": ["flow", "flow", "flow"],
-            "scrollers": ["page", "page", "page"],
+            "scrollers": [rail, "page", rail],
             "pageScrolls": True,
             "obligationDisplay": "block",
         }, (width, height)
-        # Too short to hold the regions is not too narrow to set them side by side.
-        assert flow["stacked"] is (width < 1100), (width, height, flow)
 
 
 def test_notification_playground_admits_only_its_exact_page_configuration(
@@ -901,6 +907,41 @@ def test_a_playground_control_written_in_the_preview_stands_beside_its_item(
         playground.get_by_role("button", name="Apply these settings").click()
     action = events_model.read_events(serve.page_dir)[-1]
     assert action["detail"]["values"]["latency-route"] == "ticket"
+
+
+def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
+    """The alert playground's stage, an alert per section with its controls beside it,
+    runs past the window. While the user works down it, the rail beside it, the page
+    budget, the instruction and the submit button, stays in the window, so the user
+    sends what they set where they set it. Stacked at phone width the rail flows after
+    the stage, as a sidebar page's stacked track does."""
+    page = open_page(browser, serve(ROOT / "examples" / "alert-thresholds.html"))
+    resized(page, 1024, 768)
+    playground = page.locator("#alert-playground")
+    stage = playground.locator(".lf-playground-preview-region")
+    budget = playground.get_by_role("slider", name="On-call page budget")
+    submit = playground.get_by_role("button", name="Apply these settings")
+    # The window the page shows ends where Leaf's floating row begins.
+    floor = page.locator(".lf-fp-row").bounding_box()["y"]
+
+    def within_window(locator):
+        box = locator.bounding_box()
+        return 0 <= box["y"] and box["y"] + box["height"] <= floor
+
+    assert stage.bounding_box()["height"] > 2 * 768
+    last = playground.locator("lf-playground-preview lf-playground-control").last
+    last.scroll_into_view_if_needed()
+    last.get_by_role("radio").last.click()
+    assert stage.bounding_box()["y"] < -768
+    assert within_window(budget) and within_window(submit)
+    budget.press("ArrowRight")
+    assert within_window(submit)
+
+    resized(page, 390, 844)
+    page.evaluate("document.scrollingElement.scrollTop = 0")
+    rail = playground.locator(".lf-playground-controls-region").bounding_box()
+    shown = stage.bounding_box()
+    assert rail["y"] >= shown["y"] + shown["height"]
 
 
 def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serve):

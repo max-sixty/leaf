@@ -829,14 +829,14 @@ def capture_menu(page: Page) -> None:
 
 
 def capture_area(page: Page) -> None:
-    """Select a page area, with its confirmation and cancellation controls visible."""
+    """Draw a page area, held before the lift that would attach it, with the way out
+    of area capture in the panel's row."""
     page.locator("#plan-context").scroll_into_view_if_needed()
     capture_menu(page)
     page.locator(".lf-region-selection").wait_for(state="visible")
     page.mouse.move(100, 200)
     page.mouse.down()
     page.mouse.move(360, 350, steps=4)
-    page.mouse.up()
 
 
 def capture_small_drag(page: Page) -> None:
@@ -915,6 +915,14 @@ def playground_controls(page: Page) -> None:
     control.focus()
     control.press("ArrowRight")
     page.locator(".lf-playground-controls").scroll_into_view_if_needed()
+
+
+def playground_tall_stage(page: Page) -> None:
+    """The last alert's controls, pressed far down a stage taller than the window."""
+    control = page.locator("lf-playground-preview lf-playground-control").last
+    control.scroll_into_view_if_needed()
+    control.get_by_role("radio").last.click()
+    page.mouse.move(0, 0)
 
 
 def visual_review_menu(page: Page) -> None:
@@ -1315,6 +1323,7 @@ STATES = (
         touch=True,
     ),
     State("playground-controls", "notification-playground", playground_controls),
+    State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
     State(
         "playground-controls-phone",
         "notification-playground",
@@ -1690,6 +1699,7 @@ STATES = (
     State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),
+    State("sort-narrow", "rust-sort", at_rest, viewport=(720, 900)),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
     State("sort-aim-cut", "rust-sort", aim_cut_by_pane),

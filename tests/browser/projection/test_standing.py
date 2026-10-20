@@ -760,6 +760,22 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     expect(page.locator("#store-db")).to_have_attribute("chosen", "")
 
 
+def test_a_finger_opening_a_thread_about_an_ask_stands_in_its_view(browser, serve):
+    """A finger opening a thread reads it first, so no keyboard rises: the view holds
+    focus rather than the reply, and the ask it is about wears the ring. The view held
+    nothing under a finger, so the ask stayed dark there."""
+    url = serve(STORE_ASK_PAGE)
+    seed_thread_about_the_ask(serve.page_dir, "t-open")
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=True
+    )
+    page = open_page(browser, url, context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+    view = open_panel_thread(page, "t-open")
+    expect(view).to_be_focused()
+    expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
+
+
 def test_an_on_me_card_stands_at_its_ask(browser, serve):
     """On me's card for an ask stands at the ask, as an On row did: standing on the
     card rings the ask, and its digits answer it there."""

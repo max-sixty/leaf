@@ -1001,10 +1001,10 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     reply's obligation is standing there whether or not it is answered: the thread leads to
     its page obligation only from a node inside no obligation, so a user back on the answered option
     does not have the page obligation's ring and digits. A contributed control for a widget in
-    the reply stands nowhere, since its widget is chrome in no obligation, so `m` from it
-    starts where the reader is: the caret they left in the thread's reply, which stands at
-    the page obligation the thread is about, so the walk steps on from that one, to the
-    question in the reply, rather than from behind every obligation on the page."""
+    the reply stands where that widget does: in no obligation, it stands where the thread's
+    view does, at the page obligation the thread is about, which wears the ring and takes
+    the digits, and `m` from it steps on from that obligation to the question in the reply
+    rather than from behind every obligation on the page."""
     url = serve(
         OBLIGATION_THREAD_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
@@ -1053,10 +1053,11 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     contributed.focus()
     assert (
         contributed.evaluate(
-            "async (control) => (await window.__lfCheckApi()).placeOf(control)"
+            "async (control) => (await window.__lfCheckApi()).placeOf(control)?.id"
         )
-        is None
-    ), "a control on a widget in a reply stands somewhere"
+        == "cache-ask"
+    ), "a control on a widget in a reply does not stand where its thread is about"
+    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("m")
     expect(page.locator("#follow-ask")).to_be_focused()
     option = page.locator("#follow-yes")

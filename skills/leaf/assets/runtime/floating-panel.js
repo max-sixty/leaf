@@ -1365,12 +1365,12 @@ export function createFloatingPanel({
     // none, or itself where it holds neither, as an empty Threads does; opened from
     // anywhere else, as `g T` from the page or a pointer, it holds focus itself.
     if (route.view === "thread") {
-      // A finger opening a thread reads it first; the keyboard rises when they tap in.
-      if (coarse()) return;
+      // A finger opening a thread reads it first, standing in the view, whose box
+      // raises no keyboard; the keyboard rises when they tap in.
       const intent = retainUserIntent();
       void Promise.resolve(drawn).then(() => {
         const at = shownView();
-        const target = at && (viewParts.reply(at) ?? at);
+        const target = at && ((!coarse() && viewParts.reply(at)) || at);
         if (target && trail.at(-1) === route && intent())
           focusDestination(target, "move");
       });
@@ -2392,23 +2392,20 @@ export function createFloatingPanel({
   // A thread's view, its head and its reply stand at what the thread is about, and an On
   // card at the obligation it shows (standing-target.js, `declareSide`), as the side
   // panel's thread cards and On rows did. So an ask a thread or card in the panel is
-  // about wears its ring and takes its digits from there, whether the thread is open or
-  // resolved, and `m`, `t` and `c` step from the ask. What the view holds answers
-  // first: an ask in a reply stands for itself, and a margin control on a widget in a
-  // reply stands where its own side says.
-  declareSide(
-    (node) => {
-      const part = [openView(), head, replyOutlet].find((at) => at && under(node, at));
-      const thread = part && openIn(part);
-      if (thread) return placedAt(thread.id)?.place ?? null;
-      const id = under(node, stage)
-        ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation
-        : null;
-      const record = id && readObligations().all.find((item) => item.id === id);
-      return record ? obligationPlace(record).node : null;
-    },
-    { holdsOthers: true },
-  );
+  // about wears its ring and takes its digits there, whether the thread is open or
+  // resolved. In a thread's view the thread's own keys stay its own, so only `m`, where
+  // the thread is not a stop of its own, steps from the ask; from an On card `m`, `t`,
+  // `c` and `e` all start at its obligation. An ask in a reply stands for itself.
+  declareSide((node) => {
+    const part = [openView(), head, replyOutlet].find((at) => at && under(node, at));
+    const thread = part && openIn(part);
+    if (thread) return placedAt(thread.id)?.place ?? null;
+    const id = under(node, stage)
+      ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation
+      : null;
+    const record = id && readObligations().all.find((item) => item.id === id);
+    return record ? obligationPlace(record).node : null;
+  });
 
   // The version's approval is answered here: arriving at it, as `m` and an On me row
   // do, opens this view on its card and stands on its

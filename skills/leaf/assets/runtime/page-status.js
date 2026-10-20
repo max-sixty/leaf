@@ -136,8 +136,8 @@ function paintTab() {
 let saidKind;
 let saidActionableWork;
 // A refused key, or a reading the page could not apply, is an error the user should see
-// wherever they are (errors.js), held while the status says it, since only the user ends
-// it. An unreachable server is not: the page reconnects on its own, so the status
+// wherever they are (errors.js), held while the status says it, since it asks the user to
+// act. An unreachable server is not: the page reconnects on its own, so the status
 // reports it in its own face, and a change the user sends meanwhile holds its own error
 // (delivery.js). The status announces a change of kind in its own words already.
 const holdBlocked = holdingError({ announce: false });

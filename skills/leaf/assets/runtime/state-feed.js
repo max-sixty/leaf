@@ -9,7 +9,7 @@
    A failed fetch is an offline answer: the authored page and local comments remain
    useful, while Decisions await the complete reading their actions need. Fixed status
    chrome reports the loss; a request still in flight remains loading. A successful
-   response with malformed state is not an offline answer. Parsing or rendering errors pass to the recovery boundary and leave
+   response with malformed state is not an offline answer, nor is a live server's error. Parsing or rendering errors pass to the recovery boundary and leave
    the candidate sequence unresolved; authored content stays readable while
    state-dependent controls remain unavailable. */
 
@@ -60,8 +60,16 @@ async function readState(bound) {
     // A refusal is not state: the server answers a missing key with error-shaped JSON
     // at 401. A live server refusing the key and a dead one both leave the page
     // unreachable from here; the page status says which, since only the refused key has a
-    // recourse the user takes (`runtime.keyRefused`).
-    if (!res.ok) return null;
+    // recourse the user takes (`runtime.keyRefused`). A gateway answering for a server
+    // behind it that isn't there, such as the website's edge while a container starts,
+    // is no answer either. Any other failure is the live server's own, which names
+    // itself (http.py, `_answer`), so it reaches the recovery boundary rather than
+    // reading as a server that is offline.
+    if (!res.ok) {
+      if (res.status === 401 || NO_SERVER_BEHIND.has(res.status)) return null;
+      const answer = await res.json().catch(() => null);
+      throw new Error(answer?.error ?? `state read: HTTP ${res.status}`);
+    }
     try {
       return completeData(await res.json(), held);
     } catch (error) {
@@ -392,3 +400,6 @@ const FIRST_READ_TIMEOUT_MS = 120_000;
 // rather than the gate's. On expiry readState produces the same offline answer as any
 // lost request, and the shared retry clock asks again.
 const STATE_READ_TIMEOUT_MS = 10_000;
+
+// Statuses a gateway sends when no server stands behind it.
+const NO_SERVER_BEHIND = new Set([502, 503, 504]);

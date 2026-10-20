@@ -5005,7 +5005,11 @@ async function readState(bound) {
       return null;
     }
     if (!admitResponse(res)) return null;
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (res.status === 401 || NO_SERVER_BEHIND.has(res.status)) return null;
+      const answer = await res.json().catch(() => null);
+      throw new Error(answer?.error ?? `state read: HTTP ${res.status}`);
+    }
     try {
       return completeData(await res.json(), held);
     } catch (error) {
@@ -5223,6 +5227,7 @@ var TICK_MS = 2e3;
 var LOOK_MS = 250;
 var FIRST_READ_TIMEOUT_MS = 12e4;
 var STATE_READ_TIMEOUT_MS = 1e4;
+var NO_SERVER_BEHIND = /* @__PURE__ */ new Set([502, 503, 504]);
 
 // runtime/pending/state.js
 function createPendingLedger({ newAttempt, enqueue }) {
@@ -5397,7 +5402,7 @@ function createDelivery({
       if (sent.accepted) return { accepted: sent.accepted };
       if (sent.error) {
         await retry(
-          runtime.keyRefused ? "Key refused \u2014 open Leaf's link in a new tab and the change will send" : "Connection lost \u2014 retrying the change\u2026"
+          runtime.keyRefused ? "Key refused \u2014 open Leaf's link in a new tab and the change will send" : "Connection lost \u2014 keep this page open while it retries"
         );
         continue;
       }

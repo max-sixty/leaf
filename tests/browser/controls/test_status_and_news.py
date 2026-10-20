@@ -104,9 +104,7 @@ def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, se
         # reading to colour, and the field says it as a status rather than an error.
         expect(live).to_contain_text("Server offline")
         expect(page.locator(".lf-fp-leaf .lf-dot")).to_have_class("lf-dot")
-        expect(panel_field(page)).to_have_attribute(
-            "data-says", "status"
-        )
+        expect(panel_field(page)).to_have_attribute("data-says", "status")
         # The server coming back to refuse this tab's key asks something new of the
         # user, which only they can end, so it is heard and the leaf says it.
         page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))

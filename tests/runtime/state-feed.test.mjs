@@ -205,3 +205,15 @@ test("a read keeps the data it named when the answer leaves its sources out", as
   const { state: answer } = await beginRead();
   assert.deepEqual(answer.data, held);
 });
+
+test("a live server's error is a fault, while a gateway with nothing behind it is offline", async (t) => {
+  t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);
+  let answer;
+  t.mock.method(globalThis, "fetch", async () => answer);
+  answer = Response.json({ error: "projection failed" }, { status: 500 });
+  assert.equal((await beginRead()).error.message, "projection failed");
+  for (const status of [401, 502, 503, 504]) {
+    answer = new Response("", { status });
+    assert.deepEqual(await beginRead(), { state: null }, `HTTP ${status}`);
+  }
+});

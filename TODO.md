@@ -317,8 +317,10 @@ that changes size after first paint, with its cause.
   document (`exporting.py`). A page that opens with a 20-line document first paints
   before its state answer arrives, at about 200 ms against 300 ms in `leaf-dev probe`,
   so the document draws later and pushes the paragraph below it down 470px at 1440px
-  wide and 850px at 390px (a 0.06 layout shift at each). Choosing a fix is Max's
-  decision:
+  wide and 850px at 390px (a 0.06 layout shift at each). A `preview` document's
+  height doesn't depend on its value (caption, tab strip and a `--lf-bound`
+  viewport), so an initial renderer can paint it final under any of the fixes below.
+  Choosing one is Max's decision:
   - serve each value the document binds inside the document, as an export already
     does, and draw it unhighlighted in Pierre's line geometry from an initial
     renderer, so the box is final before highlighting loads;
@@ -327,9 +329,6 @@ that changes size after first paint, with its cause.
   - give every text document a fixed height that scrolls inside, as a `preview`
     document already has, or open it closed behind a one-line summary, as the
     activity feed opens on a gesture and holds later growth with `HeldReading`.
-
-  A `preview` document's height doesn't depend on its value (caption, tab strip and a
-  `--lf-bound` viewport), so an initial renderer can paint it final under any choice.
 - **Draw the contents map's spine in its first frame.** `lf-toc`'s initial drawing
   (`initial/lf-toc.js`) gives it its final box and rows, but in the margin its
   disclosure stays closed until the module opens it, so the spine and its markers

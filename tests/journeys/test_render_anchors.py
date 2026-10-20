@@ -349,8 +349,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     # The draft's control is its own (`lf-draft.js`); these are the code blocks'.
-    expect(page.locator("#draft > .lf-code-copy")).to_have_count(1)
-    controls = page.locator(".lf-code-copy:not(#draft > *)")
+    expect(page.locator("#draft .lf-draft-tools > .lf-code-copy")).to_have_count(1)
+    controls = page.locator(".lf-code-copy:not(#draft *)")
     expect(controls).to_have_count(3)
     document_controls = page.locator(".lf-chrome .lf-code-copy")
     expect(document_controls).to_have_count(2)

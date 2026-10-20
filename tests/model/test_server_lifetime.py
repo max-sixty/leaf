@@ -546,6 +546,8 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
     assert reading["lifetime"] == "persistent"
     assert read_record(page_dir / "service.json")["lifetime"] == "persistent"
     assert service_model.page_claim(page_dir) is None
+    assert hosting_model.cmd_stop(page_dir) is True
+    assert process.wait(timeout=STATED_TIMEOUT) == 0
 
 
 def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn):

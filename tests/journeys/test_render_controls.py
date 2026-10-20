@@ -1186,12 +1186,16 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
     # A real child disclosure keeps its focused toggle in its own conversation.
     page.locator("#show-panel").click()
     expect(page.locator("#completed")).to_have_text("2")
-    expand = child.get_by_role("button", name="Show 1 progress message", exact=True)
+    expand = child.locator(".lf-fp-view").get_by_role(
+        "button", name="Show 1 progress message", exact=True
+    )
     expand.scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
     expand.focus()
     expand.press("Enter")
-    collapse = child.get_by_role("button", name="Hide 1 progress message", exact=True)
+    collapse = child.locator(".lf-fp-view").get_by_role(
+        "button", name="Hide 1 progress message", exact=True
+    )
     expect(collapse).to_be_focused()
     expect(collapse).to_be_in_viewport()
     rendered(child)

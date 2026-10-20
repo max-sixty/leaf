@@ -168,23 +168,56 @@ against 105. A card move's reading fell from 151–154 ms to 116–121 in two fi
 invocations. A fourth comment invocation, at load 17–26, could not tell the arms
 apart.
 
-What remains, from `leaf-dev profile corpus comment` and the server's own timing:
+Admission read the page's obligations before and after the append, to decide whether
+the event needs attention (`event_contracts.admitted_event`), and the answer's state
+read them a third time. Most of each reading went to finding which widgets can ask, a
+question of the document and its vocabulary alone. A stored revision's reading now
+holds that answer across requests (`SourceReading.obligation_sources`,
+`obligations.ObligationSources`), so each reading takes only what the log decides. In
+process, a corpus comment's POST and its answer's state took 22 ms against 44, median
+of nine.
 
-- **The POST's answer.** In one timed comment the server spent 70 ms on the event
-  while fifteen of the corpus page's sample children asked for news beside it. Each
-  `lf-sample` child asks `/api/news` every 250 ms (`LOOK_MS`, `state-feed.js`), each
-  behind a CORS preflight; a news answer takes 3–8 ms of Python alone and 12–40 ms in
-  that burst. The burst came as the press's long task ended, which suggests that
-  task held all the children's timers, so they fire together and share the
-  interpreter with the event; that is not yet confirmed. Admission also reads the
-  page's obligations three times: before and after the append, to decide whether the
-  event needs attention (`event_contracts.admitted_event`), and again for the state
-  the answer carries. In a cProfile of one comment, `page_obligation_readings` took
-  37 of 62 ms.
-- **Applying the answer**, about 70 ms profiled. The thread presentation reads its
-  targets twice, before and after preparation (`readTargets`,
-  `thread/presentation.js`), and the second read forces layout in `targetParts`
-  (11 ms). The margin's annotations render twice: once when the thread presentation
-  commits and once from their own watcher, since the comment moved the obligations
-  and workflows that watcher reads (8 and 12 ms). Adopting and publishing the
-  reading takes 12 ms, and `lf-activity` renders its new row's Markdown in 5 ms.
+`uv run leaf-dev bench-latency --page corpus --transition comment`, ten paired runs
+over two invocations at load 9–17 (18 cores): the POST answered in 41 ms
+(interquartile 35–79) against the merge base's 57 (46–87), but the server's reading
+reached the screen in 169 ms against 168. Sent stays put because the server's time is off its critical path.
+The answer arrives about 45 ms after the key, while the main thread is still running
+the press (about 52 ms of script in its long frame) and the frame after it (about
+35 ms, the pass `bundle-sample-visibility.js` names). Applying the answer then takes
+about 62 ms of script. What holds the main thread:
+
+- **The press and its frame**, about 87 ms of script before the answer can be
+  applied.
+- **The margin's annotations draw twice per thread pass**: once from their own
+  watcher, which waits only for the projection's chrome and so draws while the
+  thread presentation waits on its preparation, and again when that presentation
+  commits. Profiled, the two took 22 ms of applying the answer. Making the watcher
+  wait for the thread region too, with the commit asking the watcher for its paint,
+  drew the margin once (11 ms profiled), but the bench could not tell it apart from
+  the base, and it broke two orderings that the inline draw in the commit had held
+  without stating them. Reply continuity (`continueReplies`, `thread/focus.js`)
+  runs after the commit and expects every surface, the margin's cards included, to
+  be drawn, so a user on a thread that moved between its margin card and its seat
+  lost their place (`tests/browser/threads/test_seated_threads.py`, seven cases). And
+  the thread presentation has no fail-soft proof, so a failed or held thread pass
+  would withhold every margin paint, Questions and ages included. A fix needs the
+  continuity step to wait for the margin's paint and the margin to stop depending
+  on the thread region committing.
+- **Two publications per answer.** Adopting the reading publishes, then accounting
+  for the pending gesture's receipt (`accountPending`, `application.js`) publishes
+  again, which runs a third thread pass and margin paint (about 6 ms profiled).
+- **Targets read twice.** The thread presentation reads its targets before and after
+  preparation (`readTargets`, `thread/presentation.js`). The second read is not a
+  copy of the first: preparation and the thread surfaces have written to the
+  document since, and it measures the layout they left (about 13 ms profiled,
+  mostly forced layout in `targetParts`). The first read's paint (about 5 ms) never
+  reaches the screen when preparation settles before the frame, as it does here.
+  Deferring that paint to the frame would drop it, but it would draw the user's own
+  comment before the next frame rather than in the task that handles it, which root
+  `AGENTS.md`, "Responsiveness", asks for; that trade is the user's to make.
+
+The server's answer also still reads and hashes every data source (`read_data`),
+about half of the POST's 22 ms in process, and fifteen of the corpus page's sample
+children ask `/api/news` every 250 ms (`LOOK_MS`, `state-feed.js`), each behind a
+CORS preflight. In one timed comment those news answers took 12–40 ms each beside
+the event. Neither moves Sent while the main thread holds it.

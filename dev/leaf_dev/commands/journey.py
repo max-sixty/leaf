@@ -1122,9 +1122,11 @@ class BrowserEnd:
             f"{url} reached revision {shown} but did not finish presenting it, "
             f"with its status reading ‘{status}’",
         )
+        # `inner_text` applies the theme's text-transform, so a release recorded in
+        # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
         rendered = page.locator("main").inner_text()
         check(
-            marker in rendered,
+            marker.casefold() in rendered.casefold(),
             f"{url} rendered a page that never names ‘{marker}’, which the agent's "
             "published revision did",
         )

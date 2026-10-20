@@ -42,7 +42,7 @@ from leaf.validation.admission import (
     revision_publication,
     thread_obligation,
 )
-from leaf.validation.source import SourceCheck, source_advice
+from leaf.validation.source import SourceCheck, moved_threads, source_advice
 
 
 def _messages(events: list) -> dict[str, dict]:
@@ -456,11 +456,8 @@ def _revision_advice(page_dir: Path, published: _Published) -> list[Finding]:
     Progress carries no revision: it cannot include markup or move a thread.
 
     A successful reply publishes the source it checked, so a revision that answers a
-    message needs no check before its reply. The server may have activated the
-    revision on save, before the reply, so the threads it moved are read from the
-    log's `reanchor` events, each where it stands now, as well as from the moves
-    this reply's own activation makes (`checked.advice`). A thread since resolved,
-    or one the reply moves itself, is left out."""
+    message needs no check before its reply. It names the threads those revisions
+    moved (`validation.source.moved_threads`) other than one it moves itself."""
     events, checked = published.events, published.checked
     last = max(
         (
@@ -474,28 +471,10 @@ def _revision_advice(page_dir: Path, published: _Published) -> list[Finding]:
     )
     if published.revision <= last:
         return []
-    activated = {finding.values["thread"]: finding for finding in checked.advice}
-    threads = build_threads(events, active_enclosing(page_dir))
-    recorded = [
-        Finding(
-            "relocated-anchor",
-            values={
-                "thread": thread,
-                "section": (threads[thread]["anchor"] or {}).get("section"),
-            },
-            severity="advice",
-        )
-        for thread in dict.fromkeys(
-            event["thread"]
-            for event in events
-            if event["kind"] == "reanchor" and event["revision"] > last
-        )
-        if thread not in activated and not threads[thread]["resolved"]
-    ]
     return [
         *(
             finding
-            for finding in [*recorded, *activated.values()]
+            for finding in moved_threads(page_dir, events, last, checked)
             if finding.values["thread"] != published.moving_thread
         ),
         *source_advice(page_dir, checked),

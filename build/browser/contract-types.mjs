@@ -225,23 +225,36 @@ export async function protocolSchemas(root) {
     events: { ownership: $events.ownership, kinds: $events.kinds },
     served: await read("skills/leaf/scripts/leaf/served_state/state.schema.json"),
     verb: references["leaf:verb"],
-    // The composer's draft beside the `state.Record`s: its format guards its drawing.
+    // The composer's draft (`$events.draft`) beside the `state.Record`s.
     records: {
       ...records,
-      draft: { since: $events.draft_since, schema: draftSchema($events) },
+      draft: {
+        since: $events.draft.since,
+        schema: written($events.draft.schema, references),
+      },
     },
   };
 }
 
-// What a draft's format guards: its drawing, the comment record's with the placement in
-// its section, `at`, that `captured` (runtime/composing/drawing.js) adds while it is a
-// draft.
-function draftSchema({ kinds }) {
-  const drawing = kinds.comment.record.properties.drawing;
-  const at = { type: "array", minItems: 6, maxItems: 6, items: { type: "number" } };
+// `schema` with each `leaf:` reference written in, any properties beside it added to
+// the target's, so the baseline holds the parts of a draft, such as its drawing, that
+// the draft takes from the comment record at the draft's own format.
+function written(schema, references) {
+  if (typeof schema !== "object" || schema === null) return schema;
+  if (Array.isArray(schema)) return schema.map((item) => written(item, references));
+  const { $ref, ...rest } = Object.fromEntries(
+    Object.entries(schema).map(([key, value]) => [key, written(value, references)]),
+  );
+  if (!$ref) return rest;
+  const [uri, pointer] = $ref.split("#");
+  const { $id, ...target } = pointer
+    .split("/")
+    .slice(1)
+    .reduce((value, key) => value[key], references[uri]);
   return {
-    type: "object",
-    properties: { drawing: { ...drawing, properties: { ...drawing.properties, at } } },
+    ...target,
+    ...rest,
+    properties: { ...target.properties, ...rest.properties },
   };
 }
 

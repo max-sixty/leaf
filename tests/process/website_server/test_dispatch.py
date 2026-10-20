@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import leaf_website as website_server
 import pytest
+from conftest import app_server_message_error
 from interact_support import (
     STATED_TIMEOUT,
     activity_reading,
@@ -181,7 +182,11 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
                     "method": "turn/completed",
                     "params": {
                         "threadId": "hosted-thread",
-                        "turn": {"id": "active-turn", "status": "interrupted"},
+                        "turn": {
+                            "id": "active-turn",
+                            "status": "interrupted",
+                            "items": [],
+                        },
                     },
                 }
             )
@@ -195,7 +200,12 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     def request(resources, method, params):
         return (
             Socket(),
-            {"thread": {"id": "hosted-thread", "status": {"type": "active"}}},
+            {
+                "thread": {
+                    "id": "hosted-thread",
+                    "status": {"type": "active", "activeFlags": []},
+                }
+            },
             [],
         )
 
@@ -211,6 +221,10 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
     )
     assert [method for method, _ in sent] == ["turn/interrupt", "turn/start"]
     assert sent[0][1] == {"threadId": "hosted-thread", "turnId": ""}
+    for method, params in sent:
+        request = {"method": method, "id": 0, "params": params}
+        assert app_server_message_error(request, "Client") is None
+    assert app_server_message_error(json.loads(Socket().recv(1)), "Server") is None
     assert sent[1][1]["clientUserMessageId"]
     [(_, queue)] = delivery_records("hosted-thread")
     assert queue.state == "offering"

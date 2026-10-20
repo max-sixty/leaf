@@ -638,7 +638,11 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
                     "method": "turn/started",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "ordinary-turn"},
+                        "turn": {
+                            "id": "ordinary-turn",
+                            "items": [],
+                            "status": "inProgress",
+                        },
                     },
                 }
             )
@@ -655,6 +659,9 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
                             "id": "ordinary-command",
                             "type": "commandExecution",
                             "command": "uv run pytest tests",
+                            "commandActions": [],
+                            "cwd": "/work",
+                            "status": "inProgress",
                         },
                     },
                 }
@@ -668,7 +675,11 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
                     "method": "turn/completed",
                     "params": {
                         "threadId": "codex-thread",
-                        "turn": {"id": "ordinary-turn"},
+                        "turn": {
+                            "id": "ordinary-turn",
+                            "items": [],
+                            "status": "completed",
+                        },
                     },
                 }
             )
@@ -1910,7 +1921,10 @@ def test_completed_codex_predecessor_cannot_become_current_again(
         observer._read(
             {
                 "method": "turn/started",
-                "params": {"threadId": "codex-thread", "turn": {"id": turn}},
+                "params": {
+                    "threadId": "codex-thread",
+                    "turn": {"id": turn, "items": [], "status": "inProgress"},
+                },
             }
         )
         observer._read(
@@ -1940,13 +1954,16 @@ def test_completed_codex_predecessor_cannot_become_current_again(
         observer._read(
             {
                 "method": "turn/started",
-                "params": {"threadId": "codex-thread", "turn": {"id": "setup"}},
+                "params": {
+                    "threadId": "codex-thread",
+                    "turn": {"id": "setup", "items": [], "status": "inProgress"},
+                },
             }
         )
     else:
         observer._resume(
             {
-                "status": {"type": "active"},
+                "status": {"type": "active", "activeFlags": []},
                 "turns": [{"id": "setup", "status": "inProgress", "items": []}],
             },
             observer.lifecycle,
@@ -1958,7 +1975,11 @@ def test_completed_codex_predecessor_cannot_become_current_again(
             "method": "turn/started",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "resumed-new-identity"},
+                "turn": {
+                    "id": "resumed-new-identity",
+                    "items": [],
+                    "status": "inProgress",
+                },
             },
         }
     )
@@ -1985,7 +2006,10 @@ def test_codex_observer_does_not_invent_a_turn_from_historical_evidence(
         observer._read(
             {
                 "method": "turn/started",
-                "params": {"threadId": "codex-thread", "turn": {"id": "current"}},
+                "params": {
+                    "threadId": "codex-thread",
+                    "turn": {"id": "current", "items": [], "status": "inProgress"},
+                },
             }
         )
     elif source == "unknown-output":
@@ -2017,7 +2041,11 @@ def test_codex_observer_does_not_invent_a_turn_from_historical_evidence(
             "method": "turn/started",
             "params": {
                 "threadId": "codex-thread",
-                "turn": {"id": "resumed-new-identity"},
+                "turn": {
+                    "id": "resumed-new-identity",
+                    "items": [],
+                    "status": "inProgress",
+                },
             },
         }
     )
@@ -2038,7 +2066,10 @@ def test_superseded_unfinished_codex_fold_cannot_reopen_on_late_output(
         observer._read(
             {
                 "method": "turn/started",
-                "params": {"threadId": "codex-thread", "turn": {"id": turn}},
+                "params": {
+                    "threadId": "codex-thread",
+                    "turn": {"id": turn, "items": [], "status": "inProgress"},
+                },
             }
         )
     # The old completion was missed; its fold remains until history is hydrated.

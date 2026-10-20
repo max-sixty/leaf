@@ -866,13 +866,9 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")]) {
             el.classList?.remove("lf-mark-hover", "lf-projected-mark", "lf-binding-seat");
-            // The name a margin row anchors by, which the layout writes on whatever
-            // target a row comes to stand by, on its own schedule rather than a press's.
-            if (el.style?.anchorName) {
-                el.style.anchorName = el.style.anchorName.split(",")
-                    .map((name) => name.trim())
-                    .filter((name) => !/^--lf-a\d+$/.test(name)).join(", ");
-            }
+            // Anchor naming is presentation state. The layout may copy a name
+            // from a stylesheet into inline style while positioning a comment.
+            el.style?.removeProperty("anchor-name");
             if (!el.getAttribute("style")) el.removeAttribute("style");
         }
         return c.outerHTML;

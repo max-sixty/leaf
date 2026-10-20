@@ -544,9 +544,10 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     stage, with the controls and the instruction they write in a rail beside it. While
     the root workspace fills the window each region scrolls on its own, the controls
     under their fixed presets and the instruction above its fixed actions; where it
-    doesn't, the page scrolls the stage while the rail beside it stays in the window and
-    scrolls what it holds, and a narrow one stacks the regions. Either way each is a
-    named reading region."""
+    doesn't, the page scrolls all three, and a narrow one stacks the regions. A window
+    shorter than 480px keeps the rail beside the stage but doesn't hold it in view,
+    since the rail would show a few lines and its actions only by scrolling inside it.
+    Either way each is a named reading region."""
     source = ROOT / "examples" / "notification-playground.html"
     page = open_page(browser, serve(source))
     playground = page.locator("#notification-playground")
@@ -706,13 +707,10 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         flow = page.evaluate(reading)
         # Too short to hold the regions is not too narrow to set them side by side.
         assert flow["stacked"] is (width < 1100), (width, height, flow)
-        # Beside the stage the rail stays in the window and scrolls what it holds;
-        # stacked, it flows with the page.
-        rail = "page" if flow["stacked"] else "rail"
         assert flow == {
             **flow,
             "postures": ["flow", "flow", "flow"],
-            "scrollers": [rail, "page", rail],
+            "scrollers": ["page", "page", "page"],
             "pageScrolls": True,
             "obligationDisplay": "block",
         }, (width, height)
@@ -946,8 +944,9 @@ def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     """The alert playground's stage, an alert per section with its controls beside it,
     runs past the window. While the user works down it, the rail beside it, the page
     budget, the instruction and the submit button, stays in the window, so the user
-    sends what they set where they set it. Stacked at phone width the rail flows after
-    the stage, as a sidebar page's stacked track does."""
+    sends what they set where they set it. In a window shorter than 480px the rail
+    flows with the page, which scrolls to its submit button, and stacked at phone width
+    it flows after the stage, as a sidebar page's stacked track does."""
     page = open_page(browser, serve(ROOT / "examples" / "alert-thresholds.html"))
     resized(page, 1024, 768)
     playground = page.locator("#alert-playground")
@@ -969,6 +968,16 @@ def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
     assert within_window(budget) and within_window(submit)
     budget.press("ArrowRight")
     assert within_window(submit)
+
+    # Bounded to a window shorter than 480px, the rail would show a few lines and its
+    # submit button only by scrolling inside it, so there it flows and the page scrolls
+    # to the button.
+    resized(page, 844, 390)
+    track = playground.locator(".lf-playground-rail")
+    submit.scroll_into_view_if_needed()
+    floor = page.locator(".lf-fp-row").bounding_box()["y"]
+    assert within_window(submit)
+    assert track.evaluate("rail => rail.scrollTop") == 0
 
     resized(page, 390, 844)
     page.evaluate("document.scrollingElement.scrollTop = 0")

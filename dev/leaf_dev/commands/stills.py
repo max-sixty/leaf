@@ -940,6 +940,11 @@ def playground_tall_stage(page: Page) -> None:
     page.mouse.move(0, 0)
 
 
+def page_end(page: Page) -> None:
+    """Scrolled to the page's end, where a rail beside a short window's stage stops."""
+    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
+
+
 def visual_review_menu(page: Page) -> None:
     """The review case picker open on its selected option."""
     control = page.locator(".lf-vr-case-select")
@@ -1358,6 +1363,7 @@ STATES = (
     ),
     State("playground-controls", "notification-playground", playground_controls),
     State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
+    State("playground-short-window", "data-explorer", page_end, viewport=(844, 390)),
     State(
         "playground-controls-phone",
         "notification-playground",

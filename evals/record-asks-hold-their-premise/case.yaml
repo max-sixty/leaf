@@ -50,7 +50,8 @@ assert:
 variants:
   # From session 498a60e2, whose decision on plan context put its two captures in a
   # table above the options, so nothing tied each capture to its option. The user
-  # asked "why aren't the images within the options?"
+  # asked "why aren't the images within the options?" At 11930a381 base put both
+  # captures in their options 2/3 and widened the group 0/3; the change did both 6/6.
   option-captures:
     metadata:
       purpose: "Choices: each option's capture stands inside that option, today's in the option that keeps it, at a width it can be read."

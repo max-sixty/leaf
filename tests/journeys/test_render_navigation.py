@@ -9,7 +9,7 @@ from leaf import server as server_model
 from leaf.render_checks import rendered, wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ITEMS_PAGE,
+    OBLIGATIONS_PAGE,
     PANEL_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
@@ -33,7 +33,7 @@ from render_harness import (
     ROOT,
     command_reference_rows,
     expect_comment_notes,
-    expect_items_answered,
+    expect_obligations_answered,
     leaf_page,
     navigate,
     open_page,
@@ -71,7 +71,7 @@ def go_to_passage(page, page_dir, words):
     page.locator(".lf-fp-head").get_by_role("button", name="On the page").click()
 
 
-# An item's digits beside a page-scoped command with a context key of its own,
+# An obligation's digits beside a page-scoped command with a context key of its own,
 # registered the way an authored module does.
 QUICK_KEYS_PAGE = leaf_page(
     "quick keys",
@@ -175,7 +175,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_items_answered(page, "2/2")
+    expect_obligations_answered(page, "2/2")
     expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
     expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
     page.close()
@@ -183,7 +183,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     newest = serve(example, seed_log=False)
     first = newest.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_items_answered(page, "0/2")
+    expect_obligations_answered(page, "0/2")
     expect(page.locator("#review-cache-auto")).not_to_have_attribute("chosen", "")
     expect(page.locator("#review-billing-legacy")).not_to_have_attribute("chosen", "")
     expect(page.locator("#review-cache")).to_contain_text(
@@ -208,7 +208,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-billing-decision")).to_be_focused()
     with sending(page, "the billing reconciliation decision"):
         page.keyboard.press("1")
-    expect_items_answered(page, "2/2")
+    expect_obligations_answered(page, "2/2")
     expect(footer).to_contain_text("This revision asks two release-blocking questions")
 
     page.goto(live_url(newest))
@@ -225,9 +225,9 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-detail > footer")).to_contain_text(
         "This revision incorporates both answers"
     )
-    # The revision settles both questions; the item inventory retains answers
-    # after an authored revision settles their sources (`items.py`).
-    expect_items_answered(page, "2/2")
+    # The revision settles both questions; the obligation inventory retains answers
+    # after an authored revision settles their sources (`obligations.py`).
+    expect_obligations_answered(page, "2/2")
 
     actions = [
         event
@@ -296,14 +296,14 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
     seeded = serve(example)
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_items_answered(page, "1/1")
+    expect_obligations_answered(page, "1/1")
     expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
     page.close()
 
     newest = serve(example, seed_log=False)
     first = newest.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
-    expect_items_answered(page, "0/1")
+    expect_obligations_answered(page, "0/1")
     expect(page.locator("#comparison-policy-shared")).not_to_have_attribute(
         "chosen", ""
     )
@@ -323,9 +323,9 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
         "enables shared refreshes for web clients"
     )
     expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
-    # The item reading keeps an item the user answered after a later version settles it
-    # (`items.py`, the retained answered inventory).
-    expect_items_answered(page, "1/1")
+    # The obligation reading keeps an obligation the user answered after a later version settles it
+    # (`obligations.py`, the retained answered inventory).
+    expect_obligations_answered(page, "1/1")
 
     actions = [
         event
@@ -782,8 +782,8 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
 
     An Ask stood on while On me stands lets go first, then On me; a thread's Ask
     reached by `m` with Threads open leaves through the panel's own step."""
-    # A page item stood on while On me, which the keyboard opened, stands over the page.
-    page = open_page(browser, serve(ITEMS_PAGE))
+    # A page obligation stood on while On me, which the keyboard opened, stands over the page.
+    page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
@@ -796,7 +796,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
-    # `m` from a heading into a thread's item, with Threads already open: Escape puts the
+    # `m` from a heading into a thread's obligation, with Threads already open: Escape puts the
     # panel's view away, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.locator(".lf-fp-threads").click()
@@ -805,7 +805,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-item]")).to_be_focused()
+    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     assert page.evaluate("() => document.activeElement === document.body")
@@ -896,7 +896,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "[el.dataset.lfGoToMarginEntry, el.dataset.lfHintCode]))"
     )
     thread_code = mixed_codes["reading:threadList"]
-    item_key = next(key for key in mixed_codes if key != "reading:threadList")
+    obligation_key = next(key for key in mixed_codes if key != "reading:threadList")
 
     page.keyboard.press("m")
     filtered = page.locator(CHIPS)
@@ -933,10 +933,12 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     expect(
         page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
     ).to_have_count(1)
-    item_code = address_code(page, "Margin entry", "opts-decision", item_key)
-    page.keyboard.type(item_code)
+    obligation_code = address_code(
+        page, "Margin entry", "opts-decision", obligation_key
+    )
+    page.keyboard.type(obligation_code)
     expect(page.locator("#opts-decision")).to_be_focused()
-    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-item", "1")
+    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-obligation", "1")
 
     # Scroll past the links to give the hyperlinks filter no members. An empty
     # filter stays empty through resize; Escape restores the complete map.
@@ -999,7 +1001,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         == 1
     ), "showing deferred news announced it a second time"
 
-    # The item route may scroll these hyperlinks out of the visible target map.
+    # The obligation route may scroll these hyperlinks out of the visible target map.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")

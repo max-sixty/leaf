@@ -495,7 +495,11 @@ summary {
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-.lf-page-thread[data-lf-focus-within] {
+/* A whole thread holding focus wears a quiet ground. A primary reader's part is one
+   message of a thread its presentation draws whole around it (`.lf-primary-part`
+   below), so focus inside a part leaves that ground to the drawing and the focused
+   control to its own ring. */
+.lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
   background: var(--focus-surface);
@@ -520,7 +524,7 @@ summary {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media (forced-colors: active) {
-  .lf-page-thread[data-lf-focus-within] {
+  .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
     outline: 2px solid Highlight;
     outline-offset: -2px;
     box-shadow: none;
@@ -539,10 +543,15 @@ summary {
 .lf-thread-seat > .lf-say {
   margin-top: 0;
 }
-.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
+/* Threads stacked in one seat are ruled apart. Parts are pieces of one thread, so a
+   part on either side takes no rule: the presentation drawing them spaces them as its
+   transcript (floating-panel.css, `.lf-fp-messages`). */
+.lf-page-thread:not(.lf-primary-part)
+  + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads) {
   margin-top: var(--sp-3);
 }
-.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before {
+.lf-page-thread:not(.lf-primary-part)
+  + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads)::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
@@ -644,6 +653,7 @@ summary {
 }
 .lf-primary-part {
   position: relative;
+  border-radius: var(--r);
 }
 .lf-primary-part[data-lf-part="reply"] {
   padding-block-start: max(28px, var(--aim-floor));

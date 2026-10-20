@@ -118,7 +118,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   };
   // The outlet lifetime also owns its source standing. A page rail's card stands
   // at the source it shows, while its unrelated controls keep their authored place.
-  // The standing reader gives an innermost reply item priority over this relation.
+  // The standing reader gives an innermost reply obligation priority over this relation.
   registration.stopSide = declareSide((node) => {
     const outlet = [...registration.outlets].find((outlet) => under(node, outlet));
     if (!outlet) return null;

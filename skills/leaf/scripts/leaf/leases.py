@@ -3,11 +3,12 @@
 Lease files are stable coordination points, created on first use and retained
 after release. Only the descriptor's exclusive kernel lock proves a holder is
 live; file existence says nothing. `release_lease` or process exit releases the
-lease, including a crash. Neither holders nor session cleanup remove these
-files; `supersede_lease` alone replaces one, to take its lease from a live
-holder. A taker verifies the acquired inode still has its name, since another
-process may have removed or replaced the shared path while it was opening it,
-and a holder that can be superseded asks the same of its own descriptor.
+lease, including a crash. Holders never remove these files; `supersede_lease`
+replaces one, to take its lease from a live holder, and a session's
+end removes its unheld ones (`state.end_session`). A taker verifies the
+acquired inode still has its name, since another process may have removed or
+replaced the shared path while it was opening it, and a holder that can be
+superseded asks the same of its own descriptor.
 """
 
 import contextlib

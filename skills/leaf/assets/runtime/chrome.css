@@ -980,7 +980,7 @@
     gap: 4px;
     margin: 0 0 12px;
   }
-  .lf-fp-quote {
+  .lf-fp-quote-head > .lf-fp-quote {
     margin: 0;
     min-width: 0;
     min-height: 0;
@@ -1117,9 +1117,6 @@
   .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
-  .lf-fp-on-item + .lf-fp-on-item {
-    border-top: 1px solid var(--lf-fp-faint);
-  }
   .lf-fp-on-done {
     margin: 0 8px;
     padding-top: 10px;
@@ -1173,7 +1170,12 @@
     margin-right: 4px;
   }
   .lf-fp-messages {
+    display: grid;
+    gap: 8px;
     padding: 0 8px;
+  }
+  .lf-fp-messages > .lf-primary-part > .lf-msg {
+    margin-top: 0;
   }
   .lf-fp-messages .lf-msg-editor {
     margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
@@ -1313,9 +1315,7 @@
     display: grid;
   }
   .lf-fp-menu-back {
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
-    border-radius: 6px 6px 0 0;
+    margin-bottom: 6px;
   }
   .lf-fp-menu-back .lf-fp-label {
     display: flex;
@@ -1337,8 +1337,7 @@
     display: grid;
     gap: 1px;
     padding: 6px 8px 8px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
+    margin-bottom: 6px;
     color: var(--lf-fp-muted);
     font-size: 12px;
   }
@@ -1558,8 +1557,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-[data-lf-item] {
-  outline: var(--lf-item-ring, var(--focus-ring));
+[data-lf-obligation] {
+  outline: var(--lf-obligation-ring, var(--focus-ring));
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-landing);
 }

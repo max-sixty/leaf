@@ -25,8 +25,10 @@ from interact_support import (
     neighbour_page,
     page_packages,
     publish,
+    read_record,
     record_claim,
     wait_for,
+    write_record,
 )
 from leaf import cli as cli_model
 from leaf import event_log as event_model
@@ -719,7 +721,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         stderr=subprocess.DEVNULL,
     )
     record_claim(neighbor, id="invisible", pid=agent.pid, cwd="/work/invisible")
-    cleanup_model.write_json(
+    write_record(
         neighbor / "status.json",
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
@@ -754,7 +756,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         )
     )
     end_work(neighbor)
-    cleanup_model.write_json(
+    write_record(
         neighbor / "status.json",
         {"state": "waiting", "detail": "pick one", "ts": cleanup_model.now_iso()},
     )
@@ -802,7 +804,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """
     pages = cleanup_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
-    cleanup_model.write_json(
+    write_record(
         pages / "live" / "status.json",
         {"state": "waiting", "detail": "", "ts": "2026-01-01T00:00:00-08:00"},
     )
@@ -829,7 +831,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     # must not make this page's poll fail: the field is ignored.
     malformed = pages / "malformed-status"
     neighbour_page(malformed, title="Malformed status")
-    cleanup_model.write_json(
+    write_record(
         malformed / "status.json",
         {
             "state": "waiting",
@@ -890,7 +892,7 @@ def test_neighbours_follow_their_servers_and_ignore_deleted_pages(page_dir, tmp_
     assert service_model.claim_path(stopped).exists()
 
     lease = leases_model.take_lease(stopped / "server.lock")
-    lease.write(files_model.read_json(stopped / "service.json")["server_id"].encode())
+    lease.write(read_record(stopped / "service.json")["server_id"].encode())
     lease.flush()
     assert titles() == ["Scratch"]
     server_rows_model.RowPublisher(stopped, "fixture-server").refresh()

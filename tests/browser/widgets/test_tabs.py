@@ -731,10 +731,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     assert stacked["page"] <= 0 and stacked["item"][1] > 0, stacked
 
 
-def test_side_tabs_distinguish_withdrawn_items_from_answers(browser, serve):
-    """A row's mark says its item's items are open until every one is answered, and
+def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve):
+    """A row's mark says its obligation's obligations are open until every one is answered, and
     withdrawal retires a request without claiming the user answered it: a row whose
-    only item was withdrawn shows no mark, and one whose other item is answered shows
+    only obligation was withdrawn shows no mark, and one whose other obligation is answered shows
     the answer."""
     source = leaf_page(
         "Question outcomes",
@@ -748,8 +748,8 @@ def test_side_tabs_distinguish_withdrawn_items_from_answers(browser, serve):
     )
     page = open_page(browser, live_url(serve(source)))
     marks = page.locator("#queue .lf-tab-answer")
-    expect(marks.nth(0)).to_have_attribute("data-lf-items", "open")
-    expect(marks.nth(1)).to_have_attribute("data-lf-items", "open")
+    expect(marks.nth(0)).to_have_attribute("data-lf-obligations", "open")
+    expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "open")
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -758,15 +758,15 @@ def test_side_tabs_distinguish_withdrawn_items_from_answers(browser, serve):
         "Retire unanswered requests",
     )
     wait_for_revision(page, 2)
-    expect(marks.nth(0)).not_to_have_attribute("data-lf-items", re.compile(".*"))
-    expect(marks.nth(1)).to_have_attribute("data-lf-items", "answered")
+    expect(marks.nth(0)).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
+    expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "answered")
     expect(marks.nth(1)).to_have_text("Keep")
 
 
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
-    """An item answered before the page loads is named once the page presents, however
+    """An obligation answered before the page loads is named once the page presents, however
     late the answering widget's module arrives: startup imports every module the
-    document names before the first reading brings the item inventory. A longer ticket
+    document names before the first reading brings the obligation inventory. A longer ticket
     name and its summary keep their own lines beside a complete short outcome."""
     url = serve(
         leaf_page(
@@ -1076,7 +1076,7 @@ def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
 
 
 def test_root_tab_targets_remain_global(browser, serve):
-    """Item travel crosses hidden tabs."""
+    """Obligation travel crosses hidden tabs."""
     url = serve(ROOT_TABS_PAGE)
     page = open_page(
         browser,

@@ -394,6 +394,43 @@ def test_a_key_pressed_on_a_checkbox_before_the_runtime_loads_is_held(browser, s
 
 
 @pytest.mark.parametrize("stage", ["module", "state"])
+def test_editors_and_select_typeahead_keep_letters_before_presentation(
+    browser, serve, stage
+):
+    """A native field keeps typing and a select keeps typeahead while page keys wait."""
+    url = serve(
+        leaf_page(
+            "Typing while loading",
+            '<h1>Typing while loading</h1><p id="said">A commented sentence.</p>'
+            '<textarea id="editor" aria-label="Notes"></textarea>'
+            '<select id="pick" aria-label="Animal"><option>dog</option>'
+            "<option>cat</option></select>",
+        ),
+        events=[HELD_KEYS_THREAD],
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held, release = _hold_startup(page, stage)
+    page.goto(url, wait_until="commit")
+    holding(page, held, 1, f"the {stage} request")
+    if stage == "state":
+        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    page.locator("#editor").click()
+    page.keyboard.press("c")
+    expect(page.locator("#editor")).to_have_value("c")
+    page.locator("#pick").focus()
+    page.keyboard.press("c")
+    expect(page.locator("#pick")).to_have_value("cat")
+    expect(page.locator(".lf-held-keys")).to_have_count(0)
+    page.locator("#said").click()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("t")
+    release()
+    expect(page.locator('[data-thread="held-thread"]').first).to_be_focused()
+    expect(page.locator("#editor")).to_have_value("c")
+
+
+@pytest.mark.parametrize("stage", ["module", "state"])
 def test_disabled_quick_shortcuts_are_not_held_before_presentation(
     browser, serve, stage
 ):

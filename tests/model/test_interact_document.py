@@ -83,6 +83,7 @@ from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.validation import composition as validation_model
+from leaf.validation.admission import message_markup_errors
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
@@ -1589,18 +1590,74 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
             "<lf-old><p>orphan</p></lf-old><lf-options>",
             ("not-member", "<lf-old>"),
         ),
-        (
-            (
-                '<lf-suggestion id="sug-a" resolves="nosuch"><lf-new><p>x</p></lf-new>'
-                "</lf-suggestion><lf-options>"
-            ),
-            ("unknown-thread", "<lf-suggestion id=sug-a>"),
-        ),
     ]:
         (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", markup))
         status, findings = check_findings(page_dir)
         assert status == 1, markup
         assert expected in [(f.code, f.at) for f in findings], markup
+
+
+@pytest.mark.parametrize("widget", ["lf-suggestion", "lf-options"])
+def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, widget):
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
+    registry_path.write_text(json.dumps(registry))
+    source = (
+        PAGE.replace(
+            "<lf-options>",
+            '<lf-suggestion id="answer" resolves="plan"><lf-new><p>Proposed</p>'
+            "</lf-new></lf-suggestion><lf-options>",
+        )
+        if widget == "lf-suggestion"
+        else PAGE.replace(
+            "<lf-options>", '<lf-options id="answer" choose resolves="plan">'
+        )
+    )
+    (page_dir / "index.html").write_text(source)
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "unknown-thread", f"<{widget} id=answer>", resolves="plan")
+
+    append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "Revise this"},
+    )
+    (page_dir / "index.html").write_text(
+        source.replace('resolves="plan"', 'resolves="c1"')
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0, [f.json() for f in findings]
+
+
+def test_message_widget_thread_references_use_the_same_namespace(page_dir):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
+    markup = (
+        '<lf-options id="answer" choose resolves="plan">'
+        '<lf-option id="approve"><strong>Approve</strong></lf-option></lf-options>'
+    )
+    page = structure_model.SourceDocument(PAGE)
+
+    def errors(source):
+        return message_markup_errors(
+            page_dir,
+            structure_model.SourceDocument(source),
+            events_model.read_events(page_dir),
+            registry,
+            page,
+            set(),
+            [],
+            {},
+            None,
+        )
+
+    assert found(errors(markup), "unknown-thread", resolves="plan")
+    append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "id": "c1", "author": "user", "text": "Revise this"},
+    )
+    assert errors(markup.replace('resolves="plan"', 'resolves="c1"')) == []
 
 
 def test_reply_refuses_a_suggestion(page_dir):

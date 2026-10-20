@@ -18,6 +18,7 @@ from render_cases_navigation import DIFF_PAGE
 from render_cases_widgets import SCROLLED, WIDE_DIAGRAM_PAGE
 from render_harness import (
     LONG_PAGE,
+    RELEASE_FOCUS,
     REPLY_HOST_PAGE,
     expect_comment_notes,
     held_frames,
@@ -926,3 +927,63 @@ def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
     })""")
     expect(editor).to_be_focused()
     assert editor.evaluate("node => [node.selectionStart, node.selectionEnd]") == [9, 9]
+
+
+def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
+    browser, serve
+):
+    """An empty text field builds its editor only when the user arrives in it. The box
+    drawn in its place was a textbox in Chromium's accessibility tree but not an
+    editable one, and its value was empty where the editor's is a line break, so a
+    screen reader could describe the field differently before the user arrived. Every
+    named node the field gives the tree reads the same before Tab builds the editor and
+    after, and the key typed on arrival lands in the field."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Empty field",
+                "<h1>Empty field</h1><p id='hint'>Markdown works</p>"
+                "<button id='before'>Before</button><div id='holder'></div>",
+            )
+        ),
+    )
+    page.evaluate("""() => {
+      const field = document.createElement('leaf-text');
+      field.setAttribute('aria-label', 'Reply');
+      field.setAttribute('placeholder', 'Write a reply');
+      field.setAttribute('aria-describedby', 'hint');
+      document.querySelector('#holder').append(field);
+    }""")
+    cdp = page.context.new_cdp_session(page)
+
+    def field_nodes():
+        return sorted(
+            (
+                node["role"]["value"],
+                node.get("description", {}).get("value") or "",
+                node.get("value", {}).get("value") or "",
+                sorted(
+                    (prop["name"], prop["value"].get("value"))
+                    for prop in node.get("properties", [])
+                    if prop["name"] != "focused"
+                ),
+            )
+            for node in cdp.send("Accessibility.getFullAXTree")["nodes"]
+            if not node["ignored"] and node.get("name", {}).get("value") == "Reply"
+        )
+
+    before = field_nodes()
+    field = page.locator("#holder leaf-text")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.type("x")
+    expect(field).to_be_focused()
+    field.evaluate(
+        "node => new Promise(resolve => node.value ? resolve() : "
+        "node.addEventListener('input', resolve, {once: true}))"
+    )
+    assert field.evaluate("node => node.value") == "x"
+    page.keyboard.press("Backspace")
+    page.evaluate(RELEASE_FOCUS)
+    assert field_nodes() == before

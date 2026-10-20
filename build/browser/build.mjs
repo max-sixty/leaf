@@ -15,6 +15,8 @@
  * directory, the layer's `vendor/` and each package's hold nothing else, so a file
  * there that no build writes is stale. Leaf installation, vendoring, activation, and
  * export never invoke this tool.
+ * The compiler's layer paths are generated into `tsconfig.paths.json` from the
+ * package directories, so its CLI and editors resolve the same installed modules.
  *
  * Each TypeScript module compiles to one JavaScript module, its types blanked to
  * whitespace, so every line keeps its source line number and two branches conflict
@@ -55,6 +57,8 @@ const assets = "skills/leaf/assets";
 /** The committed kernel, which installs serve while it matches the tree's modules. */
 const kernelDirectory = "skills/leaf/kernel";
 const sourceRoot = "build/browser";
+const compilerPathsFile = `${sourceRoot}/tsconfig.paths.json`;
+const packageRoot = "skills/leaf/packages";
 const facade = "vendor/browser-runtime.js";
 const frameworkDirectory = "vendor/browser-runtime";
 /** The framework's layer paths: its facade and the directory of its modules. */
@@ -62,6 +66,35 @@ export const frameworkPaths = [facade, frameworkDirectory];
 /** Whether a layer path belongs to the framework, which delivery compiles away. */
 export const inFramework = (layerPath) =>
   layerPath === facade || layerPath.startsWith(`${frameworkDirectory}/`);
+
+/** Package directories in deterministic order, shared by paths and build ownership. */
+async function packageDirectories(directory) {
+  return (
+    await readdir(path.join(directory, packageRoot), { withFileTypes: true }).catch(
+      missing,
+    )
+  )
+    .filter((entry) => entry.isDirectory())
+    .map(({ name }) => `${packageRoot}/${name}`)
+    .sort();
+}
+
+/** Compiler paths for the rooted URLs the layer serves, with source facade types. */
+export async function compilerPaths(directory = root) {
+  const roots = [assets, ...(await packageDirectories(directory))];
+  const paths = {
+    [`/${facade}`]: ["./index.ts"],
+    ...Object.fromEntries(
+      ["vendor", "widgets"].map((kind) => [
+        `/${kind}/*`,
+        roots.map((base) => path.posix.relative(sourceRoot, `${base}/${kind}/*`)),
+      ]),
+    ),
+    "/runtime/*": [path.posix.relative(sourceRoot, `${assets}/runtime/*`)],
+    "/checks/*": ["../../skills/leaf/scripts/leaf/render-checks/*"],
+  };
+  return Buffer.from(`${JSON.stringify({ compilerOptions: { paths } }, null, 2)}\n`);
+}
 /** The layer path each package the framework imports is vendored at. */
 const packages = {
   lit: litPath,
@@ -262,6 +295,9 @@ function typecheck(config, reports = () => true) {
 }
 
 export async function buildOutputs() {
+  const paths = await compilerPaths();
+  if (!(await readFile(path.join(root, compilerPathsFile))).equals(paths))
+    throw new Error("Stale compiler paths; run pnpm run build:browser");
   const contractPath = path.join(root, sourceRoot, "event-contract.d.ts");
   const contract = await eventTypes(new URL("../../", import.meta.url));
   if ((await readFile(contractPath, "utf8")) !== contract)
@@ -271,7 +307,7 @@ export async function buildOutputs() {
   typecheck("tsconfig.json");
   typecheck("tsconfig.runtime.json", runtimeChecks);
 
-  const outputs = new Map();
+  const outputs = new Map([[compilerPathsFile, paths]]);
   const pending = [`${sourceRoot}/index.ts`];
   while (pending.length) {
     const source = pending.pop();
@@ -367,17 +403,10 @@ const missing = (error) => {
  * stale.
  */
 async function ownedDirectories(directory) {
-  const packages = "skills/leaf/packages";
   return [
     kernelDirectory,
     `${assets}/vendor`,
-    ...(
-      await readdir(path.join(directory, packages), { withFileTypes: true }).catch(
-        missing,
-      )
-    )
-      .filter((entry) => entry.isDirectory())
-      .map(({ name }) => `${packages}/${name}/vendor`),
+    ...(await packageDirectories(directory)).map((base) => `${base}/vendor`),
   ];
 }
 
@@ -424,6 +453,7 @@ async function main(args) {
   const contract = await eventTypes(new URL("../../", import.meta.url));
   const protocol = await protocolContract(contract);
   if (args[0] !== "--check") {
+    await writeFile(path.join(root, compilerPathsFile), await compilerPaths());
     await writeFile(path.join(root, sourceRoot, "event-contract.d.ts"), contract);
     if ((await protocolHeader()) !== protocol.header)
       await writeFile(protocolContractPath, protocol.text);

@@ -92,8 +92,12 @@ interface LeafSampleBridge {
 interface HTMLElement {
   /** Whether this document is still the one the browser shows. */
   lfDocumentLifetime?: { readonly active: boolean };
-  /** User inputs since the first script, and a subscription to the next. */
+  /** Text-entry vocabulary, input count and observation from the first script. */
   lfInputs?: {
+    readonly textField: "leaf-text";
+    readonly textBox: string;
+    typesText(node: any): boolean;
+    takesLetters(node: any): boolean;
     readonly count: number;
     observe(read: (event: Event) => void): () => boolean;
   };

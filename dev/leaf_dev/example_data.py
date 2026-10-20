@@ -4,7 +4,6 @@ import json
 import re
 import subprocess
 import sys
-from html.parser import HTMLParser
 from pathlib import Path
 
 from leaf.structure import SourceDocument
@@ -49,21 +48,15 @@ def catalog_sources() -> list[Path]:
     list of featured names or promoting every regression input to the showcase.
     """
 
-    class Catalog(HTMLParser):
-        def __init__(self):
-            super().__init__()
-            self.sources = []
-
-        def handle_starttag(self, tag, attrs):
-            attrs = dict(attrs)
-            if tag != "a" or "example-link" not in attrs.get("class", "").split():
-                return
-            name = attrs["href"].removeprefix("/examples/").strip("/")
-            self.sources.append(ROOT / "examples" / f"{name}.html")
-
-    catalog = Catalog()
-    catalog.feed((ROOT / "docs" / "examples.html").read_text(encoding="utf-8"))
-    return catalog.sources
+    document = SourceDocument(
+        (ROOT / "docs" / "examples.html").read_text(encoding="utf-8")
+    )
+    return [
+        ROOT
+        / "examples"
+        / f"{link.attrs['href'].removeprefix('/examples/').strip('/')}.html"
+        for link in document.tree.select("a.example-link")
+    ]
 
 
 def document_metadata(source: Path) -> tuple[str, str]:

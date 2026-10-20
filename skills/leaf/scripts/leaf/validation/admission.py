@@ -14,7 +14,7 @@ from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
-from leaf.thread_context import thread_names, thread_structure
+from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
 from .instances import (
@@ -220,6 +220,7 @@ def message_markup_errors(
         registry,
         page.ids | thread.ids | frag.ids,
         {**page.by_id, **thread.by_id, **frag.by_id},
+        thread_ids=thread_ids(events),
     ):
         return reference_errs
     # A child selecting the thread this message joins would hold this sample again,

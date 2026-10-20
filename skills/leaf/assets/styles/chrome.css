@@ -701,22 +701,40 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-command-reference-close {
     flex: none;
   }
+  /* The setting's help is the command rows' description: on its label's line, cut
+     short, shown while the pointer is over the setting or it holds focus, read by a
+     screen reader as the checkbox's description. Without hover it shows at rest
+     under the label. */
   .lf-command-reference-preference {
     display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: baseline;
     column-gap: 8px;
     row-gap: 2px;
     margin: 4px 0 12px;
     flex: none;
   }
   .lf-command-reference-preference input {
+    align-self: center;
     margin: 0;
   }
   .lf-command-reference-preference small {
-    grid-column: 2;
+    overflow: hidden;
     color: var(--muted);
     font-size: var(--t-6);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    opacity: 0;
+  }
+  .lf-command-reference-preference:is(:hover, :focus-within) small {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .lf-command-reference-preference small {
+      grid-column: 2 / -1;
+      white-space: normal;
+      opacity: 1;
+    }
   }
   .lf-search-field {
     width: 100%;

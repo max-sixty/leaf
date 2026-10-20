@@ -32,7 +32,8 @@ with its turn closed. A website target runs `release` alone, since only a termin
 can start a turn or interrupt one. What the harnesses share lives here: their
 isolation and its evidence (`isolated`), the session the journey hears through every
 wait (`Terminal`), and the user (`User`). `--hooks-module` turns on Claude Code's
-opt-in hooks module; `--sandbox` runs Claude Code's shell commands in its sandbox;
+opt-in hooks module; `--sandbox` runs the session's shell commands in its harness's
+sandbox;
 `--preview` has Codex serve the page with the canonical
 `leaf-dev preview --user`. The journey stops at the first check that fails and keeps
 no sample.
@@ -1371,8 +1372,11 @@ def target_session(
         else:
             from leaf_dev.journey_codex import answering
 
-            harness = answering(browser, named["transport"], preview=preview)
+            harness = answering(
+                browser, named["transport"], preview=preview, sandbox=sandbox
+            )
             named |= {"preview": True} if preview else {}
+            named |= {"sandbox": True} if sandbox else {}
         with harness as (user, run):
             yield user, named, run
         return
@@ -1424,8 +1428,8 @@ def target_session(
 @click.option(
     "--sandbox",
     is_flag=True,
-    help="On claude-code, run the session's shell commands in Claude Code's sandbox, "
-    "configured as the README says.",
+    help="On claude-code or a codex target, run the session's shell commands in its "
+    "harness's sandbox, configured as the README says.",
 )
 @click.option(
     "--preview",
@@ -1458,10 +1462,15 @@ def journey(
     """
     if hooks_module and target != "claude-code":
         raise click.UsageError("--hooks-module is an option of claude-code")
-    if sandbox and target != "claude-code":
-        raise click.UsageError("--sandbox is an option of claude-code")
+    if sandbox and HARNESS_TARGETS.get(target, {}).get("harness") not in (
+        "claude-code",
+        "codex",
+    ):
+        raise click.UsageError("--sandbox is an option of claude-code and codex")
     if preview and HARNESS_TARGETS.get(target, {}).get("harness") != "codex":
         raise click.UsageError("--preview is an option of the codex targets")
+    if preview and sandbox:
+        raise click.UsageError("--preview runs leaf-dev, which a sandbox refuses")
     website = target not in HARNESS_TARGETS
     if website and browser is False:
         raise click.UsageError(

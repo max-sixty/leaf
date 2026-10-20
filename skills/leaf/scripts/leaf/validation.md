@@ -52,13 +52,13 @@ interrupted publication from that bundle before it exposes page readings.
 
 That half has one piece plain `page check` runs too. A page that runs code of its
 own, a module script or a page widget the document places, or places a data widget
-(`x-content: data`), is served and run once at the render viewport through upgrade,
+(`x-content: data`) or a widget naming page media, is served and run once at the render viewport through upgrade,
 presentation, and one frame after it, and fails on each `error` event its runtime posts
 in that time: the event `leaf wait` would deliver, intercepted rather than read off the
 browser's own error channels, so the check and the watcher fail on one set in one
 wording. A widget that fails soft posts one too. A quick page never reaches `--render`,
-and no static reading says whether a module throws or whether a data body is one its
-module can read. Message markup is not run, so a thread command never waits on a
+and no static reading says whether a module throws or whether a data body or a media
+file is one its module can read. Message markup is not run, so a thread command never waits on a
 browser: a message's widget reports its failure as an `error` event when its thread
 draws. Leaf runs without a browser, so where the host has none, every browser gate
 (this run, `--render`, and `package check --render`) is skipped with a note and leaves

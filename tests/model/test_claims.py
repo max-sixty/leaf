@@ -671,7 +671,7 @@ def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(
     page gone for good raises."""
     page = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(page)]).exit_code == 0
-    assert not (machine_model.state_home() / "page-locks").exists()
+    assert not (cleanup_model.state_home() / "page-locks").exists()
 
     entered = threading.Event()
     release = threading.Event()

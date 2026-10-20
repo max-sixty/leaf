@@ -57,7 +57,6 @@ from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
-from leaf import machine as machine_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -2475,7 +2474,7 @@ def test_a_later_codex_start_names_the_running_transport(
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
-        "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
+        "FAKE_CODEX_EXPECT_CWD": str(cleanup_model.state_home()),
     }
 
     # All three tool calls belong to one persistent harness process. Three separate

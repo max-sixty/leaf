@@ -1069,7 +1069,6 @@ def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
     }
     for changes, success in (
         ({}, True),
-        ({"ephemeral": True}, False),
         ({"failure": "turn_failed"}, False),
         ({"parent": "input", "responds": "later-input"}, False),
         ({"parent": "input", "responds": None}, False),

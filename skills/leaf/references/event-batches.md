@@ -37,7 +37,8 @@ Every transport delivers the same immutable object:
 }
 ```
 
-Some harnesses put it in your context; others give a pointer, which
+`DELIVERY` in `scripts/leaf/delivery.py` declares every field, with the thread
+digests. Some harnesses put it in your context; others give a pointer, which
 `leaf delivery read <id>` resolves. A large envelope reads in numbered parts
 instead: each reading names its `part` of `parts` and holds a slice of the
 envelope's JSON in `text`, which you join in order, and its `next` is the command
@@ -60,8 +61,9 @@ Events keep their stored fields and log order, without the browser's retry key
   `suggestion: true` beside it means the message is a suggestion, so its new `text`
   is the exact replacement it proposes.
 - `answer`: the response the event owes. A `kind: "reply"` answer is a thread reply,
-  written with `leaf response reply <answer.ref>` ([threads](threads.md)); `parent`
-  names the message it threads under and `responds` the exact input it answers. A `kind: "markup"` answer is the
+  written with `leaf response reply <answer.ref>` ([threads](threads.md)), or by your
+  turn's final message where its `writer` is `"turn"`; `parent` names the message it
+  threads under and `responds` the exact input it answers. A `kind: "markup"` answer is the
   page revision its `handling` names, and a reply does not replace it. Until the
   answer is written, `leaf status idle` refuses, and the Stop hook holds the turn
   open unless the turn started the update (`references/conversation-loop.md`,

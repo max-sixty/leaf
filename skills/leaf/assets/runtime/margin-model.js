@@ -210,7 +210,7 @@ export function readingState(choice) {
 export const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
 
 // Each member already carries canonical Thread attention. An aggregate keeps a concrete
-// item ahead of a resend; it never re-derives attention from turns or
+// obligation ahead of a resend; it never re-derives attention from turns or
 // workflow stages.
 const userAttention = (items) => {
   let first = null;

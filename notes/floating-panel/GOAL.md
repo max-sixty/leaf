@@ -249,7 +249,7 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
 - **The answer the user waits for grows the thread's view,** up to its height limit,
   with New reply only past it; other news in an open thread still moves nothing. The
   user chose growth over a reserved New reply slot on 14 October (#2916).
-- **Answers are the widget's own choices** (a multiple-choice item shows its options and
+- **Answers are the widget's own choices** (a multiple-choice obligation shows its options and
   Done), recorded exactly as on the page; the On view has On me / On {agent} / Done.
 - **Messages draw with Leaf's own reader** (the panel is a registered thread
   presentation), so questions, reactions and HTML replies work in the panel.
@@ -324,7 +324,7 @@ comments as they arrive. Give them a new checkpoint at each milestone:
 
 - the resting panel, the leaf mark's status, and the menu;
 - Threads, opening, answering and resolving a thread, and writing in the one box;
-- items answered inline in the On view, Versions, approval, modes, and the Moderate display;
+- obligations answered inline in the On view, Versions, approval, modes, and the Moderate display;
 - motion and polish.
 
 Budget about eight hours of work. If the user hasn't answered a checkpoint

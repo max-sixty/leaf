@@ -9,7 +9,8 @@ which shape fits which subject.
 
 A Layout is a class that arranges the box it is on. Three set the page's shape. Each
 goes on `main`, or on a child of a `main` that carries none, which the page then lays
-out as it would `main` while that child is shown:
+out as it would `main` while that child is shown, as each part of a page of parts
+does ("A page of parts"):
 
 | Class              | The page                                                            |
 | ------------------ | ------------------------------------------------------------------- |
@@ -41,6 +42,42 @@ The page's own `<style>` comes after the Layout, so ordinary rules can change a 
 share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
 that no Layout fits writes its own grid or flex rules.
 
+## A page of parts
+
+A page whose subject has parts of different shapes, such as a playground to try, the
+proposal it argues for and the reasoning behind it, puts each in a part of its own with
+the Layout that suits it. Write one `lf-parts` in a `main` that carries no Layout, and
+give each `lf-part` one child carrying that part's Layout:
+
+```html
+<main>
+  <header>
+    <h1>Floating comment panel</h1>
+  </header>
+  <lf-parts id="parts">
+    <lf-part id="try" label="Try" summary="The panel, live">
+      <div class="layout-workspace">…</div>
+    </lf-part>
+    <lf-part id="proposal" label="Proposal" summary="What changes and why">
+      <article class="layout-column">…</article>
+    </lf-part>
+  </lf-parts>
+</main>
+```
+
+The page's `header`, the one element to write before the parts, heads a column down the
+window's left edge, and the list of parts stands under it, with each part's `summary`
+under its label. Both stay in view while a long part scrolls. Each part takes the rest of
+the width from the top of the window, so a workspace part fills the window. Keep the
+header to the page's title, since it shares the column's width, and give each part its
+own heading, and a column part its own contents outline. On a phone the title stands
+over the list, which becomes a row that sticks over the part. Each part opens where the
+user last read it. The parts share the
+page's history, Threads panel and On me list.
+
+Where the views share one Layout and the page's header runs across the top, as a site's
+pages that share one header do, use page tabs instead (the `lf-tabs` entry).
+
 ## A sidebar page
 
 Use `<main class="layout-sidebar">` when the reader works through one region while
@@ -65,8 +102,9 @@ verdict and file list stay beside the code. The region kept in view is the `asid
 </main>
 ```
 
-The body and `aside` sit side by side, two thirds and one third, down to about 870px,
-and stack in source order below that or when the body's content needs the whole width.
+The body and `aside` sit side by side, two thirds and one third, while the page has
+room for both, and stack in source order when it hasn't or when the body's content needs
+the whole width.
 Write the `aside` first when the reader of the stacked page reads it first, such as a
 verdict; it then sits on the left. Write it after the body when it follows the work,
 such as a dashboard's log; it then sits on the right. Stack the regions inside the body
@@ -90,7 +128,7 @@ chips under the lede for the page's state.
 `<main class="layout-workspace">` fills the window above Leaf's panel, and the reader
 works in its regions rather than scrolling the page. The `header` and `footer` take
 their content's height and the body takes the rest. Keep the header to one row: the
-title, `.tag` chips for the page's state, and an `lf-tally` for the items left. Put what
+title, `.tag` chips for the page's state, and an `lf-tally` for the obligations left. Put what
 a lede would say at the top of the region it is about.
 
 The body is one `lf-pane`, a widget that lays out its own regions, or the page's own
@@ -133,7 +171,7 @@ takes it, and so can a dense table on a column page.
 
 For a queue of items decided one at a time, such as tickets or findings, make the body
 one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`
-in the header. The list marks each tab's open items and the tally counts what is left,
+in the header. The list marks each tab's open obligations and the tally counts what is left,
 so write no script or count of your own. The `lf-tab` and `lf-tally` entries cover
 grouping and counting.
 
@@ -198,7 +236,7 @@ comment there shows as a pin on its block.
 
 By default Leaf draws comment markers, passage highlights and threads over the page.
 `data-annotations="page"` on `body` turns these off for a page that shows comments in
-its own layout; comments, On me items, Undo and live revisions still work, and comments open
+its own layout; comments, On me obligations, Undo and live revisions still work, and comments open
 in the Leaf panel. To show conversations in the page's own layout, register a
 presentation as `module-annotations.md`, "Page annotation presentation", describes,
 rather than rebuilding the event log in page code.
@@ -224,9 +262,9 @@ Leaf's panel, thread cards and markers draw over everything in `main`, whatever 
 with `showModal()`, or an element with `popover`.
 
 `conversation-loop.md`, "The On lists", says what belongs in the On lists. A
-package can lay out conversations and items itself with the APIs in
+package can lay out conversations and obligations itself with the APIs in
 `module-annotations.md`, "Owning the primary conversation presentation", and
-`module-reading.md`, "Reading items and obligation queues".
+`module-reading.md`, "Reading obligations and the On lists".
 
 ## Activity from several contributors
 

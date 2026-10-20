@@ -1,5 +1,5 @@
-"""The item walk with `m`: where it lands, how it reveals an item in tabs and scrollers,
-and an item's digits and thread."""
+"""The obligation walk with `m`: where it lands, how it reveals an obligation in tabs and scrollers,
+and an obligation's digits and thread."""
 
 import pytest
 from interact_support import append_carried_log_record
@@ -7,7 +7,7 @@ from leaf import event_log as events_model
 from leaf.render_checks import one_frame, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ITEMS_PAGE,
+    OBLIGATIONS_PAGE,
     answered_comment,
     live_url,
     panel_comment,
@@ -45,7 +45,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 @pytest.mark.parametrize(("nested_source", "reduced"), [(False, True), (True, False)])
-def test_an_item_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
+def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
     browser, serve, reduced, nested_source
 ):
     """A disclosure extends one reading; a mutually exclusive tab opens at its lf-ask.
@@ -93,41 +93,41 @@ def test_an_item_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
 
     def start_trace():
         page.evaluate("""() => {
-          window.itemFrames = [];
-          window.itemTabCues = [];
+          window.obligationFrames = [];
+          window.obligationTabCues = [];
           const record = () => {
             const tab = document.querySelector('#views > .lf-tabstrip [aria-selected="true"]');
             const selected = tab.getAttribute('aria-controls');
             const ask = document.getElementById(`ask-${selected}`);
             const source = document.querySelector('#source-views [aria-selected="true"]');
-            itemFrames.push({selected, scroll: scrollY,
+            obligationFrames.push({selected, scroll: scrollY,
                            source: source?.getAttribute('aria-controls'),
                            top: ask.getBoundingClientRect().top});
-            window.itemFrame = requestAnimationFrame(record);
+            window.obligationFrame = requestAnimationFrame(record);
           };
-          window.itemFrame = requestAnimationFrame(record);
-          window.itemTabObserver = new MutationObserver(records => {
+          window.obligationFrame = requestAnimationFrame(record);
+          window.obligationTabObserver = new MutationObserver(records => {
             for (const {target} of records) {
               if (target.getAttribute('aria-selected') === 'true' &&
                   target.closest('lf-tabs').id === 'views') {
                 const name = target.querySelector('.lf-tab-name');
-                itemTabCues.push(name.getAnimations().length);
+                obligationTabCues.push(name.getAnimations().length);
               }
             }
           });
-          itemTabObserver.observe(document.querySelector('#views'), {
+          obligationTabObserver.observe(document.querySelector('#views'), {
             subtree: true, attributes: true, attributeFilter: ['aria-selected']
           });
         }""")
 
     def finish_trace():
         return page.evaluate("""() => {
-          cancelAnimationFrame(itemFrame);
-          itemTabObserver.disconnect();
-          return {frames: itemFrames, cues: itemTabCues};
+          cancelAnimationFrame(obligationFrame);
+          obligationTabObserver.disconnect();
+          return {frames: obligationFrames, cues: obligationTabCues};
         }""")
 
-    # The item's source may switch an inner view even when its outer wrapper stays.
+    # The obligation's source may switch an inner view even when its outer wrapper stays.
     # A disclosure, by contrast, extends the current view and preserves its glide.
     if nested_source:
         expect(
@@ -174,18 +174,18 @@ def test_an_item_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
             # A revealed view may finish presentation later than its new geometry.
             # Record its first painted frame while that completion is held.
             page.evaluate("""() => {
-              const held = new Promise(resolve => { window.releaseItemTabLayout = resolve; });
+              const held = new Promise(resolve => { window.releaseObligationTabLayout = resolve; });
               document.querySelector('#views').addEventListener('lf-layout', event => {
                 event.detail.present(held);
-                window.itemTabLayoutStarted = true;
+                window.obligationTabLayoutStarted = true;
               }, {once: true});
             }""")
             try:
                 page.keyboard.press(key)
-                page.wait_for_function("window.itemTabLayoutStarted === true")
+                page.wait_for_function("window.obligationTabLayoutStarted === true")
                 one_frame(page)
             finally:
-                page.evaluate("releaseItemTabLayout()")
+                page.evaluate("releaseObligationTabLayout()")
         else:
             page.keyboard.press(key)
         expect(page.locator(f"#ask-{target}")).to_be_focused()
@@ -228,7 +228,9 @@ def test_an_item_walk_glides_within_a_view_and_opens_other_tabs_at_the_question(
     assert returned["scroll"] == pytest.approx(reading, abs=2), returned
 
 
-def test_an_item_walk_reveals_the_owning_regions_horizontal_destination(browser, serve):
+def test_an_obligation_walk_reveals_the_owning_regions_horizontal_destination(
+    browser, serve
+):
     """Arrival keeps horizontal inspection reachable without snapping document Y."""
     source = leaf_page(
         "Ask in horizontal inspection",
@@ -257,10 +259,10 @@ def test_an_item_walk_reveals_the_owning_regions_horizontal_destination(browser,
 
 
 @pytest.mark.parametrize("clipped", [False, True])
-def test_an_item_walk_reveals_its_scrollport_before_aligning_outside_context(
+def test_an_obligation_walk_reveals_its_scrollport_before_aligning_outside_context(
     browser, serve, clipped
 ):
-    """Context above a bounded inspection never leaves its item clipped inside it."""
+    """Context above a bounded inspection never leaves its obligation clipped inside it."""
     source = leaf_page(
         "Ask with outside context",
         '<h1 id="context">Review the proposed edit</h1>'
@@ -291,21 +293,21 @@ def test_an_item_walk_reveals_its_scrollport_before_aligning_outside_context(
     assert visible["bottom"] <= visible["high"], visible
 
 
-def test_keys_answer_an_item_from_its_marks(browser, serve):
-    """The item's digits stay live while a mark adds only its control-local keys.
+def test_keys_answer_an_obligation_from_its_marks(browser, serve):
+    """The obligation's digits stay live while a mark adds only its control-local keys.
 
     One Tab enters the marks, where ↑/↓ walk the options and clamp at the ends, and
     Home and End reach them.
-    Moving focus does not replace the item's numeric action context with a widget copy.
+    Moving focus does not replace the obligation's numeric action context with a widget copy.
     """
-    page = open_page(browser, serve(ITEMS_PAGE))
+    page = open_page(browser, serve(OBLIGATIONS_PAGE))
     nums = page.locator("#live-question > lf-option > .lf-key-badge")
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 4 waiting on me · Options")
     marks = page.locator("#live-question .lf-pick")
-    # The arrival stands on the item, which wears its options' digits; the marks
+    # The arrival stands on the obligation, which wears its options' digits; the marks
     # are the next Tab stops.
     expect(
         page.locator(
@@ -380,9 +382,9 @@ def test_keys_answer_an_item_from_its_marks(browser, serve):
     assert acts[-1]["detail"] == {"value": ["lq-keep"]}
 
 
-def test_a_failed_item_reveal_does_not_register_an_arrival(browser, serve):
-    """A rejected reveal neither advances nor marks the existing item walk."""
-    page = open_page(browser, serve(ITEMS_PAGE))
+def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve):
+    """A rejected reveal neither advances nor marks the existing obligation walk."""
+    page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 4 waiting on me · Options")
     page.evaluate(
@@ -391,55 +393,57 @@ def test_a_failed_item_reveal_does_not_register_an_arrival(browser, serve):
           const source = document.querySelector('#sug-refill');
           source.addEventListener('lf-reveal', event => {
             const {promise: ready, reject} = Promise.withResolvers();
-            window.rejectItemReveal = reject;
-            ready.then(() => {}, () => { window.itemRevealRejected = true; });
+            window.rejectObligationReveal = reject;
+            ready.then(() => {}, () => { window.obligationRevealRejected = true; });
             widgetController(source).present(ready);
             event.detail.present(ready);
-            window.itemRevealStarted = true;
+            window.obligationRevealStarted = true;
           }, {once: true});
         }"""
     )
     page.keyboard.press("m")
-    page.wait_for_function("window.itemRevealStarted === true")
+    page.wait_for_function("window.obligationRevealStarted === true")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    page.evaluate("() => { rejectItemReveal(new Error('item reveal probe')); }")
-    page.wait_for_function("window.itemRevealRejected === true")
+    page.evaluate(
+        "() => { rejectObligationReveal(new Error('obligation reveal probe')); }"
+    )
+    page.wait_for_function("window.obligationRevealRejected === true")
     rendered(page)
     position = walk_position(page)
     assert position["text"] == "1 of 4 waiting on me · Options"
     assert not position["boundary"]
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert [said(error) for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: item reveal probe"
+        "leaf: Presentation failed: obligation reveal probe"
     ]
     round_trip(page)
 
 
-def test_a_delayed_item_reveal_yields_to_programmatic_user_focus(browser, serve):
+def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, serve):
     """A completed old reveal cannot steal accessibility focus or register an arrival."""
-    page = open_page(browser, serve(ITEMS_PAGE))
+    page = open_page(browser, serve(OBLIGATIONS_PAGE))
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
     expect_walk_position(page, "1 of 4 waiting on me · Options")
     page.evaluate(
         """() => {
-          const held = new Promise(resolve => { window.releaseItemReveal = resolve; });
-          held.then(() => { window.itemRevealSettled = true; });
+          const held = new Promise(resolve => { window.releaseObligationReveal = resolve; });
+          held.then(() => { window.obligationRevealSettled = true; });
           document.querySelector('#sug-refill').addEventListener('lf-reveal', event => {
             event.detail.present(held);
-            window.itemRevealStarted = true;
+            window.obligationRevealStarted = true;
           }, {once: true});
         }"""
     )
 
     page.keyboard.press("m")
-    page.wait_for_function("window.itemRevealStarted === true")
+    page.wait_for_function("window.obligationRevealStarted === true")
     # Assistive technology and focus-management code can move the user without a
     # pointer, key, or input event. The retained navigation must read focus itself.
     page.locator(".lf-fp-threads").focus()
     expect(page.locator(".lf-fp-threads")).to_be_focused()
-    page.evaluate("releaseItemReveal()")
-    page.wait_for_function("window.itemRevealSettled === true")
+    page.evaluate("releaseObligationReveal()")
+    page.wait_for_function("window.obligationRevealSettled === true")
     rendered(page)
 
     expect(page.locator(".lf-fp-threads")).to_be_focused()
@@ -448,8 +452,8 @@ def test_a_delayed_item_reveal_yields_to_programmatic_user_focus(browser, serve)
     assert (position or {}).get("text") in (None, "1 of 4 waiting on me · Options")
 
 
-def test_a_selected_tab_enters_the_item_it_controls(browser, serve):
-    """A controlled panel can itself be an item; selecting its tab hasn't entered it."""
+def test_a_selected_tab_enters_the_obligation_it_controls(browser, serve):
+    """A controlled panel can itself be an obligation; selecting its tab hasn't entered it."""
     page = open_page(
         browser,
         serve(
@@ -474,7 +478,7 @@ def test_a_selected_tab_enters_the_item_it_controls(browser, serve):
     expect(page.locator("#first-decision")).to_be_focused()
 
 
-def test_an_items_digits_are_drawn_whole(browser, serve):
+def test_an_obligations_digits_are_drawn_whole(browser, serve):
     """A binding badge arrives into room its option already holds, and lands on nothing.
 
     Every earlier placement borrowed that room instead, and each borrow showed. On the
@@ -489,7 +493,7 @@ def test_an_items_digits_are_drawn_whole(browser, serve):
     So the cell holds a place for it, and this asks the two questions that place
     answers — does any ancestor cut it, is it on anybody's words — in both forms,
     stepped through with the key that reaches them. Rows reserve a leading gutter;
-    titled cards share their trailing header-state slot with the same item-owned binding badge
+    titled cards share their trailing header-state slot with the same obligation-owned binding badge
     that temporarily replaces status.
 
     How far down the column it stands is each form's own answer, so each is asked for the
@@ -510,7 +514,7 @@ def test_an_items_digits_are_drawn_whole(browser, serve):
         (["r-now", "r-later"], "row"),
     ]:
         page.keyboard.press("m")
-        # The arrival stands on the item; the digits are drawn once a mark holds the
+        # The arrival stands on the obligation; the digits are drawn once a mark holds the
         # focus, one Tab in.
         page.keyboard.press("Tab")
         for id_ in options:
@@ -555,7 +559,9 @@ def test_an_items_digits_are_drawn_whole(browser, serve):
     )
 
 
-def test_frozen_widget_item_walk_orders_by_its_threads_page_passage(browser, serve):
+def test_frozen_widget_obligation_walk_orders_by_its_threads_page_passage(
+    browser, serve
+):
     """A materialized frozen source in chrome keeps its thread's authored page order."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.keyboard.press("g")
@@ -563,18 +569,18 @@ def test_frozen_widget_item_walk_orders_by_its_threads_page_passage(browser, ser
     panel_settled(page, view="threads")
     page.locator("h1").focus()
     page.keyboard.press("m")
-    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-item]")).to_be_focused()
+    expect(page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")).to_be_focused()
 
 
-def test_an_item_walk_leaves_the_panel_it_reached_through(browser, serve):
-    """`m` from the page reaches an item seated in a thread through the panel, so the
+def test_an_obligation_walk_leaves_the_panel_it_reached_through(browser, serve):
+    """`m` from the page reaches an obligation seated in a thread through the panel, so the
     press opens its thread there on the way. The walk is lateral — it moves the user
-    from item to item rather than down a level — and Escape puts the view away. No step
+    from obligation to obligation rather than down a level — and Escape puts the view away. No step
     depends on which press opened the view."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
     page.keyboard.press("m")
-    item = page.locator(f"{PANEL_THREAD} lf-ask[data-lf-item]")
+    item = page.locator(f"{PANEL_THREAD} lf-ask[data-lf-obligation]")
     expect(item).to_be_focused()
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -616,7 +622,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     expect(page.locator(".lf-live")).to_contain_text("Thread 1 of 1")
 
 
-def test_items_sharing_context_keep_their_source_identity(browser, serve):
+def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     """Shared prompt context keeps each widget's travel, digits and answer distinct."""
     page = open_page(
         browser,
@@ -639,7 +645,7 @@ def test_items_sharing_context_keep_their_source_identity(browser, serve):
     def questions():
         return page.evaluate(
             """async () => (await window.__lfWidgetApi())
-              .readItems().all"""
+              .readObligations().all"""
         )
 
     initial = questions()
@@ -658,8 +664,8 @@ def test_items_sharing_context_keep_their_source_identity(browser, serve):
     rendered(page)
     assert (
         page.evaluate("""async () => {
-      const {heldItem} = await window.__lfCheckApi();
-      return heldItem()?.id;
+      const {heldObligation} = await window.__lfCheckApi();
+      return heldObligation()?.id;
     }""")
         == "second"
     )
@@ -670,8 +676,8 @@ def test_items_sharing_context_keep_their_source_identity(browser, serve):
         + page.locator("#second").bounding_box()["height"]
         <= page.locator(".lf-fp-row").bounding_box()["y"]
     )
-    expect(page.locator("#second")).to_have_attribute("data-lf-item", "1")
-    expect(page.locator("#shared")).not_to_have_attribute("data-lf-item", "1")
+    expect(page.locator("#second")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#shared")).not_to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("Shift+m")
     expect(page.locator("#first")).to_be_focused()
     page.keyboard.press("1")
@@ -689,13 +695,13 @@ def test_items_sharing_context_keep_their_source_identity(browser, serve):
     for source in ("first", "second"):
         assert page.evaluate(
             """async id => (await window.__lfWidgetApi())
-              .itemActions.open('widget:' + id)""",
+              .obligationActions.open('widget:' + id)""",
             source,
         )
         expect(page.locator(f"#{source}")).to_be_focused()
 
 
-def test_the_item_walk_uses_the_visible_reading_after_its_focus_is_released(
+def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
     browser, serve
 ):
     """Letting go and scrolling starts a new walk where the user is now reading."""
@@ -739,20 +745,20 @@ def test_the_item_walk_uses_the_visible_reading_after_its_focus_is_released(
     expect(page.locator("#question-4")).to_be_focused()
 
 
-def test_the_item_walk_measures_from_chrome_only_where_the_chrome_holds_an_item(
+def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an_obligation(
     browser, serve
 ):
     """The user's place has to be a place in the walk's own ordered space. The chrome is
     appended after the whole page, so a user standing on a thread in the panel would
-    measure as past every item there is.
+    measure as past every obligation there is.
 
     The route runs through the chrome all the same: a widget frozen into a reply is an
-    item the walk visits, and a user working its controls is standing in the space the
-    step measures. So the question is which items the layer holds and not whether the
+    obligation the walk visits, and a user working its controls is standing in the space the
+    step measures. So the question is which obligations the layer holds and not whether the
     layer is chrome.
 
-    The backward press follows a walk down to the first page item, but focus has since
-    moved into the reply's item. That current focus supplies the step's origin."""
+    The backward press follows a walk down to the first page obligation, but focus has since
+    moved into the reply's obligation. That current focus supplies the step's origin."""
     url = serve(
         leaf_page(
             "asks over a panel",
@@ -788,14 +794,14 @@ def test_the_item_walk_measures_from_chrome_only_where_the_chrome_holds_an_item(
     )
     page = open_page(browser, live_url(url))
 
-    # A thread is chrome holding no item, so the walk starts from the page.
+    # A thread is chrome holding no obligation, so the walk starts from the page.
     page.keyboard.press("t")
     expect(page.locator(PANEL_THREAD)).to_be_focused()
     page.keyboard.press("m")
     expect(page.locator("#first-decision")).to_be_focused()
 
-    # The reply's item is in the route. Walking off it and back down to the first must
-    # not leave a remembered origin that overrides a later focus on the reply's item.
+    # The reply's obligation is in the route. Walking off it and back down to the first must
+    # not leave a remembered origin that overrides a later focus on the reply's obligation.
     page.keyboard.press("m")
     expect(page.locator("#second-decision")).to_be_focused()
     page.keyboard.press("m")
@@ -805,7 +811,7 @@ def test_the_item_walk_measures_from_chrome_only_where_the_chrome_holds_an_item(
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
 
-    # Standing in that item is standing in the space, so the step measures from it.
+    # Standing in that obligation is standing in the space, so the step measures from it.
     pick = page.locator("#reply-decision .lf-pick").first
     pick.focus()
     expect(pick).to_be_focused()
@@ -813,7 +819,7 @@ def test_the_item_walk_measures_from_chrome_only_where_the_chrome_holds_an_item(
     expect(page.locator("#second-decision")).to_be_focused()
 
 
-ITEM_THREAD_PAGE = leaf_page(
+OBLIGATION_THREAD_PAGE = leaf_page(
     "an ask and its thread",
     """<h1>Cache review</h1>
 <p id="lead">The budget note covers latency budgets for the cache.</p>
@@ -847,13 +853,13 @@ ITEM_THREAD_PAGE = leaf_page(
 
 
 @pytest.mark.parametrize("width", [390, 1200])
-def test_walking_to_an_item_shows_its_discussion_clear_of_its_choices(
+def test_walking_to_an_obligation_shows_its_discussion_clear_of_its_choices(
     browser, serve, width
 ):
-    """`m` lands on a tall item and its thread comes up in the card, which stands clear
-    of the item's choices at either width, so a digit still answers and `c` continues
+    """`m` lands on a tall obligation and its thread comes up in the card, which stands clear
+    of the obligation's choices at either width, so a digit still answers and `c` continues
     the thread rather than starting another."""
-    source = ITEM_THREAD_PAGE.replace(
+    source = OBLIGATION_THREAD_PAGE.replace(
         "<h2>Which cache should we keep?</h2>",
         "<h2>Which cache should we keep?</h2>"
         + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
@@ -886,9 +892,9 @@ def test_walking_to_an_item_shows_its_discussion_clear_of_its_choices(
 
 
 @pytest.mark.parametrize("family", ["decision", "suggestion"])
-def test_walking_to_an_item_opens_its_discussion(browser, serve, family):
-    """`m` selects an item and its thread comes up beside it, as at any target the user
-    stands at, taking over from the passage's card. Working the item's controls keeps it
+def test_walking_to_an_obligation_opens_its_discussion(browser, serve, family):
+    """`m` selects an obligation and its thread comes up beside it, as at any target the user
+    stands at, taking over from the passage's card. Working the obligation's controls keeps it
     there, and `c` continues it."""
     if family == "decision":
         item = '<lf-ask id="work"><h2>Keep the plan?</h2><lf-options id="decision" choose><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></lf-ask>'
@@ -920,7 +926,7 @@ def test_walking_to_an_item_opens_its_discussion(browser, serve, family):
     else:
         suggestion_control(page, "work", "accept").focus()
     assert (
-        page.evaluate("async () => (await window.__lfCheckApi()).heldItem()?.id")
+        page.evaluate("async () => (await window.__lfCheckApi()).heldObligation()?.id")
         == "work"
     )
     rendered(page)
@@ -929,18 +935,18 @@ def test_walking_to_an_item_opens_its_discussion(browser, serve, family):
     expect(discussion.locator("leaf-text")).to_be_focused()
 
 
-def test_an_item_and_its_thread_are_one_standing_target(browser, serve):
-    """An item and the thread its card shows are one place held from two sides
-    (glossary, Standing target). From the item, `c` continues that thread and `t` steps
-    on past it; from its thread in the card, the item keeps its ring and its digits. A thread about an enclosing block is that block's, so an item
+def test_an_obligation_and_its_thread_are_one_standing_target(browser, serve):
+    """An obligation and the thread its card shows are one place held from two sides
+    (glossary, Standing target). From the obligation, `c` continues that thread and `t` steps
+    on past it; from its thread in the card, the obligation keeps its ring and its digits. A thread about an enclosing block is that block's, so an obligation
     inside the block still starts a thread of its own. From an element with no thread,
     `t` measures from its place in the document, as `m` does."""
-    url = serve(ITEM_THREAD_PAGE)
+    url = serve(OBLIGATION_THREAD_PAGE)
     d = serve.page_dir
     panel_comment(
         d, "Budgets are tight.", {"section": "lead", "quote": "latency budgets"}
     )
-    about_item = answered_comment(
+    about_obligation = answered_comment(
         d, "The disk cache costs more.", {"section": "cache-ask"}
     )
     about_task = panel_comment(
@@ -951,32 +957,34 @@ def test_an_item_and_its_thread_are_one_standing_target(browser, serve):
     page = open_page(browser, url)
     card = page.locator(".lf-margin-preview")
     item = page.locator("#cache-ask")
-    item_thread = card.locator(f'.lf-page-thread[data-thread="{about_item}"]')
+    obligation_thread = card.locator(
+        f'.lf-page-thread[data-thread="{about_obligation}"]'
+    )
 
-    # `m` lands on the item and its thread comes up in the card beside it, which `c`
+    # `m` lands on the obligation and its thread comes up in the card beside it, which `c`
     # continues rather than starting a second one.
     page.keyboard.press("m")
     expect(item).to_be_focused()
-    expect(item_thread).to_be_visible()
+    expect(obligation_thread).to_be_visible()
     page.keyboard.press("c")
-    expect(item_thread.locator("leaf-text")).to_be_focused()
+    expect(obligation_thread.locator("leaf-text")).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(item).to_be_focused()
 
-    # From an item with no thread, `t` goes to the next thread after it in the document,
-    # which is the task's. Back from there is the item's own thread, where, in the card,
-    # the item is still where the user stands.
+    # From an obligation with no thread, `t` goes to the next thread after it in the document,
+    # which is the task's. Back from there is the obligation's own thread, where, in the card,
+    # the obligation is still where the user stands.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("t")
     expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_focused()
     page.keyboard.press("Shift+t")
-    expect(item_thread).to_be_focused()
-    expect(item).to_have_attribute("data-lf-item", "1")
+    expect(obligation_thread).to_be_focused()
+    expect(item).to_have_attribute("data-lf-obligation", "1")
 
-    # The nested item's card shows its task's thread, which is about the task, so `c`
-    # still starts the item a thread of its own.
+    # The nested obligation's card shows its task's thread, which is about the task, so `c`
+    # still starts the obligation a thread of its own.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("m")
@@ -984,19 +992,23 @@ def test_an_item_and_its_thread_are_one_standing_target(browser, serve):
     expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
 
 
-def test_an_item_in_a_reply_is_where_the_user_stands_once_answered(browser, serve):
-    """An item frozen into a reply sits in a thread about a page lf-ask. Standing in the
-    reply's item is standing there whether or not it is answered: the thread leads to
-    its page item only from a node inside no item, so a user back on the answered option
-    does not have the page item's ring and digits. A contributed control for a widget in
-    the reply stands nowhere, since its widget is chrome in no item, so `m` from it
-    starts where the reader is rather than behind every item on the page."""
+def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
+    browser, serve
+):
+    """An obligation frozen into a reply sits in a thread about a page lf-ask. Standing in the
+    reply's obligation is standing there whether or not it is answered: the thread leads to
+    its page obligation only from a node inside no obligation, so a user back on the answered option
+    does not have the page obligation's ring and digits. A contributed control for a widget in
+    the reply stands nowhere, since its widget is chrome in no obligation, so `m` from it
+    starts where the reader is rather than behind every obligation on the page."""
     url = serve(
-        ITEM_THREAD_PAGE,
+        OBLIGATION_THREAD_PAGE,
         media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
     )
     d = serve.page_dir
-    about_item = panel_comment(d, "Which one lasts longer?", {"section": "cache-ask"})
+    about_obligation = panel_comment(
+        d, "Which one lasts longer?", {"section": "cache-ask"}
+    )
     append_carried_log_record(
         d,
         {
@@ -1004,8 +1016,8 @@ def test_an_item_in_a_reply_is_where_the_user_stands_once_answered(browser, serv
             "author": "agent",
             "agent": "Claude",
             "revision": 1,
-            "parent": about_item,
-            "responds": about_item,
+            "parent": about_obligation,
+            "responds": about_obligation,
             "text": "One question first.",
             "markup": '<lf-ask id="follow-ask"><h3>Measure it first?</h3>'
             '<lf-options id="follow" choose>'
@@ -1017,7 +1029,7 @@ def test_an_item_in_a_reply_is_where_the_user_stands_once_answered(browser, serv
         },
     )
     page = open_page(browser, url)
-    open_panel_thread(page, about_item)
+    open_panel_thread(page, about_obligation)
     page.evaluate(
         """async (thread) => {
       const {contributionEntry, registerContribution} =
@@ -1041,16 +1053,16 @@ def test_an_item_in_a_reply_is_where_the_user_stands_once_answered(browser, serv
     option.click()
     expect(option).to_have_attribute("chosen", "")
     # Back on the answered option, the user stands in the reply's lf-ask. Answering moves
-    # focus to the message, which is inside no item and so does stand at the page lf-ask.
+    # focus to the message, which is inside no obligation and so does stand at the page lf-ask.
     round_trip(page)
     option.locator(".lf-pick").focus()
-    expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-item", "1")
+    expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
 
 
-ITEM_IN_A_PANE_PAGE = leaf_page(
+OBLIGATION_IN_A_PANE_PAGE = leaf_page(
     "ask in a pane",
     """
   <header><h1>Decisions</h1></header>
@@ -1081,19 +1093,19 @@ ITEM_IN_A_PANE_PAGE = leaf_page(
 )
 
 
-def test_an_item_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, serve):
-    """An item walk lands the decision at the start of the pane that scrolls it, and the
-    item wears the ring outside its box. The landing keeps the ring's room at the pane's
-    edge, as the browser's own landing does for a box asking for it: the item stood
+def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, serve):
+    """An obligation walk lands the decision at the start of the pane that scrolls it, and the
+    obligation wears the ring outside its box. The landing keeps the ring's room at the pane's
+    edge, as the browser's own landing does for a box asking for it: the obligation stood
     flush with the pane's top, the top of its ring cut off under the pane's header
     rule."""
-    page = open_page(browser, serve(ITEM_IN_A_PANE_PAGE))
+    page = open_page(browser, serve(OBLIGATION_IN_A_PANE_PAGE))
     resized(page, 1440, 900)
     pane_posture(page, page.locator("#ask-detail"), "bounded")
     page.keyboard.press("m")
     item = page.locator("#pane-decision")
     expect(item).to_be_focused()
-    expect(item).to_have_attribute("data-lf-item", "1")
+    expect(item).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page, "#ask-detail > :not(header, footer)")
     reading = item.evaluate(
         """ask => {

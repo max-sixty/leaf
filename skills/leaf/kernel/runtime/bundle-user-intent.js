@@ -35,6 +35,7 @@ import {
   followingItsEnd,
   headerLevels,
   localScrollBy,
+  marks,
   nameAnchor,
   refreshAnchorView,
   resolveAnchor,
@@ -979,19 +980,19 @@ function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   placeKept(box, ...standing2 ? scrollersOf(standing2) : []);
 }
 
-// runtime/items/model.js
-var readItems = readPart((root) => root.effective.items);
-var itemEntry = (item) => registry[item?.source.tag]?.["x-awaits"];
-var answeredInWords = (item) => Boolean(itemEntry(item)?.reply);
-var approvalBlockingItems = readPart((root) => {
-  const { items, view } = root.effective;
-  if (items.phase !== "ready" || !view) return null;
+// runtime/obligations/model.js
+var readObligations = readPart((root) => root.effective.obligations);
+var obligationEntry = (obligation) => registry[obligation?.source.tag]?.["x-awaits"];
+var answeredInWords = (obligation) => Boolean(obligationEntry(obligation)?.reply);
+var approvalBlockingObligations = readPart((root) => {
+  const { obligations, view } = root.effective;
+  if (obligations.phase !== "ready" || !view) return null;
   const held = new Set(view.approval_blocking);
-  return items.all.filter((item) => held.has(item.id));
+  return obligations.all.filter((obligation) => held.has(obligation.id));
 });
 
-// runtime/items/place.js
-function itemPlace(item, items = readItems().all) {
+// runtime/obligations/place.js
+function obligationPlace(item, items = readObligations().all) {
   if (!item || item.source.kind !== "widget")
     return { source: null, context: null, node: null };
   const source = elementById(item.source.id);
@@ -1001,7 +1002,7 @@ function itemPlace(item, items = readItems().all) {
   );
   return { source, context, node: shared ? source : context };
 }
-function itemsIn(region, items = readItems().all) {
+function obligationsIn(region, items = readObligations().all) {
   return items.filter((item) => {
     if (item.source.kind !== "widget" || item.status === "withdrawn") return false;
     const source = elementById(item.source.id);
@@ -1015,9 +1016,9 @@ function declareSide(bridge) {
   sides.add(bridge);
   return () => sides.delete(bridge);
 }
-function itemHolding(items, node) {
+function obligationHolding(items, node) {
   if (!node) return null;
-  const places = items.filter((item) => item.source.kind === "widget").map((item) => ({ item, ...itemPlace(item, items) }));
+  const places = items.filter((item) => item.source.kind === "widget").map((item) => ({ item, ...obligationPlace(item, items) }));
   const holds = (element) => element && (element === node || under(node, element));
   const source = places.findLast((place2) => holds(place2.source));
   if (source) return source.item;
@@ -1034,11 +1035,11 @@ function sideOf(node) {
 function placeOf(node) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || at === document.body) return null;
-  if (itemHolding(readItems().all, at)) return at;
+  if (obligationHolding(readObligations().all, at)) return at;
   for (const side of sides) {
     const place2 = side(at);
     if (place2)
-      return inChrome(place2) && !itemHolding(readItems().all, place2) ? null : place2;
+      return inChrome(place2) && !obligationHolding(readObligations().all, place2) ? null : place2;
   }
   return inChrome(at) ? null : at;
 }
@@ -1070,9 +1071,9 @@ function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
   const row = dir > 0 ? reach[0] : reach.at(-1);
   return row ? { row, wrapped: false } : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
 }
-function heldItem(node = focused()) {
-  const item = itemHolding(readItems().all, placeOf(node));
-  return itemPlace(item).node;
+function heldObligation(node = focused()) {
+  const item = obligationHolding(readObligations().all, placeOf(node));
+  return obligationPlace(item).node;
 }
 
 // runtime/syntax-languages.js
@@ -1186,7 +1187,7 @@ async function highlightBlocks(root) {
 
 // runtime/declared-words.js
 var PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
-var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(registry.$marks).some((mark) => mark.paint === name);
+var isPagePaint = (name) => PAGE_PAINT_ATTRIBUTES.has(name) || Object.values(marks).some((mark) => mark.paint === name);
 function quietWord(el2, word) {
   const title = el2.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el2.firstChild;
@@ -1316,7 +1317,7 @@ function* elementsIn(root, selector) {
   yield* root.querySelectorAll(selector);
 }
 function markDeclared(root) {
-  for (const [key, mark] of Object.entries(registry.$marks)) {
+  for (const [key, mark] of Object.entries(marks)) {
     const { paint, authored, message } = mark;
     if (!message) continue;
     const tags = tagsDeclaring((entry) => entry[key]);
@@ -5759,7 +5760,7 @@ function threadReading(thread, surface, commands2) {
   const label = resolved2 ? word : "Resolve thread";
   const attention = threadAttention(thread);
   const asking = new Set(
-    thread.items.filter((item) => item.next_actor === "user" && answeredInWords(item)).map((item) => item.message)
+    thread.obligations.filter((item) => item.next_actor === "user" && answeredInWords(item)).map((item) => item.message)
   );
   const openTodos = new Set(thread.todos.map(({ id }) => id));
   const leaves = (message) => asking.has(message.id) ? "Waiting on me" : message.todo && openTodos.has(message.id) ? "To-do open" : null;
@@ -7189,19 +7190,19 @@ export {
   hasLandmark,
   rawOffsetFits,
   restorePlace,
-  readItems,
-  itemEntry,
+  readObligations,
+  obligationEntry,
   answeredInWords,
-  approvalBlockingItems,
-  itemPlace,
-  itemsIn,
+  approvalBlockingObligations,
+  obligationPlace,
+  obligationsIn,
   declareSide,
-  itemHolding,
+  obligationHolding,
   sideOf,
   placeOf,
   walkOrigin,
   stepFrom,
-  heldItem,
+  heldObligation,
   ensureSyntaxLanguage,
   syntax,
   synNodes,

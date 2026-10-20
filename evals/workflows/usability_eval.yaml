@@ -660,7 +660,7 @@ cases:
 
           watch_left_to_leaf (the complete native trace): Throughout this live scenario, the agent left watching for later user input to Leaf rather than launching its own background wait or polling loop. Judge what the tools actually started, including renamed launchers, variables and wrappers. Reading help, quoting a wait command, and failed attempts that started nothing are allowed.
 
-          plan_first (the page's events): The agent's first plan event comes before the revision that puts the new p99s in the latency table. It lays out the user's job as one goal whose steps cover the latency table, the user's pick of the first region, that region's schedule and the rollback section, with the pick before the schedule. The pick is a step naming the first-region widget's item (`widget:first-region`), not a plain step the agent marks itself.
+          plan_first (the page's events): The agent's first plan event comes before the revision that puts the new p99s in the latency table. It lays out the user's job as one goal whose steps cover the latency table, the user's pick of the first region, that region's schedule and the rollback section, with the pick before the schedule. The pick is a step naming the first-region widget's obligation (`widget:first-region`), not a plain step the agent marks itself.
 
           current_at_handover (the page's events and the driver records): In the plan in force when the user's round was posted (the newest plan event before the driver's `eval_post` record), the latency-table step is done and no step is marked working that the agent was no longer doing.
 

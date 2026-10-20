@@ -14,7 +14,7 @@ from render_cases_interaction import (
     LIVE_READING,
     LIVE_V1,
     LIVE_V2,
-    SEATED_ITEM_PAGE,
+    SEATED_OBLIGATION_PAGE,
     WRAP_TOP,
     live_url,
 )
@@ -49,7 +49,7 @@ def test_live_news_keeps_the_reading_draft_and_resting_target(browser, serve):
     An unrelated source revision arrives while retaining the editor and restoring the
     page's reading position. Opening the reply proves the notice held genuine growth.
     """
-    source = SEATED_ITEM_PAGE.replace(
+    source = SEATED_OBLIGATION_PAGE.replace(
         "</main>",
         '<p id="reading">The next passage remains where I am reading.</p>'
         + "<p>Further context. "
@@ -748,8 +748,8 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
     expect(page.locator("#standing-control")).to_be_visible()
 
 
-def test_item_repaints_keep_the_on_me_view_s_reading(browser, serve):
-    """Item repaint keeps the reading of the panel's On me view the user scrolled."""
+def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
+    """Obligation repaint keeps the reading of the panel's On me view the user scrolled."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'
@@ -773,13 +773,13 @@ def test_item_repaints_keep_the_on_me_view_s_reading(browser, serve):
     view = page.locator(list_selector)
     view.evaluate(
         """list => list.addEventListener('scroll', () => {
-          if (list.scrollTop > 100) window.readLaterItems = true;
+          if (list.scrollTop > 100) window.readLaterObligations = true;
         })"""
     )
     box = view.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.wheel(0, 700)
-    page.wait_for_function("() => window.readLaterItems")
+    page.wait_for_function("() => window.readLaterObligations")
     scroll_settled(page, list_selector)
     reading = view.evaluate("list => list.scrollTop")
     assert reading > 100, "painting the standing card must not undo scrolling the list"

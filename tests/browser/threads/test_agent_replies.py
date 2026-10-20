@@ -17,7 +17,7 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
-    SEATED_ITEM_PAGE,
+    SEATED_OBLIGATION_PAGE,
     THREAD_DIFF_PAGE,
     panel_comment,
 )
@@ -546,7 +546,7 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     """A step's words wrap, so a new step can change the working message's height. In a
     seat where that would move the reply being typed, the step waits behind the
     thread's notice, as a reply would, and the draft keeps its place."""
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     thread_model.post_reply(
         serve.page_dir, {"to": root, "for": root}, "Reading the jobs.", ephemeral=True
@@ -614,7 +614,7 @@ def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(
 
 def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
     """An answer that asks back or promises work says so in its head, beside its time,
-    for as long as the item is the user's or the to-do stays open."""
+    for as long as the obligation is the user's or the to-do stays open."""
     url = serve(PANEL_PAGE)
     asked = panel_comment(serve.page_dir, "Which store owns it?", {"section": "h-how"})
     promised = panel_comment(serve.page_dir, "Rebuild the banner", {"section": "lede"})
@@ -657,7 +657,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
 ):
     """A board the agent sent in a reply takes a moved card as a page board does: the
     reply carrying the board reports the saved move, and the thread stays nobody's
-    turn, since the move answers no item and wakes nobody. The agent's next turn in
+    turn, since the move answers no obligation and wakes nobody. The agent's next turn in
     the thread takes the move in, and the receipt leaves with it, even while that turn
     waits behind the card's notice, since a held thread draws its messages' delivery
     as it stands."""

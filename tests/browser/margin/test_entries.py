@@ -413,7 +413,7 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     )
 
 
-ITEM_MARKERS_PAGE = leaf_page(
+OBLIGATION_MARKERS_PAGE = leaf_page(
     "Question markers",
     """
 <h1 id="h">Two open questions</h1>
@@ -433,11 +433,11 @@ or roll every tenant into a single partitioned archive?</h2>
 )
 
 
-def test_an_item_marker_s_label_and_name_identify_its_question(browser, serve):
-    """Hovering an item's marker shows the item's question, where it used to show only
+def test_an_obligation_marker_s_label_and_name_identify_its_question(browser, serve):
+    """Hovering an obligation's marker shows the obligation's question, where it used to show only
     "Ask…", which the marker's glyph already says. Its accessible name identifies
     the question too, independently of how the visible label fits."""
-    page = open_page(browser, serve(ITEM_MARKERS_PAGE))
+    page = open_page(browser, serve(OBLIGATION_MARKERS_PAGE))
     resized(page, 1440, 900)
     read = """(marker) => {
         const word = marker.querySelector('.lf-margin-entry-label-word');
@@ -463,10 +463,10 @@ def test_an_item_marker_s_label_and_name_identify_its_question(browser, serve):
     assert "roll every tenant" in seen["long-ask"]["name"], seen
 
 
-def test_the_item_the_user_stands_in_selects_its_marker(browser, serve):
-    """Arriving at an item with `m` paints its On me marker selected, and only its
+def test_the_obligation_the_user_stands_in_selects_its_marker(browser, serve):
+    """Arriving at an obligation with `m` paints its On me marker selected, and only its
     marker."""
-    page = open_page(browser, serve(ITEM_MARKERS_PAGE))
+    page = open_page(browser, serve(OBLIGATION_MARKERS_PAGE))
     resized(page, 1440, 900)
 
     def marker(item):

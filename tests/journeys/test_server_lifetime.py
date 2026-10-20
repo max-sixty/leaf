@@ -19,6 +19,7 @@ from interact_support import (
     install_payload,
     page_packages,
     publish,
+    read_record,
     start_server_command,
     wait_for,
     woken,
@@ -158,7 +159,7 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
     assert result.exit_code == 0, result.output
     assert revendored
     assert server_model.running_server(page_dir) is None
-    assert not files_model.read_json(page_dir / "service.json")["enabled"]
+    assert not read_record(page_dir / "service.json")["enabled"]
     assert ("has no live session owner" in result.output) == (service == "orphaned")
 
 
@@ -224,7 +225,7 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     # place at the same URL, under the lifetime and claim it had.
     old_server.wait(timeout=STATED_TIMEOUT)
     assert server_model.running_server(page_dir)["url"] == url
-    assert files_model.read_json(page_dir / "service.json")["lifetime"] == lifetime
+    assert read_record(page_dir / "service.json")["lifetime"] == lifetime
     assert service_model.page_claim(page_dir) == prior_owner
     restored = service_model.read_status(page_dir)
     assert restored == prior_status

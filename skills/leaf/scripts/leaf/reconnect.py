@@ -22,17 +22,25 @@ from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
-from .files import read_json
 from .leases import page_locked
 from .schema import PREVIEW_FILE
 from .service import (
     PageTransaction,
     claim_is_active,
-    claim_path,
     claim_records,
-    readable_claim,
+    page_claim,
 )
-from .state import flocked, session_file, session_lock_path, session_record, write_json
+from .state import Record, flocked, session_file, session_lock_path, session_record
+
+# The pages a session has been told to reconnect, one notice each per outage.
+NOTICES = Record(
+    "reconnect",
+    {
+        "type": "object",
+        "properties": {"pages": {"type": "array", "items": {"type": "string"}}},
+        "required": ["pages"],
+    },
+)
 
 
 def _notice_path(harness: str, session_id: str) -> Path:
@@ -40,12 +48,12 @@ def _notice_path(harness: str, session_id: str) -> Path:
 
 
 def _reported(harness: str, session_id: str) -> set[str]:
-    record = read_json(_notice_path(harness, session_id))
-    if not isinstance(record, list) or not all(
-        isinstance(page, str) for page in record
-    ):
-        return set()
-    return set(record)
+    record = NOTICES.read(_notice_path(harness, session_id))
+    return set(record["pages"]) if record else set()
+
+
+def _report(harness: str, session_id: str, reported: set[str]) -> None:
+    NOTICES.write(_notice_path(harness, session_id), {"pages": sorted(reported)})
 
 
 def _healthy(page_dir: Path, claim: dict) -> bool:
@@ -59,7 +67,7 @@ def _forget(page_dir: Path, harness: str, session_id: str) -> None:
     reported = _reported(harness, session_id)
     if str(page_dir) in reported:
         reported.remove(str(page_dir))
-        write_json(_notice_path(harness, session_id), sorted(reported))
+        _report(harness, session_id, reported)
 
 
 def recovered(page_dir: Path, claim: dict) -> None:
@@ -118,7 +126,7 @@ def publishing_notices(
             return
         messages = []
         for page_dir in retained:
-            claim = readable_claim(read_json(claim_path(page_dir)))
+            claim = page_claim(page_dir)
             if (
                 claim is None
                 or (claim["harness"], claim["id"]) != (harness, session_id)
@@ -130,7 +138,6 @@ def publishing_notices(
             service = read_service(page_dir)
             if (
                 service is None
-                or "server_id" not in service
                 or not service["enabled"]
                 or service["lifetime"] != "session"
             ):
@@ -143,7 +150,7 @@ def publishing_notices(
                 if key in reported:
                     continue
                 reported.add(key)
-                write_json(_notice_path(harness, session_id), sorted(reported))
+                _report(harness, session_id, reported)
                 command = shlex.join(["leaf", "server", "start", key])
                 messages.append(
                     f"Your Leaf page needs reconnecting: {page_dir}. "

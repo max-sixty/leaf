@@ -10,9 +10,9 @@ from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.findings import Finding, Rejected
 from leaf.passages import SourceReading
+from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
-from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_names, thread_structure
 
@@ -99,7 +99,7 @@ def logged_id(page_dir: Path, events: list, value: str, responses: dict) -> str 
     article = "an" if kind[:1] in "aeiou" else "a"
     held = f"{value} is {article} {kind} in this page's log"
     owed = responses.get(value)
-    if owed is None and kind in MESSAGE_KINDS:
+    if owed is None and kind in kinds_declaring("message"):
         owed = thread_obligation(events, responses, value)
         if owed is None:
             thread = build_threads(events, {}).get(thread_names(events)[value])

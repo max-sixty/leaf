@@ -22,7 +22,7 @@ from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.passages import SourceReading
-from leaf.schema import MESSAGE_KINDS
+from leaf.registry.kernel import kinds_declaring
 from leaf.service import requires_agent_attention
 from leaf.structure import SourceDocument
 
@@ -648,7 +648,7 @@ def post_round(
             event["undoes"] = posted_event(page, attempt_key(n, i - 1))["id"]
         if move.get("parent") == "latest":
             event["parent"] = [
-                e for e in page_events(page) if e["kind"] in MESSAGE_KINDS
+                e for e in page_events(page) if e["kind"] in kinds_declaring("message")
             ][-1]["id"]
         if "text" in move:
             event["text"] = move["text"].format(

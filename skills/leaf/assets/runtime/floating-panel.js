@@ -153,10 +153,10 @@ import { retainUserIntent } from "./user-intent.js";
 import { settleThread } from "./thread/folding.js";
 import { queueItemKey, readPlan, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
-import { carriesItem, itemOutcome } from "./queues.js";
+import { carriesObligation, itemOutcome } from "./queues.js";
 import { shortAgo } from "./presence.js";
-import { itemEnding } from "./items/answer.js";
-import { answeredInWords } from "./items/model.js";
+import { obligationEnding } from "./obligations/answer.js";
+import { answeredInWords } from "./obligations/model.js";
 import { versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
@@ -284,7 +284,7 @@ export function createFloatingPanel({
   threadActions,
   registerChromeThreadPresentation,
   observeFeedback,
-  items: itemView,
+  obligations: obligationView,
   queueActions,
   withdraw,
   settlement,
@@ -934,7 +934,6 @@ export function createFloatingPanel({
   // takes the shorter tween: the view's own change, and the one when the view it
   // replaced is gone after its fade.
   let viewMovingUntil = 0;
-  const SHADOW_REACH = 32;
   const outlineClip = (box, grow = 0) =>
     `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${
       box.left - grow
@@ -962,12 +961,17 @@ export function createFloatingPanel({
       return;
     outline = next;
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
-    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`, a
-    // 24px blur dropped 8px), so it stands over nothing else in the window: a layer over
-    // the whole window that paints nothing left every word under it unmeasured by a
-    // contrast checker. Its cut moves with the ring's, so it holds the ring every frame.
+    // The ground is cut too, to the outline grown by its shadow's reach (`--raise-2`'s
+    // blur dropped by its drop, theme.css), so it stands over nothing else in the window:
+    // a layer over the whole window that paints nothing left every word under it
+    // unmeasured by a contrast checker. Its cut moves with the ring's, so it holds the
+    // ring every frame.
+    const lift = getComputedStyle(ground);
+    const shadowReach = ["--raise-2-drop", "--raise-2-blur"]
+      .map((token) => Number.parseFloat(lift.getPropertyValue(token)))
+      .reduce((reach, part) => reach + part);
     for (const [layer, grow] of [
-      [ground, SHADOW_REACH],
+      [ground, shadowReach],
       [ring, 1],
       [fill, 0],
     ]) {
@@ -1297,7 +1301,7 @@ export function createFloatingPanel({
     if (changed) viewMovingUntil = performance.now() + OUT_MS + VIEW_RESIZE_MS;
     paint();
     // The reader draws what the view arriving holds, and lets go of what the one
-    // leaving held: a thread's messages, or the items On shows as messages.
+    // leaving held: a thread's messages, or the obligations On shows as messages.
     const drawn =
       reading || before?.view === "queue" ? present({ release: reading }) : null;
     if (!changed || reducedMotion() || !pagePresented()) {
@@ -2054,12 +2058,12 @@ export function createFloatingPanel({
       }`;
   }
 
-  // ---------- On: items answered where they are read ----------
+  // ---------- On: obligations answered where they are read ----------
   // The lists are the publisher's (`readQueues`): what waits on the user and on the
   // agent, a tab each, and under each what left it, its Done (`owner`). The view has no
   // name of its own: its title is the open tab's. An item the user answers here stays
   // where it stood, saying its answer and offering Undo, until the view closes, so
-  // answering one item never carries the next under the pointer. Done stands open under
+  // answering one obligation never carries the next under the pointer. Done stands open under
   // the list rather than folded, since a fold opening would grow the view up from under
   // the pointer that opened it.
   let queueTab = "you";
@@ -2102,7 +2106,7 @@ export function createFloatingPanel({
     };
   };
 
-  // The undo list's entry for the gesture that answered an item, where it can still be
+  // The undo list's entry for the gesture that answered an obligation, where it can still be
   // taken back (undo.js).
   const answerGesture = (item) => {
     const id = item?.answer?.event?.id ?? item?.answer?.event;
@@ -2203,7 +2207,7 @@ export function createFloatingPanel({
     );
 
   function onItemCard(item, list) {
-    const record = carriesItem(item) ? item.item : null;
+    const record = carriesObligation(item) ? item.obligation : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     // A question asked in words is a message in its thread, and reads as that message,
     // drawn whole by Leaf's reader as the thread draws it (`nominate`), images and all:
@@ -2231,7 +2235,7 @@ export function createFloatingPanel({
     const answered = record && record.status !== "open";
     const choices =
       record && !answered && record.source.kind === "widget" && !inWords
-        ? itemView.choicesOf(record)
+        ? obligationView.choicesOf(record)
         : null;
     const gesture = answered ? answerGesture(record) : null;
     const discuss = thread
@@ -2249,7 +2253,7 @@ export function createFloatingPanel({
       @click=${() => {
         close();
         void (record
-          ? itemView.open(record.id)
+          ? obligationView.open(record.id)
           : queueActions.open(queueItemKey(item)));
       }}
     >
@@ -2262,10 +2266,10 @@ export function createFloatingPanel({
         >${thread ? discuss : nothing}`;
     else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
-          >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
+          >${item.todo?.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
     else if (answered)
-      answers = html`<span class="lf-fp-said">${itemEnding(record)}</span>${
+      answers = html`<span class="lf-fp-said">${obligationEnding(record)}</span>${
           gesture
             ? html`<button
                 type="button"
@@ -2356,7 +2360,7 @@ export function createFloatingPanel({
     const card = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
     return card?.querySelector("button") ?? card;
   };
-  // An approval is an item, always On me's, open or done.
+  // An approval is an obligation, always On me's, open or done.
   function arriveAtApproval() {
     chooseQueueTab("you");
     open({ view: "queue" }, { reopen: true, focus: false });

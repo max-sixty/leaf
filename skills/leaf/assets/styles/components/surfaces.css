@@ -484,7 +484,11 @@ summary {
   color: var(--ink);
   overflow-wrap: anywhere;
 }
-.lf-page-thread[data-lf-focus-within] {
+/* A whole thread holding focus wears a quiet ground. A primary reader's part is one
+   message of a thread its presentation draws whole around it (`.lf-primary-part`
+   below), so focus inside a part leaves that ground to the drawing and the focused
+   control to its own ring. */
+.lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
   outline: none;
   border-radius: var(--r);
   background: var(--focus-surface);
@@ -509,7 +513,7 @@ summary {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 @media (forced-colors: active) {
-  .lf-page-thread[data-lf-focus-within] {
+  .lf-page-thread:not(.lf-primary-part)[data-lf-focus-within] {
     outline: 2px solid Highlight;
     outline-offset: -2px;
     box-shadow: none;
@@ -528,10 +532,15 @@ summary {
 .lf-thread-seat > .lf-say {
   margin-top: 0;
 }
-.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
+/* Threads stacked in one seat are ruled apart. Parts are pieces of one thread, so a
+   part on either side takes no rule: the presentation drawing them spaces them as its
+   transcript (floating-panel.css, `.lf-fp-messages`). */
+.lf-page-thread:not(.lf-primary-part)
+  + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads) {
   margin-top: var(--sp-3);
 }
-.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before {
+.lf-page-thread:not(.lf-primary-part)
+  + :is(.lf-page-thread:not(.lf-primary-part), .lf-resolved-threads)::before {
   content: "";
   position: absolute;
   inset-inline: var(--sp-1);
@@ -551,6 +560,18 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: max(28px, var(--aim-floor));
   --lf-msg-body-gap: 4px;
+  /* A message's control, and the Cancel and Save an open rewrite stands in its place:
+     the head keeps their room (controls.css), and so does the thread's own controls'
+     row beside a first message (below). */
+  --lf-msg-control-size: max(26px, var(--aim-floor));
+  --lf-msg-edit-cancel: max(52px, var(--aim-floor));
+  --lf-msg-edit-save: max(40px, var(--aim-floor));
+  --lf-msg-edit-gap: 4px;
+  --lf-msg-edit-room: calc(
+    var(--lf-msg-edit-cancel) + var(--lf-msg-edit-gap) + var(--lf-msg-edit-save)
+  );
+  /* The widest a primary reader's news notice stands, in a message head or a part. */
+  --lf-primary-news-width: 5rem;
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -616,11 +637,12 @@ summary {
    presentation stands the notice elsewhere (thread/primary-reader.js). */
 .lf-primary-message > .lf-msg-head:has(> .lf-primary-news) {
   position: relative;
-  --lf-msg-head-room: 5rem;
+  --lf-msg-head-room: var(--lf-primary-news-width);
   padding-inline-end: var(--lf-msg-head-room);
 }
 .lf-primary-part {
   position: relative;
+  border-radius: var(--r);
 }
 .lf-primary-part[data-lf-part="reply"] {
   padding-block-start: max(28px, var(--aim-floor));
@@ -629,7 +651,7 @@ summary {
   position: absolute;
   inset-block-start: 0;
   inset-inline-end: var(--lf-msg-control-room, var(--lf-msg-control, 0px));
-  max-inline-size: 5rem;
+  max-inline-size: var(--lf-primary-news-width);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -861,7 +883,7 @@ summary {
       > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
       > :is(.lf-react-strip, .lf-msg-control)
   ) {
-  --lf-thread-message-control-room: calc(max(26px, var(--aim-floor)) + var(--sp-2));
+  --lf-thread-message-control-room: calc(var(--lf-msg-control-size) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls):has(
     > .lf-thread-transcript
@@ -869,9 +891,7 @@ summary {
       > .lf-msg-body
       > .lf-msg-editor
   ) {
-  --lf-thread-message-control-room: calc(
-    max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor)) + var(--sp-2)
-  );
+  --lf-thread-message-control-room: calc(var(--lf-msg-edit-room) + var(--sp-2));
 }
 .lf-thread-content:has(> .lf-thread-controls)
   > .lf-thread-transcript

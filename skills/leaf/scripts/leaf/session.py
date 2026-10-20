@@ -27,7 +27,8 @@ from .leases import (
 from .locations import path_location, paths_same
 from .presence import nudge_unwatched
 from .refusals import Refused
-from .schema import ANSWER_ITEM_INSTRUCTION, MESSAGE_KINDS
+from .registry.kernel import kinds_declaring
+from .schema import ANSWER_INSTRUCTION
 from .served_state.reading import outside_inputs, page_input, page_reading
 from .server import read_service, running_server
 from .service import (
@@ -105,7 +106,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         if owed:
             raise Refused(
                 f"{unanswered(owed, page_dir, 'acknowledged')}; answer before idling. "
-                + ANSWER_ITEM_INSTRUCTION
+                + ANSWER_INSTRUCTION
             )
         # A to-do is work the agent still owes, which closing the page would leave
         # open on a page nobody holds.
@@ -613,7 +614,10 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     }
     pending = []
     for event in batch:
-        if event["kind"] in MESSAGE_KINDS and event["id"] not in agent_inputs:
+        if (
+            event["kind"] in kinds_declaring("message")
+            and event["id"] not in agent_inputs
+        ):
             continue
         pending.append(event)
     return pending

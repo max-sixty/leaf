@@ -14,7 +14,7 @@ from leaf.events import (
     taken_back,
 )
 from leaf.passages import enclosing_ids
-from leaf.schema import MESSAGE_KINDS
+from leaf.registry.kernel import kinds_declaring
 from leaf.structure import SourceDocument
 
 
@@ -139,7 +139,7 @@ def thread_names(events: list) -> dict:
     (`event_contracts._parent_error`).
 
     Two readings of the panel's own document resolve a message to its thread, and
-    they must answer alike: an item and a question naming different threads for one
+    they must answer alike: an obligation and a question naming different threads for one
     message is a disagreement no reader could account for. (`build_threads` walks
     the same relation to a different end — the thread object itself, with its
     resolution — so it keeps its own walk.)"""
@@ -232,7 +232,7 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
     validates its target against the active revision's own elements, so one
     can never name a widget an agent sent."""
     kind = event["kind"]
-    if kind in MESSAGE_KINDS:
+    if kind in kinds_declaring("message"):
         named = [names.get(event["id"])]
     elif kind == "edit":
         named = [names.get(event["message"])]

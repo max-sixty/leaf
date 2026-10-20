@@ -19,14 +19,15 @@ import {
   runtime
 } from "./bundle-semantic-state.js";
 import {
+  frameVisibility,
   keeps,
   move,
   nextRender,
-  onSampleVisibility,
+  onFrameVisibility,
   readSampleVisibility,
-  sampleVisibility,
-  sizeObserver
-} from "./bundle-sample-visibility.js";
+  sizeObserver,
+  watchFrame
+} from "./bundle-frame-visibility.js";
 
 // runtime/sample.js
 var MAX_LOADING_SAMPLES = 3;
@@ -134,7 +135,7 @@ function mountSample(frame, { template, window: asWindow = false }) {
   );
   frame.toggleAttribute("data-lf-contained", true);
   function admitted() {
-    return document.visibilityState === "visible" && presented(frame) && sampleVisibility()?.visible !== false;
+    return document.visibilityState === "visible" && presented(frame) && seen.shown() && frameVisibility()?.visible !== false;
   }
   function visibility() {
     channel?.postMessage({ type: "visibility", detail: { visible: admitted() } });
@@ -312,23 +313,13 @@ function mountSample(frame, { template, window: asWindow = false }) {
   frame.addEventListener("load", loaded);
   const room = watchRoom(visibility);
   document.addEventListener("visibilitychange", visibility);
-  const seen = new IntersectionObserver(visibility, { threshold: [0, 1] });
-  seen.observe(frame);
+  const seen = watchFrame(frame, visibility);
   const size = sizeObserver(visibility);
   size.observe(frame);
-  const admission = new MutationObserver((records) => {
-    if (records.some(({ target }) => target === frame || target.contains(frame)))
-      visibility();
-  });
-  admission.observe(document, {
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["inert", "open", "hidden", "aria-hidden", "class", "style"]
-  });
   const nativeTransition = () => nextRender(visibility);
   for (const type of ["beforetoggle"])
     document.addEventListener(type, nativeTransition, true);
-  const unwatch = onSampleVisibility(visibility);
+  const unwatch = onFrameVisibility(visibility);
   const undress = registerSampleDress(
     frame,
     (dress) => channel?.postMessage({ type: "dress", detail: dress })
@@ -385,16 +376,16 @@ function mountSample(frame, { template, window: asWindow = false }) {
             await retire("destroyed");
             throw new DOMException("sample destroyed", "AbortError");
           }
-          const admission2 = await fetch(current, {
+          const admission = await fetch(current, {
             method: "HEAD",
             credentials: "omit",
             signal: lifetimeController.signal
           });
           record("admission", {
-            status: admission2.status,
-            leafDocument: admission2.headers.get("Leaf-Document")
+            status: admission.status,
+            leafDocument: admission.headers.get("Leaf-Document")
           });
-          if (!admission2.ok || !admission2.headers.has("Leaf-Document"))
+          if (!admission.ok || !admission.headers.has("Leaf-Document"))
             throw new Error("The sample document did not start Leaf");
           if (destroyed) {
             await retire("destroyed");
@@ -459,9 +450,8 @@ function mountSample(frame, { template, window: asWindow = false }) {
       window.removeEventListener("pagehide", departing);
       room();
       document.removeEventListener("visibilitychange", visibility);
-      seen.disconnect();
+      seen.stop();
       size.disconnect();
-      admission.disconnect();
       for (const type of ["beforetoggle"])
         document.removeEventListener(type, nativeTransition, true);
       lifetime.disconnect();

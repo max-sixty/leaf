@@ -37,7 +37,7 @@ import {
   under,
   upFrom,
   wearsLentStop
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   outsideReading
 } from "./bundle-queued-work.js";

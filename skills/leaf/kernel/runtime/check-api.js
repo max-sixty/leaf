@@ -113,6 +113,7 @@ import {
   shownBand,
   shownBox,
   shownRect,
+  skipped,
   stackLevel,
   stuckBox,
   uiInside,
@@ -131,16 +132,17 @@ import {
 } from "./bundle-semantic-state.js";
 import {
   WORKS,
+  frameVisibility,
+  onFrameVisibility,
   onStanding,
   readSampleVisibility,
   releaseFocus,
   renderedParent,
   renderingState,
-  sampleVisibility,
   tabStops,
   takesLetters,
   upFrom
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   bindQueuedWork,
   createPresentationSchedule,
@@ -202,6 +204,7 @@ export {
   findQuote,
   fitsWhole,
   flashDuration,
+  frameVisibility,
   growthAfterIsSeen,
   heldObligation,
   landingBand,
@@ -210,6 +213,7 @@ export {
   marksSheet,
   nativeLayers,
   observeQueuedWork,
+  onFrameVisibility,
   onStanding,
   pageDocument,
   pageRange,
@@ -236,7 +240,6 @@ export {
   resolveAnchor,
   reveal,
   runtimeRootState,
-  sampleVisibility,
   scrollAxes,
   scrollersOf,
   seenRect,
@@ -249,6 +252,7 @@ export {
   shownBox,
   shownRect,
   shownRegionBounds,
+  skipped,
   spanIn,
   stack,
   stackLevel,

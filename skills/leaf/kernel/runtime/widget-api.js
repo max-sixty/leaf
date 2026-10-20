@@ -267,7 +267,7 @@ import {
   standingIn,
   under,
   whenLeft
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   LitElement,
   M,

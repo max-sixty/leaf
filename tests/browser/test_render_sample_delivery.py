@@ -111,7 +111,7 @@ def test_a_page_cache_round_trip_keeps_the_sample_connected(browser, serve):
     child = sample.locator("iframe").element_handle().content_frame()
     child.evaluate("""async () => {
       const module = await window.__lfCheckApi();
-      window.sampleIsVisible = () => module.sampleVisibility().visible;
+      window.sampleIsVisible = () => module.frameVisibility().visible;
       for (const type of ['pagehide', 'pageshow'])
         window.dispatchEvent(new PageTransitionEvent(type, {persisted: true}));
     }""")

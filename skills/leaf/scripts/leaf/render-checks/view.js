@@ -20,7 +20,7 @@ export function readViewChecks(open) {
   return {
     layout: {
       margin: marginResidents(),
-      arrangement: arrangedBoxes(open),
+      arrangement: arrangedBoxes(open, { shown: true }),
       panes: heldPanes(),
     },
     checks: {

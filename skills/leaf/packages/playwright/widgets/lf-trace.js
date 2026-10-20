@@ -1842,7 +1842,9 @@ customElements.define(
       const playLabel = this.#playing ? "Pause" : "Play";
       // What the times count from; the header's "Words at rest" says where it shows.
       const fromStart =
-        origin && origin.recordedStart !== null && origin.recordedStart === origin.start;
+        origin &&
+        origin.recordedStart !== null &&
+        origin.recordedStart === origin.start;
       const ownClocks = trace?.streams.length > 1;
       const clockLabel = `${
         fromStart

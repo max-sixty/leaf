@@ -548,7 +548,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     if place == "panel":
         # The refusal covers the words it gave back in the panel's field, which sends
         # nothing until the user's first edit or press there brings them back.
-        cover = page.locator(".lf-fp-error-cover")
+        cover = page.locator(".lf-fp-field .lf-compose-error")
         expect(cover).to_contain_text("refused before append")
         cover.click()
     else:

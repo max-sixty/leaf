@@ -1817,7 +1817,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
       (await window.__lfWidgetApi()).raiseError(text, { subject });
     }"""
     panel = page.locator(".lf-floating-panel")
-    cover = page.locator(".lf-fp-error-cover")
+    cover = page.locator(".lf-fp-field .lf-compose-error")
     dot = page.locator(".lf-fp-error-dot")
     value = "node => node.value"
     page.evaluate(raise_error, ["Couldn't load v1", False])

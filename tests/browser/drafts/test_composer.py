@@ -289,7 +289,15 @@ def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser,
     held.pop().continue_()
     expect(box).not_to_have_attribute("aria-busy", "true")
     expect(page.locator(".lf-composer-media img")).to_have_count(0)
-    # The error is about the composer, which the panel's field does not speak for.
+    # The error is about the composer, so it stands over the box the paste was made in,
+    # and waits in the leaf's menu once the user writes there.
+    cover = page.locator(".lf-fab-bar .lf-compose-error")
+    expect(cover).to_have_text(
+        "Image not added — the comment moved before it finished uploading"
+    )
+    page.keyboard.type("Instead")
+    expect(cover).to_be_hidden()
+    expect(box).to_have_js_property("value", "Instead")
     expect_error_waits_in_menu(
         page, "Image not added — the comment moved before it finished uploading"
     )

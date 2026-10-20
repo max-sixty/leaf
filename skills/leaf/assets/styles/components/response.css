@@ -51,6 +51,29 @@
   background: transparent;
   color: var(--muted);
 }
+/* An error about the box stands over its words and its actions, in the danger's ink,
+   until the user comes back to them (composing/input.js). It wraps within the box's
+   lines and takes no room of its own, so the box keeps its size when it comes and goes.
+   Its inset is a border rather than padding, so a line past the box's last is clipped
+   whole instead of peeking into the inset. */
+.lf-compose-error {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  margin: 0;
+  border: solid transparent;
+  border-width: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--danger-ink);
+  font: 500 var(--t-5) / 1.5 var(--sans);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
 .lf-compose-field > leaf-text:not(.lf-fab-input) {
   display: block;
   box-sizing: border-box;

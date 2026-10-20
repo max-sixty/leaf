@@ -388,7 +388,6 @@ def test_page_layers_stay_inside_their_page_directories(site):
         *schema_model.VENDORED_FILES,
         "session.js",
         "runtime.js",
-        "data.json",
         "events.jsonl",
     ):
         assert not (site / name).exists(), f"unscoped runtime asset: {name}"
@@ -434,7 +433,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     assert (example_layer / "registry.json").is_file()
     assert list((example_root / "versions").glob("v*.html"))
     assert list((example_root / "revisions").glob("r*.html"))
-    for private in ("data.json", "events.jsonl", "status.json", "cursor.json"):
+    for private in ("data", "events.jsonl", "status.json", "cursor.json"):
         assert not (example_root / private).exists()
 
     notification_root = assets / "examples" / "notification-playground"

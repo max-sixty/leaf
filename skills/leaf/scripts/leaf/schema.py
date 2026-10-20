@@ -602,7 +602,6 @@ MEDIA_TYPES = {
 # browser and the Worker know the directory and never the name.
 MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
-DATA_FILE = "data.json"
 FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
 # The diagnostic request and interaction trace (`interaction_log.py`).
@@ -644,7 +643,6 @@ PAGE_STATE_FILES = (
     EVENTS_FILE,
     *LOG_STATE_FILES,
     INTERACTIONS_FILE,
-    DATA_FILE,
     FILE_BINDINGS_FILE,
     *SESSION_FILES,
 )

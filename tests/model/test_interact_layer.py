@@ -2295,7 +2295,7 @@ def test_fresh_page_state_points_only_to_readable_authorities(tmp_path, monkeypa
     assert state["source"]["live"] is False
     assert "write index.html first" in state["source"]["error"]
     assert state["event_seq"] == 0
-    assert state["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert state["data"] == {"dir": "data", "errors": []}
     assert (
         data_model.read_data(page, json.loads((page / "registry.json").read_text()))[
             "sources"

@@ -205,7 +205,6 @@ def test_server_round_trip(server, page_dir):
         assert fetch(server + path)[0] == 200, path
     for path in [
         "/events.jsonl",
-        "/data.json",
         "/vendor/..",
         "/status.json",
         "/../secret",

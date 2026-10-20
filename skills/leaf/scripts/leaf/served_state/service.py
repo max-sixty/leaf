@@ -15,7 +15,7 @@ from types import MappingProxyType
 from typing import Protocol
 
 from .. import presence as presence_model
-from ..data import read_contracts, read_data, read_source
+from ..data import read_data, read_source
 from ..event_log import read_events
 from ..files import (
     latest_revision,
@@ -104,10 +104,7 @@ class LivePage:
         return require_registry(self.page_dir)
 
     def data_source(self, source: str, registry: dict) -> dict | None:
-        contract = read_contracts(self.page_dir).get(source)
-        if contract is None:
-            return None
-        return read_source(self.page_dir, source, contract, registry)
+        return read_source(self.page_dir, source, registry)
 
     def events(self) -> list[dict]:
         return read_events(self.page_dir)

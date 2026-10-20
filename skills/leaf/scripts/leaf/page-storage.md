@@ -134,9 +134,6 @@ read, such as one an earlier Leaf wrote before that change, reads as absent
 - `user-views.lock` — the independent lock serializing observation writes;
   excluded from page freshness and activation.
 
-- `data.json` — the current contract each external-data source id was set under
-  (`data.CONTRACTS`). `data.py` owns storage and updates.
-
 - `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
 ID PATH` (`file_bindings.BINDINGS`).
   `file_bindings.py` owns the grants and current-file reads and writes. Browser
@@ -153,10 +150,12 @@ ID PATH` (`file_bindings.BINDINGS`).
   writer which does not use those locks can still race the last comparison and atomic
   replacement; this is not an operating-system compare-and-swap guarantee.
 
-- `data/` — one JSON publication per source, `<source>.json`, holding `run`,
-  `updated`, and `value` together (`data.PUBLICATION`). `leaf data set` validates
-  and atomically writes it; a new write gets a new opaque run receipt, including an
-  identical value.
+- `data/` — one JSON publication per source, `<source>.json`, holding the
+  `contract` it was set under, `run`, `updated`, and `value` together
+  (`data.PUBLICATION`); the page holds a source exactly while its file exists.
+  `leaf data set` validates and atomically writes it, and `leaf data clear`
+  removes it; a new write gets a new opaque run receipt, including an identical
+  value. `data.py` owns storage and updates.
   Copying the page preserves that receipt. Readings trust the publication's shape
   and validate its value against the recorded contract. Deferred record fields served by
   `/api/deferred` come from the value in these same publications.

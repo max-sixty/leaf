@@ -32,7 +32,7 @@ from .refusals import Refused
 from .registry.storage import layer_metadata
 from .revision_artifact import active_enclosing
 from .revisioning import activate_source
-from .schema import DATA_DIR, DATA_FILE
+from .schema import DATA_DIR
 from .served_state.context import read_page
 from .served_state.page import read_served_page
 from .server import running_server
@@ -121,7 +121,6 @@ def _base_state(
         "state": [],
         "reports": [],
         "data": {
-            "file": DATA_FILE,
             "dir": DATA_DIR,
             "errors": data_errors(stored_data),
         },

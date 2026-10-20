@@ -1690,6 +1690,7 @@ STATES = (
     State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),
+    State("sort-narrow", "rust-sort", at_rest, viewport=(720, 900)),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
     State("sort-aim-cut", "rust-sort", aim_cut_by_pane),

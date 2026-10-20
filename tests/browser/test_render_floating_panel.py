@@ -2610,18 +2610,31 @@ def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve):
 
 
 def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
-    """The menu's head says the agent's state in a word, over its one line, and under
-    that only what the status's disclosure adds to the line: while the agent works, the
-    disclosure's sentence restates the line, so what waits on the user is all it adds."""
+    """The menu's head says the agent's state in its one line, in the state's ink, and
+    under that only what the status's disclosure adds to the line: while the agent
+    works, the disclosure's sentence restates the line, so what waits on the user is all
+    it adds. The line names the state itself, so no word for it stands above."""
     url = serve(OBLIGATION_PAGE)
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
     line = re.compile(r"^Claude working\b.* — Drafting the rollout")
     page.locator(".lf-fp-leaf").click()
     head = page.locator(".lf-fp-state")
-    expect(head.locator("b")).to_have_text("Working")
-    expect(head.locator("span").first).to_have_text(line)
-    expect(head.locator(".lf-fp-explain")).to_have_text(
+    expect(head.locator("> *")).to_have_count(2)
+    summary = head.locator("> .lf-fp-summary")
+    expect(summary).to_have_text(line)
+    assert summary.evaluate(
+        """line => {
+          const ink = document.createElement('span');
+          ink.hidden = true;
+          ink.style.color = 'var(--accent)';
+          line.append(ink);
+          const worn = getComputedStyle(ink).color === getComputedStyle(line).color;
+          ink.remove();
+          return worn;
+        }"""
+    )
+    expect(head.locator("> .lf-fp-explain")).to_have_text(
         re.compile(r"^Waiting on me: 2 to answer\. Waiting on Claude: 1 to-do")
     )
 
@@ -2636,7 +2649,7 @@ def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
     leaf = page.locator(".lf-fp-leaf")
     leaf.click()
     head = page.locator(".lf-fp-state")
-    expect(head.locator("b")).to_have_text("Away")
+    expect(head.locator(".lf-fp-summary")).to_have_text(re.compile(r" away$"))
     settled(page)
     boxes = (
         "() => [...document.querySelectorAll('.lf-fp-menu > *')]"

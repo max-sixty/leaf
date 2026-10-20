@@ -58,7 +58,7 @@ jobs:
     # a cancelled job prints `exceeded the maximum execution time` in place of the
     # gate's own account of what the deployed page was doing.
     timeout-minutes: 45
-    environment: cloudflare-deploy
+    environment: release
     permissions:
       contents: read
 

@@ -27,11 +27,11 @@ Leaf uses three Cloudflare tokens, one for each holder. None is stored in this
 repository, and each arrives as `CLOUDFLARE_API_TOKEN` wherever it is used. The
 permissions below use the names Cloudflare's token API reports:
 
-| Token                          | Reaches                                                                                                                                                                                                                                                   | Held by                                                     |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `Leaf agent administration`    | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine                          |
-| `Leaf site deploy (CI)`        | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account                                                                                      | `publish-site`, through the `cloudflare-deploy` environment |
-| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account                                                                                                                                                                                  | Tend's agent, through the `tend` environment                |
+| Token                          | Reaches                                                                                                                                                                                                                                                   | Held by                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `Leaf agent administration`    | `Individual Workers Editor` on `leaf-website` and `leaf-website-dev`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write`, `Workers Observability Read`, `Account Analytics Read`, and `Workers Metadata Read-Only` on the account | Agents on the maintainer's machine                |
+| `Leaf release (CI)`            | `Individual Workers Editor` on `leaf-website`; `Workers Routes Write` on the `leaf.page` zone; `Workers Containers Write` and `Account Settings Read` on the account                                                                                      | `publish-site`, through the `release` environment |
+| `Leaf observability (Tend CI)` | `Workers Observability Read` and `Account Analytics Read` on the account                                                                                                                                                                                  | Tend's agent, through the `tend` environment      |
 
 The account also serves Workers and zones that are not Leaf's, so each token that edits
 a Worker lists the Workers it may edit. `Individual Workers Editor` deploys and
@@ -164,24 +164,28 @@ The deploy needs a Cloudflare Workers Paid account with Containers enabled, and 
 before it changes production. The `leaf.page` domain already uses Cloudflare
 nameservers, and the Worker serves it as a custom domain.
 
-In GitHub, the `cloudflare-deploy` environment holds `Leaf site deploy (CI)` and the
-`tend` environment holds `Leaf observability (Tend CI)`, each as
-`CLOUDFLARE_API_TOKEN`. Each environment's deployment-branch policy allows only `main`,
-so a workflow dispatched from another branch cannot read either token. The policy is not
+In GitHub, the `release` environment holds `Leaf release (CI)` as
+`CLOUDFLARE_API_TOKEN` and the dependency-bundle publisher's bot token as
+`BUNDLE_PUBLISH_TOKEN`. Deployment and publishing jobs share this environment and
+can access both credentials. The `tend` environment holds `Leaf observability
+(Tend CI)` as `CLOUDFLARE_API_TOKEN`. Each environment's deployment-branch policy allows only `main`,
+so a workflow dispatched from another branch cannot read these credentials. The policy is not
 an approval gate: in yolo mode, the next `publish-site` run deploys code Tend merged to
 `main` with the deploy token.
 
 Create the environment and secrets once; each `secret` command prompts for its value:
 
 ```sh
-gh api --method PUT repos/max-sixty/leaf/environments/cloudflare-deploy \
+gh api --method PUT repos/max-sixty/leaf/environments/release \
   -F 'deployment_branch_policy[protected_branches]=false' \
   -F 'deployment_branch_policy[custom_branch_policies]=true'
 gh api --method POST \
-  repos/max-sixty/leaf/environments/cloudflare-deploy/deployment-branch-policies \
+  repos/max-sixty/leaf/environments/release/deployment-branch-policies \
   -f name=main -f type=branch
 gh secret set CLOUDFLARE_API_TOKEN \
-  --repo max-sixty/leaf --env cloudflare-deploy
+  --repo max-sixty/leaf --env release
+gh secret set BUNDLE_PUBLISH_TOKEN \
+  --repo max-sixty/leaf --env release
 gh secret set CLOUDFLARE_API_TOKEN \
   --repo max-sixty/leaf --env tend
 pnpm exec wrangler secret put OPENAI_API_KEY --config worker/wrangler.toml

@@ -195,10 +195,10 @@
 }
 /* Every composition input renders the same attachment shelf, including inputs seated
    in widget shadow trees. Surfaces place it and may set its pictures' height; the
-   shelf owns its pictures' face and their marks here. In a row
-   that holds a field, the shelf comes first and takes a line of its own, so it stands
-   above the field and never takes the field's width; a seated comment box's composer
-   adds no box of its own (`display: contents`). */
+   shelf owns its pictures' face and their marks here. In a row that holds a field, the
+   shelf comes first and takes a line of its own, so it stands above the field and
+   never takes the field's width; a seated comment box's composer adds no box of its
+   own (`display: contents`). */
 :is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])),
 .lf-fab-bar[data-lf-presentation="inline"]:has(
     > .lf-composer > .lf-composer-media:not([hidden])

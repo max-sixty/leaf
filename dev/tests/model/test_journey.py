@@ -300,7 +300,12 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
     path = tmp_path / ".claude" / "projects" / "-private-work" / f"{session}.jsonl"
     path.parent.mkdir(parents=True)
     lines = [
-        {"type": "user", "timestamp": at(1), "message": {"content": "Serve it."}},
+        {
+            "type": "user",
+            "timestamp": at(1),
+            "turnPosition": {"promptIndex": 1, "turnIndex": 1},
+            "message": {"content": "Serve it."},
+        },
         {"type": "attachment", "timestamp": at(1.5), "attachment": {}},
         {
             "type": "assistant",
@@ -313,6 +318,7 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
             },
         },
         {"type": "system", "timestamp": at(2.5), "subtype": "stop_hook_summary"},
+        {"type": "system", "timestamp": at(3), "subtype": "turn_duration"},
     ]
     path.write_text("".join(json.dumps(line) + "\n" for line in lines))
     native = journey_claude_code.native_records(tmp_path, session)
@@ -333,6 +339,7 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
             "received_at": at(2),
         },
         {"type": "model_response", "received_at": at(2)},
+        {"type": "turn_end", "received_at": at(3)},
     ]
 
 
@@ -440,6 +447,17 @@ def test_a_reply_taken_while_working_splits_into_leaf_share_and_model_calls():
     acknowledged = reply_breakdown(records, at(1), at(9.2), at(12.5))
     assert (acknowledged["busyMs"], acknowledged["deliveryMs"]) == (4000, 0)
     assert acknowledged["modelMs"] == 5700
+    # A busy turn that ends before the agent takes the comment leaves the harness
+    # idle until the turn that reads it starts.
+    ended = [
+        {"type": "turn_start", "received_at": at(0)},
+        {"type": "turn_end", "received_at": at(2)},
+        {"type": "turn_start", "received_at": at(32)},
+        use(33, "r", "leaf delivery read c1"),
+        result(33.5, "r"),
+    ]
+    later = reply_breakdown(ended, at(1), at(34), at(35))
+    assert (later["busyMs"], later["idleMs"], later["modelMs"]) == (1000, 30000, 2500)
 
 
 def test_pis_events_give_the_turn_phases(monkeypatch):

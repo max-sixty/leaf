@@ -98,26 +98,30 @@ def _phases(
             None,
         )
 
-    turns = [
-        record["type"]
-        for at, record in timed
-        if at <= start and record["type"] in ("turn_start", "turn_end")
-    ]
+    def turns_until(until: float) -> list[str]:
+        return [
+            record["type"]
+            for at, record in timed
+            if at <= until and record["type"] in ("turn_start", "turn_end")
+        ]
+
     phases: list[tuple[str, float, float, list[str]]] = []
     boundary = start
-    if turns[-1:] == ["turn_start"]:
+    if turns_until(start)[-1:] == ["turn_start"]:
         boundary = first(start, began, "tool_result", "turn_end") or start
         if boundary > start:
             phases.append(("busy", start, boundary, []))
         took = boundary if boundary > start else None
     else:
         took = first(start, began, "turn_start")
+    idle = False
     if took is not None and first(took, began, "tool_use") is not None:
         # The agent worked before its pickup, so it had the comment from where the
-        # harness took it.
+        # harness took it, which may be the end of the busy turn.
         if took > boundary:
             phases.append(("delivery", boundary, took, []))
         began = took
+        idle = turns_until(began)[-1:] == ["turn_end"]
     else:
         phases.append(("delivery", boundary, began, []))
     # The calls still out when the comment was picked up.
@@ -130,7 +134,7 @@ def _phases(
                 out[part["id"]] = call_label(part)
             elif part["type"] == "tool_result":
                 out.pop(part["tool_use_id"], None)
-    phase = "tool" if out else "model"
+    phase = "idle" if idle else "tool" if out else "model"
     since, pending, calls = began, set(out), list(out.values())
     for at, record in timed:
         if at <= began:
@@ -258,29 +262,27 @@ def claude_code_records(native: list[dict]) -> list[dict]:
     """Claude Code's transcript records (`native`) as tool and turn records stamped
     `received_at` with the time Claude Code wrote on each, and a `model_response`
     where each response's last record was written: Claude Code writes a response's
-    content blocks as records of their own, sharing its message id. A turn starts
-    with input that is no tool's result and ends with a response that stops on
-    `end_turn`."""
+    content blocks as records of their own, sharing its message id. Claude Code marks
+    its own turns: the input that starts one carries `turnPosition`, and a
+    `turn_duration` record ends it once its Stop hooks let it stop."""
     records = []
     responses: dict[str, str] = {}
     for record in native:
+        if record.get("subtype") == "turn_duration":
+            records.append({"type": "turn_end", "received_at": record["timestamp"]})
         if record.get("type") not in ("user", "assistant") or "message" not in record:
             continue
         message, at = record["message"], record["timestamp"]
         content = message["content"]
         if isinstance(content, str):
             content = [{"type": "text", "text": content}]
-        if record["type"] == "user" and not any(
-            part["type"] == "tool_result" for part in content
-        ):
+        if "turnPosition" in record:
             records.append({"type": "turn_start", "received_at": at})
         records.append(
             {"type": record["type"], "message": {"content": content}, "received_at": at}
         )
         if record["type"] == "assistant" and "id" in message:
             responses[message["id"]] = at
-        if message.get("stop_reason") == "end_turn":
-            records.append({"type": "turn_end", "received_at": at})
     records.extend(
         {"type": "model_response", "received_at": at} for at in responses.values()
     )

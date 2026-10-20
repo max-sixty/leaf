@@ -566,11 +566,12 @@
               ><span class="bg-feature-detail">: editable passages</span>
             </h2>
             <p id="bg-editing-guide">
-              Drafts render Markdown as readable prose. “Edit” opens its exact source;
-              “Save” records it, and “Cancel” or <kbd>Escape</kbd> discards the unsaved
-              edit. These controls stay in the box when annotations are hidden. Copy, at
-              the box’s top right, copies its Markdown. Press <kbd>z</kbd> to undo a
-              saved edit.
+              Drafts render Markdown as readable prose. Clicking the words, or the
+              pencil on the box’s edge, which shows while the pointer is over the box,
+              opens the exact source; the check saves it, and the cross or
+              <kbd>Escape</kbd> discards the unsaved edit. The box keeps its size while
+              editing, and these controls stay when annotations are hidden. Copy, beside
+              them, copies its Markdown. Press <kbd>z</kbd> to undo a saved edit.
             </p>
             <lf-draft id="bg-draft">
               <pre>
@@ -746,7 +747,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 comment about <code>lf-option · bg-choice-street</code> without choosing
                 the option. Press <kbd>Escape</kbd> to leave design mode. On a touch
                 screen, choose “Design mode” under Annotations in the leaf's menu, tap
-                “Street map”, and tap “Exit Design mode” in the panel's row to leave.
+                “Street map”, and tap the ✕ at the end of the panel's row to leave.
               </p>
             </section>
 
@@ -795,8 +796,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   On a touch screen, choose “Draw mode” under Annotations in the leaf's
-                  menu; “Undo stroke” and “Exit Draw mode” stand in the panel's row
-                  while the mode is on.
+                  menu; “Undo stroke” stands in the panel's row while the mode is on,
+                  and the ✕ at the row's end leaves it.
                 </li>
               </ul>
             </section>
@@ -822,8 +823,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   remove the image, or send it alone.
                 </li>
                 <li>
-                  Press <kbd>Escape</kbd> or “Cancel capture” instead: you leave without
-                  a capture.
+                  Press <kbd>Escape</kbd>, or the ✕ at the end of the panel's row,
+                  instead: you leave without a capture.
                 </li>
                 <li>
                   Capture a scrolled pane or a diagram: the image shows its current
@@ -1668,6 +1669,67 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </lf-option>
                 <lf-option id="bg-across-pass">
                   <strong>Pass traverse</strong> The longest day, and a tight finish.
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
+          <section id="bg-ask-pictured">
+            <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
+            <h2>
+              <strong>Options that hold their pictures</strong
+              ><span class="bg-feature-detail">: each drawing over its own pick</span>
+            </h2>
+            <p id="bg-ask-pictured-guide">
+              Each option below holds the drawing of what choosing it gives, today's in
+              the option that keeps it. The cards stand side by side across the group's
+              wide width, so the two drawings compare in one row at the size they were
+              drawn, each above its own pick; narrow the window and the cards stack.
+            </p>
+            <lf-ask id="bg-pictured-ask">
+              <h3>Should the sample queue group its tickets by owner?</h3>
+              <lf-options id="bg-pictured-choice" choose data-width="wide">
+                <lf-option id="bg-pictured-group">
+                  <strong>Group by owner</strong> A heading over each owner's tickets.
+                  <figure id="bg-pictured-group-figure">
+                    <svg
+                      class="drawing"
+                      viewBox="0 0 420 150"
+                      width="420"
+                      height="150"
+                      role="img"
+                      aria-labelledby="bg-pictured-group-t"
+                    >
+                      <title id="bg-pictured-group-t">
+                        Two owner headings, each over two ticket rows
+                      </title>
+                      <text class="strong" x="12" y="22">Ana</text>
+                      <rect class="box" x="24" y="32" width="384" height="22" rx="3" />
+                      <rect class="box" x="24" y="58" width="384" height="22" rx="3" />
+                      <text class="strong" x="12" y="104">Ben</text>
+                      <rect class="box" x="24" y="114" width="384" height="22" rx="3" />
+                    </svg>
+                  </figure>
+                </lf-option>
+                <lf-option id="bg-pictured-flat">
+                  <strong>Keep one list</strong> Tickets in arrival order, as today.
+                  <figure id="bg-pictured-flat-figure">
+                    <svg
+                      class="drawing"
+                      viewBox="0 0 420 150"
+                      width="420"
+                      height="150"
+                      role="img"
+                      aria-labelledby="bg-pictured-flat-t"
+                    >
+                      <title id="bg-pictured-flat-t">
+                        Three ticket rows in one list
+                      </title>
+                      <rect class="box" x="12" y="14" width="396" height="22" rx="3" />
+                      <rect class="box" x="12" y="40" width="396" height="22" rx="3" />
+                      <rect class="box" x="12" y="66" width="396" height="22" rx="3" />
+                    </svg>
+                  </figure>
                 </lf-option>
               </lf-options>
             </lf-ask>

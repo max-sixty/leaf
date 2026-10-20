@@ -75,7 +75,7 @@ class WorkReading:
             self.events,
             self.registry,
             self.threads,
-            self.log.ends,
+            self.log,
             reading=self.thread,
         )
 
@@ -99,16 +99,16 @@ class WorkReading:
     @cached_property
     def document(self):
         return (
-            read_document(self.page, self.threads, self.log.ends)
+            read_document(self.page, self.threads, self.log)
             if self.page is not None
             else None
         )
 
     @cached_property
-    def workflows(self) -> list[dict]:
-        from .workflows import canonical_workflows
+    def _handover(self):
+        from .workflows import handed_over
 
-        return canonical_workflows(
+        return handed_over(
             self.threads,
             self.thread if self.page is not None else None,
             page=self.page,
@@ -116,6 +116,19 @@ class WorkReading:
             todo_reading=self.log,
             items=self.all_obligations,
         )
+
+    @property
+    def workflows(self) -> list[dict]:
+        """Every unsettled update's delivery, each naming the record it serves."""
+        return self._handover.workflows
+
+    @property
+    def updates(self) -> dict:
+        """The obligations the user's updates publish (`workflows.handed_over`), as an
+        `obligations.collection`. They are read beside `all_obligations`, which they
+        depend on: whether a widget's obligation is answered decides whether an action
+        on it is owed."""
+        return self._handover.records
 
     @cached_property
     def plan(self) -> dict | None:

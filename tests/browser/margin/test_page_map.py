@@ -1179,7 +1179,7 @@ def test_a_live_version_keeps_the_user_on_the_same_margin_location(browser, serv
 
 
 def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
-    """A retained preview must trace the new document's matching destination."""
+    """A retained preview must mark the new document's matching destination."""
     version_url = serve(
         OBLIGATION_PAGE, events=[ACTION_ON_OBLIGATION, COMMENT_ON_OBLIGATION]
     )
@@ -1190,8 +1190,9 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     close = page.locator(".lf-margin-preview-close")
     close.focus()
     expect(close).to_be_focused()
-    trace = page.locator('.lf-target-trace[data-for="bracket"]')
-    expect(trace).to_be_visible()
+    # The card's thread, which the user stands in, marks its element.
+    mark = page.locator('.lf-visual-mark-here[data-for="bracket"]')
+    expect(mark).to_be_visible()
 
     (serve.page_dir / "index.html").write_text(
         OBLIGATION_PAGE.replace("Three jobs", "Four jobs")
@@ -1200,7 +1201,7 @@ def test_a_live_version_retargets_an_open_margin_preview(browser, serve):
     expect(page.get_by_role("heading", name="Four jobs")).to_be_visible()
     expect(close).to_be_focused()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
-    expect(trace).to_be_visible()
+    expect(mark).to_be_visible()
 
 
 def test_a_version_comparison_joins_the_same_map_and_leaves_with_it(browser, serve):

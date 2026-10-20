@@ -33,6 +33,7 @@ from interact_support import (
     let_a_pick_settle_a_thread,
     obligations_on_user,
     owed,
+    owed_answers,
     page_state,
     publish,
     queue_board_registry,
@@ -1163,7 +1164,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
             ],
         )
         assert reply.exit_code == 0, reply.output
-        assert not page_state(page_dir)["activity"]["obligations"]
+        assert not owed_answers(page_dir)
         cleanup_model.prompt_turn("codex-thread", "active")
         hooks_model.cmd_hook(
             "codex",
@@ -1205,7 +1206,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
     )
     edited = state_json(claimed)
     [receipt] = edited["workflows"]
-    assert (receipt["input"], receipt["stage"], receipt["answer"]) == (
+    assert (receipt["input"], receipt["stage"], receipt["obligation"]) == (
         edit["id"],
         "sent",
         None,

@@ -2,9 +2,10 @@
 
 Every `$events` member but `handling` and `answering` is the transport contract no
 layer can change (`layer.merge_layer_declarations`), `$passages` is how a page reads
-as text, which the browser's generated copy (`runtime/passage-facts.js`) shares, and
+as text, which the browser's generated copy (`runtime/passage-facts.js`) shares,
 `$marks` the declarations painted for stylesheets, which composition stamps over any a
-layer declares. All three are read from the running Leaf's shipped `registry.json`
+layer declares, and `$authored` the page-wide declarations `page check` holds an
+author to. All are read from the running Leaf's shipped `registry.json`
 rather than from a page's composed vocabulary, which may be another Leaf's at the same
 `protocol` (`kernel_protocol`). Reading them needs no schema validator, and this module
 imports none: the page service sorts every event by these kinds, including in a harness
@@ -70,6 +71,12 @@ def answer_kinds() -> list[str]:
     """The answers an update may owe (`reply`, `markup`), each of which
     `$events.answering` instructs; a layer restates only these."""
     return list(_kernel_events()["answering"])
+
+
+def kernel_authored() -> dict:
+    """The page-wide declarations an author writes for the runtime to read, each with
+    the values it takes (`$authored`, whose description owns their meaning)."""
+    return _kernel()["$authored"]
 
 
 @cache

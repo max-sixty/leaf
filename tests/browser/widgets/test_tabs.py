@@ -1130,8 +1130,8 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
         box = tab.bounding_box()
         page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         expect(tab).to_have_attribute("aria-selected", "true")
-        # The open part's name wears the face every strip's open tab wears: a raised
-        # fill on the strip's ground, outlined, focused or not.
+        # Down the column, the open part's name wears the face a column strip's open
+        # tab wears: a raised fill on the strip's ground, outlined, focused or not.
         face, ground, contour = tab.evaluate(
             """tab => {
               const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
@@ -1253,6 +1253,77 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     resized(page, 900, 720)
     switch(evidence)
     assert passage.evaluate(below_landing_edge) == pytest.approx(left, abs=2)
+
+
+def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
+    """Whichever widget writes a strip, the open tab's mark follows which way the strip
+    runs: down a column the open name paints a raised, outlined face; along a row the
+    tab stands on a rule, with no fill, as a page tab's name does. A tab with a summary
+    takes the rule at its foot, a line of its own under its last line, so the rule
+    underlines the whole tab rather than the name above its summary. A page's parts and
+    a queue each run both ways, so each shows both marks. The rule costs a tab no height,
+    so a queue's row stays within the room its strip reserves before upgrade, and the
+    row stands on its frame's ground rather than the column's tint. Forced colors draw
+    only the open tab's rule."""
+    queue = leaf_page(
+        "Queue",
+        '<h1 id="title">Queue</h1><section id="queue-section"><lf-tabs id="queue" '
+        'list="side">'
+        + "".join(
+            f'<lf-tab id="q-{i}" label="Item {i}" summary="sev {i}">'
+            f'<p id="q-words-{i}">Item {i}.</p></lf-tab>'
+            for i in range(3)
+        )
+        + "</lf-tabs></section>",
+    )
+    mark = """strip => {
+      const tab = strip.querySelector('[aria-selected="true"]');
+      const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
+      const foot = getComputedStyle(tab, '::after');
+      const rows = getComputedStyle(tab).gridTemplateRows.split(' ');
+      return {flow: getComputedStyle(strip).flexDirection,
+        filled: name.backgroundColor !== 'rgba(0, 0, 0, 0)',
+        contoured: name.boxShadow.includes('inset'),
+        nameRule: parseFloat(name.borderBottomWidth),
+        rule: foot.display === 'none' ? 0 : parseFloat(foot.borderBottomWidth),
+        ruleInk: foot.borderBottomColor === name.color,
+        lastRow: rows.at(-1), rows: rows.length,
+        ground: getComputedStyle(strip).backgroundColor,
+        frame: getComputedStyle(strip.parentElement).backgroundColor,
+        height: strip.getBoundingClientRect().height,
+        reserved: parseFloat(getComputedStyle(strip).minBlockSize)};
+    }"""
+    for source, strip in ((ROOT_PARTS_PAGE, "#root-parts"), (queue, "#queue")):
+        page = open_page(browser, serve(source))
+        resized(page, 1280, 720)
+        column = page.locator(f"{strip} > .lf-tabstrip").evaluate(mark)
+        assert column["flow"] == "column", column
+        assert column["filled"] and column["contoured"], column
+        assert column["rule"] == 0 and column["nameRule"] == 0, column
+        resized(page, 390, 800)
+        page.wait_for_function(
+            "s => getComputedStyle(document.querySelector(s)).flexDirection === 'row'",
+            arg=f"{strip} > .lf-tabstrip",
+        )
+        row = page.locator(f"{strip} > .lf-tabstrip").evaluate(mark)
+        assert not row["filled"] and not row["contoured"], row
+        assert row["rule"] == 2 and row["ruleInk"] and row["nameRule"] == 0, row
+        assert row["lastRow"] == "2px", row
+        if strip == "#queue":
+            # Name, summary, then the rule.
+            assert row["rows"] == 3, row
+            assert row["height"] == pytest.approx(row["reserved"], abs=0.01), row
+            assert row["ground"] == row["frame"], row
+        page.emulate_media(forced_colors="active")
+        ruled = page.locator(f"{strip} > .lf-tabstrip").evaluate(
+            """strip => {
+              const ground = getComputedStyle(strip).backgroundColor;
+              return [...strip.querySelectorAll('.lf-tab-btn')].map(tab => [
+                tab.getAttribute('aria-selected') === 'true',
+                getComputedStyle(tab, '::after').borderBottomColor !== ground]);
+            }"""
+        )
+        assert all(selected == drawn for selected, drawn in ruled), ruled
 
 
 def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):

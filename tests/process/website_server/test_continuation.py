@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import leaf_website as website_server
 import pytest
 from interact_support import append_carried_log_record as append_event
+from interact_support import owed_answers
 from leaf.event_log import read_events
 from leaf.refusals import Refused
 from leaf.state import session_record
@@ -173,8 +174,7 @@ def test_a_move_queued_behind_one_that_could_not_start_is_reached_too(
     receipts = [event for event in read_events(page_dir) if event["kind"] == "reply"]
     assert [receipt["responds"] for receipt in receipts] == attempted
     assert {receipt["failure"] for receipt in receipts} == {"startup_failed"}
-    state = website_server.full_state(page_dir, read_events(page_dir))
-    assert state["activity"]["obligations"] == []
+    assert owed_answers(page_dir) == []
 
 
 def test_a_follower_that_faults_still_hands_the_page_on(page_dir, monkeypatch):
@@ -285,5 +285,4 @@ def test_an_ending_on_an_unopenable_page_still_answers_every_move(
         comment["id"] for comment in comments
     ]
     assert {receipt["failure"] for receipt in receipts} == {"startup_failed"}
-    state = website_server.full_state(page_dir, read_events(page_dir))
-    assert state["activity"]["obligations"] == []
+    assert owed_answers(page_dir) == []

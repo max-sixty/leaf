@@ -410,6 +410,7 @@ import {
   stateCoordinate,
   threadKey,
   tokenChoices,
+  turns,
   untracked
 } from "./bundle-queued-work.js";
 
@@ -821,7 +822,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/12`;
+var recordFormat = (kind) => `leaf-${kind}/13`;
 
 // runtime/composing/text-field.js
 import {
@@ -2561,7 +2562,7 @@ var PAGE_CONTROL_RANK = Object.freeze({
   blanket: 80,
   versions: 90,
   keyboard: 95,
-  // The next steps in the mode or picker the user stands in.
+  // The next steps in the mode or picker the user stands in, and its way out.
   steps: 120,
   commentSelection: 130
 });
@@ -2594,6 +2595,7 @@ function pageControls() {
       copies: read2(row.copies) ?? "",
       urgent: read2(row.urgent) ?? null,
       gesture: Boolean(row.gesture),
+      exit: Boolean(row.exit),
       disabled: Boolean(read2(row.disabled)),
       press: row.press ?? null
     })
@@ -4210,7 +4212,10 @@ function createAnnotationInventory({
     const label = workflowLabel(receipt);
     if (!label) return null;
     return {
-      kind: receipt.next_actor === "user" || receipt.condition ? "waiting" : receipt.at_work ? "activity" : receipt.stage === "picked_up" ? "pickup" : receipt.stage === "queued" ? "queued" : "sent",
+      kind: (
+        // A receipt handed back to the user always carries its failure.
+        receipt.condition ? "waiting" : receipt.at_work ? "activity" : receipt.stage === "picked_up" ? "pickup" : receipt.stage === "queued" ? "queued" : "sent"
+      ),
       text: label,
       context: [receipt.ts ? ago(receipt.ts) : "", receipt.detail].filter(Boolean).join(" \xB7 ")
     };
@@ -6432,8 +6437,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
         throw new Error("Thread nominations belong to their current render callback");
       const thread = byKey.get(key);
       if (!thread) throw new Error(`No Thread has key ${key}`);
-      if (message !== null && !thread.msgs.some((item) => item.key === message))
-        throw new Error(`Thread ${key} has no message ${message}`);
+      if (message !== null && !turns(thread).some((item) => item.key === message))
+        throw new Error(`Thread ${key} has no turn ${message}`);
       const identity2 = JSON.stringify([kind, key, message]);
       if (nominations.some(
         (item) => item.identity === identity2 || item.key === key && (item.kind === "thread" || kind === "thread")
@@ -7077,7 +7082,7 @@ function unreadContent(threadView) {
 function userObligations(items) {
   const held = /* @__PURE__ */ new Map();
   for (const item of items) {
-    if (item.next_actor !== "user") continue;
+    if (item.next_actor !== "user" || item.source.kind === "update") continue;
     const key = item.thread === null ? ["page", item.id] : ["thread", item.thread, item.id];
     held.set(JSON.stringify(key), { source: item.id, thread: item.thread });
   }
@@ -7552,6 +7557,7 @@ function mountApplication(dependencies) {
     scrollThreadIntoView: dependencies.annotationCommands.scrollThreadIntoView,
     renderMarginThread: (host, thread, controls) => renderMarginThread(host, thread, inlineView, controls),
     placedAt: dependencies.anchorPlacement.placedAt,
+    marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
     scrollToElement: dependencies.anchorTravel.scrollToElement
   });
   const threadDestinations = createThreadDestinations({
@@ -7799,8 +7805,8 @@ function mountApplication(dependencies) {
     openObligation(id) {
       const item = readObligations().all.find((item2) => item2.id === id);
       if (!item) return Promise.resolve(false);
-      if (item.source.kind === "approval")
-        return queueActions2.open(JSON.stringify(["approval", item.id]));
+      if (item.source.kind === "approval" || item.source.kind === "update")
+        return queueActions2.open(JSON.stringify([item.source.kind, item.id]));
       if (item.thread !== null && answeredInWords(item)) {
         showHeld(item.thread);
         return threadDestinations.openPageThread(item.message, {
@@ -7984,8 +7990,8 @@ function queueTitle(item) {
   const topic = thread ? threadName(thread) : "";
   const title = item.todo?.title ?? item.obligation?.prompt.text;
   if (title) return title;
-  if (item.kind === "work" && item.detail) return item.detail;
-  const sent = item.answer?.message && thread?.msgs.find((message) => message.id === item.answer.message);
+  const reply = item.kind === "update" ? item.obligation?.answer?.event?.id : null;
+  const sent = reply && thread?.msgs.find((message) => message.id === reply);
   if (sent) return sent.body.text.trim() || topic;
   if (item.subject.kind === "widget") {
     const record = own && obligationHolding(readObligations().all, own);

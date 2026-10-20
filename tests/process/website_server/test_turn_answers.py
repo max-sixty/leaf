@@ -14,7 +14,10 @@ import pytest
 from interact_support import (
     PAGE,
     STATED_TIMEOUT,
+    activity_reading,
     append_command,
+    owed_answers,
+    page_state,
     publish,
     running_http_server,
 )
@@ -90,7 +93,7 @@ def test_a_turn_that_completes_without_an_answer_is_still_receipted(
     # The turn ended by itself, so there is nothing to stop.
     assert interrupts == []
     assert website_server.page_claim(page_dir)["turn_closed"] is not None
-    assert website_server.full_state(page_dir, events)["activity"]["obligations"] == []
+    assert owed_answers(page_dir) == []
 
 
 def _page_pick(page_dir: Path) -> dict:
@@ -173,8 +176,8 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     hosted_follower(harness, page_dir, prepared, Socket()).follow()
 
     events = read_events(page_dir)
-    state = website_server.full_state(page_dir, events)
-    assert state["activity"]["obligations"] == []
+    state = page_state(page_dir)
+    assert owed_answers(page_dir) == []
     assert website_server.next_unaccepted_agent_event(page_dir) is None
     returned = [
         workflow for workflow in state["workflows"] if workflow["input"] == move["id"]
@@ -191,7 +194,15 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
         assert (reply["responds"], reply["failure"]) == (move["id"], "turn_failed")
     [workflow] = returned
     assert workflow["condition"] == {"kind": "failed", "operation": "response"}
-    assert (workflow["next_actor"], workflow["answer"]) == ("user", None)
+    [record] = [
+        item
+        for item in state["browser"]["views"][str(state["active"]["revision"])][
+            "obligations"
+        ]
+        if item["id"] == workflow["obligation"]
+    ]
+    assert record["next_actor"] == "user"
+    assert owed_answers(page_dir) == []
 
 
 def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
@@ -407,10 +418,7 @@ def test_a_native_final_message_never_becomes_a_leaf_reply(page_dir):
     assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
     assert [
-        obligation["input"]
-        for obligation in website_server.full_state(page_dir, events)["activity"][
-            "obligations"
-        ]
+        obligation["input"] for obligation in activity_reading(page_dir)["obligations"]
     ] == [comment["id"]]
 
 

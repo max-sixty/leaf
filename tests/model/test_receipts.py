@@ -18,6 +18,7 @@ from interact_support import (
     fifo_writer,
     freeze_events,
     hold_status_read,
+    owed_answers,
     page_state,
     printed,
     read_record,
@@ -97,7 +98,7 @@ def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch
     ]
     assert pickup["events"] == [comment["id"]]
     assert pickup["phase"] == "opened"
-    assert page_state(page_dir)["activity"]["obligations"][0]["stage"] == "picked_up"
+    assert owed_answers(page_dir)[0]["stage"] == "picked_up"
 
 
 def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
@@ -138,7 +139,7 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     assert delivery_model.receive_delivery(payload["id"]) == [page_dir, other]
     for page in (page_dir, other):
         assert read_record(page / "cursor.json") == {"seq": 1}
-        obligations = page_state(page)["activity"]["obligations"]
+        obligations = owed_answers(page)
         assert obligations[0]["stage"] == "picked_up"
     assert page_state(other)["pending"] == 1
     assert (
@@ -217,7 +218,7 @@ delivery.receive_delivery(os.environ["DELIVERY"])
             if event["kind"] == "pickup"
         ]
         assert pickup["phase"] == "opened"
-        assert page_state(page)["activity"]["obligations"][0]["stage"] == "picked_up"
+        assert owed_answers(page)[0]["stage"] == "picked_up"
     assert read_record(silent / "cursor.json") is None
 
 

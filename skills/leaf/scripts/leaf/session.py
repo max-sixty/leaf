@@ -606,18 +606,12 @@ def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
     transport input, independent of whether it carries a response obligation.
     """
     from .served_state.context import read_page
+    from .workflows import agent_inputs
 
-    agent_inputs = {
-        item["input"]
-        for item in read_page(page.page_dir, page.events).work.durable.workflows
-        if item["next_actor"] == "agent"
-    }
+    agents = agent_inputs(read_page(page.page_dir, page.events).work.durable)
     pending = []
     for event in batch:
-        if (
-            event["kind"] in kinds_declaring("message")
-            and event["id"] not in agent_inputs
-        ):
+        if event["kind"] in kinds_declaring("message") and event["id"] not in agents:
             continue
         pending.append(event)
     return pending

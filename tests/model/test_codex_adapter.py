@@ -24,6 +24,7 @@ from interact_support import (
     STATED_TIMEOUT,
     _observer,
     _watched,
+    activity_reading,
     append_carried_log_record,
     append_command,
     available_loopback_port,
@@ -187,7 +188,7 @@ def test_embedded_codex_delivery_is_durable_and_idempotent(page_dir):
     assert (claim["turn"], claim["turn_closed"]) == ("app-turn", None)
     assert accepted == {"page": page_dir, "events": (comment["id"],)}
     assert read_record(page_dir / "cursor.json") == {"seq": 1}
-    activity = page_state(page_dir)["activity"]
+    activity = activity_reading(page_dir)
     assert activity["kind"] == "working"
     assert activity["dropped"] is False
     assert activity["counts"]["handling"] == 1
@@ -3009,7 +3010,7 @@ def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_in_place(
         )
 
         assert service_model.page_claim(page)["turn_closed"] == closed
-        queued = page_state(page)["activity"]
+        queued = activity_reading(page)
         assert queued["kind"] == "working"
         assert [item["stage"] for item in queued["obligations"]] == ["queued"]
 

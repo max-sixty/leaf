@@ -164,10 +164,15 @@ function paintStatus() {
 }
 
 // ---------- approval ----------
+/** @typedef {import("../../../../build/browser/contract.js").AuthoredMeta} AuthoredMeta */
+/** @type {keyof AuthoredMeta} */
+const REVIEW = "lf-review";
+/** @type {AuthoredMeta[typeof REVIEW]} */
+const SIGN_OFF = "sign-off";
 export const isSignoffDeclared = () =>
   /** @type {HTMLMetaElement | null} */ (
-    document.querySelector('meta[name="lf-review"]')
-  )?.content === "sign-off";
+    document.querySelector(`meta[name="${REVIEW}"]`)
+  )?.content === SIGN_OFF;
 
 let signoff = false;
 let approving = false;

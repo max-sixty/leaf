@@ -15,7 +15,7 @@ from leaf.delivery import (
 )
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
-from leaf.events import build_threads
+from leaf.events import build_threads, is_answer
 from leaf.files import (
     latest_revision,
     require_revision,
@@ -277,23 +277,8 @@ def cmd_comment(
         return append_admitted(page, event)[0]
 
 
-def is_answer(event: dict) -> bool:
-    """Whether an event is an agent's answer to the input its ``responds`` names.
-
-    A thread parent locates presentation; only ``responds`` names the input an
-    answer settles. User replies and progress carry none. A failure receipt names the
-    input it gives up on without answering it, so an answer may still follow it.
-    """
-    return (
-        event["kind"] == "reply"
-        and event["author"] == "agent"
-        and event.get("responds") is not None
-        and "failure" not in event
-    )
-
-
 def successful_replies(events: list[dict], for_event: str) -> list[dict]:
-    """Agent answers to this exact input (`is_answer`)."""
+    """Agent answers to this exact input (`events.is_answer`)."""
     return [
         event for event in events if is_answer(event) and event["responds"] == for_event
     ]

@@ -16,7 +16,10 @@ const TONE = {
   unheld: "",
   closed: "",
 };
+// Every step the server may report (`ServedWorkKind`) has its words here.
+/** @type {Record<import("../../../../build/browser/contract.js").ServedWorkKind, string>} */
 const WORK_WORDS = {
+  working: "working",
   thinking: "thinking",
   tool: "using a tool",
   awaiting_approval: "waiting for approval",
@@ -52,7 +55,7 @@ export function activityFacts({ activity }) {
   const { counts } = activity;
   return Object.freeze({
     tone: TONE[activity.kind],
-    work: WORK_WORDS[activity.observed_kind] || "working",
+    work: activity.observed_kind ? WORK_WORDS[activity.observed_kind] : "working",
     left: Boolean(activity.dropped),
     silentSince: ago(activity.ts),
     listening: Boolean(counts.pending || counts.queued),
@@ -336,7 +339,6 @@ const QUEUE_WORDS = Object.freeze({
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
-  work: ["update with work started", "updates with work started"],
   todo: ["to-do", "to-dos"],
 });
 function queueKinds(items) {

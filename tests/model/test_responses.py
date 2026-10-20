@@ -21,6 +21,7 @@ from interact_support import (
     delivered_ref,
     delivery_through,
     last_deliverable_seq,
+    owed_answers,
     page_state,
     publish,
     read_record,
@@ -28,6 +29,7 @@ from interact_support import (
     record_claim,
     refused_on,
     response_reference,
+    served_updates,
 )
 from leaf import cli as cli_model
 from leaf import codex as codex_model
@@ -932,10 +934,12 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
         delivery_model.record_pickup(
             page, [action], phase="failed", failure="turn_failed"
         )
-    [workflow] = page_state(page_dir)["workflows"]
-    assert workflow["next_actor"] == "user"
+    state = page_state(page_dir)
+    [workflow] = state["workflows"]
+    [record] = served_updates(state["browser"])
+    assert (workflow["obligation"], record["next_actor"]) == (record["id"], "user")
     assert workflow["condition"]["kind"] == "failed"
-    assert workflow["answer"] is None
+    assert owed_answers(page_dir) == []
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )

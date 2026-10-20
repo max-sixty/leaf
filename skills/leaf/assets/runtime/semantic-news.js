@@ -47,10 +47,12 @@ function unreadContent(threadView) {
     .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
 
+// What the page asks of the user. An update handed back to them is news through its
+// failed response (`responseFailures`), not a second time as an obligation.
 function userObligations(items) {
   const held = new Map();
   for (const item of items) {
-    if (item.next_actor !== "user") continue;
+    if (item.next_actor !== "user" || item.source.kind === "update") continue;
     const key =
       item.thread === null ? ["page", item.id] : ["thread", item.thread, item.id];
     held.set(JSON.stringify(key), { source: item.id, thread: item.thread });

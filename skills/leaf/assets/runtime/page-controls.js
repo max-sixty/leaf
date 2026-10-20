@@ -13,9 +13,11 @@
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
  * A `gesture` row is the next step of something the user is doing right now, such as
- * commenting on the words a touch just selected, or a finger's way out of the mode it
- * stands in. It stands in the panel's row while that gesture holds it, and the higher
- * rank is the nearer gesture: one contributor's steps stand at a time.
+ * commenting on the words a touch just selected, or walking a search's matches. It
+ * stands in the panel's row while that gesture holds it, and the higher rank is the
+ * nearer gesture: one contributor's steps stand at a time. An `exit` row is the way out
+ * of the stance the user stands in (keyboard/touch-controls.js), which stands at the
+ * row's end beside whatever else does.
  *
  * Each field may be a value or a function read when the rows are read, so a paint that
  * reads them through `watchProjection` (projection-watch.js) follows what they read.
@@ -40,7 +42,7 @@ export const PAGE_CONTROL_RANK = Object.freeze({
   blanket: 80,
   versions: 90,
   keyboard: 95,
-  // The next steps in the mode or picker the user stands in.
+  // The next steps in the mode or picker the user stands in, and its way out.
   steps: 120,
   commentSelection: 130,
 });
@@ -73,6 +75,7 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   urgent?: string | null | (() => string | null),
  *   disabled?: boolean | (() => boolean),
  *   gesture?: boolean,
+ *   exit?: boolean,
  *   press?: (held?: any) => void,
  * }} row
  */
@@ -112,6 +115,7 @@ export function pageControls() {
         copies: read(row.copies) ?? "",
         urgent: read(row.urgent) ?? null,
         gesture: Boolean(row.gesture),
+        exit: Boolean(row.exit),
         disabled: Boolean(read(row.disabled)),
         press: row.press ?? null,
       }),

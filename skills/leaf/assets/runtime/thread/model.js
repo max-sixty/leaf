@@ -2,10 +2,12 @@
 /* Pure thread structure and turn-taking projected by the server.
 
    This reads projected threads by `isReaction`, `spoken`, `turns`, and `bareReaction`,
-   the names `events.py` reads them by. The panel lists `discussed` threads only;
-   a card shows its turns and its root, so a
-   thread that grew out of a reaction opens on the mark, whose body
-   thread/messages.js writes as the glyph and its word. Whose turn a thread is is read
+   the names `events.py` reads them by. The panel lists `discussed` threads only.
+   Every drawing of a thread, a card or the message parts a presentation names
+   (thread/primary-reader.js), shows its turns: its spoken messages and its root, so a
+   thread that grew out of a reaction opens on the mark, whose body thread/messages.js
+   writes as the glyph and its word, and any other reaction stands as its chip on the
+   message it answers. Whose turn a thread is is read
    from the complete browser Thread's `attention` and nothing else: a user obligation
    outranks concurrent agent work, which stays the card's secondary status.
 
@@ -416,8 +418,8 @@ export function readThreadRecords(
       resolved: thread.resolved,
       settling: thread.settling ?? null,
       attention: thread.attention,
-      // The obligations widgets in its messages make, such as an `lf-ask` the user owes
-      // words to there.
+      // The obligations that stand in it: those widgets in its messages make, such as an
+      // `lf-ask` the user owes words to there, and those its updates publish.
       obligations: obligations.filter((obligation) => obligation.thread === thread.id),
       // The agent's open to-dos on the thread: a reply that promised one says it is
       // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first

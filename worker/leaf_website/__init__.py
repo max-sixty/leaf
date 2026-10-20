@@ -81,7 +81,7 @@ from leaf.revision_artifact import read_revision
 from leaf.revision_delivery import Delivery
 from leaf.revisioning import activate_source
 from leaf.schema import PAGE_ROUTE_DIRS, VENDORED_FILES
-from leaf.served_state.page import full_state
+from leaf.served_state.context import read_page
 from leaf.served_state.service import PageStateService
 from leaf.server import preview_metadata
 from leaf.service import (
@@ -376,9 +376,10 @@ def pending_agent_inputs(page_dir: Path) -> dict[str, str | None]:
         activation = activate_source(page_dir, transaction=page)
         if activation.error:
             raise ValueError(activation.error)
-        # Obligations already are canonical workflows, including their delivery
-        # session. Joining a second workflow list would repeat the owner’s reading.
-        obligations = full_state(page_dir, page.events)["activity"]["obligations"]
+        # The owed answers already carry their update's workflow, including its
+        # delivery session (`activity.canonical_activity`). Joining a second workflow
+        # list would repeat the owner’s reading.
+        obligations = read_page(page_dir, page.events).work.obligations
         return {item["input"]: item["delivery_session"] for item in obligations}
 
 
@@ -401,7 +402,7 @@ def next_unaccepted_agent_event(
     who to tell.
     """
     with PageTransaction(page_dir) as page:
-        obligations = full_state(page_dir, page.events)["activity"]["obligations"]
+        obligations = read_page(page_dir, page.events).work.obligations
         return next(
             (
                 item["input"]

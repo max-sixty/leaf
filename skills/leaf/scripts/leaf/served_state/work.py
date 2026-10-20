@@ -42,11 +42,11 @@ def at_work(workflow: dict) -> bool:
     return workflow["stage"] in {"working", "replying"}
 
 
-def _strength(workflow: dict) -> tuple:
-    """How strongly a workflow speaks for any surface that shows one of several: a
-    update handed back to the user first, then work under way, then an uncertain or
-    stopped one, then plain delivery; within each the further stage, then the newer
-    input."""
+def _strength(workflow: dict, records: dict[str, dict]) -> tuple:
+    """How strongly a workflow speaks for any surface that shows one of several: an
+    update handed back to the user first (its record's next actor), then work under
+    way, then an uncertain or stopped one, then plain delivery; within each the further
+    stage, then the newer input."""
     if workflow["condition"] is not None:
         category = 2
     elif at_work(workflow):
@@ -55,8 +55,9 @@ def _strength(workflow: dict) -> tuple:
         category = 0
     else:
         category = 1
+    record = records.get(workflow["obligation"])
     return (
-        workflow["next_actor"] == "user",
+        record is not None and record["next_actor"] == "user",
         category,
         _STAGE_RANK[workflow["stage"]],
         workflow["seq"],
@@ -64,35 +65,28 @@ def _strength(workflow: dict) -> tuple:
 
 
 def served_workflows(
-    workflows: list[dict], thread_reading: FrozenThreadReading
+    workflows: list[dict], thread_reading: FrozenThreadReading, records: dict
 ) -> list[dict]:
     """The page's workflows as the browser and `page state` read them, strongest
-    first, each stamped with the two thread facts only the frozen thread document
-    knows.
+    first, each stamped with what its thread and its activity say.
 
     `at_work` is whether the agent is at work on it, at `working` or `replying`
     whatever its condition, the stage set every surface reads rather than restates.
     `thread` is the thread the workflow stands in: a thread input's own, a widget
-    frozen into a message's thread, or null for a page widget. `holds_thread` is
-    whether it keeps that thread the agent's turn: every one of the thread's own
-    inputs, and a widget action frozen into it while the action is owed or the agent is
-    at work on it. A frozen action that owes nothing shows its receipt on
-    its message and leaves the thread nobody's turn.
+    frozen into a message's thread, or null for a page widget. Whose turn the thread
+    is reads the records in it, which `records` (`workflows.handed_over`) holds.
 
     The order is the one comparator: whatever shows one workflow of several, a
-    thread's attention, its card's secondary status, a message's receipt, takes the
-    first. A reader that selects keeps the order; the browser places its own
-    unresolved sends against it."""
+    thread's attention, its card's secondary status, a message's receipt, an On
+    list's row, takes the first. A reader that selects keeps the order; the browser
+    places its own unresolved sends against it."""
+    by_id = {record["id"]: record for record in records["all"]}
     for workflow in workflows:
-        thread = thread_reading.subject_thread(workflow["subject"])
         workflow["at_work"] = at_work(workflow)
-        workflow["thread"] = thread
-        workflow["holds_thread"] = thread is not None and (
-            workflow["subject"]["kind"] == "thread"
-            or workflow["answer"] is not None
-            or workflow["at_work"]
-        )
-    return sorted(workflows, key=_strength, reverse=True)
+        workflow["thread"] = thread_reading.subject_thread(workflow["subject"])
+    return sorted(
+        workflows, key=lambda workflow: _strength(workflow, by_id), reverse=True
+    )
 
 
 def work_state(
@@ -132,9 +126,10 @@ def work_state(
         reply,
         stream["reply_reservations"],
         todo_reading=log,
+        updates=durable.updates,
     )
     workflows = (
-        served_workflows(activity["workflows"], durable.thread)
+        served_workflows(activity["workflows"], durable.thread, durable.updates)
         if source
         else activity["workflows"]
     )

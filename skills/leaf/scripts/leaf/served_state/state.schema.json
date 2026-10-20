@@ -330,7 +330,9 @@
           ]
         },
         "observed": { "type": "string" },
-        "observed_kind": { "type": ["string", "null"] },
+        "observed_kind": {
+          "anyOf": [{ "$ref": "#/$defs/WorkKind" }, { "type": "null" }]
+        },
         "awaiting": { "type": "boolean" },
         "counts": {
           "type": "object",
@@ -359,9 +361,9 @@
         "ts": { "type": ["string", "null"] },
         "next_transition_at": { "type": ["string", "null"] },
         "obligations": {
-          "description": "The workflows that owe an answer.",
+          "description": "The ids of the update records whose next actor is the agent: the answers it owes (`activity.canonical_activity`).",
           "type": "array",
-          "items": { "$ref": "#/$defs/Workflow" }
+          "items": { "type": "string" }
         },
         "reply": { "$ref": "#/$defs/ReplyEvidence" }
       },
@@ -380,6 +382,18 @@
         "obligations"
       ],
       "additionalProperties": false
+    },
+    "WorkKind": {
+      "description": "The step a harness observed the agent taking (`activity.WORK_KINDS`, read from here): working, thinking, using a tool, waiting on the user in its own window for an approval, an answer or a dialog it does not name (the `awaiting_` kinds), or replying. The browser words each one (`runtime/activity-words.js`).",
+      "enum": [
+        "working",
+        "thinking",
+        "tool",
+        "awaiting_approval",
+        "awaiting_input",
+        "awaiting_user",
+        "replying"
+      ]
     },
     "ReplyEvidence": {
       "description": "A provisional reply's settlement evidence, without its text (`activity._reply_evidence`).",
@@ -419,7 +433,10 @@
         "revision": { "type": ["integer", "null"] },
         "subject": { "$ref": "#/$defs/Subject" },
         "coordinate": { "type": "array", "items": { "type": "string" } },
-        "answer": { "anyOf": [{ "$ref": "#/$defs/Answer" }, { "type": "null" }] },
+        "obligation": {
+          "description": "The id of the obligation record this update serves (`workflows.handed_over`): its own, or for an older input in a run of turns the newest's; null for an update that owes nothing.",
+          "type": ["string", "null"]
+        },
         "stage": { "$ref": "#/$defs/Stage" },
         "ts": { "type": ["string", "null"] },
         "delivery_seq": { "type": ["integer", "null"] },
@@ -457,7 +474,6 @@
             { "type": "null" }
           ]
         },
-        "next_actor": { "enum": ["user", "agent"] },
         "response": {
           "anyOf": [
             {
@@ -498,10 +514,6 @@
         "thread": {
           "description": "The thread it stands in: a thread input's own, a widget frozen into a message's thread, or null for a page widget.",
           "type": ["string", "null"]
-        },
-        "holds_thread": {
-          "description": "Whether it keeps that thread the agent's turn.",
-          "type": "boolean"
         }
       },
       "required": [
@@ -512,7 +524,7 @@
         "revision",
         "subject",
         "coordinate",
-        "answer",
+        "obligation",
         "stage",
         "ts",
         "delivery_seq",
@@ -523,12 +535,10 @@
         "session",
         "activity",
         "condition",
-        "next_actor",
         "response",
         "started_by",
         "at_work",
-        "thread",
-        "holds_thread"
+        "thread"
       ],
       "additionalProperties": false
     },
@@ -993,7 +1003,7 @@
       "additionalProperties": false
     },
     "Obligation": {
-      "description": "One request and its contained answer (`obligations.py`, which owns the statuses). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
+      "description": "One request and its contained answer (`obligations.py`, which owns the statuses): what a widget or a version's sign-off waits on the user for, or what an update the user handed over is owed (`workflows.handed_over`). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -1016,6 +1026,17 @@
                 "version": { "type": "integer" }
               },
               "required": ["kind", "version"],
+              "additionalProperties": false
+            },
+            {
+              "description": "An update the user handed over: `id` is the input's event, `subject` the thread or widget it stands on.",
+              "type": "object",
+              "properties": {
+                "kind": { "const": "update" },
+                "id": { "type": "string" },
+                "subject": { "$ref": "#/$defs/Subject" }
+              },
+              "required": ["kind", "id", "subject"],
               "additionalProperties": false
             }
           ]
@@ -1090,72 +1111,24 @@
       "additionalProperties": false
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A widget or approval row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its to-do by `id`, whose record is the page's `todos` entry.",
+      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A record's row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its to-do by `id`, whose record is the page's `todos` entry.",
       "anyOf": [
         { "$ref": "#/$defs/ObligationRow", "unevaluatedProperties": false },
-        { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false },
-        {
-          "type": "object",
-          "properties": {
-            "kind": { "const": "resend" },
-            "id": { "type": "string" },
-            "owner": { "const": "user" },
-            "subject": { "$ref": "#/$defs/Subject" },
-            "thread": { "type": ["string", "null"] },
-            "live": { "type": "boolean" }
-          },
-          "required": ["kind", "id", "owner", "subject", "thread", "live"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": { "const": "answer" },
-            "id": { "type": "string" },
-            "owner": { "const": "agent" },
-            "subject": { "$ref": "#/$defs/Subject" },
-            "thread": { "type": ["string", "null"] },
-            "live": { "type": "boolean" },
-            "answer": { "$ref": "#/$defs/Answer" },
-            "stage": { "$ref": "#/$defs/Stage" }
-          },
-          "required": [
-            "kind",
-            "id",
-            "owner",
-            "subject",
-            "thread",
-            "live",
-            "answer",
-            "stage"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": { "const": "work" },
-            "id": { "type": "string" },
-            "owner": { "const": "agent" },
-            "subject": { "$ref": "#/$defs/Subject" },
-            "thread": { "type": ["string", "null"] },
-            "live": { "type": "boolean" },
-            "detail": { "type": ["string", "null"] }
-          },
-          "required": ["kind", "id", "owner", "subject", "thread", "live", "detail"],
-          "additionalProperties": false
-        }
+        { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false }
       ]
     },
     "ObligationRow": {
       "type": "object",
       "properties": {
-        "kind": { "enum": ["widget", "approval"] },
+        "kind": {
+          "description": "The record's `source.kind`.",
+          "enum": ["widget", "approval", "update"]
+        },
         "id": { "type": "string" },
-        "owner": { "const": "user" },
+        "owner": { "enum": ["user", "agent"] },
         "subject": { "$ref": "#/$defs/Subject" },
         "thread": { "type": ["string", "null"] },
-        "live": { "const": false }
+        "live": { "type": "boolean" }
       },
       "required": ["kind", "id", "owner", "subject", "thread", "live"]
     },
@@ -1173,33 +1146,7 @@
     },
     "DoneRow": {
       "description": "A row that left its list, in the Done of the list `owner` names: how it ended (`state`), when (`ended`, null going last), and the outcome's detail.",
-      "anyOf": [
-        { "$ref": "#/$defs/ObligationRow" },
-        { "$ref": "#/$defs/TodoRow" },
-        {
-          "type": "object",
-          "properties": {
-            "kind": { "const": "answer" },
-            "id": { "type": "string" },
-            "owner": { "const": "agent" },
-            "subject": { "$ref": "#/$defs/Subject" },
-            "thread": { "type": "string" },
-            "live": { "const": false },
-            "answer": {
-              "description": "The reply the agent sent, the answer it listed for the input the reply responds to.",
-              "type": "object",
-              "properties": {
-                "kind": { "const": "reply" },
-                "for": { "type": "string" },
-                "message": { "type": "string" }
-              },
-              "required": ["kind", "for", "message"],
-              "additionalProperties": false
-            }
-          },
-          "required": ["kind", "id", "owner", "subject", "thread", "live", "answer"]
-        }
-      ],
+      "anyOf": [{ "$ref": "#/$defs/ObligationRow" }, { "$ref": "#/$defs/TodoRow" }],
       "properties": {
         "state": { "enum": ["done", "failed", "dropped"] },
         "ended": { "type": ["string", "null"] },
@@ -1289,7 +1236,7 @@
       "additionalProperties": false
     },
     "Attention": {
-      "description": "Whose turn a thread is (`served_state.browser._thread_attention`), or null for nobody's.",
+      "description": "Whose turn a thread is (`served_state.browser._thread_attention`), read from the open obligation records in it: a widget's or an update's handed back on the user, else one on the agent, whose strongest serving workflow it names; or null for nobody's.",
       "anyOf": [
         {
           "type": "object",
@@ -1421,36 +1368,6 @@
         "attention"
       ],
       "additionalProperties": false
-    },
-    "Answer": {
-      "description": "What the agent owes the update, or null for nothing (`workflows.py`).",
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "kind": { "const": "reply" },
-            "to": { "type": "string" },
-            "for": { "type": "string" },
-            "ref": { "type": "string" },
-            "received": { "const": true },
-            "writer": { "const": "turn" },
-            "attempt": { "type": "string" }
-          },
-          "required": ["kind", "to", "for"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "kind": { "const": "markup" },
-            "action": { "type": "string" },
-            "ref": { "type": "string" },
-            "received": { "const": true }
-          },
-          "required": ["kind", "action"],
-          "additionalProperties": false
-        }
-      ]
     },
     "Stage": {
       "description": "How far an update has reached the agent; `answered` is only ever a retained failed response.",

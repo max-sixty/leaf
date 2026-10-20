@@ -237,6 +237,11 @@ def panel_leaf(page: Page) -> None:
     page.locator(".lf-fp-leaf").focus()
 
 
+def panel_status_hover(page: Page) -> None:
+    """The expanded panel while the pointer rests over its status."""
+    page.locator(".lf-fp-field").hover()
+
+
 def open_threads(page: Page) -> None:
     """The floating panel's Threads view, listing every open thread."""
     page.locator(".lf-fp-threads").click()
@@ -1108,6 +1113,7 @@ STATES = (
         touch=True,
         region=".lf-fp-leaf",
     ),
+    State("panel-status-hover", "review-a-plan", panel_status_hover),
     State("floating-thread", "ship-review", floating_thread, region=".lf-fp-head"),
     State(
         "floating-thread-retitled",

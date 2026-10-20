@@ -22,7 +22,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from .data_contracts import DataError, payload_error, working_data_bindings
-from .files import replace_files
+from .files import file_stamp, replace_files
+from .page_memory import memo
 from .registry.schema import json_value
 from .registry.storage import read_page_registry
 from .schema import DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
@@ -84,9 +85,9 @@ def write_data(
     replace_files(writes)
 
 
-# (source, contract declaration, revision) → validation error. Every state reading
-# re-reads each value file, and a large value costs far more to validate than to
-# digest, so a server judges each distinct value once.
+# (source, contract declaration, revision) → validation error. A large value costs far
+# more to validate than to digest, so a server judges each distinct value once, through
+# a rerun that rewrites it and under every registry that declares its contract alike.
 _JUDGED: dict[tuple[str, str, str], str | None] = {}
 _UNJUDGED = object()
 
@@ -106,17 +107,51 @@ def _value_error(source: str, contract: str, value, revision: str, registry: dic
     return error
 
 
+class _Publications:
+    """Each source's publication and the revision its value digests to, kept under its
+    file's stamp. Every state reading reads every source, and parsing and digesting a
+    large value costs far more than a stat. Readers share the kept value and never
+    change it."""
+
+    def __init__(self) -> None:
+        self.held: dict[str, tuple] = {}
+
+
+def _publication(page_dir: Path, source: str) -> tuple[dict, str] | None:
+    """The source's publication and its value's revision, or None before one exists."""
+    path = source_file(page_dir, source)
+    stamp = file_stamp(path)
+    if stamp is None:
+        return None
+    held = memo(page_dir, _Publications).held
+    kept = held.get(source)
+    if kept is not None and kept[0] == stamp:
+        return kept[1]
+    publication = PUBLICATION.read(path)
+    reading = (
+        None
+        if publication is None
+        else (
+            publication,
+            hashlib.sha256(json_bytes(publication["value"])).hexdigest()[:16],
+        )
+    )
+    held[source] = (stamp, reading)
+    return reading
+
+
 def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> dict:
     """One source as readers receive it: its contract, and, once a value file
     exists, that file's revision, run receipt, `updated` instant, and `value` or
     `error`."""
     reading = {"contract": contract}
-    publication = PUBLICATION.read(source_file(page_dir, source))
-    if publication is None:
+    kept = _publication(page_dir, source)
+    if kept is None:
         return reading
+    publication, revision = kept
     value = publication["value"]
     reading.update(
-        revision=hashlib.sha256(json_bytes(value)).hexdigest()[:16],
+        revision=revision,
         run=publication["run"],
         updated=publication["updated"],
     )

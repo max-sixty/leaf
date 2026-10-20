@@ -297,9 +297,6 @@ and its chrome coordinate.
 - **Decide whether a too-narrow table fails a page at the fixed widths.** It is
   advice at every width, the two fixed viewports included, where it once refused
   the page.
-- **Report a control clipped anywhere in the width sweep.** The clipped-control
-  check runs only at the two fixed viewports, so a control cut off only between
-  360 and 440px goes unreported.
 - **Clear a quoted playground's empty item boxes.** A playground quoted in a static
   sample hides its controls, those written beside items in its preview included,
   but leaves the author's settings boxes standing empty.

@@ -13,7 +13,9 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     """The sweep names a fault per element and per unbroken run of widths, with its
     reading at the run's narrowest. Here a spill clears between 1520px and 640px and
     returns below; the run taking in the 540px viewport is that viewport's to report,
-    and the wide run is still the sweep's. A squeezed table is advice wherever the
+    and the wide run is still the sweep's. A clipped control is read the same way: one
+    cut off only at 440px and below is the sweep's, one cut off around 540px is that
+    viewport's. A squeezed table is advice wherever the
     sweep finds it, a run across the 540px viewport included, since no fixed viewport
     reads it. Two drawings that share a name are told apart by their place."""
     widths = sorted({*render_gate_readings.SWEEP_WIDTHS, 540}, reverse=True)
@@ -34,6 +36,16 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
             if spill
             else [],
             "scrollbars": [],
+            "clipped": [
+                {"code": "clipped-control", "at": f"<button id={place[1:]}>"}
+                | {"place": place, "control": "pick", "id": place[1:], "lost": width}
+                | {"by": "<div id=row>"}
+                for place, clipped in (
+                    ("#narrow", width <= 440),
+                    ("#phone", 520 <= width <= 560),
+                )
+                if clipped
+            ],
             "labels": {"threshold_px": 10, "drawings": drawings},
             "squeezed": [
                 {
@@ -52,14 +64,19 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
         }
 
     readings = [(width, at(width)) for width in widths]
-    fixed = [{"width": 1200}, {"width": 540}]
-
-    [spill] = render_gate_readings.swept_overflow(readings, fixed)
+    spill, clipped = render_gate_readings.swept_faults(readings, {1200, 540})
     assert (spill.code, spill.at, spill.widths) == (
         "past-column",
         "<pre>",
         (1560, 1600),
     )
+    assert (clipped.code, clipped.at, clipped.widths, clipped.severity) == (
+        "clipped-control",
+        "<button id=narrow>",
+        (360, 440),
+        "error",
+    )
+    assert clipped.values["lost"] == 360
     assert spill.values["past"] == 1560
     assert str(spill) == (
         "at 1560–1600px wide, <pre> is set 1560px past the column, out in the margin"

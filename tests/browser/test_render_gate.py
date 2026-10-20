@@ -270,7 +270,10 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     """A body beside its track, and a row that spills only from 600 to 900px: both fixed
     viewports read the page clean, and only the sweep between them sees it. A control
     row that loses its scrollbar track room only between them is the same reading for
-    the overlay bar."""
+    the overlay bar. Below both, a decision in a card of fixed height, whose prose
+    grows at 440px and narrower (a margin stands in for its wrapping) until it pushes
+    the decision's controls under the card's clip: a press nobody can reach, which only
+    the sweep's narrowest widths see."""
     source = leaf_page(
         "mid-width overflow",
         f"""
@@ -282,6 +285,10 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 <p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
 <div id="strip"><button>Summary</button><button>Release scope</button>
 <button>Owner handoff</button></div>
+<div id="card"><lf-ask id="go-decision"><h2>Ship it?</h2>
+<p>The release passed its checks.</p><lf-options id="go" choose>
+<lf-option id="go-yes"><strong>Yes</strong></lf-option>
+</lf-options></lf-ask></div>
 """,
         head="""<style>
 #tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
@@ -289,12 +296,23 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 #strip { display: flex; width: 240px; overflow: auto; padding: 0 0 15px; border: 0; }
 #strip button { flex: 0 0 180px; height: 40px; margin: 0; }
 @media (min-width: 600px) and (max-width: 900px) { #strip { padding-bottom: 0; } }
+#card { height: 400px; overflow: hidden; }
+@media (max-width: 440px) { #card p { margin-bottom: 400px; } }
 </style>""",
     )
 
-    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+    reading = render_gate_model.render_version(
+        browser, serve(source, packages=("default",))
+    )
 
-    assert {(f.code, f.at, f.widths) for f in reading.failures} == {
+    clipped = [f for f in reading.failures if f.code == "clipped-control"]
+    assert clipped, reading.failures
+    assert {(f.values["by"], f.widths) for f in clipped} == {
+        ("<div id=card>", (360, 440))
+    }, clipped
+    assert {(f.code, f.at, f.widths) for f in reading.failures} - {
+        (f.code, f.at, f.widths) for f in clipped
+    } == {
         ("page-scrolls", "", (600, 880)),
         ("scrollbar-clearance", "<div id=strip>", (600, 880)),
     }, reading.failures

@@ -1,11 +1,18 @@
-"""Chart the latest journey samples kept on this machine."""
+"""Chart the latest journey samples kept on this machine, or tabulate their replies.
+
+The chart draws when each sign of the release ask came. The table (`--replies`)
+gives, for each target and case (`journey.CASES`), the whole reply and Leaf's share
+of it, beside the harness's other work before it took the comment and the model
+calls the reply took (`reply_phases.reply_breakdown`), as ranges over the kept
+samples of the latest version each target ran.
+"""
 
 import json
 import re
 
 import click
 
-from leaf_dev.commands.journey import samples_path
+from leaf_dev.commands.journey import CASES, samples_path
 
 # Exact-input milestones on the page server's clock, from comment admission.
 SIGNS = (
@@ -37,19 +44,64 @@ def chart_target(sample: dict) -> str:
     )
 
 
+def latest(samples: list[dict]) -> list[dict]:
+    """The samples of the latest version each chart row's target ran. Samples kept
+    before the journey ran its steps (`steps`) are left out: their targets had
+    other names, and their Claude Code ran headless."""
+    samples = [sample for sample in samples if "steps" in sample]
+    versions = {chart_target(sample): sample["version"] for sample in samples}
+    return [s for s in samples if s["version"] == versions[chart_target(s)]]
+
+
+def reply_table(samples: list[dict]) -> str:
+    """A Markdown table of each target's replies in each case, in seconds."""
+    replies: dict[tuple[str, str], list[dict]] = {}
+    for sample in latest(samples):
+        readings = {"release": sample["comment"]} | {
+            name: reading
+            for step in sample["steps"]
+            for name, reading in step["comments"].items()
+        }
+        for case, name in sample.get("cases", {}).items():
+            if reply := readings[name].get("reply"):
+                replies.setdefault((chart_target(sample), case), []).append(reply)
+
+    def span(values: list[float]) -> str:
+        low, high = min(values), max(values)
+        return (
+            f"{low:.1f}" if f"{low:.1f}" == f"{high:.1f}" else f"{low:.1f}–{high:.1f}"
+        )
+
+    def seconds(group: list[dict], key: str) -> str:
+        return span([reply[key] / 1000 for reply in group])
+
+    lines = [
+        (
+            "| Target | Case | Runs | Whole reply | Leaf's share | Harness busy first "
+            "| Model calls | Model time |"
+        ),
+        "| --- | --- | --: | --: | --: | --: | --: | --: |",
+    ]
+    for (target, case), group in sorted(
+        replies.items(), key=lambda item: (item[0][0], list(CASES).index(item[0][1]))
+    ):
+        calls = [len(reply["modelCalls"]) for reply in group]
+        lines.append(
+            f"| {target} | {case} | {len(group)} | {seconds(group, 'wholeMs')} "
+            f"| {seconds(group, 'leafMs')} | {seconds(group, 'busyMs')} "
+            f"| {min(calls)}–{max(calls)} | {seconds(group, 'modelMs')} |"
+        )
+    return "\n".join(lines)
+
+
 def chart_rows(samples: list[dict]) -> list[dict]:
     """One dot per sign each sample's release ask saw, for the latest version each
     target ran, with its options. A release ask the user answered a permission
     prompt during has a row of its own, since the prompt held the session for as
-    long as it stood. Samples kept before the journey ran its steps (`steps`) are
-    left out: their targets had other names, and their Claude Code ran headless."""
-    samples = [sample for sample in samples if "steps" in sample]
-    latest = {chart_target(sample): sample["version"] for sample in samples}
+    long as it stood (`latest` says which samples it reads)."""
     rows = []
-    for sample in samples:
+    for sample in latest(samples):
         name = chart_target(sample)
-        if sample["version"] != latest[name]:
-            continue
         version = re.sub(r"[0-9a-f]{32,}", lambda sha: sha[0][:8], sample["version"])
         prompted = (
             " after a permission prompt" if sample["comment"].get("approved") else ""
@@ -100,11 +152,16 @@ def chart_markup(rows: list[dict]) -> str:
 
 
 @click.command()
-def journey_chart() -> None:
+@click.option(
+    "--replies",
+    is_flag=True,
+    help="Print a Markdown table of each target's replies in each case instead.",
+)
+def journey_chart(replies: bool) -> None:
     """Print an `lf-chart` of recorded delivery and work milestones, for
     the latest code version each target ran in this machine's kept samples."""
     path = samples_path()
     if not path.exists():
         raise click.ClickException(f"no samples kept in {path}; run `leaf-dev journey`")
-    lines = path.read_text().splitlines()
-    print(chart_markup(chart_rows([json.loads(line) for line in lines])))
+    samples = [json.loads(line) for line in path.read_text().splitlines()]
+    print(reply_table(samples) if replies else chart_markup(chart_rows(samples)))

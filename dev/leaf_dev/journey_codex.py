@@ -26,8 +26,9 @@ The steps, in order:
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
   clickable choices in the thread and for a question awaiting the user's answer, each
   moving its thread to the release rationale, are answered so;
-- `mid-turn`: a comment sent during a shell command is answered once, and the claim
-  names the user's turn while it runs; on `codex-queue` the comment must also enter
+- `mid-turn`: the working case's ask (`journey.CASES`), sent during a shell
+  command, is answered once and recorded on the page, and the claim names the
+  user's turn while it runs; on `codex-queue` the comment must also enter
   that turn and be answered before its first final response, starting no turn of
   its own;
 - `resume`, on `codex-queue`: a turn interrupted during its shell command is resumed
@@ -116,11 +117,13 @@ class Codex(Terminal):
         self.commands = self.task.commands
 
     def record(self, message: dict) -> None:
+        """Keep a notification of the task's thread as records, and each model
+        response's end, which App Server reports with the response's token usage."""
         if self.task.thread and self.task.owns(message):
-            self.trace.extend(
-                {**normalized, "received_at": now()}
-                for normalized in records_for(message, self.task.thread, "")
-            )
+            normalized = records_for(message, self.task.thread, "")
+            if message.get("method") == "thread/tokenUsage/updated":
+                normalized.append({"type": "model_response"})
+            self.trace.extend({**record, "received_at": now()} for record in normalized)
 
     def hear(self, seconds: float) -> None:
         self.task.listen(seconds)
@@ -319,7 +322,7 @@ def steps(
     previous_turns = len(task.started)
     user_turn = task.say(USER_TURN)
     codex.await_command(SLEEP, "the user turn did not start its command")
-    mid_turn = user.comment("mid-turn")
+    mid_turn = user.ask_while_working()
     if transport == "queue":
 
         def before_final(turn: str) -> None:
@@ -356,6 +359,7 @@ def steps(
             f"the active hook did not deliver the comment into turn {user_turn}",
         )
     codex.settle(lambda: user.answered("mid-turn"), "`mid-turn` was not answered")
+    user.require_recorded()
     sent.append("mid-turn")
     details = check_step()
     if transport == "queue":

@@ -25,6 +25,15 @@ exact input through pickup, start, progress or answer evidence. Missing turns re
 unknown; browser diagnostic sessions are separate identities. Captured context
 identifies the harness and the provider of an explicitly recorded matching turn;
 no current claim or timestamp proximity supplies this identity.
+
+An answered input whose answering session is Claude Code's, with its transcript
+still in this machine's Claude Code projects, also carries its reply's breakdown (`reply`,
+`reply_phases.reply_breakdown`): the whole reply, Leaf's share of it (delivery and
+`leaf` commands), the harness's other work before it took the input, and the model
+calls the reply took. Its case is `working` where the harness took the input at a
+tool boundary of a turn already running, else `waiting`; a running turn that ended
+without another tool call reads as waiting. Other harnesses' inputs carry no
+breakdown, and the summary's reply rows count them missing.
 """
 
 import json
@@ -40,6 +49,12 @@ from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
 from leaf.state import now_iso
 from leaf.todos import start_reading
+
+from leaf_dev.reply_phases import (
+    claude_code_records,
+    claude_code_transcript,
+    reply_breakdown,
+)
 
 
 def visible_feedback(
@@ -242,6 +257,8 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
         observations, input_attempts, reply_inputs
     ).items():
         rows[identity]["milestones"]["send_to_visible"] = observation
+    for row in rows.values():
+        row["reply"] = breakdown(row)
     return {
         "page": str(page),
         "unlinked_agent_replies": unlinked,
@@ -249,17 +266,45 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
     }
 
 
+def breakdown(row: dict) -> dict | None:
+    """The answered input's reply breakdown, with its case, where the answering
+    session's Claude Code transcript can be read."""
+    milestones = row["milestones"]
+    if "answered" not in milestones or "opened" not in milestones:
+        return None
+    answered = milestones["answered"]
+    if answered["harness"] != "claude-code" or answered["session"] is None:
+        return None
+    native = claude_code_transcript(answered["session"])
+    if native is None:
+        return None
+    reply = reply_breakdown(
+        claude_code_records(native),
+        row["admitted_at"],
+        milestones["opened"]["at"],
+        answered["at"],
+    )
+    return {**reply, "case": "working" if reply["busyMs"] else "waiting"}
+
+
 def distribution(rows: list[dict], milestone: str) -> dict:
-    """Observed elapsed seconds, with missing and invalid-clock evidence counted.
+    """Observed elapsed seconds from admission to `milestone` (`spread`)."""
+    return spread(
+        rows,
+        [
+            row["milestones"][milestone]["elapsed_s"]
+            for row in rows
+            if milestone in row["milestones"]
+        ],
+    )
+
+
+def spread(rows: list[dict], observed: list[float]) -> dict:
+    """Observed seconds of `rows`, with missing and invalid-clock evidence counted.
 
     Percentiles use the standard library's inclusive interpolation. Negative
     intervals cannot describe response times and remain explicit clock errors.
     """
-    observed = [
-        row["milestones"][milestone]["elapsed_s"]
-        for row in rows
-        if milestone in row["milestones"]
-    ]
     valid = [value for value in observed if value >= 0]
     percentiles = (
         statistics.quantiles(valid, n=100, method="inclusive")
@@ -353,6 +398,16 @@ def response_times(
             "failure",
         )
     }
+    for case in ("waiting", "working"):
+        replies = [
+            row["reply"]
+            for row in rows
+            if row["reply"] is not None and row["reply"]["case"] == case
+        ]
+        for name, key in (("whole", "wholeMs"), ("leaf_share", "leafMs")):
+            summary[f"{name}_{case}"] = spread(
+                rows, [reply[key] / 1000 for reply in replies]
+            )
     if as_json:
         click.echo(
             json.dumps(
@@ -385,7 +440,10 @@ def response_times(
         f"Unlinked agent replies: {sum(len(reading['unlinked_agent_replies']) for reading in readings)}; missing means no exact-linked observation."
     )
     click.echo(
-        "milestone       observed  missing  clock errors      p50      p90      p95      max"
+        "Reply rows (whole_*, leaf_share_*) read Claude Code transcripts; missing includes every other input."
+    )
+    click.echo(
+        "milestone           observed  missing  clock errors      p50      p90      p95      max"
     )
     for name, stats in summary.items():
         values = " ".join(
@@ -393,5 +451,5 @@ def response_times(
             for key in ("p50_s", "p90_s", "p95_s", "max_s")
         )
         click.echo(
-            f"{name:15} {stats['observed']:8} {stats['missing']:8} {stats['clock_errors']:12} {values}"
+            f"{name:19} {stats['observed']:8} {stats['missing']:8} {stats['clock_errors']:12} {values}"
         )

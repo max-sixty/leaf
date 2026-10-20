@@ -29,9 +29,10 @@ The steps, in order:
   holds the session's pages once its turn ends;
 - `release`: the journey's timed ask, sent while the session is idle, opens a turn
   that answers it (`journey.run_journey`);
-- `mid-turn`: a comment sent during a shell command is picked up in that turn;
-  its PostToolBatch context carries the exact input
-  before another model call, rather than waiting for Stop;
+- `mid-turn`: the working case's ask (`journey.CASES`), sent during a shell
+  command, is picked up in that turn and recorded on the page; its PostToolBatch
+  context carries the exact input before another model call, rather than waiting
+  for Stop;
 - `ending`: a comment sent during a shell command wakes the watch, and one sent
   after that pickup enters the same turn at its next tool boundary while no watch
   runs;
@@ -87,6 +88,7 @@ from leaf.state import session_record
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, claude_environment, claude_home, run_leaf
 from leaf_dev.commands.journey import Isolation, Terminal, User, isolated, user_at
+from leaf_dev.reply_phases import claude_code_records
 from leaf_dev.review_scenario import (
     REQUEST,
     SLEEP,
@@ -198,7 +200,9 @@ class ClaudeCode(Terminal):
         time.sleep(seconds)
 
     def records(self) -> list[dict]:
-        return [] if self.session is None else transcript(self.home, self.session)
+        if self.session is None:
+            return []
+        return claude_code_records(native_records(self.home, self.session))
 
     def failure(self, what: str, limit: float) -> click.ClickException:
         return click.ClickException(f"{what} within {limit:.0f} s\n{self.screen()}")
@@ -349,8 +353,9 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     user_turn("mid-turn")
     turn = page_claim(page)["turn"]
     before = nudged()
-    mid_turn = user.comment("mid-turn")
+    mid_turn = user.ask_while_working()
     cc.until(answered("mid-turn"), "mid-turn: the comment was not answered")
+    user.require_recorded()
     require(
         any(
             event["turn"] == turn
@@ -452,26 +457,6 @@ def native_records(home: Path, session: str) -> list[dict]:
     """The native session record, including hook context attachments."""
     [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
     return [json.loads(line) for line in path.read_text().splitlines()]
-
-
-def transcript(home: Path, session: str) -> list[dict]:
-    """The session's transcript so far, as tool and turn records stamped
-    `received_at` with the time Claude Code wrote on each."""
-    records = []
-    for record in native_records(home, session):
-        if record.get("type") not in ("user", "assistant") or "message" not in record:
-            continue
-        content = record["message"]["content"]
-        if isinstance(content, str):
-            content = [{"type": "text", "text": content}]
-        records.append(
-            {
-                "type": record["type"],
-                "message": {"content": content},
-                "received_at": record["timestamp"],
-            }
-        )
-    return records
 
 
 @contextmanager

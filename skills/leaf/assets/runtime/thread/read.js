@@ -126,6 +126,8 @@ export function createReadTracking({ markRead, openThread }) {
   let presentationGeneration = 0;
   let visitGeneration = 0;
   let scheduled = false;
+  // What waits for the next pass over the presented threads (`afterPass`).
+  let passWaiters = [];
 
   function resetExposure() {
     visitGeneration++;
@@ -246,6 +248,18 @@ export function createReadTracking({ markRead, openThread }) {
           for (const item of items) refusedThisVisit.add(keyOf(item));
       });
     }
+    if (!threadsPresented) return;
+    const waiting = passWaiters;
+    passWaiters = [];
+    for (const then of waiting) then();
+  }
+
+  // Runs `then` after the next pass over the presented threads, once what that pass
+  // read counts as read in `readThreads()`: what still stands unread then is what the
+  // page has not shown whole, as the floating panel's Next unread asks.
+  function afterPass(then) {
+    passWaiters.push(then);
+    scheduleScan();
   }
 
   let exposureGeneration = 0;
@@ -376,6 +390,7 @@ export function createReadTracking({ markRead, openThread }) {
     observeMessage,
     observeFeedback,
     firstUnread,
+    afterPass,
     firstUnreadCommand,
   };
 }

@@ -5803,6 +5803,19 @@ var Transcript = class {
   get progressOpen() {
     return this.#pendingOpen;
   }
+  // Whether held news (held-news.js) would move what the reader sees of the
+  // transcript: a message it changes, or the transcript's end it adds to, with growth
+  // after it in sight, unless that end is `followed`, as by a reply pinned below it; or
+  // a fold that comes or goes over what is in sight.
+  newsMoves({ news, changed: changed2, folds }, { followed = null } = {}) {
+    return [
+      ...[...changed2].map((key) => this.messageNode(key)),
+      (news.appended || news.settled || news.working) && this.foot
+    ].some((node) => node && node !== followed && growthAfterIsSeen(node)) || [
+      ...folds.messages.map((key) => this.messageNode(key)),
+      ...folds.summaries.map((id) => this.summaryNode(id))
+    ].some((node) => node && growthIsSeen(node));
+  }
   // Opens the fold holding a message, as a rewrite of it opens to be seen.
   expandAround(id) {
     const folded = this.#model?.summaries.find(({ covers }) => covers.includes(id));
@@ -5811,12 +5824,14 @@ var Transcript = class {
   /**
    * Draws `model`, a thread's reading (thread-card.js, `threadReading`). `appends`
    * declares that it grows at its end inside the scroller holding it, as a margin
-   * card's and the floating panel's view do (`data-lf-reflow`, tests/shift_watch.js).
-   * Returns the disclosure that took over the one the user stood on, where this draw
-   * replaced it, as the answer's head takes progress over from the working message.
+   * card's does (`data-lf-reflow`, tests/shift_watch.js). `notice` is a node the reader
+   * stands at the head of the transcript's first message in sight, as a primary
+   * reader's thread notice (primary-reader.js). Returns the disclosure that took over
+   * the one the user stood on, where this draw replaced it, as the answer's head takes
+   * progress over from the working message.
    * @returns {HTMLElement | null}
    */
-  present(model, { arrived = false, appends = false } = {}) {
+  present(model, { arrived = false, appends = false, notice: notice2 = null } = {}) {
     const prior = this.#model;
     const standing2 = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -5884,6 +5899,7 @@ var Transcript = class {
       if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
       progressByReply.get(trigger).push(range);
     }
+    const lead = rangeState.find((range) => range.kind === "message")?.message ?? model.messages[0];
     for (const message of model.messages) {
       let view = this.#messages.get(message.key);
       if (!view)
@@ -5891,9 +5907,10 @@ var Transcript = class {
           message.key,
           view = new MessageView(this.#messageCommands)
         );
+      const toggle = progressByReply.has(message.id) ? this.#summaryToggle(progressByReply.get(message.id), true) : nothing;
       view.present(message, {
         arrived,
-        headerControls: progressByReply.has(message.id) ? this.#summaryToggle(progressByReply.get(message.id), true) : nothing
+        headerControls: notice2 && message === lead ? html`${notice2}${toggle}` : toggle
       });
       keeps(
         view.node,
@@ -6000,19 +6017,29 @@ var Transcript = class {
       ${progress ? html`<span>${label}</span>` : label}
     </button>`;
   }
+  // A press on a fold's disclosure opens or closes it and stays under the pointer.
+  // Progress opens above the answer whose head holds its disclosure, so its scroller
+  // takes back what that carries the press down by. Scroll anchoring would, but not at
+  // a scroller's start, where a view opened on a short thread stands.
   #setSummaryExpanded(ids, expanded) {
+    const toggleOf = () => this.node.querySelector(
+      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`
+    );
+    const stood = toggleOf()?.getBoundingClientRect().top;
     for (const id of ids) {
       if (expanded) this.#expandedSummaries.add(id);
       else this.#expandedSummaries.delete(id);
     }
     this.#repaint();
-    const toggle = this.node.querySelector(
-      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`
-    );
-    if (toggle) {
-      focusDestination(toggle, "return");
-      scrollThreadIntoView(this.#home(), toggle, "instant");
+    const toggle = toggleOf();
+    if (!toggle) return;
+    if (stood !== void 0) {
+      const box = scrollerFor(toggle);
+      moveScrollerBy(box, toggle.getBoundingClientRect().top - stood);
+      placeKept(box);
     }
+    focusDestination(toggle, "return");
+    scrollThreadIntoView(this.#home(), toggle, "instant");
   }
   commit() {
     const wanted = new Set(this.#model.messages.map((message) => message.key));
@@ -6268,11 +6295,6 @@ var ThreadView = class {
   #messageNode(key) {
     return this.#fold ? null : this.#transcript.messageNode(key);
   }
-  // The checkpoint a summary the thread draws stands in; none while the thread is
-  // folded.
-  #summaryNode(id) {
-    return this.#fold ? null : this.#transcript.summaryNode(id);
-  }
   ownsMessage(id) {
     return this.#model?.id === id || this.#model?.messages.some((message) => message.id === id);
   }
@@ -6331,13 +6353,7 @@ var ThreadView = class {
       return growthIsSeen(this.node) && (!atEnd || writing || this.#marginControls?.heldEdge(turn) === "foot");
     }
     const followed = pinned && !news.settled ? this.#foot : null;
-    return [
-      ...[...changed2].map((message) => this.#messageNode(message)),
-      (news.appended || news.settled || news.working) && this.#foot
-    ].some((node) => node && node !== followed && growthAfterIsSeen(node)) || [
-      ...folds.messages.map((message) => this.#messageNode(message)),
-      ...folds.summaries.map((summary) => this.#summaryNode(summary))
-    ].some((node) => node && growthIsSeen(node)) || Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow));
+    return this.#transcript.newsMoves({ news, changed: changed2, folds }, { followed }) || Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow));
   }
   // What a card draws from beyond its reading: whether a reply to it is being written
   // and whether it holds a draft.

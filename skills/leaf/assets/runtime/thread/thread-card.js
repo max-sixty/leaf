@@ -58,7 +58,7 @@ import { iconTemplate } from "../icons.js";
 import { answeredInWords } from "../obligations/model.js";
 import { SAY_BOX } from "./selectors.js";
 import { threadAttention, workflowLabel } from "./workflow.js";
-import { growthAfterIsSeen, growthIsSeen, shownRect } from "../geometry.js";
+import { growthIsSeen, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, replyPinned } from "./reply-landing.js";
@@ -393,12 +393,6 @@ export class ThreadView {
     return this.#fold ? null : this.#transcript.messageNode(key);
   }
 
-  // The checkpoint a summary the thread draws stands in; none while the thread is
-  // folded.
-  #summaryNode(id) {
-    return this.#fold ? null : this.#transcript.summaryNode(id);
-  }
-
   ownsMessage(id) {
     return (
       this.#model?.id === id ||
@@ -493,14 +487,7 @@ export class ThreadView {
     }
     const followed = pinned && !news.settled ? this.#foot : null;
     return (
-      [
-        ...[...changed].map((message) => this.#messageNode(message)),
-        (news.appended || news.settled || news.working) && this.#foot,
-      ].some((node) => node && node !== followed && growthAfterIsSeen(node)) ||
-      [
-        ...folds.messages.map((message) => this.#messageNode(message)),
-        ...folds.summaries.map((summary) => this.#summaryNode(summary)),
-      ].some((node) => node && growthIsSeen(node)) ||
+      this.#transcript.newsMoves({ news, changed, folds }, { followed }) ||
       Boolean(news.settled && this.#settlementRow && growthIsSeen(this.#settlementRow))
     );
   }

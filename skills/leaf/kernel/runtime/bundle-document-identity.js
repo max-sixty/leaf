@@ -6353,10 +6353,10 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
         node: drawingOf(parts) ?? parts.at(-1).node,
         progressOpen: parts.some((part) => part.transcript?.progressOpen),
         // A presentation that makes room for the agent's answer to the user's last turn
-        // itself (`answersAtOnce`) is handed it whatever it moves. Any news changes a
-        // transcript's height.
-        newsMoves: ({ news, changed, folds, answers }) => !(answersAtOnce && answers) && parts.some(
-          (part) => (part.transcript || news.appended || news.settled || changed.has(part.messageKey) || folds.messages.includes(part.messageKey) || folds.summaries.length) && growthIsSeen(part.node)
+        // itself (`answersAtOnce`) is handed it whatever it moves. A transcript moves
+        // what a card's would (transcript.js, `newsMoves`).
+        newsMoves: (held2) => !(answersAtOnce && held2.answers) && parts.some(
+          (part) => part.transcript ? part.transcript.newsMoves(held2) : (held2.news.appended || held2.news.settled || held2.changed.has(part.messageKey) || held2.folds.messages.includes(part.messageKey) || held2.folds.summaries.length) && growthIsSeen(part.node)
         )
       };
     },
@@ -6462,10 +6462,6 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
         if (!item.outlet.isConnected || !under(item.outlet, owner))
           throw new Error(
             "A primary Thread outlet must remain inside its connected owner"
-          );
-        if (item.kind === "transcript" && !nominations.some((part) => part.key === item.key && part.kind === "news"))
-          throw new Error(
-            `Thread ${item.key}'s transcript needs a news part for its notice`
           );
       }
       selected = nominations;
@@ -6573,19 +6569,20 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               home: () => node
             });
             node.append(transcript.node);
+            node.dataset.lfAppendTail = "";
             view = {
               node,
               transcript,
               reading: null,
               drawn: false,
+              // Whether the thread's notice stands in its first message's head.
+              headNotice: true,
               // Draws the transcript again at once, as a fold or a rewrite opens or
               // closes; a disclosure the draw replaced hands focus to its successor.
               draw() {
                 const handedOn = transcript.present(this.reading, {
                   arrived: this.drawn,
-                  // It grows at its end, in the reader holding it, as the floating
-                  // panel's view does.
-                  appends: true
+                  notice: this.headNotice ? this.notice.node : null
                 });
                 transcript.commit();
                 this.drawn = true;
@@ -6602,7 +6599,6 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
               },
               edit: rewritesOf(item.key).edit
             });
-            message.node.classList.add("lf-primary-message");
             node.append(message.node);
             view = {
               node,
@@ -6643,10 +6639,8 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
             node.append(reply.node);
             view = { node, reply, dispose: reply.dispose };
           }
-          if (item.kind !== "transcript") {
-            view.notice = newsNotice();
-            view.notice.node.classList.add("lf-primary-news");
-          }
+          view.notice = newsNotice();
+          view.notice.node.classList.add("lf-primary-news");
         }
         views.set(item.identity, view);
       }
@@ -6657,11 +6651,6 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
         const news = shown.get(item.key)?.news;
         if (news) view.notice.set(news);
         keepsHidden(view.node, !news);
-      } else if (item.kind === "transcript") {
-        keeps(view.node, "data-thread", item.thread.id);
-        keeps(view.node, "data-attempt", item.thread.root.attempt ?? null);
-        view.reading = shown.get(item.key);
-        view.draw();
       } else {
         keeps(view.node, "data-thread", item.thread.id);
         keeps(view.node, "data-attempt", item.thread.root.attempt ?? null);
@@ -6669,11 +6658,17 @@ function createPrimaryReader(owner, render, commands, update, { answersAtOnce = 
         const nominated = selected.some(
           (part) => part.key === item.key && part.kind === "news"
         );
-        const first = selected.find((part) => part.key === item.key && part.kind === "message") ?? selected.find((part) => part.key === item.key);
+        const first = selected.find(
+          (part) => part.key === item.key && (part.kind === "message" || part.kind === "transcript")
+        ) ?? selected.find((part) => part.key === item.key);
         const notice2 = Boolean(news) && !nominated && first === item;
         if (notice2) view.notice.set(news);
         keepsHidden(view.notice.node, !notice2);
-        if (item.kind === "message") {
+        if (item.kind === "transcript") {
+          view.headNotice = !nominated;
+          view.reading = shown.get(item.key);
+          view.draw();
+        } else if (item.kind === "message") {
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {
@@ -6840,6 +6835,7 @@ function createReadTracking({ markRead, openThread }) {
   let presentationGeneration = 0;
   let visitGeneration = 0;
   let scheduled = false;
+  let passWaiters = [];
   function resetExposure() {
     visitGeneration++;
     exposureGeneration++;
@@ -6931,6 +6927,14 @@ function createReadTracking({ markRead, openThread }) {
           for (const item of items) refusedThisVisit.add(keyOf(item));
       });
     }
+    if (!threadsPresented) return;
+    const waiting = passWaiters;
+    passWaiters = [];
+    for (const then of waiting) then();
+  }
+  function afterPass(then) {
+    passWaiters.push(then);
+    scheduleScan();
   }
   let exposureGeneration = 0;
   function scheduleScan() {
@@ -7035,6 +7039,7 @@ function createReadTracking({ markRead, openThread }) {
     observeMessage,
     observeFeedback,
     firstUnread,
+    afterPass,
     firstUnreadCommand
   };
 }

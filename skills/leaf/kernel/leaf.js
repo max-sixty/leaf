@@ -5983,6 +5983,7 @@ function createFloatingPanel({
   registerChromeThreadPresentation,
   observeFeedback,
   firstUnread,
+  afterReadingPass,
   obligations: obligationView,
   queueActions,
   withdraw,
@@ -6229,6 +6230,7 @@ function createFloatingPanel({
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         busy: () => !errorCover.hidden,
         sent: (flight) => {
+          rooms.delete(routeKey(trail.at(-1)));
           landAtEnd = { key, after: drawnTurns() };
           waiting = null;
           queueMicrotask(paint);
@@ -6504,10 +6506,20 @@ function createFloatingPanel({
   const rooms = /* @__PURE__ */ new Map();
   let onPageSeat = false;
   let unreadSeat = null;
+  function decideUnreadSeat() {
+    const route = trail.at(-1);
+    if (route?.view !== "thread" || unreadSeat !== null) return;
+    const key = routeKey(route);
+    afterReadingPass(() => {
+      const top = trail.at(-1);
+      if (!top || routeKey(top) !== key || unreadSeat !== null) return;
+      unreadSeat = (threadByKey(route.thread)?.unread.length ?? 0) > 0;
+      if (unreadSeat) paint();
+    });
+  }
   const unplaced = /* @__PURE__ */ new Set();
   let stood = null;
   let stoodAt = null;
-  let rewriting = false;
   let spare = false;
   const holdThread = (height) => {
     const top = trail.at(-1);
@@ -6516,21 +6528,14 @@ function createFloatingPanel({
     rooms.set(routeKey(top), height);
     return true;
   };
-  const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
-  onStanding((node, cause) => {
-    const top = trail.at(-1);
-    if (top?.view !== "thread" || cause === "drop") return;
+  const actedIn = (node) => {
     const view = openView();
-    const writing2 = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
-    if (writing2 === rewriting) return;
-    if (writing2) {
-      rewriting = holdThread(stood);
-      if (!rewriting) return;
-    } else {
-      rewriting = false;
-      rooms.delete(routeKey(top));
-    }
-    paint();
+    if (view && node && renderedUnder(node, view) && holdThread(stood)) paint();
+  };
+  stage.addEventListener("click", (event) => actedIn(event.target), { capture: true });
+  onStanding((node, cause) => {
+    if (cause !== "drop" && node && closestAcross(node, ".lf-msg-editor"))
+      actedIn(node);
   });
   function holdRoom() {
     const top = trail.at(-1);
@@ -6654,7 +6659,6 @@ function createFloatingPanel({
     const changed = (before ? routeKey(before) : null) !== (after2 ? routeKey(after2) : null);
     if (changed) {
       rooms.clear();
-      rewriting = false;
       spare = false;
       quoteExpanded = false;
       waiting = null;
@@ -7170,8 +7174,6 @@ function createFloatingPanel({
               aria-controls="lf-fp-quote"
               @click=${() => {
       quoteExpanded = !quoteExpanded;
-      holdThread(openView()?.offsetHeight ?? null);
-      rewriting = false;
       paint();
     }}
             >
@@ -7193,7 +7195,7 @@ function createFloatingPanel({
     if (!thread)
       return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
     return html`${quoteHead(thread)}
-      <div class="lf-fp-messages lf-fp-outlet"></div>
+      <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
       ${waiting?.key === key ? html`<div class="lf-fp-foot">
               <button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
                 ${iconTemplate("down", "lf-action-icon")}${waiting.label}
@@ -7542,7 +7544,6 @@ function createFloatingPanel({
     } else if (thread) {
       const inMessage = Boolean(placedAt(thread.id)?.message);
       onPageSeat ||= Boolean(thread.anchor) && (inMessage || !unplaced.has(thread.key));
-      unreadSeat ??= thread.unread.length > 0;
       aux = html`${unreadSeat ? html`<button
                 type="button"
                 class="lf-fp-next-unread"
@@ -7698,6 +7699,7 @@ function createFloatingPanel({
       paint();
     }
     scrollToEnd(view);
+    decideUnreadSeat();
   }
   function paintNow() {
     const top = trail.at(-1) ?? null;
@@ -11089,6 +11091,7 @@ floatingPanel = createFloatingPanel({
   wireInput: inputs.wireInput,
   observeFeedback: app.read.observeFeedback,
   firstUnread: app.read.firstUnread,
+  afterReadingPass: app.read.afterPass,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
   obligations: {

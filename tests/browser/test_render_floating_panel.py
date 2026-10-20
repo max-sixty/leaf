@@ -1044,8 +1044,10 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
     each control by the same distance. Past the view's cap the answer goes on below the
     fold behind New reply, with the user's own turn wholly in sight above it, its head
     included, and nothing of the answer showing below the press; a press brings the
-    answer's start into sight. A reply that follows the agent's own turn is still held
-    behind the thread's notice, since nobody was waiting for it."""
+    answer's start into sight. A reply that follows the agent's own turn below that
+    fold moves nothing the user sees, so it joins there at once, as on a card; one that
+    would move what is in sight is held behind the thread's notice
+    (`test_held_news_reads_whole_on_the_thread_s_head_line`)."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir,
@@ -1115,11 +1117,14 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
     shown, box = messages.last.bounding_box(), view.bounding_box()
     assert box["y"] <= shown["y"] < box["y"] + box["height"] - 40, (shown, box)
 
+    seats = page.evaluate(HEAD_SEATS)
+    read = page.evaluate(GROWTH)
     answer("One more thing: the alarms page the on-call too.")
-    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_contain_text(
-        "1 new reply"
-    )
-    expect(messages).to_have_count(4)
+    expect(messages).to_have_count(5)
+    settled(page)
+    expect(page.locator(".lf-fp-head .lf-thread-news:visible")).to_have_count(0)
+    assert page.evaluate(HEAD_SEATS) == seats
+    assert page.evaluate(GROWTH)["turn"] == read["turn"]
 
 
 def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
@@ -1310,6 +1315,90 @@ def test_a_thread_s_view_marks_unread_replies_and_goes_to_the_next(browser, serv
     expect(view.locator(".lf-msg", has_text="Then the beds.")).not_to_have_class(unread)
     expect(press).to_be_hidden()
     expect(press).to_be_disabled()
+
+
+PRESS_AND_HEAD = """(toggle) => ({
+  toggle: document.querySelector(toggle).getBoundingClientRect().top,
+  head: document.querySelector('.lf-fp-head').getBoundingClientRect().top,
+})"""
+
+
+def test_a_fold_pressed_in_a_thread_s_view_stays_under_the_press(browser, serve):
+    """A press in a thread's view holds the view's height, so what it opens goes on
+    inside the view: Show 2 earlier messages and Show 2 progress messages each stay
+    under the pointer, and the view's head stays where it stood, rather than the view
+    growing up the window to hold what opened."""
+    from browser.threads import summarize_thread
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Can you check that the workshop fits the afternoon?"
+    )
+    for step in ("the total practice time", "the break and closing discussion"):
+        agent_said(serve.page_dir, root, f"Checking {step}. " * 3, ephemeral=True)
+    agent_said(
+        serve.page_dir,
+        root,
+        "The workshop fits, including a fifteen-minute break.",
+        responds=root,
+    )
+    asked = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": root,
+            "revision": 1,
+            "text": "And the room after five?",
+        },
+    )["id"]
+    said = agent_said(
+        serve.page_dir, root, "The room stays free until seven. " * 4, responds=asked
+    )
+    summarize_thread(serve.page_dir, asked, said, "The room is free until seven.")
+    agent_said(serve.page_dir, root, "Booked it for the afternoon.")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-progress-expand")).to_be_visible()
+    settled(page)
+    for toggle in (
+        ".lf-fp-view .lf-summary-checkpoint .lf-summary-expand",
+        ".lf-fp-view .lf-progress-expand",
+    ):
+        stood = page.evaluate(PRESS_AND_HEAD, toggle)
+        page.locator(toggle).click()
+        expect(page.locator(toggle)).to_have_attribute("aria-expanded", "true")
+        settled(page)
+        assert page.evaluate(PRESS_AND_HEAD, toggle) == stood, toggle
+    expect(view.locator(".lf-msg:visible")).to_have_count(7)
+
+
+def test_next_unread_never_shows_for_a_reply_the_opening_reads(browser, serve):
+    """Opening a thread whose one unread reply is short reads it as the view lands, so
+    Next unread never shows at the view's head, not even for the moment before the
+    reply is read."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    agent_said(serve.page_dir, root, "The mounts come first.", responds=root)
+    page = floating(browser, url)
+    page.evaluate("""() => {
+      window.nextUnreadShown = false;
+      new MutationObserver(() => {
+        window.nextUnreadShown ||= Boolean(
+          document.querySelector('.lf-fp-next-unread:not([data-unoffered])'));
+      }).observe(document, {subtree: true, childList: true, attributes: true});
+    }""")
+    reply = page.locator(".lf-fp-view .lf-msg", has_text="The mounts come first.")
+    with sending(page, "the reply read"):
+        page.locator("body").focus()
+        page.keyboard.press("t")
+        expect(reply).to_be_visible()
+    expect(reply).not_to_have_class(re.compile(r"(^|\s)lf-unread(\s|$)"))
+    round_trip(page)
+    assert not page.evaluate("() => window.nextUnreadShown")
+    expect(page.locator(".lf-fp-next-unread")).to_have_count(0)
 
 
 FOOT = """([parts, fromEnd]) => {
@@ -1504,6 +1593,45 @@ def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, ser
     assert asked["focus"] is not False
     assert asked["part"] == "message"
     assert asked["message"] == stood_on
+
+
+def test_a_package_s_transcript_takes_its_notice_where_every_part_does(browser, serve):
+    """A package that draws a thread's head itself may name its transcript alone
+    (`parts.transcript`, as the panel's view does) without naming where the thread's
+    notice goes: Leaf draws the transcript, and news that would move it waits behind
+    the notice at the head of its first message, where every part takes it by
+    default."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          const host = document.createElement('div');
+          host.id = 'reader';
+          // Over the page, so drawing it moves none of the page's words.
+          host.style = 'position: fixed; inset: 0 0 auto auto; width: 320px';
+          document.querySelector('main').append(host);
+          window.reader = api.registerThreadPresentation(host, {
+            render: (collection, parts) => {
+              for (const thread of collection.threads) {
+                const outlet = document.createElement('div');
+                host.replaceChildren(outlet);
+                parts.transcript(thread.key, outlet);
+              }
+            },
+            reveal: () => {},
+          });
+          await window.reader.update();
+        }"""
+    )
+    reader = page.locator("#reader")
+    expect(reader.locator(".lf-msg")).to_contain_text("Is the window long enough?")
+    agent_said(serve.page_dir, root, "Forty-eight hours covers the first cohort.")
+    told(page)
+    expect(reader.locator(".lf-msg-head .lf-thread-news")).to_have_text("1 new reply")
+    expect(reader.locator(".lf-msg")).to_have_count(1)
+    assert page.evaluate("() => window.reader.primary")
 
 
 def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, serve):

@@ -25,8 +25,10 @@ import { MessageView } from "./messages.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, withPendingProgress } from "./summary-ranges.js";
-import { seenRect } from "../geometry.js";
+import { growthAfterIsSeen, growthIsSeen, seenRect } from "../geometry.js";
 import { scrollThreadIntoView } from "./reply-landing.js";
+import { scrollerFor } from "../reading-regions.js";
+import { moveScrollerBy, placeKept } from "../scrolling.js";
 
 // The working message's contents: the step of work in hand, drawn as a message is,
 // with who is working and when those words were posted at its head, but dimmed under
@@ -137,6 +139,23 @@ export class Transcript {
     return this.#pendingOpen;
   }
 
+  // Whether held news (held-news.js) would move what the reader sees of the
+  // transcript: a message it changes, or the transcript's end it adds to, with growth
+  // after it in sight, unless that end is `followed`, as by a reply pinned below it; or
+  // a fold that comes or goes over what is in sight.
+  newsMoves({ news, changed, folds }, { followed = null } = {}) {
+    return (
+      [
+        ...[...changed].map((key) => this.messageNode(key)),
+        (news.appended || news.settled || news.working) && this.foot,
+      ].some((node) => node && node !== followed && growthAfterIsSeen(node)) ||
+      [
+        ...folds.messages.map((key) => this.messageNode(key)),
+        ...folds.summaries.map((id) => this.summaryNode(id)),
+      ].some((node) => node && growthIsSeen(node))
+    );
+  }
+
   // Opens the fold holding a message, as a rewrite of it opens to be seen.
   expandAround(id) {
     const folded = this.#model?.summaries.find(({ covers }) => covers.includes(id));
@@ -146,12 +165,14 @@ export class Transcript {
   /**
    * Draws `model`, a thread's reading (thread-card.js, `threadReading`). `appends`
    * declares that it grows at its end inside the scroller holding it, as a margin
-   * card's and the floating panel's view do (`data-lf-reflow`, tests/shift_watch.js).
-   * Returns the disclosure that took over the one the user stood on, where this draw
-   * replaced it, as the answer's head takes progress over from the working message.
+   * card's does (`data-lf-reflow`, tests/shift_watch.js). `notice` is a node the reader
+   * stands at the head of the transcript's first message in sight, as a primary
+   * reader's thread notice (primary-reader.js). Returns the disclosure that took over
+   * the one the user stood on, where this draw replaced it, as the answer's head takes
+   * progress over from the working message.
    * @returns {HTMLElement | null}
    */
-  present(model, { arrived = false, appends = false } = {}) {
+  present(model, { arrived = false, appends = false, notice = null } = {}) {
     const prior = this.#model;
     const standing = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -242,6 +263,10 @@ export class Transcript {
       if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
       progressByReply.get(trigger).push(range);
     }
+    // The first message no fold holds, else the first.
+    const lead =
+      rangeState.find((range) => range.kind === "message")?.message ??
+      model.messages[0];
     for (const message of model.messages) {
       let view = this.#messages.get(message.key);
       if (!view)
@@ -249,11 +274,12 @@ export class Transcript {
           message.key,
           (view = new MessageView(this.#messageCommands)),
         );
+      const toggle = progressByReply.has(message.id)
+        ? this.#summaryToggle(progressByReply.get(message.id), true)
+        : nothing;
       view.present(message, {
         arrived,
-        headerControls: progressByReply.has(message.id)
-          ? this.#summaryToggle(progressByReply.get(message.id), true)
-          : nothing,
+        headerControls: notice && message === lead ? html`${notice}${toggle}` : toggle,
       });
       // A reply still streaming at the thread's end grows at its foot as its words
       // come, as the working message does with each step (shift_watch.js).
@@ -395,19 +421,30 @@ export class Transcript {
     </button>`;
   }
 
+  // A press on a fold's disclosure opens or closes it and stays under the pointer.
+  // Progress opens above the answer whose head holds its disclosure, so its scroller
+  // takes back what that carries the press down by. Scroll anchoring would, but not at
+  // a scroller's start, where a view opened on a short thread stands.
   #setSummaryExpanded(ids, expanded) {
+    const toggleOf = () =>
+      this.node.querySelector(
+        `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
+      );
+    const stood = toggleOf()?.getBoundingClientRect().top;
     for (const id of ids) {
       if (expanded) this.#expandedSummaries.add(id);
       else this.#expandedSummaries.delete(id);
     }
     this.#repaint();
-    const toggle = this.node.querySelector(
-      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
-    );
-    if (toggle) {
-      focusDestination(toggle, "return");
-      scrollThreadIntoView(this.#home(), toggle, "instant");
+    const toggle = toggleOf();
+    if (!toggle) return;
+    if (stood !== undefined) {
+      const box = scrollerFor(toggle);
+      moveScrollerBy(box, toggle.getBoundingClientRect().top - stood);
+      placeKept(box);
     }
+    focusDestination(toggle, "return");
+    scrollThreadIntoView(this.#home(), toggle, "instant");
   }
 
   commit() {

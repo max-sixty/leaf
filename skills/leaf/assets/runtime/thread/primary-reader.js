@@ -32,8 +32,9 @@ import { turns } from "./model.js";
    thread lacks is. A transcript part is all of them, drawn as a card draws them, folds
    and working message included (transcript.js), for a presentation that draws the
    thread's head and reply box itself, as the floating panel's view does; it stands
-   instead of message parts of its thread, and its notice stands where the
-   presentation's news part names. A message part offers the user's rewrite of it, and
+   instead of message parts of its thread, and grows at its foot, the growing tail
+   (`data-lf-append-tail`) of an outlet that declares itself an append region, as the
+   panel's does. A message part offers the user's rewrite of it, and
    a reply part ↑ to the latest, as a thread card does, through the thread's one
    rewrite owner over the parts this reader draws (`threadRewrites`). Layout and
    disclosure belong to the caller, a transcript's folds aside. The thread's reply destination is its reply box as
@@ -77,19 +78,19 @@ export function createPrimaryReader(
         node: drawingOf(parts) ?? parts.at(-1).node,
         progressOpen: parts.some((part) => part.transcript?.progressOpen),
         // A presentation that makes room for the agent's answer to the user's last turn
-        // itself (`answersAtOnce`) is handed it whatever it moves. Any news changes a
-        // transcript's height.
-        newsMoves: ({ news, changed, folds, answers }) =>
-          !(answersAtOnce && answers) &&
-          parts.some(
-            (part) =>
-              (part.transcript ||
-                news.appended ||
-                news.settled ||
-                changed.has(part.messageKey) ||
-                folds.messages.includes(part.messageKey) ||
-                folds.summaries.length) &&
-              growthIsSeen(part.node),
+        // itself (`answersAtOnce`) is handed it whatever it moves. A transcript moves
+        // what a card's would (transcript.js, `newsMoves`).
+        newsMoves: (held) =>
+          !(answersAtOnce && held.answers) &&
+          parts.some((part) =>
+            part.transcript
+              ? part.transcript.newsMoves(held)
+              : (held.news.appended ||
+                  held.news.settled ||
+                  held.changed.has(part.messageKey) ||
+                  held.folds.messages.includes(part.messageKey) ||
+                  held.folds.summaries.length) &&
+                growthIsSeen(part.node),
           ),
       };
     },
@@ -219,13 +220,6 @@ export function createPrimaryReader(
           throw new Error(
             "A primary Thread outlet must remain inside its connected owner",
           );
-        if (
-          item.kind === "transcript" &&
-          !nominations.some((part) => part.key === item.key && part.kind === "news")
-        )
-          throw new Error(
-            `Thread ${item.key}'s transcript needs a news part for its notice`,
-          );
       }
       selected = nominations;
       shown = new Map(candidate.reading.threads.map((thread) => [thread.key, thread]));
@@ -341,19 +335,20 @@ export function createPrimaryReader(
               home: () => node,
             });
             node.append(transcript.node);
+            node.dataset.lfAppendTail = "";
             view = {
               node,
               transcript,
               reading: null,
               drawn: false,
+              // Whether the thread's notice stands in its first message's head.
+              headNotice: true,
               // Draws the transcript again at once, as a fold or a rewrite opens or
               // closes; a disclosure the draw replaced hands focus to its successor.
               draw() {
                 const handedOn = transcript.present(this.reading, {
                   arrived: this.drawn,
-                  // It grows at its end, in the reader holding it, as the floating
-                  // panel's view does.
-                  appends: true,
+                  notice: this.headNotice ? this.notice.node : null,
                 });
                 transcript.commit();
                 this.drawn = true;
@@ -372,7 +367,6 @@ export function createPrimaryReader(
               },
               edit: rewritesOf(item.key).edit,
             });
-            message.node.classList.add("lf-primary-message");
             node.append(message.node);
             view = {
               node,
@@ -417,10 +411,8 @@ export function createPrimaryReader(
             node.append(reply.node);
             view = { node, reply, dispose: reply.dispose };
           }
-          if (item.kind !== "transcript") {
-            view.notice = newsNotice();
-            view.notice.node.classList.add("lf-primary-news");
-          }
+          view.notice = newsNotice();
+          view.notice.node.classList.add("lf-primary-news");
         }
         views.set(item.identity, view);
       }
@@ -431,11 +423,6 @@ export function createPrimaryReader(
         const news = shown.get(item.key)?.news;
         if (news) view.notice.set(news);
         keepsHidden(view.node, !news);
-      } else if (item.kind === "transcript") {
-        keeps(view.node, "data-thread", item.thread.id);
-        keeps(view.node, "data-attempt", item.thread.root.attempt ?? null);
-        view.reading = shown.get(item.key);
-        view.draw();
       } else {
         keeps(view.node, "data-thread", item.thread.id);
         keeps(view.node, "data-attempt", item.thread.root.attempt ?? null);
@@ -444,12 +431,19 @@ export function createPrimaryReader(
           (part) => part.key === item.key && part.kind === "news",
         );
         const first =
-          selected.find((part) => part.key === item.key && part.kind === "message") ??
-          selected.find((part) => part.key === item.key);
+          selected.find(
+            (part) =>
+              part.key === item.key &&
+              (part.kind === "message" || part.kind === "transcript"),
+          ) ?? selected.find((part) => part.key === item.key);
         const notice = Boolean(news) && !nominated && first === item;
         if (notice) view.notice.set(news);
         keepsHidden(view.notice.node, !notice);
-        if (item.kind === "message") {
+        if (item.kind === "transcript") {
+          view.headNotice = !nominated;
+          view.reading = shown.get(item.key);
+          view.draw();
+        } else if (item.kind === "message") {
           const message = item.thread.msgs.find((entry) => entry.key === item.message);
           view.headNotice = !nominated;
           view.reading = messageReading(message, {

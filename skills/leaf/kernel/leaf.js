@@ -507,7 +507,8 @@ import {
   repeat,
   sameAnchor,
   threadKey,
-  threadNames
+  threadNames,
+  turns
 } from "./runtime/bundle-queued-work.js";
 import "./runtime/bundle-__export.js";
 
@@ -7074,7 +7075,7 @@ function createFloatingPanel({
       (candidate) => candidate.key === top.thread || candidate.id === top.thread
     );
     if (!outlet || !thread) return;
-    for (const message of thread.msgs) parts.message(thread.key, message.key, outlet);
+    for (const message of turns(thread)) parts.message(thread.key, message.key, outlet);
     const news = newsOutlet();
     if (news) parts.news(thread.key, news);
     if (replyOutlet.isConnected)

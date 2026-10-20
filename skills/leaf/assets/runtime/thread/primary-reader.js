@@ -17,14 +17,18 @@ import { orderChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
 import { growthIsSeen } from "../geometry.js";
 import { HeldNews, newsNotice } from "./held-news.js";
+import { turns } from "./model.js";
 
 /* A selected primary reader joins the required thread presentation. Packages nominate
    complete conversations or retained fragments; core owns their generated roots,
    editors, exact-version read observation and the single authored widget instances.
    Nominations settle before the fallback panel paints, so native authored nodes have
-   one physical destination on every pass. A message part offers the user's rewrite of
-   it, and a reply part ↑ to the latest, as a thread card does, through the thread's one
-   rewrite owner over the parts this reader draws (`threadRewrites`). Layout and
+   one physical destination on every pass. A message part is one of its thread's turns
+   (model.js, `turns`), the messages a card draws: a reaction stands as the pressed chip
+   on the message it answers, so naming one as a part of its own is refused, as naming a
+   message the thread lacks is. A message part offers the user's rewrite of it, and a
+   reply part ↑ to the latest, as a thread card does, through the thread's one rewrite
+   owner over the parts this reader draws (`threadRewrites`). Layout and
    disclosure belong to the caller. The thread's reply destination is its reply box as
    the parts stand: a reply part's, or the one the presentation drawing them declares
    (focus.js, `threadPart`), as the floating panel declares its field. A reply part takes
@@ -176,8 +180,8 @@ export function createPrimaryReader(
         throw new Error("Thread nominations belong to their current render callback");
       const thread = byKey.get(key);
       if (!thread) throw new Error(`No Thread has key ${key}`);
-      if (message !== null && !thread.msgs.some((item) => item.key === message))
-        throw new Error(`Thread ${key} has no message ${message}`);
+      if (message !== null && !turns(thread).some((item) => item.key === message))
+        throw new Error(`Thread ${key} has no turn ${message}`);
       const identity = JSON.stringify([kind, key, message]);
       if (
         nominations.some(

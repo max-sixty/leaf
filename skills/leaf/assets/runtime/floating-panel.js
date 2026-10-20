@@ -133,6 +133,7 @@ import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
 import { messageReading, threadName } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
+import { turns } from "./thread/model.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading } from "./thread/thread-card.js";
 import { dismissReply, replyAvailable } from "./thread/replies.js";
@@ -1904,7 +1905,7 @@ export function createFloatingPanel({
       (candidate) => candidate.key === top.thread || candidate.id === top.thread,
     );
     if (!outlet || !thread) return;
-    for (const message of thread.msgs) parts.message(thread.key, message.key, outlet);
+    for (const message of turns(thread)) parts.message(thread.key, message.key, outlet);
     const news = newsOutlet();
     if (news) parts.news(thread.key, news);
     if (replyOutlet.isConnected)

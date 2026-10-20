@@ -489,28 +489,48 @@ def margin_changes(page, readings, height: int) -> list[int]:
     return changes
 
 
-def swept_faults(readings, rendered: set[int]) -> list[Finding]:
-    """Sideways overflow, scrollbar collisions and clipped controls the gate's
-    renders miss, with the widths each run spans and what it reads at the
-    narrowest. Each refuses the version, as it does at a fixed viewport, since a
-    control cut off at 400px is as far out of reach as one cut off at 540px.
+def swept_faults(readings) -> list[Finding]:
+    """Sideways overflow, scrollbar collisions and clipped controls across the sweep,
+    with the widths each run spans and what it reads at the narrowest. Each refuses
+    the version, as it does at a fixed viewport, since a control cut off at 400px is
+    as far out of reach as one cut off at 540px. `unrendered` drops the runs the
+    gate's renders already report."""
+    return _swept(
+        readings,
+        lambda reading: (
+            _overflow(reading["overflow"], reading["misplaced"])
+            | _keyed(reading["scrollbars"])
+            | _keyed(reading["clipped"])
+        ),
+    )
 
-    A run that takes in a `rendered` width, a fixed viewport's or a margin width's, is
-    dropped here, because the gate's render at that width already reports it."""
+
+def unrendered(swept, rendered) -> list[Finding]:
+    """The swept runs no render reports: each run less those where a render at a width
+    inside its span, given as (finding, width) pairs, read the same fault on the same
+    element.
+
+    Matched by fault rather than by width alone, because the sweep reads every width at
+    the desktop height: the phone viewport renders 540px at 720px tall, so a fault the
+    sweep reads at 540px and 900px tall, such as a control clipped below a card, may be
+    one that render never sees."""
+    widths = {}
+    for finding, width in rendered:
+        widths.setdefault(_fault(finding), []).append(width)
     return [
         finding
-        for finding in _swept(
-            readings,
-            lambda reading: (
-                _overflow(reading["overflow"], reading["misplaced"])
-                | _keyed(reading["scrollbars"])
-                | _keyed(reading["clipped"])
-            ),
-        )
+        for finding in swept
         if not any(
-            finding.widths[0] <= width <= finding.widths[1] for width in rendered
+            finding.widths[0] <= width <= finding.widths[1]
+            for width in widths.get(_fault(finding), ())
         )
     ]
+
+
+def _fault(finding: Finding) -> tuple[str, str]:
+    """A swept fault's key (`_keyed`): its kind and its element's place, which a page
+    scrolling sideways, read of the page as a whole, has none of."""
+    return finding.code, finding.values.get("place", "")
 
 
 # The advice below is read from the sweep, at every swept width, since a narrower window

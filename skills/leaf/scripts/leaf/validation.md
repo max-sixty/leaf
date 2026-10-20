@@ -138,8 +138,10 @@ unbroken run of widths where one appears, with its reading at the narrowest of t
 A squeezed table is advice at every width, the two the gate renders among them: the
 table still scrolls with every word in reach, and the remedy is a choice of
 composition. Swept sideways faults and clipped controls are reported by run the same
-way, and refuse the version as they do at the fixed viewports. A run that takes in a
-width the gate renders, fixed or margin, is left to that render's report.
+way, and refuse the version as they do at the fixed viewports. A run is left to the
+report of a render inside its span, fixed or margin, that read the same fault on the
+same element; the sweep reads at the desktop height, so the 540x720 render can miss
+what the sweep reads at 540px.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the

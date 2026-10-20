@@ -15,6 +15,7 @@ from .readings import (
     squeezed_table_advice,
     sweep,
     swept_faults,
+    unrendered,
     unreserved_height_advice,
 )
 from .scheme import _render_scheme
@@ -114,6 +115,7 @@ def _render_version_attempt(
     )
     opened_pages = []
     failures = []
+    rendered = []
     notices = []
     completed = []
     swept = []
@@ -135,7 +137,7 @@ def _render_version_attempt(
             for width in margin_changes(page, widths, desktop["height"])
             if width not in fixed
         )
-        swept.extend(swept_faults(widths, fixed | set(changes)))
+        swept.extend(swept_faults(widths))
         # Back to the desktop viewport for the readings `_render_scheme` takes last.
         settle_at(page, desktop["width"], desktop["height"])
 
@@ -145,6 +147,7 @@ def _render_version_attempt(
             browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=then
         )
         failures.extend((finding, viewport_label) for finding in found)
+        rendered.extend((finding, viewport["width"]) for finding in found)
         notices.extend((notice, viewport_label) for notice in found_notices)
         completed.append(complete)
 
@@ -165,7 +168,13 @@ def _render_version_attempt(
                 page.close()
         raise
     reading = RenderReading(
-        [*_findings_with_viewports(failures), *swept, *advice], changes, arrangement
+        [
+            *_findings_with_viewports(failures),
+            *unrendered(swept, rendered),
+            *advice,
+        ],
+        changes,
+        arrangement,
     )
     return reading, _findings_with_viewports(notices), all(completed)
 

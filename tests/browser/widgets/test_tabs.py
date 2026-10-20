@@ -1393,3 +1393,47 @@ def test_wide_evidence_in_a_part_takes_the_room_it_would_on_a_page_of_its_own(
     boxed("phone", phone)
     assert root_overflow(page) == 0
     twin(phone, "phone")
+
+
+def test_a_phone_keeps_the_list_of_parts_in_reach_and_each_part_s_place(browser, serve):
+    """On a phone the list of parts is a row over the open part, and it sticks there as
+    page tabs' strip does: the reader reaches another part from deep in this one, the
+    part they leave keeps their place, and a link lands below the row rather than under
+    it."""
+    page = open_page(browser, serve(ROOT_PARTS_PAGE))
+    resized(page, 390, 800)
+    tabs = page.locator("#root-parts")
+    plan = tabs.get_by_role("tab", name="Plan", exact=True)
+    evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
+    strip = page.locator("#root-parts > .lf-tabstrip")
+
+    def settled():
+        scroll_settled(page)
+        return page.evaluate("scrollY")
+
+    def press(tab):
+        # Locator.click would scroll the stuck row's tab to where the row stands in
+        # flow first.
+        box = tab.bounding_box()
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+
+    evidence.click()
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    page.evaluate("scrollTo({top: 1000, behavior: 'instant'})")
+    read = settled()
+    assert read == 1000
+    row = strip.bounding_box()
+    assert 0 <= row["y"] < 40, row
+    press(plan)
+    expect(plan).to_have_attribute("aria-selected", "true")
+    settled()
+    press(evidence)
+    expect(evidence).to_have_attribute("aria-selected", "true")
+    assert settled() == pytest.approx(read, abs=2)
+
+    page.evaluate("location.hash = 'part-plan-rollback'")
+    expect(plan).to_have_attribute("aria-selected", "true")
+    settled()
+    row = strip.bounding_box()
+    heading = page.locator("#part-plan-rollback h2").bounding_box()
+    assert heading["y"] >= row["y"] + row["height"] - 1, (heading, row)

@@ -243,7 +243,7 @@
   <body>
     <main id="code-comparison-workspace">
       <header><h1>Choose a code reader treatment</h1></header>
-      <lf-parts id="code-comparison-views">
+      <lf-parts id="code-comparison-parts">
         <lf-part
           id="code-comparison-choose"
           label="Compare"
@@ -312,8 +312,7 @@ export function releaseLabels(releases) {
   return releases
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
-}</pre
-                          >
+}</pre>
                         </lf-code>
                       </section>
                       <section
@@ -335,8 +334,7 @@ export function releaseLabels(releases) {
   return releases
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
-}</pre
-                          >
+}</pre>
                         </lf-code>
                       </section>
                     </div>
@@ -377,8 +375,7 @@ export function releaseLabels(releases) {
                 <lf-code id="target-built-code" language="javascript" hi="2">
                   <pre>
 export const summarize = checks =>
-  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre
-                  >
+  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
                 </lf-code>
               </section>
             </section>

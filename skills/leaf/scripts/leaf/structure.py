@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+from collections.abc import Mapping
 from functools import cached_property
 from html import escape
 from urllib.parse import urlsplit
@@ -880,23 +881,21 @@ def annotation_mode(document: SourceDocument) -> str:
     return element_attrs(body).get("data-annotations", "overlay") if body else "overlay"
 
 
-def page_layout(document: SourceDocument):
+def page_layout(document: SourceDocument, registry: Mapping):
     """The `layout-` names the document's `main` and the boxes under it that can be its
     Layout's carry (`layout-column` is `column`), space-separated, or None.
 
-    A page Layout's class is on `main`, or on a shown child of a `main` that carries none,
-    or on the child of a part of such a `main`, a member of its child holding the page's
-    parts (layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
+    A page Layout's class is on `main`, on a shown child of a `main` that carries none,
+    or on the child of each part of such a `main`'s parts (`x-views: "parts"`,
+    layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
     painting the body, so delivery repeats them on the root for the Layout's own body
     rules to read before the first paint. Which part opens is the browser's, so every
-    part's names go across. The source has no registry to tell a part's holder from
-    another child, so a box at a part's depth under any child carries its names across
-    too. A child the page hides is not the page's
-    shape, so its names stay off. Every other name goes across, since a block's own
-    (`layout-tiles`) can stand beside the page's and the body rules read only the page
-    Layouts' names."""
+    part's names go across. A child the page hides is not the page's shape, so its names
+    stay off. Every other name goes across, since a block's own (`layout-tiles`) can
+    stand beside the page's and the body rules read only the page Layouts' names."""
     main = document.tree.select_one("body > main")
-    names = []
+    if main is None:
+        return None
 
     def shown(parent):
         return [
@@ -912,12 +911,16 @@ def page_layout(document: SourceDocument):
             if token.startswith("layout-")
         ]
 
-    boxes = [main, *shown(main)] if main else []
-    # Under a `main` that carries none, a part's children, two holders further down.
-    holders = boxes[1:] if main and not carried(main) else []
-    for _ in range(2):
-        holders = [child for box in holders if not carried(box) for child in shown(box)]
-        boxes.extend(holders)
+    boxes = [main, *shown(main)]
+    if not carried(main):
+        boxes += [
+            child
+            for holder in shown(main)
+            if registry.get(holder.tag, {}).get("x-views") == "parts"
+            for part in shown(holder)
+            for child in shown(part)
+        ]
+    names = []
     for box in boxes:
         for name in carried(box):
             if name not in names:

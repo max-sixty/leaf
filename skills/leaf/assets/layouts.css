@@ -168,6 +168,15 @@
         > :not([role="tablist"]) {
         grid-column: 1;
         grid-row: auto;
+      }
+      /* The title scrolls away; the list sticks over the part (the package theme). */
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > :has(~ [data-lf-views="parts"]):not(
+          [data-lf-views="parts"],
+          [data-lf-views="parts"] ~ *
+        ) {
         position: static;
       }
       html[data-lf-interactive]

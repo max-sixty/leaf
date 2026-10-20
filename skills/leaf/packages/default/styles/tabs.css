@@ -319,11 +319,11 @@
      * rule above it opens. A group's label heads its run in the column and is a word
      * before the run's first tab in the row, centred on the names. It is no tab, so it
      * takes no aim floor. */
-  :scope:is(lf-tabs[list="side"], lf-parts).lf-rendered > .lf-tabstrip > .lf-tab-run {
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-run {
     display: flex;
     flex-direction: column;
   }
-  :scope:is(lf-tabs[list="side"], lf-parts).lf-rendered
+  :scope:is(lf-tabs)[list="side"].lf-rendered
     > .lf-tabstrip
     > .lf-tab-run
     + .lf-tab-run {
@@ -331,7 +331,7 @@
     padding-block-start: 2px;
     border-block-start: 1px solid var(--border-2);
   }
-  :scope:is(lf-tabs[list="side"], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-group {
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-group {
     padding: 4px 12px 2px;
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered > lf-tab {
@@ -772,7 +772,7 @@
    * from the column. The list sticks under the title, so it stands in one place
    * whichever part is open and wherever it is read, and scrolls on its own where it
    * holds more names than the window's height leaves under the title. On a phone it is
-   * a row over the part, scrolled sideways. Placed anywhere else, as when the corpus
+   * a row sticking over the part, scrolled sideways. Placed anywhere else, as when the corpus
    * embeds a page of parts, the list is a strip's row over the open part.
    *
    * A part is a section of the page, not a box on it: like `main`, it trims its edges
@@ -834,11 +834,21 @@
     :scope:is(lf-parts).lf-rendered > lf-part:not([hidden]) {
       border-inline-start: 1px solid var(--rule);
     }
+    /* On a phone the list is a row that sticks over the open part as the page tabs'
+     * strip does, a header of the root (lf-tabs.js, `#declareHeader`), so the reader
+     * reaches another part from anywhere in this one, and what sticks inside the part
+     * stacks under it. */
     @container lf-shell (width < 640px) {
+      :scope:is(lf-parts) {
+        --lf-top-outer: var(--lf-top);
+      }
+      :scope:is(lf-parts) > lf-part {
+        --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+      }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
-        position: static;
-        block-size: auto;
-        min-block-size: var(--lf-tabstrip-h);
+        top: var(--lf-top);
+        z-index: 2;
+        block-size: var(--lf-tabstrip-h);
         flex-direction: row;
         gap: 2px;
         padding: 8px var(--lf-tabstrip-pad) 0;

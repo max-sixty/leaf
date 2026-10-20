@@ -70,8 +70,9 @@ window's left edge, and the list of parts stands under it, with each part's `sum
 under its label. Both stay in view while a long part scrolls. Each part takes the rest of
 the width from the top of the window, so a workspace part fills the window. Keep the
 header to the page's title, since it shares the column's width, and give each part its
-own heading, and a column part its own contents outline. On a phone the title, the list
-and the part stack. Each part opens where the user last read it. The parts share the
+own heading, and a column part its own contents outline. On a phone the title stands
+over the list, which becomes a row that sticks over the part. Each part opens where the
+user last read it. The parts share the
 page's history, Threads panel and On me list.
 
 Where the views share one Layout and the page's header runs across the top, as a site's

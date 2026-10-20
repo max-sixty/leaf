@@ -72,7 +72,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     holders = page.evaluate(
         """ids => Object.fromEntries(ids.map(id => {
           const target = document.getElementById(id);
-          const panel = target?.closest('#bg-gallery-tabs > lf-part');
+          const panel = target?.closest('#bg-gallery-tabs > lf-tab');
           const tab = panel && document.querySelector(
             `#bg-gallery-tabs [role="tab"][aria-controls="${panel.id}"]`);
           return [id, {tag: target?.localName || null,
@@ -95,8 +95,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
                   generated: target?.dataset.lfGen === '1'};
         })"""
     )
-    # The open part's outline starts at the part, whose sections follow.
-    assert targets[0] == {"href": "#bg-view-data", "tag": "lf-part", "generated": False}
+    assert targets[0] == {"href": "#bg-title", "tag": "hgroup", "generated": False}
     assert all(
         target["tag"] == "section" and not target["generated"] for target in targets[1:]
     ), targets
@@ -230,15 +229,13 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
 
     resized(page, 390, 900)
     page.evaluate("scrollTo(0, 0)")
-    expect(page.locator("lf-part:not([hidden]) aside.sidebar")).to_be_hidden()
+    expect(page.locator("#bg-sidebar")).to_be_hidden()
     # A phone drops the contents spine out of the flow rather than stacking it above
     # the reading, so the page's first section still opens within the first screen;
     # left in the flow it lands a screen below the fold. Which section that is belongs
     # to the gallery's authored order: naming one heading here made a section added
     # above it read as a layout failure.
-    expect(
-        page.locator("#bg-view-threads > article > section").first
-    ).to_be_in_viewport()
+    expect(page.locator("#bg-view-threads > section").first).to_be_in_viewport()
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     page_map = page.get_by_role("dialog", name="Page Map", exact=True)

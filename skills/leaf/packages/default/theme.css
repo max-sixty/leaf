@@ -1714,16 +1714,16 @@
     line-height: var(--lf-tab-summary-h);
     color: var(--muted);
   }
-  :scope:is(lf-tabs[list=side], lf-parts).lf-rendered > .lf-tabstrip > .lf-tab-run {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run {
     display: flex;
     flex-direction: column;
   }
-  :scope:is(lf-tabs[list=side], lf-parts).lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip > .lf-tab-run + .lf-tab-run {
     margin-block-start: 2px;
     padding-block-start: 2px;
     border-block-start: 1px solid var(--border-2);
   }
-  :scope:is(lf-tabs[list=side], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-group {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-group {
     padding: 4px 12px 2px;
   }
   :scope:is(lf-tabs)[list=side].lf-rendered > lf-tab {
@@ -2125,10 +2125,16 @@
       border-inline-start: 1px solid var(--rule);
     }
     @container lf-shell (width < 640px) {
+      :scope:is(lf-parts) {
+        --lf-top-outer: var(--lf-top);
+      }
+      :scope:is(lf-parts) > lf-part {
+        --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+      }
       :scope:is(lf-parts).lf-rendered > .lf-tabstrip {
-        position: static;
-        block-size: auto;
-        min-block-size: var(--lf-tabstrip-h);
+        top: var(--lf-top);
+        z-index: 2;
+        block-size: var(--lf-tabstrip-h);
         flex-direction: row;
         gap: 2px;
         padding: 8px var(--lf-tabstrip-pad) 0;

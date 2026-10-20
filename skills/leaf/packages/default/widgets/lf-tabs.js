@@ -35,13 +35,17 @@
  * rather than the set.
  *
  * A page's parts (`lf-parts`, lf-parts.js) are this module's set under their own tag,
- * with `lf-part` members. They stand directly in a `main` that carries no Layout, and
- * each part's child carries a Layout of its own (layouts.css, "A page of parts"), so
- * they are the page's own flow wherever they stand: each part has a place of its own,
+ * with `lf-part` members. They stand directly in a `main` that carries no Layout
+ * (`page check` refuses one that carries one), and each part's child carries a Layout
+ * of its own (layouts.css, "A page of parts"). They are the page's own flow: each part
+ * has a place of its own,
  * and its id is the URL fragment, as a page tab's is. Their list runs down the window's
  * left edge, under the page's title, walked up and down as well as across, each row
  * with its part's `summary` as a side list's has; the parts beside it start at the
- * window's top, so the list is no header over them.
+ * window's top, so the list is no header over them. Where the window is too narrow for
+ * the column, as on a phone, the list is a row sticking over the open part, a header
+ * as the page tabs' row is. Parts placed anywhere else, as when the corpus embeds a
+ * page, are no page's navigation, and list their names in a row.
  *
  * Travel into a hidden panel briefly highlights its selected name, without moving
  * focus from the destination or delaying it. Reduced motion keeps the selected state
@@ -109,12 +113,13 @@ import {
   focused,
 } from "/runtime/widget-api.js";
 
-// The page's navigation strip, where one stands: the first tab set in main, drawn as
-// a row (`#syncRootContext`).
-const PAGE_STRIP = 'body > main > lf-tabs[data-lf-tabs-flow="page"]';
+// The sets whose strip stands over the whole document as its sticky header
+// (`#declareHeader`): the page tabs' row, or a page's parts listed in a row over the
+// open part.
+const covering = new Set();
 const paintRootHeader = () => {
   const root = document.documentElement;
-  if (document.querySelector(PAGE_STRIP))
+  if ([...covering].some((set) => set.isConnected))
     setRuntimeRootStyle(root, "--lf-root-headers", "var(--lf-tabstrip-h)");
   else removeRuntimeRootStyle(root, "--lf-root-headers");
 };
@@ -355,6 +360,7 @@ export class TabSet extends HTMLElement {
         this.#contextObserver?.disconnect();
         this.#contextObserver = null;
         this.#covering = false;
+        covering.delete(this);
         syncRootHeader();
       };
     });
@@ -548,13 +554,24 @@ export class TabSet extends HTMLElement {
   // the root's `scroll-padding` as `--lf-root-headers`, and every landing arrives
   // below it. What the strip stands over inside its panels stacks through `--lf-top`
   // (the package theme). A set that stops being the page's strip withdraws it only
-  // where no other set has become that strip.
+  // where no other set has become that strip. A page's list of parts is that header
+  // only while it is a row over the open part, as on a phone; beside the part it covers
+  // none of it. Which the list is follows the window, so the strip's size observer asks
+  // again.
   #declareHeader() {
-    const covering =
-      this.#pageFlow && !this.#parts && Boolean(this.#strip?.isConnected);
-    if (covering === this.#covering) return;
-    this.#covering = covering;
+    const over = !this.#parts || Boolean(this.#active && this.#listOver());
+    const header = this.#pageFlow && over && Boolean(this.#strip?.isConnected);
+    if (header === this.#covering) return;
+    this.#covering = header;
+    if (header) covering.add(this);
+    else covering.delete(this);
     syncRootHeader();
+  }
+
+  // Whether a page's list of parts stands over the open part rather than beside it.
+  #listOver() {
+    const list = this.#strip.getBoundingClientRect();
+    return list.right > this.#active.getBoundingClientRect().left + 1;
   }
 
   // A press at one edge of the strip, which pages the names that run past it (the
@@ -620,6 +637,7 @@ export class TabSet extends HTMLElement {
 
   #positionStrip = frameFor(this, () => {
     this.#syncRegions();
+    this.#declareHeader();
     this.#showTab(this.#buttons.get(this.#active));
   });
 
@@ -655,11 +673,16 @@ export class TabSet extends HTMLElement {
   }
 
   // A page-flow view starts where its strip sticks, so an offset short of that is the
-  // shared header, not a place in the view. A part starts where it stands, since its
-  // list stands beside it rather than over it.
+  // shared header, not a place in the view. A part starts where it stands, less the
+  // list where that sticks over it as a row.
   #start() {
-    if (this.#parts)
-      return this.#active.getBoundingClientRect().top + pageScroller.scrollTop;
+    if (this.#parts) {
+      const top = this.#active.getBoundingClientRect().top + pageScroller.scrollTop;
+      if (!this.#listOver()) return top;
+      return (
+        top - parseFloat(getComputedStyle(this.#strip).top) - this.#strip.offsetHeight
+      );
+    }
     return (
       this.getBoundingClientRect().top +
       pageScroller.scrollTop -

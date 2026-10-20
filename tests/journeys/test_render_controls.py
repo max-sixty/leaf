@@ -433,7 +433,7 @@ RING_CASES = (
     (
         "a contents link",
         (),
-        {"feature-gallery": (("[id^=bg-contents-] li a:visible", ":is(lf-toc) a"),)},
+        {"feature-gallery": (("#bg-contents li a:visible", ":is(lf-toc) a"),)},
     ),
     # The reaction palette a message's strip opens. Its chips are the last boxes the
     # layer dresses in the chrome's chip face, and they are behind a press: the strip

@@ -5,8 +5,9 @@
  * typographic index inside the panel's one frame: its closing rule separates the
  * index from the current view, and the frame answers how far that view runs. How the
  * strip marks the open tab follows only which way it runs (below): along a row, a rule
- * under the name; down a column, a painted face. A page's or a box's strip stands on
- * its set's own ground; a side list keeps a tinted index.
+ * under the tab; down a column, a painted face. A row stands on the card's ground, or
+ * on the page's where it is the page's own (below); a queue's column is a tinted
+ * index.
  * Unupgraded, and anywhere the strip has no handler behind it, the panels stack
  * as labeled sections. */
 :where(:scope:is(lf-tabs)) {
@@ -84,15 +85,22 @@
  * the open one paints its square face instead; that fill alone barely parts from the
  * strip's ground, in the dark scheme least, so its contour carries the state. Either
  * mark stays within the box every name reserves, so neither changes any control's
- * measure. */
+ * measure. The rule is the name's, or a tab's foot (`::after`) where the tab has lines
+ * under its name (below); these rules colour either. */
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
   display: inline-block;
   padding: 2px 5px;
   border-bottom: 2px solid transparent;
 }
-.lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
-  border-bottom-color: currentColor;
+.lf-tabstrip .lf-tab-btn::after {
+  border-bottom-color: transparent;
+}
+.lf-tabstrip .lf-tab-btn[aria-selected="true"] {
   color: var(--ink);
+}
+.lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name,
+.lf-tabstrip .lf-tab-btn[aria-selected="true"]::after {
+  border-bottom-color: currentColor;
 }
 @container style(--lf-tabstrip-flow: column) {
   .lf-tabstrip .lf-tab-btn {
@@ -101,6 +109,9 @@
   }
   .lf-tabstrip .lf-tab-btn > .lf-tab-name {
     border-bottom: 0;
+  }
+  .lf-tabstrip .lf-tab-btn::after {
+    display: none;
   }
   .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
     background: var(--card);
@@ -112,7 +123,8 @@
  * rule takes the system background, and they remove a column's fill, so its open name
  * is underlined instead. */
 @media (forced-colors: active) {
-  .lf-tabstrip .lf-tab-btn:not([aria-selected="true"]) > .lf-tab-name {
+  .lf-tabstrip .lf-tab-btn:not([aria-selected="true"]) > .lf-tab-name,
+  .lf-tabstrip .lf-tab-btn:not([aria-selected="true"])::after {
     border-bottom-color: Canvas;
   }
   @container style(--lf-tabstrip-flow: column) {
@@ -172,7 +184,7 @@
     box-sizing: border-box;
     min-block-size: var(--lf-tabstrip-h);
     border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
-    --lf-tabstrip-bg: var(--field);
+    --lf-tabstrip-bg: var(--card);
     background: var(--lf-tabstrip-bg);
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -268,6 +280,7 @@
     grid-column: 1;
     grid-row: 1;
     --lf-tabstrip-flow: column;
+    --lf-tabstrip-bg: var(--field);
     gap: 0;
     overflow: visible;
     padding: 8px;
@@ -277,14 +290,31 @@
     align-self: stretch;
   }
   /* A row is its name, then its diff count, with the summary on a line under them.
-     * Adjacent columns leave the name's focus ring clear of the answer and count. */
+     * The count's margin leaves the name's focus ring clear of it, and a tab with no
+     * count ends at its words. Such a tab's rule stands at its foot, a line of its own
+     * under its last line, so along a row it underlines the whole tab as a lone name's
+     * rule underlines the name, and takes the 2px the name gives up. The lines keep to
+     * the top of a tab the strip stretches, so the rule stays against the last of them. */
   :scope:is(lf-tabs[list="side"], lf-parts).lf-rendered > .lf-tabstrip .lf-tab-btn {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: calc(var(--focus-ring-w) + var(--lf-tab-focus-gap));
+    align-content: start;
     align-items: baseline;
     justify-items: start;
     text-align: start;
+    &::after {
+      content: "";
+      grid-column: 1 / -1;
+      justify-self: stretch;
+      border-bottom-width: 2px;
+      border-bottom-style: solid;
+    }
+    & > .lf-tab-name {
+      border-bottom: 0;
+    }
+    & > .lf-tabdiff {
+      margin-left: calc(6px + var(--focus-ring-w) + var(--lf-tab-focus-gap));
+    }
   }
   /* The outcome has its own reserved line below the authored summary. Neither
      * choosing nor undoing borrows room from the name or its context. The answer
@@ -364,6 +394,7 @@
       grid-column: 1 / -1;
       grid-row: auto;
       --lf-tabstrip-flow: row;
+      --lf-tabstrip-bg: var(--card);
       gap: 2px;
       overflow-x: auto;
       overflow-y: hidden;
@@ -491,11 +522,6 @@
     border-radius: 0;
     --lf-tabstrip-pad: 0px;
     --lf-tabstrip-bg: var(--paper);
-  }
-  /* A boxed row stands on the frame's own ground, so the frame and its one rule are
-   * the whole of the box. */
-  :scope:is(lf-tabs)[data-lf-tabs-flow="box"]:not([list="side"]) > .lf-tabstrip {
-    --lf-tabstrip-bg: var(--card);
   }
   /* Each press stands at its edge without taking room in the row: a box no wider
      * than nothing, stuck to that edge, whose face lies over the names beside it and
@@ -655,10 +681,6 @@
         block-size: var(--lf-tabstrip-h);
         border-bottom: 1px solid var(--border-2);
       }
-      &[list="side"]::before {
-        border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
-        background: var(--field);
-      }
       & > lf-tab {
         padding: var(--sp-4);
         --lf-block-frame: 1;
@@ -776,7 +798,7 @@
    * the left and the open part beside it, arranged by its own Layout. The holder draws
    * no frame; its list stands on the page's ground under the page's title, and marks
    * the open part as every strip marks its open tab, by the way it runs (above): a
-   * painted face in the column, a rule under the name in a row. The open part is ruled off
+   * painted face in the column, a rule under the tab in a row. The open part is ruled off
    * from the column. The list sticks under the title, so it stands in one place
    * whichever part is open and wherever it is read, and scrolls on its own where it
    * holds more names than the window's height leaves under the title. On a phone it is

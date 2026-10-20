@@ -139,8 +139,8 @@ jobs:
           fi
           # eatmydata makes fsync a no-op in every process the suite starts. Leaf
           # syncs each file it stages or replaces, which no test can observe short
-          # of a crash, and on the runner's disk those syncs took a sixth of a pull
-          # request's worker time. eatmydata execs its command, so py-spy still
+          # of a crash. Skipping them cut a pull request's suite from 16.2 to 14.6
+          # worker-minutes (#3243). eatmydata execs its command, so py-spy still
           # follows the tree from this PID.
           env --default-signal=INT eatmydata uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml \
             ${{ github.event_name == 'pull_request' && '--changed-since HEAD^1' || github.event_name == 'push' && '--run-main' || '--run-nightly' }} &

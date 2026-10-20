@@ -67,9 +67,10 @@ ADDRESS = Record(
     object_schema(
         {"port": {"type": "integer"}, "token": STRING, "pid": {"type": "integer"}}
     ),
+    since=13,
 )
 # A session the bridge serves, with the lifetime it lives by (`Harness.lifetime`).
-REGISTRATION = Record("bridge-session", object_schema({"id": STRING}))
+REGISTRATION = Record("bridge-session", object_schema({"id": STRING}), since=13)
 
 # One bridge per installed tree: a plugin update is a new tree, whose sessions
 # reach its own bridge while the old one serves out the sessions still on it.

@@ -39,10 +39,10 @@ def state_home() -> Path:
     sessions/ the live watcher leases, packages/ the packages `package install` copied here,
     screens/ the last render check's screens of each page, pictures/ the
     pictures `page picture` drew of its drawing comments, and access.json
-    the one key every page here is served with (`server.host_key`). State, not
-    config: claim records carry pids and absolute paths, while page service records
-    carry ports, so this state is bound to this machine, as is the key that
-    reaches it.
+    the one key every page here is served with (`server.host_key`), beside the
+    access.lock its first mint takes. State, not config: claim records carry pids
+    and absolute paths, while page service records carry ports, so this state is
+    bound to this machine, as is the key that reaches it.
 
     Owner-only: the key is what stands between another local user and a log that
     outranks the document, and a 0644 file under a traversable path hands it to
@@ -249,22 +249,24 @@ class Record:
 
     Every installed Leaf on the machine shares the state home, any of them may serve
     a page, and the worktrees writing them are each on their own commit. So a record
-    carries `format`, `leaf-<kind>/<protocol>`, naming the protocol of the Leaf that
-    wrote it (`layer-registry.md`, "Page protocol"), and `read` takes only one that
-    has every field this Leaf's schema requires, at each level of its declared
-    objects. Any other record another Leaf wrote: one at another protocol or with
-    no format, or one written before a field was added. It reads as absent, as a
-    missing file does, and the next write replaces it. Every write replaces the
-    file whole, so a file that is not JSON no Leaf wrote, and reading it raises,
-    naming the file."""
+    carries `format`, `leaf-<kind>/<since>`, where `since` is the page protocol at
+    which this kind's shape last changed, so a bump for anything else leaves the
+    record readable (`layer-registry.md`, "Page protocol", says when `since`
+    moves). `read` takes only a record at this format that has every field
+    this Leaf's schema requires, at each level of its declared objects. Any other
+    record another Leaf wrote, at another format or with none, or one written before
+    a field was added, reads as absent, as a missing file does, and the next write
+    replaces it. Every write replaces the file whole, so a file that is not JSON no
+    Leaf wrote, and reading it raises, naming the file."""
 
-    def __init__(self, kind: str, schema: dict):
+    def __init__(self, kind: str, schema: dict, *, since: int):
         self.kind = kind
         self.schema = schema
+        self.since = since
 
     @property
     def format(self) -> str:
-        return f"leaf-{self.kind}/{kernel_registry()['$events']['protocol']}"
+        return f"leaf-{self.kind}/{self.since}"
 
     def read(self, path: Path) -> dict | None:
         """The record at `path`, less its `format`, or None where this Leaf reads
@@ -370,6 +372,7 @@ SESSION = Record(
         # The native chat a desktop Codex lifetime stands on (`chat_exists`).
         {"transcript_path": STRING},
     ),
+    since=13,
 )
 
 

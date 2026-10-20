@@ -40,6 +40,7 @@ NOTICES = Record(
         "properties": {"pages": {"type": "array", "items": {"type": "string"}}},
         "required": ["pages"],
     },
+    since=13,
 )
 
 

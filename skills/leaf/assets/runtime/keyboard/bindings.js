@@ -724,11 +724,14 @@ export const PRESS = ["Enter", " "];
 // The arrows that step back and ahead along a row of controls, as `[back, ahead]`. Back
 // is the side the row's words run from: left in left-to-right text and right in
 // right-to-left text, where the first item stands at the right, as the ARIA tabs,
-// toolbar and slider patterns ask. Read from the node the row lays out in.
+// toolbar and slider patterns ask. Read from the directionality of the node the row
+// lays out in (`:dir()`), which the `dir` attributes around it decide, as the theme's
+// direction rules read it; a `direction` set in CSS alone moves neither. Key
+// availability asks this of every disclosure on the page, in the frame's pass after
+// other work has written to the document, so reading the computed `direction` made it
+// recalculate style for those writes, several times a comment on a page of diffs.
 export const rowArrows = (node) =>
-  getComputedStyle(node).direction === "rtl"
-    ? ["ArrowRight", "ArrowLeft"]
-    : ["ArrowLeft", "ArrowRight"];
+  node.matches(":dir(rtl)") ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
 
 // The one-dimensional list policy. Every step inside the list clamps; a caller may name
 // the row where its own off-list arrival enters. The page walks cycle (`cycledRow`), and

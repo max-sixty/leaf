@@ -341,7 +341,9 @@ def mark_declared(
     nested initial hosts share the outer template and draw deepest-first.
 
     The opening script writes only the fixed template delimiter at the parser's
-    active insertion point. With scripts disabled, or in a DOMParser source reading,
+    active insertion point. Each script removes itself as it runs, so the host keeps
+    its authored siblings, and a rule for the first or last child still finds it. With
+    scripts disabled, or in a DOMParser source reading,
     no template opens and the unmatched closing delimiter is ignored: the one raw
     authored host remains readable, including code containing raw-text delimiters.
 
@@ -451,7 +453,7 @@ def mark_declared(
                     (
                         "<script data-lf-runtime data-lf-initial>"
                         'document.write("<template data-lf-runtime data-lf-initial-source>");'
-                        "</script>"
+                        "document.currentScript.remove();</script>"
                     ),
                 )
             )

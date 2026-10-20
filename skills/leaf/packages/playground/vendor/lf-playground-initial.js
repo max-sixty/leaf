@@ -1,5 +1,5 @@
 (() => {
-  // skills/leaf/packages/playground/initial.js
+  // skills/leaf/packages/playground/initial/lf-playground.js
   var own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
   var belongsTo = (host, member) => member.parentElement.closest("lf-playground, [data-lf-exhibit]") === host;
   var ownControls = (host, preview) => [

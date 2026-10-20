@@ -950,7 +950,7 @@ function checked(rows, where, ready) {
   return rows;
 }
 var PRESS = ["Enter", " "];
-var rowArrows = (node) => getComputedStyle(node).direction === "rtl" ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
+var rowArrows = (node) => node.matches(":dir(rtl)") ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
 var clampedRow = (rows, current, dir, entry = dir > 0 ? 0 : rows.length - 1) => {
   if (!rows.length) return void 0;
   const at = rows.indexOf(current);
@@ -995,14 +995,242 @@ function nativeActivationAt(control) {
   return presses ? (binding) => presses.includes(binding) : null;
 }
 
+// runtime/arrivals.js
+var watches = /* @__PURE__ */ new Set();
+var stages = /* @__PURE__ */ new WeakSet();
+var stageRefs = /* @__PURE__ */ new Set();
+var owners = /* @__PURE__ */ new WeakMap();
+var offerOwner;
+function watchOwner(owner, lifecycle) {
+  let connected = false;
+  const subscription = {
+    connect() {
+      if (connected || !owner.isConnected) return;
+      connected = true;
+      try {
+        lifecycle.connect?.();
+      } catch (error) {
+        subscriptions.delete(subscription);
+        subscription.disconnect();
+        throw error;
+      }
+    },
+    disconnect() {
+      if (!connected) return;
+      connected = false;
+      lifecycle.disconnect?.();
+    }
+  };
+  let subscriptions = owners.get(owner);
+  if (!subscriptions) owners.set(owner, subscriptions = /* @__PURE__ */ new Set());
+  if (!offerOwner) {
+    const notify = (element, method) => {
+      for (const subscription2 of owners.get(element) ?? []) {
+        try {
+          subscription2[method]();
+        } catch (error) {
+          queueMicrotask(() => {
+            throw error;
+          });
+        }
+      }
+    };
+    offerOwner = watchArrivals("*", [], {
+      arrive: (element) => notify(element, "connect"),
+      leave: (element) => notify(element, "disconnect")
+    });
+  }
+  if (owner.isConnected) offerOwner(owner);
+  subscriptions.add(subscription);
+  const stop = () => {
+    subscriptions.delete(subscription);
+    subscription.disconnect();
+  };
+  subscription.connect();
+  return stop;
+}
+function whileConnected(owner, start) {
+  let held;
+  return watchOwner(owner, {
+    connect() {
+      const controller = new AbortController();
+      held = { controller, cleanup: null };
+      held.cleanup = start(controller.signal);
+    },
+    disconnect() {
+      const current = held;
+      held = null;
+      current.controller.abort();
+      current.cleanup?.();
+    }
+  });
+}
+function frameFor(owner, run) {
+  let frame2 = 0;
+  watchOwner(owner, {
+    disconnect() {
+      cancelRender(frame2);
+      frame2 = 0;
+    }
+  });
+  return () => {
+    if (frame2 || !owner.isConnected) return;
+    frame2 = nextRender(() => {
+      frame2 = 0;
+      if (owner.isConnected) run();
+    });
+  };
+}
+function liveStages() {
+  const live2 = [];
+  for (const ref of stageRefs) {
+    const root2 = ref.deref();
+    if (root2) live2.push(root2);
+    else stageRefs.delete(ref);
+  }
+  return live2;
+}
+var isStage = (root2) => stages.has(root2);
+var stands = (el2) => {
+  const root2 = el2.getRootNode();
+  return root2 === document ? document.body.contains(el2) : stages.has(root2) && root2.host.isConnected;
+};
+function* matching(node, selector) {
+  if (node?.nodeType !== Node.ELEMENT_NODE) return;
+  if (node.matches(selector)) yield node;
+  yield* node.querySelectorAll(selector);
+  for (const stage of liveStages())
+    if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
+}
+function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
+  const arrived = /* @__PURE__ */ new WeakSet();
+  const offerMany = (elements) => {
+    const present = [];
+    for (const el2 of elements) {
+      if (stands(el2) && el2.matches(selector)) present.push(el2);
+      else if (arrived.delete(el2)) leave(el2);
+    }
+    if (!arriveBatch) for (const el2 of present) offer2(el2);
+    else if (present.length) {
+      for (const el2 of present) arrived.add(el2);
+      arriveBatch(present);
+    }
+  };
+  const offer2 = (el2) => {
+    if (stands(el2) && el2.matches(selector)) {
+      arrived.add(el2);
+      if (arriveBatch) arriveBatch([el2]);
+      else arrive(el2);
+    } else if (arrived.delete(el2)) leave(el2);
+  };
+  const beside = (node) => node?.nodeType === Node.ELEMENT_NODE && (arrived.has(node) || node.matches(selector)) ? [node] : [];
+  const read = (records) => {
+    const offered2 = /* @__PURE__ */ new Set();
+    for (const record of records) {
+      if (record.type === "attributes") {
+        offered2.add(record.target);
+        continue;
+      }
+      for (const el2 of [
+        ...beside(record.target),
+        ...beside(record.previousSibling),
+        ...beside(record.nextSibling)
+      ])
+        offered2.add(el2);
+      for (const node of record.addedNodes)
+        for (const el2 of matching(node, selector)) offered2.add(el2);
+      for (const node of record.removedNodes)
+        for (const el2 of matching(node, selector)) if (arrived.has(el2)) offered2.add(el2);
+    }
+    offerMany(offered2);
+  };
+  const observer = new MutationObserver(read);
+  const watch = { selector, attributes, observer, offerMany };
+  watches.add(watch);
+  for (const root2 of [document.body, ...liveStages()]) enroll(watch, root2);
+  return (el2) => {
+    read(observer.takeRecords());
+    offer2(el2);
+  };
+}
+function enroll({ selector, attributes, observer, offerMany }, root2) {
+  observer.observe(root2, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: attributes
+  });
+  offerMany(root2.querySelectorAll(selector));
+}
+function watchArrivalsIn(stage) {
+  if (stages.has(stage)) return;
+  stages.add(stage);
+  stageRefs.add(new WeakRef(stage));
+  for (const watch of watches) enroll(watch, stage);
+  stage.addEventListener("scroll", heardIn(stage), SCROLL);
+}
+var scrollListeners = /* @__PURE__ */ new Set();
+var SCROLL = { capture: true, passive: true };
+var heardIn = (stage) => (event) => {
+  if (event.target.getRootNode() !== stage) return;
+  for (const listener of scrollListeners) listener(event);
+};
+function watchScrolls(listener) {
+  scrollListeners.add(listener);
+  document.addEventListener("scroll", listener, SCROLL);
+  return () => {
+    scrollListeners.delete(listener);
+    document.removeEventListener("scroll", listener, SCROLL);
+  };
+}
+var SETTLE_MS = 80;
+var settleListeners = /* @__PURE__ */ new Set();
+var inFlight = false;
+var gliding = false;
+var settleTimer = 0;
+var trackingScrolls = false;
+function settle() {
+  if (!inFlight || gliding) return;
+  inFlight = false;
+  clearTimeout(settleTimer);
+  for (const listener of settleListeners) listener();
+}
+function trackScrolls() {
+  if (trackingScrolls) return;
+  trackingScrolls = true;
+  watchScrolls(() => {
+    inFlight = true;
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, SETTLE_MS);
+  });
+  document.addEventListener("scrollend", settle, SCROLL);
+}
+function scrollGlides(on) {
+  trackScrolls();
+  gliding = on;
+  if (on) inFlight = true;
+  else if (inFlight) {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, SETTLE_MS);
+  }
+}
+function scrolling() {
+  trackScrolls();
+  return inFlight;
+}
+function watchScrollEnds(listener) {
+  trackScrolls();
+  settleListeners.add(listener);
+  return () => settleListeners.delete(listener);
+}
+
 // runtime/shadow.js
 var refusedRoots = /* @__PURE__ */ new WeakSet();
 var refuseShadowRoot = (root2) => refusedRoots.add(root2);
-var declaredRoot = (host) => host.shadowRoot && registry[host.localName]?.["x-shadow"] && !refusedRoots.has(host.shadowRoot) ? host.shadowRoot : null;
-var shadowRootsIn = (root2) => tagsDeclaring((entry) => entry["x-shadow"]).flatMap((tag) => [
-  ...root2.nodeType === Node.ELEMENT_NODE && root2.matches(tag) ? [root2] : [],
-  ...root2.querySelectorAll(tag)
-]).map(declaredRoot).filter(Boolean);
+var declaredRoot = (host) => host.shadowRoot && registry[host.localName]?.["x-shadow"] && isStage(host.shadowRoot) && !refusedRoots.has(host.shadowRoot) ? host.shadowRoot : null;
+var shadowRootsIn = (root2) => liveStages().filter(
+  (stage) => root2.contains(stage.host) && declaredRoot(stage.host) === stage
+);
 var pageShadowRoots = () => shadowRootsIn(document);
 function excludedByInert(node) {
   for (let owner = node; owner; owner = renderedParent(owner)) {
@@ -1942,234 +2170,6 @@ var clippingAxes = (style) => {
   };
 };
 
-// runtime/arrivals.js
-var watches = /* @__PURE__ */ new Set();
-var stages = /* @__PURE__ */ new WeakSet();
-var stageRefs = /* @__PURE__ */ new Set();
-var owners = /* @__PURE__ */ new WeakMap();
-var offerOwner;
-function watchOwner(owner, lifecycle) {
-  let connected = false;
-  const subscription = {
-    connect() {
-      if (connected || !owner.isConnected) return;
-      connected = true;
-      try {
-        lifecycle.connect?.();
-      } catch (error) {
-        subscriptions.delete(subscription);
-        subscription.disconnect();
-        throw error;
-      }
-    },
-    disconnect() {
-      if (!connected) return;
-      connected = false;
-      lifecycle.disconnect?.();
-    }
-  };
-  let subscriptions = owners.get(owner);
-  if (!subscriptions) owners.set(owner, subscriptions = /* @__PURE__ */ new Set());
-  if (!offerOwner) {
-    const notify = (element, method) => {
-      for (const subscription2 of owners.get(element) ?? []) {
-        try {
-          subscription2[method]();
-        } catch (error) {
-          queueMicrotask(() => {
-            throw error;
-          });
-        }
-      }
-    };
-    offerOwner = watchArrivals("*", [], {
-      arrive: (element) => notify(element, "connect"),
-      leave: (element) => notify(element, "disconnect")
-    });
-  }
-  if (owner.isConnected) offerOwner(owner);
-  subscriptions.add(subscription);
-  const stop = () => {
-    subscriptions.delete(subscription);
-    subscription.disconnect();
-  };
-  subscription.connect();
-  return stop;
-}
-function whileConnected(owner, start) {
-  let held;
-  return watchOwner(owner, {
-    connect() {
-      const controller = new AbortController();
-      held = { controller, cleanup: null };
-      held.cleanup = start(controller.signal);
-    },
-    disconnect() {
-      const current = held;
-      held = null;
-      current.controller.abort();
-      current.cleanup?.();
-    }
-  });
-}
-function frameFor(owner, run) {
-  let frame2 = 0;
-  watchOwner(owner, {
-    disconnect() {
-      cancelRender(frame2);
-      frame2 = 0;
-    }
-  });
-  return () => {
-    if (frame2 || !owner.isConnected) return;
-    frame2 = nextRender(() => {
-      frame2 = 0;
-      if (owner.isConnected) run();
-    });
-  };
-}
-function liveStages() {
-  const live2 = [];
-  for (const ref of stageRefs) {
-    const root2 = ref.deref();
-    if (root2) live2.push(root2);
-    else stageRefs.delete(ref);
-  }
-  return live2;
-}
-var stands = (el2) => {
-  const root2 = el2.getRootNode();
-  return root2 === document ? document.body.contains(el2) : stages.has(root2) && root2.host.isConnected;
-};
-function* matching(node, selector) {
-  if (node?.nodeType !== Node.ELEMENT_NODE) return;
-  if (node.matches(selector)) yield node;
-  yield* node.querySelectorAll(selector);
-  for (const stage of liveStages())
-    if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
-}
-function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
-  const arrived = /* @__PURE__ */ new WeakSet();
-  const offerMany = (elements) => {
-    const present = [];
-    for (const el2 of elements) {
-      if (stands(el2) && el2.matches(selector)) present.push(el2);
-      else if (arrived.delete(el2)) leave(el2);
-    }
-    if (!arriveBatch) for (const el2 of present) offer2(el2);
-    else if (present.length) {
-      for (const el2 of present) arrived.add(el2);
-      arriveBatch(present);
-    }
-  };
-  const offer2 = (el2) => {
-    if (stands(el2) && el2.matches(selector)) {
-      arrived.add(el2);
-      if (arriveBatch) arriveBatch([el2]);
-      else arrive(el2);
-    } else if (arrived.delete(el2)) leave(el2);
-  };
-  const beside = (node) => node?.nodeType === Node.ELEMENT_NODE && (arrived.has(node) || node.matches(selector)) ? [node] : [];
-  const read = (records) => {
-    const offered2 = /* @__PURE__ */ new Set();
-    for (const record of records) {
-      if (record.type === "attributes") {
-        offered2.add(record.target);
-        continue;
-      }
-      for (const el2 of [
-        ...beside(record.target),
-        ...beside(record.previousSibling),
-        ...beside(record.nextSibling)
-      ])
-        offered2.add(el2);
-      for (const node of record.addedNodes)
-        for (const el2 of matching(node, selector)) offered2.add(el2);
-      for (const node of record.removedNodes)
-        for (const el2 of matching(node, selector)) if (arrived.has(el2)) offered2.add(el2);
-    }
-    offerMany(offered2);
-  };
-  const observer = new MutationObserver(read);
-  const watch = { selector, attributes, observer, offerMany };
-  watches.add(watch);
-  for (const root2 of [document.body, ...liveStages()]) enroll(watch, root2);
-  return (el2) => {
-    read(observer.takeRecords());
-    offer2(el2);
-  };
-}
-function enroll({ selector, attributes, observer, offerMany }, root2) {
-  observer.observe(root2, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: attributes
-  });
-  offerMany(root2.querySelectorAll(selector));
-}
-function watchArrivalsIn(stage) {
-  if (stages.has(stage)) return;
-  stages.add(stage);
-  stageRefs.add(new WeakRef(stage));
-  for (const watch of watches) enroll(watch, stage);
-  stage.addEventListener("scroll", heardIn(stage), SCROLL);
-}
-var scrollListeners = /* @__PURE__ */ new Set();
-var SCROLL = { capture: true, passive: true };
-var heardIn = (stage) => (event) => {
-  if (event.target.getRootNode() !== stage) return;
-  for (const listener of scrollListeners) listener(event);
-};
-function watchScrolls(listener) {
-  scrollListeners.add(listener);
-  document.addEventListener("scroll", listener, SCROLL);
-  return () => {
-    scrollListeners.delete(listener);
-    document.removeEventListener("scroll", listener, SCROLL);
-  };
-}
-var SETTLE_MS = 80;
-var settleListeners = /* @__PURE__ */ new Set();
-var inFlight = false;
-var gliding = false;
-var settleTimer = 0;
-var trackingScrolls = false;
-function settle() {
-  if (!inFlight || gliding) return;
-  inFlight = false;
-  clearTimeout(settleTimer);
-  for (const listener of settleListeners) listener();
-}
-function trackScrolls() {
-  if (trackingScrolls) return;
-  trackingScrolls = true;
-  watchScrolls(() => {
-    inFlight = true;
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(settle, SETTLE_MS);
-  });
-  document.addEventListener("scrollend", settle, SCROLL);
-}
-function scrollGlides(on) {
-  trackScrolls();
-  gliding = on;
-  if (on) inFlight = true;
-  else if (inFlight) {
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(settle, SETTLE_MS);
-  }
-}
-function scrolling() {
-  trackScrolls();
-  return inFlight;
-}
-function watchScrollEnds(listener) {
-  trackScrolls();
-  settleListeners.add(listener);
-  return () => settleListeners.delete(listener);
-}
-
 // runtime/geometry.js
 var shellRight = () => document.body.getBoundingClientRect().right;
 var windowChrome = /* @__PURE__ */ new Map();
@@ -2699,6 +2699,7 @@ var ICONS = {
   subtract: '<path d="M3 8h10"/>',
   unfold: '<path d="M3 8h10M5.5 5.25 8 2.75l2.5 2.5M5.5 10.75 8 13.25l2.5-2.5"/>',
   undo: '<path d="M5.25 4.25 2.75 6.5 5.25 8.75M3 6.5h5.5a4 4 0 0 1 4 4v1"/>',
+  up: '<path d="m4 9.75 4-4 4 4"/>',
   waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>'
 };
 var iconMarkup = (icon) => {
@@ -3424,6 +3425,16 @@ export {
   nativeClaimAt,
   LINK,
   nativeActivationAt,
+  watchOwner,
+  whileConnected,
+  frameFor,
+  liveStages,
+  watchArrivals,
+  watchArrivalsIn,
+  watchScrolls,
+  scrollGlides,
+  scrolling,
+  watchScrollEnds,
   refuseShadowRoot,
   declaredRoot,
   shadowRootsIn,
@@ -3479,16 +3490,6 @@ export {
   clamp,
   nearestScrollBy,
   clippingAxes,
-  watchOwner,
-  whileConnected,
-  frameFor,
-  liveStages,
-  watchArrivals,
-  watchArrivalsIn,
-  watchScrolls,
-  scrollGlides,
-  scrolling,
-  watchScrollEnds,
   shellRight,
   declareWindowChrome,
   inWindowChrome,

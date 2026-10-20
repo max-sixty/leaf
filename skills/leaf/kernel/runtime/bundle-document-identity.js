@@ -5393,7 +5393,8 @@ function createCommandDispatch() {
 // runtime/delivery.js
 var RETRY_MS = 2e3;
 var retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
-var readEventAnswer = (response, answer) => response.ok && answer?.ok === true && answer.state ? "accepted" : answer?.final === true ? "refused" : "incomplete";
+var acceptedAnswer = (response, answer) => response.ok && !!answer && "state" in answer && !("final" in answer);
+var refusedAnswer = (answer) => !!answer && "final" in answer;
 var applyAnswerState = (apply, state) => apply(state).catch((error) => reportCarried(error, "state in event response"));
 function createDelivery({
   ledger,
@@ -5426,7 +5427,7 @@ function createDelivery({
           (response) => ({ response }),
           (error) => ({ error })
         ),
-        entry.read.then((accepted2) => ({ accepted: accepted2 }))
+        entry.read.then((accepted) => ({ accepted }))
       ]);
       if (sent.accepted) return { accepted: sent.accepted };
       if (sent.error) {
@@ -5445,7 +5446,7 @@ function createDelivery({
           (answer2) => ({ answer: answer2 }),
           (error) => ({ error })
         ),
-        entry.read.then((accepted2) => ({ accepted: accepted2 }))
+        entry.read.then((accepted) => ({ accepted }))
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
@@ -5453,19 +5454,20 @@ function createDelivery({
         continue;
       }
       const answer = decoded.answer;
-      const reading = readEventAnswer(sent.response, answer);
-      const accepted = reading === "accepted" && answer.state.browser?.receipts?.find(
-        (candidate) => candidate.attempt === event.attempt
-      );
-      if (accepted)
-        return {
-          accepted,
-          application: applyAnswerState(
-            applyAcceptedState,
-            completeData(answer.state, held)
-          )
-        };
-      if (reading === "refused" && (!("attempt" in answer) || answer.attempt === event.attempt) && answer.ok === false) {
+      if (acceptedAnswer(sent.response, answer)) {
+        const accepted = answer.state.browser?.receipts?.find(
+          (candidate) => candidate.attempt === event.attempt
+        );
+        if (accepted)
+          return {
+            accepted,
+            application: applyAnswerState(
+              applyAcceptedState,
+              completeData(answer.state, held)
+            )
+          };
+      }
+      if (refusedAnswer(answer) && (!("attempt" in answer) || answer.attempt === event.attempt)) {
         return {
           accepted: null,
           state: completeData(answer.state, held),
@@ -5536,10 +5538,9 @@ async function deliverBookkeeping(event, applyState) {
   } catch {
     return "unreached";
   }
-  const reading = readEventAnswer(response, answer);
-  if (answer?.state)
+  if (answer && "state" in answer)
     await applyAnswerState(applyState, completeData(answer.state, held));
-  return reading === "incomplete" ? "unreached" : reading;
+  return acceptedAnswer(response, answer) ? "accepted" : refusedAnswer(answer) ? "refused" : "unreached";
 }
 
 // runtime/undo.js

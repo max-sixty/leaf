@@ -167,8 +167,7 @@ def stream_reply(page_dir, root, text):
         transaction.set_stream_reply(
             "codex-thread",
             "leaf-turn",
-            root,
-            root,
+            {"parent": root, "responds": root},
             STREAM_ATTEMPT,
             "item-1" if text else None,
             text,

@@ -478,7 +478,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
             prepared.payload["id"],
             {
                 "page": str(page_dir),
-                "reply_to": comment["id"],
+                "parent": comment["id"],
                 "responds": comment["id"],
                 "ref": prepared.payload["batches"][0]["events"][0]["answer"]["ref"],
             },
@@ -724,7 +724,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     accept_in_turn("hosted-thread")
     post_reply(
         page_dir,
-        {"to": comment["id"], "for": comment["id"]},
+        {"parent": comment["id"], "responds": comment["id"]},
         "Done.",
         identity={"agent": "Agent", "session": "leaf-website-agent"},
     )

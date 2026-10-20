@@ -37,7 +37,9 @@ def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What changed?")
     thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "The initial historical answer."
+        serve.page_dir,
+        {"responds": root},
+        "The initial historical answer.",
     )
     page = open_page(browser, url)
     said(page).not_to_have_attribute("placeholder", re.compile("replied"))

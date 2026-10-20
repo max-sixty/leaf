@@ -1,7 +1,7 @@
 # The summary hint from real thread events and the delivery an explicit wait prints.
 
 delivery:
-  format: leaf-delivery/13
+  format: leaf-delivery/14
   id: <delivery>
   created_at: <time>
   acknowledge: >-
@@ -111,7 +111,7 @@ delivery:
           handling: [h1, h2, h3, h4, h5]
           answer:
             kind: reply
-            to: event-8
-            for: event-8
+            parent: event-8
+            responds: event-8
             ref: <delivery>:0:event-8
             writer: agent

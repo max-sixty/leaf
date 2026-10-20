@@ -1542,7 +1542,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         (
             edit["id"],
             asked["id"],
-            {"kind": "reply", "to": asked["id"], "for": edit["id"]},
+            {"kind": "reply", "parent": asked["id"], "responds": edit["id"]},
         )
     ]
     with service_model.PageTransaction(page_dir) as page:

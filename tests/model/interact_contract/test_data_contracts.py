@@ -548,7 +548,7 @@ def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
     with pytest.raises(Rejected) as refused:
         thread_model.post_reply(
             page_dir,
-            {"to": opened["id"], "for": opened["id"]},
+            {"parent": opened["id"], "responds": opened["id"]},
             "Both views of one feed.",
             '<lf-test-data id="rows-view" source="shared"></lf-test-data>'
             '<lf-test-other id="other-view" source="shared"></lf-test-other>',

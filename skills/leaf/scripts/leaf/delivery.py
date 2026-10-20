@@ -104,7 +104,7 @@ DELIVERY = Record(
             )
         },
     ),
-    since=13,
+    since=14,
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
@@ -338,14 +338,9 @@ def response_address(reference: str) -> dict:
 
 
 def stream_reply_target(payload: dict) -> dict | None:
-    """The sole reply whose final text belongs to this delivery's provider turn."""
+    """The delivery's sole turn-written reply address, including its capture fences."""
     targets = [
-        {
-            "page": address["page"],
-            "reply_to": address["to"],
-            "responds": address["for"],
-            "ref": address["ref"],
-        }
+        address
         for address in response_addresses(payload)
         if address.get("writer") == "turn"
     ]

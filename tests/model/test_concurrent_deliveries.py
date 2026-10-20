@@ -64,8 +64,8 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
         del record["batches"][0]["events"][0][field]
         unreadable.append(record)
     for answer in (
-        {"kind": "reply", "for": "captured"},
-        {"kind": "reply", "to": "thread"},
+        {"kind": "reply", "responds": "captured"},
+        {"kind": "reply", "parent": "thread"},
         {"kind": "markup"},
     ):
         record = deepcopy(collecting)

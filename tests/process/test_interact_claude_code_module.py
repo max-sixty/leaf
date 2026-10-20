@@ -425,7 +425,9 @@ def test_input_pending_as_a_turn_ends_wakes_a_turn_of_its_own(
         {"hook_event_name": "PostToolBatch", "session_id": claude_code.session},
     )
     capsys.readouterr()
-    thread_model.post_reply(page_dir, {"to": first["id"], "for": first["id"]}, "Yes.")
+    thread_model.post_reply(
+        page_dir, {"parent": first["id"], "responds": first["id"]}, "Yes."
+    )
     pending = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "as it ends"}
     )

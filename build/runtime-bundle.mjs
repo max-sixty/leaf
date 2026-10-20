@@ -110,14 +110,16 @@ async function nativeImports(layerRoot, local, assetRoot) {
     ecmaVersion: "latest",
     sourceType: "module",
   });
-  return module.body.filter((node) => node.source).map((node) => {
-    const specifier = node.source.value;
-    return specifier.startsWith("/")
-      ? layerPath(specifier, assetRoot) ?? specifier
-      : specifier.startsWith(".")
-        ? browserPath(relative(layerRoot, resolve(dirname(path), specifier)))
-        : specifier;
-  });
+  return module.body
+    .filter((node) => node.source)
+    .map((node) => {
+      const specifier = node.source.value;
+      return specifier.startsWith("/")
+        ? (layerPath(specifier, assetRoot) ?? specifier)
+        : specifier.startsWith(".")
+          ? browserPath(relative(layerRoot, resolve(dirname(path), specifier)))
+          : specifier;
+    });
 }
 
 /** Retain native static edges and keep their runtime imports as kernel entries. */
@@ -180,9 +182,7 @@ const OUT = ".kernel";
 /** Compile one graph in memory; an asset root names the website's resource scope. */
 async function compile(layerRoot, entries, assetRoot, minify) {
   const native = await nativeRuntimeEntries(layerRoot, assetRoot);
-  entries = [
-    ...new Set([...entries, ...native.entries]),
-  ];
+  entries = [...new Set([...entries, ...native.entries])];
   const result = await build({
     // Metafile paths and unminified module comments name layer paths, not this host's.
     absWorkingDir: layerRoot,
@@ -241,7 +241,7 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot) {
         .filter(({ kind }) => kind === "import-statement")
         .map(({ path, external }) =>
           external
-            ? layerPath(path, assetRoot) ?? path
+            ? (layerPath(path, assetRoot) ?? path)
             : browserPath(relative(OUT, path)),
         ),
     );

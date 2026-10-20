@@ -83,7 +83,8 @@ it("bundles each document's static graph without fetching optional modules or ch
           'import "../runtime/bundle-common.js"; import "/vendor/widget.js"; export const optional = () => import("../runtime/optional.js");',
         "vendor/widget.js": "export const widget = 1;",
         "page/app.mjs": 'export * from "./state.js";',
-        "page/state.js": 'export * from "./values.mjs"; export const later = () => import("./optional.js");',
+        "page/state.js":
+          'export * from "./values.mjs"; export const later = () => import("./optional.js");',
         "page/values.mjs": "export const value = 1;",
         "page/optional.js": "export const later = 1;",
         // Valid as a classic script, and deliberately absent from module roots.
@@ -101,7 +102,8 @@ it("bundles each document's static graph without fetching optional modules or ch
       const body = revision === 2 ? "<lf-used>Study</lf-used>" : "Study";
       // Initial paint opens a template at execution time. Its literal closing tag
       // must survive the build even though an HTML parser sees no matching opener.
-      const initial = '<script data-lf-runtime data-lf-initial>document.write("<template data-lf-runtime data-lf-initial-source>");</script><span>First paint</span></template><p id="after-first-paint">Still visible</p>';
+      const initial =
+        '<script data-lf-runtime data-lf-initial>document.write("<template data-lf-runtime data-lf-initial-source>");</script><span>First paint</span></template><p id="after-first-paint">Still visible</p>';
       const authored = `<script>const mapMarker = '<script type="importmap" data-lf-runtime>'; const hintLiteral = '<link rel="modulepreload" href="${root}/leaf.js" data-lf-runtime>';</script>`;
       const importMap = `<script type="importmap" data-lf-runtime>${JSON.stringify({ imports })}</script>`;
       const prefix = `<!DOCTYPE html><html><!--${importMap}--><head>${authored}<link rel="stylesheet" href="${root}/leaf.css" data-lf-runtime>${importMap}`;

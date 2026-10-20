@@ -48,15 +48,18 @@ async function preloadDocuments(pageRoot, layers) {
       );
       if (!importMap) throw new Error(`document has no import map: ${path}`);
       const insertion = dom.nodeLocation(importMap).endOffset;
-      const edits = [...markup.querySelectorAll(
-        'link[data-lf-runtime][rel="preload"], link[data-lf-runtime][rel="modulepreload"]',
-      )].map((node) => ({ ...dom.nodeLocation(node), text: "" }));
+      const edits = [
+        ...markup.querySelectorAll(
+          'link[data-lf-runtime][rel="preload"], link[data-lf-runtime][rel="modulepreload"]',
+        ),
+      ].map((node) => ({ ...dom.nodeLocation(node), text: "" }));
       layer.registry ??= JSON.parse(
         await readFile(join(layerRoot, "registry.json"), "utf8"),
       );
       const required = widgetImports(markup.body, layer.registry);
       const pending = [
-        "leaf.js", ...required.modules.map((tag) => `widgets/${tag}.js`),
+        "leaf.js",
+        ...required.modules.map((tag) => `widgets/${tag}.js`),
       ].toReversed();
       const modules = new Set();
       while (pending.length) {

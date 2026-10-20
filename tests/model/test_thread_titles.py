@@ -367,8 +367,8 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     assert "Can the import run in parallel?" in turns[-1]["params"]["input"][0]["text"]
 
 
-# Pi's records in `--mode json`, ending with the run's; then a Pi that lingers after
-# answering, as the real one does for some 3 s.
+# Pi's records in `--mode json`: a run that failed and that Pi retries, then the
+# retry's; then a Pi that lingers after answering, as the real one does for some 3 s.
 TITLING_PI = """\
 #!{python}
 import json, os, sys, time
@@ -380,6 +380,12 @@ with open(os.environ["TITLING_RECORD"], "a") as record:
         "cwd": os.getcwd(),
     }}
     record.write(json.dumps(call) + "\\n")
+failed = {{
+    "role": "assistant",
+    "content": [],
+    "stopReason": "error",
+    "errorMessage": "overloaded",
+}}
 answer = {{
     "role": "assistant",
     "content": [{{"type": "text", "text": " Export speed "}}],
@@ -390,8 +396,9 @@ answer = {{
 }}
 for record in (
     {{"type": "session", "id": "title-session"}},
+    {{"type": "agent_end", "messages": [failed], "willRetry": True}},
     {{"type": "message_end", "message": answer}},
-    {{"type": "agent_end", "messages": [answer]}},
+    {{"type": "agent_end", "messages": [answer], "willRetry": False}},
 ):
     print(json.dumps(record), flush=True)
 time.sleep(3600)
@@ -402,8 +409,8 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
     """Pi's agent names a thread only when it replies; its page server asks Pi's
     configured model for a title as the comment opening the thread arrives, in a
     print-mode run with none of the user's tools, extensions, hooks or session
-    identity, and takes the answer as soon as Pi prints it, without waiting for Pi
-    to exit."""
+    identity, and takes the answer as soon as Pi prints it, after any retry and
+    without waiting for Pi to exit."""
     record_claim(page_dir, id="pi-session", harness="pi", agent="Pi")
     assert stamp(page_dir, "first").exit_code == 0
     programs = tmp_path / "programs"
@@ -452,6 +459,8 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
     # Pi's hooks are extensions, Leaf's own among them.
     for switch in ("--print", "--no-session", "--no-tools", "--no-extensions"):
         assert switch in argv
+    # Pi adds an APPEND_SYSTEM.md to the system prompt unless one is given.
+    assert argv[argv.index("--append-system-prompt") + 1] == ""
 
     log = leases_model.titles_log("pi-session")
     [line] = wait_for(

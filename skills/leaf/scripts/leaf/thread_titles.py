@@ -169,7 +169,9 @@ CLAUDE_CODE_ENVIRONMENT = {
 # Pi: a print-mode run of the model the user configured, with no tools, and none of
 # the extensions (Leaf's own among them, and every hook, since Pi's hooks are
 # extensions), MCP servers, skills, prompt templates or context files the user
-# installed. Offline skips the version check and catalog refresh a start makes.
+# installed. An empty appended prompt stands in for the APPEND_SYSTEM.md Pi would
+# otherwise add to `INSTRUCTIONS`. Offline skips the version check and catalog
+# refresh a start makes.
 # Pi has no answer schema, so the title is the answer's text. Thinking off is the
 # least a model accepts: `minimal` on gpt-6.1-sol, which reasoned on no title.
 PI_COMMAND = (
@@ -183,6 +185,8 @@ PI_COMMAND = (
     "--no-skills",
     "--no-prompt-templates",
     "--no-context-files",
+    "--append-system-prompt",
+    "",
     "--no-themes",
     "--offline",
     "--thinking",
@@ -296,8 +300,9 @@ def pi_title(request: str, page_dir: Path) -> dict:
         for name, value in os.environ.items()
         if name not in IDENTITY_VARIABLES
     }
-    with tempfile.TemporaryFile("w+") as errors:
-        process = subprocess.Popen(
+    with (
+        tempfile.TemporaryFile("w+") as errors,
+        subprocess.Popen(
             [executable, *PI_COMMAND, "--system-prompt", INSTRUCTIONS],
             cwd=page_dir,
             env=env,
@@ -305,7 +310,8 @@ def pi_title(request: str, page_dir: Path) -> dict:
             stdout=subprocess.PIPE,
             stderr=errors,
             text=True,
-        )
+        ) as process,
+    ):
         deadline = threading.Timer(TIMEOUT, process.kill)
         deadline.start()
         try:
@@ -315,7 +321,8 @@ def pi_title(request: str, page_dir: Path) -> dict:
                 (
                     record
                     for record in map(json.loads, process.stdout)
-                    if record["type"] == "agent_end"
+                    # A run that failed and that Pi will retry ends first.
+                    if record["type"] == "agent_end" and not record["willRetry"]
                 ),
                 None,
             )

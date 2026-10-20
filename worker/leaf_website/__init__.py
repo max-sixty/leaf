@@ -113,7 +113,8 @@ if TYPE_CHECKING:
     from websockets.sync.client import ClientConnection
 
 PORT = 8080
-# The model every hosted task runs on, and the one its threads are titled with.
+# The model every hosted task runs on. Its threads are titled on Codex's title
+# model (`thread_titles.CODEX_TITLE_MODEL`).
 HOSTED_MODEL = "gpt-5.6-luna"
 WEBSITE_AGENT = "Agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"
@@ -1412,7 +1413,7 @@ class WebsiteCodexHarness:
         # first turn on, so this follows the start rather than the admission.
         if attached is not None:
             name_thread(
-                app_server_title(self.endpoint, HOSTED_MODEL),
+                app_server_title(self.endpoint),
                 page_dir,
                 event_id,
                 attached,

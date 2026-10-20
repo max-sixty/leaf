@@ -119,9 +119,15 @@ TIMEOUT = 60
 # says nothing about one. With a shell, the model sometimes acted on a message that
 # asks for work instead of naming it. Nor does it run the user's hooks: with the
 # feature on, a title thread ran a config's UserPromptSubmit and Stop hooks, which
-# here retitle the user's terminal tab. Low effort rather than Worktrunk's `none`,
-# which not every model a task configures accepts; neither reasoned on a title.
-APP_SERVER_EFFORT = "low"
+# here retitle the user's terminal tab.
+#
+# Every Codex title, the website's included, is asked of one small model rather than
+# the one the user's tasks run on, at the least effort it accepts: `none`, which its
+# API takes though the App Server's model list starts at `low`, and which refuses
+# `minimal` (codex-cli 0.160). An account without the model fails the title turn,
+# which leaves the thread untitled and says why in the caller's `record`.
+CODEX_TITLE_MODEL = "gpt-6-luna"
+APP_SERVER_EFFORT = "none"
 TITLE_CONFIG = {
     "features": {
         feature: False
@@ -376,10 +382,10 @@ def pi_title(request: str, page_dir: Path) -> dict:
     }
 
 
-def open_title_thread(socket, model: str | None, page_dir: Path) -> str:
-    """Open the ephemeral thread one title is asked on, over a new connection to an
-    App Server, run in the page directory, and return its id; `model` None takes
-    the server's configured model."""
+def open_title_thread(socket, page_dir: Path) -> str:
+    """Open the ephemeral thread one title is asked on, on `CODEX_TITLE_MODEL`, over
+    a new connection to an App Server, run in the page directory, and return its
+    id."""
     app_server_handshake(socket, 0, "leaf-thread-titles", "Leaf thread titles")
     # A thread starts every MCP server the user configured, its project's included,
     # and an override replacing the table leaves them configured, so each is turned
@@ -391,7 +397,7 @@ def open_title_thread(socket, model: str | None, page_dir: Path) -> str:
         "thread/start",
         2,
         {
-            **({"model": model} if model else {}),
+            "model": CODEX_TITLE_MODEL,
             "cwd": str(page_dir),
             "ephemeral": True,
             "approvalPolicy": "never",
@@ -454,16 +460,15 @@ def ask_title(socket, thread_id: str, request: str, deadline: float) -> dict:
             }
 
 
-def app_server_title(endpoint: str, model: str | None) -> Generate:
+def app_server_title(endpoint: str) -> Generate:
     """A request for one title as an ephemeral thread on the App Server at
-    `endpoint`, run in the page directory; `model` None takes the server's
-    configured model."""
+    `endpoint`, run in the page directory."""
 
     def generate(request: str, page_dir: Path) -> dict:
         started = time.monotonic()
         socket = app_server_connect(endpoint)
         try:
-            thread_id = open_title_thread(socket, model, page_dir)
+            thread_id = open_title_thread(socket, page_dir)
             reading = ask_title(socket, thread_id, request, started + TIMEOUT)
         finally:
             socket.close()
@@ -510,7 +515,7 @@ class CodexTitleThread:
             ) as endpoint:
                 socket = app_server_connect(endpoint)
                 try:
-                    thread_id = open_title_thread(socket, None, page_dir)
+                    thread_id = open_title_thread(socket, page_dir)
                     opened = True
                     asked = self._request.get()
                     if asked is None:

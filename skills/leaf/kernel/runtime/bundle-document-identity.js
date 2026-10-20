@@ -6097,12 +6097,12 @@ function createThreadDestinations({
       if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
       const place = preview && !trip ? threadTarget(id) : null;
-      if (place) {
+      if (place && scroll && !place.checkVisibility()) {
         await reveal(place, intent).ready;
         if (!mayPresent()) return null;
       }
       let opened = null;
-      if (preview)
+      if (preview && (!place || place.checkVisibility()))
         intent.handoff(() => {
           opened = preview.open(id, { origin });
         });

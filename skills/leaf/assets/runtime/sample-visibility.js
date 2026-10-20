@@ -65,5 +65,9 @@ if (child) {
     { threshold: [0, Number.EPSILON] },
   );
   seen.observe(document.documentElement);
-  addEventListener("pagehide", () => seen.disconnect(), { once: true });
+  // A persisted pagehide is the containing page's, and its page cache brings this
+  // document back still standing where it stood (bootstrap.js).
+  addEventListener("pagehide", (event) => {
+    if (!event.persisted) seen.disconnect();
+  });
 }

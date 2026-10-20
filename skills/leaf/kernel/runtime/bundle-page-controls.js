@@ -5,6 +5,7 @@ import {
 } from "./bundle-chrome.js";
 import {
   inChrome,
+  layoutBox,
   pageDocument,
   pageText
 } from "./bundle-passage-facts.js";
@@ -14,12 +15,82 @@ import {
   repaintPage
 } from "./bundle-page-paint.js";
 import {
+  afterScript,
   nextFrame,
   nextRender,
   sizeObserver,
   under,
   upFrom
 } from "./bundle-sample-visibility.js";
+
+// runtime/page-controls.js
+var EMPTY = Object.freeze([]);
+var PAGE_CONTROL_RANK = Object.freeze({
+  session: 10,
+  preview: 20,
+  layer: 30,
+  share: 35,
+  leaves: 40,
+  latest: 50,
+  map: 70,
+  // The page's commands reached by pointer here (touch-controls.js), among themselves
+  // in the register's order.
+  commands: 75,
+  blanket: 80,
+  versions: 90,
+  keyboard: 95,
+  // The next steps in the mode or picker the user stands in, and its way out.
+  steps: 120,
+  commentSelection: 130
+});
+var GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
+var rows = /* @__PURE__ */ new Map();
+var sequence = 0;
+var listeners = /* @__PURE__ */ new Set();
+var read = (value) => typeof value === "function" ? value() : value;
+function registerPageControl(row) {
+  if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group)
+    throw new TypeError(
+      `Page control ${row.key} needs a key, a numeric rank, a label and a group`
+    );
+  if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
+  rows.set(row.key, Object.freeze({ ...row, sequence: sequence++ }));
+  pageControlsChanged();
+}
+function pageControls() {
+  const offered = [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read(row.offered) ?? true);
+  const nearest = Math.max(
+    ...offered.filter((row) => row.gesture).map((row) => row.rank)
+  );
+  return offered.filter((row) => !row.gesture || row.rank === nearest).map((row) => {
+    const group = read(row.group);
+    if (!GROUPS.includes(group))
+      throw new TypeError(
+        `Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`
+      );
+    return Object.freeze({
+      key: row.key,
+      label: read(row.label),
+      value: read(row.value) ?? "",
+      shortcut: read(row.shortcut) ?? EMPTY,
+      group,
+      copies: read(row.copies) ?? "",
+      urgent: read(row.urgent) ?? null,
+      gesture: Boolean(row.gesture),
+      exit: Boolean(row.exit),
+      disabled: Boolean(read(row.disabled)),
+      press: row.press ?? null
+    });
+  });
+}
+var pageControlsChanged = () => afterScript(tell);
+function tell() {
+  for (const listener of listeners) listener();
+}
+function watchPageControls(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
 // runtime/content-layout.js
 var residencyOpen = false;
@@ -50,8 +121,11 @@ function readResidency() {
   watchHead();
   if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);
-  if (changed) repaintPage();
+  if (!changed) return;
+  repaintPage();
+  pageControlsChanged();
 }
+var railStands = (main = layoutBox()) => (main?.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
 function scheduleResidency() {
   if (residencyOpen) residencyPending ||= nextRender(residencyPass);
 }
@@ -92,7 +166,6 @@ function openResidency({ onRead }) {
     });
   readResidency();
 }
-var residencyStarted = () => residencyOpen;
 
 // runtime/pointed-place.js
 var points = /* @__PURE__ */ new Map();
@@ -171,8 +244,13 @@ export {
   commitPoint,
   placePoints,
   pointBand,
+  PAGE_CONTROL_RANK,
+  registerPageControl,
+  pageControls,
+  pageControlsChanged,
+  watchPageControls,
+  railStands,
   scheduleResidency,
   settleResidency,
-  openResidency,
-  residencyStarted
+  openResidency
 };

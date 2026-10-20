@@ -11,15 +11,18 @@
    `holdingError`, which raises it when the condition begins and clears it when it
    ends.
 
-   The floating panel places each error from what it draws (floating-panel.js): in its
-   field, in the status's place, while that field is the error's subject, or, for an
-   error with no subject, while the field is empty; over words its subject holds, it
-   covers them until the user's first key or press there. The user's first edit in
-   the field passes every error the field could say (`passErrors`). An error the
-   field cannot say, or has passed, waits in the Errors list in the leaf's menu, with
-   a dot on the leaf until the user opens the list (`seeErrors`). The user chose this
-   on 17 October over errors riding the passing notice, which faded after four
-   seconds, was replaced by whatever came next, and went unseen while the user typed.
+   An error about a text field stands at that field, wherever it is, covering the
+   field's words and actions until the user comes back to them, by a key or an image
+   there, a press on the cover or Resume writing (`g i`), or the field stops showing
+   them (`passErrorsAt`; composing/input.js, `errorOver`). The floating panel's field
+   also says an error about nothing, in its status's place while it is empty, until the
+   user's first edit there (floating-panel.js). An error no field stands for, or one the user has
+   passed, waits in the Errors list in the leaf's menu, with a dot on the leaf until
+   the user opens the list (`seeErrors`). The user chose this on 17 October over
+   errors riding the passing notice, which faded after four seconds, was replaced by
+   whatever came next, and went unseen while the user typed; and on 19 October chose
+   the cover at a passage's comment box, where the error had shown only as the leaf's
+   dot, so nothing said a refused send's words had come back.
 
    A screen reader hears each error as it is raised, unless its producer already says
    it aloud, as page-status.js does a change of status. News and acknowledgements stay
@@ -98,6 +101,13 @@ export function passErrors(ids) {
           : entry,
       ),
     );
+}
+
+/** The user came back to the words in `subject`, so every error about it is passed. */
+export function passErrorsAt(subject) {
+  passErrors(
+    errors.filter((entry) => entry.subject === subject).map((entry) => entry.id),
+  );
 }
 
 /** The user opened the Errors list, so none it shows is news any more. */

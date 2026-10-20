@@ -3,7 +3,7 @@
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
 import { declarationFor, layerFact, registry } from "./registry.js";
-import { readObligations } from "./obligations/model.js";
+import { readPart } from "./semantic-state.js";
 import { obligationsIn } from "./obligations/place.js";
 import { elementById } from "./passages.js";
 import { quietSince } from "./presence.js";
@@ -181,15 +181,21 @@ function goalView(goal, open, read) {
   };
 }
 
+// The obligations that stop work: a widget's, while it waits on the user; one they left
+// with the agent does not (obligations/place.js). Selected as one part, so a paint
+// that reads work repaints only when one of these moves, not on every change to the
+// inventory, which a comment makes.
+const openWidgetObligations = readPart((root) =>
+  root.effective.obligations.user.filter((item) => item.source.kind === "widget"),
+);
+
 export function readWork(scope) {
   const readings = new Map();
   const read = (element) => {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  // An obligation stops work only while it waits on the user; one they left with the agent
-  // does not (obligations/place.js).
-  const open = readObligations().user.filter((item) => item.source.kind === "widget");
+  const open = openWidgetObligations();
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map((worker) =>

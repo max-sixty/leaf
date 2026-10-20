@@ -260,7 +260,7 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     found = [*context.errors, *_widget_findings(context)]
     found += map(Finding.read, unmarkable)
     found += _overflow(column["overflow"], column["misplaced"]).values()
-    found += _scrollbars(scrollbars).values()
+    found += _keyed(scrollbars).values()
     for kind in ("clipped", "covered"):
         found += map(Finding.read, reachability[kind])
     found += context.devtools.findings()
@@ -355,9 +355,12 @@ def thread_findings(context: _SchemeContext, known: list[Finding]) -> list[Findi
     return [finding for finding in found if finding not in known]
 
 
-def _scrollbars(boxes: list) -> dict[tuple[str, str], Finding]:
-    """Overlay track collisions, keyed like other width-dependent geometry."""
-    return {(box["place"], box["code"]): Finding.read(box) for box in boxes}
+def _keyed(records: list) -> dict[tuple[str, str], Finding]:
+    """Width-dependent readings, such as overlay track collisions and clipped
+    controls, each keyed by its element's place and kind."""
+    return {
+        (record["place"], record["code"]): Finding.read(record) for record in records
+    }
 
 
 def _overflow(overflow: int, misplaced: list) -> dict[tuple[str, str], Finding]:
@@ -367,7 +370,7 @@ def _overflow(overflow: int, misplaced: list) -> dict[tuple[str, str], Finding]:
         found["<root scrollport>", "page-scrolls"] = Finding(
             "page-scrolls", values={"past": overflow}
         )
-    return found | {(m["place"], m["code"]): Finding.read(m) for m in misplaced}
+    return found | _keyed(misplaced)
 
 
 # The widths the sweep takes a loaded page through: a version holds at every width from
@@ -486,24 +489,48 @@ def margin_changes(page, readings, height: int) -> list[int]:
     return changes
 
 
-def swept_overflow(readings, viewports) -> list[Finding]:
-    """Sideways overflow and scrollbar collisions the fixed viewports miss, with
-    the widths each run spans and what it reads at the narrowest.
+def swept_faults(readings) -> list[Finding]:
+    """Sideways overflow, scrollbar collisions and clipped controls across the sweep,
+    with the widths each run spans and what it reads at the narrowest. Each refuses
+    the version, as it does at a fixed viewport, since a control cut off at 400px is
+    as far out of reach as one cut off at 540px. `unrendered` drops the runs the
+    gate's renders already report."""
+    return _swept(
+        readings,
+        lambda reading: (
+            _overflow(reading["overflow"], reading["misplaced"])
+            | _keyed(reading["scrollbars"])
+            | _keyed(reading["clipped"])
+        ),
+    )
 
-    A run that takes in a fixed width is dropped here, because that viewport's own
-    reading already reports it in both schemes."""
-    fixed = {viewport["width"] for viewport in viewports}
+
+def unrendered(swept, rendered) -> list[Finding]:
+    """The swept runs no render reports: each run less those where a render at a width
+    inside its span, given as (finding, width) pairs, read the same fault on the same
+    element.
+
+    Matched by fault rather than by width alone, because the sweep reads every width at
+    the desktop height: the phone viewport renders 540px at 720px tall, so a fault the
+    sweep reads at 540px and 900px tall, such as a control clipped below a card, may be
+    one that render never sees."""
+    widths = {}
+    for finding, width in rendered:
+        widths.setdefault(_fault(finding), []).append(width)
     return [
         finding
-        for finding in _swept(
-            readings,
-            lambda reading: (
-                _overflow(reading["overflow"], reading["misplaced"])
-                | _scrollbars(reading["scrollbars"])
-            ),
+        for finding in swept
+        if not any(
+            finding.widths[0] <= width <= finding.widths[1]
+            for width in widths.get(_fault(finding), ())
         )
-        if not any(finding.widths[0] <= width <= finding.widths[1] for width in fixed)
     ]
+
+
+def _fault(finding: Finding) -> tuple[str, str]:
+    """A swept fault's key (`_keyed`): its kind and its element's place, which a page
+    scrolling sideways, read of the page as a whole, has none of."""
+    return finding.code, finding.values.get("place", "")
 
 
 # The advice below is read from the sweep, at every swept width, since a narrower window

@@ -59,12 +59,12 @@ line for each refusal or note, with the words in `error` or `text`.
    becomes the live immutable revision. An invalid save leaves the last valid one
    live and reports the error in page state and the browser. You write
    `index.html` and `page/`; only Leaf writes revisions and version mappings.
-3. **Check the page.** Before you hand the page over, run `leaf page check <page>`
-   and fix every failure. That is the whole check for a quick page, one the user
-   reacts to once and then revises or drops: hand it over without stamping or a
-   browser review. A revision that answers a user's message, even on a record,
-   goes straight to the reply. `leaf response reply` checks your saved edits and
-   refuses the reply over an error; fix it and reply again. Each valid save is
+3. **Check the page.** Before you first hand the page over, run
+   `leaf page check <page>` and fix every failure. That is the whole check for a
+   quick page, one the user reacts to once and then revises or drops: hand it over
+   without stamping or a browser review. A revision that answers a user's message,
+   even on a record, goes straight to the reply. The reply checks your saved edits
+   and is refused over an error; fix it and reply again. Each valid save is
    already live on the user's page, so a separate check only delays the answer
    they are waiting for.
 4. **Review and stamp a record.** A record is a page used beyond this

@@ -966,7 +966,7 @@ _TEXT = {
     ),
     "unreadable-data": lambda at, v: f"data source unreadable: {v['error']}",
     "relocated-anchor": lambda at, v: (
-        f"open thread {v['thread']} anchor no longer resolves; activation moves it"
+        f"open thread {v['thread']} anchor no longer resolves; activation will move it"
         " to "
         + (
             f"section {v['section']!r}"

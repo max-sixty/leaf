@@ -4,9 +4,13 @@
 # This is a guard, not a separating measurement: the read-only eval loads the
 # normal Leaf skill on both arms, while hosted disables it. The live hosted
 # journey separately checks execution with the hosted model and tool transcript.
+# The guard then asked for `leaf page check` before the final reply. Replying fast
+# came first after that (2026-10-20): the final reply checks the saved edit itself
+# and a refusal starts a correction turn, so the guard now asks for no check before
+# the final reply. Base 124fb8de2 ran the check 2 of 2 on Codex.
 description: app-server-edit-before-final
 metadata:
-  purpose: "App Server: a saved page edit is checked while the model can still correct it."
+  purpose: "App Server: a turn that saved a page edit ends with its final reply, which checks the edit."
   tags:
     - app-server
     - revision
@@ -28,8 +32,8 @@ vars:
     run and then the final reply.
 assert:
   - type: llm-rubric
-    metric: checks-saved-edit
-    value: The remaining workflow checks the saved page with leaf page check before ending the turn, while the agent can still correct a failure. A mention in explanatory text without a proposed check does not pass.
+    metric: replies-without-a-check
+    value: The remaining workflow ends the turn with its final reply and runs no leaf page check, plain or with --render, before it. Fail if it proposes any page check before the final reply.
   - type: llm-rubric
     metric: keeps-final-reply-owner
     value: The final chat reply leaves recording the turn's answer to the hosted harness. It does not propose posting that final answer with leaf thread reply or leaf response reply. A warning against those commands is allowed.

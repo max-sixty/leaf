@@ -593,6 +593,42 @@ def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_di
     assert [e["thread"] for e in moves] == [roots[1]["id"]]
 
 
+def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
+    """The server activates a valid save before the agent replies, so the moves are
+    in the log by then; the reply still names every thread its revision moved,
+    except the one it moves itself."""
+    from leaf.revisioning import activate_source
+
+    original = PAGE.replace(
+        "<h2>Plan</h2>", '<h2>Plan</h2><p id="wording">Alpha and Gamma</p>'
+    )
+    (page_dir / "index.html").write_text(original)
+    publish(page_dir)
+    roots = [
+        json.loads(comment(page_dir, "--quote", q, "--text", q).output)
+        for q in ("Alpha", "Gamma")
+    ]
+    (page_dir / "index.html").write_text(
+        original.replace("Alpha and Gamma", "Beta and Delta")
+    )
+    assert activate_source(page_dir).created
+
+    def reply(*options):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), roots[0]["id"], *options],
+        )
+        assert result.exit_code == 0, result.output
+        return [json.loads(line) for line in result.stderr.splitlines()]
+
+    [moved] = reply("--quote", "Beta", "--text", "Revised this.")
+    assert (moved["code"], moved["values"]) == (
+        "relocated-anchor",
+        {"thread": roots[1]["id"], "section": "wording"},
+    )
+    assert reply("--text", "And checked it.") == []
+
+
 def test_a_stamp_preserves_threads_its_restatement_reopens(page_dir):
     from leaf.events import build_threads
 

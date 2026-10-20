@@ -10,6 +10,10 @@
 # sign-off criterion only because it already stamped before the first reply. The
 # split of step 3 into "Check the page" and "Review and stamp a record" held it:
 # base 96100077f and the split each scored 3 of 3 on both harnesses and metrics.
+# Then the reply became the revision's only check (2026-10-20), and the first
+# criterion fails any `page check` in the first turn. Base 124fb8de2 ran one before
+# the reply in 5 of 5 Claude Code and 2 of 2 Codex samples; the change ran none in
+# 5 of 5 and 2 of 2, and kept the render check and stamp at sign-off throughout.
 description: record-reply-before-its-stamp
 metadata:
   purpose:

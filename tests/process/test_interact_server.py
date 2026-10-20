@@ -12,6 +12,7 @@ import select
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import threading
@@ -76,7 +77,6 @@ from leaf import hosting as hosting_model
 from leaf import http as http_model
 from leaf import interaction_log as interaction_model
 from leaf import leases as leases_model
-from leaf import machine as machine_model
 from leaf import media as media_model
 from leaf import page_snapshot as page_snapshot_model
 from leaf import passages as passages_model
@@ -267,7 +267,7 @@ def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, n
     """Declaring status, acknowledging a delivery, or taking a wait writes a session
     file, and the next state read holds the activation it had rather than validating
     the whole page again: on a large page that re-validation was most of the time a
-    status took to reach the banner."""
+    status took to reach the panel."""
     assert revisioning_model.activate_source(page_dir).error is None
 
     def revalidated(*_args, **_kwargs):
@@ -1102,7 +1102,7 @@ def test_every_state_answer_holds_the_served_state_schema(server, page_dir):
 
     index.write_text(source)
     publish(page_dir)
-    neighbor = machine_model.state_home() / "pages" / "schema-neighbor"
+    neighbor = cleanup_model.state_home() / "pages" / "schema-neighbor"
     neighbour_page(neighbor, title="Neighbor")
     server_rows_model.RowPublisher(neighbor, "fixture-server").refresh()
     record_claim(page_dir, id="schema-session", cwd="/work/page")
@@ -1783,7 +1783,7 @@ def test_a_revision_s_resources_are_cached_and_its_document_is_not(server, page_
 def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     server, page_dir
 ):
-    """The declaration is the decision, and the door holds anything posting past the banner
+    """The declaration is the decision, and the door holds anything posting past the panel
     to it: a version that never asked has no approval to record."""
     publish(page_dir)
 
@@ -3143,7 +3143,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     The publication carries real owed-move counts. Changing a declaration alone
     cannot change that delivered row, and another server cannot inherit it.
     """
-    neighbor = machine_model.state_home() / "pages" / "canonical"
+    neighbor = cleanup_model.state_home() / "pages" / "canonical"
     neighbour_page(neighbor, title="Canonical neighbor")
     record_claim(neighbor, id="neighbor", cwd="/work/neighbor")
     cleanup_model.write_json(
@@ -3163,7 +3163,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     read_json = files_model.read_json
 
     def small_read(path):
-        if path == machine_model.state_home() / "access.json":
+        if path == cleanup_model.state_home() / "access.json":
             return read_json(path)
         assert path in {neighbor / "service.json", publisher.path}
         reads.append(path)
@@ -3212,7 +3212,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     own publications must reuse the neighbor observation; another producer's
     changed row must invalidate it immediately and preserve its new content.
     """
-    neighbor = machine_model.state_home() / "pages" / "row-neighbor"
+    neighbor = cleanup_model.state_home() / "pages" / "row-neighbor"
     neighbour_page(neighbor, title="Neighbor")
     own = server_rows_model.RowPublisher(page_dir, "own-server")
     own.refresh()
@@ -3259,7 +3259,7 @@ def test_neighbor_discovery_needs_no_native_subscription(
         raise RuntimeError("native watch unavailable")
 
     monkeypatch.setattr(watchfiles.main, "RustNotify", no_watcher)
-    rows = machine_model.state_home() / "rows"
+    rows = cleanup_model.state_home() / "rows"
     assert not rows.exists()
     assert presence_model.neighbor_candidates() == ()
     neighbor = tmp_path / "new-neighbor"
@@ -3312,7 +3312,7 @@ def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
 def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     page_dir, monkeypatch
 ):
-    """Clock-only aging uses the banner's deadline, with no file or live change.
+    """Clock-only aging uses the activity's own deadline, with no file or live change.
 
     Quiet checks retain the delivered row without folding again; deleting this
     output regenerates it from the page, leaving the canonical inputs untouched.
@@ -3431,7 +3431,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     Repairing the invalid input then uses the existing enabled-service revival,
     with a new serving identity and a newly computed row.
     """
-    neighbor = machine_model.state_home() / "pages" / "broken-row"
+    neighbor = cleanup_model.state_home() / "pages" / "broken-row"
     neighbour_page(neighbor, title="Repairable", dead=True, port=0)
     hosting_model.start_server(neighbor, persistent=True, harness=None)
     wait_for(
@@ -4259,7 +4259,7 @@ def test_neighbour_discovery_sees_a_row_made_in_one_clock_tick(page_dir, monkeyp
     discovered: the scan is keyed on the directory's stamp, and a stamp the second
     change left in place would hide the new page until some later write moved it."""
     written = _coarse_write_clock(monkeypatch)
-    rows = machine_model.state_home() / "rows"
+    rows = cleanup_model.state_home() / "rows"
     rows.mkdir(parents=True, exist_ok=True)
     cleanup_model.write_json(rows / "first.json", {"page": str(page_dir / "first")})
     (rows / "placeholder").write_text("")
@@ -4827,7 +4827,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     page_dir, spawn, accepted
 ):
     """The held reservation cannot impersonate a dead committed incarnation."""
-    neighbor = machine_model.state_home() / "pages" / "private-revival"
+    neighbor = cleanup_model.state_home() / "pages" / "private-revival"
     neighbour_page(neighbor, title="Private revival", dead=True, port=0)
     record_claim(neighbor, id="private-revival")
     hosting_model.start_server(neighbor, persistent=True, harness=None)
@@ -5332,6 +5332,25 @@ def test_the_address_and_key_outlive_the_session_that_first_served(
     assert server_model.host_key() == minted
 
 
+def test_the_state_home_and_its_key_stay_owner_only():
+    """The host key is all that stands between another local user and every page
+    this machine serves, so the state home stays 0700 and `access.json` 0600 even
+    where something else, such as an earlier Leaf or a loose umask, made them
+    wider. Any path into the home returns it to 0700, not only the key's."""
+    home = cleanup_model.state_home()
+    home.chmod(0o755)
+    cleanup_model.session_file("widened", "lifecycle")
+    assert stat.S_IMODE(home.stat().st_mode) == 0o700
+
+    home.chmod(0o755)
+    key = home / "access.json"
+    key.write_text(json.dumps({"token": "minted-elsewhere"}))
+    key.chmod(0o644)
+    assert server_model.host_key() == "minted-elsewhere"
+    assert stat.S_IMODE(home.stat().st_mode) == 0o700
+    assert stat.S_IMODE(key.stat().st_mode) == 0o600
+
+
 def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
     """The key is staged beside its durable file before an atomic link publishes it.
     A filesystem failure other than the intentional first-writer race still leaves no
@@ -5349,7 +5368,7 @@ def test_a_failed_host_key_publish_removes_its_staged_secret(monkeypatch):
         server_model.host_key()
 
     assert len(staged) == 1 and not staged[0].exists()
-    assert not (machine_model.state_home() / "access.json").exists()
+    assert not (cleanup_model.state_home() / "access.json").exists()
 
 
 def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypatch):
@@ -5437,7 +5456,7 @@ def test_a_page_left_running_is_the_sweeps_to_stop():
     ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
     watch that happen. Not `spawn`, whose teardown would end the holder before
     the sweep reached it."""
-    hold_persistent(machine_model.state_home() / "pages" / "left", subprocess.Popen)
+    hold_persistent(cleanup_model.state_home() / "pages" / "left", subprocess.Popen)
 
 
 def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
@@ -5538,7 +5557,7 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
 def test_others_ships_on_a_network_facing_bind_too(page_dir):
     """Neighbour discovery is independent of the server's network-facing bind."""
     neighbour_page(
-        machine_model.state_home() / "pages" / "live", title="The other page"
+        cleanup_model.state_home() / "pages" / "live", title="The other page"
     )
     httpd = hosting_model.LeafHTTPServer(
         ("0.0.0.0", 0), http_model.page_endpoint(page_dir, TOKEN)

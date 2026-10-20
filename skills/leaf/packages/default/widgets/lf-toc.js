@@ -556,8 +556,8 @@ customElements.define(
         keeps(this.#lens, "style", "display: none;");
         return;
       }
-      // What the user can read is the scroller's landing band, clear of the banner over
-      // its top and the bottom bar over its bottom.
+      // What the user can read is the scroller's landing band, clear of whatever stands
+      // over its top and the floating panel's row over its bottom.
       const clear = landingInsets(this.#scroller);
       const visibleStart = this.#scroller.scrollTop + clear.top;
       const visibleEnd =

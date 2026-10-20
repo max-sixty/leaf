@@ -1171,7 +1171,7 @@ def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
     expect(editor).to_be_focused()
 
 
-def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
+def test_the_thread_card_survives_the_on_view_and_authored_sidebars(browser, serve):
     """The On view or an authored sidebar does not turn the contextual card into a
     thread view in the panel."""
     page = open_page(

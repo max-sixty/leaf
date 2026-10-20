@@ -1011,7 +1011,7 @@ _TEXT = {
     ),
     "keys-documentation": _declared(
         lambda v: (
-            "$keys must carry a description and one paragraph per x- key the"
+            f"{v['fact']} must carry a description and one paragraph per key the"
             f" lint admits — missing {_json(v['missing'])}, unadmitted"
             f" {_json(v['unadmitted'])}"
         )

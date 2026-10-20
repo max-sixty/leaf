@@ -16,8 +16,8 @@
  *
  * How a set is drawn is one fact, its flow (`data-lf-tabs-flow`), which this module
  * writes and reads and every rule for the set's presentation reads. The root set with
- * its strip written as a row is the page's own flow ("page"): its strip sticks under the
- * banner as a sticky header over the document it indexes, and its panels are sections of the
+ * its strip written as a row is the page's own flow ("page"): its strip sticks at the
+ * window's top as a sticky header over the document it indexes, and its panels are sections of the
  * page, taking the page's width. Each is then a view with a place of its own: a switch,
  * by press, key, Back, or Forward, is not fragment travel, because a view is not a
  * destination, so the strip stays where it is on screen and the view opens where this
@@ -549,7 +549,7 @@ export class TabSet extends HTMLElement {
     this.#contextObserver.observe(main, { childList: true });
   }
 
-  // A page-flow strip sticks under the banner over the whole document, so it is a
+  // A page-flow strip sticks at the window's top over the whole document, so it is a
   // sticky header of the root: its stated height (`--lf-tabstrip-h`, theme.css) joins
   // the root's `scroll-padding` as `--lf-root-headers`, and every landing arrives
   // below it. What the strip stands over inside its panels stacks through `--lf-top`

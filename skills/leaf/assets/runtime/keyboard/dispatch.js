@@ -107,7 +107,7 @@ import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
-// is standing in it, while the dispatcher and the line want both at once. Spelled `!x || x()`
+// is standing in it, while the dispatcher wants both at once. Spelled `!x || x()`
 // in three places before, which is a rule written three times and named nowhere.
 const pageHas = scopeAvailable;
 export const userIn = (scope) => {

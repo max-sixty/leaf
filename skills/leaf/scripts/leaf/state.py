@@ -30,9 +30,36 @@ from pathlib import Path
 EVENTS_FILE = "events.jsonl"
 
 
-def state_home_path() -> Path:
+def state_home() -> Path:
+    """$XDG_STATE_HOME/leaf (~/.local/state/leaf/) — pages/ holds page
+    directories by convention, claims/ the last claimant of every known page,
+    sessions/ the live watcher leases, packages/ the packages `package install` copied here,
+    screens/ the last render check's screens of each page, pictures/ the
+    pictures `page picture` drew of its drawing comments, and access.json
+    the one key every page here is served with (`server.host_key`). State, not
+    config: claim records carry pids and absolute paths, while page service records
+    carry ports, so this state is bound to this machine, as is the key that
+    reaches it.
+
+    Owner-only: the key is what stands between another local user and a log that
+    outranks the document, and a 0644 file under a traversable path hands it to
+    anyone on a shared machine. Every path into the state home resolves through
+    this call, which creates the home 0700 and returns an existing one to 0700, so
+    the mode holds whichever Leaf or tool made the directory."""
     root = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
-    return Path(root) / "leaf"
+    home = Path(root) / "leaf"
+    if not home.is_dir():
+        home.mkdir(mode=0o700, parents=True, exist_ok=True)
+    hold_mode(home, 0o700)
+    return home
+
+
+def hold_mode(path: Path, mode: int) -> None:
+    """Give `path` exactly the permission bits `mode`, writing only when they
+    differ, so a reader confined to reads, such as a sandboxed command, can still
+    resolve a path whose mode already holds."""
+    if stat.S_IMODE(path.stat().st_mode) != mode:
+        path.chmod(mode)
 
 
 # A session's files that end with it: hook capability and turn observations,
@@ -52,7 +79,7 @@ def session_file(session_id: str, suffix: str) -> Path:
     suffix, in the state home's `sessions/`.
     """
     key = hashlib.sha256(session_id.encode()).hexdigest()[:32]
-    return state_home_path() / "sessions" / f"{key}.{suffix}"
+    return state_home() / "sessions" / f"{key}.{suffix}"
 
 
 def page_key(page_dir: Path) -> str:
@@ -478,9 +505,7 @@ def end_harness_instance(session_id: str) -> None:
 
 def session_claims(session_id: str) -> Path:
     """This session's discovery locators; payloads remain canonical by page."""
-    return (
-        state_home_path().resolve() / "claims" / session_file(session_id, "claims").stem
-    )
+    return state_home().resolve() / "claims" / session_file(session_id, "claims").stem
 
 
 def holds_claims(session_id: str) -> bool:

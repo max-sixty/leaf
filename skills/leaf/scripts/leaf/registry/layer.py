@@ -8,7 +8,13 @@ import turbohtml
 from jmespath.exceptions import JMESPathError
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import DECLARED_MARKS, EXTENSION_SCHEMA, LAYER_FACTS_SCHEMA
+from leaf.schema import (
+    AWAITS_SCHEMA,
+    DECLARED_MARKS,
+    EXTENSION_SCHEMA,
+    LAYER_FACTS_SCHEMA,
+    VERB_SCHEMA,
+)
 
 from .contract import (
     is_element_name,
@@ -25,6 +31,13 @@ from .schema import (
 
 # The `$events` members a layer may restate; the rest are the kernel's.
 LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
+# The facts that document a declaration's keys, each beside the schema that admits
+# those keys (`validate_layer_declarations`).
+DOCUMENTED_KEYS = {
+    "$keys": EXTENSION_SCHEMA,
+    "$state": VERB_SCHEMA,
+    "$awaits": AWAITS_SCHEMA,
+}
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -119,26 +132,29 @@ def validate_layer_declarations(registry: dict, path) -> None:
                         kind=kind,
                         **schema_reading(error),
                     ) from error
-    # $keys documents exactly the x- keys the lint admits, one string per key: the
-    # keys are closed here (EXTENSION_SCHEMA), so a member for a key that cannot be
-    # declared is documentation of nothing, and a key with no member is one an author
-    # reads the registry for and finds unsaid. Agents query it and the site's table is
-    # generated from it, which is what makes the pin worth keeping.
-    keys = registry.get("$keys")
-    admitted = set(EXTENSION_SCHEMA["properties"])
-    documented = set(keys or {}) - {"description"}
-    if (
-        not isinstance(keys, dict)
-        or not isinstance(keys.get("description"), str)
-        or not all(isinstance(text, str) and text for text in keys.values())
-        or documented != admitted
-    ):
-        raise registry_error(
-            "keys-documentation",
-            path,
-            missing=sorted(admitted - documented),
-            unadmitted=sorted(documented - admitted),
-        )
+    # Each documenting fact holds exactly the keys its schema admits, one string per
+    # key, beside its description: the keys are closed by that schema, so a member for
+    # a key that cannot be declared is documentation of nothing, and a key with no
+    # member is one an author reads the registry for and finds unsaid. Agents query
+    # them and the site's table is generated from $keys, which is what makes the pin
+    # worth keeping.
+    for fact, schema in DOCUMENTED_KEYS.items():
+        members = registry.get(fact)
+        admitted = set(schema["properties"])
+        documented = set(members or {}) - {"description"}
+        if (
+            not isinstance(members, dict)
+            or not isinstance(members.get("description"), str)
+            or not all(isinstance(text, str) and text for text in members.values())
+            or documented != admitted
+        ):
+            raise registry_error(
+                "keys-documentation",
+                path,
+                fact=fact,
+                missing=sorted(admitted - documented),
+                unadmitted=sorted(documented - admitted),
+            )
     # Idioms share author-facing fields with elements and declare no marks: a mark is
     # its tag's (`revision_delivery.mark_declared`). Validate every selector, because it
     # remains an authored vocabulary identity.

@@ -449,7 +449,7 @@
     border: 1px solid var(--border-2);
     border-radius: var(--r);
     /* Clip, not hidden: a hidden box is a scroll container, which would take a sticky
-     * header inside an option (a diff's file header) off the banner. */
+     * header inside an option (a diff's file header) off the window's top. */
     overflow: clip;
     /* The authored options paint before the generated Add and Done cells, so their rows
      * are held until upgrade and the next block stays put. Add is one option line inside

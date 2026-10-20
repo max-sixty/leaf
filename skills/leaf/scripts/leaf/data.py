@@ -5,8 +5,7 @@
 instant, and complete `value`. `leaf data set` validates the value and atomically
 writes all three together, and is the only writer: a reader trusts the files' shape
 and judges only the value, against the contract the source is bound to now, which a
-later document may have replaced. A file an earlier Leaf wrote before publications
-reads as that source's error, naming the rewrite.
+later document may have replaced.
 
 A source's revision identifies its encoded value; its run identifies the write,
 including a rerun with the same value. Both survive copying the page directory.
@@ -80,16 +79,6 @@ def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> d
         return {"contract": contract}
     reading = {"contract": contract}
     publication = json.loads(data)
-    # A Leaf before publications wrote the bare value here.
-    if not isinstance(publication, dict) or set(publication) != {
-        "run",
-        "updated",
-        "value",
-    }:
-        return {
-            **reading,
-            "error": f"source {source!r} holds no publication; write it again with leaf data set",
-        }
     value = publication["value"]
     reading.update(
         revision=hashlib.sha256(json_bytes(value)).hexdigest()[:16],

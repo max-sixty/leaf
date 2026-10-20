@@ -1053,8 +1053,6 @@ class PageEndpoint:
             return self._serve_root()
         if path == "/api/news":
             return self._news()
-        if path == "/api/user-view":
-            return self._json(self.source.user_views())
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.

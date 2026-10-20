@@ -105,6 +105,7 @@ _RECORD = _object(
 USER_VIEWS = Record(
     "user-views",
     object_schema({"sessions": {"type": "object", "additionalProperties": _RECORD}}),
+    since=13,
 )
 
 

@@ -235,8 +235,9 @@
       const split = node("div", "lf-playground-split");
       if (!railed.length && presetBar)
         split.append(pane("controls", "Controls", null, presetBar));
-      split.append(
-        pane("preview", "Preview", null, previewBody),
+      const rail = node("div", "lf-playground-rail");
+      rail.dataset.lfTrack = "";
+      rail.append(
         ...railed.length ? [pane("controls", "Controls", presetBar, panel)] : [],
         pane(
           "instruction",
@@ -250,6 +251,8 @@
           actions
         )
       );
+      regions.push({ name: "rail", host: rail, body: rail });
+      split.append(pane("preview", "Preview", null, previewBody), rail);
       host.append(split);
     }
     const setInput = (control, value) => {

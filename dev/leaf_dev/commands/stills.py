@@ -917,6 +917,14 @@ def playground_controls(page: Page) -> None:
     page.locator(".lf-playground-controls").scroll_into_view_if_needed()
 
 
+def playground_tall_stage(page: Page) -> None:
+    """The last alert's controls, pressed far down a stage taller than the window."""
+    control = page.locator("lf-playground-preview lf-playground-control").last
+    control.scroll_into_view_if_needed()
+    control.get_by_role("radio").last.click()
+    page.mouse.move(0, 0)
+
+
 def visual_review_menu(page: Page) -> None:
     """The review case picker open on its selected option."""
     control = page.locator(".lf-vr-case-select")
@@ -1315,6 +1323,7 @@ STATES = (
         touch=True,
     ),
     State("playground-controls", "notification-playground", playground_controls),
+    State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
     State(
         "playground-controls-phone",
         "notification-playground",

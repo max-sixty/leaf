@@ -70,11 +70,11 @@
   .lf-fp-inner > :not(.lf-fp-opened) {
     flex-shrink: 0;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *)) {
+  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *, .lf-composer-media *)) {
     font: inherit;
     color: inherit;
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-composer-media *)) {
     background: none;
     border: 0;
     border-radius: 6px;
@@ -83,27 +83,27 @@
     padding: 0 8px;
     min-height: var(--lf-fp-press);
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *)) {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-composer-media *)) {
     position: relative;
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *))::after {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-composer-media *))::after {
     content: "";
     position: absolute;
     inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):hover {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-composer-media *)):hover {
     background: var(--lf-fp-hover);
   }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):is(:disabled, [aria-disabled=true]) {
+  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-composer-media *)):is(:disabled, [aria-disabled=true]) {
     color: var(--lf-fp-muted);
     cursor: default;
     background: none;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):where(:not(.lf-fp-outlet *)):focus-visible {
+  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):where(:not(.lf-fp-outlet *, .lf-composer-media *)):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
   }
-  .lf-floating-panel .lf-action-icon {
+  .lf-floating-panel .lf-action-icon:not(.lf-composer-media *) {
     width: 16px;
     height: 16px;
   }
@@ -204,77 +204,18 @@
     outline-offset: 0;
     border-radius: var(--r);
   }
-  .lf-fp-field {
+  :is(.lf-fp-field, .lf-fp-response) {
     anchor-name: --lf-fp-field;
+    --lf-media-ground: var(--lf-fp-surface);
+    --lf-media-ring: var(--lf-fp-ring);
   }
-  .lf-fp-field .lf-composer-media:not([hidden]) {
+  :is(.lf-fp-field, .lf-fp-response) .lf-composer-media:not([hidden]) {
     position: fixed;
-    --lf-fp-shelf-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--aim-floor) / 2 - 3px) );
-    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-fp-shelf-room));
-    left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
+    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-media-room));
+    left: calc(anchor(--lf-fp-field left) - var(--lf-media-room));
     width: max-content;
-    max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-fp-shelf-room));
-    gap: var(--lf-fp-shelf-room);
-    padding: var(--lf-fp-shelf-room);
-  }
-  .lf-fp-field .lf-composer-media-item {
-    position: relative;
-    border: 0;
-    background: none;
-    overflow: visible;
-  }
-  .lf-fp-field .lf-composer-media-open {
-    width: auto;
-    height: 56px;
-    min-height: 0;
-    padding: 0;
-    background: none;
-    border-radius: 8px;
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
-  }
-  .lf-fp-field .lf-composer-media-open img {
-    width: auto;
-    min-width: 40px;
-    max-width: 104px;
-    border-radius: inherit;
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    inline-size: 18px;
-    min-block-size: 0;
-    block-size: 18px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--ink) 72%, var(--lf-fp-surface));
-    color: var(--lf-fp-surface);
-    box-shadow: 0 0 0 2px var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open)::before {
-    content: "";
-    position: absolute;
-    inset: calc((18px - var(--aim-floor)) / 2);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open):hover {
-    background: var(--ink);
-    color: var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
-    outline-offset: 2px;
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) > svg {
-    inline-size: 10px;
-    block-size: 10px;
-  }
-  @media (hover: hover) {
-    .lf-fp-field .lf-composer-media-item:not(:hover, :focus-within) > button:not(.lf-media-open) {
-      opacity: 0;
-    }
-    .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
-      transition: opacity 120ms;
-    }
+    max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-media-room));
+    margin: 0;
   }
   .lf-fp-response {
     display: none;
@@ -980,7 +921,7 @@
     gap: 4px;
     margin: 0 0 12px;
   }
-  .lf-fp-quote {
+  .lf-fp-quote-head > .lf-fp-quote {
     margin: 0;
     min-width: 0;
     min-height: 0;
@@ -1117,9 +1058,6 @@
   .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
-  .lf-fp-on-item + .lf-fp-on-item {
-    border-top: 1px solid var(--lf-fp-faint);
-  }
   .lf-fp-on-done {
     margin: 0 8px;
     padding-top: 10px;
@@ -1173,7 +1111,12 @@
     margin-right: 4px;
   }
   .lf-fp-messages {
+    display: grid;
+    gap: 8px;
     padding: 0 8px;
+  }
+  .lf-fp-messages > .lf-primary-part > .lf-msg {
+    margin-top: 0;
   }
   .lf-fp-messages .lf-msg-editor {
     margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
@@ -1313,9 +1256,7 @@
     display: grid;
   }
   .lf-fp-menu-back {
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
-    border-radius: 6px 6px 0 0;
+    margin-bottom: 6px;
   }
   .lf-fp-menu-back .lf-fp-label {
     display: flex;
@@ -1337,8 +1278,7 @@
     display: grid;
     gap: 1px;
     padding: 6px 8px 8px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
+    margin-bottom: 6px;
     color: var(--lf-fp-muted);
     font-size: 12px;
   }
@@ -1558,8 +1498,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-[data-lf-item] {
-  outline: var(--lf-item-ring, var(--focus-ring));
+[data-lf-obligation] {
+  outline: var(--lf-obligation-ring, var(--focus-ring));
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-landing);
 }

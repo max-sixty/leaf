@@ -77,7 +77,7 @@ STATED_LOG = [
 STATED_PICK = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
 
 
-# A queue with two cards: only the final move answers its item.
+# A queue with two cards: only the final move answers its obligation.
 STATED_QUEUE = """<!doctype html>
 <html lang="en">
 <head>
@@ -114,7 +114,7 @@ def test_a_pick_names_only_options_its_group_holds():
     """A `choose` names authored options or ones an `add` in force created.
 
     The user's own option travels as two sends, the `add` and then the pick of it.
-    Were the `add` refused, the pick behind it would otherwise answer the item with an
+    Were the `add` refused, the pick behind it would otherwise answer the obligation with an
     option nobody can see.
     """
     page = ModelPage(STATED_KIT)
@@ -240,8 +240,8 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     ]
 
 
-def test_the_move_that_empties_the_queue_answers_its_item():
-    """Only moving the final real card answers the whole queue's item.
+def test_the_move_that_empties_the_queue_answers_its_obligation():
+    """Only moving the final real card answers the whole queue's obligation.
 
     A crafted unknown unit must never count as completing the queue.
     """

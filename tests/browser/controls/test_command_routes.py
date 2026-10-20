@@ -7,7 +7,7 @@ import pytest
 from leaf.render_checks import rendered
 from leaf.schema import ELEMENT_ID
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_ITEM_LAYER
+from render_cases_interaction import SEATED_OBLIGATION_LAYER
 from render_cases_navigation import go_to_address
 from render_harness import leaf_page, open_page
 
@@ -121,8 +121,8 @@ KEYBOARD_HINT_REGISTRY = {
         "additionalProperties": False,
         "x-content": "empty",
         "x-upgrade": True,
-        "x-state": SEATED_ITEM_LAYER["lf-verdict"]["x-state"],
-        "x-awaits": SEATED_ITEM_LAYER["lf-verdict"]["x-awaits"],
+        "x-state": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-state"],
+        "x-awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-awaits"],
     }
 }
 
@@ -199,7 +199,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 @pytest.mark.parametrize("hint_seat", ["widget", "corner"])
 def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hint_seat):
-    """A package command needs no item role to expose its working keyboard route.
+    """A package command needs no obligation role to expose its working keyboard route.
 
     The same scope stands on the widget and its question context. Focus, native text
     entry, control availability, and replacement change dispatch and the inline hint
@@ -254,7 +254,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     rendered(page)
     expect(result).to_have_text("0")
 
-    # The question context forwards the widget's declaration without an item allocator.
+    # The question context forwards the widget's declaration without an obligation allocator.
     page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(badge).to_be_visible()
@@ -369,7 +369,9 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
 
 
 @pytest.mark.parametrize("annotation_mode", ["overlay", "page"])
-def test_widget_context_keys_work_without_an_item(browser, serve, annotation_mode):
+def test_widget_context_keys_work_without_an_obligation(
+    browser, serve, annotation_mode
+):
     """Widget aliases and inline hints work with either annotation presentation owner."""
     source = leaf_page(
         "standalone widget commands",
@@ -618,7 +620,9 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Replacement applied")
 
 
-def test_restoring_item_focus_can_execute_its_command_in_the_same_turn(browser, serve):
+def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
+    browser, serve
+):
     """Focus determines forwarded scopes synchronously, without a paint registering them."""
     page = open_page(
         browser,
@@ -862,16 +866,18 @@ customElements.define('lf-verdict', class extends HTMLElement {
 """
 
 
-def test_route_corner_hint_overrides_the_rows_face_in_item_and_widget(browser, serve):
+def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
+    browser, serve
+):
     """Explicit null chooses a corner hint instead of inheriting the row's face.
 
-    Item forwarding and the intrinsic route must preserve that choice and merge into
+    Obligation forwarding and the intrinsic route must preserve that choice and merge into
     one hint when both bindings reach the same original command.
     """
     registry = {
         "lf-verdict": {
             key: value
-            for key, value in SEATED_ITEM_LAYER["lf-verdict"].items()
+            for key, value in SEATED_OBLIGATION_LAYER["lf-verdict"].items()
             if key != "x-thread-seat"
         }
     }

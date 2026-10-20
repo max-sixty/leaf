@@ -246,7 +246,7 @@
       "unevaluatedProperties": false
     },
     "EventReference": {
-      "description": "The admitted gesture an answer or ending came from (`items.event_reference`).",
+      "description": "The admitted gesture an answer or ending came from (`obligations.event_reference`).",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -330,7 +330,9 @@
           ]
         },
         "observed": { "type": "string" },
-        "observed_kind": { "type": ["string", "null"] },
+        "observed_kind": {
+          "anyOf": [{ "$ref": "#/$defs/WorkKind" }, { "type": "null" }]
+        },
         "awaiting": { "type": "boolean" },
         "counts": {
           "type": "object",
@@ -380,6 +382,18 @@
         "obligations"
       ],
       "additionalProperties": false
+    },
+    "WorkKind": {
+      "description": "The step a harness observed the agent taking (`activity.WORK_KINDS`, read from here): working, thinking, using a tool, waiting on the user in its own window for an approval, an answer or a dialog it does not name (the `awaiting_` kinds), or replying. The browser words each one (`runtime/activity-words.js`).",
+      "enum": [
+        "working",
+        "thinking",
+        "tool",
+        "awaiting_approval",
+        "awaiting_input",
+        "awaiting_user",
+        "replying"
+      ]
     },
     "ReplyEvidence": {
       "description": "A provisional reply's settlement evidence, without its text (`activity._reply_evidence`).",
@@ -603,7 +617,7 @@
       "additionalProperties": false
     },
     "PlanStep": {
-      "description": "One step of the plan (`plans.plan_reading`): plain, or naming a to-do or item whose title, owner and state it shows; `done` of `total` counts its children, dropped ones left out.",
+      "description": "One step of the plan (`plans.plan_reading`): plain, or naming a to-do or obligation whose title, owner and state it shows; `done` of `total` counts its children, dropped ones left out.",
       "type": "object",
       "properties": {
         "title": { "type": ["string", "null"] },
@@ -614,7 +628,7 @@
             {
               "type": "object",
               "properties": {
-                "kind": { "enum": ["todo", "item"] },
+                "kind": { "enum": ["todo", "obligation"] },
                 "id": { "type": "string" }
               },
               "required": ["kind", "id"],
@@ -731,7 +745,7 @@
           "additionalProperties": { "$ref": "#/$defs/View" }
         },
         "approval_history": {
-          "description": "Approvals in force across every stamp, for Threads' event timeline. Current-version approval state lives only in its item.",
+          "description": "Approvals in force across every stamp, for Threads' event timeline. Current-version approval state lives only in its obligation.",
           "type": "array",
           "items": { "$ref": "leaf:event/done", "unevaluatedProperties": false }
         },
@@ -741,7 +755,7 @@
           "items": { "$ref": "#/$defs/Todo" }
         },
         "plan": {
-          "description": "The agent's outline of the work, its steps naming to-dos and items by id (`plans.plan_reading`), or null.",
+          "description": "The agent's outline of the work, its steps naming to-dos and obligations by id (`plans.plan_reading`), or null.",
           "anyOf": [
             {
               "type": "object",
@@ -809,7 +823,7 @@
           "additionalProperties": false
         },
         "thread": {
-          "description": "The frozen threads as this revision reads them: its registry classifies their widgets' decisions, and so the items and attention those give.",
+          "description": "The frozen threads as this revision reads them: its registry classifies their widgets' decisions, and so the obligations and attention those give.",
           "type": "object",
           "properties": {
             "projection": { "$ref": "#/$defs/Projection" },
@@ -818,10 +832,10 @@
           "required": ["projection", "threads"],
           "additionalProperties": false
         },
-        "items": {
-          "description": "Every item record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row and `approval_blocking` name an item by `id`.",
+        "obligations": {
+          "description": "Every obligation record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row and `approval_blocking` name an obligation by `id`.",
           "type": "array",
-          "items": { "$ref": "#/$defs/Item" }
+          "items": { "$ref": "#/$defs/Obligation" }
         },
         "reports": {
           "description": "The view's report feed, in log order (`projection.canonical_reports`).",
@@ -912,7 +926,7 @@
           "additionalProperties": false
         },
         "approval_blocking": {
-          "description": "The items approving this version waits on (`items.approval_blocking`).",
+          "description": "The obligations approving this version waits on (`obligations.approval_blocking`).",
           "type": "array",
           "items": { "type": "string" }
         }
@@ -921,7 +935,7 @@
         "basis",
         "document",
         "thread",
-        "items",
+        "obligations",
         "reports",
         "undo",
         "coverage",
@@ -992,8 +1006,8 @@
       "required": ["entries", "actions", "reports", "desired"],
       "additionalProperties": false
     },
-    "Item": {
-      "description": "One request and its contained answer (`items.py`, which owns the statuses). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
+    "Obligation": {
+      "description": "One request and its contained answer (`obligations.py`, which owns the statuses). The source owns the canonical value; identity includes its kind so authored ids and message ids cannot collide.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -1049,7 +1063,7 @@
         },
         "status": { "enum": ["open", "answered", "answered_elsewhere", "withdrawn"] },
         "end": {
-          "description": "The agent's `leaf task end` that retired a question answered in words: where the answer is, or why the item no longer applies.",
+          "description": "The agent's `leaf task end` that retired a question answered in words: where the answer is, or why the obligation no longer applies.",
           "anyOf": [
             {
               "type": "object",
@@ -1090,9 +1104,9 @@
       "additionalProperties": false
     },
     "QueueRow": {
-      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A widget or approval row names its item by `id`, whose record is the view's `items` entry; a to-do row carries the fields a row draws.",
+      "description": "One row of On me or On <agent> (`served_state.queues`); `owner` names its list and `live` whether the agent has it in hand now. A widget or approval row names its obligation by `id`, whose record is the view's `obligations` entry, and a to-do row names its to-do by `id`, whose record is the page's `todos` entry.",
       "anyOf": [
-        { "$ref": "#/$defs/ItemRow", "unevaluatedProperties": false },
+        { "$ref": "#/$defs/ObligationRow", "unevaluatedProperties": false },
         { "$ref": "#/$defs/TodoRow", "unevaluatedProperties": false },
         {
           "type": "object",
@@ -1147,7 +1161,7 @@
         }
       ]
     },
-    "ItemRow": {
+    "ObligationRow": {
       "type": "object",
       "properties": {
         "kind": { "enum": ["widget", "approval"] },
@@ -1167,29 +1181,14 @@
         "owner": { "enum": ["agent", "user"] },
         "subject": { "$ref": "#/$defs/Subject" },
         "thread": { "type": ["string", "null"] },
-        "title": { "type": "string" },
-        "running": { "anyOf": [{ "$ref": "#/$defs/Start" }, { "type": "null" }] },
-        "live": { "type": "boolean" },
-        "agent": { "type": ["string", "null"] },
-        "session": { "type": ["string", "null"] }
+        "live": { "type": "boolean" }
       },
-      "required": [
-        "kind",
-        "id",
-        "owner",
-        "subject",
-        "thread",
-        "title",
-        "running",
-        "live",
-        "agent",
-        "session"
-      ]
+      "required": ["kind", "id", "owner", "subject", "thread", "live"]
     },
     "DoneRow": {
       "description": "A row that left its list, in the Done of the list `owner` names: how it ended (`state`), when (`ended`, null going last), and the outcome's detail.",
       "anyOf": [
-        { "$ref": "#/$defs/ItemRow" },
+        { "$ref": "#/$defs/ObligationRow" },
         { "$ref": "#/$defs/TodoRow" },
         {
           "type": "object",
@@ -1333,15 +1332,8 @@
             "reason": { "const": "todo" },
             "workflow": { "type": "null" },
             "todo": {
-              "description": "The to-do the thread waits on, with the line of the start running on it while one holds it.",
-              "type": "object",
-              "properties": {
-                "id": { "type": "string" },
-                "title": { "type": "string" },
-                "line": { "type": ["string", "null"] }
-              },
-              "required": ["id", "title", "line"],
-              "additionalProperties": false
+              "description": "The id of the to-do the thread waits on, whose record is the page's `todos` entry.",
+              "type": "string"
             }
           },
           "required": ["kind", "reason", "workflow", "todo"],

@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 import turbohtml
 
 from .findings import Finding
+from .registry.kernel import kernel_authored
 from .schema import EVENT_ID, MEDIA_DIR
 
 DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
@@ -72,22 +73,21 @@ PROSE_TAGS = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
 # Where an aim that found no tighter id has escaped to: naming one of these is
 # naming most of the page.
 SECTIONING_TAGS = {"section", "article", "main", "body"}
+# The page-wide allocations the runtime reads from `body`, which a sample template
+# carries onto its child's body (`$authored` in the kernel registry).
+PAGE_ALLOCATIONS = kernel_authored()["allocations"]
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
-# CSS pixels of a widget that draws into a box of a stated height (x-height), and, read
-# from `body`, the selected annotation presentation and whether the page claims the
-# overlay rail or keeps that margin for its own residents. Delivery honours a width,
-# bound or height only where it means something (`authored_on` in the kernel
-# registry's `$marks`).
+# CSS pixels of a widget that draws into a box of a stated height (x-height), and the
+# page-wide ones. Delivery honours a width, bound or height only where it means
+# something (`authored_on` in the kernel registry's `$marks`), and paints it for the
+# runtime to read.
 AUTHORED_ALLOCATIONS = {
     "data-width": ("wide", "available"),
     "data-bound": ("start", "end"),
     "data-height": re.compile("[1-9][0-9]*"),
-    "data-rail": ("right", "none"),
-    "data-annotations": ("overlay", "page"),
+    **{attr: tuple(values) for attr, values in PAGE_ALLOCATIONS.items()},
 }
-# Page-wide declarations. A sample template carries these onto its child's body.
-PAGE_ALLOCATIONS = frozenset({"data-rail", "data-annotations"})
 
 
 def allocation_valid(attr: str, value: str) -> bool:
@@ -99,10 +99,12 @@ def allocation_valid(attr: str, value: str) -> bool:
 
 
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
-# name → allowed content values (None = free-form). A misspelled name or value
-# would silently declare nothing in the browser, so `page check` owns this
-# vocabulary the way the registry owns lf-* elements.
-LF_META = {"lf-review": frozenset({"sign-off"})}
+# name → allowed content values (`$authored` in the kernel registry). A misspelled
+# name or value would silently declare nothing in the browser, so `page check` holds
+# a page to this vocabulary the way the registry holds lf-* elements.
+LF_META = {
+    name: frozenset(values) for name, values in kernel_authored()["meta"].items()
+}
 
 
 def remote_reference(reference: str) -> bool:

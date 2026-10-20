@@ -43,6 +43,7 @@ from .server import (
     running_server,
     served_lifetime,
     stop_when_service_ends,
+    write_service,
 )
 from .service import (
     PageTransaction,
@@ -52,7 +53,6 @@ from .service import (
     prepare_claim,
     same_claim,
 )
-from .state import write_json
 
 # The side that closes a TCP connection first keeps its address in TIME_WAIT, for
 # 60 s on Linux and 30 s on macOS. A server is that side for the keep-alive
@@ -401,7 +401,7 @@ def server_reading(page_dir: Path) -> dict:
         # command's payload instead would make the exact stale-server case this
         # reading exists to expose look current merely because a newer client
         # inspected it.
-        "runtime": (read_service(page_dir) or {}).get("runtime"),
+        "runtime": service["runtime"] if (service := read_service(page_dir)) else None,
     }
 
 
@@ -587,14 +587,14 @@ def cmd_serve(
                         if acquire and claimed:
                             with page.publishing_claim(prepared_claim) as (_, claim):
                                 if httpd is not None:
-                                    write_json(page_dir / SERVICE_FILE, service)
+                                    write_service(page_dir, service)
                         else:
                             _serve_claim(
                                 page_dir, page, service, persistent, revive, harness
                             )
                             claim = page.claim if claimed else None
                             if httpd is not None:
-                                write_json(page_dir / SERVICE_FILE, service)
+                                write_service(page_dir, service)
                         if claim is not None:
                             from .reconnect import recovered
 
@@ -611,7 +611,7 @@ def cmd_serve(
                         if previous_service is None:
                             (page_dir / SERVICE_FILE).unlink(missing_ok=True)
                         else:
-                            write_json(page_dir / SERVICE_FILE, previous_service)
+                            write_service(page_dir, previous_service)
                     raise
 
             if handshake is not None:
@@ -812,9 +812,9 @@ def cmd_stop(
                     **({"restart": restart} if restart else {}),
                 }
                 if disabled != service:
-                    write_json(page_dir / SERVICE_FILE, disabled)
+                    write_service(page_dir, disabled)
             elif service["enabled"]:
-                write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
+                write_service(page_dir, {**service, "enabled": False})
             first = False
             lease = take_lease(page_dir / SERVER_LOCK)
             if lease is not None:
@@ -897,7 +897,7 @@ def restarting_server(page_dir: Path, harness: Harness | None):
         resumed = bool(service and service.get("restart") == mark)
         if resumed:
             del service["restart"]
-            write_json(page_dir / SERVICE_FILE, {**service, "enabled": True})
+            write_service(page_dir, {**service, "enabled": True})
     if not resumed:
         note(Finding("stopped-while-revendored", values={"page": str(page_dir)}))
         return

@@ -28,10 +28,10 @@ surface is a workspace instead (`page-authoring.md`, "Composing a page").
 Write decisions the user can answer independently in page order. If a later one depends
 on an earlier answer, pose it in the next turn rather than writing every branch.
 
-The answering widget holds the item's answer and status. A choice can record a partial
+The answering widget holds the obligation's answer and status. A choice can record a partial
 answer before the user presses Done, and an empty selection can be a complete answer. A
-decision widget on its own puts an item on On me; an `lf-ask` around it adds context,
-not a second item. An `lf-ask` holding no widget is a question the user answers in
+decision widget on its own puts an obligation on On me; an `lf-ask` around it adds context,
+not a second obligation. An `lf-ask` holding no widget is a question the user answers in
 words: on the page, by commenting on it; in a thread message, by their next message
 there. Use it for an open question no widget can record, and a widget wherever the
 answer is a choice or an edit.
@@ -94,9 +94,9 @@ A page whose approval unblocks work declares:
 ```
 
 Leaf offers approval only on a stamped version that declares it, so stamp a draft before
-asking for sign-off. Each such version puts an approval item on On me, which approving
+asking for sign-off. Each such version puts an approval obligation on On me, which approving
 the version answers and Undo reopens. Later widget edits do not withdraw that approval
 or approve the new wording. For editable content, distinguish the approved wording from
-the current draft. Approval needs every widget's item on the page and in its unresolved
-threads answered or withdrawn, a question in an `lf-ask` included; items in resolved
+the current draft. Approval needs every widget's obligation on the page and in its unresolved
+threads answered or withdrawn, a question in an `lf-ask` included; obligations in resolved
 threads don't block it.

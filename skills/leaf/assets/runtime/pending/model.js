@@ -15,7 +15,8 @@ export const isThreadEvent = (event) => MESSAGE_KINDS.has(event.kind);
 export const isMessageEvent = (event) => isThreadEvent(event) && !event.token;
 
 // A gesture that speaks in a thread, so hands it to the agent: words, or the user
-// rewriting words of theirs (`events.exchange`).
+// rewriting words of theirs (`events.exchange`). `tests/turn_cases.json` holds this and
+// `turnMessage` to the server's reading.
 /** @param {import("../../../../../build/browser/domain.ts").Command} event */
 export const isTurnEvent = (event) => isMessageEvent(event) || event.kind === "edit";
 

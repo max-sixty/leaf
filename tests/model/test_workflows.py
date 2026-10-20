@@ -4,7 +4,9 @@ thread reads from them."""
 
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 
+import pytest
 from interact_support import (
     _start,
     append_carried_log_record,
@@ -13,13 +15,13 @@ from interact_support import (
     declare_work,
     delivered,
     freeze_events,
-    items_on_user,
     last_deliverable_seq,
+    obligations_on_user,
     owed,
     page_state,
     publish,
     receive_through,
-    served_items,
+    served_obligations,
     served_thread,
     serving,
     state_json,
@@ -27,6 +29,7 @@ from interact_support import (
 from leaf import activity as activity_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
+from leaf import events as event_folds_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import projection as projection_model
@@ -37,6 +40,26 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import work as work_served_model
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads(Path(__file__).parents[1].joinpath("turn_cases.json").read_text()),
+    ids=lambda case: case["id"],
+)
+def test_a_users_turns_are_the_gestures_the_browser_hands_over(case):
+    """The user's turns in a thread, each with the message it shows on, are the
+    gestures the browser's `isTurnEvent` and `turnMessage` take for its own sends."""
+    events = [
+        {"author": "user", "seq": seq, "ts": "2026-10-19T00:00:00+00:00", **event}
+        for seq, event in enumerate(case["events"], 1)
+    ]
+    turns = [
+        [turn["id"], event_folds_model.turn_message(turn)]
+        for thread in event_folds_model.build_threads(events, {}).values()
+        for turn in event_folds_model.exchange(thread)
+    ]
+    assert turns == case["turns"]
 
 
 def test_consecutive_user_inputs_share_one_exact_response_obligation(page_dir):
@@ -253,7 +276,7 @@ def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_
     ]
 
 
-def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
+def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir):
     publish(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -285,7 +308,7 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
 
     browser = page_state(page_dir)["browser"]
     [thread] = served_thread(browser)["threads"]
-    [owed] = served_items(browser)["user"]
+    [owed] = served_obligations(browser)["user"]
     assert owed["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
@@ -294,14 +317,14 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
     }
 
 
-def test_settling_reaction_closes_an_agent_root_item(page_dir):
+def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     publish(page_dir)
     question = thread_model.cmd_comment(
         page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
     )
     browser = page_state(page_dir)["browser"]
     [before] = served_thread(browser)["threads"]
-    [owed] = served_items(browser)["user"]
+    [owed] = served_obligations(browser)["user"]
     assert owed["message"] == question["id"]
     assert before["attention"]["kind"] == "needs_user"
 
@@ -317,7 +340,7 @@ def test_settling_reaction_closes_an_agent_root_item(page_dir):
 
     browser = page_state(page_dir)["browser"]
     [after] = served_thread(browser)["threads"]
-    assert served_items(browser)["user"] == []
+    assert served_obligations(browser)["user"] == []
     assert after["attention"] is None
 
 
@@ -413,7 +436,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     }
 
 
-def test_a_frozen_move_that_answers_no_item_keeps_a_receipt_and_owes_nothing(
+def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothing(
     page_dir,
 ):
     """A card moved on a board sent in a reply is a page move in another document:
@@ -619,7 +642,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         "kind": "waiting",
         "reason": "todo",
         "workflow": None,
-        "todo": {"id": "t1", "title": "Rebuild", "line": None},
+        "todo": "t1",
     }
 
 
@@ -874,7 +897,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     selecting = state_json(page_dir)
-    assert [item["widget"] for item in items_on_user(selecting)] == ["regions"]
+    assert [item["widget"] for item in obligations_on_user(selecting)] == ["regions"]
     assert selecting["activity"]["obligations"] == []
     assert selecting["workflows"] == []
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
@@ -893,7 +916,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     completed = state_json(page_dir)
-    assert items_on_user(completed) == []
+    assert obligations_on_user(completed) == []
     assert completed["activity"]["obligations"] == [answered["id"]]
     cleanup_model.prompt_turn("s1")
     receive_through(page_dir, last_deliverable_seq(page_dir))
@@ -908,7 +931,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         {"kind": "undo", "author": "user", "undoes": answered["id"]},
     )
     resumed = state_json(page_dir)
-    assert [item["widget"] for item in items_on_user(resumed)] == ["regions"]
+    assert [item["widget"] for item in obligations_on_user(resumed)] == ["regions"]
     assert resumed["activity"]["obligations"] == []
     answered = append_command(
         page_dir,

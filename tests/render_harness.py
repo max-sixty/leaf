@@ -56,6 +56,7 @@ from interact_support import (
     publish,
     record_claim,
     wait_for,
+    write_record,
 )
 from leaf import cli as cli_model
 from leaf import files as files_model
@@ -647,7 +648,7 @@ def serve(tmp_path, monkeypatch, initialized_page, request):
                 },
             )
         if preview is not None:
-            cleanup_model.write_json(d / schema_model.PREVIEW_FILE, preview)
+            write_record(d / schema_model.PREVIEW_FILE, preview)
         server = hosting_model.TemporaryPageServer(
             d,
             token=TOKEN,
@@ -977,7 +978,7 @@ def plant_quiet_word(page, selector, holding):
 # reading answers that against an `/api/state` answer, and names no transport.
 # Counting answered requests said the same thing only while a fixed interval made them
 # the same thing: the page now asks when its freshness reading says the page has moved, so a
-# count of items started here reaches the answer that carries the news only by luck of
+# count of obligations started here reaches the answer that carries the news only by luck of
 # the ordering.
 def told(page, *, until=None):
     """Wait until the page has taken in everything the server now holds.
@@ -1013,7 +1014,7 @@ def nudge(page_dir):
     """Give the page a reason to ask, changing nothing it shows.
 
     The page asks for state when its freshness reading says the page has moved, and the
-    reading names file stamps. A test that wants the page's next item — to park it, or to
+    reading names file stamps. A test that wants the page's next obligation — to park it, or to
     watch it refused — used to wait for the poll's timer; now it moves the revisions
     directory stamp, which the state fingerprint reads without changing page content.
     """
@@ -1620,7 +1621,7 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
 
 
 def active_digit_bindings(page):
-    """Read reachable digits without inventing a page-owned aggregate item command.
+    """Read reachable digits without inventing a page-owned aggregate obligation command.
 
     Widgets assign their contextual aliases. The dispatcher is the canonical reader of
     which declared keys can execute where focus stands, including native shadowing.
@@ -1802,15 +1803,15 @@ def expect_error_waits_in_menu(page, message):
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
 
 
-# How many of the page's active items are answered, as "answered/total": the publisher's
-# own item reading, which the On panel's Done list and the `m` walk select from. Before
+# How many of the page's active obligations are answered, as "answered/total": the publisher's
+# own obligation reading, which the On panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
-_ITEMS_ANSWERED = """async () => {
+_OBLIGATIONS_ANSWERED = """async () => {
   const { readApplication } = await window.__lfCheckApi();
-  window.__lfItemsAnswered = () => {
+  window.__lfObligationsAnswered = () => {
     const application = readApplication();
     if (application.phase !== 'ready') return null;
-    const items = application.effective.items;
+    const items = application.effective.obligations;
     const all = items.all.filter(item => item.source.kind === "widget");
     const unanswered = items.unanswered.filter(item => item.source.kind === "widget");
     return `${all.length - unanswered.length}/${all.length}`;
@@ -1818,21 +1819,23 @@ _ITEMS_ANSWERED = """async () => {
 }"""
 
 
-def expect_items_answered(page, answered: str) -> None:
-    """Wait until the page's item reading holds `answered` ("answered/total").
+def expect_obligations_answered(page, answered: str) -> None:
+    """Wait until the page's obligation reading holds `answered` ("answered/total").
 
     The deadline bounds a hang; on expiry the failure names the reading the page held.
     """
-    page.evaluate(_ITEMS_ANSWERED)
+    page.evaluate(_OBLIGATIONS_ANSWERED)
     try:
         page.wait_for_function(
-            "(want) => window.__lfItemsAnswered() === want",
+            "(want) => window.__lfObligationsAnswered() === want",
             arg=answered,
             timeout=render_checks_model.SERVED_TIMEOUT_MS,
         )
     except PlaywrightTimeout as error:
-        held = page.evaluate("() => window.__lfItemsAnswered()")
-        raise AssertionError(f"answered items read {held}, not {answered}") from error
+        held = page.evaluate("() => window.__lfObligationsAnswered()")
+        raise AssertionError(
+            f"answered obligations read {held}, not {answered}"
+        ) from error
 
 
 def open_page(

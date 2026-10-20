@@ -25,7 +25,7 @@ def widget_seat_error(
     A to-do on a widget stands beside that widget at the page edge, so the widget must
     be live on the page: present under the page's outcomes in force and not quoted
     exhibit content. And it must be a seat for work: its tag declares `x-work`, or it
-    holds an unsettled action, among `workflows` (`workflows.canonical_workflows`)."""
+    holds an unsettled action, among `workflows` (`workflows.handed_over`)."""
     named = {"widget": widget}
     rec = page.document.by_id.get(widget)
     if rec is None or rec["tag"] not in page.registry:

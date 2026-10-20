@@ -26,6 +26,7 @@ from leaf.obligations import (
     approval_blocking,
     asking,
     quoted_in,
+    response_address,
 )
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
@@ -60,7 +61,7 @@ from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
 from leaf.work_reading import WorkReading
-from leaf.workflows import obligation_reading
+from leaf.workflows import agent_inputs, obligation_reading
 
 
 def event_record_error(contract: dict, event: dict) -> Finding | None:
@@ -773,13 +774,13 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
             return None
     elif event["kind"] not in {"todo", "todo_end"}:
         return None
-    workflows = readings.work.workflows if event["kind"] in {"todo", "start"} else []
+    held = event["kind"] in {"todo", "start"}
+    workflows = readings.work.workflows if held else []
     if progress_parent is not None and not any(
-        item["input"] == event["item"]
-        and item["next_actor"] == "agent"
-        and item["answer"]["kind"] == "reply"
-        and item["answer"]["to"] == progress_parent
-        for item in workflows
+        record["source"]["id"] == event["item"]
+        and record["next_actor"] == "agent"
+        and response_address(record).get("to") == progress_parent
+        for record in readings.work.updates["all"]
     ):
         return Finding("progress-parent", values={"parent": progress_parent})
 
@@ -816,7 +817,7 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
             )
         return None
 
-    owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
+    owed = agent_inputs(readings.work) if held else set()
     return todo_error(
         event,
         readings.log,

@@ -26,6 +26,7 @@ from interact_support import (
     fragment_errors,
     fresh_process,
     live_versions,
+    owed,
     page_state,
     publish,
     published,
@@ -1228,7 +1229,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
     assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
-    assert working["answer"]["for"] == root["id"]
+    assert working["obligation"] == f"update:{root['id']}"
     # The same exact input remains owed; newer progress replaces the Working line.
     again = progress("Checking the clock.")
     assert again.exit_code == 0, again.output
@@ -1487,12 +1488,9 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         return json.loads(result.output)
 
     def owed_answers():
-        state = state_json(page_dir)
-        owed = set(state["activity"]["obligations"])
         return [
             (item["input"], item["message"], item["answer"])
-            for item in state["workflows"]
-            if item["id"] in owed
+            for item in owed(state_json(page_dir))
         ]
 
     asked = append_command(

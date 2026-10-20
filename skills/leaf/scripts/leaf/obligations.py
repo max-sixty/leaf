@@ -1,4 +1,4 @@
-"""Canonical obligations from widgets and stamped page sign-off.
+"""Canonical obligations from widgets, stamped page sign-off and the user's updates.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
@@ -7,13 +7,20 @@ prompt words and arrival.
 The inventory is complete even when a work queue hides a resolved thread or an
 older prompt. To-dos never stand in for these records.
 
+An update the user handed over publishes a record of its own (`update_obligation`),
+built by the fold that decides which updates are handed over and settled
+(`workflows.handed_over`). Its next actor is the agent while it owes the update an
+answer, the user once a harness handed the update back, and nobody once a reply
+answered it; `response_address` derives the operation that answers it. A thread is
+never an obligation itself: its messages publish them.
+
 A widget whose `x-awaits` declares `reply`, such as `lf-ask` holding no widget of its
 own, is a question the user answers in words: their next message in the thread
 whose message holds it, a reaction there whose token settles it, or on the page a
 message in a thread anchored inside it. It has no x-state, so its answer is that
 message's text or token. The user chose a question widget over a reply flag
-(`--ask`, which Leaf had), so that only widgets, to-dos, resends and sign-off put
-obligations on the user's list.
+(`--ask`, which Leaf had), so that only widgets, sign-off and handed-back updates put
+obligations on the user's list, beside the to-dos the agent gives them.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; `answered_elsewhere`, a reply-answered
@@ -218,6 +225,48 @@ def approval_obligation(document, revision: int, events: list) -> dict | None:
         "status": "answered" if approved else "open",
         "end": None,
         "next_actor": None if approved else "user",
+    }
+
+
+def update_obligation(
+    source: str,
+    subject: dict,
+    thread: str | None,
+    message: str | None,
+    *,
+    next_actor: str | None,
+    answer: dict | None = None,
+) -> dict:
+    """The record an update the user handed over publishes: `source` is the input's
+    event id, `subject` the thread or widget it stands on. Open while someone owes it
+    a move, `answered` once `answer`, the reply that answered it, stands. Its prompt
+    names no words of its own: a row reads its thread's or widget's name."""
+    return {
+        "id": f"update:{source}",
+        "source": {"kind": "update", "id": source, "subject": subject},
+        "thread": thread,
+        "message": message,
+        "prompt": {"text": None, "target": subject["id"]},
+        "answer": {"value": None, "event": event_reference(answer)} if answer else None,
+        "status": "answered" if answer else "open",
+        "end": None,
+        "next_actor": next_actor,
+    }
+
+
+def response_address(record: dict) -> dict:
+    """The operation that answers an update's record, as a delivery names it: a reply
+    in its thread to the input, or, for a page widget's action, a stamped version whose
+    markup records the action."""
+    source = record["source"]
+    if record["thread"] is None:
+        return {"kind": "markup", "action": source["id"]}
+    return {
+        "kind": "reply",
+        "to": record["message"]
+        if source["subject"]["kind"] == "thread"
+        else record["thread"],
+        "for": source["id"],
     }
 
 

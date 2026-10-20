@@ -228,7 +228,8 @@ export function createAnnotationInventory({
     if (!label) return null;
     return {
       kind:
-        receipt.next_actor === "user" || receipt.condition
+        // A receipt handed back to the user always carries its failure.
+        receipt.condition
           ? "waiting"
           : receipt.at_work
             ? "activity"

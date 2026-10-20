@@ -13,11 +13,13 @@ from interact_support import (
     ModelPage,
     _start,
     _status,
+    activity_reading,
     append_carried_log_record,
     append_command,
     command_findings,
     delivered,
     obligations_on_user,
+    owed_answers,
     page_packages,
     page_state,
     publish,
@@ -123,7 +125,7 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
     assert done(page_dir, theirs["id"])[0] == 200
     queue = state_json(page_dir)
     assert queue["queues"]["on_user"] == []
-    assert ("answer", answer["id"]) in kinds(queue["queues"]["on_agent"])
+    assert ("update", f"update:{answer['id']}") in kinds(queue["queues"]["on_agent"])
     assert ("todo", mine["id"]) in kinds(queue["queues"]["on_agent"])
     written(leaf("task", "end", page_dir, mine["id"], "done"))
     assert ("todo", mine["id"]) not in kinds(state_json(page_dir)["queues"]["on_agent"])
@@ -241,7 +243,7 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert kinds(state["queues"]["on_agent"]) == [("answer", comment["id"])]
+    assert kinds(state["queues"]["on_agent"]) == [("update", f"update:{comment['id']}")]
 
     todo = written(
         leaf(
@@ -332,7 +334,7 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
         result = leaf("response", "reply", reference, "--text", "On it.", *flags)
         assert result.exit_code != 0, (flags, result.output)
     assert kinds(state_json(page_dir)["queues"]["on_agent"]) == [
-        ("answer", comment["id"])
+        ("update", f"update:{comment['id']}")
     ]
     reply = written(leaf("response", "reply", reference, "--text", "Done.", "--done"))
     assert "todo" not in reply
@@ -545,7 +547,9 @@ def test_user_queue_selects_decisions_and_questions(page_dir, sessionless):
     state = state_json(page_dir)
     assert kinds(state["queues"]["on_user"]) == items
     assert state["todos"] == []
-    assert [item["id"] for item in state["queues"]["on_agent"]] == [warm["id"]]
+    assert [item["id"] for item in state["queues"]["on_agent"]] == [
+        f"update:{warm['id']}"
+    ]
     served = full_state(page_dir, events_model.read_events(page_dir))
     [answered] = [
         entry
@@ -686,9 +690,10 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
 
 
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
-    """A thread whose reply failed is one item on the user, named by the thread, and an
-    question the agent then leaves in it makes it that obligation rather than a second
-    item: `m` stops at a thread once."""
+    """A message whose reply failed is the user's to send again, an obligation of its
+    own on On me. A question the agent then leaves in its thread is a second
+    obligation there, listed ahead of it, and the thread reads as that question: `m`
+    stops at a thread once (queue-walk.js)."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -707,8 +712,9 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     )
     state = state_json(page_dir)
     items = [("widget", item["id"]) for item in obligations_on_user(state)]
-    assert [item["next_actor"] for item in state["workflows"]] == ["user"]
-    assert kinds(state["queues"]["on_user"]) == items + [("resend", comment["id"])]
+    resend = ("update", f"update:{comment['id']}")
+    assert [item["obligation"] for item in state["workflows"]] == [resend[1]]
+    assert kinds(state["queues"]["on_user"]) == items + [resend]
 
     written(
         leaf(
@@ -722,9 +728,14 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
         )
     )
     state = state_json(page_dir)
-    assert [item["next_actor"] for item in state["workflows"]] == ["user"]
-    assert kinds(state["queues"]["on_user"]) == items + [("widget", "widget:title")]
+    assert [item["obligation"] for item in state["workflows"]] == [resend[1]]
+    assert kinds(state["queues"]["on_user"]) == items + [
+        ("widget", "widget:title"),
+        resend,
+    ]
     assert state["queues"]["on_agent"] == []
+    [thread] = state["threads"]
+    assert thread["attention"]["reason"] == "widget"
 
 
 def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir):
@@ -1484,7 +1495,7 @@ def test_a_start_names_the_exact_move_and_covers_its_threads_answer(page_dir):
         page_dir,
         {"kind": "reply", "author": "user", "parent": first["id"], "text": "A1."},
     )
-    [workflow] = page_state(page_dir)["workflows"]
+    [workflow] = owed_answers(page_dir)
     assert workflow["answer"]["to"] == answer["id"]
 
     started = _start(page_dir, answer["id"], "Answering the comment")
@@ -1516,7 +1527,7 @@ def test_a_start_names_the_exact_move_and_covers_its_threads_answer(page_dir):
         (correction["id"], "sent"),
     ]
     newest = workflows[-1]
-    assert newest["answer"]["for"] == correction["id"]
+    assert newest["obligation"] == f"update:{correction['id']}"
     assert [start["seq"] for start in newest["started_by"]] == [
         events_model.read_events(page_dir)[-1]["seq"]
     ]
@@ -1796,7 +1807,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     assert any(receipt["input"] == answer["id"] for receipt in acknowledgments)
     assert before_pickup["kind"] == "away"
     assert before_pickup["counts"]["total"] == 1
-    assert [item["answer"] for item in before_pickup["obligations"]] == [
+    assert [item["answer"] for item in owed_answers(page_dir)] == [
         {"kind": "markup", "action": answer["id"]}
     ]
 
@@ -1808,10 +1819,10 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
             session=claim["id"],
             turn=claim["turn"],
         )
-    after_pickup = page_state(page_dir)["activity"]
+    after_pickup = activity_reading(page_dir)
     assert after_pickup["kind"] == "working"
     assert after_pickup["counts"]["handling"] == 1
-    assert [item["input"] for item in after_pickup["obligations"]] == [answer["id"]]
+    assert [item["input"] for item in owed_answers(page_dir)] == [answer["id"]]
 
     claimed = _start(page_dir, answer["id"], "checking the completed choice")
     assert claimed.exit_code == 0, claimed.output
@@ -1929,12 +1940,12 @@ def test_a_put_down_start_holds_no_input_in_hand(page_dir):
     assert not edit("Red room.")["attention"]
 
 
-def test_each_reply_the_agent_sent_is_its_own_item_in_its_lists_done():
-    """A reply leaves On <agent> for its Done under the key of the answer listed for the
-    input it answers. The log can hold a second answer to the same input, which is its
-    own item rather than a second row under that key, and which answer came first is
-    the log's order, whichever thread each stands in. Done orders by instant, read as
-    Leaf reads any timestamp it admits, a `z` suffix included."""
+def test_the_input_a_reply_answers_moves_to_its_lists_done():
+    """A reply moves the record of the input it answers from On <agent> to its Done,
+    answered by the input's first answer in the log, whichever thread that answer
+    stands in. The log can hold a second answer to the same input, which adds no row.
+    Done reads the answer's instant as Leaf reads any timestamp it admits, a `z`
+    suffix included."""
     from model_folds import leaf_page, served_reading
 
     reading = served_reading(
@@ -1960,8 +1971,19 @@ def test_each_reply_the_agent_sent_is_its_own_item_in_its_lists_done():
         ),
     )
     [view] = reading["browser"]["views"].values()
+    records = {item["id"]: item for item in view["obligations"]}
     done = [
-        (item["owner"], item["kind"], item["id"], item["answer"]["message"])
+        (
+            item["owner"],
+            item["kind"],
+            item["id"],
+            item["thread"],
+            records[item["id"]]["answer"]["event"]["id"],
+            item["ended"],
+        )
         for item in view["queues"]["done"]
     ]
-    assert done == [("agent", "answer", "e4", "e4"), ("agent", "answer", "e1", "e3")]
+    assert done == [
+        ("agent", "update", "update:e1", "e2", "e3", "2026-10-13T10:00:00z")
+    ]
+    assert [item["id"] for item in view["queues"]["on_agent"]] == ["update:e2"]

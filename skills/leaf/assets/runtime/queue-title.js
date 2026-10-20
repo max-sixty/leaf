@@ -16,11 +16,9 @@ export function queueTitle(item) {
   // A to-do's own title, or an obligation's prompt.
   const title = item.title ?? item.obligation?.prompt.text;
   if (title) return title;
-  if (item.kind === "work" && item.detail) return item.detail;
   // A reply the agent sent reads as its own words, since one thread holds many.
-  const sent =
-    item.answer?.message &&
-    thread?.msgs.find((message) => message.id === item.answer.message);
+  const reply = item.kind === "update" ? item.obligation?.answer?.event?.id : null;
+  const sent = reply && thread?.msgs.find((message) => message.id === reply);
   if (sent) return sent.body.text.trim() || topic;
   if (item.subject.kind === "widget") {
     const record = own && obligationHolding(readObligations().all, own);

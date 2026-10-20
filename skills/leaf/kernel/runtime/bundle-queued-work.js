@@ -748,8 +748,8 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], ob
       resolved: thread.resolved,
       settling: thread.settling ?? null,
       attention: thread.attention,
-      // The obligations widgets in its messages make, such as an `lf-ask` the user owes
-      // words to there.
+      // The obligations that stand in it: those widgets in its messages make, such as an
+      // `lf-ask` the user owes words to there, and those its updates publish.
       obligations: obligations.filter((obligation) => obligation.thread === thread.id),
       // The agent's open to-dos on the thread: a reply that promised one says it is
       // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first
@@ -1510,9 +1510,9 @@ var queueOffers = (item, ready, onUser) => ({
   done: ready && onUser && item.kind === "todo"
 });
 var carriesObligation = (item) => item.kind === "widget" || item.kind === "approval";
-var itemNoun = (item) => item.kind === "answer" && item.answer?.kind === "reply" ? "reply" : item.kind;
+var itemNoun = (item) => item.kind !== "update" ? item.kind : item.owner === "user" ? "resend" : item.thread !== null ? "reply" : "answer";
 var OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
-var itemOutcome = (item) => item.kind === "answer" ? "Sent" : OUTCOMES[item.state] ?? item.state;
+var itemOutcome = (item) => item.kind === "update" ? "Sent" : OUTCOMES[item.state] ?? item.state;
 
 // vendor/browser-runtime/application.js
 var LIFECYCLE = {
@@ -1704,45 +1704,29 @@ function currentWidgetRelations(document, widgets, projection) {
   }
   return { parents, memberships };
 }
-function localQueues(served, threads, workflows, todos, items) {
+function localQueues(served, workflows, todos, items, local) {
   const record = new Map(items.all.map((item) => [item.id, item]));
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
-  const byThread = new Map(threads.map((thread) => [thread.id, thread]));
-  const sending2 = workflows.filter(
-    (workflow) => workflow.stage === "sending" && workflow.next_actor === "agent" && workflow.subject.kind === "thread"
+  const sentIn = new Set(
+    workflows.flatMap(
+      (workflow) => workflow.stage === "sending" && workflow.condition === null && workflow.subject.kind === "thread" ? [workflow.thread] : []
+    )
   );
-  const resent = new Set(sending2.map((workflow) => workflow.thread));
-  const retrying = (thread) => {
-    const reading = byThread.get(thread);
-    return Boolean(
-      reading && !reading.resolved && reading.attention?.kind === "needs_user" && reading.attention.reason === "resend"
-    );
-  };
   const obligationOf = (item) => {
-    const local = record.get(item.id);
-    if (!local) throw new Error(`Queue item ${item.id} names no obligation`);
-    return local;
+    const current2 = record.get(item.id);
+    if (!current2) throw new Error(`Queue item ${item.id} names no obligation`);
+    return current2;
   };
   const standsOpen = (item) => {
-    switch (item.kind) {
-      case "widget":
-      case "approval":
-        return obligationOf(item).next_actor === "user";
-      case "todo":
-        return open.has(item.id);
-      case "resend":
-        return item.thread === null || retrying(item.thread);
-      case "answer":
-        return !resent.has(item.thread);
-      default:
-        return true;
-    }
+    if (item.kind === "todo") return open.has(item.id);
+    const current2 = obligationOf(item);
+    return current2.next_actor === item.owner && !(current2.source.kind === "update" && current2.thread !== null && sentIn.has(current2.thread));
   };
-  const reopened = (item) => carriesObligation2(item) ? obligationOf(item).status === "open" && obligationOf(item).next_actor === "user" : item.kind === "todo" && open.has(item.id);
-  const endedHere = (item) => carriesObligation2(item) ? obligationOf(item).status !== "open" : item.kind === "todo" && ended.has(item.id);
-  const current = (item) => carriesObligation2(item) ? { ...item, obligation: obligationOf(item) } : item;
+  const reopened = (item) => namesRecord(item) ? obligationOf(item).status === "open" && obligationOf(item).next_actor === item.owner : open.has(item.id);
+  const endedHere = (item) => namesRecord(item) ? obligationOf(item).status !== "open" : ended.has(item.id);
+  const current = (item) => namesRecord(item) ? { ...item, obligation: obligationOf(item) } : item;
   const asOpen = ({
     state: _state,
     ended: _ended,
@@ -1752,52 +1736,33 @@ function localQueues(served, threads, workflows, todos, items) {
   const asDone = (item) => ({
     ...current(item),
     live: false,
-    state: carriesObligation2(item) && obligationOf(item).status === "withdrawn" ? "dropped" : "done",
+    state: namesRecord(item) && obligationOf(item).status === "withdrawn" ? "dropped" : "done",
     ended: null,
     detail: null
   });
-  const listed = new Set(
-    [...served.on_user, ...served.on_agent].map((item) => `${item.kind}:${item.id}`)
-  );
-  const resend = (id, subject, thread) => listed.has(`resend:${id}`) ? [] : [
-    {
-      kind: "resend",
-      id,
-      owner: "user",
-      subject,
-      thread,
-      live: false
-    }
-  ];
   const reopenedFor = (owner) => served.done.filter((item) => item.owner === owner && reopened(item));
+  const localRow = (item) => {
+    const source = item.source;
+    return current({
+      kind: "update",
+      id: item.id,
+      owner: item.next_actor,
+      subject: source.subject,
+      thread: item.thread,
+      live: false
+    });
+  };
   return {
     on_user: [
       ...served.on_user.filter(standsOpen).map(current),
       ...reopenedFor("user").map(asOpen),
-      ...threads.flatMap(
-        (thread) => retrying(thread.id) ? resend(thread.id, { kind: "thread", id: thread.id }, thread.id) : []
-      ),
-      ...workflows.flatMap(
-        (workflow) => workflow.next_actor === "user" && workflow.thread === null ? resend(workflow.id, workflow.subject, null) : []
-      )
+      ...local.filter((item) => item.next_actor === "user").map(localRow)
     ].toSorted(
-      (a, b2) => onUserRank(a) - onUserRank(b2) || (carriesObligation2(a) && carriesObligation2(b2) ? inventoryAt.get(a.id) - inventoryAt.get(b2.id) : 0)
+      (a, b2) => onUserRank(a) - onUserRank(b2) || (namesRecord(a) && namesRecord(b2) ? inventoryAt.get(a.id) - inventoryAt.get(b2.id) : 0)
     ),
     on_agent: [
-      ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),
-      // One answer per thread, as the server lists one for the newest turn owed.
-      ...sending2.filter(
-        (workflow, at) => sending2.slice(at + 1).every((later) => later.thread !== workflow.thread)
-      ).map((workflow) => ({
-        kind: "answer",
-        id: workflow.id,
-        owner: "agent",
-        subject: workflow.subject,
-        thread: workflow.thread,
-        live: false,
-        answer: workflow.answer,
-        stage: workflow.stage
-      })),
+      ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)).map(current),
+      ...local.filter((item) => item.next_actor === "agent").map(localRow),
       ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)),
       ...reopenedFor("agent").map(asOpen)
     ],
@@ -1808,8 +1773,38 @@ function localQueues(served, threads, workflows, todos, items) {
     ]
   };
 }
-var onUserRank = (item) => carriesObligation2(item) ? 0 : item.kind === "todo" ? 1 : 2;
-var carriesObligation2 = (item) => item.kind === "widget" || item.kind === "approval";
+function localUpdates(workflows) {
+  const newest = /* @__PURE__ */ new Map();
+  for (const workflow of workflows)
+    if (workflow.stage === "sending" && workflow.condition === null)
+      newest.set(workflow.thread, workflow);
+  const records = [];
+  const named = workflows.map((workflow) => {
+    if (workflow.stage !== "sending") return workflow;
+    const refused = workflow.condition !== null;
+    const owner = refused ? workflow : newest.get(workflow.thread);
+    const id = `update:${owner.id}`;
+    if (owner === workflow)
+      records.push({
+        id,
+        source: { kind: "update", id: workflow.input, subject: workflow.subject },
+        thread: workflow.thread,
+        message: workflow.message,
+        prompt: {
+          text: null,
+          target: "id" in workflow.subject ? workflow.subject.id : workflow.input
+        },
+        answer: null,
+        status: "open",
+        end: null,
+        next_actor: refused ? "user" : "agent"
+      });
+    return { ...workflow, obligation: id };
+  });
+  return { workflows: named, records };
+}
+var onUserRank = (item) => item.kind === "todo" ? 1 : item.kind === "update" ? 2 : 0;
+var namesRecord = (item) => item.kind !== "todo";
 function widgetIndex(root) {
   const projection = root.effective.projection;
   const byWidget = /* @__PURE__ */ new Map();
@@ -1973,7 +1968,7 @@ function createSemanticApplication({
       widgets2,
       projection
     );
-    const items = ready ? normalizedObligations(view, widgets2, document, projection, local) : NO_OBLIGATIONS;
+    const servedItems = ready ? normalizedObligations(view, widgets2, document, projection, local) : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn, namedParent }) => {
@@ -2038,10 +2033,9 @@ function createSemanticApplication({
         subject,
         thread,
         at_work: false,
-        holds_thread: Boolean(turn),
         // The server's tuple, where the local fold keys a coordinate.
         coordinate: turn ? ["thread", thread] : entry2.projection ? coordinateOf(entry2.projection.coordinate) : null,
-        answer: null,
+        obligation: null,
         stage: "sending",
         ts: turn?.ts ?? null,
         detail: null,
@@ -2053,11 +2047,10 @@ function createSemanticApplication({
         response: null,
         activity: [],
         condition: rejected ? { kind: "failed", operation: "delivery" } : null,
-        next_actor: rejected ? "user" : "agent",
         started_by: []
       };
     };
-    const workflows = [
+    const sends = localUpdates([
       ...state ? state.workflows : [],
       ...local.flatMap(
         (entry2) => isTurnEvent(entry2.event) ? localWorkflow(entry2, false) ?? [] : []
@@ -2065,7 +2058,18 @@ function createSemanticApplication({
       // A refused message or widget move has a destination to send again.
       // Other gestures restore their own control or to-do when speculation ends.
       ...refused.flatMap((entry2) => localWorkflow(entry2, true) ?? [])
-    ];
+    ]);
+    const workflows = sends.workflows;
+    const localRecords = ready ? sends.records : [];
+    const all = [...servedItems.all, ...localRecords];
+    const items = {
+      all,
+      user: [
+        ...servedItems.user,
+        ...localRecords.filter((item) => item.next_actor === "user")
+      ],
+      unanswered: [...servedItems.unanswered, ...localRecords]
+    };
     const threads = readThreadRecords(
       obligated,
       document,
@@ -2078,15 +2082,18 @@ function createSemanticApplication({
     );
     const selectedQueues = localQueues(
       ready ? view?.queues ?? NO_QUEUES : NO_QUEUES,
-      threads,
       workflows,
       todos,
-      items
+      items,
+      localRecords
     );
-    const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
+    const serving = /* @__PURE__ */ new Map();
+    for (const workflow of workflows)
+      if (workflow.obligation !== null && !serving.has(workflow.obligation))
+        serving.set(workflow.obligation, workflow);
     const contextual = (items2, onUser = false) => items2.map((item) => ({
       ...item,
-      workflow: workflowById.get(item.id) ?? null,
+      workflow: serving.get(item.id) ?? null,
       offers: queueOffers(item, ready, onUser)
     }));
     return {

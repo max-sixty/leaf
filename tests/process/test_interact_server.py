@@ -36,6 +36,7 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     TOKEN,
+    activity_reading,
     append_carried_log_record,
     append_command,
     check,
@@ -3159,7 +3160,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     )
     publisher = server_rows_model.RowPublisher(neighbor, "fixture-server")
     publisher.refresh()
-    activity = page_state(neighbor)["activity"]
+    activity = activity_reading(neighbor)
     assert activity["detail_source"] is not None
     expected = server_rows_model.compact_activity(activity)
     reads = []

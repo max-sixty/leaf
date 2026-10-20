@@ -29,9 +29,14 @@ def page(attrs="choose", context=None):
 
 
 def page_obligations(state, revision=1):
+    """The obligations the page's document and sign-off make in view `revision`."""
     view = state["views"][str(revision)]
     return obligations_model.collection(
-        [item for item in view["obligations"] if item["thread"] is None]
+        [
+            item
+            for item in view["obligations"]
+            if item["thread"] is None and item["source"]["kind"] != "update"
+        ]
     )
 
 
@@ -232,7 +237,11 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
     def read(revision):
         view = state["views"][str(revision)]
         [thread] = view["thread"]["threads"]
-        [item] = [entry for entry in view["obligations"] if entry["thread"]]
+        [item] = [
+            entry
+            for entry in view["obligations"]
+            if entry["thread"] and entry["source"]["kind"] == "widget"
+        ]
         return (
             [entry["event"]["id"] for entry in view["thread"]["projection"]["entries"]],
             (item["id"], item["status"]),
@@ -383,7 +392,7 @@ def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
     assert (item["status"], item["next_actor"]) == ("answered", None)
     assert item["answer"]["value"] == {"text": "Daily"}
     assert item["answer"]["event"]["id"] == "r"
-    assert lists(state) == ([], ["r"], [])
+    assert lists(state) == ([], ["update:r"], [])
 
 
 def test_the_agent_ends_a_question_the_user_answered_elsewhere():
@@ -424,7 +433,7 @@ def test_a_question_on_the_page_is_answered_by_a_comment_on_it():
     state = model.reading(document, [comment])
     [item] = page_obligations(state)["all"]
     assert (item["status"], item["answer"]["value"]) == ("answered", {"text": "Daily"})
-    assert lists(state) == ([], ["c"], [])
+    assert lists(state) == ([], ["update:c"], [])
     # Moving the thread elsewhere doesn't unsay the answer it holds.
     moved = {
         "kind": "reply",
@@ -484,8 +493,8 @@ def test_a_frame_around_a_decision_widget_stays_one_obligation():
 
 
 def lists(state) -> tuple[list, list, list]:
-    """On me and On <agent> as served, and the open obligations whose next move is the
-    agent's."""
+    """On me and On <agent> as served, and the open widget obligations whose next move
+    is the agent's, which On <agent> lists through the update that handed them over."""
     queues = state["views"]["1"]["queues"]
     items = state["views"]["1"]["obligations"]
     return (
@@ -494,7 +503,9 @@ def lists(state) -> tuple[list, list, list]:
         sorted(
             item["id"]
             for item in items
-            if item["status"] == "open" and item["next_actor"] == "agent"
+            if item["status"] == "open"
+            and item["next_actor"] == "agent"
+            and item["source"]["kind"] != "update"
         ),
     )
 
@@ -536,7 +547,7 @@ def test_a_comment_on_an_obligation_is_the_agents_turn_until_the_agent_replies(
     }
     items = ["widget:choice", "widget:y-choice"]
     owed = sorted(set(items) - set(held))
-    assert lists(model.reading(FRAMED, [comment])) == (owed, ["c1"], held)
+    assert lists(model.reading(FRAMED, [comment])) == (owed, ["update:c1"], held)
     reply = {
         "kind": "reply",
         "author": "agent",
@@ -571,12 +582,12 @@ def test_a_reply_after_a_thread_obligation_is_the_agents_turn_until_the_agent_re
     document = page("")
     assert lists(model.reading(document, [opened, asked])) == (
         ["widget:t-choice"],
-        ["t"],
+        ["update:t"],
         [],
     )
     assert lists(model.reading(document, [opened, asked, later])) == (
         [],
-        ["r"],
+        ["update:r"],
         ["widget:t-choice"],
     )
     assert lists(model.reading(document, [opened, asked, later, answered])) == (
@@ -674,7 +685,9 @@ def test_conditional_request_retains_registration_between_value_actions():
         registry=registry,
     )
     assert page_obligations(completed)["all"][0]["status"] == "answered"
-    assert any(workflow["answer"] is not None for workflow in completed["workflows"])
+    assert any(
+        workflow["obligation"] is not None for workflow in completed["workflows"]
+    )
     events.append({"kind": "undo", "undoes": "e1"})
     assert (
         page_obligations(model.reading(document, events, registry=registry))["all"]

@@ -79,9 +79,14 @@ def read_served_page(
         "files": context.bound_files(),
         **context.presence,
         "activity": {
-            key: value
-            for key, value in work.activity.items()
-            if key not in {"workflows", "todos"}
+            **{
+                key: value
+                for key, value in work.activity.items()
+                if key not in {"workflows", "todos", "obligations"}
+            },
+            # The records of the updates the agent owes an answer, by id; their
+            # workflows are `workflows`, and the records each view's `obligations`.
+            "obligations": [item["obligation"] for item in work.obligations],
         },
         "workflows": work.workflows,
         "browser": browser,

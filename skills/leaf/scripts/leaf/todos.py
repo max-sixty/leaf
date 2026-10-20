@@ -34,7 +34,7 @@ stamped version declaring `lf-review=sign-off` adds an approval obligation for t
 version, which only an approval the user has not withdrawn answers.
 
 A start lasts until its item ends: the to-do's end, or for an update, the reply or
-stamped version that answers it (`workflows.canonical_workflows`). It names the turn
+stamped version that answers it (`workflows.handed_over`). It names the turn
 that wrote it and holds its item only for that turn; once that turn ends with the
 item still running, `activity` shows it stalled. A later start on the same item
 replaces it, which is how the next turn takes the item up again. `leaf status

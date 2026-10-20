@@ -4376,7 +4376,9 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     reading = state_json(page_dir)
     [current] = [item for item in reading["state"] if item["action"] == "choose"]
     assert current["detail"] == {"value": ["o-shim"]}
-    [item] = reading["obligations"]
+    [item] = [
+        item for item in reading["obligations"] if item["source"]["kind"] == "widget"
+    ]
     assert item["status"] == "answered"
     assert item["answer"]["event"]["id"] == picked["id"]
 

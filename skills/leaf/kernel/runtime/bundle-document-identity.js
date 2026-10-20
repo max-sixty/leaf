@@ -2108,7 +2108,7 @@ function* namedControls(row) {
         control: route.control,
         active: commandAvailable(row, route) && bindings(row).includes(route.binding),
         press: spell(route.binding),
-        shortcuts: () => null
+        shortcuts: () => ariaShortcuts([{ keys: [route.binding] }], false)
       };
 }
 function controlRows() {

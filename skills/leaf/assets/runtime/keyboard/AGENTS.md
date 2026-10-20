@@ -88,7 +88,9 @@ row as one ✕ at the row's end, beside the counts or the steps. The ✕ runs th
 which leaves the stance, even where Escape would first close something inside it; the
 picker's, while a typed hint prefix stands, takes back a letter, as its title says. The
 register refuses a page command without `touch`; `false` says a finger reaches the
-result directly, as it does for walks and Go-to by scrolling and tapping.
+result directly, as it does for walks and Go-to by scrolling and tapping, or through
+the row's own `control` beside what it changes, as page search's arrows walk its
+matches from its box.
 
 The comment field has one primary action, Dictate while empty and Send once it has
 words; Suggest and reactions open by Tab from the field. The field deliberately has no

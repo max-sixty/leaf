@@ -4289,6 +4289,7 @@ pageSearchStatus.append(pageSearchWords);
 var matchStep = (icon, name2) => {
   const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
   control.type = "button";
+  control.tabIndex = -1;
   control.slot = "end";
   control.append(iconElement(icon, "lf-action-icon"));
   control.setAttribute("aria-label", name2);

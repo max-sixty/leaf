@@ -3,8 +3,8 @@
    A control the keyboard reaches names its shortcut from the row, never from a sentence
    written beside it: `control` is where a row, or one route of it, says which control it
    duplicates, and this projection follows liveness too, so a disabled obligation does not
-   advertise a shortcut the dispatcher has withdrawn. A row inside a sequence scope carries that sequence's steps,
-   so a destination reached through `g` says the whole shortcut.
+   advertise a shortcut the dispatcher has withdrawn. A row inside a sequence scope carries
+   that sequence's steps, so a destination reached through `g` says the whole shortcut.
 
    This pass is the one writer of such a control's `title`. The control's owner names it
    in `data-lf-key-title`, and a static control's first title is taken as that name, so
@@ -62,7 +62,7 @@ function* namedControls(row) {
         control: route.control,
         active: commandAvailable(row, route) && bindings(row).includes(route.binding),
         press: spell(route.binding),
-        shortcuts: () => null,
+        shortcuts: () => ariaShortcuts([{ keys: [route.binding] }], false),
       };
 }
 

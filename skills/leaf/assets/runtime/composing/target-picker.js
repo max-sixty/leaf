@@ -78,9 +78,11 @@ pageSearchStatus.append(pageSearchWords);
 // The box walks its own matches, as a browser's find bar does: up and down beside the
 // count they move, the walk's one control for a finger and a mouse. A press leaves focus
 // in the field, so a phone's keyboard stays up and the next letter still edits the query.
+// Tab is their key, so they are no stop of its own.
 const matchStep = (icon, name) => {
   const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
   control.type = "button";
+  control.tabIndex = -1;
   control.slot = "end";
   control.append(iconElement(icon, "lf-action-icon"));
   control.setAttribute("aria-label", name);

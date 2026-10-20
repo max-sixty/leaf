@@ -1465,7 +1465,9 @@ def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
     """A thread's view draws its messages as the thread's card on the page does
     (thread/transcript.js): the progress the answer completed stands folded behind Show 2
     progress messages at the answer's head, and work still under way stands as one dim
-    working message at the transcript's foot rather than as a reply."""
+    working message at the transcript's foot rather than as a reply. What anyone wrote,
+    messages and the working line alike, reads in the page's serif, as On me's
+    questions do, while the panel's own controls keep its sans."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Can you check that the workshop fits the afternoon?"
@@ -1496,6 +1498,14 @@ def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
     working = view.locator(".lf-thread-working")
     expect(working).to_be_visible()
     expect(working).to_contain_text("Checking whether the room stays free after five")
+    face = "(node) => getComputedStyle(node).fontFamily"
+    serif = page.evaluate("getComputedStyle(document.body).fontFamily")
+    for words in (
+        shown.last.locator(".lf-msg-body"),
+        working.locator(".lf-thread-working-words"),
+    ):
+        assert words.evaluate(face) == serif
+    assert page.locator(".lf-fp-head .lf-fp-title").evaluate(face) != serif
 
     toggle.click()
     expect(shown).to_have_count(4)

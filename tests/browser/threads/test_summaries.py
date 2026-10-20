@@ -5,7 +5,7 @@ import pytest
 from interact_support import append_carried_log_record, append_command
 from leaf import thread as thread_model
 from playwright.sync_api import expect
-from render_cases_interaction import PANEL_PAGE, SEATED_ITEM_PAGE, panel_comment
+from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
 from render_harness import (
     PANEL_THREAD,
     open_page,
@@ -45,7 +45,7 @@ def open_margin_card(page, root):
 def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     """A direct reply link opens the exact message in the panel, in view and focused,
     even in a long thread or in the Resolved state."""
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -106,7 +106,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     The messages before and after the range are controls: hiding either would mean the
     presentation collapsed by position rather than by the summary's declared ids.
     """
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the opening question visible.", {"section": "jobs"}
     )
@@ -194,7 +194,7 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     """The same disclosure keeps progress available without an authored digest."""
     # The disclosure is the same at any width; the narrow one has the least room.
     width = 390
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Please check the schedule.", {"section": "jobs"}
     )
@@ -237,7 +237,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     Pending progress stands hidden behind the working message. In the page thread the
     answer would grow the thread's foot under the reader, so it waits behind the
     thread's notice."""
-    url = serve(SEATED_ITEM_PAGE)
+    url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
         serve.page_dir,

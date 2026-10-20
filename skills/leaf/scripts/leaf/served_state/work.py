@@ -9,6 +9,7 @@ from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
 from ..projection import FrozenThreadReading, page_reading
+from ..service import no_stream
 from ..todos import TodoReading
 from ..work_reading import WorkReading
 
@@ -120,16 +121,16 @@ def work_state(
         else None
     )
     durable = WorkReading(events, source.registry if source else {}, page, log=log)
-    stream = live_stream or {}
-    reply = canonical_stream_reply(present, now, stream.get("reply"))
+    stream = live_stream or no_stream()
+    reply = canonical_stream_reply(present, now, stream["reply"])
     activity = canonical_activity(
         present,
         durable.workflows,
         events,
         now,
-        stream.get("activity"),
+        stream["activity"],
         reply,
-        stream.get("reply_reservations"),
+        stream["reply_reservations"],
         todo_reading=log,
     )
     workflows = (

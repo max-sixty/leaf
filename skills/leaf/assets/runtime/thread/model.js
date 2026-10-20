@@ -11,7 +11,7 @@
    from the complete browser Thread's `attention` and nothing else: a user obligation
    outranks concurrent agent work, which stays the card's secondary status.
 
-   A thread's `id` is its one identity: the id the server keys it by, which every item,
+   A thread's `id` is its one identity: the id the server keys it by, which every obligation,
    workflow, placement, and view names it by. Its `root` is its opening message, a
    message like any other, and what a reply or settlement addresses as its `parent`. A
    thread this tab opened goes by its pending message's id until the log answers. */
@@ -318,8 +318,8 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
  * @param {import("../../../../../build/browser/application.ts").Workflow[]} workflows
  * @param {readonly import("../../../../../build/browser/application.ts").WireTodo[]} todos
  *   the open to-dos, of which each thread holds the agent's on it
- * @param {readonly import("../../../../../build/browser/application.ts").ItemRecord[]} items
- *   the view's items, of which each thread holds those its messages make
+ * @param {readonly import("../../../../../build/browser/application.ts").ObligationRecord[]} obligations
+ *   the view's obligations, of which each thread holds those its messages make
  * @param {import("../../../../../build/browser/domain.ts").ContentVersion[]} markingRead
  * @param {boolean} ready
  */
@@ -329,7 +329,7 @@ export function readThreadRecords(
   widgets,
   workflows,
   todos = [],
-  items = [],
+  obligations = [],
   markingRead = [],
   ready = true,
 ) {
@@ -418,9 +418,9 @@ export function readThreadRecords(
       resolved: thread.resolved,
       settling: thread.settling ?? null,
       attention: thread.attention,
-      // The items widgets in its messages make, such as an `lf-ask` the user owes
+      // The obligations widgets in its messages make, such as an `lf-ask` the user owes
       // words to there.
-      items: items.filter((item) => item.thread === thread.id),
+      obligations: obligations.filter((obligation) => obligation.thread === thread.id),
       // The agent's open to-dos on the thread: a reply that promised one says it is
       // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first
       // is the one a thread waiting on a to-do waits on, and a running one is work the

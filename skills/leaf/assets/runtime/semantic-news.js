@@ -18,14 +18,14 @@ const identity = (record) => record.attempt ?? record.id;
 
 // News reads the shown revision's view: the one the page just presented, whose On me list
 // the floating panel counts. While an activation waits (a gesture defers it, or
-// the document is a pinned version), an item the active revision adds is not on this
+// the document is a pinned version), an obligation the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
 export function semanticNewsReading(root) {
   const view = root.effective.view;
   if (!view) throw new Error("The shown page has no browser reading");
   const state = root.authoritative;
   return {
-    items: view.items,
+    obligations: view.obligations,
     thread: view.thread,
     workflows: state.workflows,
     activity: state.activity,
@@ -86,7 +86,7 @@ const agentAvailable = (activity) =>
 
 export function observeSemanticNews(prior, reading) {
   const content = unreadContent(reading.thread);
-  const obligations = userObligations(reading.items);
+  const obligations = userObligations(reading.obligations);
   const failures = responseFailures(reading.workflows);
   const available = agentAvailable(reading.activity);
   const first = prior === null;
@@ -150,7 +150,7 @@ export function observeSemanticNews(prior, reading) {
 // an answer can replace a failure while the user's own command holds the line.
 export function currentSemanticNews(news, reading, observed) {
   const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
-  const obligations = userObligations(reading.items);
+  const obligations = userObligations(reading.obligations);
   const failures = responseFailures(reading.workflows);
   return news.flatMap((item) => {
     switch (item.kind) {

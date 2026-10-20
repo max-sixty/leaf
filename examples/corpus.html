@@ -2408,10 +2408,14 @@
     </script>
 <!-- feature-gallery.html authored script -->
 <script type="module">
-      import { afterPresentation, commands, readItems } from "/runtime/widget-api.js";
+      import {
+        afterPresentation,
+        commands,
+        readObligations,
+      } from "/runtime/widget-api.js";
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const item = readItems().all.find((q) => q.id === "widget:bg-choice");
+        const item = readObligations().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
         output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;
@@ -8406,10 +8410,10 @@ diff --git a/src/constant.py b/src/constant.py
             </h2>
             <p id="bg-core-surfaces-guide">
               An <code>lf-ask</code> puts a heading and context around the choice below.
-              <strong>On me</strong> lists everything waiting on you: open items, a
-              question in a thread among them (such as the gallery thread about a pasted
-              image), to-dos the agent put on you, and updates whose reply failed and
-              need sending again.
+              <strong>On me</strong> lists everything waiting on you: open obligations,
+              a question in a thread among them (such as the gallery thread about a
+              pasted image), to-dos the agent put on you, and updates whose reply failed
+              and need sending again.
             </p>
             <ul id="bg-core-surfaces-steps">
               <li>
@@ -8426,14 +8430,14 @@ diff --git a/src/constant.py b/src/constant.py
                 Press it, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the On view opens
                 above the panel's row on On me, with a tab for the agent's list, such as
                 <strong>On Claude</strong>, each tab counting its list. What left each
-                list stands under it as Done: answered items under On me, sent replies
-                and ended to-dos under the agent's. Press Enter on a row: it goes where
-                <kbd>m</kbd> would.
+                list stands under it as Done: answered obligations under On me, sent
+                replies and ended to-dos under the agent's. Press Enter on a row: it
+                goes where <kbd>m</kbd> would.
               </li>
               <li>
                 On a stamped page that asks for sign-off, find the version approval
-                among the items: its row in On me holds the Approve control, approving
-                answers it, and Undo reopens it.
+                among the obligations: its row in On me holds the Approve control,
+                approving answers it, and Undo reopens it.
               </li>
               <li>
                 Comment on the map question, then press <kbd>m</kbd> until it lands
@@ -8451,15 +8455,15 @@ diff --git a/src/constant.py b/src/constant.py
               </lf-options>
             </lf-ask>
             <details id="bg-question-api">
-              <summary>Inspect the item record</summary>
+              <summary>Inspect the obligation record</summary>
               <p>
-                The map's item is <code>widget:bg-choice</code> whether or not it has an
-                <code>lf-ask</code> wrapper. Choose a map, then read its current record:
-                <code>answer.value</code> contains option ids, and
+                The map's obligation is <code>widget:bg-choice</code> whether or not it
+                has an <code>lf-ask</code> wrapper. Choose a map, then read its current
+                record: <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
               <button id="bg-read-question" class="button" type="button">
-                Read current item
+                Read current obligation
               </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
@@ -8476,9 +8480,9 @@ diff --git a/src/constant.py b/src/constant.py
                   Open On me: the to-do waits there, and its row has a Done button.
                 </li>
                 <li>
-                  Press <kbd>m</kbd> until it lands on the to-do, after the item above,
-                  then press <kbd>x</kbd>, or its row's <strong>Done</strong> in On me:
-                  the to-do moves under On me's Done, and the agent is told.
+                  Press <kbd>m</kbd> until it lands on the to-do, after the obligation
+                  above, then press <kbd>x</kbd>, or its row's <strong>Done</strong> in
+                  On me: the to-do moves under On me's Done, and the agent is told.
                 </li>
               </ul>
             </section>
@@ -8710,7 +8714,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: approve a version</span>
               </h3>
               <p id="bg-signoff-guide">
-                This gallery deliberately leaves sample items unanswered, so
+                This gallery deliberately leaves sample obligations unanswered, so
                 <strong>Approve version</strong> remains unavailable. On a settled page
                 it records approval for the current version; <kbd>z</kbd>, or “Undo” in
                 the leaf's menu, takes that approval back.
@@ -9720,14 +9724,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               The tab list stands left of the open item: each row shows its name and
               summary, with the chosen outcome on its own line. Rows sharing a
               <code>group</code> sit under that group's heading. The
-              <code>lf-tally</code> above it counts the queue's items still to answer.
+              <code>lf-tally</code> above it counts the queue's obligations still to
+              answer.
             </p>
             <ul id="bg-side-list-steps">
               <li>
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Press Next on me in the tally: it opens the first item, whose row
+                Press Next on me in the tally: it opens the first obligation, whose row
                 carries an open mark.
               </li>
               <li>
@@ -9900,18 +9905,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: annotations beside their targets</span>
             </h3>
             <p id="bg-margin-layer-guide">
-              Leaf places threads, unanswered items, actions, changes, and delivery or
-              work status beside the content they concern. With enough room beside the
-              reading column, their controls stand in the rail. Where the rail is
-              absent, the same controls appear as pins near their targets on the page.
-              Every annotation uses the same filled teardrop face as a pin. Its glyph
-              and label keep their meaning: a Thread opens a conversation, Accept acts
-              on a suggestion, and Sent reports delivery. Targets inside scrolling panes
-              or extending into the rail also use pins. Related controls share a compact
-              group; “More options” opens additional controls. When space is tight, a
-              group can fold to one pin; opening it reveals its controls over the page.
-              A workflow status can appear on an existing control, as the samples above
-              show.
+              Leaf places threads, unanswered obligations, actions, changes, and
+              delivery or work status beside the content they concern. With enough room
+              beside the reading column, their controls stand in the rail. Where the
+              rail is absent, the same controls appear as pins near their targets on the
+              page. Every annotation uses the same filled teardrop face as a pin. Its
+              glyph and label keep their meaning: a Thread opens a conversation, Accept
+              acts on a suggestion, and Sent reports delivery. Targets inside scrolling
+              panes or extending into the rail also use pins. Related controls share a
+              compact group; “More options” opens additional controls. When space is
+              tight, a group can fold to one pin; opening it reveals its controls over
+              the page. A workflow status can appear on an existing control, as the
+              samples above show.
             </p>
             <p id="bg-margin-layer-placement">
               Pins sit clear of text and controls when nearby space permits. In a
@@ -9934,7 +9939,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <strong>Action pins without a rail.</strong> This practice page has no
               rail. The suggestion's “Accept” and “Reject” controls appear as pins
               beside the proposed wording. Choose either, then use “Undo” to restore the
-              suggestion. These annotations work without a thread or an item.
+              suggestion. These annotations work without a thread or an obligation.
             </p>
             <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
               <template id="bg-margin-layer-actions-page" data-sample data-rail="none">

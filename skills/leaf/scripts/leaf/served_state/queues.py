@@ -1,31 +1,31 @@
 """The two lists, On me (`on_user`) and On <agent> (`on_agent`): what is on the user,
 what is on the agent, and what each has finished (`done`).
 
-Items, to-dos and response workflows are separate readings; this is the one selection
-that adds them up. An item is never a to-do: its source owns its answer, and only a
+Obligations, to-dos and response workflows are separate readings; this is the one selection
+that adds them up. An obligation is never a to-do: its source owns its answer, and only a
 to-do on the user, which the agent opened, ends at their Done. A browser view serves
 these lists and `page state` prints them, so the panel's counts, its On lists
 and an agent picking the page up read one selection. The browser places its own
 unresolved sends against the served lists (`build/browser/application.ts`,
 `localQueues`); it never selects them again.
 
-On me holds items, to-dos on the user and resends; On <agent> holds answers the agent
+On me holds obligations, to-dos on the user and resends; On <agent> holds answers the agent
 owes, work in hand on an update, and the agent's to-dos. A row names its kind, its
 subject, the list it stands on (`owner`), the thread it stands in, and whether the
 agent has it in hand now (`live`): a to-do a start holds, or an update the agent is at
 work on whose work has not gone quiet or stopped. A widget or approval row names its
-item by `id` and carries no copy of it: the view serves each item record once, in
-`items`, and the browser's publisher joins the row to its current record. A to-do row
+obligation by `id` and carries no copy of it: the view serves each obligation record once, in
+`obligations`, and the browser's publisher joins the row to its current record. A to-do row
 carries the fields a row draws.
 
 A row that leaves a list lands in that list's Done, which its `owner` names: On me's
-holds the items the user answered, here or elsewhere, or the agent withdrew, and the
+holds the obligations the user answered, here or elsewhere, or the agent withdrew, and the
 to-dos the user ended; On <agent>'s holds the replies the agent sent, each the answer
 it listed for the input the reply responds to, and the to-dos it ended. Each done row adds how it
-ended (`state`: `done`, or `dropped` for a withdrawn item, or a to-do's outcome), when
-(`ended`), and the outcome's detail, which for an item is its agent end's. Done is
+ended (`state`: `done`, or `dropped` for a withdrawn obligation, or a to-do's outcome), when
+(`ended`), and the outcome's detail, which for an obligation is its agent end's. Done is
 served newest first, and a row without a time goes last. An answer the agent owes
-in markup settles when a version writes the action in, which is the item's Done, not a
+in markup settles when a version writes the action in, which is the obligation's Done, not a
 reply, so it lands in none.
 """
 
@@ -49,9 +49,9 @@ def _todo_item(todo: dict) -> dict:
     }
 
 
-def _record_item(item: dict) -> dict:
-    """One widget or approval item on the user's list, On me, by its source's kind. It
-    names the item by `id`; the record is the view's `items` entry."""
+def _obligation_row(item: dict) -> dict:
+    """One widget or approval obligation on the user's list, On me, by its source's kind. It
+    names the obligation by `id`; the record is the view's `obligations` entry."""
     source = item["source"]
     return {
         "kind": source["kind"],
@@ -71,16 +71,16 @@ def queues(
     todos: list[dict],
     items: dict,
 ) -> dict:
-    """Select items, to-dos, resends and response obligations once.
+    """Select obligations, to-dos, resends and response obligations once.
 
     `threads` carry their attention, `workflows` are served strongest first, `todos`
-    are every to-do on either side, open and ended, and `items` is an
-    `items.collection`. An item's canonical next actor selects its list;
+    are every to-do on either side, open and ended, and `obligations` is an
+    `obligations.collection`. An obligation's canonical next actor selects its list;
     to-dos and resends keep their own completion routes. An update handed back in a
     thread is that thread's resend, and one handed back outside any thread is its
     own."""
     open_todos = [todo for todo in todos if todo["state"] == "open"]
-    on_user = [_record_item(item) for item in items["user"]]
+    on_user = [_obligation_row(item) for item in items["user"]]
     on_user += [_todo_item(todo) for todo in open_todos if todo["owner"] == "user"]
     on_user += [
         {
@@ -129,7 +129,7 @@ def queues(
     on_agent += [_todo_item(todo) for todo in open_todos if todo["owner"] == "agent"]
     done = [
         {
-            **_record_item(item),
+            **_obligation_row(item),
             "state": "dropped" if item["status"] == "withdrawn" else "done",
             "ended": ((item["end"] or item["answer"] or {}).get("event") or {}).get(
                 "ts"

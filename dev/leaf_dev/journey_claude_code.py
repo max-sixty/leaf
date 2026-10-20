@@ -72,7 +72,7 @@ from pathlib import Path
 
 import click
 import psutil
-from leaf.delivery import DELIVERY_FORMAT, pickup_receipts
+from leaf.delivery import DELIVERY, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.hook_transport import INLINE_OPENING
@@ -281,7 +281,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
         # Claude Code prints the one the Stop hook hands over, whose envelope names
         # its format.
         require(
-            not module or DELIVERY_FORMAT not in cc.shown(),
+            not module or DELIVERY.format not in cc.shown(),
             f"{name}: a delivery was printed in the terminal",
         )
         # The turn that answers ends with a watch running, under either watcher.
@@ -526,7 +526,7 @@ def answering(
             )
             settled(place.page, cc.session, {})
             require(
-                not hooks_module or DELIVERY_FORMAT not in cc.shown(),
+                not hooks_module or DELIVERY.format not in cc.shown(),
                 "setup: a delivery was printed in the terminal",
             )
             cc.keep("setup")

@@ -271,10 +271,11 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
         page.keyboard.press("ArrowRight")
 
 
-def _stacked_headers(browser, serve):
-    """A page tab strip over the root with a long pinned diff in its first tab, then a
-    short one whose code is wide enough to scroll sideways, and another long one after
-    the tabs."""
+def _stacked_headers(browser, serve, flow="page"):
+    """A tab strip with a long pinned diff in its first tab, then a short one whose code
+    is wide enough to scroll sideways, and another long one after the tabs. In the
+    page's flow the strip stands over the root; a set in a section is a framed box,
+    whose strip stands over only the set."""
     path = "src/lib.rs"
     rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
     patch = (
@@ -293,14 +294,19 @@ def _stacked_headers(browser, serve):
         serve(
             leaf_page(
                 "Stacked headers",
-                '<h1>Stacked</h1><lf-tabs id="root-tabs">'
+                "<h1>Stacked</h1>"
+                + ("<section>" if flow == "box" else "")
+                + '<lf-tabs id="tabs">'
                 '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
                 + patch
                 + '</pre></lf-diff><lf-diff id="wide"><pre>'
                 + short
                 + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
                 "<p>Notes.</p></lf-tab></lf-tabs>"
-                '<lf-diff id="after-tabs"><pre>' + patch + "</pre></lf-diff>",
+                + ("</section>" if flow == "box" else "")
+                + '<lf-diff id="after-tabs"><pre>'
+                + patch
+                + "</pre></lf-diff>",
             )
         ),
     )
@@ -308,22 +314,27 @@ def _stacked_headers(browser, serve):
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
     )
+    expect(page.locator("#tabs")).to_have_attribute("data-lf-tabs-flow", flow)
     return page
 
 
-def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
-    browser, serve
+@pytest.mark.parametrize("flow", ["page", "box"])
+def test_sticky_headers_stack_so_a_diff_in_a_tab_pins_under_the_strip(
+    browser, serve, flow
 ):
-    """A diff's file header in a page tab pins under the stuck tab strip rather than
-    over it: each sticky header has a stated height and adds it to `--lf-top` for what
-    it stands over. A landing on one of the diff's rows arrives below both headers, and
-    the part of a row under the diff's header reads as not on screen."""
-    page = _stacked_headers(browser, serve)
+    """A diff's file header in a tab pins under the stuck tab strip rather than over
+    it: each sticky header has a stated height and adds it to `--lf-top` for what it
+    stands over. A landing on one of the diff's rows arrives below both headers, and
+    the part of a row under the diff's header reads as not on screen. A page's strip
+    is cleared by the root's own padding; a framed set's strip stands over only the
+    set, so the rows clear it with their margin, read through the code's sideways
+    scroller, where a framed set's rows had landed under the file header."""
+    page = _stacked_headers(browser, serve, flow)
     read = page.evaluate(
         """async () => {
         const geometry = await window.__lfCheckApi();
         const box = (el) => el.getBoundingClientRect();
-        const strip = document.querySelector('#root-tabs > .lf-tabstrip');
+        const strip = document.querySelector('#tabs > .lf-tabstrip');
         const diff = document.querySelector('lf-diff');
         const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
         const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
@@ -372,7 +383,7 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         };
         if (id === 'patch')
             controls.tab = document.querySelector(
-                '#root-tabs > .lf-tabstrip [aria-selected="true"]');
+                '#tabs > .lf-tabstrip [aria-selected="true"]');
         const moved = {};
         for (const [name, control] of Object.entries(controls)) {
             const before = page.scrollTop;

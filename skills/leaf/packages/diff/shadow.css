@@ -309,12 +309,6 @@
     --lf-head-inset: calc(var(--lf-diff-action-top) - 1px);
   }
 }
-:scope:host(.lf-rendered[data-lf-diff-pinned]) [data-line] {
-  scroll-margin-top: var(--lf-diff-head-h);
-}
-:scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file .lf-text-scroller {
-  scroll-margin-top: calc(var(--lf-diff-head-h) + var(--focus-ring-landing));
-}
 .lf-diff-path {
   font-family: var(--mono);
   font-size: var(--t-6);
@@ -378,7 +372,7 @@
   border: none;
   border-top: 1px solid var(--code-border);
   border-radius: 0;
-  overflow-x: auto;
+  overflow: auto hidden;
   color: var(--code-ink);
 }
 :scope:host(.lf-rendered) code[data-code][data-lf-focus] {

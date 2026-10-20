@@ -13,33 +13,46 @@
   // A document reports faults only until it departs. A navigation away aborts the
   // document's requests, and those failures are the navigation's, not the page's.
   // Chrome fires `pageswap` and `pagehide` before it rejects the aborted requests.
-  // Firefox has no `pageswap`, and it aborts the requests as soon as an uncanceled
-  // `beforeunload` lets the navigation start, while the document stays shown and
-  // running until the destination answers. So the lifetime ends at whichever of
-  // these comes first. A `beforeunload` a listener cancels keeps the document, so it
-  // ends nothing. A navigation can also start and still leave the document in place,
-  // as a link answered with a download does, so the user's next input reopens the
-  // lifetime. `pageshow` reopens it when the browser restores the same document from
-  // its page cache.
+  // Firefox has no `pageswap`, and it aborts the requests as soon as a `beforeunload`
+  // lets the navigation start, while the document stays shown and running until the
+  // destination answers. Neither engine says whether a navigation that has started
+  // will replace the document: the user can stay at a leave prompt, and a link
+  // answered with a download or a 204 leaves the document in place, its aborted
+  // requests failed for good. So a fault that arrives after `beforeunload` waits.
+  // `pageswap` or `pagehide` drops it with the document. The user's next press, key
+  // or edit shows the document stayed, and the fault is reported then. `pageshow`
+  // reopens the lifetime when the browser restores the same document from its page
+  // cache. A wheel turn reopens nothing, since a reader may scroll a page they are
+  // leaving while its destination loads.
   let swapped = false;
-  /** @type {Event | null} */
-  let leaving = null;
-  const documentActive = () => !swapped && !(leaving && !leaving.defaultPrevented);
+  let leaving = false;
+  /** @type {(() => void)[]} */
+  let waiting = [];
   root.lfDocumentLifetime = Object.freeze({
-    get active() {
-      return documentActive();
+    /** Run `report` now, once the document is known to have stayed, or never. */
+    whenActive(report) {
+      if (!swapped && !leaving) report();
+      else if (!swapped) waiting.push(report);
     },
   });
-  window.addEventListener("beforeunload", (event) => {
-    leaving = event;
+  const stayed = () => {
+    if (!leaving) return;
+    leaving = false;
+    const reports = waiting;
+    waiting = [];
+    for (const report of reports) report();
+  };
+  window.addEventListener("beforeunload", () => {
+    leaving = true;
   });
   for (const type of ["pageswap", "pagehide"])
     window.addEventListener(type, () => {
       swapped = true;
+      waiting = [];
     });
   window.addEventListener("pageshow", () => {
     swapped = false;
-    leaving = null;
+    leaving = false;
   });
   // The runtime will run here and upgrade the page's widgets, so the themes give each
   // widget the box its module will draw it at (`html[data-lf-interactive]`). A reading
@@ -63,9 +76,8 @@
     },
   };
   const input = (event) => {
-    if (event.type === "blur") {
-      if (event.target !== window) return;
-    } else leaving = null;
+    if (event.type === "blur" && event.target !== window) return;
+    if (event.type !== "blur" && event.type !== "wheel") stayed();
     inputs++;
     for (const read of inputReaders) read(event);
   };
@@ -89,25 +101,25 @@
   // (bootstrap.js); an export has no server to wait for. A later fault only takes the
   // mark off where it is incomplete. The first is the earliest evidence and a later one
   // is often its consequence; the bootstrap's report keeps the first as well.
-  const fault = (reason, incomplete, error = null, page = false) => {
-    if (!documentActive()) return;
-    if (incomplete) root.toggleAttribute("data-lf-interactive", false);
-    if (root.hasAttribute("data-lf-startup-error")) return;
-    root.dataset.lfStartupError = reason;
-    // The attribute is the short display reason; this record retains the actual
-    // exception before modules load, including for an opaque sample's private port.
-    root.lfStartupException =
-      error?.message === undefined
-        ? null
-        : {
-            name: error.name,
-            message: error.message,
-            stack: error.stack,
-          };
-    window.dispatchEvent(
-      new CustomEvent("lf-startup-fault", { detail: { reason, incomplete, page } }),
-    );
-  };
+  const fault = (reason, incomplete, error = null, page = false) =>
+    root.lfDocumentLifetime.whenActive(() => {
+      if (incomplete) root.toggleAttribute("data-lf-interactive", false);
+      if (root.hasAttribute("data-lf-startup-error")) return;
+      root.dataset.lfStartupError = reason;
+      // The attribute is the short display reason; this record retains the actual
+      // exception before modules load, including for an opaque sample's private port.
+      root.lfStartupException =
+        error?.message === undefined
+          ? null
+          : {
+              name: error.name,
+              message: error.message,
+              stack: error.stack,
+            };
+      window.dispatchEvent(
+        new CustomEvent("lf-startup-fault", { detail: { reason, incomplete, page } }),
+      );
+    });
   window.addEventListener(
     "error",
     (event) => {

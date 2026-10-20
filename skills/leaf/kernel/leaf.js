@@ -11420,12 +11420,13 @@ async function startPage() {
   paintKeys();
   app.startFeed(presentPage, initialStateRead);
 }
-startPage().catch((error) => {
-  if (!document.documentElement.lfDocumentLifetime.active) return;
-  const reason = `page failed to start: ${error?.message ?? error}`;
-  window.dispatchEvent(
-    new CustomEvent("lf-startup-failed", { detail: { reason, error } })
-  );
-  reportPageError(error, "page failed to start");
-  applicationState.setReach("broken");
-});
+startPage().catch(
+  (error) => document.documentElement.lfDocumentLifetime.whenActive(() => {
+    const reason = `page failed to start: ${error?.message ?? error}`;
+    window.dispatchEvent(
+      new CustomEvent("lf-startup-failed", { detail: { reason, error } })
+    );
+    reportPageError(error, "page failed to start");
+    applicationState.setReach("broken");
+  })
+);

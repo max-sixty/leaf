@@ -122,16 +122,18 @@
         if (!event.persisted) send({ type: "departed" });
       });
     }
-    window.addEventListener("lf-startup-failed", () => {
-      if (!root.lfDocumentLifetime.active) return;
-      root.lfSample.send({
-        type: "error",
-        detail: root.lfStartupException ?? {
-          message:
-            document.documentElement.dataset.lfStartupError || "Sample could not start",
-        },
-      });
-    });
+    window.addEventListener("lf-startup-failed", () =>
+      root.lfDocumentLifetime.whenActive(() =>
+        root.lfSample.send({
+          type: "error",
+          detail: root.lfStartupException ?? {
+            message:
+              document.documentElement.dataset.lfStartupError ||
+              "Sample could not start",
+          },
+        }),
+      ),
+    );
   }
   // A served page draws the live chrome, the floating panel, so the theme reserves its room from the first paint (`html[data-lf-live]`). An export runs the
   // runtime without them (prepaint.js).

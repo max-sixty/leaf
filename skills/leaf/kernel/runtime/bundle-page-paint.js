@@ -3304,19 +3304,20 @@ var reportedReasons = /* @__PURE__ */ new WeakSet();
 var reportedPrimitives = /* @__PURE__ */ new Set();
 var reportedErrors = /* @__PURE__ */ new Set();
 function reportPageError(reason, context = "") {
-  if (!document.documentElement.lfDocumentLifetime.active) return;
   if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
   else reportedPrimitives.add(String(reason));
-  const text = exceptionText(reason, context);
-  console.error(`leaf: ${text}`);
-  if (offlineInteractive) return;
-  if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
-  reportedErrors.add(text);
-  postEvent({
-    kind: "error",
-    text,
-    ...runtime.currentRevision != null && { revision: runtime.currentRevision }
-  }).catch(() => {
+  document.documentElement.lfDocumentLifetime.whenActive(() => {
+    const text = exceptionText(reason, context);
+    console.error(`leaf: ${text}`);
+    if (offlineInteractive) return;
+    if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
+    reportedErrors.add(text);
+    postEvent({
+      kind: "error",
+      text,
+      ...runtime.currentRevision != null && { revision: runtime.currentRevision }
+    }).catch(() => {
+    });
   });
 }
 function reportCarried(reason, context = "") {

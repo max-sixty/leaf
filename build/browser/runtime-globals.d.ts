@@ -90,8 +90,8 @@ interface LeafSampleBridge {
 }
 
 interface HTMLElement {
-  /** Whether this document is still the one the browser shows. */
-  lfDocumentLifetime?: { readonly active: boolean };
+  /** Runs a fault report while this document is the one the browser keeps (prepaint.js). */
+  lfDocumentLifetime?: { whenActive(report: () => void): void };
   /** User inputs since the first script, and a subscription to the next. */
   lfInputs?: {
     readonly count: number;

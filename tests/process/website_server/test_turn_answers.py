@@ -325,7 +325,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
         type("Process", (), {"pid": os.getpid()})(),
     )
     assert follow.reply_target is not None
-    assert follow.reply_target["reply_to"] != follow.reply_target["responds"]
+    assert follow.reply_target["parent"] != follow.reply_target["responds"]
 
     monkeypatch.setattr(harness, "_interrupt", lambda *args, **kwargs: None)
     follow.follow()

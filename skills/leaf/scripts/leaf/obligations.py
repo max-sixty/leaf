@@ -258,18 +258,19 @@ def update_obligation(
 
 
 def response_address(record: dict) -> dict:
-    """The operation that answers an update's record, as a delivery names it: a reply
-    in its thread to the input, or, for a page widget's action, a stamped version whose
-    markup records the action."""
+    """The operation that answers an update: a thread reply or a stamped page revision.
+    Reply addresses use the logged event's `parent` (message) and `responds` (exact
+    input), which differ for edits and widget actions in frozen markup.
+    """
     source = record["source"]
     if record["thread"] is None:
         return {"kind": "markup", "action": source["id"]}
     return {
         "kind": "reply",
-        "to": record["message"]
+        "parent": record["message"]
         if source["subject"]["kind"] == "thread"
         else record["thread"],
-        "for": source["id"],
+        "responds": source["id"],
     }
 
 

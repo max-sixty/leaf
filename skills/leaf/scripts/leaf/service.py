@@ -477,8 +477,7 @@ class PageTransaction:
         self,
         session_id: str,
         turn_id: str,
-        reply_to: str,
-        responds: str,
+        address: dict,
         attempt: str,
         item_id: str | None,
         text: str,
@@ -486,7 +485,7 @@ class PageTransaction:
         *,
         settles: bool = False,
     ) -> None:
-        """Replace the provisional reply owned by one delivered response."""
+        """Replace the provisional reply at a delivery's captured response address."""
         stream = self.status["stream"]
         previous = stream["reply"]
         timestamp = (
@@ -501,8 +500,8 @@ class PageTransaction:
             "session": session_id,
             "turn": turn_id,
             "attempt": attempt,
-            "reply_to": reply_to,
-            "responds": responds,
+            "parent": address["parent"],
+            "responds": address["responds"],
             "item": item_id,
             "text": text,
             "state": state,
@@ -511,7 +510,9 @@ class PageTransaction:
             "ts": timestamp or updated_at,
             "updated_at": updated_at,
         }
-        reservations = self._reserved(stream, session_id, responds, attempt, turn_id)
+        reservations = self._reserved(
+            stream, session_id, address["responds"], attempt, turn_id
+        )
         if previous == reply and reservations == stream["reply_reservations"]:
             return
         self._write_stream(
@@ -753,7 +754,7 @@ STATUS = Record(
                             {
                                 **_TURN,
                                 "attempt": STRING,
-                                "reply_to": STRING,
+                                "parent": STRING,
                                 "responds": STRING,
                                 "item": {"type": ["string", "null"]},
                                 "text": STRING,
@@ -780,7 +781,7 @@ STATUS = Record(
         # carries none.
         {"ts": TIME},
     ),
-    since=13,
+    since=14,
 )
 
 

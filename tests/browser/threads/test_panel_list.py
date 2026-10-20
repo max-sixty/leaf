@@ -57,12 +57,12 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     asked = panel_comment(serve.page_dir, "What remains?", {"section": "how-store"})
     thread_model.post_reply(
         serve.page_dir,
-        {"to": answered, "for": answered},
+        {"responds": answered},
         "Forty is what the slowest supported device can hold.",
     )
     thread_model.post_reply(
         serve.page_dir,
-        {"to": asked, "for": asked},
+        {"responds": asked},
         "One choice remains.",
         markup='<lf-ask id="store-owner">Which store should own the result?</lf-ask>',
     )
@@ -76,7 +76,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": answered},
+        {"parent": answered},
         "Choose the backend here.",
         '<lf-ask id="backend-decision"><h3>Which backend?</h3>'
         '<lf-options id="backend" choose>'

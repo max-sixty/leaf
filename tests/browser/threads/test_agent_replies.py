@@ -139,7 +139,7 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
 
     reply = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "The complete answer.",
         '<lf-ask id="stream-reply-ask"><h3>Use this answer?</h3>'
         '<lf-options id="stream-reply-choice" choose>'
@@ -227,7 +227,7 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
 
     reply = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Recorded the release on the board.",
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -277,7 +277,7 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Recorded the release on the board.",
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -311,7 +311,7 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
     claim_for_codex(serve.page_dir, request)
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Checking the board",
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -326,7 +326,7 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Recorded the release.",
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -359,7 +359,7 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     claim_for_codex(serve.page_dir, request)
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Checking the board",
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -378,7 +378,7 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Recorded the release on the board.",
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -411,7 +411,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     steps = [
         thread_model.post_reply(
             serve.page_dir,
-            {"to": root, "for": root},
+            {"responds": root},
             text,
             ephemeral=True,
             identity=codex,
@@ -495,7 +495,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     steps.append(
         thread_model.post_reply(
             serve.page_dir,
-            {"to": root, "for": root},
+            {"responds": root},
             "Comparing the lighter weight against every banner the gallery shows, "
             "at each width the panel takes, before and after the change.",
             ephemeral=True,
@@ -515,7 +515,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
 
     answer = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Done in v4: the banner is one weight lighter.",
         identity=codex,
     )
@@ -530,7 +530,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     # no owed input's workflow, so its own message supplies both author and time.
     proactive = thread_model.post_reply(
         serve.page_dir,
-        {"to": root},
+        {"parent": root},
         "Checking the contrast in the dark theme.",
         ephemeral=True,
         identity={"agent": "Claude", "session": "claude-thread"},
@@ -550,7 +550,10 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
     thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "Reading the jobs.", ephemeral=True
+        serve.page_dir,
+        {"responds": root},
+        "Reading the jobs.",
+        ephemeral=True,
     )
     page = open_page(browser, url)
     resized(page, 390, 900)
@@ -564,7 +567,7 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
 
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Comparing the mounts, the bird bath and the camera against the frost "
         "dates, and what each one needs before it can start.",
         ephemeral=True,
@@ -595,7 +598,7 @@ def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, ser
     rendered(page)
 
     thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, "The mounts come first."
+        serve.page_dir, {"responds": root}, "The mounts come first."
     )
     told(page)
     notice = thread.get_by_role("button", name="1 new reply", exact=True)
@@ -635,7 +638,7 @@ def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(
     claim_for_codex(serve.page_dir, request)
     step = thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "Checking the board",
         ephemeral=True,
         identity={"agent": "Codex", "session": "codex-thread"},
@@ -667,14 +670,14 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     codex = {"agent": "Codex", "session": "codex-thread"}
     question = thread_model.post_reply(
         serve.page_dir,
-        {"to": asked, "for": asked},
+        {"responds": asked},
         "One question:",
         markup='<lf-ask id="store-choice">The session store or the page store?</lf-ask>',
         identity=codex,
     )
     promise = thread_model.post_reply(
         serve.page_dir,
-        {"to": promised, "for": promised},
+        {"responds": promised},
         "Rebuilding it; it lands in v4.",
         todo="Rebuild the banner quieter",
         identity=codex,
@@ -795,12 +798,12 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     )
     answer = thread_model.post_reply(
         serve.page_dir,
-        {"to": answered["id"], "for": answered["id"]},
+        {"responds": answered["id"]},
         "Widened it to forty.",
     )
     receipt = thread_model.post_reply(
         serve.page_dir,
-        {"to": unanswered["id"], "for": unanswered["id"]},
+        {"responds": unanswered["id"]},
         "The agent's turn ended without an answer to this message. "
         "Send it again to retry.",
         failure="turn_failed",
@@ -933,7 +936,7 @@ def test_collapsing_progress_preserves_room_for_a_later_canceled_stream(
     root = panel_comment(serve.page_dir, "Keep this thread here.", {"section": "h-how"})
     for words in ("Checking labels.", "Measuring controls.", "Checking both schemes."):
         thread_model.post_reply(
-            serve.page_dir, {"to": root, "for": root}, words, ephemeral=True
+            serve.page_dir, {"responds": root}, words, ephemeral=True
         )
     append_carried_log_record(
         serve.page_dir,

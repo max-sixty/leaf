@@ -533,13 +533,17 @@ def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
     disclosure = card.get_by_role("button", name="Full quote", exact=True)
     expect(disclosure).to_be_visible()
     compact = card.bounding_box()["height"]
+    compact_quote = quote.bounding_box()["height"]
     disclosure.click()
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
     rendered(page)
-    assert card.bounding_box()["height"] > compact
+    assert quote.bounding_box()["height"] > compact_quote
+    assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
+    assert card.evaluate("el => el.scrollHeight > el.clientHeight")
     disclosure.click()
     rendered(page)
     assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
 
 
 @pytest.mark.parametrize("quoted", [True, False], ids=["short-quote", "whole-section"])

@@ -150,6 +150,12 @@ def viewport(value: str) -> tuple[int, int]:
     help="Run in Playwright's Firefox rather than the Chromium shell.",
 )
 @click.option(
+    "--cpu-throttle",
+    "throttle",
+    type=click.FloatRange(min=1),
+    help="Slow Chromium's CPU this many times from before the page loads.",
+)
+@click.option(
     "--base",
     is_flag=False,
     flag_value="",
@@ -171,6 +177,7 @@ def probe(
     scheme,
     touch,
     firefox,
+    throttle,
     base,
 ) -> None:
     """Open SOURCE in Chrome, or Firefox with --firefox, run each --do step, and
@@ -218,6 +225,8 @@ def probe(
         raise click.UsageError(
             "--gif, --actions and --checkpoint-images require --record DIR"
         )
+    if throttle and firefox:
+        raise click.UsageError("--cpu-throttle needs Chromium's CDP, not --firefox")
     if isinstance(source, str) and base is not None:
         raise click.UsageError("--base requires a Leaf source, not a URL")
     run = None
@@ -264,6 +273,10 @@ def probe(
                         if record_dir:
                             reading["recording"] = str(record_dir.resolve() / arm)
                         reading["errors"] = console_errors(page)
+                        if throttle:
+                            page.context.new_cdp_session(page).send(
+                                "Emulation.setCPUThrottlingRate", {"rate": throttle}
+                            )
                         doing = "load"
                         if isinstance(source, str):
                             page.goto(address)

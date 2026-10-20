@@ -30,7 +30,7 @@ def test_deferred_notice_describes_only_the_current_message_version(browser, ser
     told(page)
 
     page.keyboard.press("Escape")
-    said(page).to_have_attribute("placeholder", re.compile(r".+ updated a comment"))
+    said(page).to_have_attribute("placeholder", re.compile(r".+ edited a comment"))
 
 
 def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):

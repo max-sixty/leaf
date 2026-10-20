@@ -220,7 +220,7 @@ test("current content versions and admitted messages determine arrivals", () => 
   assert.equal(changed.news[0].message.id, "original");
   assert.equal(
     semanticNewsNotice(currentSemanticNews(changed.news, next, changed.observed)),
-    "Agent updated a reply; Response failed",
+    "Agent edited a reply; Response failed",
   );
   const same = observeSemanticNews(
     changed.observed,

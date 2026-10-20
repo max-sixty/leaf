@@ -1205,7 +1205,7 @@ export function createFloatingPanel({
     const reply = answer.keys.find((key) => !message(key).ephemeral);
     const next = reply
       ? { key: top.thread, message: reply, label: "New reply" }
-      : { key: top.thread, message: answer.keys[0], label: "New update" };
+      : { key: top.thread, message: answer.keys[0], label: "New message" };
     if (waiting?.message === next.message) return;
     const arriving = !waiting;
     waiting = next;
@@ -2956,7 +2956,7 @@ export function createFloatingPanel({
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
 
-    // The next step of what the user is doing now, such as walking a search's matches or
+    // The next step of what the user is doing now, such as selecting a search's match or
     // commenting on the words a finger selected, stands in the counts' place while that
     // gesture holds it (page-controls.js, `gesture`).
     const steps = rows().filter((entry) => entry.gesture);

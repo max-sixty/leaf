@@ -500,12 +500,12 @@ HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
 
 @pytest.fixture(scope="session", autouse=True)
 def failing_harness_programs(tmp_path_factory):
-    """Put a `claude` and a `codex` that fail at once ahead of the developer's own on
-    PATH, for the entire worker lifetime, before any fixture starts a server.
+    """Put a `claude`, a `codex` and a `pi` that fail at once ahead of the developer's
+    own on PATH, for the entire worker lifetime, before any fixture starts a server.
     Page servers ask the claimant's harness to name user threads (`thread_titles`);
     a test about titling puts its own program first."""
     programs = tmp_path_factory.mktemp("harness-programs")
-    for name in ("claude", "codex"):
+    for name in ("claude", "codex", "pi"):
         program = programs / name
         program.write_text("#!/bin/sh\nexit 1\n")
         program.chmod(0o755)

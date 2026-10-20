@@ -25,6 +25,7 @@ from leaf import leases as leases_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf import thread as thread_model
 
 DRIVER = Path(__file__).parents[1].joinpath("claude_code_driver.mjs")
 PLUGIN_ROOT = DRIVER.parents[1]
@@ -267,7 +268,7 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     )
     claude_code.exits.get(timeout=STATED_TIMEOUT)
     claude_code.send({"flush": True})
-    assert claude_code.read() == {"submissions": 0, "appends": 0}
+    assert claude_code.read() == {"submissions": 0}
     for number in range(2):
         comment = (
             handed
@@ -410,18 +411,15 @@ def test_interrupt_watch_replacement_waits_for_aborted_process_exit(
     )
 
 
-def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
-    page_dir, claude_code, capsys
+def test_input_pending_as_a_turn_ends_wakes_a_turn_of_its_own(
+    page_dir, claude_code, interactive, capsys
 ):
-    """Claude Code prints what a Stop hook continues a turn with in the user's
-    terminal, and none of a row a module appends. Input pending as a turn ends,
-    with no watch running, is handed over by Leaf's Stop hook inline; the module
-    runs that hook itself, in place of its registration, to read the delivery its
-    output names, appends the delivery to the session, and the turn goes on with
-    one line, so the delivery is in the turn's context, as its Picked up says, but
-    not on the user's screen."""
+    """Input pending as a turn ends, with no watch running, stays out of that turn:
+    Leaf's Stop registration beneath the module hands it nothing and lets the turn
+    end on the answer it wrote, and the watch the module starts as the turn
+    completes wakes the session with a prompt for it."""
     claude_code.start_turn()
-    append_carried_log_record(
+    first = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "wakes the watch"}
     )
     claude_code.exits.get(timeout=STATED_TIMEOUT)
@@ -430,31 +428,28 @@ def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
         {"hook_event_name": "PostToolBatch", "session_id": claude_code.session},
     )
     capsys.readouterr()
+    thread_model.post_reply(page_dir, {"to": first["id"], "for": first["id"]}, "Yes.")
     pending = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "as it ends"}
     )
-    payload = {"hook_event_name": "Stop", "session_id": claude_code.session}
-    ended = claude_code.emit("classic.Stop", payload)
-    # Leaf's Stop registration beneath the module stands down for the payload it
-    # receives, since the module ran the hook itself.
-    hooks_model.cmd_hook("claude-code", ended["reached"])
+    reached = claude_code.stop()
+    hooks_model.cmd_hook("claude-code", reached)
     assert capsys.readouterr().out == ""
+    assert cleanup_model.session_record(claude_code.session)["turn_closed"]
 
-    appended = claude_code.message()["appended"]
-    [delivery] = [
-        json.loads(line) for line in appended.split("\n") if line.startswith("{")
-    ]
-    [batch] = delivery["batches"]
-    assert [event["id"] for event in batch["events"]] == [pending["id"]]
-    [shown] = ended["result"]["additionalContext"]
-    assert delivery["id"] not in shown
+    claude_code.emit(
+        "turn.complete",
+        {"answer": "", "durationMs": 1, "turnId": "t", "isAborted": False},
+    )
+    sent = claude_code.message()
+    assert sent["submitted"].startswith(f"Leaf: {page_dir} has new input"), sent
+    assert pending["id"] not in sent["submitted"]
 
 
 def test_a_wake_during_the_stop_hooks_waits_for_them(page_dir, claude_code):
-    """Leaf's Stop hook hands over the input pending as it runs, and decides
-    whether the turn goes on. A watch that wakes while a turn's Stop hooks run
-    waits for them, so the input has one transport: here they let the turn end, and
-    only then does the module submit its prompt."""
+    """A turn's Stop hooks decide whether it goes on. A watch that wakes while they
+    run waits for them rather than starting a turn beside one they continue: here
+    they let the turn end, and only then does the module submit its prompt."""
     claude_code.start_turn()
     payload = {"hook_event_name": "Stop", "session_id": claude_code.session}
     claude_code.send({"emit": "classic.Stop", "e": payload, "hold": True})

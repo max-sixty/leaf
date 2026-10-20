@@ -30,10 +30,6 @@
     /* The narrowest a mark or the leaf stands, larger under a finger. A mark with a
        count keeps its count's room besides, which is wider (`.lf-fp-on-user`). */
     --lf-fp-aim: 32px;
-    /* The row's one line: the leaf, each mark and press beside the field, and the
-       field's first line of words are each this tall, and the row stands them all on
-       its foot, so every one of them is centred on the line the words are written on. */
-    --lf-fp-line: 32px;
     --lf-fp-width: min(
       540px,
       calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
@@ -168,9 +164,9 @@
   /* ---------- the row ---------- */
   /* One alignment for the whole row: everything in it, the field's presses
      included, stands on the row's foot and is a line tall (`--lf-fp-line`), so a field
-     grown to several lines keeps them beside its last. */
+     grown to several lines keeps them beside its last. The line and the row's padding
+     are the theme's, which reserves the row at the window's foot (`--lf-floating-row`). */
   .lf-fp-row {
-    --lf-fp-row-pad: 6px;
     display: flex;
     align-items: flex-end;
     gap: 2px;
@@ -1540,11 +1536,7 @@
   @media (pointer: coarse) {
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
-      --lf-fp-line: 34px;
       --lf-fp-aim: var(--aim-floor);
-    }
-    .lf-fp-row {
-      --lf-fp-row-pad: 7px;
     }
     .lf-fp-item,
     .lf-fp-thread,

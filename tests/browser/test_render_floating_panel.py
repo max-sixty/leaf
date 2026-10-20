@@ -2757,6 +2757,31 @@ def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     assert view.evaluate("v => v.scrollHeight > v.clientHeight")
 
 
+@pytest.mark.parametrize("touch", [False, True])
+def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
+    browser, serve, touch
+):
+    """The theme reserves the panel's row at the window's foot, with the gap it stands
+    above the window's edge again above it, so the page's last line scrolls clear of the
+    row and no further. The reserve was a number of its own, 4px taller than the row
+    under a mouse and under a finger alike."""
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=touch
+    )
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    assert page.evaluate("() => matchMedia('(pointer: coarse)').matches") == touch
+    at = page.evaluate("""() => {
+      const room = document.createElement('div');
+      room.style.height = 'var(--lf-foot-room)';
+      document.body.append(room);
+      const foot = room.getBoundingClientRect().height;
+      room.remove();
+      const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
+      return {foot, row: row.height, below: innerHeight - row.bottom};
+    }""")
+    assert at["foot"] == pytest.approx(at["row"] + 2 * at["below"], abs=0.5), at
+
+
 def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
     """Each mark keeps its count's room whether or not it has a number, under a finger
     as under a mouse, so a question arriving in a reply puts On me's count in that room

@@ -146,8 +146,15 @@
      box. At the head the chrome draws nothing, so the room is the window's safe area. At
      the foot the floating panel's row rests (floating-panel.css), with a gap below and
      above it, so the end of the page can scroll clear of it. A page that is not live
-     draws no chrome and keeps no room (below). */
-  --lf-floating-row: max(48px, calc(var(--aim-floor) + 8px));
+     draws no chrome and keeps no room (below).
+
+     The row is its one line and the padding around it. The leaf, each mark and press
+     beside the field, and the field's first line of words are each a line tall, and the
+     row stands them all on its foot, so every one of them is centred on the line the
+     words are written on (floating-panel.css, `.lf-fp-row`). */
+  --lf-fp-line: 32px;
+  --lf-fp-row-pad: 6px;
+  --lf-floating-row: calc(var(--lf-fp-line) + 2 * var(--lf-fp-row-pad));
   --lf-floating-gap: 14px;
   --lf-head-room: var(--lf-safe-top);
   --lf-foot-room: calc(
@@ -572,6 +579,8 @@ html:not([data-lf-live]) {
   :root {
     --aim-floor: 44px;
     --entry-floor: 16px;
+    --lf-fp-line: 34px;
+    --lf-fp-row-pad: 7px;
   }
 }
 

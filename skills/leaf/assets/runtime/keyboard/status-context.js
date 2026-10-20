@@ -6,7 +6,9 @@
  * in the agent's status's place; it registers to hear when they change, as a notice's
  * seats do. A retired walk keeps its last wording, so the seat's words do not vanish
  * under a notice that stands over them. Painted in the repaint frame (repaint.js), since
- * these readings follow focus, the sequence's state and the register. */
+ * these readings follow focus, the sequence's state and the register. A walk's reading
+ * also names the stop it stands on (`target`, its owner's key), so a list that shows
+ * the walk's items, as On me does, can mark the one the walk is at. */
 import { setNoticeContext } from "../notifications.js";
 import { walkPosition } from "../walk-position.js";
 import { word } from "./bindings.js";
@@ -27,6 +29,7 @@ const same = (a, b) =>
   a.goTo === b.goTo &&
   a.stance === b.stance &&
   shownWalk(a)?.text === shownWalk(b)?.text &&
+  shownWalk(a)?.target === shownWalk(b)?.target &&
   shownWalk(a)?.boundary === shownWalk(b)?.boundary;
 
 /** Read the context again, `goToStatus` the Go-to sequence's word or null. */
@@ -36,6 +39,7 @@ export function paintStatusContext(goToStatus) {
   if (position)
     lastWalk = Object.freeze({
       kind: position.kind,
+      target: position.target,
       text: position.text,
       boundary: position.boundary,
     });

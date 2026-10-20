@@ -2229,7 +2229,7 @@ def test_only_the_folded_leaf_shows_a_status_peek(browser, serve):
         assert not peek.evaluate("peek => peek.hasAttribute('data-shown')")
 
     leaf.click()
-    expect(page.locator(".lf-fp-menu")).to_contain_text("isn't watching right now.")
+    expect(page.locator(".lf-fp-menu")).to_contain_text("Updates are saved.")
     expect(peek).to_be_hidden()
     page.keyboard.press("Escape")
     page.evaluate(

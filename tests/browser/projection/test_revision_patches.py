@@ -232,6 +232,37 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     }, f"the revision did not reach what it rewrote in place: {rewritten}"
 
 
+def test_a_revision_keeps_a_recording_on_leaf_s_play_bar(browser, serve):
+    """The runtime trades a video's `controls` for its own play bar before first paint
+    (video-controls.js). A revision that leaves the video as written keeps the node and
+    the bar, and hands the browser's controls back to nobody."""
+    body = """
+<p id="rv-edited">The recording is a draft.</p>
+<video id="rv-video" controls width="320" height="180" aria-label="Test pattern"
+  src="/media/2930ad3df7819c50.mp4"></video>
+"""
+    first = leaf_page("Recording first", body)
+    second = first.replace("Recording first", "Recording second").replace(
+        "is a draft.", "is final."
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.evaluate("() => { window.__video = document.getElementById('rv-video'); }")
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page.locator("#rv-edited")).to_have_text("The recording is final.")
+    state = page.evaluate(
+        """() => {
+          const video = document.getElementById('rv-video');
+          return {
+            same: video === window.__video,
+            controls: video.hasAttribute('controls'),
+            bars: document.querySelectorAll('.lf-video-controls').length,
+          };
+        }"""
+    )
+    assert state == {"same": True, "controls": False, "bars": 1}, state
+
+
 def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
     browser, serve
 ):

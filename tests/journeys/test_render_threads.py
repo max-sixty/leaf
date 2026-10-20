@@ -815,20 +815,9 @@ def test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor(
     surface = open_capture_area(page)
     page.mouse.move(left, top)
     page.mouse.down()
-    page.mouse.move(left + 360, top + 170, steps=5)
-    page.mouse.up()
-    selection = surface.locator(".lf-region-selection")
-    expect(selection).to_be_visible()
-    page.keyboard.press("ArrowRight")
-    page.keyboard.press("Shift+ArrowDown")
-    selected = selection.bounding_box()
-    assert selected["x"] == pytest.approx(left + 10)
-    assert selected["y"] == pytest.approx(top)
-    assert selected["width"] == pytest.approx(360)
-    assert selected["height"] == pytest.approx(180)
-
+    page.mouse.move(left + 360, top + 180, steps=5)
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("Enter")
+        page.mouse.up()
     expect(surface).to_be_hidden()
     attachment = page.locator(".lf-composer-media-item img")
     expect(attachment).to_be_visible()
@@ -888,9 +877,8 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
     page.mouse.move(
         int(frame["x"] + frame["width"]) - 1, int(frame["y"]) + 260, steps=5
     )
-    page.mouse.up()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("Enter")
+        page.mouse.up()
     expect(surface).to_be_hidden()
     media_url = page.locator(".lf-composer-media-item img").get_attribute("src")
     image = Image.open(

@@ -15,8 +15,8 @@ below owns its own:
   compiles each module to one JavaScript module, line for line, so branches conflict in
   the output only where their TypeScript conflicts. `browser/shipped.mjs` refuses a
   module an export can't load and writes each bundle's license notices.
-- `initial.mjs`: builds each package's first-paint drawing from its `initial.js` into
-  the bundle its registry names in `x-initial`.
+- `initial.mjs`: builds each widget's first-paint drawing from its package's
+  `initial/<tag>.js` into the bundle its registry entry names in `x-initial`.
 - `styles.mjs`: resolves CSS imports in `skills/leaf/assets/styles/` and bundled
   packages' `styles/` into the committed complete sheets.
 - `registry.mjs`: generates the runtime modules that carry a registry fact to the

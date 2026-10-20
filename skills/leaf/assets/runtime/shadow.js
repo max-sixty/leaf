@@ -1,6 +1,7 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
-import { registry, tagsDeclaring } from "./registry.js";
+import { isStage, liveStages } from "./arrivals.js";
+import { registry } from "./registry.js";
 import {
   byRenderedOrder,
   composedParentNode,
@@ -32,27 +33,33 @@ export {
 // Which root to look under is the axis, because the whole document is not the only
 // answer: a message arriving in the panel carries widget markup that upgrades in a
 // subtree, so a pass over that subtree has the same boundary to cross and no document
-// to ask about.
+// to ask about. A root is found under `root` as a selector would find its host: `root`
+// itself or an element in `root`'s own tree, not one inside another root.
+//
+// A declared root is the stage an x-shadow widget built through `shadowStage`, so the
+// roots come from the stages' registry (`liveStages`, arrivals.js), not from a query of
+// `root`. Every id the document doesn't hold is looked for here (`elementById`,
+// passages.js), as is an obligation's widget in a thread no one has opened, on every
+// paint that places it, so this answer costs the number of stages, not the size of the
+// page. A root attached any other way carries none of a stage's marks or watches, and
+// its host reads as one with no declared root: by its own children.
 //
 // A root refused for holding bare text (passages.js, `refusesBareText`) leaves the list for
-// good, so its host reads as one with no declared root: by its own children.
+// good, and its host reads the same way.
 const refusedRoots = new WeakSet();
 export const refuseShadowRoot = (root) => refusedRoots.add(root);
 // The declared root `host` holds the page's words in, or null.
 export const declaredRoot = (host) =>
   host.shadowRoot &&
   registry[host.localName]?.["x-shadow"] &&
+  isStage(host.shadowRoot) &&
   !refusedRoots.has(host.shadowRoot)
     ? host.shadowRoot
     : null;
 export const shadowRootsIn = (root) =>
-  tagsDeclaring((entry) => entry["x-shadow"])
-    .flatMap((tag) => [
-      ...(root.nodeType === Node.ELEMENT_NODE && root.matches(tag) ? [root] : []),
-      ...root.querySelectorAll(tag),
-    ])
-    .map(declaredRoot)
-    .filter(Boolean);
+  liveStages().filter(
+    (stage) => root.contains(stage.host) && declaredRoot(stage.host) === stage,
+  );
 export const pageShadowRoots = () => shadowRootsIn(document);
 // Explicit inertness excludes a node through its composed ancestry. An open native
 // modal escapes inherited inertness outside itself, but an inert modal or descendant

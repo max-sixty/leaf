@@ -2949,7 +2949,7 @@ export function createFloatingPanel({
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
 
-    // The next step of what the user is doing now, such as walking a search's matches or
+    // The next step of what the user is doing now, such as selecting a search's match or
     // commenting on the words a finger selected, stands in the counts' place while that
     // gesture holds it (page-controls.js, `gesture`).
     const steps = rows().filter((entry) => entry.gesture);

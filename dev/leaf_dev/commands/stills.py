@@ -829,14 +829,14 @@ def capture_menu(page: Page) -> None:
 
 
 def capture_area(page: Page) -> None:
-    """Select a page area, with its confirmation and cancellation controls visible."""
+    """Draw a page area, held before the lift that would attach it, with the way out
+    of area capture in the panel's row."""
     page.locator("#plan-context").scroll_into_view_if_needed()
     capture_menu(page)
     page.locator(".lf-region-selection").wait_for(state="visible")
     page.mouse.move(100, 200)
     page.mouse.down()
     page.mouse.move(360, 350, steps=4)
-    page.mouse.up()
 
 
 def capture_small_drag(page: Page) -> None:

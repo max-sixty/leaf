@@ -114,12 +114,31 @@ collection, not all thread state), the to-dos and undo list (`runtime.todos`,
 and approved state (not every obligation). No check finds the rest;
 `leaf-dev bench-latency` against the previous commit shows one that costs time.
 
-## What reactivity will not fix
+## What a comment's paint costs
 
-The corpus page's comment still paints in about 120–135 ms against the 100 ms
-budget. The remaining time is style recalculation over the page's ~1,700 elements,
-much of it forced by geometry reads during the paint and made costly by the theme's
-`:has()` rules, not repaint work the runtime could skip. `uv run leaf-dev profile
-corpus comment` lists each forced recalculation by call site and milliseconds.
-Closing that gap is a CSS change: fewer `:has()` rules, or containment around the
-regions the runtime writes.
+`uv run leaf-dev profile corpus comment` lists, per run, the main-thread tasks from
+the key to the server's reading on screen, each forced style recalculation by call
+site, and JS by function. On the corpus page most of the comment's time was script,
+not the theme's `:has()` rules:
+
+- An obligation whose widget stands in a thread message no one has opened has no
+  node in the document, so every `elementById` of its id fell through to
+  `shadowRootsIn`, which queried the whole document for each `x-shadow` tag. Every
+  `lf-atlas-worker`'s goal, and every read of where the user stands, asks for each
+  obligation's source, so one comment ran hundreds of those queries, about half its
+  time. `shadowRootsIn` now reads the stages' registry (`liveStages`, `arrivals.js`).
+- `rowArrows` read the computed `direction`, so each diff file's key availability
+  forced a style recalculation of up to 5,700 elements between the writes of one key
+  reflection. It now reads `:dir(rtl)`, which the `dir` attributes decide without
+  computing style.
+
+`uv run leaf-dev bench-latency --page corpus --transition comment` after both, five
+paired runs on a host at load 8–10 (18 cores): the comment painted in 91 ms [83–98]
+against the merge base's 238 [226–288], and the server's reading in 179 ms [171–190]
+against 539. Three earlier paired runs at load 14–52 read 95–107 ms against 273–295. Profiled style time fell from 129 to 51 ms a run; the largest
+forced recalculations left are the thread marks' geometry reads (`targetParts`, about
+4 ms each).
+
+The server's reading still takes longer than 100 ms. The POST answers in about 80 ms
+on a loaded host, and applying the reading repaints the threads, the annotations and
+every atlas worker, since each comment changes the obligations `readWork` reads.

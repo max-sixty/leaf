@@ -1410,7 +1410,7 @@ RING_CANDIDATES = browser_function(
 # That survives what leaves the ring alone (another declaration, a reordered sheet,
 # another selector added to the list, the rule moving file) and changes when what
 # selects the ring does. Tests assert on the part of it that makes the rule the
-# control's own, such as `.lf-skip`, rather than on the whole text.
+# control's own, such as `.lf-grip`, rather than on the whole text.
 #
 # Only a declaration that draws with the ring's own token is a ring rule: `--focus-ring`
 # for an outline, `--focus-shadow` for the band cast as a shadow. A contour written out

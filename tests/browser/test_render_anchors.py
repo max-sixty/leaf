@@ -640,9 +640,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
         >= box["x"] + box["width"]
     ), "the control must hang beside the selected paragraph"
 
-    # A box that takes no pointer cannot be covered for the pointer, which is the whole
-    # subject here: the skip link rests transparent and inert at the window's head and only
-    # becomes a control at all when the keyboard reaches it.
+    # A box that takes no pointer cannot be covered for the pointer.
     under = page.evaluate("""() => [...document.querySelectorAll("[data-lf-offer]")]
         .filter(c => (!c.closest(".lf-chrome") || c.closest(".lf-margin-cluster"))
                      && c.checkVisibility()

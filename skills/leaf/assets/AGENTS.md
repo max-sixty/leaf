@@ -156,7 +156,7 @@ representative desktop viewport.
 - **A face used twice is a token or a shared rule**, and a rule names it rather than
   spelling it out. A lift names one of the theme's three heights, `--raise-1` to
   `--raise-3` (`styles/theme.css`, beside `--shade`); boxes that wear one face, such as
-  the chip a focused skip link and picture proxy show at the window's head, share one rule.
+  the chip a focused comment note and picture proxy show at the window's head, share one rule.
   Check: `test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink`.
 - **Each thread's `unread` and `attention` are computed once**, and every surface that
   paints them uses that value, so the Threads toggle, filters, panel, margin entry and

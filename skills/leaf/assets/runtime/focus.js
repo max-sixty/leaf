@@ -1221,7 +1221,7 @@ export function controlNavigationKeys(node) {
 //
 // `releaseFocus` is the other half of the pair and the top of the document is the point of
 // it: a page that has just arrived is not a page anybody has read yet, so its first Tab
-// belongs at the skip link rather than part-way through the prose that happens to be on
+// belongs at its first control rather than part-way through the prose that happens to be on
 // screen. It is also the fallback here, for a page whose view holds nothing to land on,
 // such as a run of figures, where the honest answer is that the user has no reading
 // position for the browser to continue from. A region in that state still has one: the

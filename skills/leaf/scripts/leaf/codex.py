@@ -2155,11 +2155,11 @@ UNCONFIRMED_TEXT = (
 
 def reply_target_answered(target: dict) -> bool | None:
     """Read exact reply completion, or None when its page no longer exists."""
-    from .thread import answered_by_reply
+    from .thread import successful_replies
 
     try:
         with PageTransaction(Path(target["page"])) as page:
-            return answered_by_reply(page.events, target["responds"])
+            return bool(successful_replies(page.events, target["responds"]))
     except FileNotFoundError:
         return None
 

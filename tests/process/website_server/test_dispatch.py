@@ -352,9 +352,9 @@ def test_a_thread_opened_during_a_hosted_turn_is_named_as_it_is_dispatched(
     )
     requests = []
 
-    def app_server_title(endpoint, model):
+    def app_server_title(endpoint):
         def generate(request, target):
-            requests.append((endpoint, model, request))
+            requests.append((endpoint, request))
             return {"title": "Export speed"}
 
         return generate
@@ -368,8 +368,8 @@ def test_a_thread_opened_during_a_hosted_turn_is_named_as_it_is_dispatched(
             failure="the thread was never named",
         )
         assert (title["thread"], title["title"]) == (comment["id"], "Export speed")
-        [(endpoint, model, request)] = requests
-        assert (endpoint, model) == (harness.endpoint, website_server.HOSTED_MODEL)
+        [(endpoint, request)] = requests
+        assert endpoint == harness.endpoint
         assert "Why is the export slow?" in request
 
         def resume_and_start(target, thread_id, process, event_id):

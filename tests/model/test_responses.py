@@ -133,6 +133,36 @@ def test_a_refusal_names_a_ref_only_while_its_owner_holds_the_page(
     )
 
 
+def test_the_first_reply_on_a_revision_notes_what_page_check_advises(page_dir):
+    """A revision that answers a message gets no `page check` before its reply, so
+    the reply that first publishes a revision notes the advice `page check` gives on
+    it, beside its result. Later replies on that revision repeat none of it."""
+
+    def advised(comment):
+        asked = append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "id": comment, "author": "user", "text": "Tidy it"},
+        )
+        posted = CliRunner().invoke(
+            cli_model.cli,
+            ["response", "reply", response_reference(page_dir, asked), "--done"]
+            + ["--text", "Tidied."],
+        )
+        assert posted.exit_code == 0, posted.output
+        return [json.loads(line) for line in posted.stderr.splitlines()]
+
+    (page_dir / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><title>t</title></head>'
+        "<body><main><h1>Title</h1><p>words</p></main></body></html>",
+        encoding="utf-8",
+    )
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    report = json.loads(checked.stdout)
+    assert {finding["code"] for finding in report["findings"]} == {"unpointable"}
+    assert advised("first") == report["findings"]
+    assert advised("second") == []
+
+
 def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_path):
     other = tmp_path / "other-response"
     shutil.copytree(page_dir, other)

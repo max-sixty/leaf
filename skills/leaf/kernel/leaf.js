@@ -166,6 +166,7 @@ import {
   settleThread,
   showHeld,
   snapSelection,
+  standingOrigin,
   standingThreadId,
   stepFrom,
   tabStore,
@@ -5026,7 +5027,7 @@ var label = (count) => `${count} comment${count === 1 ? "" : "s"}`;
 function createAnchorNoteProjection({ openThread, labelAnchor }) {
   const claims = /* @__PURE__ */ new Map();
   function claim() {
-    const note = offer("button", "lf-skip lf-mark-note");
+    const note = offer("button", "lf-mark-note");
     note.tabIndex = -1;
     const record = { note, firstThreadId: null };
     note.addEventListener(
@@ -6068,8 +6069,7 @@ function createQueueWalk({
     return stops().filter((stop) => stop.kind === "obligation" && held.has(stop.id));
   }
   const stopsOf = (region) => region ? stopsWithin(region) : stops();
-  function standingStop(list, { place: here, kind } = walkOrigin()) {
-    if (kind !== "standing") return null;
+  function standingStop(list, origin = standingOrigin()) {
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
@@ -6080,6 +6080,8 @@ function createQueueWalk({
       );
       if (stop) return stop;
     }
+    if (origin?.kind !== "standing") return null;
+    const { place: here } = origin;
     if (!here) return null;
     const item = obligationHolding(readObligations().all, placeOf(here));
     if (item) {
@@ -8755,10 +8757,6 @@ function createFloatingPanel({
       if (moved) paint();
     }
   });
-  function enter() {
-    const input = prefs().rest !== "mark" ? fieldInput() : null;
-    focusDestination(input ?? leaf, "move");
-  }
   function mount(parent) {
     parent.append(ground, host);
     follow.observe(card);
@@ -8828,7 +8826,6 @@ function createFloatingPanel({
     mount,
     open,
     close,
-    enter,
     pageComment,
     doors,
     showForSample,
@@ -11051,7 +11048,6 @@ function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     touch: "Align current item at top",
     menu: "keys",
     retainStanding: true,
-    when: () => Boolean(currentItem()),
     run: () => {
       const item = currentItem();
       if (!item) return;
@@ -11586,8 +11582,6 @@ var standingPainters = {
   paintCoreControls,
   paintInputs: inputs.paintInputs
 };
-var skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
-skipToChrome.onclick = floatingPanel.enter;
 if (!offlineInteractive) {
   document.adoptedStyleSheets = [
     ...document.adoptedStyleSheets,
@@ -11610,7 +11604,6 @@ if (!offlineInteractive) {
     fabBar,
     chromeForeground
   );
-  document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
   version.mount();
   mountPageStatus({

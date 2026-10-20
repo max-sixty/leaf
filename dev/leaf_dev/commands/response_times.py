@@ -3,8 +3,8 @@
     leaf-dev response-times PAGE... [--since ISO] [--until ISO] [--json]
 
 Each attention-bearing user message version is an input. Pickup, work starts and
-failure receipts are separate milestones. Progress and answers both count as first
-replies; answer time does not claim the task is finished.
+failure receipts are separate milestones. Progress, published provisional words and
+answers count as first replies; answer time does not claim the task is finished.
 
 Diagnostics carry host receipt `ts` and browser `observed_at`; the cutoff uses
 host time while visible elapsed time uses only the document's monotonic clock.
@@ -51,8 +51,8 @@ def visible_feedback(
 
     Retry copies are removed by read_interactions. The first observed submit for
     an attempt in one tab anchors that tab's measurement; a viewer in another tab
-    cannot provide its endpoint. Stream attempts may resolve through a subsequently
-    admitted answer. Uncommitted streams without an exact input remain unjoined.
+    cannot provide its endpoint. Stream attempts resolve through publication markers
+    or a subsequently admitted answer. Streams without an exact input remain unjoined.
     """
     browser = sorted(
         (
@@ -121,7 +121,13 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
     observations = read_interactions(
         page,
         until=until,
-        types=("event", "event_submit", "reply_visible", "run_context"),
+        types=(
+            "event",
+            "event_submit",
+            "reply_visible",
+            "reply_stream_words",
+            "run_context",
+        ),
     )
     contexts = [
         row
@@ -209,18 +215,7 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
                 reply_inputs[event["attempt"]] = inputs[0]
         context = observation["context"] or {}
         turn = event.get("turn", start.get("turn") if start is not None else None)
-        actor = {
-            "session": event.get("session"),
-            "turn": turn,
-            "harness": context.get("harness"),
-            "turn_provider": ("native" if context["provider"] else "leaf")
-            if turn is not None
-            and context.get("turn") == turn
-            and context.get("provider") is not None
-            else None,
-            "cwd": context.get("cwd"),
-            "transcript_path": context.get("transcript_path"),
-        }
+        actor = _agent_context(event.get("session"), turn, context)
         for input_id in inputs:
             if input_id not in rows:
                 continue
@@ -238,6 +233,35 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
                 row["first_reply_agent"] = event.get("agent")
             for name in names:
                 row["milestones"].setdefault(name, milestone)
+    for observation in observations:
+        if (
+            observation["source"] != "server"
+            or observation["type"] != "reply_stream_words"
+        ):
+            continue
+        input_id = observation["input_id"]
+        if input_id not in rows:
+            continue
+        row = rows[input_id]
+        identity = observation["attempt"]
+        stamp = interaction_time(observation["ts"])
+        actor = _agent_context(
+            observation["session"], observation["turn"], observation["context"] or {}
+        )
+        row["agent_sessions"].setdefault(identity, actor)
+        reply_inputs[identity] = input_id
+        previous = row["milestones"].get("first_reply")
+        if previous is None or stamp < interaction_time(previous["at"]):
+            row["milestones"]["first_reply"] = {
+                "event_id": None,
+                "attempt": identity,
+                "at": observation["ts"],
+                "elapsed_s": (stamp - admitted_times[input_id]).total_seconds(),
+                **actor,
+                "clock": "server_wall",
+            }
+            row["first_reply_kind"] = "stream"
+            row["first_reply_agent"] = observation["agent"]
     for identity, observation in visible_feedback(
         observations, input_attempts, reply_inputs
     ).items():
@@ -246,6 +270,22 @@ def page_timings(page: Path, *, since: datetime | None, until: datetime) -> dict
         "page": str(page),
         "unlinked_agent_replies": unlinked,
         "samples": list(rows.values()),
+    }
+
+
+def _agent_context(session: str | None, turn: str | None, context: dict) -> dict:
+    """Project captured native context only for the explicitly matching turn."""
+    return {
+        "session": session,
+        "turn": turn,
+        "harness": context.get("harness"),
+        "turn_provider": ("native" if context["provider"] else "leaf")
+        if turn is not None
+        and context.get("turn") == turn
+        and context.get("provider") is not None
+        else None,
+        "cwd": context.get("cwd"),
+        "transcript_path": context.get("transcript_path"),
     }
 
 

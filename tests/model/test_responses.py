@@ -133,6 +133,60 @@ def test_a_refusal_names_a_ref_only_while_its_owner_holds_the_page(
     )
 
 
+@pytest.mark.parametrize("earlier", [None, "progress", "failure-markup"])
+def test_the_first_reply_on_a_revision_notes_what_page_check_advises(page_dir, earlier):
+    """A revision that answers a message gets no `page check` before its reply, so
+    the first successful reply notes the advice `page check` gives on it, beside
+    its result. Progress and failure reports do not consume that advice; later
+    successful replies on that revision repeat none of it."""
+
+    def advised(comment):
+        asked = append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "id": comment, "author": "user", "text": "Tidy it"},
+        )
+        posted = CliRunner().invoke(
+            cli_model.cli,
+            ["response", "reply", response_reference(page_dir, asked), "--done"]
+            + ["--text", "Tidied."],
+        )
+        assert posted.exit_code == 0, posted.output
+        return [json.loads(line) for line in posted.stderr.splitlines()]
+
+    (page_dir / "index.html").write_text(
+        '<!doctype html><html lang="en"><head><title>t</title></head>'
+        "<body><main><h1>Title</h1><p>words</p></main></body></html>",
+        encoding="utf-8",
+    )
+    revisioning_model.activate_source(page_dir)
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    report = json.loads(checked.stdout)
+    assert {finding["code"] for finding in report["findings"]} == {"unpointable"}
+    if earlier:
+        asked = append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "author": "user", "text": "Can you check this?"},
+        )
+        reference = response_reference(page_dir, asked)
+        if earlier == "progress":
+            with pytest.raises(Refused) as refused:
+                thread_model.post_response(
+                    reference, "Checking.", ephemeral=True, markup="<p>Checking.</p>"
+                )
+            assert refused_on(refused.value).code == "ephemeral-content"
+        thread_model.post_response(
+            reference,
+            "Checking." if earlier == "progress" else "Unavailable.",
+            **(
+                {"ephemeral": True}
+                if earlier == "progress"
+                else {"failure": "unavailable", "markup": "<p>Unavailable.</p>"}
+            ),
+        )
+    assert advised("first") == report["findings"]
+    assert advised("second") == []
+
+
 def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_path):
     other = tmp_path / "other-response"
     shutil.copytree(page_dir, other)
@@ -472,6 +526,9 @@ def test_delegated_author_write_survives_same_owner_process_restart(claimed):
 
 
 def test_response_api_records_failure_without_reopening_thread(page_dir):
+    revisioning_model.activate_source(page_dir)
+    source = page_dir / "index.html"
+    active = files_model.latest_revision(page_dir)
     asked = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Please answer."}
     )
@@ -492,6 +549,7 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
         ],
     )
     assert progress.exit_code == 0, progress.output
+    source.write_text("<lf-unknown>Unfinished draft</lf-unknown>")
     posted = CliRunner().invoke(
         cli_model.cli,
         [
@@ -505,6 +563,8 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
         ],
     )
     assert posted.exit_code == 0, posted.output
+    assert files_model.latest_revision(page_dir) == active
+    assert source.read_text() == "<lf-unknown>Unfinished draft</lf-unknown>"
     reply = json.loads(posted.output)
     assert reply["failure"] == "unavailable"
     assert reply["responds"] == asked["id"]
@@ -766,7 +826,11 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     assert refused_on(refused.value).code == "redeclared-answer"
 
 
-def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
+def test_addressed_progress_uses_active_revision_and_starts_work_atomically(page_dir):
+    revisioning_model.activate_source(page_dir)
+    source = page_dir / "index.html"
+    original = source.read_text()
+    active = files_model.latest_revision(page_dir)
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Answer this"}
     )
@@ -775,9 +839,12 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
     with pytest.raises(Refused) as refused:
         thread_model.post_response(reference, "Checking\nthe store.", ephemeral=True)
     assert refused_on(refused.value).values["field"] == "/text"
+    source.write_text("<lf-unknown>Unfinished draft</lf-unknown>")
     progress = thread_model.post_response(
         reference, "Checking the store.\n", ephemeral=True
     )
+    assert files_model.latest_revision(page_dir) == active
+    assert source.read_text() == "<lf-unknown>Unfinished draft</lf-unknown>"
     events = events_model.read_events(page_dir)
     assert [event["kind"] for event in events] == ["comment", "reply"]
     assert progress["start"]["item"] == comment["id"]
@@ -789,7 +856,12 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
             page_dir, {"parent": comment["id"]}, "Proactive", ephemeral=True
         )
     assert refused_on(refused.value).code == "owed-response"
+    source.write_text(original + "<!-- pending edit -->")
+    thread_model.post_response(reference, "Verifying the store.", ephemeral=True)
+    assert files_model.latest_revision(page_dir) == active
+    assert source.read_text() == original + "<!-- pending edit -->"
     answer = thread_model.post_response(reference, "The durable answer.")
+    assert files_model.latest_revision(page_dir) != active
     assert answer["responds"] == comment["id"]
     assert comment["id"] not in delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)

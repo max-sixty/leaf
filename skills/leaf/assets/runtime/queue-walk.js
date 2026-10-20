@@ -64,7 +64,13 @@ import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { focused, onStanding } from "./focus.js";
-import { obligationHolding, placeOf, stepFrom, walkOrigin } from "./standing-target.js";
+import {
+  obligationHolding,
+  placeOf,
+  standingOrigin,
+  stepFrom,
+  walkOrigin,
+} from "./standing-target.js";
 import { seenRect } from "./geometry.js";
 import { elementById, inChrome, pageDocument } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
@@ -195,10 +201,10 @@ export function createQueueWalk({
   // place, or the innermost element that does, in page order the last that holds them,
   // as `obligationHolding` reads obligations. The page's own stop is its head element alone, never
   // what that holds, since on a page without a heading the head is `main`. Standing in
-  // a thread that holds an open obligation is not standing on that obligation. `here` is the place
-  // the step counts from, the user's own unless a caller names another.
-  function standingStop(list, { place: here, kind } = walkOrigin()) {
-    if (kind !== "standing") return null;
+  // a thread that holds an open obligation is not standing on that obligation. `origin` names
+  // the user's place unless a walk supplies its own starting point. A reading
+  // in the viewport can start a walk but does not select a task to finish or count.
+  function standingStop(list, origin = standingOrigin()) {
     if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
@@ -209,6 +215,8 @@ export function createQueueWalk({
       );
       if (stop) return stop;
     }
+    if (origin?.kind !== "standing") return null;
+    const { place: here } = origin;
     if (!here) return null;
     const item = obligationHolding(readObligations().all, placeOf(here));
     if (item) {

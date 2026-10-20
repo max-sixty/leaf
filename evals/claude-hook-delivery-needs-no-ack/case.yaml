@@ -9,6 +9,10 @@
 # passed 3 of 3 against b9d22d31e, so it has only guarded on Claude Code too.
 # Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
 # Claude Code.
+# Re-frozen with `freeze_delivery` at 6a66b9b7b, when `DELIVERY` declared the
+# envelope: answers name `parent` and `responds`, the format is
+# `leaf-delivery/15`, and ids, page, claim and times are substituted as before.
+# The handling is left empty, as the case first froze it. Not rescored.
 description: claude-hook-delivery-needs-no-ack
 metadata:
   purpose: "A Claude hook delivery arrives confirmed: run no acknowledgement command, and name the update's work first."
@@ -16,7 +20,7 @@ metadata:
 vars:
   prompt: |
     You are a Claude Code session using Leaf. You just received this complete inline envelope from Leaf's prompt hook:
-    {"format":"leaf-delivery/6","id":"dc81eabb","acknowledge":null,"batches":[{"page":"/tmp/review","claim":null,"through_seq":1,"threads":[],"handling":{},"events":[{"kind":"comment","id":"comment-a","seq":1,"author":"user","text":"Please revise the opening to name the owner.","answer":{"kind":"reply","to":"comment-a","for":"comment-a","ref":"dc81eabb:0:comment-a","writer":"agent"},"threads":["comment-a"],"subject":{"kind":"thread","id":"comment-a"},"handling":[]}]}]}
+    {"format":"leaf-delivery/15","id":"dc81eabb","created_at":1791448199.576215,"acknowledge":null,"batches":[{"page":"/tmp/review","claim":null,"through_seq":2,"threads":[{"id":"comment-a","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{},"events":[{"kind":"comment","author":"user","revision":1,"text":"Please revise the opening to name the owner.","id":"comment-a","attention":true,"ts":"2026-10-08T01:29:59.412-07:00","seq":2,"subject":{"kind":"thread","id":"comment-a"},"threads":["comment-a"],"answer":{"kind":"reply","parent":"comment-a","responds":"comment-a","ref":"dc81eabb:0:comment-a","writer":"agent"}}]}]}
 
     The page is already served. Read the Leaf instructions needed for your harness.
     Only Skill and Read run here, so write out, in order, each command you would run

@@ -30,6 +30,9 @@ WORK_KINDS = frozenset(
 # `awaiting_user` is a dialog whose kind, approval or question, the harness does not
 # say.
 AWAITING_KINDS = {"awaiting_approval", "awaiting_input", "awaiting_user"}
+# The step a Working status shows while the claimant's session works on after its
+# turn ended (`Turn.background`).
+BACKGROUND_DETAIL = "in the background"
 
 
 def _moment(value: str | None) -> datetime | None:
@@ -285,14 +288,16 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
 class Turn(NamedTuple):
     """The claimant session's current turn, as the one reading every rule of the
     fold takes: whether it is running; when it was seen to end, where something saw
-    that; until when a running turn is believed on its stamps alone; and an observed
-    step while it waits on the user in its own window, with when that wait began."""
+    that; until when a running turn is believed on its stamps alone; an observed
+    step while it waits on the user in its own window, with when that wait began;
+    and whether the session still works in the background after its turn ended."""
 
     running: bool
     ended: datetime | None = None
     until: datetime | None = None
     step: str | None = None
     step_since: datetime | None = None
+    background: bool = False
 
 
 def claimant_turn(
@@ -318,10 +323,13 @@ def claimant_turn(
     sees, each only when newer than what it contradicts: an `idle` newer than
     every renewal ends the open turn at that moment (an interrupt), and a
     `waiting` newer than the stamps is a dialog open now, a step shown whether or
-    not the stamps say a turn is open. Its `busy` is never read, since the harness
-    keeps it across turn endings while background work runs. `awaiting` says the
-    claimant's observer reports a wait on the user right now, which holds the
-    turn open for as long as that observer lives."""
+    not the stamps say a turn is open. Its `busy` never says a turn runs, since
+    the harness keeps it across turn endings while background work runs; after a
+    turn the stamps closed, it says the session works on in the background
+    (`Turn.background`), for as long as the record keeps it. It says nothing of
+    which turn left that work, so it keeps no start from being dropped. `awaiting` says the claimant's observer
+    reports a wait on the user right now, which holds the turn open for as long as
+    that observer lives."""
     opened = _moment(present.get("turn_opened"))
     closed = _moment(present.get("turn_closed"))
     if present["session_alive"] is not True:
@@ -332,7 +340,8 @@ def claimant_turn(
     dialog = live.get("state") == "waiting" and since and since >= (stamped or since)
     step = {"step": "awaiting_user", "step_since": since} if dialog else {}
     if closed is not None or opened is None or present.get("claim_turn") is None:
-        return Turn(False, ended=closed, **step)
+        background = closed is not None and live.get("state") == "busy"
+        return Turn(False, ended=closed, background=background, **step)
     if awaiting or dialog:
         return Turn(True, **step)
     renewals = [opened, _moment(declared)]
@@ -513,12 +522,19 @@ def canonical_activity(
     declared = declared_at(present, events)
     turn, stream_live = current_turn(present, declared, stream, now)
     # What the harness observed the agent doing now: a live stream step while its turn
-    # runs, or the harness's own word that the turn waits on the user in its window.
+    # runs, the harness's own word that the turn waits on the user in its window, or
+    # that work the ended turn left, such as a coordinator's workers, still runs.
     observed = None
     if stream_live and turn.running:
         observed = stream
     elif turn.step is not None and status["state"] != "idle":
         observed = {"kind": turn.step, "detail": "", "ts": turn.step_since.isoformat()}
+    elif turn.background and status["state"] != "idle":
+        observed = {
+            "kind": "working",
+            "detail": BACKGROUND_DETAIL,
+            "ts": turn.ended.isoformat(),
+        }
     status_dropped = _dropped(status.get("ts"), turn.ended, now)
     declared_quiet = _quiet(declared, now, WORKING_GRACE) or _dropped(
         declared, turn.ended, now

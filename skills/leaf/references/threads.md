@@ -83,11 +83,13 @@ no page path or message id. While the session it was delivered to holds the page
 `leaf page state` shows the same `ref` on the update's `answer`. A reply on a `ref`
 delivered before the user's newer correction does not answer that correction.
 
-Save any source edit before replying: the reply checks the saved `index.html` and
-makes it the active revision with the answer. Rerunning an answer with the same
-`ref` adds nothing; each `--ephemeral` progress line posts. When no answer is
-coming, `--failure <code>` posts a failure receipt, which settles the input without
-reopening a resolved thread.
+Successful answers check the saved `index.html` and make it the active revision
+with the answer. Progress and failure reports use the active revision without
+checking or publishing an in-progress draft. Failure markup and anchor moves are
+checked against that revision; detaching still checks saved source. Rerunning an
+answer with the same `ref` adds nothing; each `--ephemeral` progress line posts.
+When no answer is coming, `--failure <code>` posts a failure receipt, which settles
+the input without reopening a resolved thread.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
 "Replies"). Use `leaf response reply` instead when the answer needs markup, a question
@@ -97,9 +99,10 @@ it the `answer.ref` as that package's coordinator instructions say.
 ## Preserve revised anchors
 
 When a revision rewrites a quoted passage, check every open thread on it, including
-ones you are not answering this turn. `leaf page check` lists each open thread whose
-anchor no longer resolves and where activation will move it: to its section if that
-survives, otherwise detached. The move adds no message and answers nothing.
+ones you are not answering this turn. `leaf page check`, and the first successful
+reply on a revision, list each open thread whose anchor no longer resolves and where the
+revision moves it: to its section if that survives, otherwise detached. The move adds no
+message and answers nothing.
 
 Where you know what replaced the passage, move the thread onto it in the reply that
 reports the change, with `--section`, narrowed by `--quote` or, in a diagram,

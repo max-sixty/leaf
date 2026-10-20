@@ -6,11 +6,11 @@ allowed-tools:
   - Bash(jq:*)
 ---
 
-You author a live HTML page for the user. They read it, comment on exact passages
-and act through widgets while you revise it in place. Write the page, check it,
-hand over its URL with a status saying what you want back, and wait. Answer each
-delivered update on the page and in its thread, stamp checkpoints, and idle the
-page when it is finished.
+You work with the user through a live HTML page. They read it, comment on exact
+passages and act through widgets while the work continues. Success means
+completing the task while the user can understand and redirect the work. Their
+questions and changes of direction take priority over work in progress. Keep the
+page current as the work proceeds.
 
 The input is either a subject to present or a delivery from a page already handed
 over: a `leaf_delivery` tool output, a `leaf-delivery` element, or the envelope
@@ -59,12 +59,13 @@ line for each refusal or note, with the words in `error` or `text`.
    becomes the live immutable revision. An invalid save leaves the last valid one
    live and reports the error in page state and the browser. You write
    `index.html` and `page/`; only Leaf writes revisions and version mappings.
-3. **Check the page.** Before you hand the page over or reply about a revision,
-   run `leaf page check <page>` and fix every failure. That is the whole check for
-   a quick page, one the user reacts to once and then revises or drops: hand it
-   over without stamping or a browser review. It is also the whole check for a
-   revision that answers a user's message, even on a record: each valid save is
-   already live on the user's page, and more checking only delays the answer
+3. **Check the page.** Before you first hand the page over, run
+   `leaf page check <page>` and fix every failure. That is the whole check for a
+   quick page, one the user reacts to once and then revises or drops: hand it over
+   without stamping or a browser review. A revision that answers a user's message,
+   even on a record, goes straight to the reply. The reply checks your saved edits
+   and is refused over an error; fix it and reply again. Each valid save is
+   already live on the user's page, so a separate check only delays the answer
    they are waiting for.
 4. **Review and stamp a record.** A record is a page used beyond this
    conversation. A page with `<meta name="lf-review" content="sign-off">` is
@@ -89,16 +90,13 @@ line for each refusal or note, with the words in `error` or `text`.
 
 Pick the contract for the session that owns the page:
 
-| Session                                                                            | Contract                                 |
-| ---------------------------------------------------------------------------------- | ---------------------------------------- |
-| Claude Code                                                                        | `references/harness-claude-code.md`      |
-| Pi                                                                                 | `references/harness-pi.md`               |
-| Codex with `LEAF_CODEX_APP_SERVER`, or an App Server endpoint supplied by the user | `references/harness-codex-app-server.md` |
-| Other Codex tasks, including the desktop app and IDE                               | `references/harness-codex.md`            |
+| Session     | Contract                            |
+| ----------- | ----------------------------------- |
+| Claude Code | `references/harness-claude-code.md` |
+| Pi          | `references/harness-pi.md`          |
+| Codex       | `references/harness-codex.md`       |
 
-The desktop Codex app's own App Server exposes no endpoint Leaf can use, so its
-pages follow the ordinary Codex contract. Deliveries keep arriving under the
-contract you picked. `references/codex-setup.md` owns terminal App Server setup.
+`references/codex-setup.md` owns terminal App Server setup.
 
 ## Stay responsive
 

@@ -1509,10 +1509,11 @@
   display: none;
   gap: 2px;
   --lf-tab-focus-gap: 2px;
+  --lf-tabstrip-flow: row;
   border-bottom: 1px solid var(--border-2);
 }
 .lf-tabstrip .lf-tab-btn {
-  padding: max(5px, (var(--aim-floor) - 1lh) / 2 - 3px) 7px max(7px, (var(--aim-floor) - 1lh) / 2 - 1px);
+  padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 4px) 7px max(6px, (var(--aim-floor) - 1lh) / 2 - 2px);
   min-width: var(--aim-floor);
   flex: none;
   display: inline-flex;
@@ -1538,23 +1539,34 @@
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
   display: inline-block;
   padding: 2px 5px;
+  border-bottom: 2px solid transparent;
 }
 .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
-  background: var(--card);
-  box-shadow: inset 0 0 0 1px var(--border-2);
+  border-bottom-color: currentColor;
   color: var(--ink);
 }
-@media (forced-colors: active) {
-  .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
-    text-decoration: underline;
-    text-decoration-thickness: 2px;
-    text-underline-offset: 2px;
+@container style(--lf-tabstrip-flow: column) {
+  .lf-tabstrip .lf-tab-btn {
+    padding-block: max(5px, (var(--aim-floor) - 1lh) / 2 - 3px) max(7px, (var(--aim-floor) - 1lh) / 2 - 1px);
   }
-  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip .lf-tab-btn:not([aria-selected=true]) > .lf-tab-name {
+  .lf-tabstrip .lf-tab-btn > .lf-tab-name {
+    border-bottom: 0;
+  }
+  .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
+    background: var(--card);
+    box-shadow: inset 0 0 0 1px var(--border-2);
+  }
+}
+@media (forced-colors: active) {
+  .lf-tabstrip .lf-tab-btn:not([aria-selected=true]) > .lf-tab-name {
     border-bottom-color: Canvas;
   }
-  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
-    text-decoration: none;
+  @container style(--lf-tabstrip-flow: column) {
+    .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 2px;
+    }
   }
 }
 .lf-tabdiff {
@@ -1582,6 +1594,7 @@
   }
   .lf-tabstrip {
     display: flex;
+    flex-direction: var(--lf-tabstrip-flow);
     padding: 8px var(--lf-tabstrip-pad) 0;
     --lf-tabstrip-pad: 8px;
     box-sizing: border-box;
@@ -1656,7 +1669,7 @@
   :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip {
     grid-column: 1;
     grid-row: 1;
-    flex-direction: column;
+    --lf-tabstrip-flow: column;
     gap: 0;
     overflow: visible;
     padding: 8px;
@@ -1734,7 +1747,7 @@
     :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip {
       grid-column: 1 / -1;
       grid-row: auto;
-      flex-direction: row;
+      --lf-tabstrip-flow: row;
       gap: 2px;
       overflow-x: auto;
       overflow-y: hidden;
@@ -1912,18 +1925,6 @@
   .lf-tabstrip-scroll[data-to=end]:dir(rtl) > span::before {
     content: "‹" / "";
   }
-  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip .lf-tab-btn {
-    padding-block: max(5px, (var(--aim-floor) - 1lh) / 2 - 4px) max(7px, (var(--aim-floor) - 1lh) / 2 - 2px);
-  }
-  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip .lf-tab-btn > .lf-tab-name {
-    border-bottom: 2px solid transparent;
-    background: transparent;
-  }
-  :scope:is(lf-tabs):not([list=side]) > .lf-tabstrip .lf-tab-btn[aria-selected=true] > .lf-tab-name {
-    border-bottom-color: currentColor;
-    background: transparent;
-    box-shadow: none;
-  }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]) {
     padding: var(--sp-4) 0 0;
     --lf-block-frame: trim;
@@ -2100,7 +2101,7 @@
       align-self: start;
       block-size: calc(var(--lf-view-height) - var(--lf-parts-title-h, 0px));
       min-block-size: 0;
-      flex-direction: column;
+      --lf-tabstrip-flow: column;
       gap: 0;
       padding: var(--sp-4) 8px;
       overflow-x: hidden;
@@ -2126,7 +2127,7 @@
         top: var(--lf-top);
         z-index: 2;
         block-size: var(--lf-tabstrip-h);
-        flex-direction: row;
+        --lf-tabstrip-flow: row;
         gap: 2px;
         padding: 8px var(--lf-tabstrip-pad) 0;
         overflow-x: auto;

@@ -801,6 +801,43 @@
   .lf-fp-head:empty {
     display: none;
   }
+  /* PROTOTYPE: the head standing on the row, under the view (floating-panel.js,
+     `arrangement`), and under `names` the view's name over it. */
+  .lf-floating-panel:is([data-arrangement="foot"], [data-arrangement="names"]) {
+    .lf-fp-head {
+      min-height: 40px;
+      padding: 3px 6px 0 calc(6px + var(--lf-fp-inset));
+      background: linear-gradient(var(--lf-fp-faint), var(--lf-fp-faint)) top center /
+        calc(100% - 2 * (6px + var(--lf-fp-inset))) 1px no-repeat;
+    }
+    .lf-fp-view {
+      padding-top: 8px;
+    }
+    .lf-fp-view[data-view="thread"] {
+      padding-top: 10px;
+    }
+  }
+  .lf-fp-name {
+    display: none;
+  }
+  .lf-floating-panel[data-arrangement="names"] {
+    .lf-fp-name:not(:empty) {
+      display: flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 8px 6px 0 calc(6px + var(--lf-fp-inset));
+      box-sizing: border-box;
+    }
+    .lf-fp-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .lf-fp-back .lf-fp-chevron {
+      scale: -1 1;
+      margin: 0;
+    }
+  }
   .lf-fp-crumb {
     flex: 1;
     min-width: 0;
@@ -1594,6 +1631,38 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-weight: 600;
+  }
+  /* PROTOTYPE: the way back at the list's foot, over the leaf (floating-panel.js,
+     `arrangement`), set off from the list as a view's head is. */
+  .lf-floating-panel:is([data-arrangement="foot"], [data-arrangement="names"]) {
+    .lf-fp-menu-back {
+      position: relative;
+      margin: 7px 0 0;
+    }
+    .lf-fp-menu-back::before {
+      content: "";
+      position: absolute;
+      inset: -4px 8px auto;
+      height: 1px;
+      background: var(--lf-fp-faint);
+    }
+  }
+  .lf-floating-panel[data-arrangement="names"] .lf-fp-menu-back b {
+    font-weight: inherit;
+  }
+  /* Under `foot` the way back reads as a view's head does: where it leads, then where
+     the user is. */
+  .lf-fp-menu-parent,
+  .lf-fp-menu-back .lf-fp-sep {
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-menu-name {
+    display: flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 5px 8px;
+    box-sizing: border-box;
     font-weight: 600;
   }
   .lf-fp-state {

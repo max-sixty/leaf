@@ -215,6 +215,20 @@ import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { closestAcross } from "./passages.js";
 
 const prefs = () => document.documentElement.lfChrome;
+// PROTOTYPE, for the review of controls at the panel's foot: which arrangement the panel
+// draws. `today` keeps the head at the view's top edge; `foot` stands the whole head
+// on the row, under the view; `names` stands the view's name over it and everything
+// pressable under it. A sample names its own with a class on its `main`, else follows
+// the playground's `arrangement` choice on its root.
+const ARRANGEMENTS = Object.freeze(["today", "names", "foot"]);
+const arrangement = () => {
+  const main = document.querySelector("main");
+  return (
+    ARRANGEMENTS.find((name) => main?.classList.contains(`fp-arrangement-${name}`)) ??
+    document.documentElement.dataset.playgroundArrangement ??
+    "today"
+  );
+};
 // The Codex panel's tween: one strong ease-out for every change of size and fade.
 const EASE = "cubic-bezier(.23, 1, .32, 1)";
 // The box growing as the words do, a line at a time, takes the tween's full length, which
@@ -326,7 +340,10 @@ export function createFloatingPanel({
   const opened = el("div", "lf-fp-opened");
   const head = el("div", "lf-fp-head");
   const stage = el("div", "lf-fp-stage");
-  opened.append(head, stage);
+  // PROTOTYPE: under the `names` arrangement, the view's name stands over it here, with
+  // nothing to press, while its controls stand at its foot (`arrangement`).
+  const nameBar = el("div", "lf-fp-name");
+  opened.append(nameBar, head, stage);
   const context = el("div", "lf-fp-context");
   const contextWords = el("span", "lf-fp-context-words");
   const row = el("div", "lf-fp-row");
@@ -404,6 +421,15 @@ export function createFloatingPanel({
     return box.width > 0 && box.height > 0 ? [box] : [];
   }, [row]);
   declareOccluder(opened);
+  // PROTOTYPE: the playground's choice of arrangement repaints the panel, and lets a
+  // list held for the arrangement it leaves fit again.
+  new MutationObserver(() => {
+    rooms.clear();
+    paint();
+  }).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-playground-arrangement"],
+  });
 
   const leaf = el("button", "lf-fp-leaf");
   leaf.type = "button";
@@ -1277,6 +1303,9 @@ export function createFloatingPanel({
     const view = openView();
     if (!view || !press.node.isConnected) return;
     if (Math.abs(holding(view) - press.holds) < 0.5) return;
+    // PROTOTYPE: a press in a head standing at the view's foot stays put however the
+    // view grows.
+    if (!press.inView && arrangement() !== "today") return;
     const above = press.inView ? contentTop(press.node, view) - press.at : 0;
     if (!press.inView || Math.abs(above) < 0.5) {
       if (holdThread(press.height)) paint();
@@ -1313,6 +1342,9 @@ export function createFloatingPanel({
   });
   function holdRoom() {
     const top = trail.value.at(-1);
+    // PROTOTYPE: with the controls at the view's foot, a list's growing or shrinking
+    // moves none of them, so it fits what it shows.
+    if (arrangement() !== "today") return false;
     if (!top || top.view === "thread" || rooms.has(routeKey(top))) return false;
     const view = stage.querySelector(".lf-fp-view:not([data-leaving])");
     if (!view || view.querySelector(".lf-fp-asked:empty")) return false;
@@ -1698,25 +1730,42 @@ export function createFloatingPanel({
   function menuTemplate() {
     if (!menuAt.value)
       return html`<div class="lf-fp-menu-page" role="none">${rootTemplate()}</div>`;
-    return html`<div class="lf-fp-menu-page" role="none">
-      <button
-        type="button"
-        role="menuitem"
-        class="lf-fp-item lf-fp-menu-back"
-        aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
-        @click=${() => showMenuAt(null)}
+    // PROTOTYPE: under `foot` the way back stands at the list's foot, over the leaf;
+    // under `names` the list's name stands over it and the way back under it.
+    const arranged = arrangement();
+    const backRow = html`<button
+      type="button"
+      role="menuitem"
+      class="lf-fp-item lf-fp-menu-back"
+      aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
+      @click=${() => showMenuAt(null)}
+    >
+      <span class="lf-fp-label"
+        >${
+          arranged === "foot"
+            ? html`<span class="lf-fp-menu-parent">Menu</span
+                ><span class="lf-fp-sep" aria-hidden="true">/</span
+                ><b>${titleOf(menuAt.value)}</b>`
+            : html`${iconTemplate("next", "lf-fp-chevron")}<b
+                  >${arranged === "names" ? "Menu" : titleOf(menuAt.value)}</b
+                >`
+        }</span
       >
-        <span class="lf-fp-label"
-          >${iconTemplate("next", "lf-fp-chevron")}<b>${titleOf(menuAt.value)}</b></span
-        >
-      </button>
+    </button>`;
+    const list =
+      menuAt.value.view === "versions"
+        ? versionsList()
+        : menuAt.value.view === "errors"
+          ? errorsList()
+          : groupList(menuAt.value.group);
+    if (arranged === "today")
+      return html`<div class="lf-fp-menu-page" role="none">${backRow}${list}</div>`;
+    return html`<div class="lf-fp-menu-page" role="none">
       ${
-        menuAt.value.view === "versions"
-          ? versionsList()
-          : menuAt.value.view === "errors"
-            ? errorsList()
-            : groupList(menuAt.value.group)
-      }
+        arranged === "names"
+          ? html`<div class="lf-fp-menu-name" role="none">${titleOf(menuAt.value)}</div>`
+          : nothing
+      }${list}${backRow}
     </div>`;
   }
   function rootTemplate() {
@@ -2762,7 +2811,12 @@ export function createFloatingPanel({
         return html`<button
           type="button"
           aria-pressed=${String(current === name)}
-          @click=${() => choose(name)}
+          @click=${() => {
+            // PROTOTYPE: a view fitting what a tab shows moves as one opening does.
+            if (arrangement() !== "today")
+              viewMovingUntil = performance.now() + VIEW_RESIZE_MS;
+            choose(name);
+          }}
         >
           ${label(name)}${
             counted === null
@@ -2784,8 +2838,12 @@ export function createFloatingPanel({
     }
     focusDestination(head.querySelector(".lf-fp-search"), "move");
   }
+  // PROTOTYPE: the view's name over it, under the `names` arrangement.
+  const nameTemplate = (top) =>
+    top.view === "queue" ? nothing : html`<h2 class="lf-fp-title">${titleOf(top)}</h2>`;
   function headTemplate(top) {
     const parent = trail.value.at(-2);
+    const names = arrangement() === "names";
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
     /** @type {unknown} */
     let aux = nothing;
@@ -2935,17 +2993,30 @@ export function createFloatingPanel({
           />`
         : html`${
               parent
-                ? html`<button
+                ? names
+                  ? html`<button
                       type="button"
                       class="lf-fp-back"
                       aria-label=${`Back to ${titleOf(parent)}`}
                       @click=${back}
                     >
-                      ${titleOf(parent)}</button
-                    ><span class="lf-fp-sep" aria-hidden="true">/</span>`
+                      ${iconTemplate("next", "lf-fp-chevron")}${titleOf(parent)}
+                    </button>`
+                  : html`<button
+                        type="button"
+                        class="lf-fp-back"
+                        aria-label=${`Back to ${titleOf(parent)}`}
+                        @click=${back}
+                      >
+                        ${titleOf(parent)}</button
+                      ><span class="lf-fp-sep" aria-hidden="true">/</span>`
                 : nothing
             }
-            <h2 class=${titleClass}>${titleOf(top)}</h2>
+            ${
+              names && top.view !== "queue"
+                ? nothing
+                : html`<h2 class=${titleClass}>${titleOf(top)}</h2>`
+            }
             ${named}${
               thread
                 ? html`<span class="lf-fp-facts"
@@ -3161,6 +3232,13 @@ export function createFloatingPanel({
         : (listed.find((row) => row.getAttribute("tabindex") === "0") ?? listed[0]),
     );
     render(top ? headTemplate(top) : nothing, head);
+    // PROTOTYPE: where the head stands, at the view's top edge or under it on the row.
+    const arranged = arrangement();
+    keeps(host, "data-arrangement", arranged);
+    if (arranged === "today") {
+      if (stage.previousElementSibling !== head) opened.insertBefore(head, stage);
+    } else if (stage.nextElementSibling !== head) opened.append(head);
+    render(top && arranged === "names" ? nameTemplate(top) : nothing, nameBar);
     // The more-room mark stands in the view's head while one is open, else over the
     // leaf.
     if (!top) move(row, expand, leaf);

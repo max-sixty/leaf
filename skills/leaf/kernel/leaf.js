@@ -3378,7 +3378,8 @@ function createDrawingController({
         keys: UNDO_STROKE,
         title: "undo stroke",
         description: "Undo the last stroke drawn",
-        touch: "Undo stroke",
+        // A finger undoes a stroke with the undo button on its drawing's composer.
+        touch: false,
         when: () => Boolean(undoTarget()),
         run: () => undoStroke()
       },
@@ -4804,7 +4805,8 @@ ${searchCount(maximum, maximum)}`
         keys: ["Enter"],
         description: "Select the current search match",
         title: "select match",
-        touch: "Select",
+        // A finger presses the marked match itself (`pressMatch`).
+        touch: false,
         when: () => matches.length > 0,
         run: chooseMatch
       },
@@ -4837,8 +4839,30 @@ ${searchCount(maximum, maximum)}`
   const targetPickerOpen = () => pickerOpen;
   const openTargetPicker = () => setTargetPicker(true);
   const closeTargetPicker = () => setTargetPicker(false);
+  let pressOnMatch = false;
+  function onMarkedMatch(ev) {
+    if (!pageSearchOpen || ev.button !== 0) return false;
+    refreshMatches();
+    const segments = matches[active];
+    if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
+    const { clientX: x, clientY: y } = ev;
+    return [...rangeOf(segments).getClientRects()].some(
+      (rect2) => x >= rect2.left && x <= rect2.right && y >= rect2.top && y <= rect2.bottom
+    );
+  }
+  function pressMatch(ev) {
+    if (ev.type === "mousedown") pressOnMatch = onMarkedMatch(ev);
+    if (!pressOnMatch) return;
+    if (ev.type !== "mouseup") ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.type !== "click") return;
+    pressOnMatch = false;
+    chooseMatch();
+  }
   function mount() {
     pageSearchInput.addEventListener("input", search);
+    for (const type of ["mousedown", "mouseup", "click"])
+      document.addEventListener(type, pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
       if (pageSearchOpen) repaint();
@@ -9369,19 +9393,7 @@ function createQueueWalk({
   const doneAt = (stop) => stop ? readQueues().on_user.find(
     (item) => item.offers.done && sameStop(stopOf(item), stop)
   ) ?? null : null;
-  let shownFor = null;
-  function doneTodo() {
-    const stop = standingStop(stops());
-    const focus = focused(document);
-    if (stop || !coarsePointer.matches || focus && focus !== document.body && !inUi(focus) && !inChrome(focus) || placeOf(getSelection()?.focusNode)) {
-      shownFor = doneAt(stop);
-      return shownFor;
-    }
-    shownFor = readQueues().on_user.find(
-      (item) => item.id === shownFor?.id && item.offers.done
-    ) ?? null;
-    return shownFor;
-  }
+  const doneTodo = () => doneAt(standingStop(stops()));
   function endTodo(id) {
     return actions.done(queueItemKey({ kind: "todo", id }));
   }
@@ -9437,7 +9449,7 @@ function createQueueWalk({
         keys: ["x"],
         title: "done",
         description: "Mark this to-do done",
-        touch: "Done",
+        touch: false,
         when: () => Boolean(doneTodo()),
         run: () => {
           const todo = doneTodo();

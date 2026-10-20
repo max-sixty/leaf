@@ -865,10 +865,11 @@ def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
 
 
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
-    """Page search's box stands just over the panel's row, where its Select and ✕ stand,
-    rather than at the window's head. The box walks its own matches: its up and down
-    arrows move the count beside them and leave the query's field focused, so the next
-    letter still edits it, and the panel's row holds no Previous or Next."""
+    """Page search's box stands just over the panel's row, where its ✕ stands, rather
+    than at the window's head. The box walks its own matches: its up and down arrows
+    move the count beside them and leave the query's field focused, so the next letter
+    still edits it, and the panel's row holds no step of search's. A press on the
+    marked match selects it."""
     page = floating(browser, serve(LONG_PAGE))
     page.locator("body").focus()
     page.keyboard.press("/")
@@ -886,7 +887,7 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     page.keyboard.type("Paragraph 1")
     count = search.locator(".lf-page-search-status")
     expect(count).to_have_text("1 of 11")
-    expect(page.locator(".lf-fp-step")).to_have_text(["Select"])
+    expect(page.locator(".lf-fp-step")).to_have_count(0)
     following.click()
     expect(count).to_have_text("2 of 11")
     previous.click()
@@ -894,6 +895,29 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     expect(count).to_have_text("11 of 11")
     page.keyboard.type("0")
     expect(count).to_have_text("1 of 1")
+    # A press on the marked match selects it, as Enter does, even once focus has left
+    # the box; a control painted over the words keeps its own press.
+    mark = page.locator(".lf-page-search-match").first.bounding_box()
+    at = (mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
+    page.evaluate(
+        """([x, y]) => {
+          const cover = Object.assign(document.createElement("button"), { id: "cover" });
+          Object.assign(cover.style, {
+            position: "fixed", left: `${x - 4}px`, top: `${y - 4}px`, width: "8px",
+            height: "8px",
+          });
+          cover.addEventListener("click", () => cover.toggleAttribute("data-pressed"));
+          document.body.append(cover);
+        }""",
+        at,
+    )
+    page.mouse.click(*at)
+    expect(page.locator("#cover")).to_have_attribute("data-pressed", "")
+    expect(search).to_be_visible()
+    page.locator("#cover").evaluate("el => el.remove()")
+    page.mouse.click(*at)
+    expect(search).to_be_hidden()
+    assert page.evaluate("getSelection().toString()") == "Paragraph 10"
 
 
 def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):

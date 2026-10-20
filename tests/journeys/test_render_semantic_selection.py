@@ -51,26 +51,22 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
 
-    # Draw mode's Undo stroke is a step, which takes the marks' place; Design mode has
-    # none, so its ✕ stands beside the marks.
-    for entry, root, mode, exit_name, steps in (
-        ("command:draw.mode.enter", "html", "data-lf-draw-mode", "Exit Draw mode", 1),
+    # A mode offers no step of its own: a stroke's undo is on its drawing's composer, so
+    # each mode's ✕ stands beside the marks.
+    for entry, root, mode, exit_name in (
+        ("command:draw.mode.enter", "html", "data-lf-draw-mode", "Exit Draw mode"),
         (
             "command:design.mode.enter",
             "body",
             "data-lf-design-mode",
             "Exit Design mode",
-            0,
         ),
     ):
         panel_control(page, entry, at="annotate").tap()
         expect(page.locator(root)).to_have_attribute(mode, "")
         expect(leave(exit_name)).to_be_visible()
-        expect(row.locator(".lf-fp-step")).to_have_count(steps)
-        if steps:
-            expect(marks).to_be_hidden()
-        else:
-            expect(marks).to_be_visible()
+        expect(row.locator(".lf-fp-step")).to_have_count(0)
+        expect(marks).to_be_visible()
         leave(exit_name).tap()
         expect(page.locator(root)).not_to_have_attribute(mode, "")
         expect(leave(exit_name)).to_have_count(0)
@@ -142,8 +138,10 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     next_match.tap()
     expect(page.locator(".lf-live")).to_contain_text("Match 2 of 3")
     expect(box).to_be_focused()
-    # Select takes the match as the selection, whose own step then stands on the row.
-    step("Select").tap()
+    # A press on the marked match takes it as the selection, whose own step then stands
+    # on the row.
+    mark = page.locator(".lf-page-search-match").first.bounding_box()
+    page.touchscreen.tap(mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
     expect(box).to_be_hidden()
     expect(next_match).to_be_hidden()
     expect(comment).to_be_visible()
@@ -151,15 +149,15 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     page.evaluate("getSelection().removeAllRanges()")
     expect(comment).to_be_hidden()
 
-    # Searching inside a mode puts search's step on the row in place of the mode's, and
-    # its ✕ closes search, after which the ✕ leaves the mode.
+    # Searching inside a mode puts search's ✕ in place of the mode's: it closes search,
+    # after which the ✕ leaves the mode.
     panel_control(page, "command:draw.mode.enter", at="annotate").tap()
     exit_draw = leave("Exit Draw mode")
     expect(exit_draw).to_be_visible()
     panel_control(page, "command:page.search.open", at="navigate").tap()
     expect(next_match).to_be_visible()
     expect(exit_draw).to_have_count(0)
-    expect(row.locator(".lf-fp-step:visible")).to_have_text(["Select"])
+    expect(row.locator(".lf-fp-step:visible")).to_have_count(0)
     leave("Close search").tap()
     exit_draw.tap()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")

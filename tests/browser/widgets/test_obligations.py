@@ -119,24 +119,51 @@ PICTURED_OBLIGATION = """
 """
 
 
+PLATE_PACKAGE = {
+    "lf-plate": {
+        "description": "A project package's picture, under a name the theme never sees.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "markup",
+        "x-visual": "whole",
+        "x-upgrade": False,
+    }
+}
+
+
+PLATED_OPTION = """
+      <lf-option id="plated-{side}"><strong>{title}</strong>
+        <lf-plate id="plated-{side}-picture"><p>{title} by week</p></lf-plate>
+      </lf-option>"""
+
+
 PICTURED_OBLIGATION_PAGE = leaf_page(
     "options holding their pictures",
     "<h1>Plan context</h1>"
     + PICTURED_OBLIGATION.format(id="pictured", width="")
-    + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"'),
+    + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
+    + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" choose>'
+    + PLATED_OPTION.format(side="yes", title="Backend")
+    + PLATED_OPTION.format(side="no", title="Frontend")
+    + "</lf-options></lf-ask>",
 )
 
 
 def test_options_holding_pictures_lay_across(browser, serve):
     """An obligation whose options each hold a picture of what choosing it gives, with
     no figure before them, sets the cards side by side, so each picture stands over its
-    own pick and the two compare in one row, though each is wrapped in a link. A group
-    given `data-width` lays them across its own width, where each picture draws at the
-    size it was written."""
-    page = open_page(browser, serve(PICTURED_OBLIGATION_PAGE))
+    own pick and the two compare in one row, though each is wrapped in a link. A widget
+    whose entry declares it draws a picture (`x-visual`), such as a chart, counts as one.
+    A group given `data-width` lays them across its own width, where each picture draws
+    at the size it was written."""
+    page = open_page(
+        browser, serve(PICTURED_OBLIGATION_PAGE, layer_registry=PLATE_PACKAGE)
+    )
     resized(page, 1440, 900)
     at = page.evaluate(
-        """() => Object.fromEntries(['pictured', 'widened'].map((id) => {
+        """() => Object.fromEntries(['pictured', 'widened', 'plated'].map((id) => {
           const box = (s) => document.getElementById(`${id}-${s}`).getBoundingClientRect();
           return [id, {
             tops: ['yes', 'no'].map((s) => Math.round(box(s).top)),
@@ -145,7 +172,7 @@ def test_options_holding_pictures_lay_across(browser, serve):
           }];
         }))"""
     )
-    for id in ("pictured", "widened"):
+    for id in ("pictured", "widened", "plated"):
         assert at[id]["tops"][0] == at[id]["tops"][1], at
         assert at[id]["lefts"][0] < at[id]["lefts"][1], at
     assert at["widened"]["pictures"] == [480, 480], at

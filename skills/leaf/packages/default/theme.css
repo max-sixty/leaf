@@ -57,6 +57,12 @@
   scale: 0.88;
   transition: opacity 120ms ease, scale 120ms ease;
 }
+@media (prefers-reduced-motion: reduce) {
+  :scope:is(lf-shot) .lf-shotcomparison::part(divider),
+  :scope:is(lf-shot) .lf-shotcomparison::part(handle) {
+    transition: none;
+  }
+}
 :scope:is(lf-shot) .lf-shot-handle {
   display: block;
   box-sizing: border-box;
@@ -2539,8 +2545,6 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  :scope:is(lf-shot) .lf-shotcomparison::part(divider),
-  :scope:is(lf-shot) .lf-shotcomparison::part(handle),
   :scope:is(lf-toc) a {
     transition: none;
   }
@@ -2740,7 +2744,7 @@
     --lf-breakout: 1;
   }
 }
-:scope:is(lf-ask):has(> :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options, > lf-options > lf-option :is(figure, img, svg, table, lf-chart, lf-shot)) {
+:scope:is(lf-ask):has(> :is(figure, img, svg, table, [data-lf-visual]) ~ lf-options, > lf-options > lf-option :is(figure, img, svg, table, [data-lf-visual])) {
   --lf-options-across: 1;
 }
 @container style(--lf-full-height: 1) {

@@ -12,7 +12,8 @@ from leaf.revision_delivery import Delivery, compose_document
 def test_a_streamed_initial_host_first_shows_its_complete_drawing(
     browser, compiled_installation
 ):
-    """A pause inside a nested widget must not expose source layout before its drawing.
+    """A pause inside a nested widget must not expose source layout before its drawing,
+    and the drawn host stands among its authored siblings with no delivery script left.
 
     The same nodes then reach the behavior module, with tab memory already drawn and
     the original nested source still available for semantic intake and revisions.
@@ -151,6 +152,11 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             assert page.locator("#outer .initial-frame").count() == 1, page.evaluate(
                 "document.body.innerHTML"
             )
+            # The delivery's scripts leave, so a page rule for a first, last or next
+            # child finds the host among its authored siblings alone.
+            assert page.evaluate(
+                "[...document.querySelector('main').children].map(child => child.id)"
+            ) == ["already-reading", "outer", "after"]
             assert (
                 page.locator("#inner").inner_text()
                 == "Original nested prose\n\nRestored value"

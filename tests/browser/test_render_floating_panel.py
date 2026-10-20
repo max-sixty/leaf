@@ -4097,6 +4097,70 @@ def test_an_image_pasted_in_the_page_s_field_hangs_above_the_panel(browser, serv
     expect(field(page)).not_to_have_attribute("placeholder", re.compile("Image added"))
 
 
+def test_a_line_the_field_grows_rides_the_box_s_top_edge(browser, serve):
+    """The field growing a line moves the box's top edge up over the field's tween,
+    and what that line moved rides the edge rather than jumping ahead of it: the
+    tween's first frame shows the panel as it stood, attachment, words and the field's
+    ring included, and midway the attachment keeps its distance from the edge."""
+    from io import BytesIO
+
+    from PIL import Image, ImageChops
+
+    page = floating(browser, serve(LONG_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    field(page).click()
+    page.keyboard.type("A first line")
+    field(page).evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(solid_png(40, 30, (255, 128, 64))).decode(),
+    )
+    shelf = page.locator(".lf-fp-box .lf-composer-media-item")
+    expect(shelf).to_have_count(1)
+    settled(page)
+    card, tile = page.locator(".lf-fp-card").bounding_box(), shelf.bounding_box()
+    region = {
+        "x": card["x"] - 8,
+        "y": tile["y"] - 8,
+        "width": card["width"] + 16,
+        "height": card["y"] + card["height"] - tile["y"] + 16,
+    }
+    gaps = r"""() => {
+      const top = Number.parseFloat(
+        /inset\(([-\d.]+)px/.exec(
+          getComputedStyle(document.querySelector('.lf-fp-ground > .lf-fp-fill')).clipPath,
+        )[1],
+      );
+      return Math.round(document.querySelector('.lf-fp-box .lf-composer-media-item')
+        .getBoundingClientRect().top - top);
+    }"""
+    resting = page.evaluate(gaps)
+    stood = Image.open(BytesIO(page.screenshot(clip=region))).convert("L")
+    page.keyboard.press("Shift+Enter")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-fp-ground').getAnimations({subtree: true})"
+        ".some(motion => motion.playState === 'running')"
+    )
+    seek = "at => document.getAnimations().forEach(motion => {"
+    seek += " motion.pause(); motion.currentTime = at; })"
+    page.evaluate(seek, 0)
+    first = Image.open(BytesIO(page.screenshot(clip=region))).convert("L")
+    moved = ImageChops.difference(stood, first).point(lambda v: 255 if v > 16 else 0)
+    assert moved.histogram()[255] < 40, moved.getbbox()
+    page.evaluate(seek, 120)
+    assert page.evaluate(gaps) == resting
+    page.evaluate("() => document.getAnimations().forEach(motion => motion.play())")
+    settled(page)
+    assert page.locator(".lf-fp-card").bounding_box()["height"] > card["height"] + 15
+    assert page.evaluate(gaps) == resting
+
+
 def test_a_long_draft_fades_where_words_run_past_the_field(browser, serve):
     """A draft taller than the field shows no scrollbar, whose overlay flashed with each
     line; its words fade at whichever edge they run past, read from the field's scroll

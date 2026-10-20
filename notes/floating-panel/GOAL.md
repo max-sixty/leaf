@@ -51,7 +51,8 @@ what the module header of `runtime/floating-panel.js` now states:
 - **Where the user is sits at a view's top edge**, with its filters, search,
   Resolve and Close beside it; the destination line and the thread-actions row went.
 - **Motion moves no layout**: every change of size takes effect in one step and a
-  separate surface layer follows by a clip, so the shift watch sees no tween.
+  separate surface layer follows by a clip, and anything riding with it moves by a
+  transform, so the shift watch sees no tween.
 
 The sketch's breathing leaf was left out: `skills/leaf/assets/AGENTS.md`,
 "Motion", allows one continuous animation. On 13 October the user had the working
@@ -229,7 +230,11 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   `cubic-bezier(.23,1,.32,1)`: 300 ms as the field grows a line, 120 ms as a view
   opens or closes, since the user found views slow to appear (15 October). (The first
   build tweened the card's height; a layout tween's last frame landed outside CI's
-  input window as a shift.)
+  input window as a shift.) A view arriving is revealed as the surface reaches it; a
+  line the field gains or loses brings nothing else new, so what it moved, the words,
+  the field's ring, the attachment shelf and any open view, rides the surface's top
+  edge instead, after the user found the shelf vanishing and the ring outrunning the
+  box (20 October).
 - **The focused field shows no ground, and wears the anchored comment box's focus
   ring** while it holds the caret, so a key that moves the caret there, `c` among
   them, shows where the words will go (the user's pick, #3097). A dark frame around

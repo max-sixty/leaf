@@ -27,12 +27,10 @@
     filter: drop-shadow(var(--raise-2));
   }
   .lf-fp-ground,
-  .lf-fp-ring,
-  .lf-fp-fill {
+  .lf-fp-ground > * {
     clip-path: inset(50%);
   }
-  .lf-fp-ring,
-  .lf-fp-fill {
+  .lf-fp-ground > * {
     position: absolute;
     inset: 0;
   }

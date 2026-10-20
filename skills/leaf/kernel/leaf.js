@@ -6361,7 +6361,9 @@ function createFloatingPanel({
   ground.setAttribute("aria-hidden", "true");
   const ring = el("div", "lf-fp-ring");
   const fill = el("div", "lf-fp-fill");
-  ground.append(ring, fill);
+  const fieldRing = el("div", "lf-fp-field-ring");
+  const fieldFill = el("div", "lf-fp-fill");
+  ground.append(ring, fill, fieldRing, fieldFill);
   const card = el("div", "lf-fp-card");
   const inner = el("div", "lf-fp-inner");
   const opened = el("div", "lf-fp-opened");
@@ -6402,8 +6404,8 @@ function createFloatingPanel({
   let pointer = null;
   const readCorner = () => {
     const box = card.getBoundingClientRect();
-    const near = pointer !== null && pointer.x >= box.right - CORNER.across && pointer.y <= box.top + CORNER.down;
-    keeps(host, "data-corner", near ? "" : null);
+    const near2 = pointer !== null && pointer.x >= box.right - CORNER.across && pointer.y <= box.top + CORNER.down;
+    keeps(host, "data-corner", near2 ? "" : null);
   };
   host.addEventListener("pointermove", (event) => {
     pointer = { x: event.clientX, y: event.clientY };
@@ -6839,23 +6841,34 @@ function createFloatingPanel({
   }
   let outline = null;
   let viewMovingUntil = 0;
+  let riding = [];
   const outlineClip = (box, grow = 0) => `inset(${box.top - grow}px ${box.right - grow}px ${box.bottom - grow}px ${box.left - grow}px round ${box.radius + grow}px)`;
-  function followBox() {
-    const room = ground.getBoundingClientRect();
-    const rect2 = card.getBoundingClientRect();
-    const radius = Number.parseFloat(getComputedStyle(card).borderTopLeftRadius) || 0;
-    const next = {
+  const clipTop = (clip) => Number.parseFloat(/inset\(([-\d.]+)px/.exec(clip)?.[1]);
+  const within = (room, element) => {
+    const rect2 = element.getBoundingClientRect();
+    return {
       top: rect2.top - room.top,
       right: room.right - rect2.right,
       bottom: room.bottom - rect2.bottom,
       left: rect2.left - room.left,
       width: rect2.width,
       height: rect2.height,
-      radius
+      radius: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0
     };
+  };
+  const near = (a, b) => Math.abs(a - b) < 0.5;
+  function followBox() {
+    const room = ground.getBoundingClientRect();
+    const rect2 = card.getBoundingClientRect();
+    const next = within(room, card);
+    const editor = [...row.querySelectorAll("leaf-text")].find(
+      (text) => text.checkVisibility()
+    );
+    next.editor = editor ?? null;
+    next.field = editor?.offsetHeight ?? null;
     const was = outline;
     if (was && ["top", "right", "bottom", "left", "radius"].every(
-      (side) => Math.abs(was[side] - next[side]) < 0.5
+      (side) => near(was[side], next[side])
     ))
       return;
     outline = next;
@@ -6865,8 +6878,14 @@ function createFloatingPanel({
       layoutPx(rect2.height > 0 ? room.bottom - rect2.top : 0)
     );
     const duration = performance.now() < viewMovingUntil ? VIEW_RESIZE_MS : RESIZE_MS;
+    const moving = Boolean(was) && !reducedMotion() && pagePresented();
+    const standing = moving && fill.getAnimations().length ? clipTop(getComputedStyle(fill).clipPath) : was?.top;
+    for (const running of [...riding, ...card.getAnimations()]) running.cancel();
+    riding = [];
+    const ride = moving && next.editor !== null && next.editor === was.editor && near(was.width, next.width) && near(was.bottom, next.bottom) && near(next.field - was.field, next.height - was.height);
     const lift = getComputedStyle(ground);
     const shadowReach = ["--raise-2-drop", "--raise-2-blur"].map((token) => Number.parseFloat(lift.getPropertyValue(token))).reduce((reach2, part) => reach2 + part);
+    const timing = { duration, easing: EASE };
     for (const [layer, grow] of [
       [ground, shadowReach],
       [ring, 1],
@@ -6875,16 +6894,65 @@ function createFloatingPanel({
       const from = was ? getComputedStyle(layer).clipPath : null;
       for (const running of layer.getAnimations()) running.cancel();
       keeps(layer, "style", `clip-path: ${outlineClip(next, grow)}`);
-      if (!was || reducedMotion() || !pagePresented()) continue;
-      layer.animate([{ clipPath: from }, { clipPath: outlineClip(next, grow) }], {
-        duration,
-        easing: EASE
-      });
+      if (moving)
+        layer.animate(
+          [{ clipPath: from }, { clipPath: outlineClip(next, grow) }],
+          timing
+        );
     }
-    for (const running of card.getAnimations()) running.cancel();
-    if (!was || reducedMotion() || !pagePresented()) return;
+    if (!moving) return;
+    if (ride) {
+      const lag = standing - next.top;
+      const shifted = { translate: `0 ${lag}px` };
+      const rest = { translate: "0 0" };
+      const riders = [
+        opened,
+        context2,
+        ...row.querySelectorAll(":scope > .lf-fp-expand"),
+        ...card.querySelectorAll(".lf-composer-media:not([hidden])")
+      ];
+      for (const rider of riders) riding.push(rider.animate([shifted, rest], timing));
+      if (lag > 0)
+        riding.push(
+          editor.animate(
+            [{ "--lf-field-ride": `${lag}px` }, { "--lf-field-ride": "0px" }],
+            timing
+          )
+        );
+      const hold = (property, value) => [{ [property]: value }, { [property]: value }];
+      riding.push(
+        card.animate(hold("backgroundColor", "transparent"), timing),
+        card.animate(hold("overflow", "visible"), timing)
+      );
+      let wearer = null;
+      for (let box = editor; box && box !== row; box = box.parentElement)
+        if (getComputedStyle(box).outlineStyle !== "none") wearer = box;
+      if (wearer) {
+        const { outlineColor, outlineWidth } = getComputedStyle(wearer);
+        const to = within(room, wearer);
+        const from = { ...to, top: to.top + lag };
+        riding.push(wearer.animate(hold("outlineColor", "transparent"), timing));
+        keeps(fieldRing, "style", `background: ${outlineColor}`);
+        for (const [layer, grow] of [
+          [fieldRing, Number.parseFloat(outlineWidth)],
+          [fieldFill, 0]
+        ]) {
+          for (const running of layer.getAnimations()) running.cancel();
+          riding.push(
+            layer.animate(
+              [
+                { clipPath: outlineClip(from, grow) },
+                { clipPath: outlineClip(to, grow) }
+              ],
+              timing
+            )
+          );
+        }
+      }
+      return;
+    }
     if (next.width <= was.width + 0.5 && next.height <= was.height + 0.5) return;
-    const within = {
+    const inside = {
       top: Math.max(0, was.top - next.top),
       right: Math.max(0, was.right - next.right),
       bottom: Math.max(0, was.bottom - next.bottom),
@@ -6892,8 +6960,11 @@ function createFloatingPanel({
       radius: was.radius
     };
     card.animate(
-      [{ clipPath: outlineClip(within) }, { clipPath: `inset(0 round ${radius}px)` }],
-      { duration, easing: EASE }
+      [
+        { clipPath: outlineClip(inside) },
+        { clipPath: `inset(0 round ${next.radius}px)` }
+      ],
+      timing
     );
   }
   const fit = sizeObserver(() => {
@@ -7013,7 +7084,7 @@ function createFloatingPanel({
   }
   let drawnThread = null;
   let waiting = null;
-  const drawnNode = (within, key) => within?.querySelector(
+  const drawnNode = (within2, key) => within2?.querySelector(
     isFace(key) ? `${WORKING}[data-face="${CSS.escape(key.slice(FACE.length))}"]` : `.lf-msg[data-message="${CSS.escape(key)}"]`
   ) ?? null;
   let fitted = null;

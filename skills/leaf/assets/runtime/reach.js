@@ -167,20 +167,35 @@ export function reachReadingScroller(el) {
     if (!watched(el)) unwatchReach(el);
     el.removeEventListener("scroll", readingScrolled);
     afterScript(() => {
-      if (!downwards.has(el)) el.removeAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow);
+      if (!downwards.has(el)) keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
     });
   };
 }
 
+const readingPaints = new Set();
+let readingPaintQueued = false;
 function paintReadingReach(el) {
   // End-following owners finish their scroll after registering or resizing the
-  // region. Paint its remaining-content cue from that final place in this turn.
-  afterScript(() => {
-    if (!downwards.has(el) || unpainted(el)) return;
+  // region. Read each final place once in the render pass before it paints.
+  readingPaints.add(el);
+  if (readingPaintQueued) return;
+  readingPaintQueued = true;
+  nextRender(paintReadingReachNow);
+}
+function paintReadingReachNow() {
+  readingPaintQueued = false;
+  const pending = [...readingPaints];
+  readingPaints.clear();
+  for (const el of pending) {
+    if (!downwards.has(el) || unpainted(el)) continue;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
-    el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.moreBelow, scrolling && !atScrollEnd(el));
-  });
+    keeps(
+      el,
+      PAGE_PAINT_ATTRIBUTE.moreBelow,
+      scrolling && !atScrollEnd(el) ? "" : null,
+    );
+  }
 }
 
 // Every element in the scope is asked, except content the browser skips (`skipped`,

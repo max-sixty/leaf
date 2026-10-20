@@ -1348,7 +1348,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         newest = len(example_versions(source))
         expect_showing(page, newest)
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-            "aria-label", "Page menu · Agent revises your private copy"
+            "aria-label", "Page menu · Ask Agent to revise your private copy"
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
@@ -1465,17 +1465,17 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
     page = open_page(browser, url)
     state_head = panel_menu(page).locator(".lf-fp-state")
     expect(state_head).to_contain_text(
-        "This is an example on the Leaf website. Agent replies and revises "
-        "this private copy."
+        "This is an example on the Leaf website, and this copy of it is yours alone."
     )
     assert state_head.locator("a").evaluate_all(
         "links => links.map(link => link.getAttribute('href'))"
     ) == ["/examples/", "/#install"]
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(".sitenote")).to_have_count(0)
+    # Unclaimed, the copy's agent is still on call: a comment starts it.
     assert page.locator(".lf-fp-leaf .lf-dot").evaluate(
         "dot => [...dot.classList]"
-    ) == ["lf-dot"]
+    ) == ["lf-dot", "listening"]
     state = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert state["publication"] == {
         "kind": "example",

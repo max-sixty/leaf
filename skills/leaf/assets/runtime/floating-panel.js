@@ -1735,18 +1735,17 @@ export function createFloatingPanel({
     // pointer, key and finger alike. Each line names the state itself ("Codex away"),
     // so no word for the tone stands over it.
     const { tone, summary, summaryParts, adds, addsParts, publication } = status();
-    // A published page's introduction keeps its links.
+    // A published page's introduction follows, with its links.
+    const said = adds && addsParts ? statusParts(addsParts) : adds;
     const explains = publication
-      ? html`${publication.copy}${
+      ? html`${said}${adds ? " " : nothing}${publication.copy}${
             publication.examplesUrl
               ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> `
               : nothing
           }<a href=${publication.installUrl} target="_blank" rel="noopener"
             >${publication.install}</a
           >`
-      : adds && addsParts
-        ? statusParts(addsParts)
-        : adds;
+      : said;
     const part = (name, text) =>
       (held ? held[name] : text)
         ? html`<span
@@ -3309,8 +3308,8 @@ export function createFloatingPanel({
 
   // ---------- the row's notice ----------
   // One small notice beside the marks, for a state the user should not miss while they
-  // read: a few words (`says`), a `tone` that tints it, and at most one `press`, a
-  // button or a link. Leaf's own readings raise each, and a notice ends when the state
+  // read: a few words (`says`), a `tone` that tints it, and at most one `press`.
+  // Leaf's own readings raise each, and a notice ends when the state
   // it reads does. The slot shows the first that holds, most urgent first, so the
   // field's room never goes to a stack of them. Each case is a reading below; a new
   // one joins `ROW_NOTICES` in its place.
@@ -3334,23 +3333,12 @@ export function createFloatingPanel({
       },
     };
   }
-  // A copy of a page on Leaf's website: the field says who revises it, and the notice
-  // where Leaf comes from; the menu's head holds the introduction and its links.
-  function website() {
-    const { publication } = status();
-    if (!publication) return null;
-    return {
-      says: publication.examples ? "Example" : "Leaf page",
-      tone: "accent",
-      press: { label: publication.install, href: publication.installUrl },
-    };
-  }
   // The version shown is approved, until a new version asks again.
   function approvedVersion() {
     if (!approvalReading()?.approved) return null;
     return { says: `✓ ${versionsReading().picker.token} approved`, tone: "ok" };
   }
-  const ROW_NOTICES = [olderVersion, website, approvedVersion];
+  const ROW_NOTICES = [olderVersion, approvedVersion];
   const rowNotice = () => {
     for (const read of ROW_NOTICES) {
       const notice = read();
@@ -3368,23 +3356,15 @@ export function createFloatingPanel({
       }</span
     >`;
     if (!press) return face;
-    return press.href
-      ? html`<a
-          class="lf-fp-chip lf-fp-row-notice-press"
-          href=${press.href}
-          target="_blank"
-          rel="noopener"
-          >${face}</a
-        >`
-      : html`<button
-          type="button"
-          class="lf-fp-chip lf-fp-row-notice-press"
-          title=${press.title ?? nothing}
-          ?disabled=${press.disabled}
-          @click=${press.run}
-        >
-          ${face}
-        </button>`;
+    return html`<button
+      type="button"
+      class="lf-fp-chip lf-fp-row-notice-press"
+      title=${press.title ?? nothing}
+      ?disabled=${press.disabled}
+      @click=${press.run}
+    >
+      ${face}
+    </button>`;
   }
 
   // ---------- gestures ----------

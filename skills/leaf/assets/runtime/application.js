@@ -407,9 +407,9 @@ export function mountApplication(dependencies) {
         // ledger.accept; release itself waits for every owning presentation region
         // before undo and other semantic readers may observe the entry leave.
         releasePendingSafely("accepted event reconciliation");
-        // In that ordering a gesture that is not an action left on accept; the
-        // descriptor invalidation an entry leaving on presentation gets belongs to
-        // whichever edge actually retires it.
+        // In that ordering a gesture that is not an action leaves on accept rather
+        // than with the reading that logged it, so this edge claims the document pass
+        // that draws the page without it.
         if (!applicationState.entry(entry.event.attempt)) invalidateDom();
       }
     },

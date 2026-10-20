@@ -73,16 +73,16 @@ import type {
  * part, since a refused attempt has no receipt to read.
  *
  * `sending` and `accepted` are drawn from the gesture; from `:logged` on, the log's
- * own event draws it. An entry leaves in exactly three ways. A refused one waits for
+ * own event draws it. An entry leaves in one of three ways. A refused one waits for
  * `release`, once the reading it restores is on the page. An accepted one other than
- * an action leaves on reaching `accepted:logged`, in the publication that logs or
- * accepts it: the reading draws it from then on, so its leaving changes nothing a
- * paint draws, and the pass that draws that reading draws it once (`settled` keeps its
- * thread gestured through that pass). An action waits for the pass: its widget can
- * hold a reading past the document pass (a deferred widget), so it goes on to
- * `accepted:presented` and waits there for `release`, which its owner calls once those
- * regions have committed. A signal a state has no edge for leaves it where it is, and
- * `present` reaches only actions. */
+ * an action leaves on reaching `accepted:logged`, in the same publication as the
+ * reading that logs it, or as the acceptance where the reading came first. The log
+ * draws it from then on, so the page draws that reading in one pass, and `settled`
+ * keeps its thread gestured while it does. An accepted action waits for that pass,
+ * since its widget can hold a reading past it (a deferred widget): it goes on to
+ * `accepted:presented` and waits there for `release`, which its owner calls once
+ * those regions have committed. A signal a state has no edge for leaves it where it
+ * is, and `present` moves only actions. */
 type GestureState =
   | "sending"
   | "sending:logged"

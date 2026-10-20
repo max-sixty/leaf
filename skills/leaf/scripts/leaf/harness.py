@@ -631,10 +631,10 @@ class PiHarness(EnvironmentHarness):
     it starts the watch (`leaf hook --harness pi --watch`), with the Interrupt
     payload, which closes the turn, after a run that settles without going on
     from there, which is what an Escape does. When the watch wakes an idle
-    session, it calls the prompt hook itself and sends what that returns: a
-    message an extension sends to an idle Pi starts a run without its prompt
-    events (measured at 1.0.2). When it wakes during a run, the run's next turn
-    end calls the prompt hook and adds its context to the session."""
+    session, it sends a notification that starts a run, and the prompt hook
+    completes that run's accepted message before its first model request. When
+    it wakes during a run, the run's next turn end calls the prompt hook and
+    adds its context to the session."""
 
     name = "pi"
     default_agent = "Pi"
@@ -656,9 +656,10 @@ class PiHarness(EnvironmentHarness):
 
     def watches_between_turns(self) -> bool:
         """The extension starts the watch only in a Pi that can start a run, the
-        TUI or RPC mode. Under `--print` the session ends with its run, which
-        ends its claims, so no page is left that a watch would be owed."""
-        return True
+        TUI or RPC mode, and says so as LEAF_PI_WATCH. Under `--print` the
+        session ends with its run, so the Stop hook hands input that arrives as
+        the run ends into it."""
+        return os.environ.get("LEAF_PI_WATCH") == "1"
 
     def process_runs(self) -> bool:
         return pid_alive(int(os.environ["LEAF_PI_PID"]))

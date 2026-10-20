@@ -186,9 +186,9 @@ def test_sort_film_readout_and_narration(browser, serve):
 
 
 def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, serve):
-    """A workspace is a screen, so at the narrowest width the page sets its panes side
-    by side the whole player shows in its pane, the last step's longer summary included
-    (page-layout.md, "A workspace")."""
+    """A workspace is a screen, so in a 900px-tall window at the narrowest width the
+    page sets its panes side by side, the whole player shows in its pane, the last
+    step's longer summary included (page-layout.md, "A workspace")."""
     example = next(path for path in EXAMPLES if path.stem == "rust-sort")
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 720, "height": 900}

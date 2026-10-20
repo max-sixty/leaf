@@ -614,11 +614,12 @@ const CLAUSES = [
 // The drawing is laid out in the stage's own pixels, one viewBox unit to a CSS pixel:
 // the lanes stretch sideways with the pane while every height and every label keeps its
 // size, so the labels read at TYPE at any width. Under the lanes, the collapse()
-// clauses stand beside the run stack wherever their verdicts fit. They fit in the
-// stage of a 720px window, the narrowest that sets the page's panes side by side, so
-// there the whole film still fits its pane. A clause breaks to fit its column, first
-// after its `<=` and then before its `+`. In a narrower stage, where the panes stack
-// and the page scrolls, the clauses stand under the stack at the full width.
+// clauses stand beside the run stack wherever their verdicts fit, and a clause breaks
+// to fit its column, first after its `<=` and then before its `+`. The verdicts fit in
+// the stage of a 720px window, the narrowest that sets the page's panes side by side,
+// so there the stage grows only by the clauses' broken lines and the film fits a
+// 900px-tall window. In a narrower stage, where the panes stack and the page scrolls,
+// the clauses stand under the stack at the full width.
 const TYPE = 12;
 const LINE = 14;
 // A monospace glyph's advance, in ems, which is what a line of code is measured by.
@@ -629,9 +630,10 @@ const GAP = 20;
 const STACK_W = 124;
 const STACK_ROWS = 4;
 const ROW_H = 26;
-// The longest verdict a clause prints under itself, "not reached   40 <= 20 + 20", which
-// is wider than any line of a clause broken at both of its operators.
-const VERDICT_CHARS = 27;
+// The longest verdict a clause could print under itself, "true → merge   12 <= 11 + 10"
+// (the runs hold 40 elements in all). It is wider than any line of a clause broken at
+// both of its operators, and than `runs[n-1].start == 0`, the one clause with no `<=`.
+const VERDICT_CHARS = 28;
 
 // A clause's lines within `width`: whole, or broken after its comparison, with the
 // right side broken again before its `+` where it is still too wide.

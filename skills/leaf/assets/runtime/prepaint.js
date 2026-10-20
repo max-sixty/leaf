@@ -75,7 +75,10 @@
   // is often its consequence; the bootstrap's report keeps the first as well.
   const fault = (reason, incomplete, error = null, page = false) => {
     if (!documentActive) return;
-    if (incomplete) root.toggleAttribute("data-lf-interactive", false);
+    if (incomplete) {
+      root.toggleAttribute("data-lf-interactive", false);
+      trade(PLAYER, "controls");
+    }
     if (root.hasAttribute("data-lf-startup-error")) return;
     root.dataset.lfStartupError = reason;
     // The attribute is the short display reason; this record retains the actual
@@ -1014,6 +1017,18 @@
       ? kept(holder, members) || named(members)
       : named(members) || kept(holder, members)) || members[0];
 
+  // A recording the runtime plays through its own bar (video-controls.js) shows no
+  // browser controls from its first paint, which would otherwise draw until that
+  // module arrives and then give way to the bar. Traded as the parser inserts each
+  // video, and given back to a page that cannot start, as its readable fallback.
+  const PLAYER = "data-lf-player";
+  const trade = (from, to) => {
+    for (const video of document.querySelectorAll(`video[${from}]`)) {
+      video.removeAttribute(from);
+      video.setAttribute(to, "");
+    }
+  };
+
   // Until its module upgrades it, the holder's opening member wears `data-lf-opening`,
   // so its theme can show that member alone at first paint. Marked as the parser
   // inserts each holder and member, since a paint can come between any two of the
@@ -1053,6 +1068,7 @@
   const initialLayout = () => {
     mark();
     residency();
+    trade("controls", PLAYER);
   };
   const parsing = new MutationObserver(initialLayout);
   parsing.observe(root, { childList: true, subtree: true });

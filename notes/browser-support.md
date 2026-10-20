@@ -151,6 +151,24 @@ what fails and what still works.
   every frame of the pass.
 - **Disposition:** adopted without a fallback.
 
+### A recording's own controls
+
+- **Owners:** `runtime/video-controls.js` and its bar in
+  `styles/components/integration.css`; `runtime/prepaint.js` trades a video's
+  `controls` for `data-lf-player` before first paint.
+- **Why:** Firefox's own controls grow a recording's first-play button to three
+  times its size while fading it over 400 ms, which a replay skips
+  (`toolkit/content/widgets/videocontrols.js`), and Chromium's take no press on the
+  picture. No stylesheet reaches Firefox's controls, so Leaf draws its own.
+- **Observed 2026-10-20:** Playwright Firefox 155 and Chromium 153 play, pause,
+  step and scrub the bar the same way on first play and replay; neither shows a
+  black frame between the poster and the first frame, and the video's box keeps its
+  size throughout. `requestVideoFrameCallback`, which moves the timeline each
+  presented frame, and `anchor-size()`, which sizes the bar to the video, both run in
+  both engines; MDN lists `requestVideoFrameCallback` from Chrome 83, Firefox 132 and
+  Safari 15.4.
+- **Disposition:** adopted without a fallback.
+
 ## Known gaps
 
 ### Intrinsic block retirement motion

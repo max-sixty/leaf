@@ -199,7 +199,22 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
                 arg=selector,
             )
             assert player.evaluate("el => el.duration") == pytest.approx(8, abs=0.2)
-            # Reach the browser's player controls through ordinary sequential focus.
+            if selector == "#video":
+                # Leaf's bar replaces the browser's controls, the same in each engine.
+                assert player.get_attribute("controls") is None
+                bar = page.get_by_role("group", name="Test pattern")
+                bar.get_by_role("button", name="Play recording").click()
+                page.wait_for_function(
+                    "selector => document.querySelector(selector).currentTime > 0",
+                    arg=selector,
+                )
+                bar.get_by_role("button", name="Pause recording").click()
+                assert player.evaluate("el => el.paused")
+                expect(
+                    bar.get_by_role("slider", name="Recording position")
+                ).to_have_attribute("aria-valuetext", re.compile(r"^0:0\d of 0:08$"))
+                player.evaluate("el => { el.currentTime = 0; }")
+            # Reach the player through ordinary sequential focus.
             for _ in range(20):
                 page.keyboard.press("Tab")
                 if player.evaluate("el => document.activeElement === el"):
@@ -224,21 +239,18 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
         for selector in ("#video", "#audio"):
             player = touch.locator(selector)
             bounds = player.bounding_box()
-            player.tap(
-                position={
-                    "x": 24,
-                    "y": bounds["height"] - 48 if selector == "#video" else 27,
-                }
+            # A finger plays a recording by tapping its picture, and the audio player
+            # by its own button.
+            spot = (
+                {"x": bounds["width"] / 2, "y": bounds["height"] / 3}
+                if selector == "#video"
+                else {"x": 24, "y": 27}
             )
+            player.tap(position=spot)
             touch.wait_for_function(
                 "selector => !document.querySelector(selector).paused", arg=selector
             )
-            player.tap(
-                position={
-                    "x": 24,
-                    "y": bounds["height"] - 48 if selector == "#video" else 27,
-                }
-            )
+            player.tap(position=spot)
             assert player.evaluate("el => el.paused")
         touch.close()
     assert media_responses

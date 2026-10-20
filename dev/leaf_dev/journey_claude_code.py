@@ -399,10 +399,10 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     def pickups() -> list[dict]:
         return pickup_receipts(read_events(page), phase="opened", input_id=woken)
 
-    # The watch has woken, and the hooks module has handed the comment to the turn,
-    # which reads it only once its command ends.
+    # The watch has woken; the turn's next tool boundary, once its command ends,
+    # would hand the comment over under either watcher.
     cc.until(
-        lambda: not watched() and (pickups() or not module),
+        lambda: not watched(),
         "woken: the watch did not wake on the comment",
         60,
     )

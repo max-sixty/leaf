@@ -909,7 +909,7 @@ def test_a_rendering_turn_ends_after_its_intersection_observer_deliveries(
     callbacks did, such as a Copy control leaving layout once a resize and a scroll
     put its code block more than a screen away. Chrome runs those callbacks in a task
     after one the animation frame queues, so a turn marked from that task let
-    `rendered` read the page before the callbacks unsettled it."""
+    `rendered` read the page before those callbacks ran."""
     page = open_page(browser, serve(LONG_PAGE))
     rendered(page)
     marked_first = page.evaluate(

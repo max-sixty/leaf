@@ -73,9 +73,10 @@
   // back. The turn counts as presented in a task queued from an IntersectionObserver
   // the animation-frame callback starts, so it is the whole update: its layout, the
   // ResizeObserver deliveries and loop notice that follow the callbacks, and the
-  // update's IntersectionObserver deliveries, which Chrome runs in a task of their own
-  // after a task queued from the animation frame itself. A new observer's first notice
-  // comes from the update that follows its `observe`, beside every other observer's.
+  // update's IntersectionObserver deliveries, which Chrome and Firefox run in a task of
+  // their own after a task queued from the animation frame itself. Observed from the
+  // animation frame, the new observer's first notice is computed in that same update
+  // and delivered with every other observer's.
   const requestFrame = () => {
     const requested = ++requestedFrame;
     requestAnimationFrame(() => {

@@ -530,7 +530,7 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
     thread to stop it when the harness pid goes, no SessionEnd reaper. The harness is
     the suite's own session, which every command here already runs under. Its user
     stops it with Ctrl-C, which unwinds through the process's exit handlers while
-    its watch threads still run, where `server stop` ends it at once
+    its watch threads still run, whereas `server stop` ends it at once
     (`exit_serving`)."""
     process = spawn(
         [

@@ -827,13 +827,25 @@ def served_thread(browser: dict) -> dict:
 
 
 def served_obligations(browser: dict, *, page: bool = False) -> dict:
-    """The obligation records the one view `browser` serves, by the selections
-    `obligations.collection` makes: the frozen threads' obligations, or with `page` the
-    document's."""
+    """The obligation records the one view `browser` serves for what the page asks, by
+    the selections `obligations.collection` makes: the frozen threads' obligations, or
+    with `page` the document's and its sign-off. The records the user's updates publish
+    are `served_updates`."""
     [view] = browser["views"].values()
     return collection(
-        [item for item in view["obligations"] if (item["thread"] is None) == page]
+        [
+            item
+            for item in view["obligations"]
+            if item["source"]["kind"] != "update" and (item["thread"] is None) == page
+        ]
     )
+
+
+def served_updates(browser: dict) -> list[dict]:
+    """The records the user's updates publish (`workflows.handed_over`), in the one view
+    `browser` serves."""
+    [view] = browser["views"].values()
+    return [item for item in view["obligations"] if item["source"]["kind"] == "update"]
 
 
 @pytest.fixture
@@ -1156,13 +1168,42 @@ def obligations_on_user(state):
 
 
 def owed(state):
-    """The workflows one agent-facing state still owes an answer.
+    """The answers one agent-facing state still owes, each the workflow of the input
+    its record names, with the record's id as `obligation` and the owed `answer`.
 
-    `activity.obligations` names them by id, so this is the join an agent makes to
-    reach a move's stage, subject, or answer.
+    `activity.obligations` names each by its record's id beside its answer, so this
+    is the join an agent makes to reach a move's stage or subject.
     """
-    ids = set(state["activity"]["obligations"])
-    return [item for item in state["workflows"] if item["id"] in ids]
+    records = {item["id"]: item for item in state["obligations"]}
+    by_input = {item["input"]: item for item in state["workflows"]}
+    return [
+        {
+            **by_input[records[entry["id"]]["source"]["id"]],
+            "obligation": entry["id"],
+            "answer": entry["answer"],
+        }
+        for entry in state["activity"]["obligations"]
+    ]
+
+
+def activity_reading(page_dir, now: str | None = None) -> dict:
+    """The page's activity as the server folds it (`activity.canonical_activity`), each
+    owed answer (`obligations`) whole: the workflow of its update with the record's id
+    and the answer, where the served state lists the record ids alone and `page state`
+    prints each id beside its answer."""
+    from leaf.served_state.context import read_page
+
+    events = events_model.read_events(page_dir)
+    return read_page(page_dir, events, now=now).work.activity
+
+
+def owed_answers(page_dir):
+    """The answers the page's agent owes (`activity.obligations`), as the hooks and
+    `leaf status idle` read them: each the workflow of the input its record names, with
+    the record's id as `obligation` and the owed `answer`."""
+    from leaf.served_state.context import read_page
+
+    return read_page(page_dir, events_model.read_events(page_dir)).work.obligations
 
 
 # A question and the accept that answers it, written as a stored log holds them:

@@ -22,6 +22,7 @@ from interact_support import (
     HELD_LEASES,
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
+    activity_reading,
     append_carried_log_record,
     append_command,
     available_loopback_port,
@@ -129,7 +130,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     ]
     assert all("seq" not in event for event in stored if event["kind"] == "pickup")
     working(page_dir, "revising the plan")
-    assert page_state(page_dir)["activity"]["detail"] == "revising the plan"
+    assert activity_reading(page_dir)["detail"] == "revising the plan"
 
     # A worker's report wakes the watcher like a user event — it is the
     # orchestrator's to fold into a version — but the user's On me count
@@ -389,7 +390,7 @@ def test_a_page_without_a_declaration_leaves_the_sessions_wait_running(
     _, batch, shown = woken(waited.output)
     assert batch["page"] == str(page_dir.resolve())
     assert [event["id"] for event in shown] == [comment["id"]]
-    assert page_state(copy)["activity"]["kind"] == "listening"
+    assert activity_reading(copy)["kind"] == "listening"
 
 
 @pytest.mark.parametrize("wait", ["named", "session"])

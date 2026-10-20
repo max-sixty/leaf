@@ -76,10 +76,9 @@ const responseFailure = (source, kind = "failed") =>
     thread: "t",
     coordinate: ["thread", "t"],
     seq: 3,
-    answer: null,
+    obligation: "update:input",
     stage: "answered",
     condition: { kind, operation: "response" },
-    next_actor: "user",
     response: source,
   });
 
@@ -247,6 +246,26 @@ test("a failed answer to a move in a thread's markup is news about that thread",
     failed.news.map(({ kind, thread }) => [kind, thread]),
     [["response_failure", "t"]],
   );
+});
+
+test("an update handed back to the user is news once, as its failed response", () => {
+  const baseline = observeSemanticNews(null, reading());
+  const handedBack = observeSemanticNews(
+    baseline.observed,
+    reading({
+      threadObligations: [
+        {
+          id: "update:input",
+          thread: "t",
+          message: "input",
+          source: { kind: "update", id: "input" },
+          next_actor: "user",
+        },
+      ],
+      workflows: [responseFailure({ id: "failure" })],
+    }),
+  );
+  assert.deepEqual(kinds(handedBack), ["response_failure"]);
 });
 
 test("a response failure announces once per attempt and retrying is not recovery", () => {

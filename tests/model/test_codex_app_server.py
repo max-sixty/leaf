@@ -26,6 +26,7 @@ from interact_support import (
     append_command,
     codex_records,
     delivered_ref,
+    owed_answers,
     page_state,
     publish,
     read_record,
@@ -53,7 +54,6 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
-from leaf.served_state import page as served_page
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
@@ -1317,9 +1317,7 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
         }
     )
     assert client.turns["queued-turn"].reply_stream is None
-    [workflow] = served_page.full_state(page_dir, events_model.read_events(page_dir))[
-        "activity"
-    ]["obligations"]
+    [workflow] = owed_answers(page_dir)
     assert workflow["stage"] == "picked_up"
     assert workflow["answer"] == {
         "kind": "reply",
@@ -1784,9 +1782,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
 
 
 def _obligations(page_dir) -> list[dict]:
-    return served_page.full_state(page_dir, events_model.read_events(page_dir))[
-        "activity"
-    ]["obligations"]
+    return owed_answers(page_dir)
 
 
 def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):

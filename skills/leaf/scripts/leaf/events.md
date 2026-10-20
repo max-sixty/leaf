@@ -313,8 +313,8 @@ An open state-answered obligation in an unresolved thread keeps it awaiting the 
 the user writes after it: their later prose hands the obligation to the agent, still open
 and unanswered, until the agent answers that turn. A thread anchored on a page obligation
 does the same while the agent owes it a reply (`obligations.sections_with_agent`), so
-an obligation the user has commented on leaves their On me list while the reply it is owed
-stands on the agent's. A question asked in words (`x-awaits.reply`) is the exception:
+an obligation the user has commented on leaves their On me list while the comment's own
+obligation, the reply it is owed, stands on the agent's. A question asked in words (`x-awaits.reply`) is the exception:
 the user's message after it answers it, every one before that message at once, and
 a reaction whose token declares `settles` answers only the question in the message it
 reacts to. Neither answer resolves the thread. Later agent messages leave a question
@@ -336,6 +336,16 @@ select typed canonical widget values or the settling user message/reaction, with
 an admitted answering event reference when one supplies the answer; authored and
 carried values can have no event. Completion is separate from value, so a partial
 value and a completed empty answer remain distinguishable.
+
+Each update the user hands over that an operation answers publishes a record beside
+these (`workflows.handed_over`, `obligations.update_obligation`): `update:<event-id>`,
+whose `source` names the event and the thread or widget it stands on, its next actor
+the agent while it owes the update a reply or a version, the user once a harness handed
+it back, and nobody once a reply answered it, which `answer.event` names. Of turns the
+user sent in a row, only the newest publishes one, which every workflow among them
+names (`obligation`). The served inventory, `page state`'s `obligations` and the On
+lists read these records with the widgets' and sign-off's, which they depend on and
+so are folded after.
 
 The `all`, `user` and `unanswered` collections select this inventory. Answered,
 withdrawn and resolved-thread obligations stay in `all`; open records stay

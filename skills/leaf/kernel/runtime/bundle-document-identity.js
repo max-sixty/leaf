@@ -6096,6 +6096,11 @@ function createThreadDestinations({
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
       if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
+      const place = preview && !trip ? threadTarget(id) : null;
+      if (place) {
+        await reveal(place, intent).ready;
+        if (!mayPresent()) return null;
+      }
       let opened = null;
       if (preview)
         intent.handoff(() => {

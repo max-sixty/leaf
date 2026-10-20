@@ -251,8 +251,8 @@ export function createThreadDestinations({
       // holding the passage hides, and a card with nowhere to stand never places. A trip
       // reveals the passage as it arrives; a thread opened where the user stands reveals
       // it here.
-      const place = threadTarget(id);
-      if (preview && !trip && place) {
+      const place = preview && !trip ? threadTarget(id) : null;
+      if (place) {
         await reveal(place, intent).ready;
         if (!mayPresent()) return null;
       }

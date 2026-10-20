@@ -599,9 +599,7 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         seed = source.with_suffix(".jsonl")
         if seed.exists():
             assert seed.read_text() in (page_dir / "events.jsonl").read_text()
-            assert CURSOR.read(page_dir / "cursor.json") == {
-                "seq": len(events)
-            }
+            assert CURSOR.read(page_dir / "cursor.json") == {"seq": len(events)}
         else:
             assert not (page_dir / "cursor.json").exists()
         assert set(contracts) == {operation["source"] for operation in operations}

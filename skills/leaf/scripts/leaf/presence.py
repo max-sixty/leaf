@@ -9,7 +9,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .activity import Turn, current_turn, declared_at, takes_input
+from .activity import (
+    Turn,
+    current_turn,
+    declaration,
+    declared_at,
+    takes_input,
+    undeclared,
+)
 from .files import file_stamp
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
@@ -21,9 +28,8 @@ from .service import (
     acknowledged,
     claim_is_active,
     page_claim,
-    read_status,
+    read_stream,
     unacknowledged,
-    undeclared,
 )
 from .state import named_pages, now_iso, state_home, stored_record
 
@@ -241,14 +247,10 @@ def presence_with_activity(
     claim-against-proof judgment reads these fields. The server's row publication
     carries only the compact presentation fields derived from these facts. A captured
     host publication without a process keeps durable acknowledgement and pending
-    input, while omitting claimant, watcher, turn and live activity facts."""
-    stored_status = read_status(page_dir) if process else undeclared()
-    # The declaration's own fields; the harness's stream stays server-side.
-    status = {
-        key: value
-        for key, value in stored_status.items()
-        if key in {"state", "detail", "ts"}
-    }
+    input, while omitting claimant, watcher, turn and live activity facts, and the
+    declaration its log holds: whoever answers a hosted copy is the host's agent,
+    which has declared nothing (`page_agent`)."""
+    status = declaration(events) if process else undeclared()
     claim = page_claim(page_dir) if process else None
     active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its
@@ -297,7 +299,7 @@ def presence_with_activity(
         # None for a page nothing ever claimed, which is the honest nothing.
         "session_cwd": claim.get("cwd") if claim else None,
     }
-    return reading, stored_status["stream"] if process else None
+    return reading, read_stream(page_dir) if process else None
 
 
 def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:

@@ -1,4 +1,4 @@
-"""Page claims, serialized transactions, and status.
+"""Page claims, serialized transactions, the agent's declaration, and its stream.
 
 The transaction holds the page's append lease; what may be appended under it is
 `event_contracts`' to say. Cold harness hooks read claims, and Codex's tool hook
@@ -6,7 +6,14 @@ opens a transaction after every tool call, so process inspection and page-event
 semantics are imported only by their callers. A transaction finishes interrupted
 publications before admitting a reader. Hosts may declare LEAF_PAGE_COMMIT as a
 module:function provider; successful completion calls it under the same append
-lease, and provider failure prevents the caller from acknowledging success."""
+lease, and provider failure prevents the caller from acknowledging success.
+
+The agent's `waiting` or `idle` declaration is a `status` event in the log
+(`set_status`, read by `activity.declaration`). What the harness observes of the
+claimant's task as it runs, its live activity, the reply it drafts and the response
+addresses it has reserved, is `stream.json` (`STREAM`). It stays out of the log: it
+changes several times a second while a turn streams, means nothing once that turn
+has ended, and a reservation fences competing writers of one answer."""
 
 from __future__ import annotations
 
@@ -29,7 +36,7 @@ from leaf.files import unfinished_publications
 from leaf.interaction_log import append_interactions, session_context
 from leaf.machine import pid_alive, sandbox_remedy
 from leaf.refusals import Refused
-from leaf.schema import STATUS_FILE
+from leaf.schema import STREAM_FILE
 from leaf.state import (
     EVENTS_FILE,
     STRING,
@@ -315,7 +322,7 @@ class PageTransaction:
         (`delivery` header)."""
         from leaf.activity import reply_reservation_stands
 
-        reservation = self.status["stream"]["reply_reservations"].get(responds)
+        reservation = self.stream["reply_reservations"].get(responds)
         claim = self.active_claim
         if claim and reply_reservation_stands(
             reservation, claim["id"], claim["turn"], claim["turn_closed"]
@@ -405,36 +412,52 @@ class PageTransaction:
 
     @property
     def status(self) -> dict:
-        return read_status(self.page_dir)
+        """The agent's declaration, as the log under this lease holds it
+        (`activity.declaration`)."""
+        from leaf.activity import declaration
 
-    def _write_status(self, status: dict) -> None:
-        """The one writer of `status.json` (`STATUS`)."""
-        STATUS.write(self.page_dir / STATUS_FILE, status)
+        return declaration(self.events)
+
+    @property
+    def stream(self) -> dict:
+        return read_stream(self.page_dir)
 
     def _write_stream(self, stream: dict) -> None:
-        """Replace the stream and keep the declaration."""
-        self._write_status({**self.status, "stream": stream})
+        """The one writer of `stream.json` (`STREAM`)."""
+        STREAM.write(self.page_dir / STREAM_FILE, stream)
 
     def set_status(self, state: str, detail: str) -> dict:
-        """Write the page's `waiting` or `idle` declaration and return it.
+        """Append the page's `waiting` or `idle` declaration, a `status` event in the
+        posting session's voice, and return the record.
 
         The work the agent has in hand is no status: it is the log's `start` events,
-        and the `put_down` that `leaf status` writes beside a declaration takes them
-        back (`todos`). The stream the harness observes carries across a `waiting`,
-        and `idle` clears it with the leaf."""
-        declaration = {"state": state, "detail": detail, "ts": now_iso()}
-        stream = no_stream() if state == "idle" else self.status["stream"]
-        self._write_status({**declaration, "stream": stream})
-        return declaration
+        and a declaration puts every start before it down (`todos.item_starts`). The
+        stream the harness observes carries across a `waiting`, and `idle` clears it
+        with the leaf."""
+        from leaf.event_contracts import append_admitted
+        from leaf.harness import message_identity
+
+        record, _ = append_admitted(
+            self,
+            {
+                "kind": "status",
+                "author": "agent",
+                **message_identity(),
+                "state": state,
+                "detail": detail,
+            },
+        )
+        if state == "idle" and self.stream != no_stream():
+            self._write_stream(no_stream())
+        return record
 
     def set_stream_activity(
         self, session_id: str, turn_id: str, activity: dict
     ) -> None:
         """Record activity observed directly from the task's live event stream."""
-        status = self.status
-        if status["state"] == "idle":
+        if self.status["state"] == "idle":
             return
-        stream = status["stream"]
+        stream = self.stream
         now = now_iso()
         after = self.events[-1]["seq"] if self.events else 0
         previous = stream["activity"]
@@ -459,7 +482,7 @@ class PageTransaction:
         self, session_id: str, turn_id: str | None = None
     ) -> None:
         """Remove this task's live reading without changing its declaration."""
-        stream = self.status["stream"]
+        stream = self.stream
         activity = stream["activity"]
         if not activity or activity["session"] != session_id:
             return
@@ -480,7 +503,7 @@ class PageTransaction:
         settles: bool = False,
     ) -> None:
         """Replace the provisional reply at a delivery's captured response address."""
-        stream = self.status["stream"]
+        stream = self.stream
         previous = stream["reply"]
         timestamp = (
             previous["ts"]
@@ -568,7 +591,7 @@ class PageTransaction:
         own turn does not exist yet; that turn takes the reservation over when its
         reply opens (`set_stream_reply`). Reserving again, as a retried start
         does, names the claim's turn as it stands then."""
-        stream = self.status["stream"]
+        stream = self.stream
         reservations = self._reserved(
             stream, session_id, responds, attempt, self.claim["turn"]
         )
@@ -605,7 +628,7 @@ class PageTransaction:
         state: str,
     ) -> bool:
         """Finish the matching displayed draft without changing its reservation."""
-        stream = self.status["stream"]
+        stream = self.stream
         reply = stream["reply"]
         if not reply or (reply["session"], reply["turn"], reply["attempt"]) != (
             session_id,
@@ -632,14 +655,14 @@ class PageTransaction:
         attempt: str,
     ) -> None:
         """Release one response address without changing its visible draft."""
-        stream = self.status["stream"]
+        stream = self.stream
         reservations = dict(stream["reply_reservations"])
         if _held_by(reservations.pop(responds, None), session_id, attempt):
             self._write_stream({**stream, "reply_reservations": reservations})
 
     def clear_stream_reply(self, session_id: str, turn_id: str | None = None) -> None:
         """Remove this task's provisional reply without changing thread history."""
-        stream = self.status["stream"]
+        stream = self.stream
         reply = stream["reply"]
         if not reply or reply["session"] != session_id:
             return
@@ -750,82 +773,64 @@ def restore_page_claim(
 
 
 def no_stream() -> dict:
-    """What `status.json` carries beside the declaration while the harness observes
-    nothing of the claimant's task: no live activity, no reply it is drafting, and
-    no response address it has reserved (`delivery` header)."""
+    """The stream while the harness observes nothing of the claimant's task: no live
+    activity, no reply it is drafting, and no response address it has reserved
+    (`delivery` header)."""
     return {"activity": None, "reply": None, "reply_reservations": {}}
 
 
-def undeclared() -> dict:
-    """The status of a page whose agent has declared nothing, such as a copy served
-    before any `leaf status`: no work under way and nothing ended, so the page waits
-    on its user and a wait keeps watching it."""
-    return {"state": "waiting", "detail": "", "stream": no_stream()}
-
-
 _TURN = {"session": STRING, "turn": STRING}
-STATUS = Record(
-    "status",
+STREAM = Record(
+    "stream",
     object_schema(
         {
-            "state": {"enum": ["waiting", "idle"]},
-            "detail": STRING,
-            "stream": object_schema(
-                {
-                    # What the task is doing now (`set_stream_activity`).
-                    "activity": {
-                        **object_schema(
-                            {
-                                **_TURN,
-                                "kind": STRING,
-                                "ts": TIME,
-                                "after": {"type": "integer"},
-                            },
-                            {"detail": STRING},
-                        ),
-                        "type": ["object", "null"],
+            # What the task is doing now (`set_stream_activity`).
+            "activity": {
+                **object_schema(
+                    {
+                        **_TURN,
+                        "kind": STRING,
+                        "ts": TIME,
+                        "after": {"type": "integer"},
                     },
-                    # The reply it is drafting (`set_stream_reply`).
-                    "reply": {
-                        **object_schema(
-                            {
-                                **_TURN,
-                                "attempt": STRING,
-                                "parent": STRING,
-                                "responds": STRING,
-                                "item": {"type": ["string", "null"]},
-                                "text": STRING,
-                                "state": STRING,
-                                "settles": {"type": "boolean"},
-                                "agent": STRING,
-                                "ts": TIME,
-                                "updated_at": TIME,
-                            }
-                        ),
-                        "type": ["object", "null"],
-                    },
-                    # By response address.
-                    "reply_reservations": {
-                        "type": "object",
-                        "additionalProperties": object_schema(
-                            {**_TURN, "attempt": STRING}
-                        ),
-                    },
-                }
-            ),
-        },
-        # When the agent declared it; a stream observed before any declaration
-        # carries none.
-        {"ts": TIME},
+                    {"detail": STRING},
+                ),
+                "type": ["object", "null"],
+            },
+            # The reply it is drafting (`set_stream_reply`).
+            "reply": {
+                **object_schema(
+                    {
+                        **_TURN,
+                        "attempt": STRING,
+                        "parent": STRING,
+                        "responds": STRING,
+                        "item": {"type": ["string", "null"]},
+                        "text": STRING,
+                        "state": STRING,
+                        "settles": {"type": "boolean"},
+                        "agent": STRING,
+                        "ts": TIME,
+                        "updated_at": TIME,
+                    }
+                ),
+                "type": ["object", "null"],
+            },
+            # By response address.
+            "reply_reservations": {
+                "type": "object",
+                "additionalProperties": object_schema({**_TURN, "attempt": STRING}),
+            },
+        }
     ),
-    since=14,
+    since=16,
 )
 
 
-def read_status(page_dir: Path) -> dict:
-    """The page's work declaration, `status.json`, as every reader takes it, or
-    `undeclared` before the first."""
-    return STATUS.read(page_dir / STATUS_FILE) or undeclared()
+def read_stream(page_dir: Path) -> dict:
+    """The page's stream, `stream.json`, as every reader takes it, or `no_stream`
+    before the first write."""
+    return STREAM.read(page_dir / STREAM_FILE) or no_stream()
 
 
 def owned_pages(session_id: str | None) -> list:

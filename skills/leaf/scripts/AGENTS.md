@@ -64,8 +64,9 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
   `Record`, the one form of every JSON record Leaf keeps outside a page's log and
   document, with no dependencies on the rest;
 - `machine`, `leases`, `service`, `server`, `hosting`, `detached`: process readings,
-  process-backed leases (`take_lease`, `release_lease`), page claims and serialized
-  transactions, server state, HTTP servers, and detached starts;
+  process-backed leases (`take_lease`, `release_lease`), page claims, serialized
+  transactions and the harness's stream, server state, HTTP servers, and detached
+  starts;
 - `bridge`: the bridge Leaf's Claude Code hooks keep outside Claude Code's
   sandbox, which runs each `leaf` command the sandbox confines;
 - `codex_tool`: the MCP server Leaf's Codex plugin declares, whose `run` tool

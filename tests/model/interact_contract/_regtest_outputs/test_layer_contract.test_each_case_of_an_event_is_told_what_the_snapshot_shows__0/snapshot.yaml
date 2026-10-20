@@ -149,7 +149,7 @@
 #          {
 #            "page": "/path/to/page",
 #            "claim": "page-session",
-#            "through_seq": 2,
+#            "through_seq": 3,
 #            "threads": [
 #              {
 #                "id": "1946b466",
@@ -187,7 +187,7 @@
 #                "id": "1946b466",
 #                "attention": true,
 #                "ts": "2026-09-21T20:12:30-07:00",
-#                "seq": 2,
+#                "seq": 3,
 #                "subject": {
 #                  "kind": "thread",
 #                  "id": "1946b466"

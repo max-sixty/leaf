@@ -41,6 +41,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     check,
+    declare,
     declare_data_input,
     declare_work,
     fetch,
@@ -3130,10 +3131,7 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     assert reading() == first
     assert calls == 1
 
-    write_record(
-        page_dir / "status.json",
-        {"state": "waiting", "detail": "measuring", "ts": cleanup_model.now_iso()},
-    )
+    declare(page_dir, "waiting", "measuring")
     refreshed = reading()
     assert refreshed == first
     assert calls == 1
@@ -3148,10 +3146,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     neighbor = cleanup_model.state_home() / "pages" / "canonical"
     neighbour_page(neighbor, title="Canonical neighbor")
     record_claim(neighbor, id="neighbor", cwd="/work/neighbor")
-    write_record(
-        neighbor / "status.json",
-        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(neighbor)
     declare_work(neighbor, "measuring", ts=cleanup_model.now_iso())
     append_carried_log_record(
         neighbor, {"kind": "comment", "author": "user", "text": "why?"}
@@ -3173,7 +3168,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
 
     monkeypatch.setattr(server_model.SERVICE, "read", small_read)
     monkeypatch.setattr(served_service.PageStateService, "activity_row", no_fold)
-    monkeypatch.setattr(service_model, "read_status", no_fold)
+    monkeypatch.setattr(service_model, "read_stream", no_fold)
     monkeypatch.setattr(artifact_model, "read_revision", no_fold)
     monkeypatch.setattr(event_model, "read_events", no_fold)
     [row] = presence_model.other_leaves(page_dir)
@@ -3183,7 +3178,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert row["activity"]["counts"]["pending"] == 1
     assert row["session_cwd"] == "/work/neighbor"
     assert reads == [neighbor / "service.json"]
-    write_record(neighbor / "status.json", {"state": "idle", "detail": ""})
+    declare(neighbor, "idle")
     assert presence_model.other_leaves(page_dir) == [row]
     # Shared-home records from an incompatible producer stay absent, including
     # a row with the outer envelope but without the activity/count contract.
@@ -3222,10 +3217,7 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     monkeypatch.setattr(presence_model, "other_leaves", observe)
     presence_model.neighbor_reading(page_dir)
     for n in range(20):
-        write_record(
-            page_dir / "status.json",
-            {"state": "waiting", "detail": str(n), "ts": cleanup_model.now_iso()},
-        )
+        declare(page_dir, "waiting", str(n))
         own.refresh()
         record = files_model.read_json(own.path)
         # Give every pass a concrete changed canonical producer publication,
@@ -3314,10 +3306,7 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
     now = datetime.now().astimezone().replace(microsecond=0)
     stamp = (now - activity_model.WORKING_GRACE + timedelta(seconds=1)).isoformat()
     record_claim(page_dir, turn_opened=stamp)
-    write_record(
-        page_dir / "status.json",
-        {"state": "waiting", "detail": "", "ts": stamp},
-    )
+    declare(page_dir, ts=stamp)
     declare_work(page_dir, "measuring", ts=stamp)
     waiter = leases_model.take_lease(leases_model.waiter_lease_path(page_dir, "s1"))
     publisher = server_rows_model.RowPublisher(page_dir, "clock-server")
@@ -3436,7 +3425,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
         failure="the server did not publish a row",
     )
     original = server_model.running_server(neighbor)["server_id"]
-    (neighbor / "status.json").write_text("{invalid")
+    (neighbor / "stream.json").write_text("{invalid")
     wait_for(
         lambda: server_model.running_server(neighbor),
         lambda service: service is None,
@@ -3444,10 +3433,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     )
     assert presence_model.other_leaves(page_dir) == []
     assert read_record(neighbor / "service.json")["enabled"]
-    write_record(
-        neighbor / "status.json",
-        {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    write_record(neighbor / "stream.json", {})
     declare_work(neighbor, "repaired", ts=cleanup_model.now_iso())
     hosting_model.start_server(neighbor, persistent=True, revive=True, harness=None)
     renewed = server_model.running_server(neighbor)["server_id"]
@@ -3994,10 +3980,7 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     now = datetime.now().astimezone().replace(microsecond=0)
     monkeypatch.setattr(served_context, "now_iso", lambda: now.isoformat())
     monkeypatch.setattr(page_snapshot_model, "now_iso", lambda: now.isoformat())
-    write_record(
-        page_dir / "status.json",
-        {"state": "waiting", "detail": "", "ts": now.isoformat()},
-    )
+    declare(page_dir, ts=now.isoformat())
     schema = {
         "type": "object",
         "properties": {
@@ -5530,7 +5513,6 @@ def test_a_claimed_page_without_a_declaration_serves_its_state(page_dir, server)
     user."""
     publish(page_dir)
     service_model.claim_page(page_dir)
-    (page_dir / schema_model.STATUS_FILE).unlink(missing_ok=True)
 
     status, raw = fetch(f"{server}/api/state")
 

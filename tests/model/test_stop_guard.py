@@ -27,6 +27,7 @@ from interact_support import (
     consume_pending_input,
     continued,
     declare_idle,
+    declared,
     delivered_ref,
     delivery_through,
     end_work,
@@ -39,7 +40,6 @@ from interact_support import (
     page_state,
     publish,
     queue_board_registry,
-    read_record,
     receive_through,
     record_claim,
     response_reference,
@@ -158,7 +158,9 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     # Pending output still has to cross context: the remedy is to poll the wait
     # already running, and nothing tells this task to start one in the background.
     # The delivery the poll yields says how this harness acknowledges it.
-    append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
+    comment = append_carried_log_record(
+        page, {"kind": "comment", "author": "user", "text": "hi"}
+    )
     lease = leases_model.take_lease(leases_model.waiter_lease_path(page, session["id"]))
     assert lease
     hooks_model.cmd_hook(
@@ -175,16 +177,13 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     assert "background" not in acknowledge
     leases_model.release_lease(lease)
 
-    receive_through(page, 1)
+    receive_through(page, comment["seq"])
     # Answered before the page closes: an acknowledged comment with nothing
     # under it holds the turn on its own account, which is the subject of
     # test_an_acknowledged_comment_nobody_answered_holds_the_turn.
     thread_model.post_reply(
         page,
-        {
-            "parent": events_model.read_events(page)[0]["id"],
-            "responds": events_model.read_events(page)[0]["id"],
-        },
+        {"parent": comment["id"], "responds": comment["id"]},
         "so it does",
     )
     declare_idle(page)
@@ -635,7 +634,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert "1 event nobody has picked up" in refused.output
     # The claimant's harness names the remedy: Claude Code's hook carries them.
     assert "Leaf's hook puts them in your context" in refused.output
-    assert service_model.read_status(claimed)["state"] != "idle"
+    assert declared(claimed)["state"] != "idle"
 
     # An explicit wait hands the input to its reader, which confirms it. Reading
     # it is not answering it: idle holds until the thread has something under it.
@@ -645,7 +644,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
     assert "1 acknowledged user update with no answer" in refused.output
-    assert service_model.read_status(claimed)["state"] != "idle"
+    assert declared(claimed)["state"] != "idle"
 
     comment = events_model.read_events(claimed)[0]["id"]
     assert (
@@ -823,7 +822,7 @@ cli_model.cli()
     out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
     assert "1 event nobody has picked up" in err
-    assert read_record(page_dir / "status.json")["state"] == "waiting"
+    assert declared(page_dir)["state"] == "waiting"
 
 
 def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(claimed, capsys):

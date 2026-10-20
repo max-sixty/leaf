@@ -945,10 +945,10 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         "Older question?",
         QUESTION,
     )
-    status = read_record(page_dir / "status.json")["stream"]
-    assert status["reply"]["text"] == "Newer opening"
-    assert newer["id"] in status["reply_reservations"]
-    assert comment["id"] not in status["reply_reservations"]
+    stream = read_record(page_dir / "stream.json")
+    assert stream["reply"]["text"] == "Newer opening"
+    assert newer["id"] in stream["reply_reservations"]
+    assert comment["id"] not in stream["reply_reservations"]
 
 
 def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):

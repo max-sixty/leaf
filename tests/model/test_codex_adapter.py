@@ -32,6 +32,7 @@ from interact_support import (
     available_loopback_port,
     codex_records,
     declare_idle,
+    declared,
     delivered,
     fetch,
     last_deliverable_seq,
@@ -705,15 +706,15 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
         generation = claim["generation"]
         begin.set()
         observed = wait_for(
-            lambda: read_record(page_dir / "status.json"),
-            lambda status: (
-                status is not None
-                and (status["stream"]["activity"] or {}).get("detail")
+            lambda: read_record(page_dir / "stream.json"),
+            lambda stream: (
+                stream is not None
+                and (stream["activity"] or {}).get("detail")
                 == "Running uv run pytest tests"
             ),
             failure="the newly subscribed adapter did not project ordinary provider activity",
         )
-        assert observed["stream"]["activity"]["turn"] == "ordinary-turn"
+        assert observed["activity"]["turn"] == "ordinary-turn"
         current = service_model.page_claim(page_dir)
         assert current["generation"] == generation
         assert current["turn"] == "ordinary-turn"
@@ -799,7 +800,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
 
     assert acknowledged_through(page_dir) == 0
     assert service_model.page_claim(page_dir) == successor
-    status = service_model.read_status(page_dir)
+    status = declared(page_dir)
     assert (status["state"], status["detail"]) == (
         "waiting",
         "successor is listening",
@@ -2641,6 +2642,8 @@ def test_codex_adapter_follows_ownership_across_idle_and_server_stop(
         page,
         """\
 from leaf import codex_adapter as adapter
+from leaf.activity import declaration
+from leaf.event_log import read_events
 from leaf.files import read_json
 from leaf.state import write_json
 native_read = adapter.read_watch_pass
@@ -2648,7 +2651,7 @@ passes = 0
 def completed_read(*args, **kwargs):
     global passes
     page = Path(os.environ["PAGE"])
-    state = read_json(page / "status.json")["state"]
+    state = declaration(read_events(page))["state"]
     enabled = read_json(page / "service.json")["enabled"]
     result = native_read(*args, **kwargs)
     passes += 1

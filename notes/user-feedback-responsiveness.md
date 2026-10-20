@@ -305,14 +305,10 @@ In `document/idle` the first reply came 3.9–5.6 s after each comment; in
   [Thread plan](threads.md#independent-jobs-delegation-and-continuation) owns the
   broader model of delegated jobs.
 - **Two model calls for a small change:** the calls "A small page change's reply"
-  lists are what a reply would cut. Have `leaf response reply` report what
-  `leaf page check` would, and drop the instruction to run the check first. Have
-  serving a page read what replying to its comments needs, or give the first
-  delivery the page's widget vocabulary, so the first reply reads no reference and
-  looks up no widget. Hand a working
-  Codex App Server task the comment inline at the tool boundary, as Claude Code's
-  `PostToolBatch` does, rather than a pointer to read. Each changes shipped
-  instructions or a harness contract, so score it with `evals/` and read the
+  lists are what a reply would cut. Have serving a page read what replying to its
+  comments needs, or give the first delivery the page's widget vocabulary, so the
+  first reply reads no reference and looks up no widget. That changes shipped
+  instructions or the delivery contract, so score it with `evals/` and read the
   journey's model calls before and after.
 - **Separate the cases from the session's history:** the working ask follows the
   waiting one in the same session ("A small page change's reply"). Asking each in

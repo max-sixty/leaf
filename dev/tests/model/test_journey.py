@@ -319,6 +319,13 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
         },
         {"type": "system", "timestamp": at(2.5), "subtype": "stop_hook_summary"},
         {"type": "system", "timestamp": at(3), "subtype": "turn_duration"},
+        {
+            "type": "user",
+            "timestamp": at(4),
+            "isCompactSummary": True,
+            "turnPosition": {"promptIndex": 1, "turnIndex": 1},
+            "message": {"content": "Summary."},
+        },
     ]
     path.write_text("".join(json.dumps(line) + "\n" for line in lines))
     native = journey_claude_code.native_records(tmp_path, session)
@@ -340,6 +347,11 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
         },
         {"type": "model_response", "received_at": at(2)},
         {"type": "turn_end", "received_at": at(3)},
+        {
+            "type": "user",
+            "message": {"content": [{"type": "text", "text": "Summary."}]},
+            "received_at": at(4),
+        },
     ]
 
 

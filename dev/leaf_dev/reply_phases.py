@@ -263,12 +263,14 @@ def claude_code_records(native: list[dict]) -> list[dict]:
     `received_at` with the time Claude Code wrote on each, and a `model_response`
     where each response's last record was written: Claude Code writes a response's
     content blocks as records of their own, sharing its message id. Claude Code marks
-    its own turns: the input that starts one carries `turnPosition`, and a
-    `turn_duration` record ends it once its Stop hooks let it stop."""
+    its own turns: the input that starts one carries `turnPosition`, which a
+    compaction's summary copies from the turn before without starting one; a
+    `turn_duration` record ends a turn once its Stop hooks let it stop, and an
+    interruption's record (`interruptedMessageId`) ends one that writes none."""
     records = []
     responses: dict[str, str] = {}
     for record in native:
-        if record.get("subtype") == "turn_duration":
+        if record.get("subtype") == "turn_duration" or "interruptedMessageId" in record:
             records.append({"type": "turn_end", "received_at": record["timestamp"]})
         if record.get("type") not in ("user", "assistant") or "message" not in record:
             continue
@@ -276,7 +278,7 @@ def claude_code_records(native: list[dict]) -> list[dict]:
         content = message["content"]
         if isinstance(content, str):
             content = [{"type": "text", "text": content}]
-        if "turnPosition" in record:
+        if "turnPosition" in record and not record.get("isCompactSummary"):
             records.append({"type": "turn_start", "received_at": at})
         records.append(
             {"type": record["type"], "message": {"content": content}, "received_at": at}

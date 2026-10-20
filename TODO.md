@@ -712,13 +712,23 @@ export` writes a file that boots the page's own runtime offline, and that file
   250 ms (`runtime/state-feed.js`). Pages streamed updates until #1589 replaced
   per-document streams with polling, because the streams used up HTTP/1.1's six
   connections per host. Measured on 2026-10-13, polling costs about 1% of one core
-  per visible tab locally. On leaf.page each look bills a Worker and a Durable
-  Object request, under $1.20 a month per user at list price and inside the
-  included quotas, and polling accounts for about 1% of container hours. A stopped
-  container stays asleep under polling, since its Durable Object answers `api/news`
-  from the page the container last saved; a stream held in the container would
-  wake it for a passive reader, so push needs an idle path of its own before its
-  cost compares with polling's. Push would show an agent's
+  per visible tab locally; on 2026-10-20 the server spent 1.8 ms of CPU per look,
+  0.7% of a core at four looks a second. On leaf.page each look bills a Worker and
+  a Durable Object request, under $1.20 a month per user at list price and inside
+  the included quotas, and polling accounts for about 1% of container hours. A
+  stopped container stays asleep under polling, since its Durable Object answers
+  `api/news` from the page the container last saved. A stream held in the
+  container would wake it for a passive reader, so on leaf.page the Durable
+  Object should hold the stream instead: under Cloudflare's WebSocket Hibernation
+  API its clients stay connected while the object is out of memory, without
+  duration charges
+  ([docs](https://developers.cloudflare.com/durable-objects/best-practices/websockets/)).
+  Each look also renews the user's attention lease (`_news` in `http.py`), so a
+  push channel has to carry that lease too. Push would not change how a tab
+  loses or finds its server: a failed look already reports a dead server, a
+  retry against a dead local server costs no measurable CPU, and a tab reaches
+  its restarted server only because `service.json` keeps the server's address.
+  Push would show an agent's
   change sooner: locally the file watcher notices an append in about 90 ms against
   polling's 125 ms average, and on leaf.page, where a look takes about 370 ms, it
   would save roughly 250 ms. A sketch of one stream per browser (a leader tab

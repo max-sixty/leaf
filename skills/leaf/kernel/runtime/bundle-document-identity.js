@@ -235,6 +235,7 @@ import {
   excerptWords,
   inChrome,
   labelWords,
+  leafSurface,
   pageDocument,
   pageParts,
   pageRange,
@@ -4058,7 +4059,7 @@ var currentProjection = readPart((root) => root.effective.projection);
 // runtime/thread/placement.js
 var threadPlace = (t, placedAt) => {
   const place = placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null);
-  return place?.isConnected ? place : null;
+  return place?.isConnected && !leafSurface(place) ? place : null;
 };
 var inPageOrder = (threads, placedAt) => byRenderedOrder(threads, (t) => threadPlace(t, placedAt));
 var outlined = null;

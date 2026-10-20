@@ -1018,12 +1018,15 @@ function declareSide(bridge) {
 }
 function obligationHolding(items, node) {
   if (!node) return null;
-  const places = items.filter((item) => item.source.kind === "widget").map((item) => ({ item, ...obligationPlace(item, items) }));
-  const holds = (element) => element && (element === node || under(node, element));
-  const source = places.findLast((place2) => holds(place2.source));
-  if (source) return source.item;
-  const contexts = places.filter((place2) => holds(place2.node));
-  return contexts.length === 1 ? contexts[0].item : null;
+  const holds = (element) => element && under(node, element);
+  let held = null;
+  for (const item of items) {
+    if (item.source.kind !== "widget") continue;
+    const { source, node: stands } = obligationPlace(item, items);
+    const at = holds(source) ? source : holds(stands) ? stands : null;
+    if (at && (!held || under(at, held.at))) held = { item, at };
+  }
+  return held?.item ?? null;
 }
 function sideOf(node) {
   for (const side of sides) {

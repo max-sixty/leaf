@@ -1,6 +1,7 @@
 # Actual outgoing App Server requests for an admitted user event.
 # Only the page path, event/delivery identities, and timestamps are pinned.
-# toolOutput.output is the complete serialized delivery the agent receives.
+# The queued input's text is the user message the agent receives: Leaf's
+# opening line, then the complete serialized delivery.
 
 thread/start:
   model: gpt-5.6-luna
@@ -26,23 +27,37 @@ thread/start:
   config:
     model_reasoning_effort: low
 
-turn/start:
+thread/queue/add:
   threadId: hosted-thread
   clientUserMessageId: '00000001'
-  input: []
-  toolOutput:
-    name: leaf_delivery
-    output: '{"format":"leaf-delivery/13","id":"00000001","created_at":1790096400.0,"acknowledge":null,"batches":[{"page":"/page","claim":"hosted-thread","through_seq":1,"threads":[{"id":"user-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"Leaf
-      streams your opening message into the thread and posts your final message
-      as the reply, unless an explicit reply already answered this input. Before
-      your first tool call, tell the user briefly the answer or what you are about
-      to do; later working messages stay in Codex. End with the answer, or what
-      changed and where it shows. For widgets, a question awaiting the user (an
-      `lf-ask` in `--markup`), work promised beyond this turn (`--todo`), a title
-      or moving the thread, reply explicitly with `leaf response reply <answer.ref>`
-      (`references/threads.md`); it posts at once, and your final message is then
-      not posted.","h2":"Your reply renders as Markdown in a narrow column: give
-      each point its own short paragraph or list item, link a page section as `[its
-      name](#section-id)`, and fence code or markup."},"events":[{"attention":true,"kind":"comment","author":"user","text":"Use
-      backfill first.","id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"thread","id":"user-event"},"threads":["user-event"],"handling":["h1","h2"],"answer":{"kind":"reply","to":"user-event","for":"user-event","ref":"00000001:0:user-event","writer":"turn"}}]}]}'
-  turnTrigger: leaf
+  input:
+    - type: text
+      text: 'Leaf has new input for your turn. Read this complete delivery before
+        answering.
+
+        {"format": "leaf-delivery/13", "id": "00000001", "created_at": 1790096400.0,
+        "acknowledge": null, "batches": [{"page": "/page", "claim": "hosted-thread",
+        "through_seq": 1, "threads": [{"id": "user-event", "title": null, "anchor":
+        null, "detached_from": null, "resolved": null, "elided": {"messages": 0,
+        "actions": 0}, "messages": [], "summaries": [], "actions": []}], "handling":
+        {"h1": "Leaf streams your opening message into the thread and posts your
+        final message as the reply, unless an explicit reply already answered this
+        input. Before your first tool call, tell the user briefly the answer or
+        what you are about to do; later working messages stay in Codex. End with
+        the answer, or what changed and where it shows. For widgets, a question
+        awaiting the user (an `lf-ask` in `--markup`), work promised beyond this
+        turn (`--todo`), a title or moving the thread, reply explicitly with `leaf
+        response reply <answer.ref>` (`references/threads.md`); it posts at once,
+        and your final message is then not posted.", "h2": "Your reply renders as
+        Markdown in a narrow column: give each point its own short paragraph or
+        list item, link a page section as `[its name](#section-id)`, and fence code
+        or markup."}, "events": [{"attention": true, "kind": "comment", "author":
+        "user", "text": "Use backfill first.", "id": "user-event", "ts": "2026-09-22T10:00:00-07:00",
+        "seq": 1, "subject": {"kind": "thread", "id": "user-event"}, "threads":
+        ["user-event"], "handling": ["h1", "h2"], "answer": {"kind": "reply", "to":
+        "user-event", "for": "user-event", "ref": "00000001:0:user-event", "writer":
+        "turn"}}]}]}'
+
+thread/queue/list:
+  threadId: hosted-thread
+  cursor: null

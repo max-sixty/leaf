@@ -34,6 +34,7 @@ from process.website_server import (
     get,
     hosted_follower,
     post,
+    queued_turn,
     write_manifest,
 )
 
@@ -307,9 +308,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
     with website_server.PageTransaction(page_dir) as page:
         page.set_status("idle", "")
     harness = website_server.WebsiteCodexHarness("codex")
-    monkeypatch.setattr(
-        harness, "_send", lambda *a, **k: {"turn": {"id": "app-server-turn"}}
-    )
+    monkeypatch.setattr(harness, "_send", queued_turn("app-server-turn"))
 
     class LostSocket:
         def recv(self, timeout):
@@ -323,6 +322,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
         page_dir,
         "hosted-thread",
         type("Process", (), {"pid": os.getpid()})(),
+        [],
     )
     assert follow.reply_target is not None
     assert follow.reply_target["reply_to"] != follow.reply_target["responds"]
@@ -495,9 +495,13 @@ def test_a_rejected_streamed_reply_starts_a_website_correction(
             lambda *_: (Socket(), {"thread": {"status": {"type": "idle"}}}, []),
         )
 
+        queue = queued_turn("repair-turn")
+
         def send(socket, method, params, pending):
-            restarted.append(json.loads(params["toolOutput"]["output"]))
-            return {"turn": {"id": "repair-turn"}}
+            if method == "thread/queue/add":
+                [message] = params["input"]
+                restarted.append(json.loads(message["text"].split("\n")[1]))
+            return queue(socket, method, params, pending)
 
         monkeypatch.setattr(harness, "_send", send)
         monkeypatch.setattr(harness, "_follow", lambda *_: None)

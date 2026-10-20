@@ -8,16 +8,16 @@ state store or event semantics.
 
 The adapter also runs the hosted agent. The Worker posts each accepted event that owes
 a reply to `/_leaf/agent/start`, and `attach` starts or resumes one Codex App Server
-thread rooted at the page directory and hands it the event in Leaf's delivery envelope;
-while a turn is running, Leaf holds the delivery and starts it when that turn ends. A
-repeated start for the same event starts nothing new. Codex has the prepared Leaf plugin
-installed, as a terminal agent's Codex does, and `CODEX_INSTRUCTIONS` adds only the
-session's environment and scope. Each turn is bound to its delivery id, sent as
-`clientUserMessageId`, so the turn's follower knows its turn from the start. A delivery
-carries at most one plain reply, which streams into its thread and is committed through
+thread rooted at the page directory and queues the event on it in Leaf's delivery
+envelope; while a turn is running, Leaf holds the delivery and queues it when that
+turn ends. A repeated start for the same event starts nothing new. Codex has the
+prepared Leaf plugin installed, as a terminal agent's Codex does, and
+`CODEX_INSTRUCTIONS` adds only the session's environment and scope. The container is
+the thread's only client, so the next turn to start after a delivery is queued is
+that delivery's (`next_turn`). A delivery carries at most one plain reply, which streams into its thread and is committed through
 Leaf's reply writer even if the connection drops or the next turn opens first.
 
-`HostedTurn` follows a turn on the connection that started it. Completion ends it, and
+`HostedTurn` follows a turn on the connection that queued its delivery. Completion ends it, and
 so do a dropped connection, silence past `STREAM_SILENCE`, and any fault; for those the
 follower interrupts the provider turn, since nothing else is reading it. Every ending
 closes the Leaf turn and gives each update the turn still owed an answer the
@@ -55,6 +55,8 @@ from typing import TYPE_CHECKING
 import click
 from leaf.codex import (
     APP_SERVER_ENV,
+    START_TIMEOUT,
+    AppServerDeliveryUncertain,
     CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
@@ -63,7 +65,8 @@ from leaf.codex import (
     delivery_owed_updates,
     open_app_server_delivery,
     prepare_codex_delivery,
-    start_app_server_delivery,
+    queue_app_server_delivery,
+    start_queued_delivery,
     stop_app_server,
 )
 from leaf.delivery import read_delivery, stream_reply_target
@@ -95,6 +98,7 @@ from leaf.state import (
     flocked,
     session_lock_path,
     session_record,
+    start_session_turn,
 )
 from leaf.thread import (
     fail_answer,
@@ -413,6 +417,37 @@ def next_unaccepted_agent_event(
         )
 
 
+def next_turn(socket, pending: list[dict], thread_id: str) -> str:
+    """The id of the next turn to start on the thread, read off its subscription.
+
+    The container is App Server's only client and queues one delivery at a time,
+    so the next turn to start is the one that took the delivery just queued. It is
+    named at `turn/started` rather than by the user message that carries the
+    delivery, which a thread's first turn reported 2.4 s later in the runs measured
+    with codex-cli 0.160.0. Every notification read stays on `pending`, in order,
+    for the turn's follower.
+    """
+    deadline = time.monotonic() + START_TIMEOUT
+    read = 0
+    while True:
+        for message in pending[read:]:
+            params = message.get("params") or {}
+            if (
+                message.get("method") == "turn/started"
+                and params["threadId"] == thread_id
+            ):
+                return params["turn"]["id"]
+        read = len(pending)
+        if time.monotonic() >= deadline:
+            raise AppServerDeliveryUncertain(
+                "no Codex App Server turn took the queued delivery"
+            )
+        try:
+            pending.append(json.loads(socket.recv(timeout=1)))
+        except TimeoutError:
+            continue
+
+
 class HostedTurn(CarriedTurn):
     """One delivery's hosted turn, from the start that made it to its receipt.
 
@@ -480,10 +515,8 @@ class HostedTurn(CarriedTurn):
     def begin(self) -> None:
         """Open this delivery's Leaf turn and reply reservation for its provider turn.
 
-        The `turn/start` request carried this delivery both as its
-        `clientUserMessageId` and as its `leaf_delivery` tool output, and App Server
-        answered with the turn it made from it, so the turn named here is this
-        delivery's without anything having to read it back off the stream.
+        The turn named here is the one that took this delivery from App Server's
+        queue (`next_turn`), named as it started.
         """
         self.record("turn_following_started")
         if not self.open():
@@ -1033,7 +1066,7 @@ class WebsiteCodexHarness:
         page_dir: Path,
         thread_id: str,
         process: subprocess.Popen,
-        pending: list[dict] | None = None,
+        pending: list[dict],
     ) -> HostedTurn:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
@@ -1050,40 +1083,42 @@ class WebsiteCodexHarness:
         )
         log_agent("turn_start_started", **agent_event_fields(prepared_events))
         reply_target = stream_reply_target(prepared.payload)
+        delivery_id = prepared.payload["id"]
         try:
-            admitted = start_app_server_delivery(
-                lambda method, params: self._send(socket, method, params, pending),
-                thread_id,
-                prepared.payload,
-            )
+            expected = session_record(thread_id)
+            send = partial(self._send, socket, pending=pending)
+            queue_app_server_delivery(send, thread_id, prepared.payload)
+            # An interrupt this harness sent holds the queue until a client starts
+            # it; on a thread that ended its last turn normally, adding the
+            # delivery started it.
+            start_queued_delivery(send, thread_id, delivery_id)
+            turn_id = next_turn(socket, pending, thread_id)
+            admitted = start_session_turn(thread_id, turn_id, expected)
+            if admitted is None:
+                raise AppServerDeliveryUncertain(
+                    "a newer session epoch superseded the provider start"
+                )
         except (RuntimeError, Refused) as error:
-            # No turn to follow, and after an uncertain start possibly one this
-            # request made and never named. This harness owns the thread, so it tells
-            # the provider to drop whatever it began rather than waiting to adopt it,
-            # and gives up the delivery and any reply reservation it holds rather than
-            # leaving them held, because both would otherwise block the
-            # `startup_failed` receipt the Worker writes when this raises — the
+            # No turn to follow, and after an uncertain submission possibly one
+            # App Server began and this never named. This harness owns the thread,
+            # so it tells the provider to drop whatever it began rather than waiting
+            # to adopt it, and gives up the delivery and any reply reservation it
+            # holds rather than leaving them held, because both would otherwise block
+            # the `startup_failed` receipt the Worker writes when this raises — the
             # receipt that tells the user to send the message again.
             self._withdraw_delivery(
-                thread_id, prepared.payload["id"], prepared_events, reply_target
+                thread_id, delivery_id, prepared_events, reply_target
             )
             restore_page_claim(page_dir, prepared.claim_transition)
             raise RuntimeError(f"Codex App Server did not start a turn: {error}") from (
                 error
             )
-        turn_id = admitted["turn"]
         log_agent(
             "turn_start_acknowledged",
             **agent_event_fields(prepared_events),
             turnId=turn_id,
             durationMs=elapsed_ms(started),
         )
-        # App Server answered for the turn it made from this delivery, so the follower
-        # knows which turn is its own before it reads anything. The answer names a turn
-        # of this delivery's rather than another request's because `turn/start` steers
-        # into a turn already running, and every caller here sends one against a thread
-        # it has read as not active — the container being App Server's only client,
-        # nothing starts one in between.
         return HostedTurn(
             self,
             page_dir,
@@ -1094,7 +1129,7 @@ class WebsiteCodexHarness:
             socket,
             lifecycle=admitted,
             reply_target=reply_target,
-            buffered=tuple(pending or ()),
+            buffered=tuple(pending),
         )
 
     def _end_unfollowed_turn(

@@ -267,8 +267,8 @@ or the host:
   the same task-wide wait lease plus an adapter lease of its own, and stores exact
   batches from every page in one task-wide delivery (`codex_adapter.py`).
 - The host: a harness that drives App Server itself, as the website's per-user
-  container does. It starts the turn directly and needs nothing between turns
-  (`codex.py`).
+  container does. It queues each delivery on the thread it owns, follows the turn
+  that takes it, and needs nothing between turns (`codex.py`).
 
 Every watcher watches every page the session holds, re-reading the set on each pass,
 and every transport hands over the same envelope (`../../references/event-batches.md`,

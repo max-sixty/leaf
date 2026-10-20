@@ -410,12 +410,6 @@ on 2026-10-07.
   keeps the answer, but needs a record that it reminded, or an agent that won't act
   is woken without end; dropping the reminder leaves the next prompt's one. Max to
   choose.
-- **Decide how a Codex delivery avoids joining another client's turn.** App Server's
-  `turn/start` steers into a running turn. A follow-up the user queued in Codex starts
-  just after Leaf's idle check reads idle, so Leaf's delivery joins it and Leaf posts
-  that turn's answer as its reply to the comment. The
-  [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
-  measurements, the reproduction and the two options.
 - **Decide how a Claude Code hook delivery is confirmed.** `hook_transport` records a
   pickup when the prompt hook returns, but Escape while any UserPromptSubmit hook is
   still running drops the whole prompt, Leaf's output included. Measured on Claude

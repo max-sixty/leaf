@@ -74,6 +74,7 @@ from .delivery import (
     deliverable,
     delivery_pointer_prompt,
     freeze_delivery,
+    inline_delivery,
     reads_reference,
     receive_held,
     record_pickup,
@@ -354,10 +355,8 @@ HOOK_CONTEXT_LIMIT = 10_000
 CONFIRM_WITHIN = 10.0
 
 
-# The words that open a delivery's context, inline or by pointer.
-INLINE_OPENING = (
-    "Leaf has new input for your turn. Read this complete delivery before answering."
-)
+# The words that open a delivery's context by pointer; `delivery.INLINE_OPENING`
+# opens one handed over whole.
 POINTED_OPENING = "Leaf has new input for this turn. Read it with"
 
 
@@ -376,9 +375,7 @@ def render(
     reading."""
     if delivery is None:
         return harness.hook_context(event, "\n".join(attention)) if attention else None
-    message = "\n".join(
-        [INLINE_OPENING, json.dumps(delivery, ensure_ascii=False), *attention]
-    )
+    message = "\n".join([inline_delivery(delivery), *attention])
     inline = len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT and confirm()
     if not inline:
         message = "\n".join(

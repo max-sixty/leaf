@@ -123,8 +123,8 @@ import { notice } from "./notifications.js";
 // the older shared attempt. The log still outranks both: an attempt already present in
 // `events` is settled whatever stale active record storage hands back on reload.
 const DRAFT = "lf-draft:";
-// The page's own draft: the box of Comment on the page (thread/page-comment.js), which
-// the floating panel's field shares, and the one place a page thread starts.
+// The page's own draft: the floating panel's field, the one place a page thread
+// starts.
 export const PAGE_DRAFT = "general";
 // Where the draft at `ctx` is kept, as the store says (`where`): the page scope is in
 // the key. The storage listener below reads other tabs' writes by it, and a test that

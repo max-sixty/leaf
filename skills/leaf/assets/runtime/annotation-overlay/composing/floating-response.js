@@ -133,7 +133,7 @@ export function createFloatingResponsePlacement({
   };
   // Where the frame's native rows end. Used grid tracks exclude transformed descendant
   // paint. Withholding requires only the current controls to fit, so they may borrow the
-  // footer reserved for the future card when space is short.
+  // transparent footer reserved for the future card when space is short.
   const nativeRowEnd = () => {
     const style = getComputedStyle(fabBar);
     const rows = style.gridTemplateRows.split(" ").map(parseFloat);

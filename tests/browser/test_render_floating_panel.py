@@ -1830,8 +1830,7 @@ def test_an_error_stands_in_the_field_until_edited_then_waits_in_the_menu(
 
 
 def test_question_mark_opens_the_command_reference_at_once(browser, serve):
-    """Under the panel no shortcut bar is drawn to expand, so the first `?` opens the
-    command reference."""
+    """The first `?` opens the command reference."""
     page = floating(browser, serve(LONG_PAGE))
     page.locator("body").focus()
     page.keyboard.press("?")

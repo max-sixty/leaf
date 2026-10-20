@@ -219,7 +219,7 @@ has tried; settle that before building it.
   overflowing children and content an attribute revealed. A comment box already
   refuses a covered seat (`underOccluder`, `geometry.js`). The two routes weighed
   before were laying the page out in the width a panel leaves, which reverses
-  "auxiliary surfaces never change the page's geometry", and Leaf owning Tab beside a
+  "the chrome opens over the page and never changes its geometry", and Leaf owning Tab beside a
   panel. The redesign also gives a thread's header controls a box no wider than they
   are: `.lf-thread-controls` stands transparent over the first message's author and
   time, so axe reads no contrast for those words, and the chrome's axe sweep cannot

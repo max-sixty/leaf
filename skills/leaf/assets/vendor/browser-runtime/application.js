@@ -795,7 +795,8 @@ export function createSemanticApplication({
     // How the server answered the page's latest read: not yet (`waiting`), with a
     // reading the page adopted (`reached`), with nothing (`unreachable`, or `refused`
     // where it refused this tab's key), or with one the page could not apply
-    // (`broken`). It is what the banner says about the server, and no semantic epoch.
+    // (`broken`). It is what the page's status says about the server, and no semantic
+    // epoch.
     reach: "waiting"                                                                ,
     hostAvailable: true,
     data: { version: null                 , sources: {}                            },

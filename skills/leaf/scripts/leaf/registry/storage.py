@@ -198,14 +198,17 @@ def layer_packages(page_dir: Path) -> list[str]:
 def layer_metadata(page_dir: Path) -> dict:
     """The identity recorded by this page's complete vendored layer.
 
-    `page init` writes it, so it is read as written; a layer vendored before this
-    identity existed is one `page init` replaces. It reads `$layer` alone, as
+    `page init` writes it, so it is read as written; a layer lacking any part of
+    it is one `page init` replaces. It reads `$layer` alone, as
     `layer_packages` reads its selection, so a layer at another protocol, whose other
     entries may have another shape, still names the Leaf that vendored it."""
     path = page_dir / "registry.json"
     layer = (read_registry_object(path) or {}).get("$layer", {})
     if not (
-        isinstance(layer, dict) and layer.get("generation") and layer.get("fingerprint")
+        isinstance(layer, dict)
+        and layer.get("generation")
+        and layer.get("fingerprint")
+        and layer.get("server")
     ):
         raise registry_error("layer-identity", path)
     producer = {
@@ -216,8 +219,7 @@ def layer_metadata(page_dir: Path) -> dict:
     return {
         "generation": layer["generation"],
         "fingerprint": layer["fingerprint"],
-        # A page vendored before the server identity existed reads as having none.
-        **({"server": layer["server"]} if "server" in layer else {}),
+        "server": layer["server"],
         "packages": _layer_packages(layer, path),
         **({"producer": producer} if producer else {}),
     }

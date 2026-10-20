@@ -2439,16 +2439,6 @@
         frameOpener.disabled = true;
       });
 
-      document
-        .querySelector("#bg-read-user-view")
-        .addEventListener("click", async () => {
-          const response = await fetch(new URL("api/user-view", pageRoot));
-          if (!response.ok) throw new Error(`User view: HTTP ${response.status}`);
-          const output = document.querySelector("#bg-user-view-reading");
-          output.textContent = JSON.stringify(await response.json(), null, 2);
-          output.hidden = false;
-        });
-
       await customElements.whenDefined("lf-sample");
 
       const titleSample = document.querySelector("#bg-title-sheen-sample");
@@ -7992,7 +7982,7 @@ diff --git a/notes.md b/notes.md
 @@ -1 +1 @@
 -The earlier note was brief.
 +The new note describes the review decision in a whole paragraph on one source line, and it should remain readable in the space the page gives it without asking the reader to scroll sideways.
-      </pre>
+</pre>
       </lf-diff>
       <lf-diff id="dfg-wrap" overflow="wrap">
         <pre>
@@ -8002,7 +7992,7 @@ diff --git a/src/message.py b/src/message.py
 @@ -1 +1 @@
 -message = "Old wording."
 +message = "A long sentence that explains the change in enough detail to wrap inside this diff, keeping the review beside the evidence instead of requiring a second copy of the same words."
-      </pre>
+</pre>
       </lf-diff>
       <lf-diff id="dfg-scroll" overflow="scroll">
         <pre>
@@ -8012,7 +8002,7 @@ diff --git a/src/constant.py b/src/constant.py
 @@ -1 +1 @@
 -PATTERN = "short"
 +PATTERN = "^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega){1,4}$"
-      </pre>
+</pre>
       </lf-diff>
 </lf-tab>
 
@@ -9253,18 +9243,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-user-view">
             <h2><strong>The user's observed view</strong></h2>
             <p id="bg-user-view-guide">
-              Resize this window, change its color scheme, or open another tab. Read the
-              observations to inspect each document's viewport, visible reading regions,
-              revision, freshness, and passive geometry checks. The authoring agent gets
-              this context under <code>user_views</code> in
-              <code>leaf page state</code>. The measurements leave the layout decision
-              with the author. On the public site, make a decision or comment first to
-              activate your private page, then return here.
+              Resize this window, change its color scheme, or open another tab. The
+              authoring agent reads each document's viewport, visible reading regions,
+              revision, freshness, and passive geometry checks under
+              <code>user_views</code> in <code>leaf page state</code>. The measurements
+              leave the layout decision with the author.
             </p>
-            <button id="bg-read-user-view" class="button" type="button">
-              Read observed views
-            </button>
-            <pre id="bg-user-view-reading" hidden></pre>
           </section>
 
           <section id="bg-widths" data-width="wide">
@@ -10601,8 +10585,9 @@ switch --readers checkout-api,orders-api</code></pre>
               <h3>Rendered documents</h3>
               <p>
                 Switch between the rendered release note and its exact source. Use the
-                arrow keys on the tabs. Reloading keeps your selected view; a new source
-                value updates both views.
+                arrow keys on the tabs, then Tab into Preview and scroll through the
+                code example: the focus border stays at the viewport's edges. Reloading
+                keeps your selected view; a new source value updates both views.
               </p>
               <lf-text-document
                 id="bg-markdown-preview"

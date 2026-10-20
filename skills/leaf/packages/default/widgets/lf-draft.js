@@ -10,7 +10,7 @@
  * control at its top right copies the Markdown source the box shows. The same
  * command declarations own pointer activation, keyboard routes, availability and
  * accessible shortcut hints. The editor's own keys, Save's and Escape's, show in the
- * shared shortcut bar. The controls take no context keys, so an item lends them
+ * shared command reference (`?`). The controls take no context keys, so an item lends them
  * no digits; Tab reaches them, as it does every native button. Comments and workflow
  * receipts keep their own annotation layer; hiding annotations cannot hide the
  * editor's controls. The editor and its tools are Leaf surfaces even inside the

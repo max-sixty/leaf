@@ -449,11 +449,11 @@ def retire_sessions(payload: Path, state: Path) -> None:
             "-c",
             """
 import json
-from leaf.state import SESSION_SUFFIX, end_session, flocked, state_home_path
+from leaf.state import SESSION_SUFFIX, end_session, flocked, state_home
 from leaf.leases import adapter_lease_path
 from leaf.codex_adapter import adapter_start_lock_path
 
-sessions = state_home_path() / "sessions"
+sessions = state_home() / "sessions"
 for path in sessions.glob(f"*.{SESSION_SUFFIX}"):
     session = json.loads(path.read_text())["id"]
     end_session(session)

@@ -800,7 +800,8 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     assert bounds["top"] >= 6
     assert bounds["bottom"] <= height - 8
     parts = bar.locator(
-        ".lf-compose-field, .lf-fab-input, .lf-compose-submit, .lf-composer-media, "
+        ".lf-compose-field, .lf-fab-input, .lf-compose-submit, .lf-composer-media-item, "
+        ".lf-composer-media-remove, "
         ".lf-response-options, .lf-response-action:visible"
     ).evaluate_all("nodes => nodes.map(node => node.getBoundingClientRect().toJSON())")
     for part in parts:

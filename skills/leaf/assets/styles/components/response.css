@@ -194,29 +194,49 @@
   background: color-mix(in srgb, var(--ok-ink) 18%, var(--ok-tint));
 }
 /* Every composition input renders the same attachment shelf, including inputs seated
-   in widget shadow trees. Surfaces set its allocation and thumbnail size; the shelf
-   owns its controls, image inspection face, and drawing paint here. */
-:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])) {
+   in widget shadow trees. Surfaces place it and may set its pictures' height; the
+   shelf owns its controls, image inspection face, and drawing paint here. In a row
+   that holds a field, the shelf comes first and takes a line of its own, so it stands
+   above the field and never takes the field's width; a seated comment box's composer
+   adds no box of its own (`display: contents`). */
+:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])),
+.lf-fab-bar[data-lf-presentation="inline"]:has(
+    > .lf-composer > .lf-composer-media:not([hidden])
+  ) {
   flex-wrap: wrap;
 }
+/* The shelf scrolls sideways when its pictures outrun its field, and a scroller cuts
+   what it holds at its padding box, so its padding holds each picture's shadow and the
+   reach of its removal, which also keeps one picture's removal off the next. A shelf in
+   flow takes that padding back with its margins, so its pictures keep the field's edge;
+   a shelf a surface places takes it back with its offsets. A picture lies at
+   --raise-1, whose shadow reaches its drop and blur below it. A surface with less room
+   sets the pictures' height (`--lf-media-h`), and one whose ground is not the paper
+   sets the ground and ring its pictures meet it with. */
 .lf-composer-media {
+  --lf-media-room: max(
+    calc(var(--raise-1-drop) + var(--raise-1-blur)),
+    calc(var(--aim-floor) / 2 - 3px)
+  );
+  --lf-media-h: 56px;
   display: flex;
-  flex: 1 0 100%;
-  gap: 6px;
+  flex: 1 0 calc(100% + 2 * var(--lf-media-room));
+  gap: var(--lf-media-room);
   min-width: 0;
   overflow-x: auto;
-  padding: 2px;
+  padding: var(--lf-media-room);
+  /* In flow, the pictures stand 6px into their row, which keeps the removal mark on
+     their corner (6px over it) inside the row, and 4px over what follows. */
+  margin: calc(6px - var(--lf-media-room)) calc(-1 * var(--lf-media-room))
+    calc(4px - var(--lf-media-room));
   box-sizing: border-box;
 }
 .lf-composer-media-item {
+  position: relative;
   flex: none;
   display: flex;
   align-items: stretch;
   box-sizing: border-box;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--paper);
-  overflow: hidden;
 }
 .lf-media-open {
   display: block;
@@ -236,23 +256,102 @@ button.lf-media-open {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-.lf-composer-media-open {
+/* Each image is its picture alone, at the shelf's height in its own proportions up to
+   twice as wide as tall, and its removal a mark on its corner: there under a finger,
+   and shown to a pointer over the picture or a key on it. The user chose this in the
+   floating panel on 19 October over each image boxed with its removal a press the
+   image's height, a frame and a divider for one picture. Every shelf wears it, so a
+   surface states only where its shelf stands. */
+.lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
+  height: var(--lf-media-h);
+  min-height: 0;
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 1px var(--lf-media-ring, var(--border-2)),
+    var(--raise-1);
+}
+.lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open img {
+  display: block;
+  width: auto;
+  height: 100%;
+  min-width: 40px;
+  max-width: calc(2 * var(--lf-media-h));
+  object-fit: cover;
+  border-radius: inherit;
+  /* The press draws the picture's ring and shadow, so the frame the theme gives a
+     page's images (theme.css, `img`) would draw them twice. */
+  box-shadow: none;
+}
+.lf-composer-media-remove {
+  position: absolute;
+  inset-block-start: -6px;
+  inset-inline-end: -6px;
+  display: grid;
+  place-items: center;
+  inline-size: 18px;
+  min-inline-size: 0;
+  block-size: 18px;
+  min-block-size: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  font: inherit;
+  background: color-mix(in srgb, var(--ink) 72%, var(--lf-media-ground, var(--paper)));
+  color: var(--lf-media-ground, var(--paper));
+  box-shadow: 0 0 0 2px var(--lf-media-ground, var(--paper));
+  cursor: pointer;
+}
+.lf-composer-media-remove::before {
+  content: "";
+  position: absolute;
+  inset: calc((18px - var(--aim-floor)) / 2);
+}
+.lf-composer-media-remove:hover {
+  background: var(--ink);
+}
+.lf-composer-media-remove[data-lf-focus] {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.lf-composer-media-remove > svg {
+  inline-size: 10px;
+  block-size: 10px;
+}
+@media (hover: hover) {
+  .lf-composer-media-item:not(:hover, :focus-within) > .lf-composer-media-remove {
+    opacity: 0;
+  }
+  .lf-composer-media-remove {
+    transition: opacity 120ms;
+  }
+}
+/* A forced palette drops the ring and the mark's disc, so both take a system edge,
+   which leaves the focus ring to a focused picture. */
+@media (forced-colors: active) {
+  .lf-composer-media-item:not(.lf-composer-drawing)
+    > .lf-composer-media-open:not([data-lf-focus]) {
+    outline: 1px solid CanvasText;
+  }
+  .lf-composer-media-remove {
+    border: 1px solid ButtonText;
+  }
+}
+/* A drawing is a tile: its canvas beside full-height presses for its undo and
+   removal, each behind a divider. Controls stay inside the tile, so the scrolling
+   shelf never cuts their hit area. */
+.lf-composer-drawing {
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--paper);
+  overflow: hidden;
+}
+.lf-composer-drawing > .lf-composer-media-open {
   width: 68px;
   height: 52px;
   overflow: hidden;
   border: 0;
   border-radius: 0;
   align-self: center;
-}
-.lf-composer-media-open img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-/* Controls stay inside each tile, so the scrolling shelf never cuts their hit area.
-   Images and drawings keep their own thumbnail dimensions beside full-height presses. */
-.lf-composer-drawing > .lf-composer-media-open {
   padding: 0;
   box-sizing: border-box;
   position: relative;
@@ -272,7 +371,7 @@ button.lf-media-open {
   height: 100%;
   object-fit: contain;
 }
-.lf-composer-media-item > button:not(.lf-media-open) {
+.lf-composer-drawing > button:not(.lf-media-open) {
   flex: none;
   display: grid;
   place-items: center;
@@ -286,19 +385,19 @@ button.lf-media-open {
   color: var(--ink-2);
   cursor: pointer;
 }
-.lf-composer-media-item > button:not(.lf-media-open):hover {
+.lf-composer-drawing > button:not(.lf-media-open):hover {
   color: var(--accent);
   background: var(--chip);
 }
-.lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
+.lf-composer-drawing > button:not(.lf-media-open)[data-lf-focus] {
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
-.lf-composer-media-item > button:not(.lf-media-open) > svg {
+.lf-composer-drawing > button:not(.lf-media-open) > svg {
   inline-size: 14px;
   block-size: 14px;
 }
-.lf-composer-media-item > .lf-media-open[data-lf-focus] {
+.lf-composer-drawing > .lf-media-open[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 
@@ -572,23 +671,8 @@ leaf-text.lf-fab-input {
 .lf-fab-bar[data-lf-presentation="inline"] > .lf-surface-grip {
   display: none;
 }
-.lf-fab-bar .lf-composer-media {
-  flex: none;
-  max-width: 148px;
-  padding: 0;
-}
-.lf-fab-bar .lf-composer-media:has(> .lf-composer-drawing) {
-  --lf-drawing-preview-width: 96px;
-  max-width: calc(
-    var(--lf-drawing-preview-width) + 2 * max(26px, var(--aim-floor)) + 2px
-  );
-}
-.lf-fab-bar .lf-composer-media-open {
-  width: 42px;
-  height: 34px;
-}
 .lf-fab-bar .lf-composer-drawing > .lf-composer-media-open {
-  width: var(--lf-drawing-preview-width);
+  width: 96px;
   height: 64px;
 }
 @media print {

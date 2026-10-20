@@ -1,6 +1,7 @@
 """Diffs: comments, filtering and refreshes that keep the reader's inspection, file rows
 and their paths, the pinned file header, hunk landing, and print."""
 
+import json
 import re
 
 import pytest
@@ -993,6 +994,55 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     expect_walk_says(page, "File 2 of 2")
     page.keyboard.press("{")
     expect_walk_says(page, "File 1 of 2")
+
+
+def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve):
+    """A thread seated in a diff stands in the code's sideways scroller, which starts
+    the sticky-header slot again for whatever sticks inside it but lands nothing down,
+    so the browser's own focus scroll still reads the file name pinned over the seat.
+    Tab from the seat's reply field onto the control beside it, both under the pinned
+    name, brings the control out from under it, where it had stayed hidden."""
+    datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Seated", f"<h1>Seated</h1>{long_diff('patch')}" + "<p>.</p>" * 40
+            ),
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Why this value?",
+                    "anchor": {"section": "patch", "datum": datum},
+                }
+            ],
+        ),
+    )
+    resized(page, 1280, 720)
+    reply = page.locator("lf-diff .lf-diff-thread-outlet .lf-thread-reply leaf-text")
+    expect(reply).to_be_visible()
+    # The field just below the window's top, where the pinned name stands over it.
+    reply.evaluate(
+        "el => scrollBy({top: el.getBoundingClientRect().top - 4, behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    reply.evaluate("el => el.focus({preventScroll: true})")
+    page.keyboard.press("Tab")
+    rendered(page)
+    read = page.evaluate(
+        """() => {
+        const root = document.getElementById('patch').shadowRoot;
+        const head = root.querySelector('.lf-diff-file > details > summary');
+        const seat = root.querySelector('.lf-diff-thread-outlet');
+        const focused = root.activeElement;
+        return {inSeat: seat.contains(focused), top: focused.getBoundingClientRect().top,
+                head: head.getBoundingClientRect().bottom};
+    }"""
+    )
+    assert read["inSeat"], read
+    assert read["top"] >= read["head"], read
 
 
 def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(

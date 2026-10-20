@@ -47,16 +47,16 @@ export function servedReading(name) {
   return structuredClone(RECORDS.readings[name]);
 }
 
-// The On me row naming `item`; `changes` set where it stands, for a test whose served
-// reading states its items by hand.
-export const servedRecordItem = (item, changes) =>
-  served("record_item", { id: item.id, thread: item.thread, ...changes });
+// The On me row naming `obligation`; `changes` set where it stands, for a test whose served
+// reading states its obligations by hand.
+export const servedObligationRow = (item, changes) =>
+  served("obligation_row", { id: item.id, thread: item.thread, ...changes });
 
 // The same admitted undo/refusal/revision sequence used by the Python fold test.
 export const servedGestureSequence = () => structuredClone(RECORDS.gestures);
 
-// Cross-runtime typed item values use the same real server fold.
-export const servedItemValues = () => structuredClone(RECORDS.item_values);
+// Cross-runtime typed obligation values use the same real server fold.
+export const servedObligationValues = () => structuredClone(RECORDS.obligation_values);
 
 // `state_definition_cases.json`'s pairs as the definitions Python records.
 export const servedStateDefinitions = () => structuredClone(RECORDS.state_definitions);

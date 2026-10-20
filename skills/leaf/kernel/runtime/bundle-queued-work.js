@@ -497,10 +497,11 @@ function foldWidgetStates(authoredSnapshots, projection) {
           ids.sort(byRank(position.ranks));
   return states;
 }
-function itemValue(widget, verb, answered) {
+function obligationValue(widget, verb, answered) {
   const state = widget.state[verb];
   const spec = widget.specs.get(verb);
-  if (!state || !spec) throw new Error(`Missing item value definition for ${verb}`);
+  if (!state || !spec)
+    throw new Error(`Missing obligation value definition for ${verb}`);
   const recorded = (value2) => spec.record?.kind === "attribute" && Array.isArray(value2) ? value2.toSorted() : value2;
   const value = "units" in state ? spec.record?.kind === "position" ? state.value : Object.fromEntries(
     Object.entries(state.units).sort(([a], [b2]) => a < b2 ? -1 : a > b2 ? 1 : 0).map(([id, entry]) => [
@@ -673,7 +674,7 @@ function lastMovedAt(thread) {
   return latest;
 }
 var versionKey = ({ message, version }) => `${message}\0${version}`;
-function readThreadRecords(threads, document, widgets, workflows, todos = [], items = [], markingRead = [], ready = true) {
+function readThreadRecords(threads, document, widgets, workflows, todos = [], obligations = [], markingRead = [], ready = true) {
   const locallyRead = new Set(markingRead.map(versionKey));
   const unitsByMessage = /* @__PURE__ */ new Map();
   for (const descriptor of document.descriptors.values()) {
@@ -747,9 +748,9 @@ function readThreadRecords(threads, document, widgets, workflows, todos = [], it
       resolved: thread.resolved,
       settling: thread.settling ?? null,
       attention: thread.attention,
-      // The items widgets in its messages make, such as an `lf-ask` the user owes
+      // The obligations widgets in its messages make, such as an `lf-ask` the user owes
       // words to there.
-      items: items.filter((item) => item.thread === thread.id),
+      obligations: obligations.filter((obligation) => obligation.thread === thread.id),
       // The agent's open to-dos on the thread: a reply that promised one says it is
       // still open (a to-do a reply opens takes the reply's id, `todos.py`), the first
       // is the one a thread waiting on a to-do waits on, and a running one is work the
@@ -1508,7 +1509,7 @@ var queueOffers = (item, ready, onUser) => ({
   open: ready,
   done: ready && onUser && item.kind === "todo"
 });
-var carriesItem = (item) => item.kind === "widget" || item.kind === "approval";
+var carriesObligation = (item) => item.kind === "widget" || item.kind === "approval";
 var itemNoun = (item) => item.kind === "answer" && item.answer?.kind === "reply" ? "reply" : item.kind;
 var OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 var itemOutcome = (item) => item.kind === "answer" ? "Sent" : OUTCOMES[item.state] ?? item.state;
@@ -1583,13 +1584,13 @@ function normalizedProjection(view) {
   }
   return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
 }
-var NO_ITEMS = {
+var NO_OBLIGATIONS = {
   all: [],
   user: [],
   unanswered: []
 };
-function normalizedItems(view, widgets, document, projection, local) {
-  const all = (view?.items ?? []).map((item) => {
+function normalizedObligations(view, widgets, document, projection, local) {
+  const all = (view?.obligations ?? []).map((item) => {
     if (item.source.kind === "approval") {
       const version = item.source.version;
       const undone = new Set(
@@ -1616,7 +1617,7 @@ function normalizedItems(view, widgets, document, projection, local) {
     const verb = declaration?.value;
     if (!verb || !widget) return item;
     const completed = item.status === "answered" && !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
-    const { value, present } = itemValue(widget, verb, completed);
+    const { value, present } = obligationValue(widget, verb, completed);
     const pendingValue = widget.entries.some(
       ({ e: e2 }) => e2.action === verb && !Number.isInteger(e2.seq)
     ) || [...projection.pendingWithdrawals.values()].some(
@@ -1708,6 +1709,9 @@ function localQueues(served, threads, workflows, todos, items) {
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
   const open = new Set(todos.open.map((todo) => todo.id));
   const ended = new Set(todos.ended.map((todo) => todo.id));
+  const todoRecord = new Map(
+    [...todos.open, ...todos.ended].map((todo) => [todo.id, todo])
+  );
   const byThread = new Map(threads.map((thread) => [thread.id, thread]));
   const sending2 = workflows.filter(
     (workflow) => workflow.stage === "sending" && workflow.next_actor === "agent" && workflow.subject.kind === "thread"
@@ -1719,16 +1723,16 @@ function localQueues(served, threads, workflows, todos, items) {
       reading && !reading.resolved && reading.attention?.kind === "needs_user" && reading.attention.reason === "resend"
     );
   };
-  const itemOf = (item) => {
+  const obligationOf = (item) => {
     const local = record.get(item.id);
-    if (!local) throw new Error(`Queue item ${item.id} names no item`);
+    if (!local) throw new Error(`Queue item ${item.id} names no obligation`);
     return local;
   };
   const standsOpen = (item) => {
     switch (item.kind) {
       case "widget":
       case "approval":
-        return itemOf(item).next_actor === "user";
+        return obligationOf(item).next_actor === "user";
       case "todo":
         return open.has(item.id);
       case "resend":
@@ -1739,9 +1743,14 @@ function localQueues(served, threads, workflows, todos, items) {
         return true;
     }
   };
-  const reopened = (item) => carriesItem2(item) ? itemOf(item).status === "open" && itemOf(item).next_actor === "user" : item.kind === "todo" && open.has(item.id);
-  const endedHere = (item) => carriesItem2(item) ? itemOf(item).status !== "open" : item.kind === "todo" && ended.has(item.id);
-  const current = (item) => carriesItem2(item) ? { ...item, item: itemOf(item) } : item;
+  const reopened = (item) => carriesObligation2(item) ? obligationOf(item).status === "open" && obligationOf(item).next_actor === "user" : item.kind === "todo" && open.has(item.id);
+  const endedHere = (item) => carriesObligation2(item) ? obligationOf(item).status !== "open" : item.kind === "todo" && ended.has(item.id);
+  const todoOf = (item) => {
+    const local = todoRecord.get(item.id);
+    if (!local) throw new Error(`Queue item ${item.id} names no to-do`);
+    return local;
+  };
+  const current = (item) => carriesObligation2(item) ? { ...item, obligation: obligationOf(item) } : item.kind === "todo" ? { ...item, todo: todoOf(item) } : item;
   const asOpen = ({
     state: _state,
     ended: _ended,
@@ -1751,7 +1760,7 @@ function localQueues(served, threads, workflows, todos, items) {
   const asDone = (item) => ({
     ...current(item),
     live: false,
-    state: carriesItem2(item) && itemOf(item).status === "withdrawn" ? "dropped" : "done",
+    state: carriesObligation2(item) && obligationOf(item).status === "withdrawn" ? "dropped" : "done",
     ended: null,
     detail: null
   });
@@ -1780,7 +1789,7 @@ function localQueues(served, threads, workflows, todos, items) {
         (workflow) => workflow.next_actor === "user" && workflow.thread === null ? resend(workflow.id, workflow.subject, null) : []
       )
     ].toSorted(
-      (a, b2) => onUserRank(a) - onUserRank(b2) || (carriesItem2(a) && carriesItem2(b2) ? inventoryAt.get(a.id) - inventoryAt.get(b2.id) : 0)
+      (a, b2) => onUserRank(a) - onUserRank(b2) || (carriesObligation2(a) && carriesObligation2(b2) ? inventoryAt.get(a.id) - inventoryAt.get(b2.id) : 0)
     ),
     on_agent: [
       ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),
@@ -1797,7 +1806,7 @@ function localQueues(served, threads, workflows, todos, items) {
         answer: workflow.answer,
         stage: workflow.stage
       })),
-      ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)),
+      ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)).map(current),
       ...reopenedFor("agent").map(asOpen)
     ],
     // Newest first, as the server serves it: what ended in this tab has just ended.
@@ -1807,8 +1816,8 @@ function localQueues(served, threads, workflows, todos, items) {
     ]
   };
 }
-var onUserRank = (item) => carriesItem2(item) ? 0 : item.kind === "todo" ? 1 : 2;
-var carriesItem2 = (item) => item.kind === "widget" || item.kind === "approval";
+var onUserRank = (item) => carriesObligation2(item) ? 0 : item.kind === "todo" ? 1 : 2;
+var carriesObligation2 = (item) => item.kind === "widget" || item.kind === "approval";
 function widgetIndex(root) {
   const projection = root.effective.projection;
   const byWidget = /* @__PURE__ */ new Map();
@@ -1972,7 +1981,7 @@ function createSemanticApplication({
       widgets2,
       projection
     );
-    const items = ready ? normalizedItems(view, widgets2, document, projection, local) : NO_ITEMS;
+    const items = ready ? normalizedObligations(view, widgets2, document, projection, local) : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     const named = threadNames(folded);
     const threadOfEntry = ({ event, thread: drawn, namedParent }) => {
@@ -2113,7 +2122,7 @@ function createSemanticApplication({
         // included until the reading they restore is drawn (held-news.js, `gesturedOn`).
         gestured: [...new Set(unresolved.flatMap(threadsOfEntry))]
       },
-      items: { phase, ...items },
+      obligations: { phase, ...items },
       // The agent's plan in force, as the server read it (`plans.plan_reading`).
       plan: ready ? state?.browser.plan ?? null : null,
       // On me (on the user), On <agent> (on the agent), and done: the served lists
@@ -2496,7 +2505,7 @@ export {
   authoredRank,
   rankAt,
   foldWidgetStates,
-  itemValue,
+  obligationValue,
   isElementName,
   anchorKey,
   sameAnchor,
@@ -2518,7 +2527,7 @@ export {
   isMessageEvent,
   pendingForParent,
   actionForWidget,
-  carriesItem,
+  carriesObligation,
   itemNoun,
   itemOutcome,
   createSemanticApplication,

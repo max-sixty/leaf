@@ -1,0 +1,26 @@
+# Added after the floating panel's Plan tab (#3195) to watch agents use `leaf task plan`
+# on a served page rather than describe it. The live task lays out a job of four steps,
+# one the user's pick, then reshapes it; `resume` hands over a page whose remaining
+# work is recorded only in an ended session's plan. At 5edb2dbdb the live task passed
+# 1 of 5 runs on Claude Code and 0 of 1 on Codex: agents opened to-dos and wrote no
+# plan, or wrote it after the first step, passing its JSON as an argument with an
+# unknown state. Saying to plan before the first step, that the outline is read from
+# stdin, and which states a step takes passed 4 of 4 on Claude Code and 2 of 2 on
+# Codex. `resume` passed every run its judge finished, 3 on Claude Code and 1 on Codex,
+# across both versions.
+description: Plan
+metadata:
+  purpose: Record the page's work as one plan before starting, keep it current as
+    steps finish and the user reshapes the job, and hand back a finished page.
+  tags:
+    - workflow
+  conditions:
+    - leaf
+  executor: leaf_dev.usability_eval
+  scenario: plan-live
+variants:
+  resume:
+    metadata:
+      scenario: plan-resume
+      purpose: Recover the remaining work from an ended session's plan, finish it,
+        and keep that plan current.

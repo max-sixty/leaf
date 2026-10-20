@@ -10,7 +10,7 @@ import { mountRepaint } from "/runtime/repaint.js";
 import { nextRender } from "/runtime/rendering.js";
 import { createQueueWalk } from "/runtime/queue-walk.js";
 
-const noItems = () => ({ all: [], user: [], unanswered: [] });
+const noObligations = () => ({ all: [], user: [], unanswered: [] });
 let taken = 0;
 // A reading whose view lists `onUser` on the user's list, each a to-do the log holds open.
 const reading = (onUser) => ({
@@ -42,7 +42,7 @@ const reading = (onUser) => ({
         thread: {
           threads: [],
           projection: { entries: [], actions: [], reports: [], desired: [] },
-          items: noItems(),
+          obligations: noObligations(),
         },
         coverage: [],
         undo: [],
@@ -50,7 +50,7 @@ const reading = (onUser) => ({
         queues: { on_user: onUser, on_agent: [], done: [] },
         approval_blocking: [],
         document: {
-          items: noItems(),
+          obligations: noObligations(),
           projection: { entries: [], actions: [], reports: [], desired: [] },
         },
       },

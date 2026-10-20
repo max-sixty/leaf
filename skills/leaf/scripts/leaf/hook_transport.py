@@ -76,7 +76,7 @@ from .event_contracts import write_refusal
 from .findings import Finding
 from .harness import Harness, claim_harness
 from .schema import (
-    ANSWER_ITEM_INSTRUCTION,
+    ANSWER_INSTRUCTION,
     PREVIEW_FILE,
 )
 from .served_state.context import read_page
@@ -270,7 +270,7 @@ def remedies(
             reasons.append(
                 (
                     f"{plan.page}: {unanswered(plan.owed, plan.page, 'acknowledged')}{restart(plan.owed)}.",
-                    ANSWER_ITEM_INSTRUCTION,
+                    ANSWER_INSTRUCTION,
                 )
             )
         if not plan.watched:

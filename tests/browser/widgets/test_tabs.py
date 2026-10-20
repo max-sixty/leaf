@@ -271,10 +271,11 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
         page.keyboard.press("ArrowRight")
 
 
-def _stacked_headers(browser, serve):
-    """A page tab strip over the root with a long pinned diff in its first tab, then a
-    short one whose code is wide enough to scroll sideways, and another long one after
-    the tabs."""
+def _stacked_headers(browser, serve, flow="page"):
+    """A tab strip with a long pinned diff in its first tab, then a short one whose code
+    is wide enough to scroll sideways, and another long one after the tabs. In the
+    page's flow the strip stands over the root; a set in a section is a framed box,
+    whose strip stands over only the set."""
     path = "src/lib.rs"
     rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
     patch = (
@@ -293,14 +294,19 @@ def _stacked_headers(browser, serve):
         serve(
             leaf_page(
                 "Stacked headers",
-                '<h1>Stacked</h1><lf-tabs id="root-tabs">'
+                "<h1>Stacked</h1>"
+                + ("<section>" if flow == "box" else "")
+                + '<lf-tabs id="tabs">'
                 '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
                 + patch
                 + '</pre></lf-diff><lf-diff id="wide"><pre>'
                 + short
                 + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
                 "<p>Notes.</p></lf-tab></lf-tabs>"
-                '<lf-diff id="after-tabs"><pre>' + patch + "</pre></lf-diff>",
+                + ("</section>" if flow == "box" else "")
+                + '<lf-diff id="after-tabs"><pre>'
+                + patch
+                + "</pre></lf-diff>",
             )
         ),
     )
@@ -308,22 +314,27 @@ def _stacked_headers(browser, serve):
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
     )
+    expect(page.locator("#tabs")).to_have_attribute("data-lf-tabs-flow", flow)
     return page
 
 
-def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
-    browser, serve
+@pytest.mark.parametrize("flow", ["page", "box"])
+def test_sticky_headers_stack_so_a_diff_in_a_tab_pins_under_the_strip(
+    browser, serve, flow
 ):
-    """A diff's file header in a page tab pins under the stuck tab strip rather than
-    over it: each sticky header has a stated height and adds it to `--lf-top` for what
-    it stands over. A landing on one of the diff's rows arrives below both headers, and
-    the part of a row under the diff's header reads as not on screen."""
-    page = _stacked_headers(browser, serve)
+    """A diff's file header in a tab pins under the stuck tab strip rather than over
+    it: each sticky header has a stated height and adds it to `--lf-top` for what it
+    stands over. A landing on one of the diff's rows arrives below both headers, and
+    the part of a row under the diff's header reads as not on screen. A page's strip
+    is cleared by the root's own padding; a framed set's strip stands over only the
+    set, so the rows clear it with their margin, read through the code's sideways
+    scroller, where a framed set's rows had landed under the file header."""
+    page = _stacked_headers(browser, serve, flow)
     read = page.evaluate(
         """async () => {
         const geometry = await window.__lfCheckApi();
         const box = (el) => el.getBoundingClientRect();
-        const strip = document.querySelector('#root-tabs > .lf-tabstrip');
+        const strip = document.querySelector('#tabs > .lf-tabstrip');
         const diff = document.querySelector('lf-diff');
         const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
         const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
@@ -372,7 +383,7 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
         };
         if (id === 'patch')
             controls.tab = document.querySelector(
-                '#root-tabs > .lf-tabstrip [aria-selected="true"]');
+                '#tabs > .lf-tabstrip [aria-selected="true"]');
         const moved = {};
         for (const [name, control] of Object.entries(controls)) {
             const before = page.scrollTop;
@@ -720,10 +731,10 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     assert stacked["page"] <= 0 and stacked["item"][1] > 0, stacked
 
 
-def test_side_tabs_distinguish_withdrawn_items_from_answers(browser, serve):
-    """A row's mark says its item's items are open until every one is answered, and
+def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve):
+    """A row's mark says its obligation's obligations are open until every one is answered, and
     withdrawal retires a request without claiming the user answered it: a row whose
-    only item was withdrawn shows no mark, and one whose other item is answered shows
+    only obligation was withdrawn shows no mark, and one whose other obligation is answered shows
     the answer."""
     source = leaf_page(
         "Question outcomes",
@@ -737,8 +748,8 @@ def test_side_tabs_distinguish_withdrawn_items_from_answers(browser, serve):
     )
     page = open_page(browser, live_url(serve(source)))
     marks = page.locator("#queue .lf-tab-answer")
-    expect(marks.nth(0)).to_have_attribute("data-lf-items", "open")
-    expect(marks.nth(1)).to_have_attribute("data-lf-items", "open")
+    expect(marks.nth(0)).to_have_attribute("data-lf-obligations", "open")
+    expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "open")
     stamp_page(
         serve.page_dir,
         source.replace('id="only-options" choose', 'id="only-options"').replace(
@@ -747,15 +758,15 @@ def test_side_tabs_distinguish_withdrawn_items_from_answers(browser, serve):
         "Retire unanswered requests",
     )
     wait_for_revision(page, 2)
-    expect(marks.nth(0)).not_to_have_attribute("data-lf-items", re.compile(".*"))
-    expect(marks.nth(1)).to_have_attribute("data-lf-items", "answered")
+    expect(marks.nth(0)).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
+    expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "answered")
     expect(marks.nth(1)).to_have_text("Keep")
 
 
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
-    """An item answered before the page loads is named once the page presents, however
+    """An obligation answered before the page loads is named once the page presents, however
     late the answering widget's module arrives: startup imports every module the
-    document names before the first reading brings the item inventory. A longer ticket
+    document names before the first reading brings the obligation inventory. A longer ticket
     name and its summary keep their own lines beside a complete short outcome."""
     url = serve(
         leaf_page(
@@ -1065,7 +1076,7 @@ def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
 
 
 def test_root_tab_targets_remain_global(browser, serve):
-    """Item travel crosses hidden tabs."""
+    """Obligation travel crosses hidden tabs."""
     url = serve(ROOT_TABS_PAGE)
     page = open_page(
         browser,
@@ -1119,8 +1130,8 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
         box = tab.bounding_box()
         page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
         expect(tab).to_have_attribute("aria-selected", "true")
-        # The open part's name wears the face every strip's open tab wears: a raised
-        # fill on the strip's ground, outlined, focused or not.
+        # Down the column, the open part's name wears the face a column strip's open
+        # tab wears: a raised fill on the strip's ground, outlined, focused or not.
         face, ground, contour = tab.evaluate(
             """tab => {
               const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
@@ -1242,6 +1253,52 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     resized(page, 900, 720)
     switch(evidence)
     assert passage.evaluate(below_landing_edge) == pytest.approx(left, abs=2)
+
+
+def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
+    """Whichever widget writes a strip, the open tab's mark follows which way the strip
+    runs: down a column the open name paints a raised, outlined face; along a row it
+    stands on a rule, with no fill, as page tabs' does. A page's parts and a queue each
+    run both ways, so each shows both marks. The rule costs a tab no height, so a queue's
+    row stays within the room its strip reserves before upgrade."""
+    queue = leaf_page(
+        "Queue",
+        '<h1 id="title">Queue</h1><section id="queue-section"><lf-tabs id="queue" '
+        'list="side">'
+        + "".join(
+            f'<lf-tab id="q-{i}" label="Item {i}" summary="sev {i}">'
+            f'<p id="q-words-{i}">Item {i}.</p></lf-tab>'
+            for i in range(3)
+        )
+        + "</lf-tabs></section>",
+    )
+    mark = """strip => {
+      const tab = strip.querySelector('[aria-selected="true"]');
+      const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
+      return {flow: getComputedStyle(strip).flexDirection,
+        filled: name.backgroundColor !== 'rgba(0, 0, 0, 0)',
+        contoured: name.boxShadow.includes('inset'),
+        rule: parseFloat(name.borderBottomWidth),
+        ruleInk: name.borderBottomColor === name.color,
+        height: strip.getBoundingClientRect().height,
+        reserved: parseFloat(getComputedStyle(strip).minBlockSize)};
+    }"""
+    for source, strip in ((ROOT_PARTS_PAGE, "#root-parts"), (queue, "#queue")):
+        page = open_page(browser, serve(source))
+        resized(page, 1280, 720)
+        column = page.locator(f"{strip} > .lf-tabstrip").evaluate(mark)
+        assert column["flow"] == "column", column
+        assert column["filled"] and column["contoured"] and column["rule"] == 0, column
+        resized(page, 390, 800)
+        page.wait_for_function(
+            "s => getComputedStyle(document.querySelector(s)).flexDirection === 'row'",
+            arg=f"{strip} > .lf-tabstrip",
+        )
+        row = page.locator(f"{strip} > .lf-tabstrip").evaluate(mark)
+        assert not row["filled"] and not row["contoured"], row
+        assert row["rule"] == 2 and row["ruleInk"], row
+        if strip == "#queue":
+            assert row["height"] == pytest.approx(row["reserved"], abs=0.01), row
 
 
 def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):

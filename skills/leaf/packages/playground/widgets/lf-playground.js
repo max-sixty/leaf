@@ -83,7 +83,7 @@ function jsonSnapshot(value, path = "configuration") {
 customElements.define(
   "lf-playground",
   class extends LeafElement {
-    // What the item was answered with: the instruction the chosen configuration sent.
+    // What the obligation was answered with: the instruction the chosen configuration sent.
     static answerWords(value) {
       return value.instruction;
     }

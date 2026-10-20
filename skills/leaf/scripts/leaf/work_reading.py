@@ -1,4 +1,4 @@
-"""`WorkReading`: the to-dos, items, plan and workflows one document and its log hold.
+"""`WorkReading`: the to-dos, obligations, plan and workflows one document and its log hold.
 
 Its readings come from the event log and one revision's document and registry.
 Admission builds it against the newest revision, under the registry of the page that
@@ -14,7 +14,7 @@ from functools import cached_property
 
 from .document_reading import read_document
 from .events import approvals_in_force, build_threads
-from .items import collection, thread_item_readings
+from .obligations import collection, thread_obligation_readings
 from .plans import plan_reading
 from .projection import frozen_thread_reading
 from .todos import TodoReading
@@ -45,8 +45,8 @@ class WorkReading:
     def viewing(self, page) -> "WorkReading":
         """This log read beside another revision's document, as a view pinned to that
         revision shows it. That revision captured its frozen thread widgets under its
-        own registry, so their decisions, the items they answer and the attention those
-        items give a thread are classified under it, as the page's own are. The threads
+        own registry, so their decisions, the obligations they answer and the attention those
+        obligations give a thread are classified under it, as the page's own are. The threads
         themselves fold as every reading of them does, under the published page's
         containment (`events.build_threads`)."""
         if page is self.page:
@@ -70,8 +70,8 @@ class WorkReading:
         )
 
     @cached_property
-    def widget_items(self) -> dict:
-        return thread_item_readings(
+    def widget_obligations(self) -> dict:
+        return thread_obligation_readings(
             self.events,
             self.registry,
             self.threads,
@@ -81,10 +81,10 @@ class WorkReading:
 
     @property
     def items(self) -> dict:
-        return self.widget_items
+        return self.widget_obligations
 
     @cached_property
-    def all_items(self) -> dict:
+    def all_obligations(self) -> dict:
         return collection(
             [
                 *(self.document.items["all"] if self.document is not None else []),
@@ -114,13 +114,13 @@ class WorkReading:
             page=self.page,
             events=self.events,
             todo_reading=self.log,
-            items=self.all_items,
+            items=self.all_obligations,
         )
 
     @cached_property
     def plan(self) -> dict | None:
         return plan_reading(
-            self.events, self.log.withdrawn, self.log.todos, self.all_items["all"]
+            self.events, self.log.withdrawn, self.log.todos, self.all_obligations["all"]
         )
 
     def page_todos(self, aged: list[dict]) -> list[dict]:

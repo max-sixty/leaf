@@ -290,11 +290,11 @@
   /* What the field's draft carries, its attached images, hangs off the box rather
      than standing in it: the shelf stands just over the box's top edge, above the
      field's start, so attaching neither grows the box nor moves a word, in the page's
-     field and an open thread's reply alike. With a view open it
-     hangs over the view's head. The user chose this on 19 October, comparing it live
-     with the shelf taking a line of its own over the words, which grew the box by a
-     line the one thumbnail left mostly empty, and with thumbnails shrunk into the row
-     beside the words, which kept the box whole but made each picture a chip. */
+     field and an open thread's reply alike. With a view open it hangs over the view's
+     head. The user chose this on 19 October, comparing it live with the shelf taking
+     a line of its own over the words, which grew the box by a line the one thumbnail
+     left mostly empty, and with thumbnails shrunk into the row beside the words,
+     which kept the box whole but made each picture a chip. */
   .lf-fp-card {
     anchor-name: --lf-fp-card;
   }

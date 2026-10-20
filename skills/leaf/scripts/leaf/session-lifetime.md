@@ -417,8 +417,9 @@ serving and the delivery of updates. The notice also covers the orphan grace per
 while the old listener may still be running. Stopped services, persistent services,
 developer previews, and pages another session claimed are excluded.
 
-`reconnect.py` reserves one notice per harness/session/page in
-`sessions/<session>.<harness>.reconnect`. This notification record survives
+`reconnect.py` reserves one notice per session and page in
+`sessions/<session>.reconnect` (`reconnect.NOTICES`). The session key names one
+harness's session, as its lifecycle's does. This notification record survives
 SessionEnd and generation changes. Matching active ownership and exact live serving
 close the outage, both when a hook observes recovery and when a serve commits it. A
 later outage can then emit another notice. Reservation is serialized with ownership

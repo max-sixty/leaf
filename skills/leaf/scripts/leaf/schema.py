@@ -602,13 +602,11 @@ MEDIA_TYPES = {
 # browser and the Worker know the directory and never the name.
 MEDIA_DIGEST = 16
 NO_KEY = "open the link leaf printed; it carries the key"
-DATA_FILE = "data.json"
 FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
-VIEWED_FILE = "viewed.json"
 USER_VIEWS_FILE = "user-views.json"
 USER_VIEWS_LOCK = "user-views.lock"
 RENDER_CHECKS_DIR = "checks"
@@ -626,7 +624,6 @@ WAITER_LOCK = "waiter.lock"
 SESSION_FILES = (
     STATUS_FILE,
     WAITER_LOCK,
-    VIEWED_FILE,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
     SERVICE_FILE,
@@ -640,7 +637,6 @@ PAGE_PROCESS_FILES = (*SESSION_FILES, INTERACTIONS_FILE)
 PAGE_STATE_FILES = (
     EVENTS_FILE,
     INTERACTIONS_FILE,
-    DATA_FILE,
     FILE_BINDINGS_FILE,
     *SESSION_FILES,
 )

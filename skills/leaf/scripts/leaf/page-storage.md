@@ -80,7 +80,7 @@ whichever Leaf wrote it (`state.retire_if_gone`).
   ([session-lifetime.md](session-lifetime.md)), so a cursor lives and ends with its log.
 
 - `observations.jsonl` — private, best-effort diagnostic JSON-lines trace of
-  server requests, browser observations and developer run context. It never enters
+  server requests and title requests, browser observations and developer run context. It never enters
   page state or acknowledgement and is never served as an asset. The semantic
   `events.jsonl` remains the durable record of accepted decisions.
 
@@ -92,7 +92,9 @@ whichever Leaf wrote it (`state.retire_if_gone`).
   adds session identity and the scoped root-relative page address. Descendant sample
   activity stays in the containing page's trace after a sample is released.
   Server request rows have type `request`, method, path without query, status and
-  duration; successful news looks and resource-byte delivery are excluded.
+  duration; successful news looks and resource-byte delivery are excluded. A page
+  server's thread-title requests add rows of types `thread_title_generated`,
+  `thread_title_failed` and `thread_title_skipped` (`thread_titles`).
 
   `leaf page interactions` combines raw event records and private observations,
   orders by host time and keeps the first copy of each
@@ -135,16 +137,14 @@ whichever Leaf wrote it (`state.retire_if_gone`).
   evidence and exports timing rows without message text.
 
 - `user-views.json` — replaceable per-document browser
-  observations (`user_views.USER_VIEWS`). These are author
+  observations (`user_views.USER_VIEWS`), and `viewed`, when a report last said a
+  document showed the page, which outlives the observations' pruning. These are author
   context, not event history or source inputs. They are excluded from page freshness
   and activation. `../../references/conversation-loop.md`, "The user's view", defines
   the agent reading.
 
 - `user-views.lock` — the independent lock serializing observation writes;
   excluded from page freshness and activation.
-
-- `data.json` — the current contract each external-data source id was set under
-  (`data.CONTRACTS`). `data.py` owns storage and updates.
 
 - `files.json` — explicit local text-file grants, written by `leaf file bind PAGE
 ID PATH` (`file_bindings.BINDINGS`).
@@ -162,10 +162,12 @@ ID PATH` (`file_bindings.BINDINGS`).
   writer which does not use those locks can still race the last comparison and atomic
   replacement; this is not an operating-system compare-and-swap guarantee.
 
-- `data/` — one JSON publication per source, `<source>.json`, holding `run`,
-  `updated`, and `value` together (`data.PUBLICATION`). `leaf data set` validates
-  and atomically writes it; a new write gets a new opaque run receipt, including an
-  identical value.
+- `data/` — one JSON publication per source, `<source>.json`, holding the
+  `contract` it was set under, `run`, `updated`, and `value` together
+  (`data.PUBLICATION`); the page holds a source exactly while its file exists.
+  `leaf data set` validates and atomically writes it, and `leaf data clear`
+  removes it; a new write gets a new opaque run receipt, including an identical
+  value. `data.py` owns storage and updates.
   Copying the page preserves that receipt. Readings trust the publication's shape
   and validate its value against the recorded contract. Deferred record fields served by
   `/api/deferred` come from the value in these same publications.
@@ -181,10 +183,6 @@ ID PATH` (`file_bindings.BINDINGS`).
 - `waiter.lock` — stable bare-shell wait lease file; harness sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
 
-- `viewed.json` — last visible browser attention (`presence.VIEWED`), written by
-  the server and absent until first viewed. `presence.py` owns throttled renewal,
-  which the server runs as a
-  visible tab asks for news; hidden tabs do not renew it.
 
 - `preview.json` — the preview identity browser chrome labels (`server.PREVIEW`),
   written by

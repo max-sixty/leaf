@@ -94,7 +94,7 @@ class PagePool:
     way to stop paying for them per test is to stop making a page per test.
 
     What a test leaves behind is small: a served page differs from the shape it
-    was made from in `index.html`, `events.jsonl`, `status.json`, `viewed.json`,
+    was made from in `index.html`, `events.jsonl`, `status.json`, `user-views.json`,
     the revision it stamped. `reset` reads the
     difference off the filesystem rather than a list — every file whose identity,
     size or modification time moved is put back from the shape, every file and

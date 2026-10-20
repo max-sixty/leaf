@@ -154,7 +154,7 @@ def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     titled = None
     if sent:
         last = list(sent)[-1]
-        record = codex.page_server_title(codex.task.thread, sent[last])
+        record = codex.page_server_title(page, sent[last])
         require(record is not None, f"the page server did not title `{last}`'s thread")
         titled = (
             f"titled in {record['durationMs']} ms, {record['inputTokens']} input tokens"

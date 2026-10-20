@@ -65,12 +65,13 @@ def hold_mode(path: Path, mode: int) -> None:
         path.chmod(mode)
 
 
-# A session's files that end with it: hook capability and turn observations,
-# and its page servers' log of the thread titles they asked for.
+# A session's hook capability observations, which end with it.
 HOOKS_SUFFIX = "hooks"
 STEP_HOOK_SUFFIX = "step-hook"
+# Its lifecycle, and the pages it has been told to reconnect (`reconnect.NOTICES`),
+# which outlive it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
-TITLES_SUFFIX = "titles.log"
+RECONNECT_SUFFIX = "reconnect"
 
 
 def session_file(session_id: str, suffix: str) -> Path:
@@ -687,7 +688,7 @@ def _retire(session_id: str) -> None:
     this finds it ended either way. Directories, such as a Codex task's delivery
     records, are their owner's to retire."""
     if holds_claims(session_id):
-        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
+        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):
             session_file(session_id, suffix).unlink(missing_ok=True)
         return
     lock = session_lock_path(session_id)

@@ -31,18 +31,15 @@ from ..schema import (
     SESSION_FILES,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
-    VIEWED_FILE,
 )
 from ..service import claim_path, page_claim
 from ..state import EVENTS_FILE, SESSION_SUFFIX, flocked, session_file
 
-# Diagnostic writes cannot move application state. The server writes `viewed.json`
-# when a visible tab asks for its freshness reading and `observations.jsonl` for every request
-# it answers; counting either would make a read say it changed itself, and waking on
-# either would rouse every watcher of a page a tab is merely looking at.
-UNWATCHED = frozenset(
-    {VIEWED_FILE, INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK}
-)
+# Diagnostic writes cannot move application state. The server writes
+# `user-views.json` as a tab reports its view and `observations.jsonl` for every
+# request it answers; counting either would make a read say it changed itself, and
+# waking on either would rouse every watcher of a page a tab is merely looking at.
+UNWATCHED = frozenset({INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK})
 # The page's trees stamped file by file: the authored `page/` tree and `data/`.
 TREES = ("page", DATA_DIR)
 

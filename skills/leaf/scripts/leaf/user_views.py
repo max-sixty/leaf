@@ -12,6 +12,12 @@ a fresh context can therefore carry older checks. These observations are neither
 events nor obligations and cannot affect semantic state or document activation.
 The replaceable record (`USER_VIEWS`) is independently locked and pruned on
 writes after one day.
+
+The record also keeps `viewed`, when a report last said a document was visible, in
+POSIX seconds, which outlives the pruning. A visible document reports at least
+every ten seconds (`runtime/user-view.js`), so it is that fresh while a tab shows
+the page; a hidden tab sends no heartbeat, so the stamp records attention rather
+than tab lifetime. The agent reads it in `page state` (`viewed_at`).
 """
 
 import copy
@@ -101,11 +107,14 @@ _RECORD = _object(
 )
 
 
-# Each document's latest report, by its session.
+# Each document's latest report, by its session, and when one last showed the page.
 USER_VIEWS = Record(
     "user-views",
-    object_schema({"sessions": {"type": "object", "additionalProperties": _RECORD}}),
-    since=13,
+    object_schema(
+        {"sessions": {"type": "object", "additionalProperties": _RECORD}},
+        {"viewed": {"type": "number"}},
+    ),
+    since=16,
 )
 
 
@@ -113,9 +122,13 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-def _records(page_dir: Path) -> dict:
-    stored = USER_VIEWS.read(page_dir / USER_VIEWS_FILE)
-    return stored["sessions"] if stored else {}
+def _stored(page_dir: Path) -> dict:
+    return USER_VIEWS.read(page_dir / USER_VIEWS_FILE) or {"sessions": {}}
+
+
+def viewed_at(page_dir: Path) -> float | None:
+    """When a browser last showed the page, or None for a page nobody has viewed."""
+    return _stored(page_dir).get("viewed")
 
 
 def observe_user_view(page_dir: Path, payload: dict) -> bool:
@@ -134,7 +147,8 @@ def observe_user_view(page_dir: Path, payload: dict) -> bool:
         raise ValueError("user view checks sequence exceeds report sequence")
     now = _now()
     with flocked(page_dir / USER_VIEWS_LOCK):
-        records = _records(page_dir)
+        stored = _stored(page_dir)
+        records = stored["sessions"]
         previous = records.get(record["session"])
         if previous is not None and record["sequence"] <= previous["sequence"]:
             return False
@@ -153,7 +167,11 @@ def observe_user_view(page_dir: Path, payload: dict) -> bool:
         elif checks is not None:
             checks["checked_at"] = record["received_at"]
         records[record["session"]] = record
-        USER_VIEWS.write(page_dir / USER_VIEWS_FILE, {"sessions": records})
+        viewed = now.timestamp() if record["visible"] else stored.get("viewed")
+        USER_VIEWS.write(
+            page_dir / USER_VIEWS_FILE,
+            {"sessions": records, **({} if viewed is None else {"viewed": viewed})},
+        )
     return True
 
 
@@ -167,7 +185,7 @@ def read_user_views(page_dir: Path, active_revision: int | None) -> dict:
     """
     now = _now()
     sessions = []
-    for record in _records(page_dir).values():
+    for record in _stored(page_dir)["sessions"].values():
         age = (now - aware_instant(record["received_at"])).total_seconds()
         if age > RETAIN_FOR.total_seconds():
             continue

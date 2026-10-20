@@ -1070,7 +1070,6 @@ def test_a_process_free_publication_keeps_input_without_claimant_facts(claimed):
             "turn_closed",
             "turn_opened",
             "session_cwd",
-            "viewed",
         ):
             assert captured[field] is None
         assert not captured["turn_takes_input"]

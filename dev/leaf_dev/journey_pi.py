@@ -207,7 +207,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
             wait_is_live(None, pi.session),
             "no watch holds the session's pages between runs",
         )
-        record = pi.page_server_title(pi.session, user.ids[sent[-1]])
+        record = pi.page_server_title(page, user.ids[sent[-1]])
         require(
             record is not None, f"the page server did not title `{sent[-1]}`'s thread"
         )

@@ -858,14 +858,12 @@ def native_codex_chat(tmp_path):
 
 def _page_record(path):
     """The `state.Record` a page file's name declares."""
-    from leaf.presence import VIEWED
     from leaf.user_views import USER_VIEWS
 
     return {
         schema_model.STATUS_FILE: service_model.STATUS,
         schema_model.SERVICE_FILE: server_model.SERVICE,
         schema_model.PREVIEW_FILE: server_model.PREVIEW,
-        schema_model.VIEWED_FILE: VIEWED,
         schema_model.USER_VIEWS_FILE: USER_VIEWS,
     }[path.name]
 

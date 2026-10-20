@@ -283,6 +283,86 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     consume_browser_errors(page, http_error_console(400))
 
 
+# The share of a cover's words past its last whole line: zero when it clips whole.
+COVER_LINE_REMAINDER = """cover => {
+  const words = cover.firstElementChild;
+  const line = parseFloat(getComputedStyle(words).lineHeight);
+  const lines = words.getBoundingClientRect().height / line;
+  return lines - Math.round(lines);
+}"""
+
+
+def refuse(page, held):
+    """Answer the held send with a final refusal."""
+    attempt = held[0].request.post_data_json["attempt"]
+    with page.expect_response(lambda response: "/api/event" in response.url):
+        held.pop(0).fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": attempt,
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+
+def test_a_refusals_error_leaves_with_the_words_it_stood_over(held_events, serve):
+    """The error stands over the refused words, not over the box: one comment box
+    serves every passage, so once Escape puts the words away the error waits in the
+    leaf's menu, and the box opened on another passage is free of it. The words over
+    them stop at the box's last whole line."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    words = "The selection comment the server will refuse."
+    compose(page, "#p3", words)
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the selection comment")
+    refuse(page, held)
+    box = page.locator(".lf-fab-input")
+    cover = page.locator(".lf-fab-bar .lf-compose-error")
+    dot = page.locator(".lf-fp-error-dot")
+    expect(cover).to_have_text("Couldn't send — refused before append")
+    expect(dot).to_be_hidden()
+    assert cover.evaluate(COVER_LINE_REMAINDER) == pytest.approx(0, abs=0.01)
+
+    page.keyboard.press("Escape")
+    expect(box).to_be_hidden()
+    expect(dot).to_be_visible()
+    compose(page, "#p9")
+    expect(box).to_have_js_property("value", "")
+    expect(cover).to_be_hidden()
+    expect_error_waits_in_menu(page, "Couldn't send — refused before append")
+    consume_browser_errors(page, http_error_console(400))
+
+
+def test_resume_writing_comes_back_to_refused_words_at_their_end(held_events, serve):
+    """Words a refusal hands back to a box still on screen are where Resume writing
+    goes, and it lands at their end, where Enter sends them, wherever the caret stood
+    when they were sent."""
+    browser, held = held_events
+    page = open_page(browser, serve(LONG_PAGE))
+    box = page_comment(page)
+    words = "The comment sent with the caret at its start."
+    write(box, words)
+    page.keyboard.press("ArrowUp")
+    assert box.evaluate("box => box.selectionStart") == 0
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the general send")
+    refuse(page, held)
+    expect(box).to_have_js_property("value", words)
+    page.keyboard.press("Escape")
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(box).to_be_focused()
+    assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
+        len(words),
+        len(words),
+    ]
+    consume_browser_errors(page, http_error_console(400))
+
+
 def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     held_events, serve
 ):

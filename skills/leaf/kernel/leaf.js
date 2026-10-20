@@ -782,7 +782,7 @@ if (!customElements.get(MEDIA_SHELF_TAG))
 var draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
 var syncInput = (ta) => inputDrafts.get(ta)?.();
 var errorOver = (ta) => errorsReading().find((error) => error.subject === ta && !error.passed) ?? null;
-var standsAtItsBox = (error) => inputDrafts.has(error.subject) && !error.passed && error.subject.isConnected && error.subject.checkVisibility();
+var standsAtItsBox = (error) => inputDrafts.has(error.subject) && !error.passed;
 function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
   const inputPaints = /* @__PURE__ */ new WeakMap();
   const stale = /* @__PURE__ */ new Set();
@@ -805,6 +805,11 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     paintedInput = input;
     paintedHintTarget = hintedInput;
   };
+  const watched = /* @__PURE__ */ new WeakSet();
+  const unshown = sizeObserver((entries) => {
+    for (const { target } of entries)
+      if (!target.isConnected || !target.checkVisibility()) passErrorsAt(target);
+  });
   let errorsPainted = errorsReading();
   registerErrorPresentation(() => {
     for (const { subject } of [...errorsPainted, ...errorsReading()])
@@ -882,6 +887,8 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     cover.className = "lf-compose-error";
     cover.setAttribute("aria-hidden", "true");
     cover.hidden = true;
+    const coverWords = document.createElement("span");
+    cover.append(coverWords);
     field.append(cover);
     cover.addEventListener("pointerdown", (event) => {
       event.preventDefault();
@@ -1010,8 +1017,21 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       } else visibleHint.remove();
       const ariaLabel = name2();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
-      const error = errorOver(ta);
-      keepsText(cover, error?.message ?? "");
+      let error = errorOver(ta);
+      if (error && !(ta.isConnected && ta.checkVisibility())) {
+        passErrorsAt(ta);
+        error = null;
+      }
+      if (Boolean(error) !== watched.has(ta)) {
+        if (error) {
+          watched.add(ta);
+          unshown.observe(ta);
+        } else {
+          watched.delete(ta);
+          unshown.unobserve(ta);
+        }
+      }
+      keepsText(coverWords, error?.message ?? "");
       keeps(cover, "title", error?.message ?? null);
       keepsHidden(cover, !error);
       const action = sendLabel();
@@ -1072,6 +1092,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     sync.value = draftValue;
     sync.hasMedia = () => attachedMedia.length > 0;
     sync.arrive = () => {
+      passErrorsAt(ta);
       cancelDictation();
       arrivals += 1;
       ta.restartHistory();
@@ -1176,6 +1197,7 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       });
     }
     sync.addMedia = async (images) => {
+      if (images.length) passErrorsAt(ta);
       if (!images.length || sending || uploading || held()) return false;
       cancelDictation();
       const allowed = allowsMedia();
@@ -1224,7 +1246,6 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
         const images = [...event.clipboardData?.items ?? []].filter((item) => item.kind === "file" && item.type.startsWith("image/")).map((item) => item.getAsFile()).filter(Boolean);
         if (!images.length) return;
         event.preventDefault();
-        passErrorsAt(ta);
         void sync.addMedia(images);
       },
       { capture: true }

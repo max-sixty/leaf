@@ -642,6 +642,11 @@ export function keepRefusedWords(attempts) {
       .map((view) => editorInput(view))
       .find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
+  // Words back where Resume writing already goes are resumed at their end too, not at
+  // the caret the send left.
+  const resumes = returned.find((ctx) => ctx === writingPlace?.context);
+  if (resumes !== undefined)
+    keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });
   // The gesture delivery was sending comes first, so it is the place Resume writing
   // reaches first, and the others stand behind it.
   for (const ctx of hidden.toReversed())

@@ -549,6 +549,40 @@ def test_capture_temporarily_owns_page_input_without_leaving_draw_mode(browser, 
         assert events_model.read_events(serve.page_dir) == before
 
 
+def test_a_capture_attaches_to_the_box_an_error_stood_over(browser, serve):
+    """Attaching an image is the user coming back to the comment box, as typing is, so
+    an error that stood over the box never swallows a capture: Escape puts the words
+    and the error away, and the capture lands in the box with its picture."""
+    page = open_page(browser, serve(LONG_PAGE))
+    target = page.locator("#p3")
+    target.scroll_into_view_if_needed()
+    target.click(click_count=3)
+    page.keyboard.press("c")
+    box = page.locator(".lf-fab-input")
+    write(box, "Words a refusal handed back.")
+    page.evaluate(
+        """async () => (await window.__lfWidgetApi()).raiseError(
+          "Couldn't send — refused before append",
+          { subject: document.querySelector('.lf-fab-input') })"""
+    )
+    cover = page.locator(".lf-fab-bar .lf-compose-error")
+    expect(cover).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(box).to_be_hidden()
+
+    surface = open_capture_area(page)
+    area = target.bounding_box()
+    page.mouse.move(area["x"] + 20, area["y"] + 5)
+    page.mouse.down()
+    page.mouse.move(area["x"] + 220, area["y"] + 60, steps=5)
+    page.mouse.up()
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.get_by_role("button", name="Attach capture", exact=True).click()
+    expect(surface).to_be_hidden()
+    expect(page.locator(".lf-composer-media-item img")).to_be_visible()
+    expect(cover).to_be_hidden()
+
+
 @pytest.mark.parametrize("change", ["resize", "revision"])
 def test_a_region_capture_anchors_the_page_as_it_stands_at_confirmation(
     browser, serve, change

@@ -545,14 +545,11 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "reply"
     ]
-    if place == "panel":
-        # The refusal covers the words it gave back in the panel's field, which sends
-        # nothing until the user's first edit or press there brings them back.
-        cover = page.locator(".lf-fp-field .lf-compose-error")
-        expect(cover).to_contain_text("refused before append")
-        cover.click()
-    else:
-        draft.focus()
+    # The refusal covers the words it gave back in their box, wherever it stands, which
+    # sends nothing until the user's first edit or press there brings them back.
+    cover = draft.locator("xpath=following-sibling::p[@class='lf-compose-error']")
+    expect(cover).to_contain_text("refused before append")
+    cover.click()
     expect(draft).to_be_focused()
     page.keyboard.press("Enter")
     holding(page, held, 1, "the refused reply's retry")

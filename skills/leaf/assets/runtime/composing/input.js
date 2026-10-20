@@ -29,10 +29,13 @@
 // An error about a box (errors.js, its `subject`), such as a refused send's whose words
 // came back to it or an image it would not take, stands over the box's words and
 // actions, wrapping within its lines, until the user comes back to them: an edit there,
-// a press on the cover, which puts the caret at the words' end, or Resume writing
-// (drafts.js). While it stands the box sends nothing, so words the user has not seen
-// again are never sent. Every box takes this from here, the floating panel's field and
-// a passage's comment box alike; the panel then keeps the error in the leaf's menu.
+// an image attached, a press on the cover, which puts the caret at the words' end, or
+// Resume writing (drafts.js). While it stands the box sends nothing, so words the user
+// has not seen again are never sent. The error is about the words, not the node, so it
+// also passes once the box stops showing them: it takes up another draft (`arrive`), as
+// the one passage composer does on each passage, or it is hidden or leaves the page
+// (`unshown`). Every box takes this from here, the floating panel's field and a
+// passage's comment box alike, and a passed error waits in the leaf's menu.
 //
 // What the box holds changes in the turn that changes it: the words and attached images
 // (the field's own value, which its caret and every reader after the writer depend on),
@@ -72,6 +75,7 @@ import {
   registerErrorPresentation,
 } from "../errors.js";
 import { repaint } from "../repaint.js";
+import { sizeObserver } from "../rendering.js";
 
 const inputDrafts = new WeakMap();
 
@@ -230,13 +234,11 @@ export const syncInput = (ta) => inputDrafts.get(ta)?.();
 // The newest error about a box the user has not come back to, which covers its words.
 const errorOver = (ta) =>
   errorsReading().find((error) => error.subject === ta && !error.passed) ?? null;
-// Whether an error stands at a box on screen now, where the box says it; the panel's
-// dot marks only those that stand nowhere.
+// Whether an error stands at a box, which says it there; the panel's dot marks only
+// those that stand nowhere. A box that stops showing the words passes its errors, so a
+// standing one is always on screen.
 export const standsAtItsBox = (error) =>
-  inputDrafts.has(error.subject) &&
-  !error.passed &&
-  error.subject.isConnected &&
-  error.subject.checkVisibility();
+  inputDrafts.has(error.subject) && !error.passed;
 // Boot binds one input owner to the app's upload command and contextual-hint
 // reading. Fields keep those capabilities for their lifetime; importing this module
 // never installs or replaces application callbacks.
@@ -266,6 +268,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     paintedInput = input;
     paintedHintTarget = hintedInput;
   };
+  // A box an error stands over is watched for the user no longer seeing its words: put
+  // away, hidden with what holds it, or taken from the page. Its size reports each of
+  // those; the box's own paint passes an error over a box already out of sight.
+  const watched = new WeakSet();
+  const unshown = sizeObserver((entries) => {
+    for (const { target } of entries)
+      if (!target.isConnected || !target.checkVisibility()) passErrorsAt(target);
+  });
   // A box an error is about, or was about, paints its cover again when the errors change.
   let errorsPainted = errorsReading();
   registerErrorPresentation(() => {
@@ -360,6 +370,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     cover.className = "lf-compose-error";
     cover.setAttribute("aria-hidden", "true");
     cover.hidden = true;
+    // Its words, clipped to the box's whole lines (response.css).
+    const coverWords = document.createElement("span");
+    cover.append(coverWords);
     field.append(cover);
     cover.addEventListener("pointerdown", (event) => {
       event.preventDefault();
@@ -521,8 +534,21 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       } else visibleHint.remove();
       const ariaLabel = name();
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
-      const error = errorOver(ta);
-      keepsText(cover, error?.message ?? "");
+      let error = errorOver(ta);
+      if (error && !(ta.isConnected && ta.checkVisibility())) {
+        passErrorsAt(ta);
+        error = null;
+      }
+      if (Boolean(error) !== watched.has(ta)) {
+        if (error) {
+          watched.add(ta);
+          unshown.observe(ta);
+        } else {
+          watched.delete(ta);
+          unshown.unobserve(ta);
+        }
+      }
+      keepsText(coverWords, error?.message ?? "");
       keeps(cover, "title", error?.message ?? null);
       keepsHidden(cover, !error);
       const action = sendLabel();
@@ -612,6 +638,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // another draft, or this one as another tab left it. The caller's next paint shows
     // it, and shows any change made to it since as a step of that history.
     sync.arrive = () => {
+      passErrorsAt(ta);
       cancelDictation();
       arrivals += 1;
       ta.restartHistory();
@@ -741,7 +768,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // whole draft's history, and refuses a second upload while the first owns the field.
     // The arrival generation prevents an image reaching another draft when the floating
     // composer moves to another passage before its bytes reach the server.
+    // Attaching is the user coming back to the box, as an edit is.
     sync.addMedia = async (images) => {
+      if (images.length) passErrorsAt(ta);
       if (!images.length || sending || uploading || held()) return false;
       cancelDictation();
       const allowed = allowsMedia();
@@ -798,8 +827,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           .filter(Boolean);
         if (!images.length) return;
         event.preventDefault();
-        // A paste is the user coming back to the box, as an edit is.
-        passErrorsAt(ta);
         void sync.addMedia(images);
       },
       { capture: true },

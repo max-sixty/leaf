@@ -2571,6 +2571,9 @@ function keepRefusedWords(attempts) {
   });
   const shownIn = (ctx) => [...draftEditors].filter((view) => view.ctx === ctx).map((view) => editorInput(view)).find((input) => input?.isConnected && input.checkVisibility()) ?? null;
   const hidden = returned.filter((ctx) => !shownIn(ctx));
+  const resumes = returned.find((ctx) => ctx === writingPlace?.context);
+  if (resumes !== void 0)
+    keepWritingPlace({ ...writingPlace, selection: atEnd(resumes) });
   for (const ctx of hidden.toReversed())
     if (writingPlace?.context !== ctx)
       keepWritingPlace({ context: ctx, selection: atEnd(ctx), generation: randomId() });

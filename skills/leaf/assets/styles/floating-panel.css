@@ -406,10 +406,12 @@
     font-weight: 500;
   }
   .lf-fp-field .lf-compose-error {
-    border-width: calc((var(--lf-fp-line) - 22px) / 2) 6px;
+    padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     background: var(--lf-fp-surface);
     font: 500 14px / 22px var(--sans);
     white-space: nowrap;
+  }
+  .lf-fp-field .lf-compose-error > span {
     text-overflow: ellipsis;
   }
   /* The shared reduced-motion guard (surfaces.css) stops at the field's closed tree. */

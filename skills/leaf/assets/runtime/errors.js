@@ -12,11 +12,11 @@
    ends.
 
    An error about a text field stands at that field, wherever it is, covering the
-   field's words and actions until the user comes back to them: an edit there, a press
-   on the cover, or Resume writing (`g i`) putting them there (`passErrorsAt`;
-   composing/input.js, `errorOver`). The floating panel's field also says an error
-   about nothing, in its status's place while it is empty, until the user's first edit
-   there (floating-panel.js). An error no field stands for, or one the user has
+   field's words and actions until the user comes back to them, by an edit, an image
+   attached, a press on the cover or Resume writing (`g i`), or the field stops showing
+   them (`passErrorsAt`; composing/input.js, `errorOver`). The floating panel's field
+   also says an error about nothing, in its status's place while it is empty, until the
+   user's first edit there (floating-panel.js). An error no field stands for, or one the user has
    passed, waits in the Errors list in the leaf's menu, with a dot on the leaf until
    the user opens the list (`seeErrors`). The user chose this on 17 October over
    errors riding the passing notice, which faded after four seconds, was replaced by

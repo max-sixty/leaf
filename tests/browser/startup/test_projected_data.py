@@ -787,7 +787,7 @@ def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
     ):
         assert {
             key: snapshot[key] for key in ("run", "updated", "value")
-        } == publication
+        } == {key: publication[key] for key in ("run", "updated", "value")}
     second = deliveries[-1]
     assert second["revision"] == first["revision"]
     assert second["run"] != first["run"]

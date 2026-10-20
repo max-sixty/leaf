@@ -6342,16 +6342,20 @@ function createFloatingPanel({
     caretToField = true;
     clearRow();
   }
+  const openThreads2 = () => inPageOrder(
+    threads().filter((candidate) => !candidate.resolved),
+    placedAt
+  );
   function resolveLanding(thread) {
     const route = trail.at(-1);
     const fromThreads = trail.at(-2)?.view === "threads";
-    const at = threads().filter((candidate) => !candidate.resolved).indexOf(thread);
+    const at = openThreads2().indexOf(thread);
     const mayLand = retainUserIntent();
     let mayRestore = () => false;
     return {
       optimistic: () => {
         if (!mayLand() || trail.at(-1) !== route) return false;
-        const kept = threads().filter((candidate) => !candidate.resolved);
+        const kept = openThreads2();
         const next = fromThreads ? kept[at] ?? kept[at - 1] : null;
         if (next) {
           open({ view: "thread", thread: next.key }, { replace: true, focus: false });
@@ -7010,7 +7014,7 @@ function createFloatingPanel({
   }
   function shownThreads() {
     const words = query.trim().toLowerCase();
-    return threads().filter((thread) => {
+    const shown = threads().filter((thread) => {
       if (words) {
         const text = [threadName(thread), ...thread.msgs.map((m) => m.text ?? "")].join(" ").toLowerCase();
         return text.includes(words);
@@ -7020,6 +7024,7 @@ function createFloatingPanel({
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
     });
+    return inPageOrder(shown, placedAt);
   }
   function threadsView() {
     const shown = shownThreads();

@@ -941,6 +941,43 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(3)
 
 
+AGENDA_PAGE = titled_page(
+    "agenda",
+    """<h1 id="t">Workshop</h1>
+<p id="agenda">The sample agenda has room for one more topic.</p>
+<p id="lunch">The schedule leaves an hour at noon for lunch.</p>""",
+)
+
+
+def agenda_threads(page_dir):
+    """Three threads in the log in the order they were started: one on the later
+    passage, one on the page as a whole, then one on the earlier passage."""
+    panel_comment(
+        page_dir, "Is lunch provided?", {"section": "lunch", "quote": "schedule leaves"}
+    )
+    panel_comment(page_dir, "Who signs off?")
+    panel_comment(
+        page_dir, "Kickoff length", {"section": "agenda", "quote": "one more topic"}
+    )
+
+
+def threads_rows(page):
+    page.locator(".lf-fp-threads").click()
+    return page.locator(".lf-fp-view[data-view=threads] .lf-fp-thread")
+
+
+def test_threads_read_in_the_page_s_order(browser, serve):
+    """Threads lists its rows in the page's order, the one `t` walks, rather than the
+    order they were started: the thread on the earlier passage, started last, leads, and
+    a comment on the page as a whole stands under every thread on a passage."""
+    url = serve(AGENDA_PAGE)
+    agenda_threads(serve.page_dir)
+    page = floating(browser, url)
+    expect(threads_rows(page).locator(".lf-fp-label")).to_have_text(
+        ["Kickoff length", "Is lunch provided?", "Who signs off?"]
+    )
+
+
 THREAD_FIT = """() => {
   const view = document.querySelector('.lf-fp-view[data-view=thread]');
   const box = view.getBoundingClientRect();

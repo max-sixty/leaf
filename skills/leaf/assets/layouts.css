@@ -710,28 +710,46 @@
     :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar {
       --lf-top-outer: var(--lf-top);
     }
-    /* Sticking blocks: a column's sidebar in the margin and a sidebar page's track block
-     * beside the body stand below the head room and scroll what they hold within the
-     * window, so each restarts `--lf-top` and its landing band (theme.css), a focused
-     * link keeps the ring's room (`--lf-head-inset`), and it anchors no scroll. */
-    :is(
-        main,
-        main > *,
-        main > [data-lf-views="parts"] > * > *
-      ).layout-column[data-lf-margin~="sidebar"]
-      > aside.sidebar:nth-child(1 of aside.sidebar),
-    :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
-      > aside[data-lf-beside]
-      > :only-child {
-      position: sticky;
-      top: calc(var(--lf-top-outer) + var(--sp-4));
-      --lf-top: 0px;
-      --lf-top-covered: 0px;
-      --lf-landing-room: 0px;
-      --lf-head-inset: initial;
-      max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
-      overflow-y: auto;
-      overflow-anchor: none;
+    /* A widget's track: a box a widget generates beside what it serves, such as a
+     * playground's rail beside its stage, marked `data-lf-track`. It sticks as a track
+     * block does (module-scroll-and-motion.md, "Reading regions"). */
+    :has(> [data-lf-track]) {
+      --lf-top-outer: var(--lf-top);
+    }
+    /* Sticking blocks: a column's sidebar in the margin, a sidebar page's track block
+     * beside the body and a widget's track stand below the window's head room and any tab
+     * strip, and scroll what they hold within the window below that, so each restarts
+     * `--lf-top` and its landing band (theme.css), a focused link keeps the ring's room
+     * (`--lf-head-inset`), and it anchors no scroll. It holds that height on purpose
+     * (`--lf-holds-height`). Only the window's scroll keeps one in view, since its height
+     * is the window's: inside a box that scrolls ([data-lf-scrolls], state.css), inside
+     * another sticking block, or where a widget stacks its track with what it serves,
+     * `--lf-track-posture: flow` holds and the block flows with its holder. */
+    @container not style(--lf-track-posture: flow) {
+      :is(
+          main,
+          main > *,
+          main > [data-lf-views="parts"] > * > *
+        ).layout-column[data-lf-margin~="sidebar"]
+        > aside.sidebar:nth-child(1 of aside.sidebar),
+      :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar
+        > aside[data-lf-beside]
+        > :only-child,
+      [data-lf-track] {
+        position: sticky;
+        top: calc(var(--lf-top-outer) + var(--sp-4));
+        --lf-top: 0px;
+        --lf-top-covered: 0px;
+        --lf-landing-room: 0px;
+        --lf-head-inset: initial;
+        --lf-track-posture: flow;
+        max-height: calc(
+          100dvh - var(--lf-foot-room) - var(--lf-top-outer) - 2 * var(--sp-4)
+        );
+        overflow-y: auto;
+        overflow-anchor: none;
+        --lf-holds-height: 1;
+      }
     }
   }
   /* Tiles: equal cells, as many to a row as fit at 9rem, each row's cells one height.

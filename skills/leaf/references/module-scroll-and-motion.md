@@ -31,6 +31,16 @@ theme to placement within the pane, such as track sizes, and don't copy the Layo
 full-height rules. Generate plain boxes rather than `lf-pane` elements, which the render
 gate expects to find in the page's file.
 
+A box the module generates to stand beside what it serves, such as a playground's rail
+of controls and instruction beside its stage, is a track. Mark it `data-lf-track`, and
+the Layout keeps it in view while the window scrolls a taller neighbour past, as it
+keeps a sidebar page's track block. The track sticks below the window's head room and
+any tab strip, takes at most the window's height below them, and scrolls what it holds
+beyond that. Inside a box that scrolls on its own, the track flows with that box. Where
+the module stacks the track with what it serves, as on a phone, it declares
+`--lf-track-posture: flow` on the track's parent, and the track flows with the page.
+Register the track as a reading region, since it may scroll.
+
 Register the pane's body, and any other box the widget may scroll, with
 `registerReadingRegion({id, host, body})` inside `whileConnected`, returning the
 function it gives back as the cleanup. `body` is the box that may scroll, and `host` the

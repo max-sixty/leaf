@@ -31,39 +31,45 @@
   grid-template-rows: minmax(0, 1fr);
 }
 
-/* With shared controls, the preview takes two thirds and spans the rail's two rows; the
- * controls take their content's height and the instruction stands under them. Narrower
- * than 43.5rem, a document's column included, a rail would be too narrow for the controls
- * it holds, so the regions stack in reading order: the stage, the controls, the
- * instruction. */
+/* With shared controls, the preview takes two thirds and the rail the third beside it:
+ * the controls at their content's height and the instruction under them. The rail is
+ * the Layout's track (`data-lf-track`, layouts.css), which keeps it in view while a stage
+ * taller than the window scrolls past, bounded to the window and scrolling what it holds.
+ * Narrower than 43.5rem, a document's column included, a rail would be too narrow for
+ * the controls it holds, so it draws no box and its panes stack with the stage in
+ * reading order: the stage, the controls, the instruction. They flow with the page
+ * (`--lf-track-posture: flow`), as a sidebar page's stacked track does. */
 .lf-playground-split {
   display: grid;
   gap: var(--sp-4);
   grid-template-columns: minmax(0, 1fr);
+  --lf-track-posture: flow;
+}
+
+.lf-playground-rail {
+  display: contents;
 }
 
 @container (min-width: 43.5rem) {
-  .lf-playground-split:has(> .lf-playground-controls-region > .lf-playground-controls) {
+  .lf-playground-split:has(> .lf-playground-rail > .lf-playground-controls-region) {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    grid-template-rows: auto 1fr;
+    --lf-track-posture: inherit;
   }
 
-  .lf-playground-split:has(> .lf-playground-controls-region > .lf-playground-controls)
-    > .lf-playground-preview-region {
-    grid-row: 1 / span 2;
-    align-self: stretch;
-  }
-
-  .lf-playground-instruction-region {
+  .lf-playground-rail:has(> .lf-playground-controls-region) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
     align-self: start;
+    gap: var(--sp-4);
   }
 }
 
 /* Full-height (a workspace Layout gives it a definite height to fill, `--lf-full-height`),
- * the playground and its split take that height, the controls give up height and scroll
- * while the instruction and its actions stay whole under them, down to the controls'
- * floor; below it the instruction takes its track rather than its content's height, and
- * its body scrolls instead of running past the window. */
+ * the playground, its split and its rail take that height, the controls give up height
+ * and scroll while the instruction and its actions stay whole under them, down to the
+ * controls' floor; below it the instruction takes its track rather than its content's
+ * height, and its body scrolls instead of running past the window. */
 @media screen {
   @container style(--lf-full-height: 1) {
     /* Each box passes the height on, so the panes in the split are told they have one
@@ -74,7 +80,7 @@
       --lf-full-height: inherit;
     }
 
-    .lf-playground-split {
+    :is(.lf-playground-split, .lf-playground-rail) {
       min-block-size: 0;
       --lf-full-height: inherit;
     }
@@ -82,14 +88,16 @@
     /* Below the combined floors, the ancestor scrolls both the inline evidence
      * and the instruction rather than hiding either one. */
     .lf-playground-split:not(
-      :has(> .lf-playground-controls-region > .lf-playground-controls)
+      :has(
+        > .lf-playground-controls-region,
+        > .lf-playground-rail > .lf-playground-controls-region
+      )
     ) {
       grid-template-rows: minmax(12rem, 1fr) minmax(9rem, auto);
     }
 
-    .lf-playground-split:has(> .lf-playground-controls-region):not(
-        :has(> .lf-playground-controls-region > .lf-playground-controls)
-      ) {
+    /* A presets pane with no controls beside it heads the stage. */
+    .lf-playground-split:has(> .lf-playground-controls-region) {
       grid-template-rows: minmax(min-content, auto) minmax(12rem, 1fr) minmax(
           9rem,
           auto
@@ -97,14 +105,9 @@
     }
 
     @container (min-width: 43.5rem) {
-      .lf-playground-split:has(
-        > .lf-playground-controls-region > .lf-playground-controls
-      ) {
-        grid-template-rows: minmax(12rem, 1fr) auto;
-      }
-
-      .lf-playground-instruction-region {
+      .lf-playground-rail:has(> .lf-playground-controls-region) {
         align-self: stretch;
+        grid-template-rows: minmax(12rem, 1fr) auto;
       }
     }
   }

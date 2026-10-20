@@ -78,10 +78,12 @@ work-item lists too:
   judged by its reasons and cost, give what it gives them in words.
 
 Put each option's picture, capture or demonstration inside that option, so nothing can
-pair it with another option. Vary only the treatment in question, and show today's
-version, or no change, in the option that keeps it, or above the options as a neutral
-baseline where none does. Put longer rationale in a disclosure after the decision. The
-`lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
+pair it with another option. An `lf-shot` pair, which shows both answers to an
+accept-or-reject decision in one element, stays with the group. Vary only the treatment
+in question, and show today's version, or no change, in the option that keeps it, or
+above the options as a neutral baseline where none does. Put longer rationale in a
+disclosure after the decision. The `lf-ask`, `lf-options` and `lf-option` entries give
+their markup and presentation.
 
 When the page exists for the user to choose among approaches, organize it around that
 choice. The title and headings name the question and what the alternatives differ on,

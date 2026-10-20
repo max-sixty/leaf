@@ -11466,11 +11466,12 @@ async function startPage() {
   app.startFeed(presentPage, initialStateRead);
 }
 startPage().catch((error) => {
-  if (!document.documentElement.lfDocumentLifetime.active) return;
   const reason = `page failed to start: ${error?.message ?? error}`;
-  window.dispatchEvent(
-    new CustomEvent("lf-startup-failed", { detail: { reason, error } })
-  );
-  reportPageError(error, "page failed to start");
-  applicationState.setReach("broken");
+  document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
+    window.dispatchEvent(
+      new CustomEvent("lf-startup-failed", { detail: { reason, error } })
+    );
+    reportPageError(error, "page failed to start");
+    applicationState.setReach("broken");
+  });
 });

@@ -18,6 +18,7 @@ from interact_support import (
     PLUGIN_ROOT,
     STATED_TIMEOUT,
     append_carried_log_record,
+    declared,
     read_record,
     record_claim,
     serving,
@@ -68,7 +69,7 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
         lambda running: not running,
         failure="the unclaimed session server stayed up after session end",
     )
-    assert read_record(claimed / "status.json")["state"] == "waiting"
+    assert declared(claimed)["state"] == "waiting"
     assert read_record(claimed / "service.json")["enabled"] is True
     claim = service_model.page_claim(claimed)
     assert claim is not None
@@ -79,10 +80,10 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
 def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
     """A session's end removes the files nothing will read again
     (`session-lifetime.md`, "A session's files"). A session that never used Leaf,
-    as most sessions of a harness Leaf is installed in, ends without a file. Every
-    ended session keeps its lifecycle, lock and reconnect notices, since a claim can
-    name it again. One that holds no claim keeps besides only a lease another
-    process holds."""
+    as most sessions of a harness Leaf is installed in, ends without a file. An
+    ended session a claim still names keeps its lifecycle and lock, which that
+    claim reads. One whose page another session took keeps only a lease another
+    process holds, and then nothing."""
 
     def files(session):
         key = cleanup_model.session_file(session, cleanup_model.SESSION_SUFFIX).stem
@@ -97,18 +98,17 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
     record_claim(page_dir, id="released")
     leases_model.mark_hooks("released")
     reconnect_model.NOTICES.write(
-        cleanup_model.session_file("released", "claude-code.reconnect"),
+        cleanup_model.session_file("released", "reconnect"),
         {"pages": [str(page_dir)]},
     )
     held = leases_model.take_lease(leases_model.waiter_lease_path(None, "released"))
     record_claim(page_dir, id="holder")
     leases_model.mark_hooks("holder")
     cleanup_model.end_harness_instance("released")
-    kept = ["claude-code.reconnect", "delivery.lock", "lifecycle"]
-    assert files("released") == [*kept, "wait"]
+    assert files("released") == ["wait"]
     leases_model.release_lease(held)
     cleanup_model.end_harness_instance("released")
-    assert files("released") == kept
+    assert files("released") == []
 
     cleanup_model.end_harness_instance("holder")
     assert files("holder") == ["delivery.lock", "lifecycle"]
@@ -322,7 +322,7 @@ hooks.cmd_hook("codex", {"hook_event_name": "SessionStart", "session_id": "s1", 
     for page in (first, second):
         assert f"leaf server start {shlex.quote(str(page))}" in context
         assert (
-            read_record(page / "status.json")["stream"]["activity"]["detail"]
+            read_record(page / "stream.json")["activity"]["detail"]
             == "Both pages updated"
         )
 
@@ -558,7 +558,7 @@ def test_session_end_cannot_release_a_page_claimed_by_its_successor(page_dir):
     assert service_model.page_claim(page_dir)["id"] == "successor"
     assert service_model.claim_is_active(service_model.page_claim(page_dir))
     assert read_record(page_dir / "service.json")["enabled"] is True
-    assert read_record(page_dir / "status.json")["detail"] == "successor is reviewing"
+    assert declared(page_dir)["detail"] == "successor is reviewing"
     assert server_model.running_server(page_dir)
 
 

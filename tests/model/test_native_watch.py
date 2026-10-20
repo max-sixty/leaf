@@ -111,8 +111,8 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
     """The page's reading, which a tab polls, and its shared subscription, which its
     row publisher and lifetime supervisor wake on, derive from one declaration of its
     inputs. A bound file outside the page moves both, as does an authored edit or
-    renaming the folder that holds the bound file; a tab's attention lease,
-    `viewed.json`, which the server renews while a tab looks, moves neither.
+    renaming the folder that holds the bound file; `user-views.json`, which the
+    server rewrites as a tab reports its view, moves neither.
 
     Where the volume ignores letter case, the page and the file are named in a
     spelling other than the one on disk, which notifications report: both must
@@ -143,7 +143,7 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
         return changes.wait(mark, timeout), page_reading(page) != reading
 
     assert classified(
-        lambda: write_record(page_dir / "viewed.json", {"t": 1.0}),
+        lambda: write_record(page_dir / "user-views.json", {"sessions": {}}),
         DIAGNOSTIC_QUIET_WINDOW_S,
     ) == (False, False)
     assert classified(

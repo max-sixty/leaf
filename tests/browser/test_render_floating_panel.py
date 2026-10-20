@@ -12,16 +12,15 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     append_carried_log_record,
+    declare,
     declare_idle,
     declare_work,
     working,
-    write_record,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf import service as service_model
-from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, wait_until_ready
 from model_folds import leaf_page
@@ -3191,10 +3190,7 @@ def test_all_pages_in_the_menu_counts_the_pages_it_lists(
         ".lf-fp-menu[data-level=group] .lf-fp-item", has_text="All pages"
     )
     expect(row.locator(".lf-fp-value")).to_have_text("3")
-    write_record(
-        closing_dir / "status.json",
-        {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
-    )
+    declare(closing_dir, "idle")
     told(page)
     expect(row.locator(".lf-fp-value")).to_have_text("2")
 

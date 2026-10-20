@@ -10,8 +10,10 @@ import pytest
 from interact_support import (
     STATED_TIMEOUT,
     activity_reading,
+    declared,
     owed_answers,
     page_state,
+    status_and_stream,
     take_stream_activity,
 )
 from interact_support import append_carried_log_record as append_event
@@ -691,7 +693,7 @@ def test_an_invalid_source_still_releases_a_finished_website_turn(page_dir):
     claim = website_server.page_claim(page_dir)
     assert claim["turn"] == "app-server-turn"
     assert claim["turn_closed"] is not None
-    assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
+    assert declared(page_dir)["state"] == "waiting"
     assert [obligation["input"] for obligation in owed_answers(page_dir)] == [
         comment["id"]
     ]
@@ -760,8 +762,12 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         expected=session_record("hosted-thread"),
     )
 
-    assert read_events(page_dir) == before
-    assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
+    # The ending declares the page waiting for its agent, and writes nothing else.
+    after = read_events(page_dir)
+    assert after[: len(before)] == before
+    assert [(event["kind"], event["state"]) for event in after[len(before) :]] == [
+        ("status", "waiting")
+    ]
 
 
 def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
@@ -825,7 +831,7 @@ def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
         expected=session_record("hosted-thread"),
     )
     winner = session_record("hosted-thread")
-    status = website_server.PageTransaction(page_dir).status
+    status = status_and_stream(page_dir)
     old.close({"id": "same-turn", "status": "completed", "items": []}, None)
     assert session_record("hosted-thread") == winner
-    assert website_server.PageTransaction(page_dir).status == status
+    assert status_and_stream(page_dir) == status

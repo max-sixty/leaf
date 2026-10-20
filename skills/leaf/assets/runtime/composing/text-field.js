@@ -480,7 +480,12 @@ class LeafText extends HTMLElement {
     this.#frame.append(this.#placeholderLayer, this.#rest);
     this.#root.append(this.#frame);
     this.#model = this.#create("");
+    this.#dressRest();
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
+    // Words dragged in drop where the editor will take them.
+    this.addEventListener("dragenter", () => {
+      if (!this.#view) this.#build();
+    });
     this.addEventListener("scroll", () => this.#measureOverflow(), { passive: true });
     this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
       capture: true,
@@ -556,6 +561,7 @@ class LeafText extends HTMLElement {
   attributeChangedCallback(name) {
     if (name === "placeholder") this.#placeholderText.data = this.placeholder;
     if (name === "aria-describedby") return this.#describe();
+    this.#dressRest();
     this.#apply({
       effects: this.#attributes.reconfigure(
         EditorView.contentAttributes.of(this.#contentAttributes()),
@@ -583,8 +589,28 @@ class LeafText extends HTMLElement {
     this.#internals ??= this.attachInternals();
     this.#root.adoptedStyleSheets = [sheet];
     if (this.#model.doc.length) this.#build();
+    else this.#describe();
     this.#paintEmpty();
     this.#internals.states.add("ready");
+  }
+
+  // Until the field has an editor, its empty line's place stands in for the editor's
+  // content node to assistive technology: the same textbox, with the same name, hint
+  // and description (`#describe`).
+  #dressRest() {
+    const wanted = {
+      role: "textbox",
+      "aria-multiline": "true",
+      ...Object.fromEntries(
+        Object.entries(this.#contentAttributes()).filter(([name]) =>
+          name.startsWith("aria-"),
+        ),
+      ),
+    };
+    for (const name of ["aria-label", "aria-placeholder"])
+      if (!(name in wanted)) this.#rest.removeAttribute(name);
+    for (const [name, value] of Object.entries(wanted))
+      if (this.#rest.getAttribute(name) !== value) this.#rest.setAttribute(name, value);
   }
 
   // A connected field draws its words in an editor, and an empty one builds its editor
@@ -656,14 +682,20 @@ class LeafText extends HTMLElement {
   }
 
   #describe() {
-    const content = this.#view?.contentDOM;
-    if (!content) return;
+    if (!this.isConnected) return;
+    const content = this.#view?.contentDOM ?? this.#rest;
     const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
-    content.ariaDescribedByElements = (this.getAttribute("aria-describedby") ?? "")
+    const described = (this.getAttribute("aria-describedby") ?? "")
       .split(/\s+/)
       .filter(Boolean)
       .map((id) => root.getElementById(id))
       .filter(Boolean);
+    const current = content.ariaDescribedByElements ?? [];
+    if (
+      described.length !== current.length ||
+      described.some((element, at) => element !== current[at])
+    )
+      content.ariaDescribedByElements = described;
   }
 
   // The editor adapter places its recorded caret without native scrolling. The
@@ -687,6 +719,8 @@ class LeafText extends HTMLElement {
     if (event.button !== 0) return;
     if (!this.#view) {
       // The field is empty, so wherever the press lands the caret stands at its start.
+      // Another button's press focuses the empty line's place natively, which builds the
+      // editor before the press's own action, such as a context menu's, reads its target.
       event.preventDefault();
       this.focus({ preventScroll: true });
       return;

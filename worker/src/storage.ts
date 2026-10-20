@@ -41,7 +41,7 @@ const publicationSchema = z.strictObject({
 export type PagePublication = z.infer<typeof publicationSchema>;
 type WebsiteRelease = { release: string; pages: Record<string, unknown> };
 const commitSchema = z.strictObject({ root: z.string(), identity: digest });
-export type PublicationCommit = z.infer<typeof commitSchema>;
+type PublicationCommit = z.infer<typeof commitSchema>;
 export function readPublicationCommit(value: unknown): PublicationCommit {
   return commitSchema.parse(value);
 }

@@ -214,8 +214,9 @@ destination.
 
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, or as
 `lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
-language from `$languages.names`. Format example code with the language's usual
-indentation and line breaks rather than packing several statements or fields onto one
+language from `$languages.names`. Native `code` classes also accept the bundled
+grammar's aliases, such as `language-js` and `language-sh`. Format example code with
+the language's usual indentation and line breaks rather than packing several statements or fields onto one
 line, and keep it working when you reformat it. Quote source verbatim when quoting it;
 logs and transcripts that aren't source code stay literal and uncoloured.
 

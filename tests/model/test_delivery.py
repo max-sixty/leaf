@@ -10,6 +10,7 @@ from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
     PICKS_PAGE,
+    SKILL_ROOT,
     _start,
     append_carried_log_record,
     append_command,
@@ -177,8 +178,8 @@ def test_active_handling_survives_a_mutable_layer_edit(page_dir, capsys):
 def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
     """A later reply stays out of this delivery, including its unique clauses."""
     for event in (
-        {"kind": "error", "message": "first failure"},
-        {"kind": "error", "message": "second failure"},
+        {"kind": "error", "text": "first failure"},
+        {"kind": "error", "text": "second failure"},
         {"kind": "comment", "text": "first question"},
         {
             "kind": "comment",
@@ -1082,3 +1083,17 @@ def test_successful_replies_require_an_exact_agent_answer():
         events = [comment, reply]
         expected = [reply] if success else []
         assert successful_replies(events, "input") == expected
+
+
+def test_the_reference_names_each_field_a_delivered_event_adds():
+    """`references/event-batches.md` lists what a delivery adds to each logged event;
+    `DELIVERY` declares the same fields."""
+    import re
+
+    text = (SKILL_ROOT / "references" / "event-batches.md").read_text()
+    listed = text.split("Events keep their stored fields", 1)[1].split("\n\n", 2)[1]
+    named = set(re.findall(r"`([a-z_]+)\b", listed))
+    items = delivery_model.DELIVERY.schema["properties"]["batches"]["items"]
+    declared = items["properties"]["events"]["items"]["properties"]
+    assert set(declared) <= named
+    assert set(re.findall(r"^- `([a-z_]+)`", listed, re.MULTILINE)) <= set(declared)

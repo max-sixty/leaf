@@ -15,8 +15,56 @@ from render_harness import (
     open_page,
     reported_browser_errors,
     resized,
+    scroll_settled,
     sending,
 )
+
+
+def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
+    """Readable geometry before a glide starts is no promise of a final landing."""
+    url = serve(
+        leaf_page(
+            "Datum arrival",
+            '<h1>Review</h1><lf-file-tree id="files" for="patch"></lf-file-tree>'
+            '<lf-diff id="patch" source="change"><pre></pre></lf-diff>'
+            '<p style="min-height:2000px">Context</p><p id="far">Far thread.</p>',
+        ),
+        anchored=[("far", "Far thread.")],
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(
+            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+            "@@ -1 +1 @@\n-old\n+new\n"
+        ),
+    )
+    page = open_page(browser, url)
+    datum = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
+    expect(datum).to_be_in_viewport(timeout=5000)
+    page.locator("h1").click()
+    page.evaluate("""async () => {
+      const {navigateToDatum} = await window.__lfWidgetApi();
+      const scrollBy = Element.prototype.scrollBy;
+      Element.prototype.scrollBy = function(options) {
+        const result = scrollBy.call(this, options);
+        if (this === document.scrollingElement && options.behavior === 'smooth') {
+          Element.prototype.scrollBy = scrollBy;
+          queueMicrotask(async () => {
+            window.datumArrived = await navigateToDatum(document.querySelector('#files'),
+              'for', '["app.py","new",1]');
+          });
+        }
+        return result;
+      };
+    }""")
+    page.keyboard.press("t")
+    page.wait_for_function("window.datumArrived !== undefined", timeout=10000)
+    assert page.evaluate("datumArrived")
+    scroll_settled(page)
+    expect(datum).to_be_focused()
+    box = datum.bounding_box()
+    assert 0 <= box["y"] < box["y"] + box["height"] <= page.viewport_size["height"]
 
 
 @pytest.mark.parametrize("view", ["patch", "file"])

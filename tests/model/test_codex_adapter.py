@@ -1476,8 +1476,9 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
     ] == ["second"]
 
 
+@pytest.mark.parametrize("delivery_hook", ["PostToolUse", "Stop"])
 def test_codex_tool_hook_delivers_into_the_running_turn_once(
-    page_dir, codex_loop, capsys, monkeypatch
+    page_dir, codex_loop, capsys, monkeypatch, delivery_hook
 ):
     """Hook completion offers input; its actual read proves same-turn pickup.
 
@@ -1508,17 +1509,23 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     hooks_model.cmd_hook(
         "codex",
         {
-            "hook_event_name": "PostToolUse",
+            "hook_event_name": delivery_hook,
             "session_id": "codex-thread",
             "turn_id": "user-turn",
         },
     )
-    context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
-    assert context["hookEventName"] == "PostToolUse"
-    [(path, record)] = codex_records("codex-thread")
-    assert context["additionalContext"] == delivery_model.delivery_pointer_prompt(
-        path.stem
+    output = json.loads(capsys.readouterr().out)
+    context = (
+        output["reason"]
+        if delivery_hook == "Stop"
+        else output["hookSpecificOutput"]["additionalContext"]
     )
+    [(path, record)] = codex_records("codex-thread")
+    assert len(context.splitlines()) == 1
+    envelope = json.loads(context)
+    assert envelope == delivery_model.cmd_delivery_read(path.stem)
+    assert envelope["acknowledge"] == delivery_model.pointer_acknowledgement(path.stem)
+    assert envelope["batches"][0]["events"][0]["id"] == comment["id"]
     assert (record["state"], record["turn"]) == ("hook", "user-turn")
     assert not any(
         event["kind"] == "pickup" for event in events_model.read_events(page_dir)
@@ -1538,9 +1545,7 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     )
     assert not capsys.readouterr().out
     assert len(codex_records("codex-thread")) == 1
-    read = delivery_model.cmd_delivery_read(path.stem)
     delivery_model.cmd_delivery_ack(path.stem)
-    assert read["batches"][0]["events"][0]["id"] == comment["id"]
     [pickup] = [
         event
         for event in events_model.read_events(page_dir)
@@ -1554,6 +1559,41 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     cleanup_model.close_session_turn("codex-thread", "user-turn")
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert not queued
+
+
+@pytest.mark.parametrize("delivery_hook", ["PostToolUse", "Stop"])
+def test_codex_hook_keeps_oversized_input_whole_for_its_reader(
+    page_dir, codex_loop, capsys, delivery_hook
+):
+    """Codex's native preview must never replace a complete delivery in context."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    text = "Long input\n" + "漢" * 4000
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": text}
+    )
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": delivery_hook,
+            "session_id": "codex-thread",
+            "turn_id": "user-turn",
+        },
+    )
+    output = json.loads(capsys.readouterr().out)
+    context = (
+        output["reason"]
+        if delivery_hook == "Stop"
+        else output["hookSpecificOutput"]["additionalContext"]
+    )
+    [(path, record)] = codex_records("codex-thread")
+    assert record["state"] == "hook"
+    assert context == delivery_model.delivery_pointer_prompt(path.stem)
+    assert service_model.read_cursor(page_dir) == 0
+    reading = delivery_model.cmd_delivery_read(path.stem)
+    assert reading["batches"][0]["events"][0]["text"] == text
+    delivery_model.cmd_delivery_ack(path.stem)
+    assert not codex_records("codex-thread")
 
 
 @pytest.mark.parametrize("delivery_hook", ["PostToolUse", "Stop"])
@@ -1712,11 +1752,15 @@ def test_codex_resume_without_input_delivers_in_its_first_hook(
     )
     offer = json.loads(capsys.readouterr().out)
     [(path, _)] = codex_records("codex-thread")
-    pointer = delivery_model.delivery_pointer_prompt(path.stem)
+    context = json.dumps(
+        delivery_model.cmd_delivery_read(path.stem),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
     if delivery_hook == "Stop":
-        assert offer == {"decision": "block", "reason": pointer}
+        assert offer == {"decision": "block", "reason": context}
     else:
-        assert offer["hookSpecificOutput"]["additionalContext"] == pointer
+        assert offer["hookSpecificOutput"]["additionalContext"] == context
     assert cleanup_model.session_record("codex-thread")["turn_closed"] is None
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     delivery_model.cmd_delivery_read(path.stem)
@@ -1843,9 +1887,9 @@ def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
         },
     )
     [(path, record)] = codex_records("codex-thread")
-    assert json.loads(capsys.readouterr().out)["hookSpecificOutput"][
-        "additionalContext"
-    ] == delivery_model.delivery_pointer_prompt(path.stem)
+    assert json.loads(
+        json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+    ) == delivery_model.cmd_delivery_read(path.stem)
     assert (record["state"], record["turn"]) == ("hook", "user-turn")
     delivery_model.cmd_delivery_read(path.stem)
     delivery_model.cmd_delivery_ack(path.stem)
@@ -2241,7 +2285,10 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
             codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
         )
         assert codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
-        assert [args[2] for args in queued] == [prompt]
+        assert json.loads(prompt) == delivery_model.cmd_delivery_read(path.stem)
+        assert [args[2] for args in queued] == [
+            delivery_model.delivery_pointer_prompt(path.stem)
+        ]
         assert not codex_model.recover_codex_receipt("codex-thread")
         pickups = [
             event

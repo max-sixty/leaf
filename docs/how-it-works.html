@@ -642,8 +642,10 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                     <tr>
                       <td><code>answer</code></td>
                       <td>
-                        The response owed at capture: <code>reply</code>,
-                        <code>turn</code>, or <code>markup</code>, with its address.
+                        The response owed at capture, with its address and
+                        <code>ref</code>: a thread <code>reply</code>, whose
+                        <code>writer</code> is the agent or the turn's final message, or
+                        a stamped <code>markup</code> revision.
                       </td>
                     </tr>
                     <tr>
@@ -670,14 +672,14 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                 >
                   <pre id="handling-json"><code class="language-json">{
   "handling": {
-    "c1": "Read the thread context before answering.",
-    "c2": "Write the answer with leaf response reply using its answer.ref."
+    "h1": "Read the thread context before answering.",
+    "h2": "Write the answer with leaf response reply using its answer.ref."
   },
   "events": [
     {
       "id": "9d41b20f",
       "kind": "comment",
-      "handling": ["c1", "c2"],
+      "handling": ["h1", "h2"],
       "answer": {
         "kind": "reply",
         "parent": "9d41b20f",
@@ -690,7 +692,7 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
 }</code></pre>
                 </lf-sample>
                 <p id="handling-example-reading">
-                  The event's list selects <code>c1</code> and then <code>c2</code> from
+                  The event's list selects <code>h1</code> and then <code>h2</code> from
                   this batch. These ids belong only to that batch. The event id
                   identifies the update being answered.
                 </p>
@@ -1136,11 +1138,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 >,
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex.md"
-                  >Codex queue delivery</a
-                >,
-                <a
-                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex-app-server.md"
-                  >Codex App Server</a
+                  >Codex</a
                 >, and
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-pi.md"

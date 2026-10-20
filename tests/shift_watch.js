@@ -2712,7 +2712,11 @@
       // whose rendering it has stopped. It is read through a box the watch stands
       // over the frame's own viewport while it waits, since the root's box can scroll
       // out of that viewport, as a live page's does. Its first entry reports the
-      // present state.
+      // present state. The runtime instead asks the page holding the frame
+      // (runtime/frame-visibility.js), which no page's own styles can mislead; the
+      // watch runs in every frame, Leaf's or not, before that runtime, and has no
+      // holder to ask. A page whose styles transform `html` carries this box off
+      // screen with its root, so the watch judges it as hidden.
       let screen = null;
       let onScreen = null;
       if (window !== top) {

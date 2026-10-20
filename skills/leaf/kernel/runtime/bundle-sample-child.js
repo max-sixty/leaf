@@ -50,7 +50,7 @@ import {
   renderedUnder,
   sizeObserver,
   takesLetters
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 
 // runtime/sample-child.js
 var child = document.documentElement.lfSample;

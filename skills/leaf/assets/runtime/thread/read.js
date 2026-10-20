@@ -42,10 +42,10 @@ import { readThreads } from "./state.js";
 
 import { savedReadingSettled } from "../keyboard/bindings.js";
 import {
-  onSampleVisibility,
-  sampleVisibility,
+  frameVisibility,
+  onFrameVisibility,
   readSampleVisibility,
-} from "../sample-visibility.js";
+} from "../frame-visibility.js";
 
 const keyOf = (item) => `${item.message}\u0000${item.version}`;
 const EPSILON = 1;
@@ -272,11 +272,16 @@ export function createReadTracking({ markRead, openThread }) {
     scheduled = true;
     nextRender(() => {
       scheduled = false;
-      if (!sampleVisibility()) return scan();
-      // The containing page owns its clips and chrome. Ask it when this scan runs;
-      // a rectangle from an earlier threshold crossing cannot acknowledge words.
+      // The containing page owns a sample's clips and chrome. Ask it when this scan
+      // runs; a rectangle from an earlier threshold crossing cannot acknowledge words.
+      const asked = readSampleVisibility();
+      if (!asked) {
+        // Any other frame reads words only while it shows.
+        if (frameVisibility()?.visible !== false) scan();
+        return;
+      }
       const generation = exposureGeneration;
-      void readSampleVisibility().then((reading) => {
+      void asked.then((reading) => {
         if (generation === exposureGeneration) scan(reading);
       }, reportError);
     });
@@ -292,8 +297,8 @@ export function createReadTracking({ markRead, openThread }) {
     addEventListener("blur", resetExposure);
     addEventListener("load", scheduleScan, true);
     frameWatches.push(
-      onSampleVisibility(() => {
-        if (sampleVisibility()?.visible) scheduleScan();
+      onFrameVisibility((visibility) => {
+        if (visibility.visible) scheduleScan();
         else resetExposure();
       }),
     );

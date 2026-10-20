@@ -994,6 +994,28 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     )
 
 
+def test_a_quoted_playground_draws_no_box_its_preview_wrote_only_for_controls(
+    browser, serve
+):
+    """The page styles each alert's settings box with a display of its own. Quoted,
+    the controls are gone. The latency box held only its controls, each in a field
+    of its own, so it goes with them rather than standing empty beside its alert;
+    the rate box also held a sentence, which stays."""
+    source = ROOT / "tests/fixtures/pages/quoted-playground.html"
+    page = open_page(browser, serve(source))
+    playground = page.locator("#quoted-alerts")
+
+    expect(playground.locator("lf-playground-control:visible")).to_have_count(0)
+    expect(page.locator("#quoted-latency-settings")).to_be_hidden()
+    expect(page.locator("#quoted-latency-evidence")).to_be_visible()
+    expect(page.locator("#quoted-rate-settings")).to_have_text(
+        "Pages payments on-call."
+    )
+    expect(page.locator("#quoted-alerts-instruction")).to_contain_text(
+        "payments-p99-latency to page over 800ms"
+    )
+
+
 def test_playground_labels_can_be_selected_without_changing_the_controls(
     browser, serve
 ):

@@ -146,13 +146,26 @@ def other_leaves(page_dir: Path) -> list:
     outlives its server: a restart may serve the same page at a new port, which
     changes where the row leads and not which page it is.
     """
+    own = page_dir.resolve()
+    return [entry for candidate, entry in live_leaves() if candidate != own]
+
+
+def session_leaves(session_id: str) -> list:
+    """The live pages `session_id` holds, as `other_leaves` reads each: what the
+    harness shows its user beside the session (`hooks.cmd_pages`)."""
+    from .service import owned_pages
+
+    held = {page.resolve() for page in owned_pages(session_id)}
+    return [entry for candidate, entry in live_leaves() if candidate in held]
+
+
+def live_leaves() -> list:
+    """Each live page that is not closed, by its directory, with its row entry, in
+    title order (`other_leaves` says what each costs and holds)."""
     from .server_rows import read_row, row_path
 
-    others = []
-    own = page_dir.resolve()
+    leaves = []
     for candidate, record in neighbor_candidates():
-        if candidate == own:
-            continue
         # A neighbour's fault stays its own. This is the one read of state some
         # other page owns: a directory deleted mid-scan (stale pages are deleted
         # and made again) or a file a disk fault corrupted would otherwise 500
@@ -165,16 +178,19 @@ def other_leaves(page_dir: Path) -> list:
                 continue
             row = read_row(candidate, info, record=record)
             if row is not None and row["activity"]["kind"] != "closed":
-                others.append(
-                    {
-                        **row,
-                        "page_key": record["page_key"],
-                        "url": info["url"],
-                    }
+                leaves.append(
+                    (
+                        candidate,
+                        {
+                            **row,
+                            "page_key": record["page_key"],
+                            "url": info["url"],
+                        },
+                    )
                 )
         except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
-    return sorted(others, key=lambda entry: entry["title"].lower())
+    return sorted(leaves, key=lambda leaf: leaf[1]["title"].lower())
 
 
 def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> dict:

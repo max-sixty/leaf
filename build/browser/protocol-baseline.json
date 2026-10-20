@@ -162,8 +162,8 @@
       "schema": {"type":"object","properties":{"pages":{"type":"array","items":{"type":"string"}}},"required":["pages"]}
     },
     "row": {
-      "since": 13,
-      "schema": {"type":"object","properties":{"page":{"type":"string"},"page_key":{"type":"string"},"server_id":{"type":"string"},"row":{"type":"object","properties":{"title":{"type":"string"},"session_cwd":{"type":["string","null"]},"activity":{"type":"object","properties":{"counts":{"type":"object","required":["active","handling","overdue","pending","picked_up","queued","total"]}},"required":["awaiting","counts","detail","dropped","held","kind","next_transition_at","observed","observed_kind","ts"]}},"required":["title","session_cwd","activity"]}},"required":["page","page_key","server_id","row"]}
+      "since": 15,
+      "schema": {"type":"object","properties":{"page":{"type":"string"},"page_key":{"type":"string"},"server_id":{"type":"string"},"row":{"type":"object","properties":{"title":{"type":"string"},"session_cwd":{"type":["string","null"]},"activity":{"type":"object","properties":{"counts":{"type":"object","required":["active","handling","overdue","pending","picked_up","queued","total"]}},"required":["awaiting","counts","detail","dropped","held","kind","next_transition_at","observed","observed_kind","ts"]},"on_user":{"type":"integer","minimum":0},"threads":{"type":"object","properties":{"open":{"type":"integer","minimum":0},"unread":{"type":"integer","minimum":0}},"required":["open","unread"]}},"required":["title","session_cwd","activity","on_user","threads"]}},"required":["page","page_key","server_id","row"]}
     },
     "service": {
       "since": 13,

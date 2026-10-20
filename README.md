@@ -77,7 +77,9 @@ your approval unless Claude Code's `crossSessionInbound` setting is `"accept"`.
 Leaf's "Watch pages with a hooks module" option, in `/config`, moves that watch into a
 Claude Code hooks module, an early-access Claude Code feature, which goes on watching
 after a turn you interrupt. A Claude Code that doesn't load hooks modules keeps the
-default watch.
+default watch. Whatever the option, a Claude Code that loads the module shows a line
+above the prompt for each page the session holds: a link to the page, what is On
+you, and its open threads with how many have replies you haven't read.
 
 </details>
 

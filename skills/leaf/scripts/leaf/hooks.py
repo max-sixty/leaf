@@ -35,8 +35,10 @@ so a claim that command makes joins it. Hooks
 that do run with no retained claim avoid page reading, and import the harness
 declarations only once the payload names a session. Page-owning prompt and Stop
 hooks reach `hook_transport`; Codex's tool and Stop hooks reach its delivery
-records in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`). The
-application entry routes `leaf hook` here before loading the CLI.
+records in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`).
+Leaf's Claude Code hooks module also follows the session's pages (`cmd_pages`) to
+draw them beside the prompt. The application entry routes `leaf hook` here before
+loading the CLI.
 
 Claude Code's PostToolBatch carries pending input before the next model call,
 after successful or failed tools, using the same envelope and receipt as its
@@ -214,7 +216,44 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
     return watch_between_turns(watching, interrupted=interrupted)
 
 
-def main(harness: str, *, watch: bool = False) -> None:
+def cmd_pages(payload: dict) -> None:
+    """Print the live pages the payload's session holds, as one JSON list
+    (`presence.session_leaves`), then again each time that list changes, until the
+    session holds no page. Leaf's Claude Code hooks module draws it beside the
+    prompt.
+
+    Rows and the session's claim locators wake the reading. A server that dies
+    leaves its row until a reader finds its lease unheld, so the list is read
+    again every presence interval too."""
+    from .file_changes import FileChanges, existing_root
+    from .presence import PRESENCE_CACHE_S, session_leaves
+    from .state import session_claims, state_home
+
+    sid = payload.get("session_id") or ""
+    rows, claims = state_home().resolve() / "rows", session_claims(sid)
+    # A root above rows/ would hear its creation, not the rows written into it.
+    rows.mkdir(exist_ok=True)
+    roots = {rows: False, existing_root(claims): False}
+    changes = FileChanges(
+        roots,
+        lambda changed: changed.parent in (rows, claims) or changed in (rows, claims),
+    )
+    shown = None
+    try:
+        while True:
+            mark = changes.mark()
+            listed = json.dumps(session_leaves(sid))
+            if listed != shown:
+                print(listed, flush=True)
+                shown = listed
+            if not owned_pages(sid):
+                return
+            changes.wait(mark, PRESENCE_CACHE_S)
+    finally:
+        changes.close()
+
+
+def main(harness: str, *, watch: bool = False, pages: bool = False) -> None:
     """Read one harness payload and dispatch it, without importing the CLI.
 
     The application entry is the only caller.
@@ -251,9 +290,13 @@ def main(harness: str, *, watch: bool = False) -> None:
                 "--harness",
                 harness,
                 *(["--watch"] if watch else []),
+                *(["--pages"] if pages else []),
             ],
             environment,
         )
+    if pages:
+        cmd_pages(payload)
+        return
     if watch:
         from .leases import release_on_termination
 

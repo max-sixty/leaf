@@ -1,5 +1,6 @@
 """Leaf's Claude Code hooks module (`hooks/claude-code.ts`) keeping a session's
-watch in place of the background Stop registration.
+watch in place of the background Stop registration, and drawing the session's
+pages above the prompt.
 
 `claude_code_driver.mjs` stands in for Claude Code around the module, which calls
 the real launcher, so these hold the module and the hooks it calls together."""
@@ -16,12 +17,15 @@ import pytest
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    read_record,
     serving,
     wait_for,
 )
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
+from leaf import server as server_model
+from leaf import server_rows as server_rows_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -62,6 +66,7 @@ class ClaudeCode:
         self.watches = queue.Queue()
         self.exits = queue.Queue()
         self.diagnostics = queue.Queue()
+        self.bands = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         loaded = self.read()
         self.pid, self.events = loaded["pid"], loaded["events"]
@@ -77,6 +82,8 @@ class ClaudeCode:
                 self.sent.put(record)
             elif "diagnostic" in record:
                 self.diagnostics.put(record["diagnostic"])
+            elif "band" in record:
+                self.bands.put(record["band"])
             else:
                 self.answers.put(record)
 
@@ -156,10 +163,86 @@ def claude_code(page_dir, monkeypatch, spawn, sessionless, request):
     driven.quit()
 
 
-def test_the_module_is_off_until_its_option_is_on(spawn, sessionless):
-    """The module hooks nothing unless the user turns its option on, so a default
-    install keeps the registrations in `hooks.json`."""
-    assert ClaudeCode(spawn, "cc-off", {"hooks_module": False}).events == []
+def test_the_module_keeps_no_watch_until_its_option_is_on(spawn, sessionless):
+    """Without its option the module hooks only what the pages band needs, so a
+    default install keeps the registrations in `hooks.json` for the watch."""
+    driven = ClaudeCode(spawn, "cc-off", {"hooks_module": False})
+    assert driven.events == [
+        "session.start",
+        "tool.call",
+        "turn.complete",
+        "ui.render",
+        "session.end",
+    ]
+    driven.emit("session.start", {"cwd": "/", "isInteractive": True})
+    driven.end_turn()
+    assert driven.watches.empty()
+    driven.quit()
+
+
+def band_lines(band) -> list[tuple[str, str]]:
+    """Each page's line in the band, as its text and the address its link opens;
+    none where the module draws nothing."""
+    if band is None:
+        return []
+
+    def text(node) -> str:
+        if isinstance(node, str):
+            return node
+        return "".join(text(child) for child in node["children"])
+
+    return [
+        (text(line), link["props"]["href"])
+        for line in band["children"]
+        for link in line["children"]
+        if isinstance(link, dict) and link["tag"] == "Link"
+    ]
+
+
+def test_the_band_follows_the_pages_the_session_holds(
+    page_dir, claude_code, monkeypatch
+):
+    """Above the prompt, each page the session holds is a link with the counts its
+    Leaf panel marks: On me, open threads, and those holding words the user hasn't
+    read. The band redraws as the page's row changes, and empties once the session
+    holds no page."""
+
+    def band(expected):
+        server_rows_model.RowPublisher(page_dir, server_id).refresh()
+        return wait_for(
+            lambda: band_lines(claude_code.bands.get(timeout=STATED_TIMEOUT)),
+            lambda lines: lines == expected,
+            failure=f"the band never showed {expected}",
+        )
+
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    published = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))["row"]
+    url, title = server_model.running_server(page_dir)["url"], published["title"]
+    band([(f"Leaf {title} · On me 0 · Threads 0", url)])
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "why?"}
+    )
+    band([(f"Leaf {title} · On me 0 · Threads 1", url)])
+    thread_model.post_reply(
+        page_dir, {"parent": comment["id"], "responds": comment["id"]}, "Because."
+    )
+    band([(f"Leaf {title} · On me 0 · Threads 1, 1 new", url)])
+    append_carried_log_record(
+        page_dir,
+        {
+            "kind": "todo",
+            "author": "agent",
+            "owner": "user",
+            "subject": {"kind": "page"},
+            "title": "Try it",
+        },
+    )
+    band([(f"Leaf {title} · On me 1 · Threads 1, 1 new", url)])
+    # Another session takes the page, so this one holds none.
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "cc-s2")
+    service_model.claim_page(page_dir)
+    band([])
 
 
 @pytest.mark.parametrize("failure", ["watch", "startup", "spawn"])
@@ -184,15 +267,25 @@ def test_failed_module_processes_report_their_diagnostics(
     )
     driven.start_turn()
     driven.emit("session.start", {"cwd": str(tmp_path), "isInteractive": True})
-    diagnostic = driven.diagnostics.get(timeout=STATED_TIMEOUT)
+    # The pages follower starts beside the watch and reports its own failure.
+    follower, diagnostic = sorted(
+        driven.diagnostics.get(timeout=STATED_TIMEOUT) for _ in range(2)
+    )
     if failure == "spawn":
         assert (
             diagnostic == "Leaf: watch could not start: Error: host cannot spawn watch"
         )
+        assert follower == (
+            "Leaf: the pages follower could not start: Error: host cannot spawn watch"
+        )
     elif failure == "startup":
         assert "watch failed" in diagnostic and "ENOENT" in diagnostic, diagnostic
+        assert "pages follower failed" in follower and "ENOENT" in follower, follower
     else:
         assert diagnostic == "Leaf: watch failed (exit code 23): watch launcher failed"
+        assert follower == (
+            "Leaf: the pages follower exited with code 23: watch launcher failed"
+        )
     driven.quit()
 
 

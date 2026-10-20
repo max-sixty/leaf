@@ -43,9 +43,19 @@
  * module starts (measured at Claude Code 2.1.291). Failed hooks and watches report
  * their diagnostics through Claude Code's UI log. Replacing or closing a watch
  * cancels it quietly, after waiting for its process to exit.
+ *
+ * Whatever the option, the module also draws a band above the prompt for each live
+ * page the session holds: a link to the page, what is On the user, and its open
+ * threads with how many hold words the user hasn't read, the counts the page's own
+ * Leaf panel marks. A follower (`bin/leaf hook --harness claude-code --if-claimed
+ * --pages`) prints that list whenever it changes and exits once the session holds
+ * no page; the launcher answers it without starting uv in a session holding none.
+ * The session takes a page only through a `leaf` command, so the module starts the
+ * follower as the session starts, after each Bash call that runs `leaf`, and as a
+ * main-loop turn ends, once none is running.
  */
 
-import type { EngineInterface, Register } from "claude-code";
+import type { EngineInterface, Register, RenderElement } from "claude-code";
 import { WatchOwner } from "./watch.ts";
 
 // `hooks.json`'s timeout for Leaf's hooks.
@@ -60,6 +70,18 @@ let watch = new WatchOwner();
 let running = false;
 // The Stop hooks of a turn now ending, while they run.
 let stopping: Promise<unknown> | undefined;
+
+// A live page the session holds, as the follower prints it (`presence.session_leaves`).
+type Leaf = {
+  page_key: string;
+  url: string;
+  title: string;
+  on_user: number;
+  threads: { open: number; unread: number };
+};
+// The follower's last list, and how to stop the follower while one runs.
+let leaves: Leaf[] = [];
+let following: { stop: () => unknown } | undefined;
 
 function environment(session: string) {
   return { CLAUDE_CODE_SESSION_ID: session, CLAUDE_PID: claudePid };
@@ -196,16 +218,133 @@ async function wake(
   }
 }
 
+function show($: EngineInterface, listed: Leaf[]) {
+  leaves = listed;
+  $.ui.invalidate("ui.render");
+}
+
+/** Start the follower of the session's pages, unless one runs. */
+function follow($: EngineInterface, session: string) {
+  if (following) return;
+  let stream: ReturnType<EngineInterface["process"]["spawn"]>;
+  try {
+    stream = $.process.spawn({
+      argv: [
+        launcher($),
+        "hook",
+        "--harness",
+        "claude-code",
+        "--if-claimed",
+        "--pages",
+      ],
+      env: environment(session),
+      input: JSON.stringify({ hook_event_name: "Pages", session_id: session }),
+    });
+  } catch (error) {
+    $.ui.log(`Leaf: the pages follower could not start: ${error}`);
+    return;
+  }
+  const current = { stop: () => stream.return(undefined as never) };
+  following = current;
+  void (async () => {
+    let line = "";
+    let stderr = "";
+    try {
+      for await (const chunk of stream) {
+        if (chunk.stream === "stderr") {
+          stderr += chunk.text;
+          continue;
+        }
+        const lines = (line + chunk.text).split("\n");
+        line = lines.pop() ?? "";
+        const last = lines.at(-1);
+        if (last !== undefined && following === current) show($, JSON.parse(last));
+      }
+      const result = await stream.result;
+      if (result.code !== 0 && following === current)
+        $.ui.log(
+          `Leaf: the pages follower exited with code ${result.code}${stderr.trim() ? `: ${stderr.trim()}` : ""}`,
+        );
+    } catch (error) {
+      if (following === current) $.ui.log(`Leaf: the pages follower failed: ${error}`);
+    } finally {
+      // It exits once the session holds no page, or never starts in one holding none.
+      if (following === current) {
+        following = undefined;
+        show($, []);
+      }
+    }
+  })();
+}
+
 export const register: Register = (on, options) => {
-  if (options.hooks_module !== true) return;
+  const watching = options.hooks_module === true;
 
   on("session.start", async ($, e, next) => {
     const started = await next(e);
-    const parent = await $.process.run(["/bin/sh", "-c", "echo $PPID"]);
-    claudePid = parent.stdout.trim();
-    void ensureWatch($, await $.session.id(), false);
+    const session = await $.session.id();
+    follow($, session);
+    if (watching) {
+      const parent = await $.process.run(["/bin/sh", "-c", "echo $PPID"]);
+      claudePid = parent.stdout.trim();
+      void ensureWatch($, session, false);
+    }
     return started;
   });
+
+  on("tool.call", { tool: "Bash" }, async ($, e, next) => {
+    const result = await next(e);
+    // A gate on the tool's own call: nothing after its result may fail it.
+    if (/\bleaf\b/.test(e.command))
+      void $.session.id().then((session) => follow($, session));
+    return result;
+  });
+
+  on("turn.complete", async ($, e, next) => {
+    const completed = await next(e);
+    if (e.agentId !== undefined) return completed;
+    const session = await $.session.id();
+    follow($, session);
+    if (watching) {
+      running = false;
+      void ensureWatch($, session, e.isAborted);
+    }
+    return completed;
+  });
+
+  on("ui.render", { component: "AbovePrompt" }, ($, e, next) => {
+    if (leaves.length === 0 || e.props.hasSurvey) return next(e);
+    const { Box, Text, Link } = $.ui.resolve(e);
+    // What JSX would type; the module stays `.ts` for Node, which runs it in tests.
+    return h(
+      Box,
+      { flexDirection: "column" },
+      ...leaves.map(({ url, title, on_user, threads }) =>
+        h(
+          Text,
+          { dimColor: true },
+          "Leaf ",
+          h(Link, { href: url }, title),
+          ` · On me ${on_user} · Threads ${threads.open}`,
+          threads.unread ? `, ${threads.unread} new` : "",
+        ),
+      ),
+    ) as RenderElement;
+  });
+
+  on("session.end", async ($, e, next) => {
+    const owner = watch;
+    const current = following;
+    following = undefined;
+    leaves = [];
+    await Promise.all([owner.close(), current?.stop()]);
+    const ended = await next(e);
+    // /clear and resume keep the module loaded without another session.start.
+    if (watch === owner) watch = new WatchOwner();
+    return ended;
+  });
+
+  if (!watching) return;
 
   on("turn.start", ($, e, next) => {
     running = true;
@@ -230,22 +369,5 @@ export const register: Register = (on, options) => {
     };
     ending.then(settled, settled);
     return ending;
-  });
-
-  on("turn.complete", async ($, e, next) => {
-    const completed = await next(e);
-    if (e.agentId !== undefined) return completed;
-    running = false;
-    void ensureWatch($, await $.session.id(), e.isAborted);
-    return completed;
-  });
-
-  on("session.end", async ($, e, next) => {
-    const owner = watch;
-    await owner.close();
-    const ended = await next(e);
-    // /clear and resume keep the module loaded without another session.start.
-    if (watch === owner) watch = new WatchOwner();
-    return ended;
   });
 };

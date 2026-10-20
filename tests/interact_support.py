@@ -921,7 +921,13 @@ def write_row(path, page):
             "page": str(page),
             "page_key": cleanup_model.page_key(page),
             "server_id": "fixture-server",
-            "row": {"title": page.name, "session_cwd": None, "activity": activity},
+            "row": {
+                "title": page.name,
+                "session_cwd": None,
+                "activity": activity,
+                "on_user": 0,
+                "threads": {"open": 0, "unread": 0},
+            },
         },
     )
 

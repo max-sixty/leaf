@@ -213,6 +213,8 @@ class PageStateService:
         name the inputs the publisher keeps, so a concurrent writer invalidates
         this publication on its next look. Owed updates and reply bodies stay in
         the page's projection; the row carries their counts, never their copies.
+        The user's counts are the active view's, as the Leaf panel's marks count
+        them: On me, open threads, and threads holding content they haven't read.
         """
         from ..server_rows import compact_activity
 
@@ -222,6 +224,13 @@ class PageStateService:
             _source_error,
         ):
             work = context.work
+            projected = served_browser.project_browser_state(context)
+            view = (
+                projected[0]["views"][str(context.active["revision"])]
+                if projected is not None
+                else None
+            )
+            threads = view["thread"]["threads"] if view is not None else []
             title = (
                 context.revision(context.active["revision"]).document.authoring.title
                 if context.active is not None
@@ -231,6 +240,11 @@ class PageStateService:
                 "title": title or self.page_dir.name,
                 "session_cwd": context.presence["session_cwd"],
                 "activity": compact_activity(work.activity),
+                "on_user": len(view["queues"]["on_user"]) if view is not None else 0,
+                "threads": {
+                    "open": sum(not thread["resolved"] for thread in threads),
+                    "unread": sum(bool(thread["unread"]) for thread in threads),
+                },
             }
             live = {
                 key: context.presence[key]

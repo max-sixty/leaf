@@ -224,9 +224,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
-  `page-layout.md` asks an author to trim or split
-  ([why a workspace doesn't scroll](notes/chrome-and-covers.md#decided-a-workspace-is-a-screen)).
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
@@ -406,13 +403,18 @@ on 2026-10-07.
 - **Answer a comment that arrived before the page changed hands.** Its new owner
   has no delivery to answer it from. A command that hands out a fresh recovery
   delivery for it would give one.
-- **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
-  a stop, the agent writes one more message, and where the harness shows only the last
-  message (Claude Code's focus mode) that message replaces the answer: a user who typed
-  `/whereami` twice saw two notes about a missing watcher and never the briefing. #1502
-  removed that trigger, since the hook now does the watching. **Unconfirmed:** check
-  whether any remaining block, such as input the turn still owes an answer to, reaches
-  a turn whose answer is already written.
+- **Decide whether an owed answer may continue a turn whose answer is written.**
+  Where a watch follows the turn, Stop no longer hands new input into it
+  (`hook_transport`), but it still continues the turn once for an update picked up
+  and unanswered, and for a page it could not re-vendor. The agent then writes one
+  more message, which Claude Code's focus view shows in place of the turn's answer:
+  9 of the 65 Leaf continuations in Max's sessions of 2026-10-10 to 10-19 were these,
+  as when a report on "check leaf, do #18" gave way to "I've answered the last item
+  the hook flagged", and one page vendored by a newer Leaf than the session's
+  repeated its finding at every turn. Waking a turn of its own for the reminder
+  keeps the answer, but needs a record that it reminded, or an agent that won't act
+  is woken without end; dropping the reminder leaves the next prompt's one. Max to
+  choose.
 - **Decide how a Codex delivery avoids joining another client's turn.** App Server's
   `turn/start` steers into a running turn. A follow-up the user queued in Codex starts
   just after Leaf's idle check reads idle, so Leaf's delivery joins it and Leaf posts
@@ -613,7 +615,14 @@ export` writes a file that boots the page's own runtime offline, and that file
   startup takes up to a couple of seconds. Trigger: a page presents in about 250 ms
   consistently, measured with `leaf-dev probe`'s startup phases on the examples;
   then delete the hold, which a 2026-10-14 trial measured at 240 runtime and 540
-  test lines.
+  test lines. On 2026-10-19 it had not fired. Reloading each example five times
+  on one running server, the median `startup.presented.at` was 167 to 238 ms on
+  six of nine examples, but 289 ms on `code-comparison`, 335 ms on `command-hub`
+  and 487 ms on `pr-walkthrough`. With a 4x CPU throttle the same medians were
+  632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four examples, a
+  server's first load took 120 to 230 ms longer than its reloads.
+  `uv run leaf-dev probe EXAMPLE [--cpu-throttle 4]` reads one first load; the
+  Mac's load average was near 12 on 18 cores throughout.
 - **Unconfirmed — Let Lit follow what a widget reads.** `LeafElement`
   (`runtime/leaf-element.js`) collects what `render()` reads with Leaf's own
   `collectReads` over Preact signals and outside readings such as the clock, because

@@ -33,6 +33,10 @@
     /* A press's face: as tall as a line of answers holding only words, so a press
        arriving in one moves nothing. Under a finger it is the row's line. */
     --lf-fp-press: 28px;
+    /* How far a thread's words stand inside its view's 6px padding: the head's, the
+       quote's and each message's, so all three start on one edge. What marks them
+       off, the quote's rule and a rewrite's frame, stands at the padding. */
+    --lf-fp-inset: 8px;
     /* The panel is as wide as its measure (`--lf-fp-max`, wider while the field has
        more room) where the window holds it, and the window less a gutter where not. */
     --lf-fp-max: 540px;
@@ -788,7 +792,7 @@
     align-items: center;
     gap: 4px;
     min-height: 42px;
-    padding: 6px 6px 0 14px;
+    padding: 6px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
   }
   .lf-fp-head:empty {
@@ -1166,9 +1170,11 @@
   /* The quote here only says what the thread is about: "On the page" in the head is the
      way to the words, so it takes no press, no aim's room and no title naming a jump; a
      detached quote's title still says where its words went. The head names it, so the
-     rule outranks a card's `.lf-quote` (chrome.css), which this file comes ahead of. */
+     rule outranks a card's `.lf-quote` (chrome.css), which this file comes ahead of.
+     Its words start on the thread's edge, the 1px rule before them included. */
   .lf-fp-quote-head > .lf-fp-quote {
     margin: 0;
+    padding-inline-start: calc(var(--lf-fp-inset) - 1px);
     min-width: 0;
     min-height: 0;
     cursor: default;
@@ -1376,11 +1382,17 @@
   }
   /* The thread's messages, one part each, read as a card's transcript: a message's
      words stand 16px over the next one's author, the parts' 4px insets included, and
-     the first author 16px under the quote, the quote head's 12px included. */
+     the first author 16px under the quote, the quote head's 12px included. Each part's
+     own box starts at the view's padding, as the quote's rule does, and insets its
+     words onto the thread's edge. */
   .lf-fp-messages {
     display: grid;
     gap: 8px;
-    padding: 0 8px;
+    padding-inline-end: 8px;
+  }
+  .lf-fp-messages > .lf-primary-part {
+    --lf-thread-text-inset: var(--lf-fp-inset);
+    padding-inline-start: var(--lf-thread-text-inset);
   }
   .lf-fp-messages > .lf-primary-part > .lf-msg {
     margin-top: 0;
@@ -1388,7 +1400,7 @@
   /* A rewrite in a thread's view is the reply box of the field below it, at the field's
      height, frame included: its words keep the message's face, set in the field's
      line, and its place, the box reaching back over their inset as in a card's
-     transcript (response.css). */
+     transcript (response.css), as far as the quote's rule. */
   .lf-fp-messages .lf-msg-editor {
     margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
   }
@@ -1571,7 +1583,7 @@
     color: var(--lf-fp-muted);
     font-size: 12px;
   }
-  .lf-fp-state b {
+  .lf-fp-summary {
     color: var(--ink);
     font-size: 13px;
     font-weight: 600;
@@ -1592,16 +1604,16 @@
   }
   /* A tone's words wear its ink, which reads as text on the menu's ground; the bare
      tone is for marks, and the amber one reads 3.65:1 there. */
-  .lf-fp-state[data-tone="working"] b {
+  .lf-fp-state[data-tone="working"] .lf-fp-summary {
     color: var(--accent);
   }
-  .lf-fp-state[data-tone="listening"] b {
+  .lf-fp-state[data-tone="listening"] .lf-fp-summary {
     color: var(--ok-ink);
   }
-  .lf-fp-state[data-tone="away"] b {
+  .lf-fp-state[data-tone="away"] .lf-fp-summary {
     color: var(--warn-ink);
   }
-  .lf-fp-state[data-tone="offline"] b {
+  .lf-fp-state[data-tone="offline"] .lf-fp-summary {
     color: var(--danger-ink);
   }
 

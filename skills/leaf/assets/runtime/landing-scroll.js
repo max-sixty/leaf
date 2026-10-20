@@ -11,6 +11,8 @@
  * such as an embedded tab strip; a declared margin and that slot are alternative
  * readings of the same clearance, never added twice. A nearest landing takes its
  * bottom margin too, which clears a pinned foot such as a long thread's reply row.
+ * Sideways it takes the destination's inline margins, so a focused control brought in
+ * from a sideways scroller's end keeps its ring's room there as it does at a foot.
  * Full placement first reveals inner overflow. Both operations stop at this
  * document, so a sample never scrolls its containing page, and a reveal bounded
  * `within` one box stops there. End alignment reveals a tall destination's closing
@@ -37,8 +39,18 @@
  * One in motion is counted as it starts, since the navigation that lands often changes
  * layout first, as opening a disclosure hands a region to a scroller of its own, and
  * the keeper's restore for that change runs before the motion ends.
+ *
+ * A Tab's arrival lands here too, after the browser's own reveal. The browser reveals a
+ * focus arrival only when it counts it out of view: Firefox when less than about a line
+ * of it shows, on either axis, and Chromium across only when none of it shows. So a
+ * control partly past a scroller's edge stayed cut there, a playground's radio at its
+ * pane's foot in Firefox and a link at a wide table's end in both. An arrival the
+ * browser leaves not already shown lands nearest, reading the margins and padding the
+ * browser's reveal reads; one it showed moves nothing, so a control in a stuck header,
+ * whose margin counts it as shown, stays put.
  */
 import { localScrollBy, scrollAxes } from "./element-frame.js";
+import { deepFocus, onStanding } from "./focus.js";
 import {
   landingBand,
   placeBox,
@@ -51,6 +63,7 @@ import {
 import { scrollersOf } from "./reading-regions.js";
 import { chooseScroll, reachable, pageScroller } from "./scrolling.js";
 import { clippingAxes, nearestScrollBy } from "./rect.js";
+import { nextRender } from "./rendering.js";
 import { renderedParent, renderedUnder } from "./shadow.js";
 
 const land = (box, by, behavior) => {
@@ -222,7 +235,12 @@ export function scrollIntoView(
     if (band) {
       const { left, right, top, bottom } = band;
       const destination = where.getBoundingClientRect();
-      const byX = nearestScrollBy(destination.left, destination.right, left, right);
+      const byX = nearestScrollBy(
+        destination.left - scrollMargin(where, "Left"),
+        destination.right + scrollMargin(where, "Right"),
+        left,
+        right,
+      );
       const byY = inside
         ? nearestScrollBy(destination.top, destination.bottom, top, bottom)
         : 0;
@@ -237,3 +255,12 @@ export function scrollIntoView(
   }
   if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
 }
+
+// A Tab's arrival (see the header), read once the browser's own reveal has moved.
+onStanding((node, cause) => {
+  if (cause !== "step" || !node) return;
+  nextRender(() => {
+    if (deepFocus() === node && !alreadyShown(node))
+      scrollIntoView(node, { block: "nearest" });
+  });
+});

@@ -111,7 +111,7 @@
     "runtime/keyboard/status-context.js": "f436050e56337eff6eb8e78ba365262d7d973d9089170f215fda7fffa50e5a3a",
     "runtime/keyboard/text-entry.js": "3e063ce61d4085e4a847cb1e712265025c698379a9332211f238399de5481ce2",
     "runtime/keyboard/touch-controls.js": "4c9bca49d3881f496aee761653cbc07b6e9fac2c4f32a0a665d6d2865c53d25b",
-    "runtime/landing-scroll.js": "4642800111adcc97e8c3d1c6cd9cf1e2e51f6dc7675681ec4614d2e56d44031d",
+    "runtime/landing-scroll.js": "41a4e53e8502d84fa84878bd583086d36d77fd7b969c4352e609601f6203a062",
     "runtime/layer-client.js": "24c87a5b78155fa05f9a4763e75d3b851e7e8c6a47edbeec31a5cb4e39421e18",
     "runtime/layer-generation.js": "9300945652bb515716c2e75d59925dd48d772d6b9140c800f7b2fb44768eb01e",
     "runtime/leaf-element.js": "3466d35fe5c8bb0d5ee921ebce9ac4c13836c3036f2639afeed06126eccfa1a3",

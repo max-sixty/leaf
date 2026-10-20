@@ -192,6 +192,7 @@ import {
   cancelRender,
   caretAtKey,
   carriedFrom,
+  deepFocus,
   drawn,
   focusDestination,
   focused,
@@ -570,7 +571,12 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
     if (band) {
       const { left, right, top, bottom } = band;
       const destination = where.getBoundingClientRect();
-      const byX = nearestScrollBy(destination.left, destination.right, left, right);
+      const byX = nearestScrollBy(
+        destination.left - scrollMargin(where, "Left"),
+        destination.right + scrollMargin(where, "Right"),
+        left,
+        right
+      );
       const byY = inside ? nearestScrollBy(destination.top, destination.bottom, top, bottom) : 0;
       if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
@@ -579,6 +585,13 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
   }
   if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
 }
+onStanding((node, cause) => {
+  if (cause !== "step" || !node) return;
+  nextRender(() => {
+    if (deepFocus() === node && !alreadyShown(node))
+      scrollIntoView(node, { block: "nearest" });
+  });
+});
 
 // runtime/reading-place.js
 var FOCUSED_PLACE = /* @__PURE__ */ Symbol("live focused place");

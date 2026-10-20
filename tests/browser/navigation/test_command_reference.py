@@ -201,7 +201,12 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     stays selectable, but explains the scope it needs instead of closing and doing
     nothing. Stable command IDs are exposed on the results so words can change without
     breaking this route or tooling built on it."""
-    page = open_page(browser, serve(NOTED_PAGE, comments=2))
+    # Go-to's kind filters need a visible page target; the page's old skip button
+    # used to supply one implicitly.
+    page_with_target = NOTED_PAGE.replace(
+        '<p id="p2">', '<a href="#p1">Jump to the first passage</a><p id="p2">'
+    )
+    page = open_page(browser, serve(page_with_target, comments=2))
     help_el = page.locator(".lf-command-reference")
     search = page.get_by_role("combobox", name="Search commands")
 

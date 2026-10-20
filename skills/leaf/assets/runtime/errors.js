@@ -6,8 +6,8 @@
    text field it concerns, where there is one (`subject`), such as the box a refused
    send's words came back to, and hands back a handle whose `clear()` takes it down
    once it no longer holds. An error nobody clears stays until the user dismisses it.
-   A condition that stands while a reading says so, such as the server being out of
-   reach or the agent's latest save failing its check, holds an error through
+   A condition that stands while a reading says so, such as the server refusing this
+   tab's key or the agent's latest save failing its check, holds an error through
    `holdingError`, which raises it when the condition begins and clears it when it
    ends.
 

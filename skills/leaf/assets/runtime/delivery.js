@@ -14,15 +14,16 @@ import { holdingError, raiseError } from "./errors.js";
 const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
 
-// What an /api/event answer says, read the same way by both senders: "accepted" when
-// the server took the event and returned the state that shows it, "refused" when its
-// refusal is final (event_endpoint.py), and otherwise "incomplete".
-const readEventAnswer = (response, answer) =>
-  response.ok && answer?.ok === true && answer.state
-    ? "accepted"
-    : answer?.final === true
-      ? "refused"
-      : "incomplete";
+/** @typedef {import("../../../../build/browser/contract.js").ServedEventAnswer} EventAnswer */
+// What an /api/event answer says, read the same way by both senders: accepted, with
+// the state that shows the event, or refused for good (`final`, event_endpoint.py).
+// An answer that is neither is incomplete.
+/** @param {Response} response @param {EventAnswer} answer
+ * @returns {answer is Extract<EventAnswer, { ok: true }>} */
+const acceptedAnswer = (response, answer) =>
+  response.ok && !!answer && "state" in answer && !("final" in answer);
+/** @param {EventAnswer} answer @returns {answer is Extract<EventAnswer, { final: true }>} */
+const refusedAnswer = (answer) => !!answer && "final" in answer;
 const applyAnswerState = (apply, state) =>
   apply(state).catch((error) => reportCarried(error, "state in event response"));
 
@@ -70,7 +71,7 @@ export function createDelivery({
         await retry(
           runtime.keyRefused
             ? "Key refused — open Leaf's link in a new tab and the change will send"
-            : "Connection lost — retrying the change…",
+            : "Connection lost — keep this page open while it retries",
         );
         continue;
       }
@@ -95,26 +96,25 @@ export function createDelivery({
         await retry("Couldn't read the answer — retrying the change…");
         continue;
       }
+      /** @type {EventAnswer} */
       const answer = decoded.answer;
-      const reading = readEventAnswer(sent.response, answer);
-      // An accepted answer settles this gesture only once its state holds the receipt.
-      const accepted =
-        reading === "accepted" &&
-        answer.state.browser?.receipts?.find(
+      if (acceptedAnswer(sent.response, answer)) {
+        // An accepted answer settles this gesture only once its state holds the receipt.
+        const accepted = answer.state.browser?.receipts?.find(
           (candidate) => candidate.attempt === event.attempt,
         );
-      if (accepted)
-        return {
-          accepted,
-          application: applyAnswerState(
-            applyAcceptedState,
-            completeData(answer.state, held),
-          ),
-        };
+        if (accepted)
+          return {
+            accepted,
+            application: applyAnswerState(
+              applyAcceptedState,
+              completeData(answer.state, held),
+            ),
+          };
+      }
       if (
-        reading === "refused" &&
-        (!("attempt" in answer) || answer.attempt === event.attempt) &&
-        answer.ok === false
+        refusedAnswer(answer) &&
+        (!("attempt" in answer) || answer.attempt === event.attempt)
       ) {
         return {
           accepted: null,
@@ -194,14 +194,18 @@ export async function deliverBookkeeping(event, applyState) {
     return "unreached";
   }
   if (!response || response.status === 503) return "unreached";
+  /** @type {EventAnswer} */
   let answer;
   try {
     answer = await response.json();
   } catch {
     return "unreached";
   }
-  const reading = readEventAnswer(response, answer);
-  if (answer?.state)
+  if (answer && "state" in answer)
     await applyAnswerState(applyState, completeData(answer.state, held));
-  return reading === "incomplete" ? "unreached" : reading;
+  return acceptedAnswer(response, answer)
+    ? "accepted"
+    : refusedAnswer(answer)
+      ? "refused"
+      : "unreached";
 }

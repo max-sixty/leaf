@@ -21,6 +21,11 @@
    ring and takes its digits, `c` at an element whose own thread is shown continues it,
    and `m` and `t` step from the target.
 
+   Standing is not arriving. The floating panel shows its thread or obligation beside
+   the page (`declareSide`'s `beside`), so the user in it has not arrived at the target,
+   and what follows an arrival, the margin's card and its folded pins, reads `arrivalOf`,
+   which leaves such sides out.
+
    The chrome stands over the page rather than in it and is appended after it,
    so a chrome node measured as a place would put the user behind every obligation and thread
    there is; no reader measures from one that does not stand in an obligation.
@@ -41,13 +46,16 @@ import { obligationPlace } from "./obligations/place.js";
 import { renderedOrder, renderedUnder, under } from "./shadow.js";
 import { pageReadingBlock } from "./reading-place.js";
 
-const sides = new Set();
+// Each side's reading, and whether it shows its target beside the page.
+const sides = new Map();
 
 // A presentation owner's reading of the source target one of its nodes shows, or null.
 // A side is asked of the node the user stands on, inside any shadow tree it is in, so
-// each climbs across shadow roots to its own surface.
-export function declareSide(bridge) {
-  sides.add(bridge);
+// each climbs across shadow roots to its own surface. A side `beside` the page, as the
+// floating panel is, shows its target away from it: the user there stands at the target
+// but has not arrived at it (`arrivalOf`).
+export function declareSide(bridge, { beside = false } = {}) {
+  sides.set(bridge, beside);
   return () => sides.delete(bridge);
 }
 
@@ -70,20 +78,24 @@ export function obligationHolding(items, node) {
   return held?.item ?? null;
 }
 
-export const placeOf = (node) => placeFrom(node, new Set());
+export const placeOf = (node) => placeFrom(node, new Set(), true);
+// Where the user has arrived on the page: where they stand, unless a side beside the
+// page shows the node, which arrives nowhere.
+export const arrivalOf = (node) => placeFrom(node, new Set(), false);
 
-function placeFrom(node, visited) {
+function placeFrom(node, visited, countBeside) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || at === document.body || visited.has(at)) return null;
   visited.add(at);
   // An obligation is the user's current action wherever it is rendered. A source-linked
   // presentation may otherwise stand in authored flow as well as fixed chrome.
   if (obligationHolding(readObligations().all, at)) return at;
-  for (const side of sides) {
+  for (const [side, beside] of sides) {
     const place = side(at);
+    if (place && beside && !countBeside) return null;
     if (place)
       return inChrome(place) && !obligationHolding(readObligations().all, place)
-        ? placeFrom(place, visited)
+        ? placeFrom(place, visited, countBeside)
         : place;
   }
   return inChrome(at) ? null : at;

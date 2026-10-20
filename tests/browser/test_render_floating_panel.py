@@ -864,8 +864,10 @@ def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
 
 
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
-    """Page search's box stands just over the panel's row, where its Previous, Next and
-    ✕ stand, rather than at the window's head."""
+    """Page search's box stands just over the panel's row, where its Select and ✕ stand,
+    rather than at the window's head. The box walks its own matches: its up and down
+    arrows move the count beside them and leave the query's field focused, so the next
+    letter still edits it, and the panel's row holds no Previous or Next."""
     page = floating(browser, serve(LONG_PAGE))
     page.locator("body").focus()
     page.keyboard.press("/")
@@ -876,6 +878,21 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     row = page.locator(".lf-fp-row").bounding_box()
     gap = row["y"] - (box["y"] + box["height"])
     assert 0 <= gap < 24, f"the search box stands {gap:.0f}px over the panel's row"
+
+    previous = search.get_by_role("button", name="Previous match")
+    following = search.get_by_role("button", name="Next match")
+    expect(following).to_have_attribute("aria-disabled", "true")
+    page.keyboard.type("Paragraph 1")
+    count = search.locator(".lf-page-search-status")
+    expect(count).to_have_text("1 of 11")
+    expect(page.locator(".lf-fp-step")).to_have_text(["Select"])
+    following.click()
+    expect(count).to_have_text("2 of 11")
+    previous.click()
+    previous.click()
+    expect(count).to_have_text("11 of 11")
+    page.keyboard.type("0")
+    expect(count).to_have_text("1 of 1")
 
 
 def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):

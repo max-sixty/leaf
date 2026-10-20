@@ -1056,9 +1056,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
   }
   /* Page search's box stands over the floating panel's row, centred on it as the row
-     is, where Select, Previous and Next stand while it is open, with its ✕ at the row's
-     end. It stands on the panel's top, so a row that grows to hold those steps on a
-     narrow phone carries the box up rather than standing under it. */
+     is, where Select stands while it is open, with its ✕ at the row's end. It stands on
+     the panel's top, so a row that grows on a narrow phone carries the box up rather
+     than standing under it. */
   .lf-page-search {
     position: fixed;
     z-index: var(--lf-z-page-search);
@@ -1080,6 +1080,18 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
+  }
+  /* The arrows beside the count wear the field's quiet face, as its clear button does:
+     bare glyphs that take the chip's wash under the pointer, so the box reads as one
+     control rather than a field with buttons bolted on. */
+  .lf-page-search-step {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+  }
+  .lf-page-search-step:not([aria-disabled="true"]):hover {
+    background: var(--chip);
+    color: var(--ink);
   }
   .lf-legend-box {
     position: absolute;

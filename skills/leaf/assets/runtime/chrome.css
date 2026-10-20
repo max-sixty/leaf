@@ -2234,6 +2234,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     text-align: right;
     white-space: nowrap;
   }
+  .lf-page-search-step {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+  }
+  .lf-page-search-step:not([aria-disabled=true]):hover {
+    background: var(--chip);
+    color: var(--ink);
+  }
   .lf-legend-box {
     position: absolute;
     pointer-events: none;

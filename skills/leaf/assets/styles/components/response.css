@@ -51,6 +51,31 @@
   background: transparent;
   color: var(--muted);
 }
+/* An error about the box stands over its words and its actions, in the danger's ink,
+   until the user comes back to them (composing/input.js). It wraps within the box's
+   lines and takes no room of its own, so the box keeps its size when it comes and goes.
+   Its words stop at the last whole line the box holds, at any line height, so no
+   line's top peeks into the inset below. */
+.lf-compose-error {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--lf-compose-pad-block) var(--lf-compose-pad-inline-start);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--danger-ink);
+  font: 500 var(--t-5) / 1.5 var(--sans);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+.lf-compose-error > span {
+  display: block;
+  max-height: round(down, 100%, 1lh);
+  overflow: hidden;
+}
 .lf-compose-field > leaf-text:not(.lf-fab-input) {
   display: block;
   box-sizing: border-box;
@@ -391,6 +416,7 @@ button.lf-media-open {
   outline: var(--focus-ring);
   outline-offset: 0;
   border-color: transparent;
+  --lf-wears-ring: 1;
 }
 /* Floating comment surfaces have one elevation. The page card reserves the ring's
    room inside its scrollport; a filter lets its shadow extend beyond that clip. */

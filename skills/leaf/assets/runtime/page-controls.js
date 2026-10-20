@@ -13,7 +13,7 @@
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
  * A `gesture` row is the next step of something the user is doing right now, such as
- * commenting on the words a touch just selected, or walking a search's matches. It
+ * commenting on the words a touch just selected, or selecting a search's match. It
  * stands in the panel's row while that gesture holds it, and the higher rank is the
  * nearer gesture: one contributor's steps stand at a time. An `exit` row is the way out
  * of the stance the user stands in (keyboard/touch-controls.js), which stands at the
@@ -67,7 +67,7 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   key: string,
  *   rank: number,
  *   label: string | (() => string),
- *   group: string,
+ *   group: string | (() => string),
  *   value?: string | (() => string),
  *   shortcut?: readonly string[] | (() => readonly string[]),
  *   copies?: string | (() => string),
@@ -80,14 +80,9 @@ const read = (value) => (typeof value === "function" ? value() : value);
  * }} row
  */
 export function registerPageControl(row) {
-  if (
-    !row.key ||
-    !Number.isFinite(row.rank) ||
-    !row.label ||
-    !GROUPS.includes(row.group)
-  )
+  if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group)
     throw new TypeError(
-      `Page control ${row.key} needs a key, a numeric rank, a label and one of the groups ${GROUPS.join(", ")}`,
+      `Page control ${row.key} needs a key, a numeric rank, a label and a group`,
     );
   if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
   rows.set(row.key, Object.freeze({ ...row, sequence: sequence++ }));
@@ -105,21 +100,26 @@ export function pageControls() {
   );
   return offered
     .filter((row) => !row.gesture || row.rank === nearest)
-    .map((row) =>
-      Object.freeze({
+    .map((row) => {
+      const group = read(row.group);
+      if (!GROUPS.includes(group))
+        throw new TypeError(
+          `Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`,
+        );
+      return Object.freeze({
         key: row.key,
         label: read(row.label),
         value: read(row.value) ?? "",
         shortcut: read(row.shortcut) ?? EMPTY,
-        group: row.group,
+        group,
         copies: read(row.copies) ?? "",
         urgent: read(row.urgent) ?? null,
         gesture: Boolean(row.gesture),
         exit: Boolean(row.exit),
         disabled: Boolean(read(row.disabled)),
         press: row.press ?? null,
-      }),
-    );
+      });
+    });
 }
 
 /** Say that a row's answer moved outside the page's readings. Several in one script are

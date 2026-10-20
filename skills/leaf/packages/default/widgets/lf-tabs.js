@@ -54,8 +54,9 @@
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, then its obligations' state on a reserved line: an open mark
- * while any obligation the panel holds is unanswered, and once every one is answered a check, with
- * the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
+ * and "To answer" while any obligation the panel holds is unanswered, the words a tally counts
+ * by, and once every one is answered a check, with the answer's own words where the panel holds
+ * one obligation. So a queue shows each obligation's state
  * and how far the user has worked through it, and an undo that reopens an obligation puts the
  * open mark back. Which obligations a panel holds is `obligationsIn` (obligations/place.js), read from the
  * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel
@@ -404,7 +405,15 @@ export class TabSet extends HTMLElement {
       const done = items.filter((item) => item.status === "answered");
       const answered = items.length > 0 && done.length === items.length;
       const only = items.length === 1 ? items[0] : null;
-      const answer = answered && only ? answerWords(only) : "";
+      // The open mark says what it means in words beside it, as the check beside an
+      // answer does, so no reader needs a legend, a hover or a screen reader for it.
+      const answer = answered
+        ? only
+          ? answerWords(only)
+          : ""
+        : items.length
+          ? "To answer"
+          : "";
       if (slot) {
         keeps(
           slot,
@@ -422,7 +431,7 @@ export class TabSet extends HTMLElement {
           ? ""
           : !answered
             ? only
-              ? "Unanswered"
+              ? "To answer"
               : `${done.length} of ${items.length} answered`
             : only
               ? answer
@@ -522,11 +531,15 @@ export class TabSet extends HTMLElement {
     const wasFlow = this.#pageFlow;
     // The first tab set directly in the page is its navigation, whatever else the page
     // holds beside it; a later one is a tabbed section like any nested set. A page's
-    // parts are its navigation wherever they stand in it.
+    // parts are its navigation where the page lays them out, in a `main` that is no
+    // Layout's box (layouts.css, `--lf-layout-box`), as the theme and the prepaint
+    // read it; in any other `main` they stand as if placed anywhere else.
     const main = this.parentElement;
     this.#root =
       Boolean(main?.matches("body > main")) &&
-      (this.#parts || main.querySelector(":scope > lf-tabs") === this);
+      (this.#parts
+        ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
+        : main.querySelector(":scope > lf-tabs") === this);
     this.#pageFlow = this.#root && !this.#side;
     if (!this.#parts) keeps(this, "data-lf-tabs-flow", this.#pageFlow ? "page" : "box");
     this.#declareHeader();

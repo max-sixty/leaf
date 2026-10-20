@@ -105,7 +105,7 @@ import {
 import "./bundle-visible-target-parts.js";
 import {
   pointBand
-} from "./bundle-content-layout.js";
+} from "./bundle-page-controls.js";
 import {
   chromeForeground,
   chromeRoot,
@@ -2214,6 +2214,10 @@ function createMarginProjection({
     const entry = closestAcross(node, ".lf-margin-entry")?.lfEntry;
     return entry && threadReading(entry) ? threadIdOf(entry) : null;
   };
+  const pointedThread = () => {
+    const entry = hoveredHost?.isConnected ? hoveredHost.lfEntry : null;
+    return entry && threadReading(entry) ? threadIdOf(entry) : null;
+  };
   const threadIdsOf = (entry) => threadReading(entry).items.map((item) => sourceItem(item).thread.id);
   const seatedOnPage = (id) => claimed(id) || [
     ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`)
@@ -2412,6 +2416,7 @@ function createMarginProjection({
     activateMarginEntry,
     closePreview,
     entryThread,
+    pointedThread,
     inlineThreadView,
     keyboardRung,
     optionsRung,
@@ -2436,13 +2441,23 @@ var PENDING = "lf-pending";
 var REACT = "lf-react";
 var HOVER = "lf-mark-hover";
 var HERE = "lf-mark-here";
-function createAnchorPaint({ targetPaint, pointer, standingThreadId: standingThreadId2 }) {
+function createAnchorPaint({
+  targetPaint,
+  pointer,
+  standingThreadId: standingThreadId2,
+  rowThread,
+  threadRow,
+  marginThread
+}) {
   const marked = /* @__PURE__ */ new Map();
   const visualTargets = /* @__PURE__ */ new Map();
   let pendingMarks = [];
   let pendingOutline = [];
   let actionOutline = [];
   let hovering = null;
+  let hoverFromRow = false;
+  let hoverParts = [];
+  let hoveredRow = null;
   let hereParts = [];
   let hoverFrame = 0;
   let mounted = false;
@@ -2456,9 +2471,10 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId: standingThr
   function paintVisualStates() {
     const pending = new Set(pendingOutline);
     const action = new Set(actionOutline);
+    const hover = new Set(elementMarks(hoverParts));
     const here = new Set(elementMarks(hereParts));
     const elements = new Set(
-      [pending, action, here].flatMap((states) => [...states]).filter((element) => element instanceof Element)
+      [pending, action, hover, here].flatMap((states) => [...states]).filter((element) => element instanceof Element)
     );
     const focus = new Set(
       [...elements].filter((element) => element.matches("[data-lf-focus]"))
@@ -2466,6 +2482,7 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId: standingThr
     const sources = [
       ["pending", pending],
       ["action", action],
+      ["hover", hover],
       ["focus", focus],
       ["here", here]
     ];
@@ -2493,15 +2510,29 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId: standingThr
       element.classList.toggle("lf-action-target", action.has(element));
     }
   }
-  function paintHover(id) {
+  function paintHover(id, fromRow, repaintVisuals = true) {
     hovering = id;
+    hoverFromRow = fromRow;
     const where = marksFor(id);
+    const parts = fromRow ? where.filter((mark) => mark instanceof Element) : [];
+    for (const part of hoverParts)
+      if (!parts.includes(part)) part.classList.toggle(HOVER, false);
+    for (const part of parts) part.classList.toggle(HOVER, true);
+    hoverParts = parts;
     CSS.highlights.set(
       HOVER,
       Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
         priority: 1
       })
     );
+    if (repaintVisuals) paintVisualStates();
+  }
+  function markRow(id) {
+    const row = id && marksFor(id).length ? threadRow(id) : null;
+    if (row === hoveredRow) return;
+    hoveredRow?.classList.toggle(HOVER, false);
+    row?.classList.toggle(HOVER, true);
+    hoveredRow = row;
   }
   function paintStanding(repaintVisuals = true) {
     const where = marksFor(standingThreadId2());
@@ -2533,13 +2564,17 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId: standingThr
     return null;
   }
   function refreshHover() {
-    if (hoverFrame || !marked.size && !hovering) return;
+    if (hoverFrame || !marked.size && !hovering && !hoveredRow) return;
     hoverFrame = nextRender(() => {
       hoverFrame = 0;
       const at = pointer();
       const onMark = markAt(at.x, at.y);
       document.body.classList.toggle("lf-over-mark", Boolean(onMark));
-      if (onMark !== hovering) paintHover(onMark);
+      const row = rowThread();
+      const id = row ?? onMark;
+      if (id !== hovering || Boolean(row) !== hoverFromRow)
+        paintHover(id, Boolean(row));
+      markRow(id ?? marginThread());
     });
   }
   function paint({ readings, draft, action }) {
@@ -2584,7 +2619,7 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId: standingThr
       Object.assign(new Highlight(...pending), { priority: 3 })
     );
     paintStanding(false);
-    if (hovering) paintHover(hovering);
+    if (hovering) paintHover(hovering, hoverFromRow, false);
     paintVisualStates();
     refreshHover();
   }
@@ -2604,11 +2639,16 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId: standingThr
     actionOutline = [];
     paintOutlines(before);
     for (const element of hereParts) element.classList.toggle(HERE, false);
+    for (const element of [...hoverParts, hoveredRow])
+      element?.classList.toggle(HOVER, false);
     for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
     targetPaint.setTargets([]);
     pendingMarks = [];
     visualTargets.clear();
     hovering = null;
+    hoverFromRow = false;
+    hoverParts = [];
+    hoveredRow = null;
     hereParts = [];
   }
   return {

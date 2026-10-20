@@ -1538,6 +1538,11 @@ export function createMarginProjection({
     const entry = closestAcross(node, ".lf-margin-entry")?.lfEntry;
     return entry && threadReading(entry) ? threadIdOf(entry) : null;
   };
+  // The thread whose margin entry the pointer is on, the one its card shows first, or null.
+  const pointedThread = () => {
+    const entry = hoveredHost?.isConnected ? hoveredHost.lfEntry : null;
+    return entry && threadReading(entry) ? threadIdOf(entry) : null;
+  };
   const threadIdsOf = (entry) =>
     threadReading(entry).items.map((item) => sourceItem(item).thread.id);
   // Only a page-owned seat or an exact widget-local placement takes the thread's
@@ -1841,6 +1846,7 @@ export function createMarginProjection({
     activateMarginEntry,
     closePreview,
     entryThread,
+    pointedThread,
     inlineThreadView,
     keyboardRung,
     optionsRung,

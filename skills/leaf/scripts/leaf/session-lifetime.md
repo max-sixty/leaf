@@ -272,9 +272,13 @@ or the host:
 
 Every watcher watches every page the session holds, re-reading the set on each pass,
 and every transport hands over the same envelope (`../../references/event-batches.md`,
-"One envelope on every transport"). On Codex, the adapter and the tool and Stop hooks
-share one task's delivery records; `codex.py` states how a record is captured,
-offered, accepted and receipted, and how an App Server client binds a turn's reply.
+"One envelope on every transport"). What each delivers is `delivery.deliverable`: the
+input past the cursor, and each update still owed whose `answer.ref` the page's owner
+cannot use, so a page that changes hands brings its new owner, in its first delivery,
+the updates the previous owner received and left unanswered. On Codex, the adapter and
+the tool and Stop hooks share one task's delivery records; `codex.py` states how a
+record is captured, offered, accepted and receipted, and how an App Server client
+binds a turn's reply.
 
 ### The hook
 

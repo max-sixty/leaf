@@ -208,6 +208,7 @@
     outline: var(--focus-ring);
     outline-offset: 0;
     border-radius: var(--r);
+    --lf-wears-ring: 1;
   }
   :is(.lf-fp-field, .lf-fp-response) {
     anchor-name: --lf-fp-field;
@@ -286,18 +287,14 @@
     color: var(--danger-ink);
     font-weight: 500;
   }
-  .lf-fp-error-cover {
-    position: absolute;
-    inset: 0;
-    margin: 0;
+  .lf-fp-field .lf-compose-error {
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     background: var(--lf-fp-surface);
-    color: var(--danger-ink);
     font: 500 14px / 22px var(--sans);
     white-space: nowrap;
-    overflow: hidden;
+  }
+  .lf-fp-field .lf-compose-error > span {
     text-overflow: ellipsis;
-    cursor: text;
   }
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-tone=working]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
@@ -928,6 +925,9 @@
   .lf-fp-thread[data-resolved] .lf-fp-label {
     color: var(--lf-fp-muted);
   }
+  .lf-fp-thread.lf-mark-hover {
+    background: var(--mark-hover);
+  }
   .lf-fp-quote-head {
     display: grid;
     justify-items: start;
@@ -1300,7 +1300,7 @@
     color: var(--lf-fp-muted);
     font-size: 12px;
   }
-  .lf-fp-state b {
+  .lf-fp-summary {
     color: var(--ink);
     font-size: 13px;
     font-weight: 600;
@@ -1317,16 +1317,16 @@
     overflow: hidden;
     height: calc(var(--lines) * 1lh);
   }
-  .lf-fp-state[data-tone=working] b {
+  .lf-fp-state[data-tone=working] .lf-fp-summary {
     color: var(--accent);
   }
-  .lf-fp-state[data-tone=listening] b {
+  .lf-fp-state[data-tone=listening] .lf-fp-summary {
     color: var(--ok-ink);
   }
-  .lf-fp-state[data-tone=away] b {
+  .lf-fp-state[data-tone=away] .lf-fp-summary {
     color: var(--warn-ink);
   }
-  .lf-fp-state[data-tone=offline] b {
+  .lf-fp-state[data-tone=offline] .lf-fp-summary {
     color: var(--danger-ink);
   }
   .lf-fp-leaf {
@@ -2232,13 +2232,38 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: var(--raise-2);
   }
   .lf-page-search-status {
-    min-width: 0;
+    min-width: min-content;
+    margin-inline-start: 6px;
     min-height: 1lh;
     color: var(--muted);
     font-size: var(--t-6);
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
+  }
+  .lf-page-search-box::part(input) {
+    flex: 1 1 4em;
+  }
+  .lf-page-search-status > span {
+    min-inline-size: max(100%, max-content);
+  }
+  .lf-page-search-box::part(end) {
+    flex-shrink: 1;
+    min-inline-size: 0;
+  }
+  .lf-page-search-step {
+    flex: none;
+    margin-inline-start: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+  }
+  .lf-page-search-status + .lf-page-search-step {
+    margin-inline-start: 4px;
+  }
+  .lf-page-search-step:not([aria-disabled=true]):hover {
+    background: var(--chip);
+    color: var(--ink);
   }
   .lf-legend-box {
     position: absolute;

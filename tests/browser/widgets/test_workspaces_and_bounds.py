@@ -215,6 +215,62 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     fills_the_window(page, workspace, True)
 
 
+def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):
+    """On a phone the workspace flows and the page scrolls, and its header sticks at the
+    window's top, so a tally's Next on me stays under the pointer that pressed it. The
+    obligation it lands on stands below the header, which the landing clears, and a
+    tab set's sticky strip sticks under it."""
+
+    def item(key):
+        return (
+            f'<lf-tab id="t-{key}" label="{key}"><lf-ask id="{key}-decision">'
+            f'<h2>Pick the {key}</h2><div style="height: 900px"></div>'
+            f'<lf-options id="{key}" choose><lf-option id="{key}-a">Alpha</lf-option>'
+            "</lf-options></lf-ask></lf-tab>"
+        )
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "A phone queue",
+                '<header><h1>Which alerts should still page?</h1><p id="status">'
+                '<lf-tally id="left" for="queue" next></lf-tally>'
+                '<span class="tag warn">7 mostly noise</span></p></header>'
+                '<lf-tabs id="queue" list="side">'
+                + item("first")
+                + item("second")
+                + "</lf-tabs>"
+                '<lf-tabs id="views"><lf-tab id="v-one" label="One">'
+                '<div id="v-long" style="height: 1600px"></div></lf-tab>'
+                '<lf-tab id="v-two" label="Two"><p>Two</p></lf-tab></lf-tabs>',
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 390, 844)
+    button = page.locator("#left").get_by_role("button", name="Next on me")
+    before = button.bounding_box()
+    button.click()
+    expect(page.locator("#first-decision")).to_be_focused()
+    button.click()
+    second = page.locator("#second-decision")
+    expect(second).to_be_focused()
+    scroll_settled(page)
+    assert page.evaluate("() => document.scrollingElement.scrollTop") > 0
+    assert button.bounding_box() == before
+    header = page.locator("main > header").bounding_box()
+    assert second.bounding_box()["y"] >= header["y"] + header["height"], (
+        second.bounding_box(),
+        header,
+    )
+    # A tab set in the body sticks its strip under the header, not behind it.
+    page.locator("#v-long").evaluate("el => el.scrollIntoView({block: 'center'})")
+    scroll_settled(page)
+    strip = page.locator("#views > .lf-tabstrip").bounding_box()
+    assert strip["y"] >= header["y"] + header["height"] - 1, (strip, header)
+
+
 PANE_BAND_PAGE = leaf_page(
     "A pane that opens on its words",
     """

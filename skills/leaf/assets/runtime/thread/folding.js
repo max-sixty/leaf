@@ -25,7 +25,7 @@ export async function settleThread({
   prepareLanding,
   pendingEntries,
   actions,
-  retainReversal,
+  retainGesture,
 }) {
   if (pendingSettlement(pendingEntries(), parent())) return;
   const landing = prepareLanding?.();
@@ -35,7 +35,7 @@ export async function settleThread({
     : actions.resolve(key, { attempt });
   if (!answer) return;
   notice(resolved ? "Reopened the thread" : "Resolved the thread");
-  if (landing) retainReversal(attempt, landing.reverse);
+  if (landing) retainGesture(attempt, { reverse: landing.reverse });
   await landGesture({
     landing,
     answer,

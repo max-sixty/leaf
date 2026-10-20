@@ -19,6 +19,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    scroll_settled,
     sending,
     stamp_page,
     wait_for_revision,
@@ -661,3 +662,43 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     expect(page.locator(".lf-fp-view:not([data-leaving]) .lf-fp-empty")).to_have_text(
         re.compile(r"Nothing waiting on \S+\.")
     )
+
+
+def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
+    """With On me open, `m` lands a suggestion the view would cover above the view,
+    since every landing clears the panel's whole box rather than its row alone
+    (theme.css, `--lf-panel-reach`). The suggestion ends a paragraph whose start the
+    arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
+    after it fill the list, so the view stands most of the window tall."""
+    filler = "".join(f"<p>Paragraph {n} of the release notes.</p>" for n in range(30))
+    asks = "".join(
+        f'<lf-ask id="ask-{n}"><h2>Question {n}</h2><lf-options id="pick-{n}" choose>'
+        f'<lf-option id="yes-{n}">Yes</lf-option><lf-option id="no-{n}">No</lf-option>'
+        "</lf-options></lf-ask>"
+        for n in range(10)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Suggestions",
+                f"<h1>Suggestions</h1>{filler}"
+                '<p id="forms">'
+                + "".join(f"Line {n} of the packing list.<br>" for n in range(8))
+                + 'Bring a notebook.<lf-suggestion id="insert"><lf-new> A pencil is '
+                "useful too.</lf-new></lf-suggestion></p>"
+                f"{filler}{asks}",
+            )
+        ),
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    card = page.locator(".lf-fp-card")
+    suggestion = page.locator("#insert")
+    page.keyboard.press("m")
+    expect(suggestion).to_be_focused()
+    scroll_settled(page)
+    box = suggestion.bounding_box()
+    assert box["y"] >= 0
+    assert box["y"] + box["height"] <= card.bounding_box()["y"]

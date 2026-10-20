@@ -371,7 +371,7 @@ button.lf-media-open {
   inset-inline-end: anchor(right);
   translate: 0 -50%;
   display: inline-flex;
-  gap: 4px;
+  gap: var(--lf-msg-edit-gap);
 }
 .lf-msg-edit-actions > .lf-msg-control {
   position: static;
@@ -383,10 +383,10 @@ button.lf-media-open {
   font: 600 var(--t-6)/1 var(--sans);
 }
 .lf-msg-edit-actions > .lf-msg-edit-cancel {
-  inline-size: max(52px, var(--aim-floor));
+  inline-size: var(--lf-msg-edit-cancel);
 }
 .lf-msg-edit-actions > .lf-msg-edit-save {
-  inline-size: max(40px, var(--aim-floor));
+  inline-size: var(--lf-msg-edit-save);
 }
 .lf-msg-edit-actions > .lf-msg-edit-save::before {
   display: none;

@@ -29,10 +29,10 @@ plain `--print` nothing watches after the run, so Stop hands the input into the 
 it continues.
 
 For an update already picked up and still owed an answer, the hook reminds the
-agent by naming the delivery that holds its answer reference. It captures the
-update again only when the page's current owner has no usable reference, as when
-another session took the page (`PagePlan.recovery`). A reminder does not make an
-update pending again or reserve a Codex offer.
+agent by naming the delivery that holds its answer reference. An update the page's
+current owner holds no usable reference for, as when another session received it
+before the page changed hands, is deliverable again (`delivery.deliverable`), so
+the hook hands it over with the owner's other input.
 
 The hook confirms an inline delivery itself (`receive_held`), so the updates read
 Picked up without waiting for the model, and the envelope's `acknowledge` is null.
@@ -58,8 +58,8 @@ after it starts, its updates still read Picked up; App Server turns behave the s
 Confirmed input can still miss the context, as when the session ends after the hook
 confirms and before the harness reads its output. The input is not offered again as
 new. An update that owes an answer stays owed, and the owner's next prompt or first
-Stop hook names its original pointer or captures it again; an update that owes none
-is lost.
+Stop hook names its original pointer, or hands it over again where that pointer is
+unreadable; an update that owes none is lost.
 """
 
 import json
@@ -120,9 +120,9 @@ def restart(obligations: list[dict]) -> str:
 class PagePlan:
     """A session-owned page read once under its transaction.
 
-    Pending and recovery batches, response debt and watcher readiness come from
-    one log, cursor, status and ownership snapshot. Planning never records a
-    pickup. The caller selects which pending batches its transport can hand over.
+    The deliverable batch, response debt and watcher readiness come from one log,
+    cursor, status and ownership snapshot. Planning never records a pickup. The
+    caller selects which pending batches its transport can hand over.
     `unwritable` says why this Leaf may record no pickup there, or is None
     (`event_contracts.write_refusal`). `unready` is what re-vendoring the page
     before the reading left for the agent, or None (`vendoring.renew_layer`).
@@ -135,7 +135,6 @@ class PagePlan:
     state: dict
     pending: list[dict]
     batch: dict | None
-    recovery: dict | None
     owed: list[dict]
     acknowledged: list[dict]
     watched: bool
@@ -175,10 +174,10 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         break
                 if claim is None or claim["id"] != session_id:
                     continue
-                pending = deliverable(page)
+                pending = deliverable(page, work.obligations)
                 watched = harness.watcher_live(listening=state["listening"])
                 # A reference into a delivery an earlier Leaf wrote is no use to
-                # this one, which cannot read it, so its update is captured again.
+                # this one, which cannot read it, so its update is deliverable again.
                 owed = [
                     {
                         **item,
@@ -193,9 +192,6 @@ def read_plans(session_id: str) -> list[PagePlan]:
                     else item
                     for item in turn_obligations(state, watched=watched)
                 ]
-                recovery_ids = {
-                    item["input"] for item in owed if "ref" not in item["answer"]
-                }
                 responses = {item["input"]: item["answer"] for item in work.obligations}
                 plans.append(
                     PagePlan(
@@ -207,18 +203,6 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         pending,
                         batch_data(page_dir, page, pending, responses=responses)
                         if pending
-                        else None,
-                        batch_data(
-                            page_dir,
-                            page,
-                            [
-                                event
-                                for event in page.events
-                                if event["id"] in recovery_ids
-                            ],
-                            responses=responses,
-                        )
-                        if recovery_ids
                         else None,
                         owed,
                         acknowledged_obligations(state),
@@ -241,7 +225,7 @@ def stop_continues(
     Repeated Stop ignores already reported housekeeping and response debt, but
     genuinely new input still enters the current turn and owes an answer.
     `handing` contains the complete pending batches this transport proposes to
-    offer; acknowledged recovery snapshots never count as new input.
+    offer.
     """
     newly_owed = any(
         "answer" in event for batch in handing for event in batch["events"]
@@ -272,10 +256,14 @@ def remedies(
     for plan in plans:
         if plan.unready or plan.unwritable:
             reasons.append((str(plan.unready or plan.unwritable), None))
-        if plan.owed:
+        # An owed update this output hands over is answered from that delivery.
+        owed = [
+            item for item in plan.owed if (str(plan.page), item["input"]) not in handed
+        ]
+        if owed:
             reasons.append(
                 (
-                    f"{plan.page}: {unanswered(plan.owed, plan.page, 'acknowledged')}{restart(plan.owed)}.",
+                    f"{plan.page}: {unanswered(owed, plan.page, 'acknowledged')}{restart(owed)}.",
                     ANSWER_INSTRUCTION,
                 )
             )
@@ -472,11 +460,6 @@ def carry_turn(
             if "ref" in item["answer"]
         )
     )
-    recovery = [plan.recovery for plan in reminding if plan.recovery]
-    if recovery:
-        # The cursor already passed these inputs, but their receipts gave this
-        # owner no usable refs. Recovery advances no cursor or transport offer.
-        reminders.append(freeze_delivery(recovery)["id"])
     if reminders:
         attention.extend(
             [

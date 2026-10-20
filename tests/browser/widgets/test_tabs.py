@@ -516,9 +516,13 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
-def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
+def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(
     browser, serve
 ):
+    """A full-height page tab's only block takes the height the strip leaves from the
+    first paint, and the box it has then is the box the upgrade keeps. Before upgrade the
+    set lacked the ring's room the upgraded set keeps under the panel, so the block
+    stood 5px taller and shrank when the module drew."""
     source = leaf_page(
         "Workspace page tab",
         '<header><h1>Review</h1></header><lf-tabs id="views">'
@@ -541,7 +545,8 @@ def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
             return page.evaluate("""() => {
               const tab = document.querySelector('#work').getBoundingClientRect();
               const block = document.querySelector('#surface').getBoundingClientRect();
-              return {tab: tab.height, block: block.height, bottom: tab.bottom - block.bottom};
+              return {tab: tab.height, block: block.height, bottom: tab.bottom - block.bottom,
+                      sides: [block.left, block.right]};
             }""")
 
         first = heights()
@@ -550,6 +555,14 @@ def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
         wait_until_ready(page)
         upgraded = heights()
         assert abs(upgraded["bottom"]) <= 1, upgraded
+        assert upgraded["sides"] == pytest.approx(first["sides"], abs=0.5), (
+            first,
+            upgraded,
+        )
+        assert upgraded["block"] == pytest.approx(first["block"], abs=0.5), (
+            first,
+            upgraded,
+        )
     finally:
         for route in boot:
             route.continue_()

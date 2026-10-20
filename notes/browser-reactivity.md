@@ -183,8 +183,9 @@ over two invocations at load 9–17 (18 cores): the POST answered in 41 ms
 reached the screen in 169 ms against 168. Sent stays put because the server's time is off its critical path.
 The answer arrives about 45 ms after the key, while the main thread is still running
 the press (about 52 ms of script in its long frame) and the frame after it (about
-35 ms, the pass `bundle-sample-visibility.js` names). Applying the answer then takes
-about 62 ms of script. What holds the main thread:
+35 ms, the pass `bundle-sample-visibility.js` names). Applying the answer then took
+about 62 ms of script, 54 since the receipt joined the reading's publication (below).
+What holds the main thread:
 
 - **The press and its frame**, about 87 ms of script before the answer can be
   applied.
@@ -203,9 +204,22 @@ about 62 ms of script. What holds the main thread:
   would withhold every margin paint, Questions and ages included. A fix needs the
   continuity step to wait for the margin's paint and the margin to stop depending
   on the thread region committing.
-- **Two publications per answer.** Adopting the reading publishes, then accounting
-  for the pending gesture's receipt (`accountPending`, `application.js`) publishes
-  again, which runs a third thread pass and margin paint (about 6 ms profiled).
+- **The receipt took a second publication.** An accepted comment stayed in the
+  ledger after the reading that logged it, until the pass drawing that reading had
+  run, because held news (`thread/held-news.js`) must read the thread as the user's
+  gesture through that pass. Accounting for the receipt then published again, and
+  the thread region and the margin drew a third time to show nothing new. An
+  accepted gesture other than an action now leaves the ledger in the publication
+  that adopts the reading logging it, and the publisher keeps its thread gestured
+  until it adopts a reading after a pass has drawn that one (`settled`,
+  `build/browser/application.ts`), so a failed pass's retry still reads it. A later
+  reading that changes nothing else then moves `gestured` and costs one thread pass
+  off the critical path. An action still waits for the pass and its release,
+  since a deferred widget can hold its reading past the pass, so a card move still
+  publishes after its pass. Fifteen paired runs over three invocations at load
+  6–10 (18 cores): applying the answer took about 54 ms of script against 62, and
+  Sent fell to 164 ms (interquartile 156–169) against the merge base's 172
+  (164–178), faster in ten pairs of fifteen.
 - **Targets read twice.** The thread presentation reads its targets before and after
   preparation (`readTargets`, `thread/presentation.js`). The second read is not a
   copy of the first: preparation and the thread surfaces have written to the
@@ -216,8 +230,16 @@ about 62 ms of script. What holds the main thread:
   comment before the next frame rather than in the task that handles it, which root
   `AGENTS.md`, "Responsiveness", asks for; that trade is the user's to make.
 
-The server's answer also still reads and hashes every data source (`read_data`),
-about half of the POST's 22 ms in process, and fifteen of the corpus page's sample
-children ask `/api/news` every 250 ms (`LOOK_MS`, `state-feed.js`), each behind a
-CORS preflight. In one timed comment those news answers took 12–40 ms each beside
-the event. Neither moves Sent while the main thread holds it.
+The server's answer read, parsed and hashed every data source again (`read_data`),
+most of a corpus state answer's time in process. Each source's parsed publication and
+its value's revision are now kept under the file's stamp (`data._publication`), so a
+corpus state answer took 4 ms against 19 in process, median of fifteen interleaved
+pairs. Ten paired `bench-latency` comment runs over two invocations at load 4–8, with
+this change and the receipt's single publication: the POST answered in 31 ms (interquartile 22–37)
+against the merge base's 40 (29–53), and Sent read 162 (156–171) against 168
+(165–178).
+
+Fifteen of the corpus page's sample children also ask `/api/news` every 250 ms
+(`LOOK_MS`, `state-feed.js`), each behind a CORS preflight. In one timed comment
+those news answers took 12–40 ms each beside the event, which does not move Sent
+while the main thread holds it.

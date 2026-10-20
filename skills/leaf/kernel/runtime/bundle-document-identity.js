@@ -5276,10 +5276,9 @@ function createPendingLedger({ newAttempt, enqueue }) {
     },
     /** @param {Event[]} receipts */
     present(receipts) {
-      const left = applicationState.present(receipts);
+      applicationState.present(receipts);
       for (const receipt of receipts)
         if (receipt.attempt) handles.get(receipt.attempt)?.resolveRead(receipt);
-      return left.length > 0;
     },
     /** @param {DeliveryHandle} entry */
     nameEvents(entry) {

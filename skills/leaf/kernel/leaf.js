@@ -4286,7 +4286,20 @@ pageSearchStatus.setAttribute("role", "status");
 pageSearchStatus.slot = "end";
 var pageSearchWords = el("span");
 pageSearchStatus.append(pageSearchWords);
-pageSearchInput.append(pageSearchStatus);
+var matchStep = (icon, name2) => {
+  const control = el("button", "lf-btn lf-icon-action lf-page-search-step");
+  control.type = "button";
+  control.tabIndex = -1;
+  control.slot = "end";
+  control.append(iconElement(icon, "lf-action-icon"));
+  control.setAttribute("aria-label", name2);
+  control.title = name2;
+  control.addEventListener("mousedown", (event) => event.preventDefault());
+  return control;
+};
+var previousMatchControl = matchStep("up", "Previous match");
+var nextMatchControl = matchStep("down", "Next match");
+pageSearchInput.append(pageSearchStatus, previousMatchControl, nextMatchControl);
 pageSearchSurface.append(pageSearchInput);
 var noMatches = "No matches";
 var searchCount = (position, total) => `${position} of ${total}`;
@@ -4737,18 +4750,19 @@ ${searchCount(maximum, maximum)}`
       {
         id: "page.search.match.walk",
         keys: ["Tab", "Shift+Tab"],
+        touch: false,
         routes: [
           {
             id: "page.search.match.previous",
             binding: "Shift+Tab",
             title: "Go to the previous search match",
-            touch: "Previous"
+            control: previousMatchControl
           },
           {
             id: "page.search.match.next",
             binding: "Tab",
             title: "Go to the next search match",
-            touch: "Next"
+            control: nextMatchControl
           }
         ],
         title: "matches",
@@ -5971,12 +5985,6 @@ function passing() {
   return { message, visible: Boolean(message) };
 }
 var clock = (at) => new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-var TONE_WORDS = Object.freeze({
-  working: "Working",
-  listening: "Waiting on me",
-  away: "Away",
-  offline: "Not connected"
-});
 function createFloatingPanel({
   wireInput,
   threadActions,
@@ -6587,7 +6595,7 @@ function createFloatingPanel({
       return;
     }
     const reply = answer.keys.find((key) => !message(key).ephemeral);
-    const next = reply ? { key: top.thread, message: reply, label: "New reply" } : { key: top.thread, message: answer.keys[0], label: "New update" };
+    const next = reply ? { key: top.thread, message: reply, label: "New reply" } : { key: top.thread, message: answer.keys[0], label: "New message" };
     if (waiting?.message === next.message) return;
     const arriving = !waiting;
     waiting = next;
@@ -6831,7 +6839,6 @@ function createFloatingPanel({
     const explains = publication ? html`${publication.copy}${publication.examplesUrl ? html`<a href=${publication.examplesUrl}>${publication.examples}</a> ` : nothing}<a href=${publication.installUrl} target="_blank" rel="noopener"
             >${publication.install}</a
           >` : adds && addsParts ? statusParts(addsParts) : adds;
-    const word2 = TONE_WORDS[tone2];
     const part = (name2, text) => (held ? held[name2] : text) ? html`<span
             class="lf-fp-${name2}"
             style=${held ? `--lines: ${held[name2]}` : nothing}
@@ -6883,10 +6890,10 @@ function createFloatingPanel({
         data-tone=${tone2 || nothing}
         ?data-held=${held !== null}
       >
-        <b>${word2 ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
-      "summary",
-      word2 ? summaryParts ? statusParts(summaryParts) : summary : ""
-    )}${part("explain", explains)}
+        ${part("summary", summaryParts ? statusParts(summaryParts) : summary)}${part(
+      "explain",
+      explains
+    )}
       </div>
       ${seats2.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }

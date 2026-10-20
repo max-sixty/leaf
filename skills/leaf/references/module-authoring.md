@@ -175,7 +175,10 @@ the box it keeps. `leaf package check --render` reports a widget that moves as
   read nothing from the log; it may move authored nodes within the host, and returns the
   node references the module needs. The module calls `initialRender(host)` to get that
   result, drawn on demand for a host that arrived later, and adds behavior to those
-  nodes. `x-initial` requires `x-upgrade: true` and excludes `x-prepaint`.
+  nodes. A drawing that reads markup after its host, as `lf-toc` reads the headings
+  below it, finishes inside the host when the document has parsed
+  (`readystatechange`), before any module runs. `x-initial` requires `x-upgrade: true`
+  and excludes `x-prepaint`.
 - Where the markup can't say how tall the drawing will be, declare `x-height` and add
   the class `lf-rendered` once drawn. For a drawing that can't fit any height,
   `page check --render` tells the author what height to state.

@@ -276,13 +276,6 @@ function passing() {
 }
 const clock = (at) =>
   new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-// What the leaf's colour says, in a word, at the head of its menu.
-const TONE_WORDS = Object.freeze({
-  working: "Working",
-  listening: "Waiting on me",
-  away: "Away",
-  offline: "Not connected",
-});
 
 export function createFloatingPanel({
   wireInput,
@@ -1201,7 +1194,7 @@ export function createFloatingPanel({
     const reply = answer.keys.find((key) => !message(key).ephemeral);
     const next = reply
       ? { key: top.thread, message: reply, label: "New reply" }
-      : { key: top.thread, message: answer.keys[0], label: "New update" };
+      : { key: top.thread, message: answer.keys[0], label: "New message" };
     if (waiting?.message === next.message) return;
     const arriving = !waiting;
     waiting = next;
@@ -1257,8 +1250,8 @@ export function createFloatingPanel({
   // offers, such as the newer version, or a status re-wrapping the head. So while the
   // menu stands it holds what it showed with the first status it said (Connecting… is
   // not yet one). Its rows keep their seats: a row news takes off offer stands
-  // disabled, and one news offers joins at the next opening. Each part of its head under
-  // the word keeps its lines: a later status re-wraps inside them, ending in an ellipsis
+  // disabled, and one news offers joins at the next opening. Each part of its head
+  // keeps its lines: a later status re-wraps inside them, ending in an ellipsis
   // where it runs past them; a part the first status lacked stays out, and one a later
   // status lacks stands blank. Reopening the menu shows everything as it is. Rejected:
   // holding the head's height and scrolling what runs past it, which still moves the
@@ -1532,9 +1525,10 @@ export function createFloatingPanel({
     const groups = Object.keys(GROUPS).filter((group) =>
       all.some((entry) => groupOf(entry) === group && listed(entry)),
     );
-    // The state is said once: in a word, over its one line, and under that only what
+    // The state is said once: its one line, in its tone's ink, and under that only what
     // the status adds to the line (`statusModel`, `adds`), since the menu is reached by
-    // pointer, key and finger alike.
+    // pointer, key and finger alike. Each line names the state itself ("Codex away"),
+    // so no word for the tone stands over it.
     const { tone, summary, summaryParts, adds, addsParts, publication } = status();
     // A published page's introduction keeps its links.
     const explains = publication
@@ -1548,7 +1542,6 @@ export function createFloatingPanel({
       : adds && addsParts
         ? statusParts(addsParts)
         : adds;
-    const word = TONE_WORDS[tone];
     const part = (name, text) =>
       (held ? held[name] : text)
         ? html`<span
@@ -1609,10 +1602,10 @@ export function createFloatingPanel({
         data-tone=${tone || nothing}
         ?data-held=${held !== null}
       >
-        <b>${word ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
-          "summary",
-          word ? (summaryParts ? statusParts(summaryParts) : summary) : "",
-        )}${part("explain", explains)}
+        ${part("summary", summaryParts ? statusParts(summaryParts) : summary)}${part(
+          "explain",
+          explains,
+        )}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
@@ -2942,7 +2935,7 @@ export function createFloatingPanel({
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
 
-    // The next step of what the user is doing now, such as walking a search's matches or
+    // The next step of what the user is doing now, such as selecting a search's match or
     // commenting on the words a finger selected, stands in the counts' place while that
     // gesture holds it (page-controls.js, `gesture`).
     const steps = rows().filter((entry) => entry.gesture);

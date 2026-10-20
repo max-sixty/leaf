@@ -366,8 +366,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-dot.offline {
     background: var(--danger);
   }
-  /* Approval and Threads each hold the widest words they can show (data-lf-room), so
-     either can change without moving the other. */
   @layer lf-reset {
     .lf-thread-action {
       font: inherit;
@@ -1056,9 +1054,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent);
   }
   /* Page search's box stands over the floating panel's row, centred on it as the row
-     is, where Select, Previous and Next stand while it is open, with its ✕ at the row's
-     end. It stands on the panel's top, so a row that grows to hold those steps on a
-     narrow phone carries the box up rather than standing under it. */
+     is, where Select stands while it is open, with its ✕ at the row's end. It stands on
+     the panel's top, so a row that grows on a narrow phone carries the box up rather
+     than standing under it. */
   .lf-page-search {
     position: fixed;
     z-index: var(--lf-z-page-search);
@@ -1073,13 +1071,45 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: var(--raise-2);
   }
   .lf-page-search-status {
-    min-width: 0;
+    min-width: min-content;
+    margin-inline-start: 6px;
     min-height: 1lh;
     color: var(--muted);
     font-size: var(--t-6);
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
+  }
+  /* The query keeps room for a word on the narrowest phone. The count's reserved room
+     is the most it will need, not a floor: past it, the count gives way down to the
+     words it says now, and only then does the query's room shrink. */
+  .lf-page-search-box::part(input) {
+    flex: 1 1 4em;
+  }
+  .lf-page-search-status > span {
+    min-inline-size: max(100%, max-content);
+  }
+  .lf-page-search-box::part(end) {
+    flex-shrink: 1;
+    min-inline-size: 0;
+  }
+  /* The arrows beside the count wear the field's quiet face, as its clear button does:
+     bare glyphs that take the chip's wash under the pointer, so the box reads as one
+     control rather than a field with buttons bolted on. They stand as a pair, close to
+     the count they move. */
+  .lf-page-search-step {
+    flex: none;
+    margin-inline-start: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+  }
+  .lf-page-search-status + .lf-page-search-step {
+    margin-inline-start: 4px;
+  }
+  .lf-page-search-step:not([aria-disabled="true"]):hover {
+    background: var(--chip);
+    color: var(--ink);
   }
   .lf-legend-box {
     position: absolute;

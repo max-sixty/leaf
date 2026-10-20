@@ -940,9 +940,10 @@ def test_walking_to_an_obligation_opens_its_discussion(browser, serve, family):
 def test_an_obligation_and_its_thread_are_one_standing_target(browser, serve):
     """An obligation and the thread its card shows are one place held from two sides
     (glossary, Standing target). From the obligation, `c` continues that thread and `t` steps
-    on past it; from its thread in the card, the obligation keeps its ring and its digits. A thread about an enclosing block is that block's, so an obligation
-    inside the block still starts a thread of its own. From an element with no thread,
-    `t` measures from its place in the document, as `m` does."""
+    on past it; from its thread in the card, the obligation keeps its ring and its digits.
+    A thread about an enclosing block holds the decision inside it with the agent, so
+    On me skips that decision. From an element with no thread, `t` measures from its
+    place in the document, as `m` does."""
     url = serve(OBLIGATION_THREAD_PAGE)
     d = serve.page_dir
     panel_comment(
@@ -985,13 +986,12 @@ def test_an_obligation_and_its_thread_are_one_standing_target(browser, serve):
     expect(obligation_thread).to_be_focused()
     expect(item).to_have_attribute("data-lf-obligation", "1")
 
-    # The nested obligation's card shows its task's thread, which is about the task, so `c`
-    # still starts the obligation a thread of its own.
+    # The thread on the task holds its nested decision with the agent. On me therefore
+    # cycles past that decision until the agent answers the thread.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator("#retry-ask")).to_be_focused()
-    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
+    expect(item).to_be_focused()
 
 
 def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(

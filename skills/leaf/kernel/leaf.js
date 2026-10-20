@@ -508,8 +508,7 @@ import {
   repeat,
   sameAnchor,
   threadKey,
-  threadNames,
-  turns
+  threadNames
 } from "./runtime/bundle-queued-work.js";
 import "./runtime/bundle-__export.js";
 
@@ -5970,6 +5969,7 @@ function passing() {
   const message = goTo ?? (walk?.shown ? walk.text : "");
   return { message, visible: Boolean(message) };
 }
+var WORKING = ".lf-thread-working";
 var clock = (at) => new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 var TONE_WORDS = Object.freeze({
   working: "Working",
@@ -5982,6 +5982,7 @@ function createFloatingPanel({
   threadActions,
   registerChromeThreadPresentation,
   observeFeedback,
+  firstUnread,
   obligations: obligationView,
   queueActions,
   withdraw,
@@ -6126,6 +6127,7 @@ function createFloatingPanel({
   let typing = false;
   let postureMoved = true;
   let landAtEnd = null;
+  const drawnTurns = () => outletOf()?.querySelectorAll(".lf-msg").length ?? 0;
   function sayable() {
     const input = host.dataset.rest === "mark" ? null : fieldInput();
     if (!input?.isConnected) return [];
@@ -6227,7 +6229,7 @@ function createFloatingPanel({
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         busy: () => !errorCover.hidden,
         sent: (flight) => {
-          landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
+          landAtEnd = { key, after: drawnTurns() };
           waiting = null;
           queueMicrotask(paint);
           const route = trail.at(-1);
@@ -6501,6 +6503,7 @@ function createFloatingPanel({
   });
   const rooms = /* @__PURE__ */ new Map();
   let onPageSeat = false;
+  let unreadSeat = null;
   const unplaced = /* @__PURE__ */ new Set();
   let stood = null;
   let stoodAt = null;
@@ -6539,6 +6542,9 @@ function createFloatingPanel({
   }
   let drawnThread = null;
   let waiting = null;
+  const drawnNode = (within, key) => within?.querySelector(
+    key === WORKING ? WORKING : `.lf-msg[data-message="${CSS.escape(key)}"]`
+  ) ?? null;
   let fitted = null;
   let placed = null;
   function fitAnswer() {
@@ -6549,9 +6555,7 @@ function createFloatingPanel({
       drawnThread = null;
       return;
     }
-    const keys2 = [...outlet.querySelectorAll(".lf-msg[data-message]")].map(
-      (node) => node.dataset.message
-    );
+    const keys2 = [...outlet.querySelectorAll(`.lf-msg[data-message], ${WORKING}`)].filter((node) => node.checkVisibility()).map((node) => node.dataset.message ?? WORKING);
     const before = drawnThread?.key === top.thread ? drawnThread : null;
     const msgs = threadByKey(top.thread)?.msgs ?? [];
     const message = (key) => msgs.find((each) => each.key === key);
@@ -6559,7 +6563,7 @@ function createFloatingPanel({
       key: top.thread,
       keys: keys2,
       coming: keys2.filter(
-        (key) => message(key)?.ephemeral || message(key)?.provisional
+        (key) => key === WORKING || message(key)?.ephemeral || message(key)?.provisional
       ),
       extent: view.scrollHeight,
       limit: scrollLimit(view)
@@ -6573,9 +6577,9 @@ function createFloatingPanel({
     };
     const answer = answerIn(keys2);
     const asked2 = before && answerIn(before.keys);
-    if (!answer?.keys.length || asked2?.turn !== answer.turn || !asked2.keys.every((key) => before.coming.includes(key)) || !answer.keys.every((key) => message(key)?.author === "agent"))
+    if (!answer?.keys.length || asked2?.turn !== answer.turn || !asked2.keys.every((key) => before.coming.includes(key)) || !answer.keys.every((key) => key === WORKING || message(key)?.author === "agent"))
       return;
-    if (view.scrollHeight <= before.extent + 0.5) return;
+    if (!waiting && view.scrollHeight <= before.extent + 0.5) return;
     const atEnd = before.limit - view.scrollTop <= SCROLL_SLACK;
     const turn = outlet.querySelector(
       `.lf-msg[data-message="${CSS.escape(answer.turn)}"]`
@@ -6586,7 +6590,7 @@ function createFloatingPanel({
       scrollToEnd(view);
       return;
     }
-    const reply = answer.keys.find((key) => !message(key).ephemeral);
+    const reply = answer.keys.find((key) => key !== WORKING && !message(key).ephemeral);
     const next = reply ? { key: top.thread, message: reply, label: "New reply" } : { key: top.thread, message: answer.keys[0], label: "New update" };
     if (waiting?.message === next.message) return;
     const arriving = !waiting;
@@ -6609,17 +6613,13 @@ function createFloatingPanel({
     paint();
     const view = openView();
     if (view) focusDestination(view, "move");
-    const node = outletOf()?.querySelector(
-      `.lf-msg[data-message="${CSS.escape(answer.message)}"]`
-    );
+    const node = drawnNode(outletOf(), answer.message);
     if (node) scrollIntoView(node, { block: "start" });
   }
   function sawAnswer(event) {
     const view = event.currentTarget;
     if (!waiting || view.scrollTop === placed) return;
-    const node = view.querySelector(
-      `.lf-msg[data-message="${CSS.escape(waiting.message)}"]`
-    );
+    const node = drawnNode(view, waiting.message);
     const press = view.querySelector(".lf-fp-new-reply");
     if (!node || !press) return;
     if (press === focused()) return;
@@ -6661,6 +6661,7 @@ function createFloatingPanel({
       placed = null;
       drawnThread = null;
       onPageSeat = false;
+      unreadSeat = null;
     }
     if (changed && before?.view === "thread")
       dismissReply(threadByKey(before.thread)?.key ?? before.thread);
@@ -7090,7 +7091,7 @@ function createFloatingPanel({
       (candidate) => candidate.key === top.thread || candidate.id === top.thread
     );
     if (!outlet || !thread) return;
-    for (const message of turns(thread)) parts.message(thread.key, message.key, outlet);
+    parts.transcript(thread.key, outlet);
     const news = newsOutlet();
     if (news) parts.news(thread.key, news);
     if (replyOutlet.isConnected)
@@ -7192,7 +7193,7 @@ function createFloatingPanel({
     if (!thread)
       return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
     return html`${quoteHead(thread)}
-      <div class="lf-fp-messages lf-fp-outlet" data-lf-reflow="append"></div>
+      <div class="lf-fp-messages lf-fp-outlet"></div>
       ${waiting?.key === key ? html`<div class="lf-fp-foot">
               <button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
                 ${iconTemplate("down", "lf-action-icon")}${waiting.label}
@@ -7541,7 +7542,16 @@ function createFloatingPanel({
     } else if (thread) {
       const inMessage = Boolean(placedAt(thread.id)?.message);
       onPageSeat ||= Boolean(thread.anchor) && (inMessage || !unplaced.has(thread.key));
-      aux = html`${onPageSeat ? html`<button
+      unreadSeat ??= thread.unread.length > 0;
+      aux = html`${unreadSeat ? html`<button
+                type="button"
+                class="lf-fp-next-unread"
+                ?disabled=${!thread.unread.length}
+                ?data-unoffered=${!thread.unread.length}
+                @click=${() => firstUnread(thread.key)}
+              >
+                ${iconTemplate("down", "lf-action-icon")}Next unread
+              </button>` : nothing}${onPageSeat ? html`<button
                 type="button"
                 class="lf-fp-quiet"
                 ?disabled=${!thread.anchor}
@@ -7680,7 +7690,7 @@ function createFloatingPanel({
     const view = stage.querySelector(
       '.lf-fp-view[data-view="thread"]:not([data-leaving])'
     );
-    if (!view || (outletOf()?.childElementCount ?? 0) <= landAtEnd.after) return;
+    if (!view || drawnTurns() <= landAtEnd.after) return;
     landAtEnd = null;
     if (spare) {
       spare = false;
@@ -11078,6 +11088,7 @@ var standingTarget = createStandingTarget({
 floatingPanel = createFloatingPanel({
   wireInput: inputs.wireInput,
   observeFeedback: app.read.observeFeedback,
+  firstUnread: app.read.firstUnread,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
   obligations: {

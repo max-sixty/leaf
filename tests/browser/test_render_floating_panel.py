@@ -1219,6 +1219,99 @@ def test_a_streaming_answer_grows_the_view_until_it_outgrows_its_cap(
     assert capped["field"] == stood["field"]
 
 
+def agent_said(page_dir, root, text, **fields):
+    """One agent reply in `root`'s thread, written straight to the log."""
+    return append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "revision": 1,
+            "text": text,
+            **fields,
+        },
+    )["id"]
+
+
+def test_a_thread_s_view_folds_progress_as_its_card_does(browser, serve):
+    """A thread's view draws its messages as the thread's card on the page does
+    (thread/transcript.js): the progress the answer completed stands folded behind Show 2
+    progress messages at the answer's head, and work still under way stands as one dim
+    working message at the transcript's foot rather than as a reply."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Can you check that the workshop fits the afternoon?"
+    )
+    for step in ("the total practice time", "the break and closing discussion"):
+        agent_said(serve.page_dir, root, f"Checking {step}.", ephemeral=True)
+    agent_said(
+        serve.page_dir,
+        root,
+        "The workshop fits, including a fifteen-minute break.",
+        responds=root,
+    )
+    agent_said(
+        serve.page_dir,
+        root,
+        "Checking whether the room stays free after five.",
+        ephemeral=True,
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    shown = view.locator(".lf-msg:visible")
+    expect(shown).to_have_count(2)
+    expect(shown.last).to_contain_text("The workshop fits")
+    toggle = shown.last.locator(".lf-progress-expand")
+    expect(toggle).to_have_text("Show 2 progress messages")
+    working = view.locator(".lf-thread-working")
+    expect(working).to_be_visible()
+    expect(working).to_contain_text("Checking whether the room stays free after five")
+
+    toggle.click()
+    expect(shown).to_have_count(4)
+    expect(toggle).to_have_text("Hide 2 progress messages")
+
+
+def test_a_thread_s_view_marks_unread_replies_and_goes_to_the_next(browser, serve):
+    """A reply the user has not read wears the unread rail in the thread's view, as on
+    its card, and Next unread at the view's head goes to the thread's first one, above
+    the end the view opens at, past the long reply after it. Shown whole there, it
+    counts as read, as on a card, and so does the long reply, whose whole extent the
+    view has now shown, so Next unread is no longer offered, though its seat stays."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?")
+    agent_said(serve.page_dir, root, "The mounts come first.", responds=root)
+    agent_said(
+        serve.page_dir, root, "Then the beds. " + "The frost dates hold them. " * 150
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    reply = view.locator(".lf-msg", has_text="The mounts come first.")
+    unread = re.compile(r"(^|\s)lf-unread(\s|$)")
+    expect(reply).to_have_class(unread)
+    assert reply.evaluate("(node) => getComputedStyle(node).borderImageSource") != (
+        "none"
+    )
+    expect(reply).not_to_be_in_viewport()
+    press = page.locator(".lf-fp-head .lf-fp-next-unread")
+    expect(press).to_have_text("Next unread")
+
+    with sending(page, "the reply read"):
+        press.click()
+    expect(reply).to_be_focused()
+    expect(reply).to_be_in_viewport()
+    expect(reply).not_to_have_class(unread)
+    expect(view.locator(".lf-msg", has_text="Then the beds.")).not_to_have_class(unread)
+    expect(press).to_be_hidden()
+    expect(press).to_be_disabled()
+
+
 FOOT = """([parts, fromEnd]) => {
   const view = document.querySelector('.lf-fp-view:not([data-leaving])');
   const part = [...view.querySelectorAll(parts)].at(-1 - fromEnd).getBoundingClientRect();

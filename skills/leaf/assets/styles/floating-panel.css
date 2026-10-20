@@ -911,13 +911,24 @@
     gap: 4px;
   }
   .lf-fp-face:not([data-shown]),
-  .lf-fp-quiet[data-unoffered] {
+  :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
   .lf-fp-settle:hover {
     color: var(--ink);
   }
   .lf-fp-settle .lf-action-icon {
+    width: 14px;
+    height: 14px;
+  }
+  /* Next unread is news's way in, so it wears the accent the unread rail does. */
+  .lf-fp-next-unread {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+  }
+  .lf-fp-next-unread .lf-action-icon {
     width: 14px;
     height: 14px;
   }
@@ -1374,16 +1385,10 @@
     font-size: 12px;
     margin-right: 4px;
   }
-  /* The thread's messages, one part each, read as a card's transcript: a message's
-     words stand 16px over the next one's author, the parts' 4px insets included, and
-     the first author 16px under the quote, the quote head's 12px included. */
+  /* The thread's transcript, drawn and spaced as a card's (thread/transcript.js), its
+     first author 16px under the quote, the quote head's 12px included. */
   .lf-fp-messages {
-    display: grid;
-    gap: 8px;
     padding: 0 8px;
-  }
-  .lf-fp-messages > .lf-primary-part > .lf-msg {
-    margin-top: 0;
   }
   /* A rewrite in a thread's view is the reply box of the field below it, at the field's
      height, frame included: its words keep the message's face, set in the field's

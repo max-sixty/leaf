@@ -158,7 +158,10 @@ inside messages live there.
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
 with `parts.thread(thread.key, outlet)`, or its parts with
 `parts.message(thread.key, message.key, outlet)` for each of its `threadTurns` and
-`parts.reply(thread.key, outlet)`. A reaction a thread opens on is its root turn; any
+`parts.reply(thread.key, outlet)`. `parts.transcript(thread.key, outlet)` draws all of
+its turns as a whole conversation does, with progress folded and work under way as one
+dim line, for a widget that draws the conversation's head itself; it takes the place of
+message parts and needs `parts.news` for the thread. A reaction a thread opens on is its root turn; any
 later reaction is drawn as the chip on the message it answers, so naming one as a
 message part throws.
 Leaf fills them and keeps the rendering, reactions, read tracking and reply draft; the

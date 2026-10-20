@@ -5477,76 +5477,6 @@ async function landGesture({ landing, answer, pending }) {
   }
 }
 
-// runtime/thread/summary-ranges.js
-function summaryRanges(messages, summaries = []) {
-  const index = new Map(messages.map((message, at) => [message.id, at]));
-  const byStart = /* @__PURE__ */ new Map();
-  const covered2 = /* @__PURE__ */ new Set();
-  for (const summary of summaries) {
-    const visible = summary.covers.filter((id) => index.has(id));
-    if (!visible.length) continue;
-    byStart.set(index.get(visible[0]), summary);
-    for (const id of visible) covered2.add(id);
-  }
-  const ranges = [];
-  for (let at = 0; at < messages.length; at += 1) {
-    const summary = byStart.get(at);
-    if (summary) {
-      ranges.push(
-        Object.freeze({
-          kind: "summary",
-          summary,
-          messages: Object.freeze(
-            summary.covers.filter((id) => index.has(id)).map((id) => messages[index.get(id)])
-          )
-        })
-      );
-      at += ranges.at(-1).messages.length - 1;
-    } else if (!covered2.has(messages[at].id)) {
-      ranges.push(
-        Object.freeze({
-          kind: "message",
-          message: messages[at]
-        })
-      );
-    }
-  }
-  return Object.freeze(ranges);
-}
-function withPendingProgress(ranges) {
-  const gathered = [];
-  for (const range of ranges) {
-    const progress = range.kind === "message" && range.message.progress;
-    const run = gathered.at(-1);
-    if (progress && run?.summary?.pending) {
-      run.summary.covers.push(range.message.id);
-      run.messages.push(range.message);
-    } else if (progress)
-      gathered.push({
-        kind: "summary",
-        summary: {
-          id: `progress:${range.message.id}`,
-          covers: [range.message.id],
-          pending: true
-        },
-        messages: [range.message]
-      });
-    else gathered.push(range);
-  }
-  return Object.freeze(
-    gathered.map(
-      (range) => range.summary?.pending ? Object.freeze({
-        ...range,
-        summary: Object.freeze({
-          ...range.summary,
-          covers: Object.freeze(range.summary.covers)
-        }),
-        messages: Object.freeze(range.messages)
-      }) : range
-    )
-  );
-}
-
 // runtime/thread/reply-continuity.js
 var ReplyContinuity = class {
   #owner;
@@ -5711,6 +5641,386 @@ var ReplyContinuity = class {
   }
 };
 
+// runtime/thread/summary-ranges.js
+function summaryRanges(messages, summaries = []) {
+  const index = new Map(messages.map((message, at) => [message.id, at]));
+  const byStart = /* @__PURE__ */ new Map();
+  const covered2 = /* @__PURE__ */ new Set();
+  for (const summary of summaries) {
+    const visible = summary.covers.filter((id) => index.has(id));
+    if (!visible.length) continue;
+    byStart.set(index.get(visible[0]), summary);
+    for (const id of visible) covered2.add(id);
+  }
+  const ranges = [];
+  for (let at = 0; at < messages.length; at += 1) {
+    const summary = byStart.get(at);
+    if (summary) {
+      ranges.push(
+        Object.freeze({
+          kind: "summary",
+          summary,
+          messages: Object.freeze(
+            summary.covers.filter((id) => index.has(id)).map((id) => messages[index.get(id)])
+          )
+        })
+      );
+      at += ranges.at(-1).messages.length - 1;
+    } else if (!covered2.has(messages[at].id)) {
+      ranges.push(
+        Object.freeze({
+          kind: "message",
+          message: messages[at]
+        })
+      );
+    }
+  }
+  return Object.freeze(ranges);
+}
+function withPendingProgress(ranges) {
+  const gathered = [];
+  for (const range of ranges) {
+    const progress = range.kind === "message" && range.message.progress;
+    const run = gathered.at(-1);
+    if (progress && run?.summary?.pending) {
+      run.summary.covers.push(range.message.id);
+      run.messages.push(range.message);
+    } else if (progress)
+      gathered.push({
+        kind: "summary",
+        summary: {
+          id: `progress:${range.message.id}`,
+          covers: [range.message.id],
+          pending: true
+        },
+        messages: [range.message]
+      });
+    else gathered.push(range);
+  }
+  return Object.freeze(
+    gathered.map(
+      (range) => range.summary?.pending ? Object.freeze({
+        ...range,
+        summary: Object.freeze({
+          ...range.summary,
+          covers: Object.freeze(range.summary.covers)
+        }),
+        messages: Object.freeze(range.messages)
+      }) : range
+    )
+  );
+}
+
+// runtime/thread/transcript.js
+function workingView(working) {
+  return html`<div class="lf-thread-working-head">
+      ${working.who ? html`<b>${working.who}</b>` : nothing}
+      ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
+              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
+              ${working.condition}</span
+            >` : nothing}
+    </div>
+    <div class="lf-thread-working-words">${working.words}</div>`;
+}
+var nextTranscriptId = 0;
+var Transcript = class {
+  #commands;
+  #messageCommands;
+  #repaint;
+  #home;
+  #model = null;
+  #messages = /* @__PURE__ */ new Map();
+  #working = document.createElement("div");
+  #stopWorkingExposure = null;
+  // Each pending progress range's covered message ids, as last drawn, so a fold that
+  // takes the range over can take its disclosure state with it.
+  #pendingCovers = /* @__PURE__ */ new Map();
+  #pendingOpen = false;
+  #checkpoints = /* @__PURE__ */ new Map();
+  #expandedSummaries = /* @__PURE__ */ new Set();
+  #id = ++nextTranscriptId;
+  /**
+   * @param {object} options
+   * @param {any} options.commands The reader's commands; `read` observes the working
+   *   message's words.
+   * @param {any} options.messageCommands What each MessageView acts through.
+   * @param {() => void} options.repaint Draws the reader around the transcript again,
+   *   as a disclosure opens or closes.
+   * @param {() => HTMLElement} options.home The drawing of the thread a disclosure
+   *   press keeps in view.
+   */
+  constructor({ commands: commands2, messageCommands, repaint: repaint2, home }) {
+    this.#commands = commands2;
+    this.#messageCommands = messageCommands;
+    this.#repaint = repaint2;
+    this.#home = home;
+    this.node = document.createElement("div");
+    this.node.className = "lf-thread-transcript";
+    this.#working.className = "lf-thread-working";
+    this.#working.dataset.lfAppendTail = "";
+    this.#working.setAttribute("aria-live", "polite");
+    this.node.addEventListener("lf-reveal", (event) => {
+      const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
+      const id = message?.dataset.lfSummary;
+      if (!id || this.#expandedSummaries.has(id)) return;
+      this.#expandedSummaries.add(id);
+      this.#repaint();
+    });
+  }
+  // Each message's view, in the thread's order: what its rewrites walk.
+  get views() {
+    return (this.#model?.messages ?? []).flatMap(
+      ({ key }) => this.#messages.get(key) ?? []
+    );
+  }
+  // The node a message stands in.
+  messageNode(key) {
+    return this.#messages.get(key)?.node ?? null;
+  }
+  // The checkpoint a summary stands in.
+  summaryNode(id) {
+    return this.#checkpoints.get(id)?.node ?? null;
+  }
+  // The last node the transcript shows, which is the working message while one stands.
+  // Progress behind the working message and originals behind a closed checkpoint stand
+  // in the transcript unrendered, so the last message alone may have no box.
+  get foot() {
+    return [...this.node.children].findLast((node) => node.checkVisibility()) ?? null;
+  }
+  // Whether the progress behind the working message stood open when last drawn, opened by
+  // the reader or by a search matching it, so each step that joins it shows: held news
+  // counts those steps as news here (held-news.js).
+  get progressOpen() {
+    return this.#pendingOpen;
+  }
+  // Opens the fold holding a message, as a rewrite of it opens to be seen.
+  expandAround(id) {
+    const folded = this.#model?.summaries.find(({ covers }) => covers.includes(id));
+    if (folded) this.#expandedSummaries.add(folded.id);
+  }
+  /**
+   * Draws `model`, a thread's reading (thread-card.js, `threadReading`). `appends`
+   * declares that it grows at its end inside the scroller holding it, as a margin
+   * card's and the floating panel's view do (`data-lf-reflow`, tests/shift_watch.js).
+   * Returns the disclosure that took over the one the user stood on, where this draw
+   * replaced it, as the answer's head takes progress over from the working message.
+   * @returns {HTMLElement | null}
+   */
+  present(model, { arrived = false, appends = false } = {}) {
+    const prior = this.#model;
+    const standing2 = focused();
+    const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
+    if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
+      const heldMessage = prior.messages.find(
+        ({ key }) => this.#messages.get(key)?.node.contains(standing2)
+      )?.id;
+      const clips = /* @__PURE__ */ new Map();
+      const beingRead = new Set(
+        prior.messages.filter(({ key }) => {
+          const node = this.#messages.get(key)?.node;
+          return node?.isConnected && seenRect(node, clips);
+        }).map(({ id }) => id)
+      );
+      for (const summary of model.summaries) {
+        if (priorSummaries.has(summary.id)) continue;
+        if (summary.covers.includes(heldMessage) || summary.covers.some((id) => beingRead.has(id)))
+          this.#expandedSummaries.add(summary.id);
+      }
+    }
+    this.#model = model;
+    const wanted = new Set(model.messages.map((message) => message.key));
+    for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
+    const summarized = summaryRanges(model.messages, model.summaries);
+    const describedRanges = model.resolved ? summarized : withPendingProgress(summarized);
+    const summaries = new Set(
+      describedRanges.flatMap((range) => range.summary ? [range.summary.id] : [])
+    );
+    const successors = /* @__PURE__ */ new Map();
+    for (const [id, covers] of this.#pendingCovers)
+      successors.set(
+        id,
+        describedRanges.filter(
+          (range) => range.summary?.covers.some((covered2) => covers.includes(covered2))
+        )
+      );
+    for (const id of [...this.#expandedSummaries])
+      for (const range of successors.get(id) ?? [])
+        this.#expandedSummaries.add(range.summary.id);
+    for (const id of this.#expandedSummaries)
+      if (!summaries.has(id)) this.#expandedSummaries.delete(id);
+    this.#pendingCovers = new Map(
+      describedRanges.filter((range) => range.summary?.pending).map((range) => [range.summary.id, range.summary.covers])
+    );
+    const standingToggle = this.node.querySelector(".lf-summary-expand:focus");
+    const rangeState = describedRanges.map((range) => {
+      if (range.kind === "message") return range;
+      const forced = Boolean(range.summary.protected?.length);
+      return {
+        ...range,
+        expanded: forced || this.#expandedSummaries.has(range.summary.id),
+        forced,
+        requiredText: "Messages kept open \xB7 current work"
+      };
+    });
+    const pendingRanges = rangeState.filter((range) => range.summary?.pending);
+    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
+    const progressByReply = /* @__PURE__ */ new Map();
+    const streaming = model.messages.at(-1);
+    if (streaming?.provisional && pendingRanges.length)
+      progressByReply.set(streaming.id, pendingRanges);
+    for (const range of rangeState) {
+      if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
+      const trigger = range.summary.trigger;
+      if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
+      progressByReply.get(trigger).push(range);
+    }
+    for (const message of model.messages) {
+      let view = this.#messages.get(message.key);
+      if (!view)
+        this.#messages.set(
+          message.key,
+          view = new MessageView(this.#messageCommands)
+        );
+      view.present(message, {
+        arrived,
+        headerControls: progressByReply.has(message.id) ? this.#summaryToggle(progressByReply.get(message.id), true) : nothing
+      });
+      keeps(
+        view.node,
+        "data-lf-append-tail",
+        message.provisional && message === model.messages.at(-1) ? "" : null
+      );
+    }
+    const placed2 = (key, summary) => {
+      const node = this.#messages.get(key).node;
+      keeps(node, "data-lf-summary", summary);
+      return [node];
+    };
+    const checkpoints = /* @__PURE__ */ new Map();
+    const transcript = [];
+    const transcriptLists = [[this.node, transcript]];
+    for (const range of rangeState) {
+      if (range.kind === "message") {
+        transcript.push(...placed2(range.message.key, null));
+        continue;
+      }
+      const id = range.summary.id;
+      const checkpoint = this.#checkpoints.get(id) ?? this.#checkpoint(id);
+      checkpoints.set(id, checkpoint);
+      this.#paintCheckpoint(checkpoint, range);
+      transcript.push(checkpoint.node);
+      transcriptLists.push([
+        checkpoint.originals,
+        range.messages.flatMap((message) => placed2(message.key, id))
+      ]);
+    }
+    if (model.working) {
+      keeps(this.#working, "data-lf-live", model.working.live ? "" : null);
+      render(workingView(model.working), this.#working);
+      transcript.push(this.#working);
+    }
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(
+      this.#working.querySelector(".lf-thread-working-words"),
+      {
+        ...model.working.feedback,
+        presentation_kind: "working_words",
+        surface: model.surface
+      }
+    ) : null;
+    this.#checkpoints = checkpoints;
+    keeps(this.node, "data-lf-reflow", appends ? "append" : null);
+    setChildLists(transcriptLists);
+    if (!standingToggle || standingToggle.isConnected) return null;
+    const toggleFor = (id) => this.node.querySelector(
+      `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`
+    );
+    const succeeded = standingToggle.dataset.summaryToggle;
+    return [succeeded, ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)].map(toggleFor).find(Boolean) ?? null;
+  }
+  // A summary's checkpoint: a retained section whose head the template draws, and
+  // whose originals hold the retained messages the summary covers.
+  #checkpoint(id) {
+    const node = document.createElement("section");
+    node.className = "lf-thread-checkpoint";
+    node.dataset.summaryId = id;
+    const originals = document.createElement("div");
+    originals.id = `lf-summary-originals-${this.#id}-${id}`;
+    originals.className = "lf-summary-originals";
+    node.append(originals);
+    return { node, originals };
+  }
+  #paintCheckpoint({ node, originals }, range) {
+    const progress = Boolean(range.summary.trigger || range.summary.pending);
+    keeps(node, "data-expanded", range.expanded);
+    keepsHidden(node, progress && !range.expanded);
+    keepsHidden(originals, !range.expanded);
+    render(
+      html`${progress ? nothing : html`<div class="lf-summary-checkpoint">
+              <div class="lf-summary-header">
+                <div class="lf-summary-label">${range.summary.label}</div>
+                ${range.forced ? nothing : this.#summaryToggle([range])}
+              </div>
+              ${range.summary.text ? html`<div
+                      class="lf-summary-text"
+                      .innerHTML=${renderMarkdown(range.summary.text)}
+                    ></div>` : nothing}
+              ${range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}
+            </div>`}
+      ${progress && range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}`,
+      node,
+      { renderBefore: originals }
+    );
+  }
+  #summaryToggle(ranges, progress = false) {
+    const ids = ranges.map((range) => range.summary.id);
+    const expanded = ranges.every((range) => range.expanded);
+    const count = ranges.reduce((total, range) => total + range.messages.length, 0);
+    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
+    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${subject}`;
+    return html`<button
+      type="button"
+      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
+      data-lf-room=${progress ? `Show ${subject}` : nothing}
+      data-summary-toggle=${ids[0]}
+      aria-expanded=${String(expanded)}
+      aria-controls=${ids.map((id) => `lf-summary-originals-${this.#id}-${id}`).join(" ")}
+      @click=${() => this.#setSummaryExpanded(ids, !expanded)}
+    >
+      ${progress ? html`<span>${label}</span>` : label}
+    </button>`;
+  }
+  #setSummaryExpanded(ids, expanded) {
+    for (const id of ids) {
+      if (expanded) this.#expandedSummaries.add(id);
+      else this.#expandedSummaries.delete(id);
+    }
+    this.#repaint();
+    const toggle = this.node.querySelector(
+      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`
+    );
+    if (toggle) {
+      focusDestination(toggle, "return");
+      scrollThreadIntoView(this.#home(), toggle, "instant");
+    }
+  }
+  commit() {
+    const wanted = new Set(this.#model.messages.map((message) => message.key));
+    for (const [key, view] of this.#messages) {
+      if (wanted.has(key)) view.commit();
+      else {
+        view.retire();
+        this.#messages.delete(key);
+      }
+    }
+  }
+  retire() {
+    this.#stopWorkingExposure?.();
+    this.#stopWorkingExposure = null;
+    for (const view of this.#messages.values()) view.retire();
+  }
+};
+
 // runtime/thread/thread-card.js
 function quoteReading(thread, anchors) {
   const placement = anchors.placedAt(thread.id);
@@ -5840,17 +6150,6 @@ function threadReading(thread, surface, commands2) {
     reread: (held) => threadReading(held, surface, commands2)
   });
 }
-function workingView(working) {
-  return html`<div class="lf-thread-working-head">
-      ${working.who ? html`<b>${working.who}</b>` : nothing}
-      ${working.timestamp || working.condition ? html`<span class="lf-msg-meta"
-              >${working.timestamp ? html`<time datetime=${working.timestamp}>${working.age}</time>` : nothing}
-              ${working.condition}</span
-            >` : nothing}
-    </div>
-    <div class="lf-thread-working-words">${working.words}</div>`;
-}
-var nextViewId = 0;
 var ThreadView = class {
   #commands;
   #messageCommands;
@@ -5864,24 +6163,14 @@ var ThreadView = class {
   set #model(model) {
     this.#shown.value = model;
   }
-  #messages = /* @__PURE__ */ new Map();
+  #transcript;
   #reply = null;
   #replyShown = false;
   #draftFrame = 0;
   #settlements = /* @__PURE__ */ new Map();
   #settlesAt = null;
   #actions = document.createElement("span");
-  #transcript = document.createElement("div");
-  #working = document.createElement("div");
-  #stopWorkingExposure = null;
-  // Each pending progress range's covered message ids, as last drawn, so a fold that
-  // takes the range over can take its disclosure state with it.
-  #pendingCovers = /* @__PURE__ */ new Map();
-  #pendingOpen = false;
-  #checkpoints = /* @__PURE__ */ new Map();
-  #expandedSummaries = /* @__PURE__ */ new Set();
   #marginControls = null;
-  #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
   #continuity = null;
@@ -5893,9 +6182,7 @@ var ThreadView = class {
     this.#commands = commands2;
     this.#rewrites = threadRewrites({
       thread: () => this.#model.key,
-      views: () => (this.#model?.messages ?? []).flatMap(
-        ({ key }) => this.#messages.get(key) ?? []
-      ),
+      views: () => this.#transcript.views,
       paint: () => this.repaint(),
       send: (id, text, options) => commands2.reply.actions.edit(this.#model.key, id, text, options),
       box: () => this.node.querySelector(SAY_BOX),
@@ -5904,8 +6191,7 @@ var ThreadView = class {
       // summary holding the message, since it opens to be seen.
       opening: (id) => {
         this.#showNews();
-        const folded = this.#model?.summaries.find(({ covers }) => covers.includes(id));
-        if (folded) this.#expandedSummaries.add(folded.id);
+        this.#transcript.expandAround(id);
       },
       landInThread: commands2.reply.landInThread,
       landSent: commands2.reply.landSent
@@ -5916,6 +6202,12 @@ var ThreadView = class {
       edit: this.#rewrites.edit
     };
     this.node = document.createElement("div");
+    this.#transcript = new Transcript({
+      commands: commands2,
+      messageCommands: this.#messageCommands,
+      repaint: () => this.repaint(),
+      home: () => this.node
+    });
     this.#continuity = new ReplyContinuity(this.node);
     this.node.tabIndex = -1;
     this.node.classList.add("lf-page-thread", "lf-ui");
@@ -5923,17 +6215,6 @@ var ThreadView = class {
     this.node.dataset.lfGen = "1";
     this.node.dataset.lfOffer = "";
     this.#actions.className = "lf-thread-meta-actions";
-    this.#transcript.className = "lf-thread-transcript";
-    this.#working.className = "lf-thread-working";
-    this.#working.dataset.lfAppendTail = "";
-    this.#working.setAttribute("aria-live", "polite");
-    this.node.addEventListener("lf-reveal", (event) => {
-      const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
-      const id = message?.dataset.lfSummary;
-      if (!id || this.#expandedSummaries.has(id)) return;
-      this.#expandedSummaries.add(id);
-      this.repaint();
-    });
   }
   setMarginControls(controls2) {
     this.#marginControls = controls2;
@@ -5960,14 +6241,10 @@ var ThreadView = class {
     this.#settlesAt = place2;
   }
   // The last of the thread a reader can see, after which its news grows: the last
-  // node its transcript shows, which is the working message while one stands, and none
-  // while the thread is folded. Progress behind the working message and originals
-  // behind a closed checkpoint stand in the transcript unrendered, so the last message
-  // alone may have no box to grow after. A card folded in its seat's Resolved
-  // disclosure draws nothing at all.
+  // node its transcript shows (transcript.js, `foot`), and none while the thread is
+  // folded. A card folded in its seat's Resolved disclosure draws nothing at all.
   get #foot() {
-    if (this.#fold) return null;
-    return [...this.#transcript.children].findLast((node) => node.checkVisibility()) ?? null;
+    return this.#fold ? null : this.#transcript.foot;
   }
   // What the thread draws after its messages that its settlement swaps: the reply box
   // while it stands open; none while the thread is folded, where it does not show. A
@@ -5979,14 +6256,12 @@ var ThreadView = class {
   // The node a message the thread draws stands in, after which a change to it grows;
   // none while the thread is folded, where no message shows.
   #messageNode(key) {
-    if (this.#fold) return null;
-    return this.#messages.get(key)?.node ?? null;
+    return this.#fold ? null : this.#transcript.messageNode(key);
   }
   // The checkpoint a summary the thread draws stands in; none while the thread is
   // folded.
   #summaryNode(id) {
-    if (this.#fold) return null;
-    return this.#checkpoints.get(id)?.node ?? null;
+    return this.#fold ? null : this.#transcript.summaryNode(id);
   }
   ownsMessage(id) {
     return this.#model?.id === id || this.#model?.messages.some((message) => message.id === id);
@@ -6033,7 +6308,7 @@ var ThreadView = class {
     if (this.#model?.surface === "margin") {
       if (news.settled) return false;
       const last = this.#model.messages.at(-1);
-      const list = this.#transcript;
+      const list = this.#transcript.node;
       const follows = list.scrollHeight > list.clientHeight + 0.5 && atScrollEnd(list);
       const atEnd = (!news.appended || appendedAtEnd) && !news.summaries && [...changed2].every(
         (key) => key === last?.key && (last.provisional || follows)
@@ -6089,28 +6364,9 @@ var ThreadView = class {
     this.#drawnWith = this.#outside(model);
     const prior = this.#model;
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    const rewritten2 = [...this.#messages.values()].filter((view) => view.editing).map(({ node }) => node);
+    const rewritten2 = this.#transcript.views.filter((view) => view.editing).map(({ node }) => node);
     const bodyPlace = published ? this.#continuity?.before(rewritten2) : null;
     const restoreFocus = holdFocus(this.node);
-    const standing2 = focused();
-    const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
-    if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
-      const heldMessage = prior.messages.find(
-        ({ key }) => this.#messages.get(key)?.node.contains(standing2)
-      )?.id;
-      const clips = /* @__PURE__ */ new Map();
-      const beingRead = new Set(
-        prior.messages.filter(({ key }) => {
-          const node = this.#messages.get(key)?.node;
-          return node?.isConnected && seenRect(node, clips);
-        }).map(({ id }) => id)
-      );
-      for (const summary of model.summaries) {
-        if (priorSummaries.has(summary.id)) continue;
-        if (summary.covers.includes(heldMessage) || summary.covers.some((id) => beingRead.has(id)))
-          this.#expandedSummaries.add(summary.id);
-      }
-    }
     this.#model = model;
     const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
@@ -6124,8 +6380,6 @@ var ThreadView = class {
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "role", "group");
     keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
-    const wanted = new Set(model.messages.map((message) => message.key));
-    for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
     const settlement = model.settlement ? this.#settlement(model, settlementPlace) : null;
     const actions = marginControls ? [
       model.news ? notice2.node : null,
@@ -6135,120 +6389,17 @@ var ThreadView = class {
     ].filter(Boolean) : [settlement].filter(Boolean);
     setChildren(this.#actions, actions);
     const threadActions = actions.length || model.news ? this.#actions : null;
-    const summarized = summaryRanges(model.messages, model.summaries);
-    const describedRanges = model.resolved ? summarized : withPendingProgress(summarized);
-    const summaries = new Set(
-      describedRanges.flatMap((range) => range.summary ? [range.summary.id] : [])
-    );
-    const successors = /* @__PURE__ */ new Map();
-    for (const [id, covers] of this.#pendingCovers)
-      successors.set(
-        id,
-        describedRanges.filter(
-          (range) => range.summary?.covers.some((covered2) => covers.includes(covered2))
-        )
-      );
-    for (const id of [...this.#expandedSummaries])
-      for (const range of successors.get(id) ?? [])
-        this.#expandedSummaries.add(range.summary.id);
-    for (const id of this.#expandedSummaries)
-      if (!summaries.has(id)) this.#expandedSummaries.delete(id);
-    this.#pendingCovers = new Map(
-      describedRanges.filter((range) => range.summary?.pending).map((range) => [range.summary.id, range.summary.covers])
-    );
-    const standingToggle = this.node.querySelector(".lf-summary-expand:focus");
-    const rangeState = describedRanges.map((range) => {
-      if (range.kind === "message") return range;
-      const forced = Boolean(range.summary.protected?.length);
-      return {
-        ...range,
-        expanded: forced || this.#expandedSummaries.has(range.summary.id),
-        forced,
-        requiredText: "Messages kept open \xB7 current work"
-      };
+    const handedOn = this.#transcript.present(model, {
+      arrived: Boolean(prior),
+      appends: model.surface === "margin"
     });
-    const pendingRanges = rangeState.filter((range) => range.summary?.pending);
-    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
-    const progressByReply = /* @__PURE__ */ new Map();
-    const streaming = model.messages.at(-1);
-    if (streaming?.provisional && pendingRanges.length)
-      progressByReply.set(streaming.id, pendingRanges);
-    for (const range of rangeState) {
-      if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
-      const trigger = range.summary.trigger;
-      if (!progressByReply.has(trigger)) progressByReply.set(trigger, []);
-      progressByReply.get(trigger).push(range);
-    }
-    const messages = model.messages.map((message) => {
-      let view = this.#messages.get(message.key);
-      if (!view)
-        this.#messages.set(
-          message.key,
-          view = new MessageView(this.#messageCommands)
-        );
-      view.present(message, {
-        arrived: Boolean(prior),
-        headerControls: progressByReply.has(message.id) ? this.#summaryToggle(progressByReply.get(message.id), true) : nothing
-      });
-      keeps(
-        view.node,
-        "data-lf-append-tail",
-        message.provisional && message === model.messages.at(-1) ? "" : null
-      );
-      return { key: message.key, node: view.node };
-    });
-    const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
-    const placed2 = (key, summary) => {
-      const node = messageNodes.get(key);
-      keeps(node, "data-lf-summary", summary);
-      return [node];
-    };
-    const checkpoints = /* @__PURE__ */ new Map();
-    const transcript = [];
-    const transcriptLists = [[this.#transcript, transcript]];
-    for (const range of rangeState) {
-      if (range.kind === "message") {
-        transcript.push(...placed2(range.message.key, null));
-        continue;
-      }
-      const id = range.summary.id;
-      const checkpoint = this.#checkpoints.get(id) ?? this.#checkpoint(id);
-      checkpoints.set(id, checkpoint);
-      this.#paintCheckpoint(checkpoint, range);
-      transcript.push(checkpoint.node);
-      transcriptLists.push([
-        checkpoint.originals,
-        range.messages.flatMap((message) => placed2(message.key, id))
-      ]);
-    }
-    if (model.working) {
-      keeps(this.#working, "data-lf-live", model.working.live ? "" : null);
-      render(workingView(model.working), this.#working);
-      transcript.push(this.#working);
-    }
-    this.#stopWorkingExposure?.();
-    this.#stopWorkingExposure = model.working?.feedback ? this.#commands.read.observeFeedback(
-      this.#working.querySelector(".lf-thread-working-words"),
-      {
-        ...model.working.feedback,
-        presentation_kind: "working_words",
-        surface: model.surface
-      }
-    ) : null;
-    this.#checkpoints = checkpoints;
-    keeps(
-      this.#transcript,
-      "data-lf-reflow",
-      model.surface === "margin" ? "append" : null
-    );
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     const body = html`
-      ${this.#transcript}
+      ${this.#transcript.node}
       ${threadActions ? marginControls ? html`<div class="lf-margin-thread-controls">${threadActions}</div>` : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>` : nothing}
     `;
-    setChildLists(transcriptLists);
     render(
       html`
         ${model.surface === "margin" ? body : html`<div class="lf-thread-content">${body}</div>`}
@@ -6261,16 +6412,8 @@ var ThreadView = class {
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
     this.#continuity?.after(bodyPlace);
-    const toggleFor = (id) => this.node.querySelector(
-      `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`
-    );
-    const succeeded = standingToggle?.dataset.summaryToggle;
-    const toggleHandedOn = standingToggle && !standingToggle.isConnected ? [
-      succeeded,
-      ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id)
-    ].map(toggleFor).find(Boolean) ?? null : null;
     restoreFocus?.(
-      toggleHandedOn ? () => (focusDestination(toggleHandedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)
+      handedOn ? () => (focusDestination(handedOn, "return"), true) : () => this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node)
     );
     return this.node;
   }
@@ -6377,77 +6520,10 @@ var ThreadView = class {
         );
     } else this.#news.node.removeAttribute("data-lf-room");
   }
-  // A summary's checkpoint: a retained section whose head the template draws, and
-  // whose originals hold the retained messages the summary covers.
-  #checkpoint(id) {
-    const node = document.createElement("section");
-    node.className = "lf-thread-checkpoint";
-    node.dataset.summaryId = id;
-    const originals = document.createElement("div");
-    originals.id = `lf-summary-originals-${this.#viewId}-${id}`;
-    originals.className = "lf-summary-originals";
-    node.append(originals);
-    return { node, originals };
-  }
-  #paintCheckpoint({ node, originals }, range) {
-    const progress = Boolean(range.summary.trigger || range.summary.pending);
-    keeps(node, "data-expanded", range.expanded);
-    keepsHidden(node, progress && !range.expanded);
-    keepsHidden(originals, !range.expanded);
-    render(
-      html`${progress ? nothing : html`<div class="lf-summary-checkpoint">
-              <div class="lf-summary-header">
-                <div class="lf-summary-label">${range.summary.label}</div>
-                ${range.forced ? nothing : this.#summaryToggle([range])}
-              </div>
-              ${range.summary.text ? html`<div
-                      class="lf-summary-text"
-                      .innerHTML=${renderMarkdown(range.summary.text)}
-                    ></div>` : nothing}
-              ${range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}
-            </div>`}
-      ${progress && range.forced ? html`<div class="lf-summary-required">${range.requiredText}</div>` : nothing}`,
-      node,
-      { renderBefore: originals }
-    );
-  }
-  // Whether the progress behind the working message stood open when last drawn, opened by
-  // the reader or by a search matching it, so each step that joins it shows: held news
-  // counts those steps as news here (held-news.js).
+  // Whether the progress behind the working message stood open when last drawn
+  // (transcript.js, `progressOpen`).
   get progressOpen() {
-    return this.#pendingOpen;
-  }
-  #summaryToggle(ranges, progress = false) {
-    const ids = ranges.map((range) => range.summary.id);
-    const expanded = ranges.every((range) => range.expanded);
-    const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const subject = `${count} ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}`;
-    const label = `${expanded ? progress ? "Hide" : "Collapse" : "Show"} ${subject}`;
-    return html`<button
-      type="button"
-      class="lf-thread-disclosure lf-summary-expand ${progress ? "lf-progress-expand" : ""}"
-      data-lf-room=${progress ? `Show ${subject}` : nothing}
-      data-summary-toggle=${ids[0]}
-      aria-expanded=${String(expanded)}
-      aria-controls=${ids.map((id) => `lf-summary-originals-${this.#viewId}-${id}`).join(" ")}
-      @click=${() => this.#setSummaryExpanded(ids, !expanded)}
-    >
-      ${progress ? html`<span>${label}</span>` : label}
-    </button>`;
-  }
-  #setSummaryExpanded(ids, expanded) {
-    for (const id of ids) {
-      if (expanded) this.#expandedSummaries.add(id);
-      else this.#expandedSummaries.delete(id);
-    }
-    this.repaint();
-    const toggle = this.node.querySelector(
-      `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`
-    );
-    if (toggle) {
-      focusDestination(toggle, "return");
-      scrollThreadIntoView(this.node, toggle, "instant");
-    }
+    return this.#transcript.progressOpen;
   }
   // A thread shows Reopen or the completed check in Resolve's place.
   #settlement(model, place2) {
@@ -6543,14 +6619,7 @@ var ThreadView = class {
     });
   }
   commit() {
-    const wanted = new Set(this.#model.messages.map((message) => message.key));
-    for (const [key, view] of this.#messages) {
-      if (wanted.has(key)) view.commit();
-      else {
-        view.retire();
-        this.#messages.delete(key);
-      }
-    }
+    this.#transcript.commit();
     if (!this.#replyShown && this.#reply) {
       this.#reply.dispose();
       this.#reply = null;
@@ -6562,10 +6631,8 @@ var ThreadView = class {
     this.#reply?.claim(shown);
   }
   retire() {
-    this.#stopWorkingExposure?.();
-    this.#stopWorkingExposure = null;
     this.#reply?.cancelDictation();
-    for (const view of this.#messages.values()) view.retire();
+    this.#transcript.retire();
   }
   dispose() {
     this.#sizes.disconnect();
@@ -7384,6 +7451,7 @@ export {
   HeldNews,
   HeldReading,
   heldGrowth,
+  Transcript,
   quoteReading,
   threadReading,
   ThreadView,

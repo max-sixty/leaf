@@ -756,14 +756,16 @@ export function createTargetPicker({
   const closeTargetPicker = () => setTargetPicker(false);
 
   // A press on the marked match selects it, as Enter does: the match is what the user is
-  // looking at, and a phone's keyboard may offer no Enter. The press is the match's alone:
-  // claimed at its pointerdown and taken at capture to its click, so no selection gesture
-  // of the page's or the browser's starts from it and no link the words stand in is
-  // followed. A press lands on the match only
-  // through the block holding its words, so a control painted over them keeps its own.
+  // looking at, and a phone's keyboard may offer no Enter. The press's mouse events are
+  // the match's alone, claimed at its mousedown and taken at capture to its click: the
+  // browser starts no selection from it, the page's selection gesture (surface.js) does
+  // not snap it on mouseup, and no link the words stand in is followed. Its pointer
+  // events pass, so whatever reads input still hears the press. A press lands on the
+  // match only through the block holding its words, so a control painted over them
+  // keeps its own.
   let pressOnMatch = false;
   function onMarkedMatch(ev) {
-    if (!pageSearchOpen || !ev.isPrimary || ev.button !== 0) return false;
+    if (!pageSearchOpen || ev.button !== 0) return false;
     refreshMatches();
     const segments = matches[active];
     if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
@@ -773,10 +775,9 @@ export function createTargetPicker({
     );
   }
   function pressMatch(ev) {
-    if (ev.type === "pointerdown") pressOnMatch = onMarkedMatch(ev);
+    if (ev.type === "mousedown") pressOnMatch = onMarkedMatch(ev);
     if (!pressOnMatch) return;
-    if (ev.type === "pointercancel") pressOnMatch = false;
-    if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
+    if (ev.type !== "mouseup") ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
     pressOnMatch = false;
@@ -785,17 +786,8 @@ export function createTargetPicker({
 
   function mount() {
     pageSearchInput.addEventListener("input", search);
-    // On the window, ahead of the document's own capture listeners, so the page's
-    // selection gesture (surface.js) sees none of the press rather than its start alone.
-    for (const type of [
-      "pointerdown",
-      "mousedown",
-      "pointerup",
-      "mouseup",
-      "click",
-      "pointercancel",
-    ])
-      addEventListener(type, pressMatch, true);
+    for (const type of ["mousedown", "mouseup", "click"])
+      document.addEventListener(type, pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
       if (pageSearchOpen) repaint();

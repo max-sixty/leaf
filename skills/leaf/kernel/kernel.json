@@ -53,7 +53,7 @@
     "runtime/composing/selection.js": "c24c840483e45092385c63392a6fe4b5feb0882f0f47e4fc87de70dbe7fd8a7c",
     "runtime/composing/standing.js": "a5ea57f888449868b25f8479dae874d9b875a716dda1ae6bad63e4883f53b98e",
     "runtime/composing/surface.js": "2a570b135431630b03283a13d8a443181b05224dc7cde4348c8798630de4359b",
-    "runtime/composing/target-picker.js": "a3897076a6a72d4ed34bb7a5ac5c6079c3ba9968c72d0c14cd1b1f1378176472",
+    "runtime/composing/target-picker.js": "ac67bc08c2c01353e0c8120882e2678f81c47e7114cd31723d49964ad1d36e25",
     "runtime/composing/text-field.js": "74cb6c39bbbe471f6aec84df92e79268f18c5636fac4d81b830585c3671d7458",
     "runtime/content-layout.js": "a62f33d2e2a2aa18c00f968a58872159cbbb4adb35c2ed15baaadf7bd0e4aa91",
     "runtime/context.js": "2fadc037dad96cc9929d31ab09934331af5ff36c7fef3629be8812bb99fd2049",

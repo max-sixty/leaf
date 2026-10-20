@@ -4780,7 +4780,7 @@ ${searchCount(maximum, maximum)}`
   const closeTargetPicker = () => setTargetPicker(false);
   let pressOnMatch = false;
   function onMarkedMatch(ev) {
-    if (!pageSearchOpen || !ev.isPrimary || ev.button !== 0) return false;
+    if (!pageSearchOpen || ev.button !== 0) return false;
     refreshMatches();
     const segments = matches[active];
     if (!segments || !ev.composedPath().includes(matchOwner(segments))) return false;
@@ -4790,10 +4790,9 @@ ${searchCount(maximum, maximum)}`
     );
   }
   function pressMatch(ev) {
-    if (ev.type === "pointerdown") pressOnMatch = onMarkedMatch(ev);
+    if (ev.type === "mousedown") pressOnMatch = onMarkedMatch(ev);
     if (!pressOnMatch) return;
-    if (ev.type === "pointercancel") pressOnMatch = false;
-    if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
+    if (ev.type !== "mouseup") ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
     pressOnMatch = false;
@@ -4801,15 +4800,8 @@ ${searchCount(maximum, maximum)}`
   }
   function mount() {
     pageSearchInput.addEventListener("input", search);
-    for (const type of [
-      "pointerdown",
-      "mousedown",
-      "pointerup",
-      "mouseup",
-      "click",
-      "pointercancel"
-    ])
-      addEventListener(type, pressMatch, true);
+    for (const type of ["mousedown", "mouseup", "click"])
+      document.addEventListener(type, pressMatch, true);
     hints.mount();
     addEventListener("resize", () => {
       if (pageSearchOpen) repaint();

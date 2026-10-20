@@ -209,12 +209,13 @@ Leaf's share was 0.5–1.5 s in 19 of the 20 replies. Delivery took 0.14–0.44 
 waiting and 0.13–0.26 s working; on Codex App Server it reads 0 working, since the
 comment arrives with the tool result and its acknowledgement counts as a command.
 The `leaf` commands took 0.3–1.2 s. The other reply, a Claude Code waiting one
-during the load spike, spent 8.3 s in `leaf` commands, 7.2 s of it in the call
-that ran `leaf page check --render`, which no instruction asks for before a reply. A call that only names the launcher counts as
-Leaf's too, such as Pi's `printf '%s\n' "$LEAF"`, a few milliseconds each.
+during the load spike, spent 8.3 s in `leaf` commands, 7.2 s of it in the call that
+ran `leaf page check --render`, which no instruction asks for before a reply. A call
+that only names the launcher counts as Leaf's too, such as Pi's
+`printf '%s\n' "$LEAF"`, a few milliseconds each.
 
-The model took the rest, at 1.5–7.5 s a call on Pi and Codex and 2–11 s on
-Claude Code. The quickest replies took two calls once the comment was in context: in a
+The model took the rest, at 1.5–7.5 s a call on Pi and Codex and 2–11 s on Claude
+Code. The quickest replies took two calls once the comment was in context: in a
 Claude Code working reply, the first call claimed the comment with a progress reply
 alongside the user's own step, and the second edited the page and replied. Codex's
 working replies took two after the user's step: one acknowledged and claimed the

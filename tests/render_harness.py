@@ -1707,10 +1707,10 @@ def panel_control(page, key, at=None):
     (`approval`) stands under Versions. Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
-    `command:history.undo` or `command:draw.mode.enter` (under `annotate`). A gesture's
-    next step stands in the marks' place as a `.lf-fp-step` chip named by its words, the
-    way out of the stance the user stands in is the `.lf-fp-exit` ✕ named by its
-    `aria-label`, and the page comment is `page_comment`'s."""
+    `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
+    of the stance the user stands in is the `.lf-fp-exit` ✕ named by its `aria-label`,
+    and the page comment is `page_comment`'s, offering selected words as
+    `selection_field`'s."""
     if key in PANEL_ROW_CONTROLS:
         control = page.locator(PANEL_ROW_CONTROLS[key])
     elif key == "approval":
@@ -1732,6 +1732,14 @@ def expect_panel_offers(page, key, *, offered=True, at=None):
     expect(row).to_have_count(1 if offered else 0)
     page.locator(".lf-fp-leaf").click()
     expect(page.locator(PANEL)).not_to_have_attribute("data-menu", "")
+
+
+def selection_field(page):
+    """Return the page comment's box in the panel's field while it offers the words
+    selected on the page: its placeholder quotes them, and a press on it comments on
+    them (floating-panel.js, `selectedWords`). Nothing matches while no words are
+    offered, so the locator reads as hidden then."""
+    return page.locator('.lf-fp-field leaf-text[name="comment"][data-says="selection"]')
 
 
 def page_comment(page):

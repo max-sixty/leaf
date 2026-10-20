@@ -88,7 +88,6 @@ import {
   onSampleNotice,
   registerSampleCommand,
   sampleNotice,
-  standing,
   userIn
 } from "./runtime/bundle-sample-child.js";
 import {
@@ -1004,10 +1003,10 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
     let uploading = false;
     const canSend = () => !sending && !uploading && !held() && hasContent(draftValue());
     const paint = (contextualHint) => {
-      const standing2 = focused() === ta;
+      const standing = focused() === ta;
       const advertising = advertisesKeys();
       const sendKeys = advertising ? submitLabel() : "";
-      const suffix = !advertising ? "" : standing2 ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
+      const suffix = !advertising ? "" : standing ? sendKeys : contextualHint?.box === ta ? contextualHint.label : "";
       const status = dictationStatus();
       const word2 = status || label2();
       const placeholder = suffix && !status ? `${word2} ${suffix}` : word2;
@@ -2049,6 +2048,7 @@ pageScope("command reference", {
   rows: [
     {
       id: "command.reference.command.next",
+      touch: false,
       keys: ["ArrowDown"],
       description: "Choose the next command",
       title: "choose next",
@@ -2062,6 +2062,7 @@ pageScope("command reference", {
     },
     {
       id: "command.reference.command.previous",
+      touch: false,
       keys: ["ArrowUp"],
       description: "Choose the previous command",
       title: "choose previous",
@@ -2073,6 +2074,7 @@ pageScope("command reference", {
     },
     {
       id: "command.reference.command.activate",
+      touch: false,
       keys: ["Enter"],
       description: "Activate the chosen command",
       title: "activate",
@@ -2083,6 +2085,7 @@ pageScope("command reference", {
     },
     {
       id: "command.reference.close",
+      touch: false,
       keys: ["Escape"],
       description: "Close the command reference",
       title: "close command reference",
@@ -2408,12 +2411,19 @@ function createResponseSurface({
     const anchor = selection ? selectionAnchor(selection) : null;
     return hasQuote(anchor);
   };
-  let selectionOffered = false;
+  let offeredSelection = null;
   const offerSelection = (anchor) => {
-    if (selectionOffered === Boolean(anchor)) return;
-    selectionOffered = Boolean(anchor);
-    pageControlsChanged();
+    if (anchor === offeredSelection) return;
+    offeredSelection = anchor;
+    pageComment.offer(
+      anchor ? { quote: anchor.quote, comment: () => commentOnOfferedSelection(anchor) } : null
+    );
   };
+  function commentOnOfferedSelection(settled = offeredSelection) {
+    const selection = anchoringIsReady() ? pageSelection() : null;
+    const standing = selection ? selectionAnchor(selection) : null;
+    commentOnSelection(hasQuote(standing) ? standing : settled);
+  }
   const commentOnSelection = (anchor) => {
     offerSelection(null);
     if (!hasQuote(anchor)) return;
@@ -2421,19 +2431,6 @@ function createResponseSurface({
     selectionUpdate = null;
     openComment(anchor, "");
   };
-  const commentOnOfferedSelection = () => {
-    const selection = anchoringIsReady() ? pageSelection() : null;
-    commentOnSelection(selection ? selectionAnchor(selection) : null);
-  };
-  registerPageControl({
-    key: "comment-selection",
-    rank: PAGE_CONTROL_RANK.commentSelection,
-    gesture: true,
-    label: "Comment on selection",
-    group: "annotate",
-    offered: () => selectionOffered,
-    press: commentOnOfferedSelection
-  });
   function observeSelection() {
     const selection = anchoringIsReady() ? pageSelection() : null;
     const anchor = selection ? selectionAnchor(selection) : null;
@@ -2567,7 +2564,7 @@ function createResponseSurface({
     const releasePress = () => setTimeout(() => {
       actionPress = false;
     });
-    if (selectionOffered && inChrome(ev.composedPath()[0])) {
+    if (offeredSelection && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -2647,7 +2644,7 @@ function createResponseSurface({
         const selection = pointerSelecting ? stood : null;
         if (selection && pageRange(selection).intersectsNode(target))
           rememberPointerSelection();
-        actionPress = selectionOffered && inChrome(target) || Boolean(
+        actionPress = offeredSelection && inChrome(target) || Boolean(
           /** @type {Partial<Element>} */
           target.closest?.(
             ".lf-react-surface, .lf-composer"
@@ -2768,7 +2765,7 @@ function createResponseSurface({
     title: `comment on the ${word2}`
   });
   function commentDestination() {
-    if (selectionOffered)
+    if (offeredSelection)
       return {
         ...commenting("selection"),
         box: null,
@@ -2868,6 +2865,7 @@ function createResponseSurface({
     rows: [
       {
         id: "composer.close",
+        touch: false,
         keys: ["Escape"],
         description: () => composer.composerHolds() ? "Close the comment box, keeping the draft" : "Close the comment box",
         title: () => composer.composerHolds() ? "close \u2014 draft kept" : "close",
@@ -4082,6 +4080,7 @@ function createHintSession({
     return [
       {
         id: `${id}.walk`,
+        touch: false,
         keys: ["Tab", "Shift+Tab"],
         routes: [
           { id: `${id}.next`, binding: "Tab", title: "Hear the next visible target" },
@@ -4098,6 +4097,7 @@ function createHintSession({
       },
       {
         id: `${id}.choose`,
+        touch: false,
         keys: ["Enter"],
         description: choose.description,
         title: choose.title,
@@ -4606,7 +4606,7 @@ ${searchCount(maximum, maximum)}`
     setTargetPicker(false);
     selectMatch(segments);
     announce(
-      `Selected match: ${quote}. ${coarsePointer.matches || !bindingEnabled("c") ? "Comment on selection comments on it." : "Press n for next, Shift+n for previous, or c to comment."}`
+      `Selected match: ${quote}. ${coarsePointer.matches || !bindingEnabled("c") ? "A press on the comment field comments on it." : "Press n for next, Shift+n for previous, or c to comment."}`
     );
   }
   function selectMatch(segments) {
@@ -4767,6 +4767,7 @@ ${searchCount(maximum, maximum)}`
   const targetingClaims = (binding) => allButCommandReference(binding) && !bindings(PAGE_SEARCH).includes(binding);
   const TARGET_HINT_TYPE = {
     id: "target.picker.hint.type",
+    touch: false,
     keys: HINT_KEYS,
     label: "a\u2013z",
     description: "Type the hint for a target",
@@ -5303,9 +5304,9 @@ function createAnchorControls({
               return;
             }
             record.surface = context2.surface ?? null;
-            const standing2 = focused2();
+            const standing = focused2();
             setReactionRemoval(record, record.expanded === root.id ? null : root.id, {
-              focus: context2.input === "keyboard" && context2.origin === standing2,
+              focus: context2.input === "keyboard" && context2.origin === standing,
               surface: record.surface
             });
           }
@@ -6054,7 +6055,7 @@ var OWN_VIEWS = Object.freeze(["leaves", "versions"]);
 var FOLD = "panel.floating.fold";
 var HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 var PICK = "command:target.picker.open";
-var listed = (entry) => !entry.gesture && !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && !(entry.key === PICK && advertisesKeys());
+var listed = (entry) => !entry.exit && !HELD_ELSEWHERE.includes(entry.key) && !(entry.key === PICK && advertisesKeys());
 var copyRefused = false;
 var canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
 var groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;
@@ -6230,12 +6231,15 @@ function createFloatingPanel({
     if (!input?.isConnected || draftOf(input) !== "") return [];
     return errorsReading().filter((error) => !error.passed && error.subject === null);
   }
+  let selectedWords = null;
   function fieldReading(key, input) {
     const [error] = sayable();
     if (error) return { says: "error", words: error.message };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
+    if (!key && selectedWords)
+      return { says: "selection", words: `\u201C${excerptWords(selectedWords.quote, 60)}\u201D` };
     const stance2 = key ? null : statusContextReading().stance;
     const notice2 = passing();
     if (notice2.visible)
@@ -6274,7 +6278,9 @@ function createFloatingPanel({
         const parts = status().summaryParts;
         return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
       },
-      accessibleName: "Comment on the page",
+      // Named for what a press there does, as the field's reading says it, once the
+      // editor this builds is the one the reading reads.
+      accessibleName: () => general && fieldReading(null, input).says === "selection" ? "Comment on the selection" : "Comment on the page",
       sends: "send",
       sendBtn: send,
       save: (text) => {
@@ -6345,6 +6351,27 @@ function createFloatingPanel({
     if (Boolean(draftOf(fieldInput()).trim()) !== typing) paint();
   }
   field.addEventListener("input", retype);
+  let pressedWords = null;
+  const quotedWords = () => general && fieldInput() === general.input && fieldReading(null, general.input).says === "selection" ? selectedWords : null;
+  field.addEventListener(
+    "pointerdown",
+    (event) => {
+      pressedWords = event.isPrimary && event.composedPath().includes(general?.input) ? quotedWords() : null;
+    },
+    true
+  );
+  field.addEventListener(
+    "mousedown",
+    (event) => {
+      if (pressedWords) event.preventDefault();
+    },
+    true
+  );
+  field.addEventListener("click", (event) => {
+    const words = pressedWords;
+    pressedWords = null;
+    if (words && event.composedPath().includes(general?.input)) words.comment();
+  });
   field.addEventListener(
     "beforeinput",
     () => passErrors(sayable().map((error) => error.id)),
@@ -8005,18 +8032,21 @@ function createFloatingPanel({
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
+    keeps(host, "data-offers", reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
     fieldSays = writing || draftOf(input) !== "" ? null : reading.says === "status" ? STATUS : reading.says === "error" ? reading.words : null;
     const notice2 = passing();
-    const said = notice2.visible && !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
-    keepsText(contextWords, said ? notice2.message : "");
+    const hidden = !top && reading.says !== "destination" && reading.says !== "error" && draftOf(input) !== "";
+    keepsText(
+      contextWords,
+      !hidden ? "" : reading.says === "selection" ? reading.words : notice2.visible ? notice2.message : ""
+    );
     keepsHidden(context2, !contextWords.textContent);
     paintPeek();
-    const standing2 = rowNotice();
-    keepsHidden(rowNoticeSeat, !standing2);
-    render(standing2 ? rowNoticeTemplate(standing2) : nothing, rowNoticeSeat);
-    const steps = rows().filter((entry) => entry.gesture);
+    const standing = rowNotice();
+    keepsHidden(rowNoticeSeat, !standing);
+    render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
     const exit = rows().find((entry) => entry.exit);
     render(
       exit ? html`<button
@@ -8033,26 +8063,6 @@ function createFloatingPanel({
       exitSeat
     );
     keepsHidden(exitSeat, !exit);
-    keeps(quick, "data-steps", steps.length ? "" : null);
-    if (steps.length) {
-      render(
-        html`${repeat(
-          steps,
-          (entry) => entry.key,
-          (entry) => html`<button
-              type="button"
-              class="lf-fp-chip lf-fp-step"
-              ?disabled=${entry.disabled}
-              @mousedown=${(event) => event.preventDefault()}
-              @click=${() => entry.press()}
-            >
-              ${entry.label}
-            </button>`
-        )}`,
-        quick
-      );
-      return;
-    }
     const threadsOpen = top?.view === "threads" || top?.view === "thread";
     const onUserName = onUser ? `On me: ${onUser}` : "On me";
     const threadsName = inventoried() ? `Threads, ${openCount()} open${news ? `, ${news} with news` : ""}` : "Threads";
@@ -8436,15 +8446,15 @@ function createFloatingPanel({
       scroll: view.scrollTop
     };
   }
-  function restoreStanding(standing2) {
-    const thread = standing2 && threadByKey(standing2.thread);
+  function restoreStanding(standing) {
+    const thread = standing && threadByKey(standing.thread);
     if (!thread) return false;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
     landAtEnd = null;
     void present({ release: true }).then(() => {
       const view = openView();
       if (view && trail.at(-1)?.thread === thread.key)
-        moveScrollerBy(view, standing2.scroll - view.scrollTop);
+        moveScrollerBy(view, standing.scroll - view.scrollTop);
     });
     return true;
   }
@@ -8455,7 +8465,12 @@ function createFloatingPanel({
     open: writeOnPage,
     close: () => {
     },
-    sync: () => pageEditor().sync()
+    sync: () => pageEditor().sync(),
+    offer(passage) {
+      const moved = passage?.quote !== selectedWords?.quote;
+      selectedWords = passage;
+      if (moved) paint();
+    }
   });
   function enter() {
     const input = prefs().rest !== "mark" ? fieldInput() : null;
@@ -9113,9 +9128,9 @@ function createObligationView({
     if (target) focusForNavigation2(target, "return");
   }
   const HEADING = "h1,h2,h3,h4,h5,h6";
-  function arrivalRegion(item, context2, standing2) {
+  function arrivalRegion(item, context2, standing) {
     const declared = context2 && registry[context2.localName]?.["x-awaits"]?.encloses;
-    if (declared && context2 === standing2) return context2;
+    if (declared && context2 === standing) return context2;
     const fits = (region) => {
       if (!region) return false;
       const start = shownBox(region);
@@ -9332,8 +9347,8 @@ function createQueueWalk({
   }
   function step(list, dir, region, origin) {
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
-    const standing2 = standingStop(list, origin);
-    if (standing2) return cycledRow(list, standing2, dir);
+    const standing = standingStop(list, origin);
+    if (standing) return cycledRow(list, standing, dir);
     return stepFrom(list, origin, dir, (stop) => stop.place);
   }
   function arriveAtElement(find) {
@@ -10423,6 +10438,7 @@ function createGoToSequence({
     return [
       {
         id: "navigation.thread.edge",
+        touch: false,
         // A focused thread is one place, so its two placements complete the sequence
         // without naming a list or taking a digit. This is the thread-local counterpart
         // to the page edges below: k/j place the card inside its panel rather than moving
@@ -10453,6 +10469,7 @@ function createGoToSequence({
       },
       {
         id: "navigation.page.focus",
+        touch: false,
         // This changes focus without unwinding an open surface.
         keys: PAGE_RETURN_KEYS,
         description: "Focus the page",
@@ -10465,6 +10482,7 @@ function createGoToSequence({
       },
       {
         id: "navigation.target",
+        touch: false,
         runFromCommandReference: false,
         // Every alphabet key is claimed while the map stands. If a scene refresh retired
         // a remembered route, that old letter must report the miss rather than falling
@@ -10489,6 +10507,7 @@ function createGoToSequence({
       },
       {
         id: "navigation.target.filter",
+        touch: false,
         keys: FILTER_KEYS,
         routes: TARGET_FILTERS.map(({ id, key, word: word2 }) => ({
           id: `navigation.target.filter.${id}`,
@@ -10528,6 +10547,7 @@ function createGoToSequence({
       })),
       {
         id: "navigation.page.edge",
+        touch: false,
         keys: PAGE_EDGE_KEYS,
         routes: [
           {
@@ -10551,6 +10571,7 @@ function createGoToSequence({
       },
       {
         id: "navigation.go-to.back",
+        touch: false,
         keys: ["Escape"],
         sequenceControl: true,
         description: () => hints.prefix() ? "Remove the last hint letter" : targetFilter ? "Show all visible targets" : "Cancel the sequence",
@@ -10614,11 +10635,12 @@ function standingOn(name2, title, sel, rows) {
   });
 }
 standingOn("link", "On a link", LINK, [
-  { id: "link.follow", keys: ["Enter"], title: "Follow" }
+  { id: "link.follow", keys: ["Enter"], title: "Follow", touch: false }
 ]);
 standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
   {
     id: "disclosure.toggle",
+    touch: false,
     keys: () => DISCLOSE(focused()),
     description: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
@@ -10666,6 +10688,7 @@ function declareStanding({ pageState }) {
     rows: [
       {
         id: "navigation.release",
+        touch: false,
         keys: ["Escape"],
         description: "Let go of the current item",
         title: "let go",
@@ -10760,15 +10783,14 @@ function mountKeyboard({
 // runtime/keyboard/touch-controls.js
 var presses = /* @__PURE__ */ new Map();
 var faces = /* @__PURE__ */ new Map();
-function place2(press, gesture) {
+function place2(press) {
   const known = presses.has(press.id);
   presses.set(press.id, press);
   if (known) return press.id;
   const face = () => faces.get(press.id);
   registerPageControl({
     key: `command:${press.id}`,
-    rank: gesture ? PAGE_CONTROL_RANK.steps : PAGE_CONTROL_RANK.commands,
-    gesture,
+    rank: PAGE_CONTROL_RANK.commands,
     label: () => face()?.label ?? "",
     shortcut: () => face()?.shortcut ?? [],
     // A page command says which of a menu's groups it belongs with (`menu`).
@@ -10791,7 +10813,7 @@ function placeStanceExit() {
   stanceRegistered = true;
   registerPageControl({
     key: "stance:exit",
-    rank: PAGE_CONTROL_RANK.steps,
+    rank: PAGE_CONTROL_RANK.exit,
     exit: true,
     label: () => stance?.label ?? "",
     group: "page",
@@ -10805,14 +10827,7 @@ function placeStanceExit() {
 var sameStance = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled;
 var same3 = (a, b) => a?.label === b?.label && a?.disabled === b?.disabled && a?.shortcut.join(" ") === b?.shortcut.join(" ");
 function paintTouchControls() {
-  const { commands, steps } = touchPresses();
-  for (const { presses: scoped } of steps)
-    for (const press of scoped) place2(press, true);
-  const innermost = steps.find(({ scope }) => standing(scope));
-  const shown = /* @__PURE__ */ new Set([
-    ...commands.map((press) => place2(press, false)),
-    ...innermost?.presses.map((press) => press.id) ?? []
-  ]);
+  const shown = new Set(touchPresses().map(place2));
   let changed = false;
   const held = innermostStance();
   if (held) placeStanceExit();
@@ -11241,7 +11256,7 @@ var version = createVersionController({
     return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
   },
   captureObligationStanding: () => items.captureStanding(),
-  restoreObligationStanding: (standing2) => items.restoreStanding(standing2),
+  restoreObligationStanding: (standing) => items.restoreStanding(standing),
   versions: { press: () => floatingPanel.doors.versions.press() }
 });
 var inputs = createCompositionInputs({

@@ -27,6 +27,7 @@ from render_harness import (
     open_page,
     panel_menu,
     round_trip,
+    selection_field,
     stamp_page,
     told,
     write,
@@ -52,9 +53,7 @@ def test_page_round_trip(browser, serve):
         getSelection().removeAllRanges();
         getSelection().addRange(range);
     }""")
-    expect(
-        page.get_by_role("button", name="Comment on selection", exact=True)
-    ).to_be_visible()
+    expect(selection_field(page)).to_be_visible()
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.wait_for_selector(".lf-composer", state="visible")

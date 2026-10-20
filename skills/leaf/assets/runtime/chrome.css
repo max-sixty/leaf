@@ -229,10 +229,10 @@
     min-width: 0;
     align-self: center;
   }
-  .lf-floating-panel:not([data-open]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
+  .lf-floating-panel:not([data-open], [data-offers]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
     display: none;
   }
-  .lf-floating-panel:not([data-open]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-response {
+  .lf-floating-panel:not([data-open], [data-offers]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-response {
     display: block;
   }
   .lf-fp-resolved {
@@ -282,6 +282,9 @@
   .lf-fp-field leaf-text[data-says=notice]::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
+  }
+  .lf-fp-field leaf-text[data-says=selection]::part(placeholder) {
+    color: var(--ink);
   }
   .lf-fp-field leaf-text[data-says=error]::part(placeholder) {
     color: var(--danger-ink);
@@ -342,7 +345,7 @@
   .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-submit {
     display: grid;
   }
-  .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {
+  .lf-floating-panel[data-typing] .lf-fp-quick {
     display: none;
   }
   .lf-fp-field .lf-compose-dictate {
@@ -459,11 +462,6 @@
   }
   .lf-fp-exit-seat[hidden] {
     display: none;
-  }
-  .lf-fp-step {
-    color: var(--ink);
-    box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
-    padding-inline: 10px;
   }
   .lf-fp-context {
     box-sizing: content-box;

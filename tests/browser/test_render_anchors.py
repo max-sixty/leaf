@@ -82,6 +82,7 @@ from render_harness import (
     resized,
     scroll_settled,
     select,
+    selection_field,
     sending,
     stamp_page,
     told,
@@ -152,10 +153,10 @@ def expect_open_threads(page, count):
 
 
 def open_selected_comment(page):
-    """Choose the Comment action offered for the completed selection."""
-    button = page.get_by_role("button", name="Comment on selection", exact=True)
-    expect(button).to_be_visible()
-    button.click()
+    """Press the panel's field, which offers the completed selection."""
+    field = selection_field(page)
+    expect(field).to_be_visible()
+    field.click()
 
 
 def selected_comment_marks_chosen_start(page, chosen):

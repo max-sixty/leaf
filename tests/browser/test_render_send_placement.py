@@ -56,6 +56,7 @@ from render_harness import (
     resized,
     scroll_settled,
     select,
+    selection_field,
     sending,
     write,
 )
@@ -119,7 +120,7 @@ PHRASE = """(words) => {
 
 class Passage:
     """Words in the long paragraph, selected by dragging across them or, under a
-    finger, by the platform's selection and the panel's Comment on selection."""
+    finger, by the platform's selection and a tap on the panel's field."""
 
     block = "#long"
 
@@ -135,7 +136,7 @@ class Passage:
                 }}""",
                 self.words,
             )
-            page.locator(".lf-fp-step", has_text="Comment on selection").tap()
+            selection_field(page).tap()
             return
         rect = self.line(page)
         y = rect["top"] + rect["height"] / 2

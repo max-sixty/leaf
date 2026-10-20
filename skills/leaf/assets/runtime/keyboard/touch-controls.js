@@ -1,11 +1,10 @@
 /* The page's commands a finger reaches, as rows of the page's controls (page-controls.js).
- * `touch` names a row a finger needs; the same row serves a mouse. Page commands stand in
- * the floating panel's menu, and the innermost active scope supplies gesture steps,
- * which stand in its row. A scope with a row marked `exit` is a stance, such as page
- * search or Draw mode: while the innermost one stands (dispatch.js, `innermostStance`),
- * the panel's row offers that row as its one way out, and the panel says the scope's
- * title (status-context.js). Words, availability and activation all come from the same
- * row as keyboard dispatch.
+ * `touch` names a page command a finger needs a row for; the same row serves a mouse, and
+ * stands in the floating panel's menu. A scope with a row marked `exit` is a stance, such
+ * as page search or Draw mode: while the innermost one stands (dispatch.js,
+ * `innermostStance`), the panel's row offers that row as its one way out, and the panel
+ * says the scope's title (status-context.js). Words, availability and activation all
+ * come from the same row as keyboard dispatch.
  *
  * A command's words and liveness are read in the repaint frame (`paintTouchControls`),
  * where the register is read, rather than in a presentation's paint: a liveness
@@ -19,22 +18,21 @@ import {
 } from "../page-controls.js";
 import { returnPlace } from "../history.js";
 import { bindings, live, spell, titleOf, word } from "./bindings.js";
-import { innermostStance, invokePress, standing } from "./dispatch.js";
+import { innermostStance, invokePress } from "./dispatch.js";
 import { touchPresses } from "./register.js";
 
 // Each press's latest reading, by the command it invokes, and how its row reads now.
 const presses = new Map();
 const faces = new Map();
 
-function place(press, gesture) {
+function place(press) {
   const known = presses.has(press.id);
   presses.set(press.id, press);
   if (known) return press.id;
   const face = () => faces.get(press.id);
   registerPageControl({
     key: `command:${press.id}`,
-    rank: gesture ? PAGE_CONTROL_RANK.steps : PAGE_CONTROL_RANK.commands,
-    gesture,
+    rank: PAGE_CONTROL_RANK.commands,
     label: () => face()?.label ?? "",
     shortcut: () => face()?.shortcut ?? [],
     // A page command says which of a menu's groups it belongs with (`menu`).
@@ -60,7 +58,7 @@ function placeStanceExit() {
   stanceRegistered = true;
   registerPageControl({
     key: "stance:exit",
-    rank: PAGE_CONTROL_RANK.steps,
+    rank: PAGE_CONTROL_RANK.exit,
     exit: true,
     label: () => stance?.label ?? "",
     group: "page",
@@ -80,16 +78,7 @@ const same = (a, b) =>
   a?.shortcut.join(" ") === b?.shortcut.join(" ");
 
 export function paintTouchControls() {
-  const { commands, steps } = touchPresses();
-  // Every step is placed before any is shown, so the row orders them as they are declared
-  // rather than by which the user happened to reach first.
-  for (const { presses: scoped } of steps)
-    for (const press of scoped) place(press, true);
-  const innermost = steps.find(({ scope }) => standing(scope));
-  const shown = new Set([
-    ...commands.map((press) => place(press, false)),
-    ...(innermost?.presses.map((press) => press.id) ?? []),
-  ]);
+  const shown = new Set(touchPresses().map(place));
   let changed = false;
   const held = innermostStance();
   if (held) placeStanceExit();

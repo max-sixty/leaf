@@ -476,7 +476,7 @@ export function createTargetPicker({
     announce(
       `Selected match: ${quote}. ${
         coarsePointer.matches || !bindingEnabled("c")
-          ? "Comment on selection comments on it."
+          ? "A press on the comment field comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
       }`,
     );
@@ -679,6 +679,7 @@ export function createTargetPicker({
 
   const TARGET_HINT_TYPE = {
     id: "target.picker.hint.type",
+    touch: false,
     keys: HINT_KEYS,
     label: "a–z",
     description: "Type the hint for a target",

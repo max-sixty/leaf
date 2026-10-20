@@ -54,7 +54,11 @@
   border: 1px solid var(--code-border);
   border-radius: var(--r);
   padding: 12px var(--pre-inset);
-  overflow-x: auto;
+  /* Sideways only, `hidden` down: `visible` there computes to `auto` beside `auto`,
+     which makes the block one that scrolls down, and a landing inside it then counts
+     none of the sticky headers over it (state.css, `across`). Sized by its lines, it
+     has nothing to scroll down; a block an author bounds says how it scrolls down. */
+  overflow: auto hidden;
   font-size: var(--code-size);
   line-height: var(--code-line);
   font-family: var(--mono);
@@ -166,9 +170,13 @@
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
 /* A table scrolls its own columns, so, like `pre`, its rows never size what holds it.
- * Scrolling sideways makes it the scroller for anything sticking inside it, which
- * sticks at the table's own top (`--lf-top`), and, like `pre`, leaves room under its
- * last row for an overlay scrollbar (shadow.css, beside `pre`).
+ * Like `pre` it scrolls only sideways, `hidden` down, so a landing on what it holds
+ * still counts the sticky headers over the table. Scrolling sideways makes it the
+ * scroller for anything sticking inside it, which sticks at the table's own top: what
+ * it holds starts `--lf-top` again from the first paint, before the runtime marks the
+ * table (state.css, `across`), while the table itself keeps the slot it met. Like
+ * `pre`, it leaves room under its last row for an overlay scrollbar (shadow.css,
+ * beside `pre`).
  *
  * The grid inside keeps its columns' natural width wherever the table stands, in a
  * frame or a granted room too: the grid is an anonymous box, and the one way to widen
@@ -180,18 +188,20 @@
  * (Firefox, WebKit) drops a `container-type` naming it whole. */
 :where(:root, .lf-thread-transcript) table {
   display: block;
-  overflow-x: auto;
+  overflow: auto hidden;
   /* How far anything in a cell draws outside its box: a focus ring, or a capture's
      frame, whose reach beside the image is its lift's blur. The table clips at its
      own edges, so its outer cells keep this much room on their outer sides. */
   --lf-table-edge: max(var(--focus-ring-room), var(--raise-1-blur));
   container-type: inline-size;
   container-type: inline-size scroll-state;
-  --lf-top: 0px;
   border-collapse: collapse;
   font: var(--t-5)/1.5 var(--sans);
   margin: 18px 0;
   font-variant-numeric: tabular-nums;
+}
+:where(:root, .lf-thread-transcript) table > * {
+  --lf-top: 0px;
 }
 /* A cell already supplies the identifier's frame and spacing. The size is relative to
    the cell's own, so a name reads as a word of the row: at the chip size it stood

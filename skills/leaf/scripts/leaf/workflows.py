@@ -319,8 +319,6 @@ def canonical_workflows(
         return {
             "id": source["id"],
             "input": source["id"],
-            # The message a thread input is said in, which shows its delivery: its
-            # own, or for a revision the message it rewrote (`events.turn_message`).
             "message": turn_message(source) if target["kind"] == "thread" else None,
             "seq": source["seq"],
             "revision": source.get("revision"),

@@ -410,9 +410,10 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 
 A fact Python and the browser both use, such as an event kind or the languages a page
 can highlight, has one home. Either one language owns it and sends it to the other as
-data, as the server sends its state in `/api/state`, or the registry declares it and
-the browser's copy is generated, as `build/registry.mjs` writes
-`runtime/syntax-languages.js` from `$languages`. A parity fixture, or a test that scans
+data, as the server sends its state in `/api/state`, whose type the build generates
+from `served_state/state.schema.json`, or the registry declares it and the browser's
+copy is generated, as `build/registry.mjs` writes `runtime/syntax-languages.js` from
+`$languages`. A parity fixture, or a test that scans
 one language's source for the other's names, keeps two copies in step instead; in
 review, ask why that fact isn't generated.
 
@@ -457,8 +458,9 @@ first alone. Code outside the page waits on `pageReadiness`, through
 ## Authoritative projection
 
 Python decides which items exist, when a widget is complete, and when a thread is
-answered. The server sends complete item lists for the page (`document.items`) and for
-each thread's frozen markup (`thread.items`). The browser reads a widget's answer from
+answered. Each view carries every item record once, the page's and its frozen threads'
+(`items`); a row of On me names its item by id, and the publisher joins the two. The
+browser reads a widget's answer from
 the same state its controls draw and doesn't reapply the `x-awaits.answered` rule. A
 required-version approval is an item the browser updates at once, restoring the server's
 state on refusal. A thread gesture changes no attention and no item until the server's

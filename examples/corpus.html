@@ -8353,7 +8353,7 @@ diff --git a/notes.md b/notes.md
 @@ -1 +1 @@
 -The earlier note was brief.
 +The new note describes the review decision in a whole paragraph on one source line, and it should remain readable in the space the page gives it without asking the reader to scroll sideways.
-      </pre>
+</pre>
       </lf-diff>
       <lf-diff id="dfg-wrap" overflow="wrap">
         <pre>
@@ -8363,7 +8363,7 @@ diff --git a/src/message.py b/src/message.py
 @@ -1 +1 @@
 -message = "Old wording."
 +message = "A long sentence that explains the change in enough detail to wrap inside this diff, keeping the review beside the evidence instead of requiring a second copy of the same words."
-      </pre>
+</pre>
       </lf-diff>
       <lf-diff id="dfg-scroll" overflow="scroll">
         <pre>
@@ -8373,7 +8373,7 @@ diff --git a/src/constant.py b/src/constant.py
 @@ -1 +1 @@
 -PATTERN = "short"
 +PATTERN = "^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega){1,4}$"
-      </pre>
+</pre>
       </lf-diff>
 </lf-tab>
 
@@ -11016,8 +11016,9 @@ switch --readers checkout-api,orders-api</code></pre>
               <h3>Rendered documents</h3>
               <p>
                 Switch between the rendered release note and its exact source. Use the
-                arrow keys on the tabs. Reloading keeps your selected view; a new source
-                value updates both views.
+                arrow keys on the tabs, then Tab into Preview and scroll through the
+                code example: the focus border stays at the viewport's edges. Reloading
+                keeps your selected view; a new source value updates both views.
               </p>
               <lf-text-document
                 id="bg-markdown-preview"

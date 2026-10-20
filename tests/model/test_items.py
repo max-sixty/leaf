@@ -8,7 +8,7 @@ import model_folds as model
 import pytest
 from interact_support import (
     refused_on,
-    served_thread,
+    served_items,
 )
 from leaf import items as items_model
 from leaf.gesture_words import element_name
@@ -29,7 +29,10 @@ def page(attrs="choose", context=None):
 
 
 def page_items(state, revision=1):
-    return state["views"][str(revision)]["document"]["items"]
+    view = state["views"][str(revision)]
+    return items_model.collection(
+        [item for item in view["items"] if item["thread"] is None]
+    )
 
 
 def test_context_changes_prompt_target_without_changing_item_identity_or_value():
@@ -90,7 +93,7 @@ def test_items_name_their_exact_owning_message_without_conflating_thread_identit
     state = model.reading(document, events)
     inventory = {
         item["id"]: (item["thread"], item["message"])
-        for item in [*page_items(state)["all"], *served_thread(state)["items"]["all"]]
+        for item in [*page_items(state)["all"], *served_items(state)["all"]]
     }
     assert inventory == {
         "widget:choice": (None, None),
@@ -226,7 +229,7 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
     def read(revision):
         view = state["views"][str(revision)]
         [thread] = view["thread"]["threads"]
-        [item] = view["thread"]["items"]["all"]
+        [item] = [entry for entry in view["items"] if entry["thread"]]
         return (
             [entry["event"]["id"] for entry in view["thread"]["projection"]["entries"]],
             (item["id"], item["status"]),
@@ -326,9 +329,7 @@ def test_display_only_widget_does_not_suppress_a_question_beside_it():
             },
         ],
     )
-    assert [item["id"] for item in served_thread(state)["items"]["all"]] == [
-        "widget:useful"
-    ]
+    assert [item["id"] for item in served_items(state)["all"]] == ["widget:useful"]
 
 
 QUESTION = '<lf-ask id="q">Weekly or daily?</lf-ask>'
@@ -354,7 +355,7 @@ def answered_in_words(*later):
 def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
     """An lf-ask holding no widget items in words: it waits on the user, titled by its
     words, until their next message in its thread, which is its answer."""
-    [item] = served_thread(model.reading(page(""), answered_in_words()))["items"]["all"]
+    [item] = served_items(model.reading(page(""), answered_in_words()))["all"]
     assert (item["id"], item["status"], item["next_actor"]) == (
         "widget:q",
         "open",
@@ -373,7 +374,7 @@ def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
             }
         ),
     )
-    [item] = served_thread(state)["items"]["all"]
+    [item] = served_items(state)["all"]
     assert (item["status"], item["next_actor"]) == ("answered", None)
     assert item["answer"]["value"] == {"text": "Daily"}
     assert item["answer"]["event"]["id"] == "r"
@@ -393,7 +394,7 @@ def test_the_agent_ends_a_question_the_user_answered_elsewhere():
             }
         ),
     )
-    [item] = served_thread(state)["items"]["all"]
+    [item] = served_items(state)["all"]
     assert (item["status"], item["next_actor"], item["answer"]) == (
         "answered_elsewhere",
         None,
@@ -479,7 +480,7 @@ def lists(state) -> tuple[list, list, list]:
     """On me and On <agent> as served, and the open items whose next move is the
     agent's."""
     queues = state["views"]["1"]["queues"]
-    items = [*page_items(state)["all"], *state["views"]["1"]["thread"]["items"]["all"]]
+    items = state["views"]["1"]["items"]
     return (
         sorted(item["id"] for item in queues["on_user"]),
         sorted(item["id"] for item in queues["on_agent"]),

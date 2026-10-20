@@ -55,6 +55,13 @@ import { queueOffers } from "../../runtime/queues.js";
 
 
 
+
+
+
+
+
+
+
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
  *
@@ -165,150 +172,42 @@ function advance(
   return { ...entry, state, admitted: entry.admitted ?? admitted };
 }
 
+/** The state the server serves (`served_state/state.schema.json`), whose type the
+ * build generates. The server answers `active` and `browser` null only before a page's
+ * first revision, when it serves no document a runtime could run in
+ * (`http._serve_root`), so every answer this runtime reads has both. The names below
+ * select from it. */
 
 
 
 
+/** A server view with its basis, the transport identity, left off. */
 
 
+/** The selections `readItems` publishes from a view's one list of item records. */
 
 
 
 
 
+/** Published workflows include local sends, before the server can classify them: a
+ * send has no stage the server knows yet, and a widget move no coordinate the server
+ * has read. */
 
 
 
 
 
-/** A request and its contained answer. The source owns the canonical value;
- * identity includes its kind so authored ids and message ids cannot collide. */
+/** One to-do as the browser publishes it: as the server serves it, or ended by this
+ * tab's Done, which the server has not dated yet. */
 
 
 
 
+/** One row of On me or On <agent>, as `served_state.queues` serves it or this tab
+ * places it: `owner` names the list. A widget or approval row names its item by `id`,
+ * and a to-do row carries the fields a row draws. */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/** One served workflow, as `served_state.browser.served_workflows` serializes it;
- * `AuthoritativeState.workflows` lists them strongest first. */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/** Published workflows include local sends, before the server can classify quietness. */
-
-
-
-
-
-
-/** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
- * to-do or item whose title, owner and state it shows; `done` of `total` counts its
- * children, dropped ones left out. */
-
-
-
-
-
-
-
-
-
-
-
-
-
-/** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
- * every to-do on either side, open or ended, an ended one with its outcome. It is the
- * one record of each; the queue items and thread readings the browser draws select
- * from it. Items are separate records and never appear in this list. */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/** One item on On me or On <agent>, as `served_state.queues` serves it: `owner` names
- * the list. A widget or approval item keeps its record; a to-do item the fields a row
- * draws. */
 
 
 
@@ -375,94 +274,6 @@ function advance(
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/** A server view with its basis, the transport identity, left off. */
-
-
 // The server classifies a view's page and thread entries alike under that revision's
 // registry, so every entry is one the view's widgets can draw.
 function normalizedProjection(view                             ) {
@@ -511,9 +322,7 @@ function normalizedItems(
   projection                                   ,
   local                        ,
 )            {
-  const page = view?.document.items;
-  const thread = view?.thread.items;
-  const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map((item)             => {
+  const all = (view?.items ?? []).map((item)             => {
     if (item.source.kind === "approval") {
       const version = item.source.version;
       const undone = new Set(
@@ -559,19 +368,13 @@ function normalizedItems(
       : null;
     return { ...item, answer };
   });
-  const selection = (kind                       ) => {
-    const admitted = new Set(
-      [...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])].map((item) => item.id),
-    );
-    return all.filter((item) =>
-      item.source.kind === "approval"
-        ? kind === "user"
-          ? item.next_actor === "user"
-          : item.status === "open"
-        : admitted.has(item.id),
-    );
+  // A widget's record keeps the server's status and next actor, which only the log
+  // decides; an approval's carries this tab's gesture, so both select alike.
+  return {
+    all,
+    user: all.filter((item) => item.next_actor === "user"),
+    unanswered: all.filter((item) => item.status === "open"),
   };
-  return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
 
 /* To-dos, open and ended, including Done this tab is sending or undoing. A to-do the
@@ -588,8 +391,8 @@ function localTodos(state                           , local                     
   const all = state?.browser.todos ?? [];
   const served = all.filter((todo) => todo.state === "open");
   const ended = all.filter((todo) => todo.state !== "open");
-  const reopened = (todo          ) =>
-    todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
+  const reopened = (todo            ) =>
+    todo.outcome !== null && undoing.has(todo.outcome.id);
   const open = [
     ...served,
     ...ended
@@ -1141,7 +944,7 @@ export function createSemanticApplication({
     // closes changes in the reading that logs the answer, and the gesture concerns it
     // from that reading on.
     const logged = state?.browser.thread_memberships ?? {};
-    const threadsOfEntry = (entry             )           => {
+    const threadsOfEntry = (entry             )                    => {
       const filed = entry.admitted ? logged[entry.admitted.id] : undefined;
       if (filed) return filed;
       const { event } = entry;
@@ -1231,6 +1034,7 @@ export function createSemanticApplication({
       widgets,
       workflows,
       todos.open,
+      items.all,
       markingRead,
       ready,
     );
@@ -1421,7 +1225,7 @@ export function createSemanticApplication({
     // Version comparison receives a server projection already interpreted through the
     // requested revision's registry. Keep that admitted spec on the wire; the current
     // document contract must not reinterpret historical events.
-    projectView(view                                                ) {
+    projectView(view            ) {
       return foldProjection({
         ...normalizedProjection(view),
         pendingEntries: [],

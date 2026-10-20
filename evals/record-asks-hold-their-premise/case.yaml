@@ -47,3 +47,105 @@ assert:
          `lf-options`, not before the `lf-ask` or between its heading and its options.
       Fail if the figure or the numbered steps and demo stand before the `lf-ask`, with
       the `lf-ask` holding little more than the question and its options.
+variants:
+  compact-values:
+    metadata:
+      purpose: "Choices: a value that names the whole outcome stays a compact label."
+    vars:
+      prompt: |
+        Write the decision section of a Leaf incident record. The user must choose
+        how long to retain diagnostic captures: one day, seven days or thirty days.
+        Every capture contains the same fields and has the same access controls;
+        only the automatic deletion time differs. The choice is still open. The
+        page directory is not reachable here, so reply with the section's HTML.
+        Read the lf-options and lf-option registry entries before writing it.
+    assert:
+      - type: llm-rubric
+        metric: compact-values
+        value: |
+          The decision offers one day, seven days and thirty days, initially
+          undecided, as mutually exclusive alternatives. Each option identifies its
+          duration using a compact label, with no explanatory paragraph, repeated
+          fact chips, drawing or other padding inside that option. A concise shared
+          premise outside the options is fine. Pass equivalent duration wording.
+  # From Codex 01a15575-517e-7782-949b-334241bda993: eight findings preceded
+  # identical Apply/Keep forms. Start before authoring: the user supplied no template.
+  cleanup-review:
+    metadata:
+      purpose: "On me: a cleanup review carries each proposal's reason, evidence and concrete outcomes at its answering destination."
+    vars:
+      prompt: |
+        The user asked: "Do a full review for anything else that we don't need /
+        overly hard-codes." The review is complete. Write the review page so the
+        user can decide which independent changes to apply.
+
+        Your verified findings:
+        - #1 Thread-reference validation is tied to one widget. The registry declares
+          thread references for any widget with that capability, but the target check
+          lives in the suggestion-only loop. An independently declared proposal accepts
+          a missing thread; the identical suggestion correctly refuses it. Recommend
+          validating references by the declared capability, keeping suggestion nesting
+          rules with suggestions. This restores the shared guarantee for custom packages.
+        - #2 TypeScript has a second package inventory. Compiler path aliases list
+          vendor directories but expose only the default package's widget directory.
+          A temporary importer under the actual configuration cannot resolve existing
+          playground and trace modules; the default board resolves. This is a limit
+          on new typed imports, not a checked-in build failure. Recommend deriving
+          paths from discovered package directories, retaining the runtime facade alias.
+        - #3 Product routes repeat document filenames. All eight current routes follow
+          index → / and every other stem → /stem/. An isolated new top-level document
+          is omitted and navigation composition raises KeyError until another row is
+          added. Recommend discovering docs/*.html and computing routes, keeping the
+          navigation bar authored. Future top-level documents would publish by default;
+          nested package documents would stay excluded.
+        - #4 Startup and runtime repeat the text-input rule. Their input-type lists
+          currently match, but a comment requires updating both copies. No keyboard
+          failure was observed. Recommend putting the predicate in the existing
+          early-script contract, preserving behavior without a new startup request.
+        - #5 The developer corpus uses a positive file list. It includes five of six
+          top-level developer pages; a costly thread-panel gallery is the sole current
+          exclusion. Recommend discovering pages and stating that exclusion explicitly.
+          Current membership stays the same; future galleries would enter by default.
+        - #6 A package-coverage test guesses package IDs by normalizing visible labels.
+          Renaming only Playwright to Playwright traces breaks it with every package
+          and link unchanged. Recommend a structured identity on each authored card,
+          keeping the coverage assertion while letting visible wording vary.
+        - #7 Thread folding silently drops orphan replies to support older Leaf logs.
+          Current admission keeps the parent in force; the older-state test bypasses
+          admission. The project requires no compatibility with old persisted records.
+          Recommend direct parent lookup and removing that obsolete test tail. Admitted
+          logs behave the same; corrupt logs surface an error instead of losing replies.
+        - #8 Catalog discovery defines a separate HTML parser for one link selector,
+          although SourceDocument is already imported. Its parse tree returns the same
+          fifteen active entries in the same order, excluding commented cards.
+          Recommend using that tree and deleting the one-off parser; curation stays authored.
+
+        Write the page from this material. No code has changed. The page directory
+        is not reachable here, so reply with the complete main element's HTML.
+        Read the lf-ask, lf-options and lf-option registry entries before writing it.
+    assert:
+      - type: llm-rubric
+        metric: arrival-context
+        value: |
+          Treat each decision's lf-ask (or its answering widget if unframed) as the
+          arrival destination; everything before it is out of view. Pass only if
+          each proposal has its issue and checked evidence inside the decision that
+          covers it. A shared decision for clear-cut proposals must explain each. For
+          example, #1 carries the missing-thread contrast and #3 the new-document
+          omission. The route and developer-corpus decisions must expose their
+          future-discovery defaults. A heading that merely asks Apply #N does not
+          supply the premise.
+      - type: llm-rubric
+        metric: concrete-outcomes
+        value: |
+          Pass only if every decision explains what applying and retaining each
+          proposal means within that decision. For #1 distinguish validating every
+          declaring widget from keeping suggestion-only validation; for #3 distinguish
+          discovering top-level documents from maintaining explicit route registration.
+          Each option's label or title must name its proposal's concrete outcome;
+          generic Apply / Keep labels fail even with an informative shared premise
+          or option body. Generic descriptions such as "Implement the change
+          described above" cannot substitute for concrete consequences. Each
+          decision must offer explicit acceptance and rejection, initially
+          undecided. Independent proposals can be grouped only when the group
+          explains why each is clear-cut.

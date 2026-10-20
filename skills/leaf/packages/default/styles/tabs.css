@@ -177,28 +177,28 @@
     padding: var(--sp-4);
     --lf-block-frame: 1;
   }
-  /* The panel fills the set's frame and meets the strip, whose fill paints over
-     * anything of the panel's that reaches into it, so its ring stands inside. */
-  :scope:is(lf-tabs).lf-rendered > lf-tab[data-lf-focus] {
-    outline-offset: calc(-1 * var(--focus-ring-w));
+  /* The set carries its panel's inset ring, anchored to the panel's border box.
+     An outline on the panel paints below positioned reading content; an absolute
+     overlay inside it scrolls with that content. Keeping the frame outside the
+     reader handles both without reserving space or clipping wide page exhibits.
+     Each set scopes its anchor so nested sets keep independent frames. */
+  :scope:is(lf-tabs).lf-rendered {
+    position: relative;
+    anchor-scope: --lf-tab-panel;
   }
-  /* A page tab has no padding at its sides, so what it holds reaches the ring, and a
-     * positioned box among it, such as a playground's stage, paints over an outline on
-     * the panel itself. Its ring is drawn on a later box above them instead, as a pane
-     * body's is (theme.css); the panel's zero layer keeps them under that box, and under
-     * the strip. */
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab:not([hidden]) {
+  :scope:is(lf-tabs).lf-rendered > lf-tab:not([hidden]) {
     position: relative;
     z-index: 0;
+    anchor-name: --lf-tab-panel;
   }
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"] > lf-tab[data-lf-focus] {
+  :scope:is(lf-tabs).lf-rendered > lf-tab[data-lf-focus] {
     outline: none;
   }
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow="page"]
-    > lf-tab[data-lf-focus]::after {
+  :scope:is(lf-tabs).lf-rendered:has(> lf-tab[data-lf-focus])::after {
     content: "";
     position: absolute;
-    inset: 0;
+    position-anchor: --lf-tab-panel;
+    inset: anchor(top) anchor(right) anchor(bottom) anchor(left);
     z-index: 1;
     pointer-events: none;
     outline: var(--focus-ring);

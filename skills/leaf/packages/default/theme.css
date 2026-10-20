@@ -1611,20 +1611,23 @@
     padding: var(--sp-4);
     --lf-block-frame: 1;
   }
-  :scope:is(lf-tabs).lf-rendered > lf-tab[data-lf-focus] {
-    outline-offset: calc(-1 * var(--focus-ring-w));
+  :scope:is(lf-tabs).lf-rendered {
+    position: relative;
+    anchor-scope: --lf-tab-panel;
   }
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]) {
+  :scope:is(lf-tabs).lf-rendered > lf-tab:not([hidden]) {
     position: relative;
     z-index: 0;
+    anchor-name: --lf-tab-panel;
   }
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab[data-lf-focus] {
+  :scope:is(lf-tabs).lf-rendered > lf-tab[data-lf-focus] {
     outline: none;
   }
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab[data-lf-focus]::after {
+  :scope:is(lf-tabs).lf-rendered:has(> lf-tab[data-lf-focus])::after {
     content: "";
     position: absolute;
-    inset: 0;
+    position-anchor: --lf-tab-panel;
+    inset: anchor(top) anchor(right) anchor(bottom) anchor(left);
     z-index: 1;
     pointer-events: none;
     outline: var(--focus-ring);

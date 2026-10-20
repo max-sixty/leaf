@@ -64,6 +64,7 @@ from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
+from leaf.items import collection
 from leaf.refusals import Refused
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
@@ -751,6 +752,69 @@ def stamp(d, text="stamped", completes=()):
     )
 
 
+@cache
+def _served_state_validators() -> dict:
+    """`served_state/state.schema.json` with the kernel's event records composed in
+    under the `leaf:event` names it refers to them by, each open so the objects that add
+    served fields to one close it again (the schema's own description), and the x-state
+    verb (`schema.VERB_SCHEMA`) as `leaf:verb`. Keyed by what
+    is checked: a complete `/api/state` answer (`answer`), the `Reading` a fold returns
+    before the serving route adds its neighbors and token, or a `/api/view` answer
+    (`ViewAnswer`)."""
+    from leaf.registry.kernel import kernel_event_kinds
+    from leaf.registry.schema import json_validator
+    from leaf.schema import VERB_SCHEMA
+
+    schema = json.loads(
+        Path(served_page.__file__).with_name("state.schema.json").read_text()
+    )
+    records = {
+        f"leaf:event/{kind}": {
+            "$id": f"leaf:event/{kind}",
+            **{
+                key: value
+                for key, value in contract["record"].items()
+                if key != "additionalProperties"
+            },
+        }
+        for kind, contract in kernel_event_kinds().items()
+    }
+    records["leaf:event"] = {
+        "$id": "leaf:event",
+        "anyOf": [{"$ref": identity} for identity in sorted(records)],
+    }
+    records["leaf:verb"] = {"$id": "leaf:verb", **VERB_SCHEMA}
+    defs = {**schema["$defs"], **records}
+
+    def definition(name: str) -> dict:
+        return {
+            "$id": schema["$id"],
+            "$defs": defs,
+            "$ref": f"#/$defs/{name}",
+            "unevaluatedProperties": False,
+        }
+
+    return {
+        "answer": json_validator({**schema, "$defs": defs}),
+        "Reading": json_validator(definition("Reading")),
+        "ViewAnswer": json_validator(definition("ViewAnswer")),
+    }
+
+
+def served_state_error(state: dict, against: str = "Reading") -> str | None:
+    """Where `state` breaks the served state's schema, or None: a fold's `Reading`, a
+    complete `/api/state` answer (`answer`), or a `/api/view` answer (`ViewAnswer`). A
+    channel only Leaf writes, so the tests hold its shape here rather than anything
+    validating it in flight."""
+    from jsonschema.exceptions import best_match
+
+    validator = _served_state_validators()[against]
+    error = best_match(validator.iter_errors(state))
+    if error is None:
+        return None
+    return f"{error.json_path}: {error.message[:400]}"
+
+
 def page_state(d):
     events = events_model.read_events(d)
     return served_page.full_state(d, events)
@@ -760,6 +824,16 @@ def served_thread(browser: dict) -> dict:
     """The frozen threads as the one view `browser` serves reads them."""
     [view] = browser["views"].values()
     return view["thread"]
+
+
+def served_items(browser: dict, *, page: bool = False) -> dict:
+    """The item records the one view `browser` serves, by the selections
+    `items.collection` makes: the frozen threads' items, or with `page` the
+    document's."""
+    [view] = browser["views"].values()
+    return collection(
+        [item for item in view["items"] if (item["thread"] is None) == page]
+    )
 
 
 @pytest.fixture
@@ -1015,17 +1089,19 @@ def state_json(d):
 
 
 def items_on_user(state):
-    """Widget items on the user's list, On me, retaining source and prompt identity."""
+    """Widget items on the user's list, On me, retaining source and prompt identity:
+    each row joined to the record in `items` it names."""
+    records = {item["id"]: item for item in state["items"]}
     return [
         {
-            "id": item["id"],
-            "tag": item["item"]["source"]["tag"],
-            "widget": item["item"]["source"]["id"],
-            "widget_tag": item["item"]["source"]["tag"],
-            "thread": item["thread"],
+            "id": row["id"],
+            "tag": records[row["id"]]["source"]["tag"],
+            "widget": records[row["id"]]["source"]["id"],
+            "widget_tag": records[row["id"]]["source"]["tag"],
+            "thread": row["thread"],
         }
-        for item in state["queues"]["on_user"]
-        if item["kind"] == "widget"
+        for row in state["queues"]["on_user"]
+        if row["kind"] == "widget"
     ]
 
 

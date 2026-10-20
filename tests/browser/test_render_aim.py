@@ -2623,7 +2623,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
     renderer internals, so both the aim and the legend stop at the widget.
     """
     page = open_page(browser, serve(PICTURE_PAGE))
-    node = page.locator("#flow svg g[data-id]").first
+    node = page.locator("#flow svg g.pele-node[data-id]").first
     expect(node).to_be_visible()
     node.hover()
     page.keyboard.down("Alt")

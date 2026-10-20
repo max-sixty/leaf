@@ -4758,7 +4758,7 @@ async function threadDestination(id, open2, may) {
 }
 var carried = /* @__PURE__ */ new WeakSet();
 var carrying = null;
-var carryingThreadPlace = (node) => Boolean(node) && carrying?.node === node && carrying.may();
+var carryingThreadPlace = (node) => Boolean(node) && carrying?.node === node && (carrying.reply ? carrying.may() : carrying.intent() && allThreads().some((thread) => thread.id === carrying.id && !thread.resolved));
 function holdThreadPlace(open2, { threadAt, seated }) {
   carrying = null;
   const held = holdStanding();
@@ -4774,7 +4774,7 @@ function holdThreadPlace(open2, { threadAt, seated }) {
     intent,
     () => allThreads().some((each) => each.id === id && !each.resolved) && seated(id)
   );
-  const carry2 = { node, may };
+  const carry2 = { node, id, intent, may, reply: Boolean(destination) };
   carrying = carry2;
   return async () => {
     try {

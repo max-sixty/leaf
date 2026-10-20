@@ -59,7 +59,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from .leases import release_lease, take_lease
-from .state import STRING, Record, object_schema, state_home_path
+from .state import STRING, Record, object_schema, state_home
 
 # Where the running bridge listens, the token a request carries, and its process.
 ADDRESS = Record(
@@ -117,7 +117,7 @@ def receive(stream, limit: int | None = None) -> tuple[bytes, bytes] | None:
 
 
 def bridge_path(suffix: str) -> Path:
-    return state_home_path() / "bridge" / f"{KEY}.{suffix}"
+    return state_home() / "bridge" / f"{KEY}.{suffix}"
 
 
 def ensure(session: str, lifetime: dict) -> None:

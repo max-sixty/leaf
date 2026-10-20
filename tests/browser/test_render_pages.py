@@ -24,7 +24,7 @@ from render_cases_interaction import (
     SEATED_ITEM_WIDGETS,
     live_url,
 )
-from render_cases_layout import toggle_queue, with_one_item
+from render_cases_layout import SHOT_SRC, SHOTS, toggle_queue, with_one_item
 from render_cases_navigation import (
     composer_quote,
 )
@@ -1727,6 +1727,40 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     assert root_overflow(page) == 0
 
 
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_capture_in_an_outer_column_keeps_its_frame(browser, serve, direction):
+    """A table clips to its own edges, since it scrolls its columns, and an image's frame
+    is a shadow outside the image reaching 8px. A capture in the first or last column,
+    linked or captioned in a figure, stands far enough inside the table's edge to keep
+    that side of its frame, in either direction."""
+    src = SHOT_SRC["before"]
+    capture = f'<img src="{src}" width="300" height="150" alt="A capture.">'
+    body = (
+        "<h1>Captures</h1><p>A paragraph at the measure.</p>"
+        f'<table id="captures"><tr><td>{capture}</td>'
+        f'<td><a href="{src}">{capture}</a></td>'
+        f"<td><figure>{capture}<figcaption>After.</figcaption></figure></td></tr>"
+        "</table>"
+    )
+    source = leaf_page("Captures", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source, media={src: SHOTS["before"]}))
+    at = page.locator("#captures").evaluate("""t => {
+      const box = t.getBoundingClientRect();
+      return {table: [box.left, box.right], scrolls: t.scrollWidth > t.clientWidth,
+        images: [...t.querySelectorAll('img')].map(i => {
+          const r = i.getBoundingClientRect();
+          return [r.left, r.right];
+        })};
+    }""")
+    assert not at["scrolls"], at
+    left = min(image[0] for image in at["images"])
+    right = max(image[1] for image in at["images"])
+    assert left - at["table"][0] >= 8 - 0.5, at
+    assert at["table"][1] - right >= 8 - 0.5, at
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
     """A table whose cells hold sentences wraps them inside the box it stands in, and
@@ -3201,6 +3235,109 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     assert left - in_child["main"][0] == 140, in_child
     for edges in (in_child["box"], in_child["route"][0], in_child["room"][0]):
         assert left <= edges[0] and edges[1] <= right, in_child
+
+
+def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, serve):
+    """A page of parts stands its title and, under it, the list of parts in a column down
+    the left, and lays the open part out beside them from the top of the page, as a page
+    of its own with that part's Layout: a column part takes the column, margin residents,
+    contents map and breakouts a column page takes in a window as wide as the room beside
+    the list, and a workspace part fills that room from the top of the window to its
+    foot, so neither it nor a short part leaves the page anything to scroll. On a phone
+    the title, the list and the part stack."""
+    column_body = """
+<h1>Migration plan</h1>
+<aside class="sidebar" id="route"><lf-toc id="contents"></lf-toc></aside>
+<aside class="sidenote" id="frequency">Support runs this twice a month.</aside>
+<h2 id="move">Move</h2>
+<p>Shift one cohort at a time while keeping the old readers available.</p>
+<div id="room" data-width="available">Available evidence.</div>
+<div style="height: 1200px"></div>
+"""
+    parts = leaf_page(
+        "parts",
+        f"""<header id="title"><h1>Release review</h1></header>
+<lf-parts id="parts">
+<lf-part id="plan" label="Plan"><article id="box" class="layout-column">{column_body}</article></lf-part>
+<lf-part id="queue" label="Queue"><div id="work" class="layout-workspace">
+<header><h1>Queue</h1></header><div id="regions"><p>Work one item at a time.</p></div>
+</div></lf-part>
+<lf-part id="note" label="Note"><article class="layout-column"><p>One line.</p></article></lf-part>
+</lf-parts>""",
+        layout=None,
+    )
+    reading = """() => {
+      const box = document.getElementById('box') ?? document.querySelector('main');
+      const shell = box.parentElement;
+      const origin = shell.getBoundingClientRect().left + shell.clientLeft;
+      const rect = (node) => {
+        const b = node.getBoundingClientRect();
+        return [Math.round(b.left - origin), Math.round(b.right - origin)];
+      };
+      const measured = {
+        width: shell.clientWidth,
+        box: rect(box),
+        margin: box.getAttribute('data-lf-margin'),
+      };
+      for (const id of ['route', 'frequency', 'room', 'contents']) {
+        const node = document.getElementById(id);
+        const style = getComputedStyle(node);
+        measured[id] = [rect(node), style.float, style.position];
+      }
+      return measured;
+    }"""
+    page = open_page(browser, serve(parts))
+    resized(page, 1600, 900)
+    page.get_by_role("tab", name="Plan").click()
+    in_part = page.evaluate(reading)
+    list_box = page.locator("#parts > [role=tablist]").bounding_box()
+    title_box = page.locator("#title h1").bounding_box()
+    view_box = page.locator("#plan").bounding_box()
+    assert title_box["y"] + title_box["height"] <= list_box["y"], (title_box, list_box)
+    assert title_box["x"] + title_box["width"] <= view_box["x"], (title_box, view_box)
+    assert list_box["x"] + list_box["width"] <= 1600 - in_part["width"], list_box
+    assert in_part["margin"] == "rail map note", in_part
+    assert root_overflow(page) == 0
+
+    alone = open_page(browser, serve(leaf_page("parts", column_body, layout="column")))
+    resized(alone, in_part["width"], 900)
+    assert {**alone.evaluate(reading), "width": in_part["width"]} == in_part
+    alone.close()
+
+    fits = """() => {
+      const scroller = document.scrollingElement;
+      return scroller.scrollHeight - scroller.clientHeight;
+    }"""
+    page.get_by_role("tab", name="Queue").click()
+    work = page.evaluate(
+        """() => {
+          const work = document.getElementById('work').getBoundingClientRect();
+          const main = document.querySelector('main').getBoundingClientRect();
+          return {width: Math.round(work.width), top: Math.round(work.top),
+                  bottom: Math.round(work.bottom), mainBottom: Math.round(main.bottom),
+                  box: document.documentElement.lfInitial.layoutBox().id};
+        }"""
+    )
+    assert work["box"] == "work", work
+    assert work["width"] == in_part["width"], work
+    assert work["top"] == round(view_box["y"]), work
+    assert work["bottom"] == work["mainBottom"] > 700, work
+    assert page.evaluate(fits) == 0
+    page.get_by_role("tab", name="Note").click()
+    assert page.evaluate(fits) == 0
+
+    resized(page, 390, 800)
+    stacked = page.evaluate(
+        """() => ['#title', '#parts > [role=tablist]', '#work'].map(selector => {
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return [Math.round(box.top), Math.round(box.bottom), Math.round(box.width)];
+        })"""
+    )
+    (title, strip, view) = stacked
+    assert title[1] <= strip[0] and strip[1] <= view[0], stacked
+    assert view[2] == 390, stacked
+    assert root_overflow(page) == 0
+    page.close()
 
 
 def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(

@@ -36,7 +36,6 @@ from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
-from leaf import machine as machine_model
 from leaf import media as media_model
 from leaf import presence as presence_model
 from leaf import render_checks as render_checks_model
@@ -713,7 +712,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     The agent exits normally while the persistent server continues. Releasing the
     server lease then removes its row from the next reading, which retires the file.
     """
-    neighbor = machine_model.state_home() / "pages" / "invisible"
+    neighbor = cleanup_model.state_home() / "pages" / "invisible"
     neighbour_page(neighbor, title="Invisible", dead=True, port=0)
     agent = spawn(
         [sys.executable, "-c", "input()"],
@@ -803,7 +802,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
     Dead servers stay out; a corrupt neighbor cannot make this page parse its
     source. The retained output of that neighbor is independently readable.
     """
-    pages = machine_model.state_home() / "pages"
+    pages = cleanup_model.state_home() / "pages"
     live_url = neighbour_page(pages / "live", title="The other page")
     write_record(
         pages / "live" / "status.json",

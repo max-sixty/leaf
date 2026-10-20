@@ -62,9 +62,9 @@ from leaf import cli as cli_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
 from leaf import leases as leases_model
-from leaf import machine as machine_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
+from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.findings import Finding, placed
 from leaf.render_checks import one_frame, rendered, wait_until_ready
@@ -2168,7 +2168,7 @@ def live_leaf(tmp_path, monkeypatch):
     waiters = []
 
     def go(name, title):
-        d = machine_model.state_home() / "pages" / name
+        d = cleanup_model.state_home() / "pages" / name
         result = CliRunner().invoke(cli_model.cli, ["page", "init", str(d)])
         assert result.exit_code == 0, result.output
         stamp_page(
@@ -2177,7 +2177,7 @@ def live_leaf(tmp_path, monkeypatch):
             "t",
         )
         declare_work(d, "running the suite")
-        # A live leaf has a session behind it, and what the drawer's hover says about a
+        # A live leaf has a session behind it, and what All pages says on hover about a
         # page is the work that session is doing it for — so the fixture's pages come
         # out of somewhere nameable rather than out of nowhere.
         record_claim(

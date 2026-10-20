@@ -32,7 +32,7 @@ from .presence import PRESENCE_CACHE_S, live_facts
 from .served_state.reading import page_reading
 from .served_state.service import PageStateService
 from .service import page_claim
-from .state import STRING, Record, object_schema, page_key, state_home_path
+from .state import STRING, Record, object_schema, page_key, state_home
 
 ACTIVITY_FIELDS = frozenset(
     {
@@ -59,7 +59,7 @@ def compact_activity(activity: dict) -> dict:
 
 
 def row_path(page_dir: Path) -> Path:
-    return state_home_path() / "rows" / f"{page_key(page_dir)}.json"
+    return state_home() / "rows" / f"{page_key(page_dir)}.json"
 
 
 # A serving page's row, under the server incarnation that published it.

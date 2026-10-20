@@ -10,7 +10,6 @@ from pathlib import Path
 from .file_changes import page_changes
 from .files import read_json
 from .leases import lock_is_held
-from .machine import state_home
 from .page_memory import memory_of
 from .refusals import Refused
 from .schema import (
@@ -20,7 +19,14 @@ from .schema import (
     SERVICE_FILE,
 )
 from .service import PageTransaction, claim_is_active, page_claim
-from .state import STRING, Record, json_bytes, object_schema
+from .state import (
+    STRING,
+    Record,
+    hold_mode,
+    json_bytes,
+    object_schema,
+    state_home,
+)
 
 # The page's desired service (`hosting.py` writes it).
 SERVICE = Record(
@@ -284,13 +290,15 @@ def host_key() -> str:
         staged = path.with_name(f".{secrets.token_hex(8)}.tmp")
         try:
             staged.write_bytes(json_bytes({"token": secrets.token_urlsafe(16)}))
-            staged.chmod(0o600)
+            hold_mode(staged, 0o600)
             try:
                 os.link(staged, path)
             except FileExistsError:
                 pass  # someone minted first; theirs is the key, read below
         finally:
             staged.unlink(missing_ok=True)
+    # Whoever made the file, only the user reads the key.
+    hold_mode(path, 0o600)
     return read_json(path)["token"]
 
 

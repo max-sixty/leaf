@@ -282,16 +282,6 @@
         frameOpener.disabled = true;
       });
 
-      document
-        .querySelector("#bg-read-user-view")
-        .addEventListener("click", async () => {
-          const response = await fetch(new URL("api/user-view", pageRoot));
-          if (!response.ok) throw new Error(`User view: HTTP ${response.status}`);
-          const output = document.querySelector("#bg-user-view-reading");
-          output.textContent = JSON.stringify(await response.json(), null, 2);
-          output.hidden = false;
-        });
-
       await customElements.whenDefined("lf-sample");
 
       const titleSample = document.querySelector("#bg-title-sheen-sample");
@@ -1582,18 +1572,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           <section id="bg-user-view">
             <h2><strong>The user's observed view</strong></h2>
             <p id="bg-user-view-guide">
-              Resize this window, change its color scheme, or open another tab. Read the
-              observations to inspect each document's viewport, visible reading regions,
-              revision, freshness, and passive geometry checks. The authoring agent gets
-              this context under <code>user_views</code> in
-              <code>leaf page state</code>. The measurements leave the layout decision
-              with the author. On the public site, make a decision or comment first to
-              activate your private page, then return here.
+              Resize this window, change its color scheme, or open another tab. The
+              authoring agent reads each document's viewport, visible reading regions,
+              revision, freshness, and passive geometry checks under
+              <code>user_views</code> in <code>leaf page state</code>. The measurements
+              leave the layout decision with the author.
             </p>
-            <button id="bg-read-user-view" class="button" type="button">
-              Read observed views
-            </button>
-            <pre id="bg-user-view-reading" hidden></pre>
           </section>
 
           <section id="bg-widths" data-width="wide">
@@ -2449,6 +2433,60 @@ gallery/
               </lf-tabs>
             </section>
 
+            <section id="bg-parts">
+              <p class="eyebrow bg-feature-elements">lf-parts · lf-part</p>
+              <h3>
+                <strong>Parts</strong
+                ><span class="bg-feature-detail"
+                  >: a page of parts with Layouts of their own</span
+                >
+              </h3>
+              <p id="bg-parts-guide">
+                A page whose parts want different Layouts, here a workspace to try and a
+                column to read, lists them down its left under the page's title. The
+                window below is such a page.
+              </p>
+              <ul id="bg-parts-steps">
+                <li>
+                  Choose <strong>Notes</strong>, then <strong>Try</strong>: the column
+                  and the workspace each take the room beside the list, which stays put.
+                </li>
+                <li>
+                  Narrow the window to a phone's width: the title scrolls away and the
+                  list becomes a row that sticks over the part.
+                </li>
+              </ul>
+              <lf-sample id="bg-parts-sample" label="page of parts" window>
+                <template id="bg-parts-page" data-sample class="bg-parts-sample">
+                  <header><h1>Trail planner</h1></header>
+                  <lf-parts id="bg-parts-list">
+                    <lf-part id="bg-part-try" label="Try" summary="Pick a route">
+                      <div class="layout-workspace">
+                        <header><h2>Routes</h2></header>
+                        <div>
+                          <p>Ridge loop, eleven kilometres, three hours of climbing.</p>
+                        </div>
+                      </div>
+                    </lf-part>
+                    <lf-part
+                      id="bg-part-notes"
+                      label="Notes"
+                      summary="Why these routes"
+                    >
+                      <article class="layout-column">
+                        <h2>Notes</h2>
+                        <p>
+                          The ridge loop keeps to the trail the rangers reopened in May.
+                        </p>
+                        <p>The valley route stays below the snow line all year.</p>
+                        <p>Both start at the shelter and end at the covered terrace.</p>
+                      </article>
+                    </lf-part>
+                  </lf-parts>
+                </template>
+              </lf-sample>
+            </section>
+
             <section id="bg-drawing">
               <p class="eyebrow">svg.drawing</p>
               <h3>
@@ -2930,8 +2968,9 @@ switch --readers checkout-api,orders-api</code></pre>
               <h3>Rendered documents</h3>
               <p>
                 Switch between the rendered release note and its exact source. Use the
-                arrow keys on the tabs. Reloading keeps your selected view; a new source
-                value updates both views.
+                arrow keys on the tabs, then Tab into Preview and scroll through the
+                code example: the focus border stays at the viewport's edges. Reloading
+                keeps your selected view; a new source value updates both views.
               </p>
               <lf-text-document
                 id="bg-markdown-preview"

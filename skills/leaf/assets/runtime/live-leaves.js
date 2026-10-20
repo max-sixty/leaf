@@ -82,7 +82,7 @@ registerPageControl({
   rank: PAGE_CONTROL_RANK.leaves,
   label: "All pages",
   value: () => String(listedPages(runtime.state).length),
-  shortcut: () => commandSteps("navigation.drawer.leaves"),
+  shortcut: () => commandSteps("navigation.panel.leaves"),
   offered: leavesOffered,
   group: "navigate",
 });

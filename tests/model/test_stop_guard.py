@@ -1349,7 +1349,7 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
 @pytest.mark.parametrize("declared", ["shipped", "done-only"])
 def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared):
     """A multiple-choice item finishes with Done. Until then a tick is the user's
-    own unfinished answer: it is not agent work, the banner does not count it as an
+    own unfinished answer: it is not agent work, the panel does not count it as an
     update waiting, no delivery is prepared, and Stop does not
     hold the turn. Done hands the item over, and the answer it owes is a version.
 

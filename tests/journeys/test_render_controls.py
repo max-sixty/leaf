@@ -80,7 +80,6 @@ from browser.controls import (
     LIVE_SAMPLES_PAGE,
     RING_NEW_STOP,
     SAMPLE_STARTUP_FAILURE,
-    offered,
 )
 from browser_sources import browser_function
 from render_cases_layout import ring_rules
@@ -532,31 +531,29 @@ RING_REMOTE_CARRIER = {
 }
 
 
-# A surface must open before its sample can count. Conditional banner controls are
-# checked only on a page that offers them.
+# A surface must open before its sample can count.
 RING_SCOPE_SURFACE = {
     "an inline response": (
-        'lf-diff .lf-fab-bar[data-lf-presentation="inline"] .lf-composer[data-lf-open]',
-        None,
+        'lf-diff .lf-fab-bar[data-lf-presentation="inline"] .lf-composer[data-lf-open]'
     ),
-    "the Threads view": ('.lf-floating-panel[data-open="threads"]', None),
-    "a resolved thread": (PANEL_THREAD, None),
-    "an inline thread": (".lf-margin-preview:not([hidden])", None),
-    "a thread card": (".lf-margin-preview:not([hidden])", None),
-    "the Page Map dialog": (".lf-page-map-dialog[open]", None),
-    "passage search": (".lf-page-search:not([hidden])", None),
+    "the Threads view": '.lf-floating-panel[data-open="threads"]',
+    "a resolved thread": PANEL_THREAD,
+    "an inline thread": ".lf-margin-preview:not([hidden])",
+    "a thread card": ".lf-margin-preview:not([hidden])",
+    "the Page Map dialog": ".lf-page-map-dialog[open]",
+    "passage search": ".lf-page-search:not([hidden])",
     # The hint the keyboard is browsing, and the field the chosen item's bar opens with.
     # Each is the mode's own state rather than a box that merely exists: the chips are
     # rebuilt from nothing on every open, and the bar is in the document from the first
     # frame and shows only for an anchor.
-    "target hints": (".lf-target-picker-hint.lf-current", None),
-    "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
-    "On me": ('.lf-floating-panel[data-open="queue"]', ".lf-fp-on-user"),
-    "All pages": ('.lf-floating-panel[data-open="leaves"]', None),
-    "the leaf's menu": (".lf-floating-panel[data-menu]", None),
-    "the versions menu": (".lf-floating-panel[data-menu]", None),
-    "the command reference": (".lf-command-reference.open", None),
-    "a reaction palette": (".lf-react-strip.lf-react-open", None),
+    "target hints": ".lf-target-picker-hint.lf-current",
+    "the response bar": ".lf-fab-bar .lf-composer[data-lf-open]",
+    "On me": '.lf-floating-panel[data-open="queue"]',
+    "All pages": '.lf-floating-panel[data-open="leaves"]',
+    "the leaf's menu": ".lf-floating-panel[data-menu]",
+    "the versions menu": ".lf-floating-panel[data-menu]",
+    "the command reference": ".lf-command-reference.open",
+    "a reaction palette": ".lf-react-strip.lf-react-open",
 }
 
 
@@ -2736,8 +2733,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     page.locator("#pr-exact-patch [data-content] > [data-line]:focus")
                 ).to_have_count(1)
             page_at_rest(page)
-            surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
-            if surface and (offers is None or offered(page, offers)):
+            if surface := RING_SCOPE_SURFACE.get(scope):
                 assert page.locator(surface).count() == 1, (
                     f"{RING_SCOPE_OPENER.get(scope, ' '.join(keys))} did not open "
                     f"{scope} on {example.stem}, which "
@@ -2867,7 +2863,7 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
     """A press the user cannot land on is a capability the page does not have.
 
     Measured before --aim-floor existed, at 1200x900: a thread's Reopen and the panel's
-    reaction chips stood at 20 and 22 pixels tall, the banner's page preview at 23, and a
+    reaction chips stood at 20 and 22 pixels tall, the old banner's page preview at 23, and a
     version's Compare, a command in the reference, and a quote at around twelve by seven.
     Three controls reached the coarse-pointer block and the rest reached neither floor,
     so the same presses were small under a finger too.

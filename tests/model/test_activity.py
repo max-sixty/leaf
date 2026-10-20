@@ -1,4 +1,4 @@
-"""Page activity: what the banner says the agent is doing, read from the status
+"""Page activity: what the panel says the agent is doing, read from the status
 declaration, the claim and its turn, the harness's own session record, pickups and
 live App Server streams, and the served state that dates it."""
 
@@ -46,7 +46,7 @@ from leaf.served_state import page as served_page
 
 def test_a_claimant_inside_a_turn_is_listening_between_two_waits(claimed):
     """A wait that ends to wake the session leaves no lease behind, but the turn it
-    reaches, or opens, takes the input, so the banner keeps reading listening rather
+    reaches, or opens, takes the input, so the status keeps reading listening rather
     than telling the user the agent is away. Once the turn has closed, it is away."""
     serving(claimed, 1)
     session_model.cmd_waiting(claimed, "look at v2")
@@ -868,7 +868,7 @@ def test_the_state_payload_says_when_it_was_taken(page_dir):
 def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     """`leaf status` reads its transition back so a silent success cannot pass for a
     no-op. Canonical activity keeps showing an unanswered user move over a `waiting`
-    written ahead of it, so the banner the agent believes it set is not the one the
+    written ahead of it, so the status the agent believes it set is not the one the
     user sees. The readback names the move; once it has an answer the line stands
     alone."""
     append_carried_log_record(
@@ -930,7 +930,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
 
 
 def test_state_reports_whether_the_owning_session_still_exists(claimed, dead_pid):
-    """The banner's one hard fact: a status.json claim outlives its session, the
+    """The status's one hard fact: a status.json claim outlives its session, the
     owning pid doesn't."""
     assert page_state(claimed)["session_alive"] is True
     record_claim(claimed, pid=dead_pid)
@@ -978,11 +978,11 @@ def test_a_process_free_publication_keeps_input_without_claimant_facts(claimed):
 
 
 def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_pid):
-    """The banner may claim no more than the page directory can prove. A watch that
+    """The status may claim no more than the page directory can prove. A watch that
     has stopped must read differently from a watch with nothing to report, and a page
     nothing is behind differently from either, without reading as a fault: a
     persistent page spends the night that way. This walks one page through each
-    declaration, claim and turn the banner tells apart; what each reading says is
+    declaration, claim and turn the status tells apart; what each reading says is
     `tests/runtime/activity-words.test.mjs`'s."""
     d = page_dir
     append_carried_log_record(

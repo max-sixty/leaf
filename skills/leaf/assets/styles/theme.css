@@ -398,8 +398,11 @@
      hand); --raise-3 stands over the page for a task of its own (a dialog, the thread
      card). A surface takes the height its meaning has, never a new value. Each is one
      layer with no spread, so `filter: drop-shadow(var(--raise-N))` reads it as it
-     stands, for a surface whose silhouette is not its box. */
-  --raise-1: 0 2px 8px var(--shade);
+     stands, for a surface whose silhouette is not its box. With no sideways offset or
+     spread, a lift's blur is how far it reaches beside its box, so a box that clips
+     must leave --raise-1-reach free around a lifted thing to show its shadow. */
+  --raise-1-reach: 8px;
+  --raise-1: 0 2px var(--raise-1-reach) var(--shade);
   --raise-2: 0 8px 24px var(--shade);
   --raise-3: 0 12px 36px var(--shade);
   /* A tooltip's face: a control's label, held or hovered, in the inverse ink at
@@ -1121,6 +1124,15 @@ h3 {
     font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.1;
+  }
+}
+/* A page of parts' title heads the narrow column its list of parts stands in
+ * (layouts.css, "A page of parts"), so it is set as that column's heading. */
+@container style(--lf-parts-title: 1) {
+  h1 {
+    font-size: var(--t-3);
+    line-height: 1.25;
+    letter-spacing: normal;
   }
 }
 p {

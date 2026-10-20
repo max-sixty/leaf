@@ -795,7 +795,8 @@ export function createSemanticApplication({
     // How the server answered the page's latest read: not yet (`waiting`), with a
     // reading the page adopted (`reached`), with nothing (`unreachable`, or `refused`
     // where it refused this tab's key), or with one the page could not apply
-    // (`broken`). It is what the banner says about the server, and no semantic epoch.
+    // (`broken`). It is what the page's status says about the server, and no semantic
+    // epoch.
     reach: "waiting" as "waiting" | "reached" | "unreachable" | "refused" | "broken",
     hostAvailable: true,
     data: { version: null as string | null, sources: {} as Record<string, unknown> },
@@ -1083,6 +1084,8 @@ export function createSemanticApplication({
         gestured: [...new Set(unresolved.flatMap(threadsOfEntry))],
       },
       items: { phase, ...items },
+      // The agent's plan in force, as the server read it (`plans.plan_reading`).
+      plan: ready ? (state?.browser.plan ?? null) : null,
       // On me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {

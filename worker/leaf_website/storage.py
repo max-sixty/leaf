@@ -31,7 +31,6 @@ from urllib.parse import urlencode, urlsplit
 from leaf.data import deferred_records
 from leaf.files import latest_revision, revision_path
 from leaf.layer import running_leaf
-from leaf.machine import state_home
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.revision_artifact import read_revision
 from leaf.revisioning import activate_source
@@ -42,7 +41,7 @@ from leaf.schema import (
 )
 from leaf.served_state.reading import record_reading
 from leaf.service import PageTransaction
-from leaf.state import STRING, Record, object_schema, page_key
+from leaf.state import STRING, Record, object_schema, page_key, state_home
 from starlette.requests import Request
 
 CHUNK_BYTES = 1024 * 1024
@@ -215,7 +214,7 @@ def _responses(
         process=False,
     )
     snapshot = replace(snapshot, source_error=source_error)
-    paths = {"", "api/state", "api/news", "api/user-view", "registry.json"}
+    paths = {"", "api/state", "api/news", "registry.json"}
     paths.update(f"api/state?revision={item}" for item in snapshot.artifacts)
     for source_name, reading in snapshot.context.data["sources"].items():
         value = reading.get("value")

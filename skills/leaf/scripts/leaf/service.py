@@ -28,7 +28,7 @@ from leaf.event_log import (
 )
 from leaf.files import unfinished_publications
 from leaf.interaction_log import session_context
-from leaf.machine import pid_alive, sandbox_remedy, state_home
+from leaf.machine import pid_alive, sandbox_remedy
 from leaf.refusals import Refused
 from leaf.schema import STATUS_FILE
 from leaf.state import (
@@ -46,6 +46,7 @@ from leaf.state import (
     session_claims,
     session_lock_path,
     session_record,
+    state_home,
 )
 
 if TYPE_CHECKING:

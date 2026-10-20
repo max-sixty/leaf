@@ -50,9 +50,8 @@ from xml.etree import ElementTree
 
 from .event_log import jsonl_line, write_cursor
 from .harness import session_harness
-from .machine import state_home
 from .refusals import Refused
-from .schema import WIDGET_KINDS
+from .registry.kernel import verb_writers
 from .service import (
     PageTransaction,
     may_receive,
@@ -67,6 +66,7 @@ from .state import (
     open_session_turn,
     session_lock_path,
     session_record,
+    state_home,
 )
 
 # The immutable envelope `leaf delivery read` prints (`references/event-batches.md`).
@@ -192,7 +192,7 @@ def _registry(page_dir: Path):
 
 def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
     """Name what one event changes without using prose as an identifier."""
-    if event["kind"] in WIDGET_KINDS:
+    if event["kind"] in verb_writers():
         return {"kind": "widget", "id": event["widget"]}
     if event["kind"] == "undo":
         original = by_id.get(event["undoes"])

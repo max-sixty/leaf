@@ -2,13 +2,14 @@
    verb's writer and admitted definition into `$states` (Python's
    `registry.contract.stamp_states`), so this module derives neither: it finds a verb's
    stamped state and compares a recorded definition with it. */
+import { VERB_WRITERS } from "./event-kinds.js";
+import { WIDGET_NAME } from "./names.js";
 
 // The stamped state of the verb an action or report names on `tag`, when the side that
 // sent it is the verb's writer.
 export function stampedState(registry, tag, event) {
   const state = registry.$states[tag]?.[event.action];
-  const writer = { action: "user", report: "agent" }[event.kind];
-  return state?.writer === writer ? state : null;
+  return state?.writer === VERB_WRITERS[event.kind] ? state : null;
 }
 
 export function sameStateDefinition(recorded, current) {
@@ -34,6 +35,6 @@ export function sameStateDefinition(recorded, current) {
   );
 }
 
-// Registry keys share schema.WIDGET_NAME with Python. Exact custom-element names
+// Registry keys share `$names.widget` with Python. Exact custom-element names
 // declare widgets; CSS selectors (including lf-options.selected) declare idioms.
-export const isElementName = (name) => /^lf-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name);
+export const isElementName = (name) => WIDGET_NAME.test(name);

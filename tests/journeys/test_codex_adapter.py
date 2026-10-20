@@ -33,7 +33,6 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hooks as hooks_model
-from leaf import machine as machine_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -216,7 +215,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
     environment = codex_env | {
         "CODEX_THREAD_ID": "codex-thread",
         "FAKE_CODEX_LOG": str(log),
-        "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
+        "FAKE_CODEX_EXPECT_CWD": str(cleanup_model.state_home()),
     }
     if delivery_fault == "retry":
         environment["FAKE_CODEX_QUEUE_FAILURE_ONCE"] = str(

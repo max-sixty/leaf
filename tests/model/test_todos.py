@@ -276,7 +276,7 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
         {"kind": "resolve", "author": "user", "parent": comment["id"]},
     )
     # Resolving closes the thread for the user; the to-do stays the agent's, and the
-    # banner names it from the served `todos`.
+    # panel names it from the served `todos`.
     state = state_json(page_dir)
     assert state["threads"][0]["attention"] is None
     assert kinds(state["queues"]["on_agent"]) == [("todo", todo["id"])]
@@ -719,7 +719,7 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
 
 
 def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir):
-    """`task start` takes an item on the agent's queue in hand with the banner's line:
+    """`task start` takes an item on the agent's queue in hand with the status's line:
     the user's move, by its event id, reads Working until the reply that answers it,
     and a to-do runs until it ends. An id that is neither is refused at the door."""
     publish(page_dir)
@@ -763,7 +763,7 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
     assert again.exit_code != 0
 
     # A to-do the agent opens on the page, for work no move asked for, runs under its
-    # start's line until the to-do ends; the banner shows that line.
+    # start's line until the to-do ends; the panel's status shows that line.
     todo = written(leaf("task", "open", page_dir, "page", "Add a glossary"))
     assert todo["subject"] == {"kind": "page"}
     written(leaf("task", "start", page_dir, todo["id"], "Drafting the glossary"))
@@ -1104,7 +1104,7 @@ def test_a_start_reopens_a_page_its_agent_closed(page_dir):
 
 
 def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
-    """`status waiting` says what the agent wants back, and the banner shows it: every
+    """`status waiting` says what the agent wants back, and the panel shows it: every
     start written before it is put down, by a `put_down` in the log that a declaration
     with no start in force does not repeat. A started move goes back to its delivery
     stage, and a started to-do stays open with nothing running on it. A start after
@@ -1557,11 +1557,11 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
     ] == [(later["id"], "sent")]
 
 
-def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
+def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     page_dir, capsys, monkeypatch
 ):
     """`leaf task start` writes one record, in the log rather than the status file:
-    the page's banner reads its line, and so does the receipt on the move it names,
+    the page's status reads its line, and so does the receipt on the move it names,
     under the user's own words. A pickup leaves it running, a `waiting` declaration
     puts it down, and the move's answer ends it."""
     append_carried_log_record(

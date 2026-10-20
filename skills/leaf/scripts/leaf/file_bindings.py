@@ -36,7 +36,7 @@ from .state import (
     flocked,
     object_schema,
     replace_bytes,
-    state_home_path,
+    state_home,
 )
 
 # Each binding id's file, by its canonical absolute path.
@@ -191,7 +191,7 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
         if path is None:
             raise FileBindingError(f"No file is bound as {binding!r}.")
         key = hashlib.sha256(os.fsencode(path)).hexdigest()
-        locks = state_home_path() / "files"
+        locks = state_home() / "files"
         locks.mkdir(parents=True, exist_ok=True)
         with flocked(locks / f"{key}.lock"):
             current = _read(path)

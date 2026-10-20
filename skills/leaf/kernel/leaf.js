@@ -55,6 +55,7 @@ import {
   reactionAvailable,
   reactionTokens,
   readPlace,
+  readPlan,
   readQueues,
   registerPageControl,
   returnPlace,
@@ -5895,7 +5896,7 @@ registerPageControl({
   rank: PAGE_CONTROL_RANK.leaves,
   label: "All pages",
   value: () => String(listedPages(runtime.state).length),
-  shortcut: () => commandSteps("navigation.drawer.leaves"),
+  shortcut: () => commandSteps("navigation.panel.leaves"),
   offered: leavesOffered,
   group: "navigate"
 });
@@ -7185,6 +7186,7 @@ function createFloatingPanel({
   let seated = null;
   const seatHeights = /* @__PURE__ */ new Map();
   const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
+  const queueTabs = () => readPlan()?.steps.length || queueTab === "plan" ? [...Object.keys(QUEUE_TABS), "plan"] : Object.keys(QUEUE_TABS);
   const chooseQueueTab = (tab) => {
     if (tab === queueTab) return false;
     queueTab = tab;
@@ -7214,7 +7216,70 @@ function createFloatingPanel({
     );
     return entry?.event ?? null;
   };
-  const tabLabel = (tab) => tab === "agent" ? `On ${agentName()}` : "On me";
+  const tabLabel = (tab) => tab === "plan" ? "Plan" : tab === "agent" ? `On ${agentName()}` : "On me";
+  const PLAN_STATES = Object.freeze({
+    open: "Not started",
+    working: "Under way",
+    done: "Done",
+    failed: "Failed",
+    dropped: "Dropped"
+  });
+  const PLAN_MARKS = Object.freeze({
+    done: "check",
+    working: "activity",
+    failed: "cross",
+    dropped: "subtract"
+  });
+  const planItemIds = (steps) => steps.flatMap((step) => [
+    ...step.item ? [step.item.id] : [],
+    ...planItemIds(step.steps)
+  ]);
+  function planPlace(id) {
+    for (const goal of readPlan()?.steps ?? []) {
+      const counted = goal.steps.filter((step) => step.state !== "dropped");
+      const index = counted.findIndex(
+        (step) => step.item?.id === id || planItemIds(step.steps).includes(id)
+      );
+      if (index < 0) continue;
+      const place3 = `step ${index + 1} of ${counted.length}`;
+      return goal.title ? `${goal.title} \xB7 ${place3}` : capital(place3);
+    }
+    return null;
+  }
+  function planStep(step) {
+    const mark2 = PLAN_MARKS[step.state];
+    return html`<li class="lf-fp-plan-step" data-state=${step.state}>
+      <span class="lf-fp-plan-mark" role="img" aria-label=${PLAN_STATES[step.state]}
+        >${mark2 ? iconTemplate(mark2, "lf-action-icon") : nothing}</span
+      ><span class="lf-fp-plan-title">${step.title ?? ""}</span>${step.owner === "user" && step.state === "open" ? html`<button
+              type="button"
+              class="lf-fp-plan-tag"
+              @click=${() => {
+      chooseQueueTab("you");
+      paint();
+      focusDestination(
+        head.querySelector('.lf-fp-filters [aria-pressed="true"]'),
+        "move"
+      );
+    }}
+            >
+              On me
+            </button>` : step.state === "working" && step.since ? html`<span class="lf-fp-plan-time">${shortAgo(step.since)}</span>` : nothing}${step.running ? html`<span class="lf-fp-plan-line">${step.running.text}</span>` : nothing}${step.steps.length ? html`<ol class="lf-fp-plan-steps">
+              ${step.steps.map(planStep)}
+            </ol>` : nothing}
+    </li>`;
+  }
+  const planCards = () => (readPlan()?.steps ?? []).map(
+    (goal) => html`<section class="lf-fp-plan">
+          <h3 class="lf-fp-plan-goal">
+            <span>${goal.title ?? ""}</span
+            ><span class="lf-fp-plan-count">${goal.done} of ${goal.total}</span>
+          </h3>
+          <ol class="lf-fp-plan-steps">
+            ${goal.steps.map(planStep)}
+          </ol>
+        </section>`
+  );
   function onItemCard(item, list) {
     const record = carriesItem(item) ? item.item : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
@@ -7305,6 +7370,7 @@ function createFloatingPanel({
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
+    const place3 = queueTab === "you" ? planPlace(item.id) : null;
     return html`<section
       class="lf-fp-on-item"
       data-list=${list}
@@ -7312,7 +7378,7 @@ function createFloatingPanel({
       ?data-approval=${approval}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
-      ${message ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
+      ${place3 ? html`<p class="lf-fp-plan-place">${place3}</p>` : nothing}${message ? html`${title ? html`<h3 class="lf-fp-on-title">${title}</h3>` : nothing}
               <div
                 class="lf-fp-asked lf-fp-outlet"
                 data-thread=${thread.key}
@@ -7337,6 +7403,10 @@ function createFloatingPanel({
     return Promise.resolve(true);
   }
   function onView() {
+    if (queueTab === "plan") {
+      const cards = planCards();
+      return cards.length ? cards : html`<p class="lf-fp-empty">No plan.</p>`;
+    }
     const lists = queueLists();
     const all = [...lists.you, ...lists.agent, ...lists.done];
     const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
@@ -7442,13 +7512,13 @@ function createFloatingPanel({
     } else if (top.view === "queue") {
       const lists = queueLists();
       aux = tabs(
-        Object.keys(QUEUE_TABS),
+        queueTabs(),
         queueTab,
         tabLabel,
         (tab) => {
           if (chooseQueueTab(tab)) paint();
         },
-        (tab) => lists[tab].length
+        (tab) => tab === "plan" ? null : lists[tab].length
       );
     } else if (thread) {
       const inMessage = Boolean(placedAt(thread.id)?.message);
@@ -9799,7 +9869,7 @@ function createGoToSequence({
       when: () => true
     },
     {
-      id: "navigation.drawer.queue",
+      id: "navigation.panel.queue",
       keys: ["Shift+m"],
       // Its door is On me's, so where the On view shows the agent's list it turns to
       // the user's rather than closing.
@@ -9809,7 +9879,7 @@ function createGoToSequence({
       when: () => true
     },
     {
-      id: "navigation.drawer.leaves",
+      id: "navigation.panel.leaves",
       keys: ["Shift+l"],
       description: () => doors.leaves.shows() ? "Close All pages" : "Go to All pages",
       title: () => doors.leaves.shows() ? "close All pages" : "All pages",
@@ -9827,8 +9897,8 @@ function createGoToSequence({
   ];
   const DOOR_STANDS = /* @__PURE__ */ new Map([
     ["navigation.panel.threads", () => doors.threads.shows()],
-    ["navigation.drawer.queue", () => doors.queue.shows()],
-    ["navigation.drawer.leaves", () => doors.leaves.shows()]
+    ["navigation.panel.queue", () => doors.queue.shows()],
+    ["navigation.panel.leaves", () => doors.leaves.shows()]
   ]);
   function press(control) {
     scrollToElement(control, void 0, "nearest");
@@ -10245,7 +10315,7 @@ function standingOn(name2, title, sel, rows) {
     },
     // Across the declared shadow roots, where the addresses stop at the document: a row on
     // a staged disclosure names a key the browser does not answer, so a scope that could
-    // not see one would leave the line promising a press nothing makes.
+    // not see one would leave the reference promising a press nothing makes.
     when: () => pageQueryAll(sel).some((el2) => !inChrome(el2)),
     rows
   });

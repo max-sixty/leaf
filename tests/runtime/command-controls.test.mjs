@@ -1406,10 +1406,8 @@ test("command aliases conflict by their canonical meaning while shifted Space st
 });
 
 test("an announced scope says each live row's key and title", () => {
-  // A row that once kept itself off the shortcut bar declared `line: false`, which the
-  // announcement read as its word; the title is the one word every surface says.
   const rows = [
-    { id: "fixture.cancel", keys: ["Escape"], title: "cancel", line: false },
+    { id: "fixture.cancel", keys: ["Escape"], title: "cancel" },
     { id: "fixture.top", keys: ["g"], title: "top" },
     { id: "fixture.off", keys: ["x"], title: "unavailable", when: () => false },
   ];

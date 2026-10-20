@@ -233,7 +233,7 @@
 }
 /* A window sample keeps its outer height rather than its page's, and scrolls inside.
  * Three quarters of the viewport leaves its label, Reset, and the containing page's
- * banner and bottom bar in view with the whole frame. */
+ * floating panel in view with the whole frame. */
 :scope:is(lf-sample)[window] .lf-sample-frame {
   box-sizing: border-box;
   height: min(75vh, 48rem);

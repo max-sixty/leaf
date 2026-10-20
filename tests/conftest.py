@@ -22,7 +22,7 @@ from leaf import harness as harness_model
 from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
-from leaf import state as state_model
+from leaf import state as cleanup_model
 from leaf.registry.schema import schema_error
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
@@ -555,7 +555,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     # them, supplying capability evidence to hook transport and turn activity.
     for session in HOOKED_SESSIONS:
         leases_model.mark_hooks(session)
-    return machine_model.state_home()
+    return cleanup_model.state_home()
 
 
 @pytest.fixture(autouse=True)
@@ -565,7 +565,7 @@ def declared_records(monkeypatch):
     Nothing checks a record while Leaf runs (`state.Record`), so the suite checks
     each one its writers produce, as `model_folds.served_reading` checks the served
     state."""
-    encode = state_model.Record.encode
+    encode = cleanup_model.Record.encode
 
     def checked(record, value):
         written = encode(record, value)
@@ -577,7 +577,7 @@ def declared_records(monkeypatch):
             )
         return written
 
-    monkeypatch.setattr(state_model.Record, "encode", checked)
+    monkeypatch.setattr(cleanup_model.Record, "encode", checked)
 
 
 @pytest.fixture

@@ -16,7 +16,6 @@ from leaf.passages import (
     enclosing_of,
 )
 from leaf.registry.contract import (
-    WRITERS,
     decides,
     detail_schema,
     event_spec,
@@ -26,6 +25,7 @@ from leaf.registry.contract import (
     state_definition,
     state_specs,
 )
+from leaf.registry.kernel import verb_writers
 from leaf.registry.schema import schema_error
 from leaf.schema import agent_name
 from leaf.structure import SourceDocument
@@ -277,7 +277,7 @@ def state_projection(
     in_force = InForce(enclosing_of(spk), floors, withdrawn)
     specs = {}
     for event in events:
-        if event["kind"] not in WRITERS:
+        if event["kind"] not in verb_writers():
             continue
         if upto is not None and event["revision"] > upto:
             continue

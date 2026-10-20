@@ -43,6 +43,40 @@ const modules = [
       `export const recordFormat = (kind) => \`leaf-\${kind}/${protocol}\`;\n`,
   },
   {
+    // The kinds said in a thread, and each widget kind with the side that writes the
+    // x-state verb it carries. contract-types.mjs derives the matching types.
+    out: `${assets}/runtime/event-kinds.js`,
+    from: ["$events", "kinds"],
+    code: (kinds) => {
+      const entries = Object.entries(kinds);
+      const messages = entries.filter(([, kind]) => kind.message).map(([name]) => name);
+      const writers = Object.fromEntries(
+        entries
+          .filter(([, kind]) => kind.verb_writer)
+          .map(([name, kind]) => [name, kind.verb_writer]),
+      );
+      return (
+        `// prettier-ignore\nexport const MESSAGE_KINDS = new Set(${JSON.stringify(messages)});\n` +
+        `// prettier-ignore\nexport const VERB_WRITERS = ${JSON.stringify(writers)};\n`
+      );
+    },
+  },
+  {
+    // A widget's tag, which tells a widget declaration from an idiom selector.
+    out: `${assets}/runtime/names.js`,
+    from: ["$names", "widget"],
+    code: (widget) =>
+      `export const WIDGET_NAME = new RegExp(${JSON.stringify(`^${widget}$`)});\n`,
+  },
+  {
+    // The declared marks and the attribute each is painted as, which the runtime
+    // paints on a message it renders and reads by name.
+    out: `${assets}/runtime/marks.js`,
+    from: ["$marks"],
+    code: ({ description: _, ...marks }) =>
+      `// prettier-ignore\nexport const marks = ${JSON.stringify(marks)};\n`,
+  },
+  {
     // How the passage reader and the pure folds turn a page into text, synchronous so
     // prepaint and the folds read them without waiting on the registry fetch.
     out: `${assets}/runtime/passage-facts.js`,

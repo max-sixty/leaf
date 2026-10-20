@@ -27,7 +27,7 @@ from leaf.file_bindings import (
     save_file,
 )
 from leaf.served_state.reading import page_reading
-from leaf.state import state_home_path
+from leaf.state import state_home
 
 
 def test_explicit_cli_binding_and_lossless_save(page_dir, tmp_path):
@@ -150,7 +150,7 @@ def test_two_pages_share_one_target_write_lock(tmp_path, monkeypatch):
         bind_file(page, "notes", target)
     revision = read_file(pages[0], "notes")["revision"]
     key = hashlib.sha256(os.fsencode(target)).hexdigest()
-    waiting = lock_contention(monkeypatch, state_home_path() / "files" / f"{key}.lock")
+    waiting = lock_contention(monkeypatch, state_home() / "files" / f"{key}.lock")
     replacing = Event()
     replace = file_bindings.replace_bytes
 

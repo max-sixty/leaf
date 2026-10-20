@@ -849,6 +849,11 @@ _TEXT = {
     "loose-text": lambda at, v: (
         f"{_line(at, v)}: loose text between its members isn't allowed"
     ),
+    "parts-in-layout": lambda at, v: (
+        f"{_line(at, v)}: stands in a <main> that carries {v['layout']}; a page of"
+        " parts needs a <main> with no Layout, since each part's child carries its"
+        ' own (page-layout.md, "A page of parts")'
+    ),
     "pane-ends": lambda at, v: (
         f"{_line(at, v)}: x-reading-role {v['role']} admits at most one direct"
         " <header> and one direct <footer>"
@@ -992,10 +997,13 @@ _TEXT = {
             " be changed by a layer"
         )
     ),
+    "fixed-kernel-fact": _declared(
+        lambda v: f"{v['name']} is Leaf's own and cannot be changed by a layer"
+    ),
     "undeclared-event-kind": _declared(
         lambda v: (
-            f"$events.handling names {v['kind']!r}, which $events.kinds does"
-            " not declare"
+            f"$events.{v['key']} names {v['kind']!r}, which is none of"
+            f" {', '.join(v['declared'])}"
         )
     ),
     "invalid-when": _declared(
@@ -1006,7 +1014,7 @@ _TEXT = {
     ),
     "keys-documentation": _declared(
         lambda v: (
-            "$keys must carry a description and one paragraph per x- key the"
+            f"{v['fact']} must carry a description and one paragraph per key the"
             f" lint admits — missing {_json(v['missing'])}, unadmitted"
             f" {_json(v['unadmitted'])}"
         )

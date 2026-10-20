@@ -218,7 +218,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     """The user's own remark must not lock the control it is a remark about.
 
     A thread standing in the widget's seat takes the decision off the user's
-    list — the banner stops counting it — but answers nothing, so the press that would
+    list — On me stops counting it — but answers nothing, so the press that would
     answer it is still live. This is the browser half of the split, and the half the
     user meets first: the POST door only sees a hand-posted event, while here
     the controller reading paints the control and its dispatcher guards the press, and

@@ -35,7 +35,6 @@ from .served_state.reading import join_reading
 from .service import PageTransaction
 from .state import now_iso
 from .structure import SourceDocument
-from .user_views import FRESH_FOR_S
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,10 +90,6 @@ class PageSnapshot:
 
     def sample_inputs(self, revision: int) -> tuple[RevisionArtifact, list, dict]:
         return self.artifacts[revision], list(self.context.events), self.context.data
-
-    def user_views(self) -> dict:
-        # Captured render previews are instruments, not the user's reading.
-        return {"fresh_for_s": FRESH_FOR_S, "sessions": []}
 
     def news(self) -> str:
         return self.reading

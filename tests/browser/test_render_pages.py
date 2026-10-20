@@ -24,7 +24,7 @@ from render_cases_interaction import (
     SEATED_ITEM_WIDGETS,
     live_url,
 )
-from render_cases_layout import toggle_queue, with_one_item
+from render_cases_layout import SHOT_SRC, SHOTS, toggle_queue, with_one_item
 from render_cases_navigation import (
     composer_quote,
 )
@@ -1725,6 +1725,40 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
         assert at["caption"][0] >= at["box"][0] - 1, (end, at)
         assert at["caption"][1] <= at["box"][1] + 1, (end, at)
     assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_capture_in_an_outer_column_keeps_its_frame(browser, serve, direction):
+    """A table clips to its own edges, since it scrolls its columns, and an image's frame
+    is a shadow outside the image reaching 8px. A capture in the first or last column,
+    linked or captioned in a figure, stands far enough inside the table's edge to keep
+    that side of its frame, in either direction."""
+    src = SHOT_SRC["before"]
+    capture = f'<img src="{src}" width="300" height="150" alt="A capture.">'
+    body = (
+        "<h1>Captures</h1><p>A paragraph at the measure.</p>"
+        f'<table id="captures"><tr><td>{capture}</td>'
+        f'<td><a href="{src}">{capture}</a></td>'
+        f"<td><figure>{capture}<figcaption>After.</figcaption></figure></td></tr>"
+        "</table>"
+    )
+    source = leaf_page("Captures", body).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source, media={src: SHOTS["before"]}))
+    at = page.locator("#captures").evaluate("""t => {
+      const box = t.getBoundingClientRect();
+      return {table: [box.left, box.right], scrolls: t.scrollWidth > t.clientWidth,
+        images: [...t.querySelectorAll('img')].map(i => {
+          const r = i.getBoundingClientRect();
+          return [r.left, r.right];
+        })};
+    }""")
+    assert not at["scrolls"], at
+    left = min(image[0] for image in at["images"])
+    right = max(image[1] for image in at["images"])
+    assert left - at["table"][0] >= 8 - 0.5, at
+    assert at["table"][1] - right >= 8 - 0.5, at
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])

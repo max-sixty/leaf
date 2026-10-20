@@ -126,8 +126,8 @@ import {
 } from "./page-status.js";
 import { leavesRows } from "./live-leaves.js";
 import { keys } from "./keyboard/scopes.js";
-import { pageCommand, pageRung } from "./keyboard/register.js";
-import { advertisesKeys, rowArrows } from "./keyboard/bindings.js";
+import { pageCommand, pageDoor, pageRung } from "./keyboard/register.js";
+import { advertisesKeys, parsed, rowArrows } from "./keyboard/bindings.js";
 import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.js";
 import { pageControls, watchPageControls } from "./page-controls.js";
 import { readPlace } from "./history.js";
@@ -1689,6 +1689,7 @@ export function createFloatingPanel({
   // the note its stamp gave it after its name, cut to the row and whole on hover; with
   // Compare where the picker offers it; then the version's approval, where the page
   // asks for one, with why a press would not approve yet.
+  const showVersion = (entry) => putAwayThen(() => versionPicker.activate(entry));
   function versionsList() {
     const { rows: versions, picker, selection, latest } = versionsReading();
     const approval = approvalReading();
@@ -1714,7 +1715,7 @@ export function createFloatingPanel({
                   : nothing
               }`,
               entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
-              () => putAwayThen(() => versionPicker.activate(entry)),
+              () => showVersion(entry),
               { title: entry.note },
             )}${
               entry.comparable
@@ -2517,6 +2518,16 @@ export function createFloatingPanel({
         </button>`;
       })}
     </div>`;
+  // Threads' own search, which its search button and `/` in Threads open: a fresh
+  // search the first time, and the one standing, words kept, after that.
+  function findThreads() {
+    if (!searching) {
+      searching = true;
+      query = "";
+      paint();
+    }
+    focusDestination(head.querySelector(".lf-fp-search"), "move");
+  }
   function headTemplate(top) {
     const parent = trail.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
@@ -2545,11 +2556,13 @@ export function createFloatingPanel({
           aria-label="Find a thread or message"
           aria-pressed=${String(searching)}
           @click=${() => {
-            searching = !searching;
+            if (!searching) {
+              findThreads();
+              return;
+            }
+            searching = false;
             query = "";
             paint();
-            if (searching)
-              focusDestination(head.querySelector(".lf-fp-search"), "move");
           }}
         >
           ${iconTemplate("search", "lf-action-icon")}
@@ -3192,16 +3205,29 @@ export function createFloatingPanel({
   // (`panel.floating.leave`); with nothing open, the page's own foot of the ladder takes
   // the user from the panel back onto the page.
   pageRung("floating panel", () => {
-    if (query && focused()?.matches?.(".lf-fp-search"))
-      return {
-        root: host,
-        title: "clear search",
-        description: "Clear the search",
-        out: () => {
-          query = "";
-          paint();
-        },
-      };
+    // Threads' search box clears its words first, then, empty, returns to Threads,
+    // as a find box returns to its panel (keyboard/AGENTS.md, "Escape").
+    if (focused()?.matches?.(".lf-fp-search"))
+      return query
+        ? {
+            root: host,
+            title: "clear search",
+            description: "Clear the search",
+            out: () => {
+              query = "";
+              paint();
+            },
+          }
+        : {
+            root: host,
+            title: "close search",
+            description: "Close the search and return to Threads",
+            out: () => {
+              focusDestination(shownView(), "return");
+              searching = false;
+              paint();
+            },
+          };
     if (menuOpen && menuAt)
       return {
         root: host,
@@ -3296,6 +3322,64 @@ export function createFloatingPanel({
         },
       })),
     ),
+  );
+  // A key the page has acts on the view standing open where the view has that act of
+  // its own, as d and u already page the view the user is in (navigation.js): `/` in
+  // Threads finds a thread rather than the page's words. Rooted at the head and the
+  // view together, so the filters find too; the search box's own `/` is a character.
+  keys(
+    opened,
+    "In the floating panel",
+    [
+      {
+        id: "panel.floating.threads.find",
+        keys: ["/"],
+        description: "Find a thread or message in Threads",
+        title: "find a thread",
+        run: findThreads,
+      },
+    ],
+    () => trail.at(-1)?.view === "threads",
+  );
+  // Versions is a list for choosing, as the menu is, so while it holds focus the
+  // page's character keys rest rather than move the page under it, and a version's
+  // number shows it. Two doors stay open: `?`, and Go-to, whose `g V` puts Versions
+  // away as it opened it.
+  const versionsShown = () => menuOpen && menuAt?.view === "versions";
+  const numbered = () =>
+    versionsReading()
+      .rows.filter(({ version }) => version !== null && version <= 9)
+      .toSorted((a, b) => a.version - b.version);
+  keys(
+    menu,
+    "In the floating panel",
+    [
+      {
+        id: "panel.floating.versions.pick",
+        keys: () => numbered().map(({ version }) => String(version)),
+        label: () => {
+          const top = numbered().at(-1)?.version;
+          return top > 1 ? `1–${top}` : "1";
+        },
+        description: "Show the version with that number",
+        title: "show version",
+        when: () => numbered().length > 0,
+        run: (binding) =>
+          showVersion(numbered().find(({ version }) => String(version) === binding)),
+      },
+    ],
+    {
+      when: versionsShown,
+      claims: (binding) => {
+        const { key, mods } = parsed(binding);
+        return (
+          key.length === 1 &&
+          key !== " " &&
+          mods.every((mod) => mod === "Shift") &&
+          !pageDoor(binding)
+        );
+      },
+    },
   );
   // The caret in the field is the innermost thing open, so while a view is open
   // Escape leaves the field first and leaves the rest standing, the draft included

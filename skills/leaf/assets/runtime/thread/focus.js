@@ -188,12 +188,15 @@ const carried = new WeakSet();
 let carrying = null;
 // A seat can appear later in the pass, after its former margin card closes. The
 // close must defer its landing while the thread and the user's intent still stand;
-// `may` checks for the new seat only when the pass chooses its destination.
+// `may` checks for the new seat only when the pass chooses its destination. A reply
+// already has its own availability rule, including a draft in a resolved thread.
 export const carryingThreadPlace = (node) =>
   Boolean(node) &&
   carrying?.node === node &&
-  carrying.intent() &&
-  allThreads().some((thread) => thread.id === carrying.id && !thread.resolved);
+  (carrying.reply
+    ? carrying.may()
+    : carrying.intent() &&
+      allThreads().some((thread) => thread.id === carrying.id && !thread.resolved));
 export function holdThreadPlace(open, { threadAt, seated }) {
   carrying = null;
   const held = holdStanding();
@@ -222,7 +225,7 @@ export function holdThreadPlace(open, { threadAt, seated }) {
         () =>
           allThreads().some((each) => each.id === id && !each.resolved) && seated(id),
       );
-  const carry = { node, id, intent };
+  const carry = { node, id, intent, may, reply: Boolean(destination) };
   carrying = carry;
   return async () => {
     try {

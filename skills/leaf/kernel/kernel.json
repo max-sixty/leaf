@@ -195,7 +195,7 @@
     "runtime/thread/actions.js": "c21ba84d83203c7d27e5b152a8b6b4ba90e0847b05aa16ae8fc6c9771edc32a1",
     "runtime/thread/box.js": "1ba591563b62c390f7536a9c3f0dbe73717d8120fa130b32125d06b54a11d61a",
     "runtime/thread/destination.js": "faddb2b214a756ae41a48f3b92c3eb40620e1923d834af9d4ceba000b23e17a3",
-    "runtime/thread/focus.js": "e911ea065cfc4013caf0acde270deb7a256de75dc38d8934645ab0c2b845fdef",
+    "runtime/thread/focus.js": "ed75f64f39154d9775899a3440ec0a2e2d9450c9b2ab761c18ea3784727aa572",
     "runtime/thread/folding.js": "a75e98b8723d52b7e2329324345fb368f493cc58c47447602ed297c8d948b3b5",
     "runtime/thread/held-news.js": "774c31e6222cfa5f84fff75a58e52fc860e471a59c33d2b5d146d84412963f64",
     "runtime/thread/identity.js": "a108cf62a230a32aa426de09e2dcd11a5102ee0c8c40817585e40a9f97f7c00c",

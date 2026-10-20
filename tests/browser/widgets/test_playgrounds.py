@@ -484,7 +484,8 @@ def test_a_playground_followed_by_a_note_keeps_its_instruction_off_the_note(
         '<lf-ask id="noted-ask"><h1>Tune alert policies</h1>'
         '<lf-playground id="noted-config" data-width="available">'
         "<lf-playground-preview>"
-        + "<p>Checkout latency fired seven times last month.</p>" * 12
+        + "<p>Checkout latency fired seven times last month.</p>"
+        * 12
         + '<lf-playground-control name="latency" label="Latency window" kind="range" '
         'value="5" min="1" max="15" unit="min"></lf-playground-control>'
         "</lf-playground-preview><lf-playground-output>"

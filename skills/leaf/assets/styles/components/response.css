@@ -195,10 +195,10 @@
 }
 /* Every composition input renders the same attachment shelf, including inputs seated
    in widget shadow trees. Surfaces place it and may set its pictures' height; the
-   shelf owns its controls, image inspection face, and drawing paint here. In a row
-   that holds a field, the shelf comes first and takes a line of its own, so it stands
-   above the field and never takes the field's width; a seated comment box's composer
-   adds no box of its own (`display: contents`). */
+   shelf owns its pictures' face and their marks here. In a row that holds a field, the
+   shelf comes first and takes a line of its own, so it stands above the field and
+   never takes the field's width; a seated comment box's composer adds no box of its
+   own (`display: contents`). */
 :is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])),
 .lf-fab-bar[data-lf-presentation="inline"]:has(
     > .lf-composer > .lf-composer-media:not([hidden])
@@ -256,19 +256,21 @@ button.lf-media-open {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-/* Each image is its picture alone, at the shelf's height in its own proportions up to
-   twice as wide as tall, and its removal a mark on its corner: there under a finger,
-   and shown to a pointer over the picture or a key on it. The user chose this in the
-   floating panel on 19 October over each image boxed with its removal a press the
-   image's height, a frame and a divider for one picture. Every shelf wears it, so a
-   surface states only where its shelf stands. */
-.lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
-  height: var(--lf-media-h);
-  min-height: 0;
+/* Each attachment is its picture alone and its controls marks on its corners: there
+   under a finger, and shown to a pointer over the picture or a key on it. The user
+   chose this in the floating panel on 19 October over each image boxed with its
+   removal a press the image's height, a frame and a divider for one picture. Every
+   shelf wears it, so a surface states only where its shelf stands. An image stands at
+   the shelf's height in its own proportions up to twice as wide as tall. */
+.lf-composer-media-item > .lf-composer-media-open {
   border-radius: 8px;
   box-shadow:
     0 0 0 1px var(--lf-media-ring, var(--border-2)),
     var(--raise-1);
+}
+.lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open {
+  height: var(--lf-media-h);
+  min-height: 0;
 }
 .lf-composer-media-item:not(.lf-composer-drawing) > .lf-composer-media-open img {
   display: block;
@@ -282,8 +284,13 @@ button.lf-media-open {
      page's images (theme.css, `img`) would draw them twice. */
   box-shadow: none;
 }
-.lf-composer-media-remove {
+/* Every press in an item besides its picture is a mark on a top corner: removal on the
+   right, and a drawing's Undo last stroke on the left. A mark stands over the box's
+   carry band (`.lf-surface-grip`), which its reach can cross, so the press is the
+   mark's. */
+.lf-composer-media-item > button:not(.lf-media-open) {
   position: absolute;
+  z-index: 1;
   inset-block-start: -6px;
   inset-inline-end: -6px;
   display: grid;
@@ -301,60 +308,58 @@ button.lf-media-open {
   box-shadow: 0 0 0 2px var(--lf-media-ground, var(--paper));
   cursor: pointer;
 }
-.lf-composer-media-remove::before {
+.lf-composer-media-item > .lf-composer-drawing-undo {
+  inset-inline: -6px auto;
+}
+.lf-composer-media-item > button:not(.lf-media-open)::before {
   content: "";
   position: absolute;
   inset: calc((18px - var(--aim-floor)) / 2);
 }
-.lf-composer-media-remove:hover {
+.lf-composer-media-item > button:not(.lf-media-open):hover {
   background: var(--ink);
 }
-.lf-composer-media-remove[data-lf-focus] {
+.lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-.lf-composer-media-remove > svg {
+.lf-composer-media-item > button:not(.lf-media-open) > svg {
   inline-size: 10px;
   block-size: 10px;
 }
 @media (hover: hover) {
-  .lf-composer-media-item:not(:hover, :focus-within) > .lf-composer-media-remove {
+  .lf-composer-media-item:not(:hover, :focus-within) > button:not(.lf-media-open) {
     opacity: 0;
   }
-  .lf-composer-media-remove {
+  .lf-composer-media-item > button:not(.lf-media-open) {
     transition: opacity 120ms;
   }
 }
-/* A forced palette drops the ring and the mark's disc, so both take a system edge,
+/* A forced palette drops the ring and the marks' discs, so both take a system edge,
    which leaves the focus ring to a focused picture. */
 @media (forced-colors: active) {
-  .lf-composer-media-item:not(.lf-composer-drawing)
-    > .lf-composer-media-open:not([data-lf-focus]) {
+  .lf-composer-media-item > .lf-composer-media-open:not([data-lf-focus]) {
     outline: 1px solid CanvasText;
   }
-  .lf-composer-media-remove {
+  .lf-composer-media-item > button:not(.lf-media-open) {
     border: 1px solid ButtonText;
   }
 }
-/* A drawing is a tile: its canvas beside full-height presses for its undo and
-   removal, each behind a divider. Controls stay inside the tile, so the scrolling
-   shelf never cuts their hit area. */
-.lf-composer-drawing {
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--paper);
-  overflow: hidden;
-}
+/* A drawing's picture is its canvas over the page it was drawn on, at the size its
+   surface gives it, on the paper the canvas letterboxes onto so the page behind the
+   box never shows through. Its undo mark shows in and out of Draw mode alike: Draw
+   mode's own undo takes the latest stroke wherever it went (drawing.js,
+   `undoTarget`), while the mark takes this draft's, and a mark that came and went
+   with the mode would move under the user. Rejected: a tile of the canvas beside two
+   presses the drawing's height, each behind a divider, three cells and two seams for
+   one picture. */
 .lf-composer-drawing > .lf-composer-media-open {
+  position: relative;
   width: 68px;
   height: 52px;
-  overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  align-self: center;
   padding: 0;
-  box-sizing: border-box;
-  position: relative;
+  overflow: hidden;
+  background: var(--paper);
 }
 .lf-drawing-context-status {
   position: absolute;
@@ -370,35 +375,6 @@ button.lf-media-open {
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-.lf-composer-drawing > button:not(.lf-media-open) {
-  flex: none;
-  display: grid;
-  place-items: center;
-  inline-size: max(26px, var(--aim-floor));
-  min-block-size: var(--aim-floor);
-  padding: 0;
-  border: 0;
-  font: inherit;
-  border-inline-start: 1px solid var(--border-2);
-  background: transparent;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-.lf-composer-drawing > button:not(.lf-media-open):hover {
-  color: var(--accent);
-  background: var(--chip);
-}
-.lf-composer-drawing > button:not(.lf-media-open)[data-lf-focus] {
-  outline: var(--focus-ring);
-  outline-offset: calc(-1 * var(--focus-ring-w));
-}
-.lf-composer-drawing > button:not(.lf-media-open) > svg {
-  inline-size: 14px;
-  block-size: 14px;
-}
-.lf-composer-drawing > .lf-media-open[data-lf-focus] {
-  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 
 /* Comment boxes and anchored response controls share their frame and focus paint.

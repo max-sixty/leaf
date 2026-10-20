@@ -113,77 +113,66 @@
   .lf-fp-inner > :not(.lf-fp-opened) {
     flex-shrink: 0;
   }
-  /* The panel's own controls share one face. What Leaf's reader draws in a view's
-     outlet, a thread's messages or an ask On shows as one, keeps the face its own
-     controls give it (controls.css): this face once reached a message's reaction
-     trigger there, under the aim floor, and took the fill off a chosen reaction. So
-     do the anchored comment box seated in the row (`.lf-fp-response`) and an
-     attachment shelf, which every composer shares (response.css): the document layers
-     that sheet, and this one is unlayered, so a rule here, however plain its selector,
-     would win over their own. This face's reach once made the seated box's Send
-     `position: relative`, standing it on a line under the field. */
-  :where(.lf-floating-panel)
-    :is(button, input, textarea):where(
-      :not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)
-    ) {
-    font: inherit;
-    color: inherit;
-  }
-  :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)) {
-    background: none;
-    border: 0;
-    border-radius: 6px;
-    cursor: pointer;
-    white-space: nowrap;
-    padding: 0 8px;
-    min-height: var(--lf-fp-press);
-  }
-  /* Each press reaches the pointer's floor (`--aim-floor`) above and below a face that
-     can be shorter: the crumb's back is a line of small words, and under a finger the
-     row's presses are its 34px line against a 44px floor. The reach is a box of the
-     press's own that paints nothing, so the line, and the face hover and pressing
-     paint, keep their height, and it lies in the room the row, the head and a menu's
-     rows already keep around their presses. Sideways a press is itself as wide as the
-     floor, since a reach there would lie over its neighbour's. The field's presses are
-     its editor's, which sizes and places them itself (response.css). */
-  :where(.lf-floating-panel)
-    button:where(
-      :not(.lf-fp-outlet *, .lf-fp-field *, .lf-fp-response *, .lf-composer-media *)
-    ) {
-    position: relative;
-  }
-  :where(.lf-floating-panel)
-    button:where(
-      :not(.lf-fp-outlet *, .lf-fp-field *, .lf-fp-response *, .lf-composer-media *)
-    )::after {
-    content: "";
-    position: absolute;
-    inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
-  }
-  :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)):hover {
-    background: var(--lf-fp-hover);
-  }
-  :where(.lf-floating-panel)
-    button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)):is(
-      :disabled,
-      [aria-disabled="true"]
-    ) {
-    color: var(--lf-fp-muted);
-    cursor: default;
-    background: none;
-  }
-  :where(.lf-floating-panel)
-    :is(button, input, textarea, a, .lf-fp-on-item):where(
-      :not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)
-    ):focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: -2px;
-  }
-  .lf-floating-panel .lf-action-icon:not(.lf-fp-response *, .lf-composer-media *) {
-    width: 16px;
-    height: 16px;
+  /* The panel's own controls share one face. It is a default, so it stands in the
+     components' layer (`lf-base`), as the marks sheet's indication default does
+     (runtime/stylesheets.js), at a plain selector's weight: the panel's own rules,
+     unlayered, outrank it, and so does a shared face a panel control wears, as Send
+     wears the composers' accent arrow, while it still outranks the chrome's control
+     reset (chrome.css) and the layer's focus band at no weight (surfaces.css). It
+     stops at the components the panel holds, which bring faces of their own: what
+     Leaf's reader draws in a view's outlet (controls.css), the comment box seated in
+     the row, and the attachment shelf (response.css). Unlayered and reaching them, it
+     took the fill off a chosen reaction in a thread, drew the shelf's × as a panel
+     press and stood the seated box's Send on a line under its field. */
+  @layer lf-base {
+    @scope (.lf-floating-panel) to (.lf-fp-outlet, .lf-fp-response, .lf-composer-media) {
+      :is(button, input, textarea) {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        background: none;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+        padding: 0 8px;
+        min-height: var(--lf-fp-press);
+      }
+      /* Each press reaches the pointer's floor (`--aim-floor`) above and below a face
+         that can be shorter: the crumb's back is a line of small words, and under a
+         finger the row's presses are its 34px line against a 44px floor. The reach is
+         a box of the press's own that paints nothing, so the line, and the face hover
+         and pressing paint, keep their height, and it lies in the room the row, the
+         head and a menu's rows already keep around their presses. Sideways a press is
+         itself as wide as the floor, since a reach there would lie over its
+         neighbour's. The field's presses are its editor's, which sizes and places them
+         itself (response.css). */
+      button:where(:not(.lf-fp-field *)) {
+        position: relative;
+      }
+      button:where(:not(.lf-fp-field *))::after {
+        content: "";
+        position: absolute;
+        inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
+      }
+      button:hover {
+        background: var(--lf-fp-hover);
+      }
+      button:is(:disabled, [aria-disabled="true"]) {
+        color: var(--lf-fp-muted);
+        cursor: default;
+        background: none;
+      }
+      :is(button, input, textarea, a, .lf-fp-on-item):focus-visible {
+        outline: var(--focus-ring);
+        outline-offset: -2px;
+      }
+      .lf-action-icon {
+        width: 16px;
+        height: 16px;
+      }
+    }
   }
 
   /* ---------- the row ---------- */
@@ -629,6 +618,14 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
+  /* The way out of the stance the user stands in, after the counts or the steps. */
+  .lf-fp-exit-seat {
+    flex: none;
+    display: flex;
+  }
+  .lf-fp-exit-seat[hidden] {
+    display: none;
+  }
   /* A gesture's next step, in the counts' place while the gesture holds it. */
   .lf-fp-step {
     color: var(--ink);
@@ -666,6 +663,7 @@
     .lf-fp-field,
     .lf-fp-row-notice,
     .lf-fp-quick,
+    .lf-fp-exit-seat,
     .lf-fp-context,
     .lf-fp-opened {
       display: none;

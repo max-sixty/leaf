@@ -9,8 +9,8 @@
 
    A region holds an obligation when the obligation's source element is the region or stands under
    it (`obligationsIn`), shadow trees included. A withdrawn obligation no longer asks anything, and
-   an obligation with no page node (a question answered in words, an approval obligation, or a
-   frozen source not drawn) stands in no region. Membership reads the complete
+   an obligation with no page node (a question answered in words, an approval obligation, an
+   update's, or a frozen source not drawn) stands in no region. Membership reads the complete
    inventory, answered obligations included, and each consumer selects what it counts from
    the members: a tab row and `lf-tally` count every member and how many are answered,
    so an obligation the user discussed and left with the agent still counts as undecided,

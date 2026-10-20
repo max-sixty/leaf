@@ -158,7 +158,7 @@ const threadWorkflow = (id, { thread = "root", input = thread, ...changes } = {}
     subject: { kind: "thread", id: thread },
     thread,
     coordinate: ["thread", thread],
-    answer: { kind: "reply", to: input, for: input },
+    obligation: `update:${input}`,
     ...changes,
   });
 const capture = (extraDescriptors = [], extraAuthored = []) => {
@@ -716,7 +716,11 @@ test("a refused local message publishes one failed workflow before retirement", 
   app.refuse("refused");
   const failed = app.read().effective.workflows.at(-1);
   assert.deepEqual(failed.condition, { kind: "failed", operation: "delivery" });
-  assert.equal(failed.next_actor, "user");
+  // It serves the record of the resend it leaves, which is the user's.
+  const resend = app
+    .read()
+    .effective.obligations.all.find((item) => item.id === failed.obligation);
+  assert.equal(resend.next_actor, "user");
   assert.equal(app.read().effective.thread.all.length, 0);
   app.release(new Set(["refused"]));
   assert.equal(app.read().effective.workflows.length, 0);
@@ -728,8 +732,8 @@ test("a local send's workflow takes the served workflow's shape", () => {
   app.refuse("move");
   const [move] = app.read().effective.workflows;
   assert.deepEqual(
-    [move.subject, move.thread, move.holds_thread, move.coordinate],
-    [{ kind: "widget", id: "choice" }, null, false, coordinate],
+    [move.subject, move.thread, move.obligation, move.coordinate],
+    [{ kind: "widget", id: "choice" }, null, "update:rejected:move", coordinate],
   );
   app.release(new Set(["move"]));
   for (const event of [

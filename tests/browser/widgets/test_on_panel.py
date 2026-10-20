@@ -309,3 +309,17 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
     round_trip(page)
     expect(page.locator("#sug-delete")).to_be_visible()
     expect_obligations_answered(page, "0/4")
+
+
+def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
+    """On me's tabs name its view, so they start the head where Threads' title starts,
+    rather than standing among the controls at its end."""
+    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    resized(page, 1440, 900)
+    open_on_me(page)
+    tabs = page.locator(".lf-fp-head .lf-fp-filters").bounding_box()
+    page.keyboard.press("Escape")
+    page.locator(".lf-fp-threads").click()
+    panel_settled(page, view="threads")
+    title = page.locator(".lf-fp-head .lf-fp-title").bounding_box()
+    assert tabs["x"] == title["x"], (tabs, title)

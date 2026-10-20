@@ -351,8 +351,8 @@ def test_a_reaction_in_the_view_stands_as_its_chip_alone(browser, serve):
 
 def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     """Resolving the thread open from Threads moves the user on to the next open
-    thread, standing on its view, so a second `r`
-    resolves that one; taking a resolve back leaves the user where they moved on to;
+    thread, standing on its view, while the field says the thread was resolved, so a
+    second `r` resolves that one; taking a resolve back leaves the user where they moved on to;
     with none left, the user is back at Threads. Escape there puts
     the view away and returns the user to the page."""
     url = serve(LONG_PAGE)
@@ -371,6 +371,10 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(page.locator(".lf-fp-head .lf-fp-title")).not_to_have_text(first)
     expect(thread).to_be_visible()
     expect(thread).to_be_focused()
+    expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
+        "data-says", "notice"
+    )
+    expect(page.locator(".lf-fp-row")).to_contain_text("Resolved the thread")
     second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
     # Taking the first resolve back leaves the user on the thread they moved on to.
     with sending(page, "the undo"):
@@ -861,13 +865,13 @@ def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
 
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     """Page search's box stands just over the panel's row, where its Previous, Next and
-    Close search stand, rather than at the window's head."""
+    ✕ stand, rather than at the window's head."""
     page = floating(browser, serve(LONG_PAGE))
     page.locator("body").focus()
     page.keyboard.press("/")
     search = page.locator(".lf-page-search")
     expect(search).to_be_visible()
-    expect(page.locator(".lf-fp-step", has_text="Close search")).to_be_visible()
+    expect(page.locator('.lf-fp-exit[aria-label="Close search"]')).to_be_visible()
     box = search.bounding_box()
     row = page.locator(".lf-fp-row").bounding_box()
     gap = row["y"] - (box["y"] + box["height"])
@@ -2378,8 +2382,8 @@ def test_the_approval_is_arrived_at_in_sight_below_many_obligations(browser, ser
 
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode, while it
-    holds the gesture seat, stands its steps in the row in the counts' place;
-    Exit leaves the mode and the counts return. Picking an element is left to the page,
+    holds the gesture seat, stands its steps in the row in the counts' place and its ✕
+    at the row's end; the ✕ leaves the mode and the counts return. Picking an element is left to the page,
     where selecting words or pressing `s` starts it, so Annotations doesn't list it."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     page.locator(".lf-fp-leaf").click()
@@ -2387,11 +2391,16 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     expect(page.locator(".lf-fp-item", has_text="Capture area")).to_be_visible()
     expect(page.locator(".lf-fp-item", has_text="Select element")).to_have_count(0)
     page.locator(".lf-fp-item", has_text="Draw mode").click()
-    exit_step = page.locator(".lf-fp-step", has_text="Exit Draw mode")
+    exit_step = page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]')
     expect(exit_step).to_be_visible()
     expect(page.locator(".lf-fp-on-user")).to_have_count(0)
+    # The field names the mode in the status's place.
+    expect(field(page)).to_have_attribute("data-says", "stance")
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^In Draw mode"))
     exit_step.click()
     expect(page.locator(".lf-fp-step")).to_have_count(0)
+    expect(exit_step).to_have_count(0)
+    expect(field(page)).to_have_attribute("data-says", "status")
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
 
@@ -3403,13 +3412,20 @@ def test_a_draft_draws_a_bullet_list_as_the_message_will(browser, serve):
 
 
 def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
-    """Typing puts Send where the counts stood, and a press that takes the caret away
+    """Typing puts Send where the counts stood, wearing every composer's accent arrow
+    rather than the panel's own press face, and a press that takes the caret away
     brings the counts back while the words stay where they were."""
     page = floating(browser, serve(LONG_PAGE))
     field(page).click()
     page.keyboard.type("Could the rollback cover the weekend?")
     send = page.locator(".lf-fp-send")
     expect(send).to_be_visible()
+    accent = page.evaluate(
+        "() => { const probe = document.createElement('span'); probe.style.color = 'var(--accent)';"
+        " document.body.append(probe); const seen = getComputedStyle(probe).color;"
+        " probe.remove(); return seen; }"
+    )
+    expect(send).to_have_css("color", accent)
     expect(page.locator(".lf-fp-on-user")).to_be_hidden()
     settled(page)
     words = field(page).bounding_box()

@@ -17,6 +17,7 @@ from interact_support import (
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
     _watched,
+    activity_reading,
     append_carried_log_record,
     codex_records,
     continued,
@@ -664,7 +665,7 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
     prompt = json.loads(capsys.readouterr().out)
     assert asked["id"] in prompt["hookSpecificOutput"]["additionalContext"]
     claim = service_model.page_claim(claimed)
-    activity = page_state(claimed)["activity"]
+    activity = activity_reading(claimed)
     assert activity["kind"] == "working"
     assert activity["obligations"][0]["stage"] == "picked_up"
     assert activity["obligations"][0]["delivery_turn"] == claim["turn"]

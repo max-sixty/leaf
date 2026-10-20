@@ -192,6 +192,7 @@ import {
   cancelRender,
   caretAtKey,
   carriedFrom,
+  deepFocus,
   drawn,
   focusDestination,
   focused,
@@ -570,7 +571,12 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
     if (band) {
       const { left, right, top, bottom } = band;
       const destination = where.getBoundingClientRect();
-      const byX = nearestScrollBy(destination.left, destination.right, left, right);
+      const byX = nearestScrollBy(
+        destination.left - scrollMargin(where, "Left"),
+        destination.right + scrollMargin(where, "Right"),
+        left,
+        right
+      );
       const byY = inside ? nearestScrollBy(destination.top, destination.bottom, top, bottom) : 0;
       if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
@@ -579,6 +585,13 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
   }
   if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
 }
+onStanding((node, cause) => {
+  if (cause !== "step" || !node) return;
+  nextRender(() => {
+    if (deepFocus() === node && !alreadyShown(node))
+      scrollIntoView(node, { block: "nearest" });
+  });
+});
 
 // runtime/reading-place.js
 var FOCUSED_PLACE = /* @__PURE__ */ Symbol("live focused place");
@@ -3323,7 +3336,8 @@ var workflowTitle = (workflow) => {
 var progressFace = (workflow) => !workflow || workflow.condition ? null : workflow.stage === "picked_up" ? "picked_up" : ["working", "replying"].includes(workflow.stage) ? "working" : null;
 var isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 var isPageWidgetWorkflow = (workflow, revision) => workflow.subject.kind === "widget" && workflow.thread === null && workflow.revision <= revision;
-var tier = (workflow) => (workflow.next_actor === "user" ? 0 : 2) + Number(workflow.stage === "sending");
+var handedBack = (workflow) => workflow.stage === "answered" || workflow.stage === "sending" && workflow.condition?.kind === "failed";
+var tier = (workflow) => (handedBack(workflow) ? 0 : 2) + Number(workflow.stage === "sending");
 function strongestWorkflow(workflows) {
   let strongest = null;
   for (const candidate of workflows)
@@ -3339,9 +3353,12 @@ function threadAttention(thread) {
   if (thread.attention?.kind === "needs_user") {
     const answering = thread.attention.reason === "widget";
     const nextMove = answering ? "answer" : workflow?.subject.kind === "thread" ? "resend" : "retry";
+    const owed = new Set(
+      (thread.obligations ?? []).filter((item) => item.source.kind === "update" && item.next_actor === "agent").map((item) => item.id)
+    );
     const secondary = strongestWorkflow(
       thread.workflows.filter(
-        (candidate) => candidate.next_actor === "agent" && candidate.holds_thread && candidate.id !== workflow?.id
+        (candidate) => owed.has(candidate.obligation) && candidate.id !== workflow?.id
       )
     );
     return Object.freeze({
@@ -4042,19 +4059,23 @@ function pageScopes() {
   }
   return resolved;
 }
+var namedScopes = () => STACK.flatMap((name) => typeof name === "string" ? scopes.get(name) ?? [] : []);
+var exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
 function touchPresses2() {
   pageScopes();
   return {
     commands: PAGE_COMMANDS.flatMap(
       (id) => commands.has(id) ? touchPresses(commands.get(id)) : []
     ),
-    steps: STACK.flatMap(
-      (name) => typeof name === "string" ? (scopes.get(name) ?? []).map((scope) => ({
-        scope,
-        presses: scope.rows.flatMap(touchPresses)
-      })) : []
-    ).filter(({ presses }) => presses.length)
+    steps: namedScopes().map((scope) => ({ scope, presses: scope.rows.flatMap(touchPresses) })).filter(({ scope, presses }) => presses.length || exitOf(scope))
   };
+}
+function stances() {
+  pageScopes();
+  return namedScopes().flatMap((scope) => {
+    const exit = exitOf(scope);
+    return exit ? [{ scope, exit }] : [];
+  });
 }
 var universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);
 var textEntryScope = () => scopes.get("text entry")?.[0];
@@ -5421,6 +5442,7 @@ async function settleThread({
   const attempt = randomId();
   const answer = resolved2 ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
   if (!answer) return;
+  notice(resolved2 ? "Reopened the thread" : "Resolved the thread");
   if (landing) retainReversal(attempt, landing.reverse);
   await landGesture({
     landing,
@@ -7306,6 +7328,7 @@ export {
   pageRung,
   pageScopes,
   touchPresses2 as touchPresses,
+  stances,
   universalCommandReference,
   textEntryScope,
   allButCommandReference,

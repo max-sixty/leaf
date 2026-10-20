@@ -516,9 +516,13 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     assert boxes["title"]["left"] == boxes["content"]["left"], boxes
 
 
-def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
+def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(
     browser, serve
 ):
+    """A full-height page tab's only block takes the height the strip leaves from the
+    first paint, and the box it has then is the box the upgrade keeps. Before upgrade the
+    set lacked the ring's room the upgraded set keeps under the panel, so the block
+    stood 5px taller and shrank when the module drew."""
     source = leaf_page(
         "Workspace page tab",
         '<header><h1>Review</h1></header><lf-tabs id="views">'
@@ -541,7 +545,8 @@ def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
             return page.evaluate("""() => {
               const tab = document.querySelector('#work').getBoundingClientRect();
               const block = document.querySelector('#surface').getBoundingClientRect();
-              return {tab: tab.height, block: block.height, bottom: tab.bottom - block.bottom};
+              return {tab: tab.height, block: block.height, bottom: tab.bottom - block.bottom,
+                      sides: [block.left, block.right]};
             }""")
 
         first = heights()
@@ -550,6 +555,14 @@ def test_a_workspace_page_tab_gives_its_only_block_height_before_upgrade(
         wait_until_ready(page)
         upgraded = heights()
         assert abs(upgraded["bottom"]) <= 1, upgraded
+        assert upgraded["sides"] == pytest.approx(first["sides"], abs=0.5), (
+            first,
+            upgraded,
+        )
+        assert upgraded["block"] == pytest.approx(first["block"], abs=0.5), (
+            first,
+            upgraded,
+        )
     finally:
         for route in boot:
             route.continue_()
@@ -1257,10 +1270,14 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
 
 def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
     """Whichever widget writes a strip, the open tab's mark follows which way the strip
-    runs: down a column the open name paints a raised, outlined face; along a row it
-    stands on a rule, with no fill, as page tabs' does. A page's parts and a queue each
-    run both ways, so each shows both marks. The rule costs a tab no height, so a queue's
-    row stays within the room its strip reserves before upgrade."""
+    runs: down a column the open name paints a raised, outlined face; along a row the
+    tab stands on a rule, with no fill, as a page tab's name does. A tab with a summary
+    takes the rule at its foot, a line of its own under its last line, so the rule
+    underlines the whole tab rather than the name above its summary. A page's parts and
+    a queue each run both ways, so each shows both marks. The rule costs a tab no height,
+    so a queue's row stays within the room its strip reserves before upgrade, and the
+    row stands on its frame's ground rather than the column's tint. Forced colors draw
+    only the open tab's rule."""
     queue = leaf_page(
         "Queue",
         '<h1 id="title">Queue</h1><section id="queue-section"><lf-tabs id="queue" '
@@ -1275,11 +1292,17 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
     mark = """strip => {
       const tab = strip.querySelector('[aria-selected="true"]');
       const name = getComputedStyle(tab.querySelector('.lf-tab-name'));
+      const foot = getComputedStyle(tab, '::after');
+      const rows = getComputedStyle(tab).gridTemplateRows.split(' ');
       return {flow: getComputedStyle(strip).flexDirection,
         filled: name.backgroundColor !== 'rgba(0, 0, 0, 0)',
         contoured: name.boxShadow.includes('inset'),
-        rule: parseFloat(name.borderBottomWidth),
-        ruleInk: name.borderBottomColor === name.color,
+        nameRule: parseFloat(name.borderBottomWidth),
+        rule: foot.display === 'none' ? 0 : parseFloat(foot.borderBottomWidth),
+        ruleInk: foot.borderBottomColor === name.color,
+        lastRow: rows.at(-1), rows: rows.length,
+        ground: getComputedStyle(strip).backgroundColor,
+        frame: getComputedStyle(strip.parentElement).backgroundColor,
         height: strip.getBoundingClientRect().height,
         reserved: parseFloat(getComputedStyle(strip).minBlockSize)};
     }"""
@@ -1288,7 +1311,8 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
         resized(page, 1280, 720)
         column = page.locator(f"{strip} > .lf-tabstrip").evaluate(mark)
         assert column["flow"] == "column", column
-        assert column["filled"] and column["contoured"] and column["rule"] == 0, column
+        assert column["filled"] and column["contoured"], column
+        assert column["rule"] == 0 and column["nameRule"] == 0, column
         resized(page, 390, 800)
         page.wait_for_function(
             "s => getComputedStyle(document.querySelector(s)).flexDirection === 'row'",
@@ -1296,9 +1320,23 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
         )
         row = page.locator(f"{strip} > .lf-tabstrip").evaluate(mark)
         assert not row["filled"] and not row["contoured"], row
-        assert row["rule"] == 2 and row["ruleInk"], row
+        assert row["rule"] == 2 and row["ruleInk"] and row["nameRule"] == 0, row
+        assert row["lastRow"] == "2px", row
         if strip == "#queue":
+            # Name, summary, then the rule.
+            assert row["rows"] == 3, row
             assert row["height"] == pytest.approx(row["reserved"], abs=0.01), row
+            assert row["ground"] == row["frame"], row
+        page.emulate_media(forced_colors="active")
+        ruled = page.locator(f"{strip} > .lf-tabstrip").evaluate(
+            """strip => {
+              const ground = getComputedStyle(strip).backgroundColor;
+              return [...strip.querySelectorAll('.lf-tab-btn')].map(tab => [
+                tab.getAttribute('aria-selected') === 'true',
+                getComputedStyle(tab, '::after').borderBottomColor !== ground]);
+            }"""
+        )
+        assert all(selected == drawn for selected, drawn in ruled), ruled
 
 
 def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):

@@ -17,6 +17,7 @@ from interact_support import (
     freeze_events,
     last_deliverable_seq,
     let_a_pick_settle_a_thread,
+    owed_answers,
     page_state,
     printed,
     publish,
@@ -294,7 +295,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
     assert opened.exit_code == 0, opened.output
     assert not write("resolve", parent=question["id"])["attention"]
     assert not write("unresolve", parent=question["id"])["attention"]
-    assert page_state(page_dir)["activity"]["obligations"] == []
+    assert owed_answers(page_dir) == []
     with service_model.PageTransaction(page_dir) as page:
         page.set_status("idle", "")
     assert withdrawal in service_model.unacknowledged(

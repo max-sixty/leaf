@@ -177,7 +177,9 @@ The reply answers the message and opens a to-do on the thread, under the reply's
 The to-do keeps the thread on your list and in the panel's status until you end it,
 even after the user resolves the thread or your session ends. A turn's own message cannot
 open one. Handing the work to another session, a background job, or a later turn is
-such a promise too; a `--done` reply would tell the user nothing more is coming.
+such a promise too; a `--done` reply would tell the user nothing more is coming. So is
+holding a decision the user put off until other work lands: while the to-do stays open,
+the decision their thread is about stays off On me, and ending the to-do puts it back.
 
 Whoever finishes the work ends the to-do: `leaf task end <page> <todo> done "<where>"`,
 or `failed`/`dropped` with the reason. If another session will finish it, put the page
@@ -209,9 +211,9 @@ press lands where the obligation is answered; on a widget's obligation, its numb
 | Required version sign-off                                                       | Declare sign-off and stamp the version (`authoring-decisions.md`, "Sign-off")                                   | The user's approval of that version, its row in On me                                 |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
-Obligation ids are `widget:<widget-id>` for a widget, `lf-ask` included, and
-`approval:v<version>` for a version's sign-off. A to-do on the user keeps the id
-`task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
+Obligation ids are `widget:<widget-id>` for a widget, `lf-ask` included,
+`approval:v<version>` for a version's sign-off, and `update:<event-id>` for an update
+the user handed over. A to-do on the user keeps the id `task open` printed. It cannot sit on a thread, so in a thread ask with an `lf-ask`.
 The user's next message in a thread answers every question asked before it there.
 Ask a dependent question only once its prerequisite is answered. The user's Done on a
 to-do says they did it; it grants nothing its question did not ask.
@@ -223,13 +225,17 @@ answer:
 leaf page state <page> | jq '{source, obligations, todos, queues}'
 ```
 
-`queues.on_user` is On me: open obligations, to-dos on the user, and updates to resend.
-`queues.on_agent` is your list: answers you owe, updates you are working on, and your
-to-dos. Read them as given rather than rebuilding them from events. A row names its
-obligation or to-do by `id`. An obligation's record in `obligations` holds its
-`prompt`, its `answer` once given, and its `status`, and a widget's obligation takes
-its answer from the widget's state; a to-do's record in `todos` holds its `title` and
-the start `running` on it. Read a thread or a widget with
+`queues.on_user` is On me: the open obligations on the user, updates to resend among
+them, and to-dos on the user. `queues.on_agent` is your list: the updates you owe a
+reply or a version, and your to-dos. Read them as given rather than rebuilding them
+from events. A row names its obligation or to-do by `id`. An obligation's record in
+`obligations` holds its `prompt`, its `answer` once given, its `status` and its
+`next_actor`, and a widget's obligation takes its answer from the widget's state; a
+to-do's record in `todos` holds its `title` and the start `running` on it.
+`activity.obligations` lists each answer you owe as its record's `id` beside the
+`answer` that settles it: the reply to write, with the `ref` its delivery gave where
+you can still use it, or the action a stamped version must record. Recover what you
+owe there when no delivery is at hand. Read a thread or a widget with
 `leaf page state <page> <id>`, using a message id or a widget id; the widget's markup
 is in the HTML file named by `active.file`. Unsent drafts and tabs on older versions
 are not in this reading.

@@ -70,42 +70,46 @@
   .lf-fp-inner > :not(.lf-fp-opened) {
     flex-shrink: 0;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)) {
-    font: inherit;
-    color: inherit;
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)) {
-    background: none;
-    border: 0;
-    border-radius: 6px;
-    cursor: pointer;
-    white-space: nowrap;
-    padding: 0 8px;
-    min-height: var(--lf-fp-press);
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-fp-response *, .lf-composer-media *)) {
-    position: relative;
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *, .lf-fp-response *, .lf-composer-media *))::after {
-    content: "";
-    position: absolute;
-    inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)):hover {
-    background: var(--lf-fp-hover);
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)):is(:disabled, [aria-disabled=true]) {
-    color: var(--lf-fp-muted);
-    cursor: default;
-    background: none;
-  }
-  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):where(:not(.lf-fp-outlet *, .lf-fp-response *, .lf-composer-media *)):focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: -2px;
-  }
-  .lf-floating-panel .lf-action-icon:not(.lf-fp-response *, .lf-composer-media *) {
-    width: 16px;
-    height: 16px;
+  @layer lf-base {
+    @scope (.lf-floating-panel) to (.lf-fp-outlet, .lf-fp-response, .lf-composer-media) {
+      :is(button, input, textarea) {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        background: none;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+        padding: 0 8px;
+        min-height: var(--lf-fp-press);
+      }
+      button:where(:not(.lf-fp-field *)) {
+        position: relative;
+      }
+      button:where(:not(.lf-fp-field *))::after {
+        content: "";
+        position: absolute;
+        inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
+      }
+      button:hover {
+        background: var(--lf-fp-hover);
+      }
+      button:is(:disabled, [aria-disabled=true]) {
+        color: var(--lf-fp-muted);
+        cursor: default;
+        background: none;
+      }
+      :is(button, input, textarea, a, .lf-fp-on-item):focus-visible {
+        outline: var(--focus-ring);
+        outline-offset: -2px;
+      }
+      .lf-action-icon {
+        width: 16px;
+        height: 16px;
+      }
+    }
   }
   .lf-fp-row {
     display: flex;
@@ -451,6 +455,13 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
+  .lf-fp-exit-seat {
+    flex: none;
+    display: flex;
+  }
+  .lf-fp-exit-seat[hidden] {
+    display: none;
+  }
   .lf-fp-step {
     color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
@@ -480,6 +491,7 @@
     .lf-fp-field,
     .lf-fp-row-notice,
     .lf-fp-quick,
+    .lf-fp-exit-seat,
     .lf-fp-context,
     .lf-fp-opened {
       display: none;

@@ -378,9 +378,9 @@ def test_every_served_agent_record_carries_the_name_it_is_shown_under():
 def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it():
     """A card moved on a board the agent sent in a reply is served in that reply's
     thread, so every surface of the thread shows its receipt; but the move owes
-    nothing, so it leaves the thread the user's to answer, and no card reads it as
-    work the agent is holding. The thread's own unanswered input is the contrast:
-    it stands in its thread and holds it."""
+    nothing and publishes no obligation, so it leaves the thread the user's to answer,
+    and no card reads it as work the agent is holding. The thread's own unanswered
+    input is the contrast: it publishes the obligation that holds its thread."""
     board = model.model_layer()["lf-board"]["x-example"]
     state = model.reading(
         HUB,
@@ -406,9 +406,9 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     )
 
     assert [
-        (workflow["id"], workflow["thread"], workflow["holds_thread"])
+        (workflow["id"], workflow["thread"], workflow["obligation"])
         for workflow in state["workflows"]
-    ] == [("e4", "e4", True), ("e3", "e1", False)]
+    ] == [("e4", "e4", "update:e4"), ("e3", "e1", None)]
     threads = model.threads(state)
     assert threads["e1"]["attention"] == {
         "kind": "needs_user",

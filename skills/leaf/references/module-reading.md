@@ -151,11 +151,12 @@ returns true.
 
 ### Reading obligations and the On lists
 
-An obligation is what a widget or a version's sign-off waits on the user for, and On me lists
-it. `readObligations()` returns `{phase, all, user, unanswered}`. `all` holds every obligation whose
-source is still there, answered and withdrawn ones included; `user` the open obligations
-waiting on the user; and `unanswered` every open obligation, including those with the agent.
-Each record looks like this:
+An obligation is what a widget or a version's sign-off waits on the user for, or what an
+update the user handed over is owed, and the On lists list it by its next actor.
+`readObligations()` returns `{phase, all, user, unanswered}`. `all` holds every obligation
+whose source is still there, answered and withdrawn ones included; `user` the open
+obligations waiting on the user; and `unanswered` every open obligation, including those
+with the agent. Each record looks like this:
 
 ```js
 {
@@ -189,6 +190,14 @@ agent ends it with `leaf task end` instead, `status` is `answered_elsewhere` or
 An approval obligation, `source.kind === "approval"`, asks the user to approve the stamped
 version `source.version`. Approving sets `answer.value` to `true`, and Undo reopens it.
 
+An update's obligation, `source.kind === "update"`, is what a message the user sent, or an
+action in an answered widget's obligation, is owed. `source.id` names the event and
+`source.subject` the thread or widget it stands on. Its next actor is the agent while it
+owes a reply or a version, the user when it was handed back to send again, and `null`
+once a reply answered it, whose event `answer.event` names; `prompt.text` is `null`. Of
+several messages the user sent in a row, only the newest publishes one, since the reply
+to it answers them all. It has no place on the page, so `obligationsIn` never counts it.
+
 `thread` and `message` name the Thread and message of a widget inside a Thread.
 `prompt.target` is where the user goes to answer. A user's answer shows in `answer`
 at once; which obligations exist changes when the server's reading arrives.
@@ -208,10 +217,10 @@ own command.
 
 `readQueues()` returns the `{phase, on_user, on_agent, done}` lists Leaf's panel shows
 under On me and On <agent>.
-Each row has a `kind` (`widget` or `approval` for an obligation, which it carries as
-`obligation`; `todo` for a to-do, which it carries as `todo`; `resend` for an update
-the user must send again; `answer` for a reply the agent owes or sent; and others) and
-an `owner`, `user` or `agent`. Rows not done carry `offers: {open, done}`. `queueItemKey(row)` names a row
+Each row has a `kind`, its obligation's `source.kind` (`widget`, `approval` or `update`,
+the obligation it carries as `obligation`) or `todo` (the to-do it carries as `todo`),
+and an `owner`, `user` or `agent`: an `update` row is one to resend on the user's list,
+and a reply or version owed on the agent's. Rows not done carry `offers: {open, done}`. `queueItemKey(row)` names a row
 across moves between lists, and `queueTitle(row)` gives its title.
 `queueActions.open(key)` goes to a row. `queueActions.done(key)` ends a to-do the agent
 opened on the user, returning its admission promise, and returns `null` for any other

@@ -643,3 +643,26 @@ container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
 - **Recheck:** a 600 px scroller holding a 300 px `overflow-x: auto` strip of
   twenty 120 px buttons; scroll so the strip's foot is just past the band, call
   the native reveal on the sixteenth button, and read both scroll offsets.
+
+### Reveal of a Tab's arrival
+
+- **Disposition: worked around in Leaf.** Once the browser's own reveal has run,
+  `runtime/landing-scroll.js` lands a Tab's arrival the browser left not already
+  shown, nearest, reading the same scroll margins and padding. Revisit if both
+  engines reveal a partly hidden arrival on both axes.
+- **Affected:** Tab onto a control partly past a scroller's edge: a playground's
+  radio at its controls pane's foot in Firefox, a link at a wide table's end in
+  both engines.
+- **Observed, 2026-10-19 (Chromium 153, Firefox 155):** Firefox scrolls a
+  sequentially focused element only once less than about a line of its
+  margin-inflated box shows in its scroller, on either axis: a 13 px radio 2 to
+  6 px past a bounded block's foot or top stayed cut, and one 10 px past was
+  centred. Chromium reveals a partly hidden arrival nearest on the block axis, but
+  across only once none of it shows: a 69 px link 6 to 62 px past a table's end
+  stayed cut, and one wholly past it was centred. Firefox left the same link cut
+  at 50 px past and centred it at 56.
+- **Recheck:** a 100 px `overflow: auto` box holding a 13 px radio whose foot
+  stands 6 px past the box's foot, and a sideways box holding a 69 px link 6 px
+  past its end; Tab onto each from the control before it and read the scroll
+  offset. `test_tab_onto_a_control_partly_past_a_scrollers_edge_brings_it_in`
+  reads Leaf's correction, so it passes whatever the engines do.

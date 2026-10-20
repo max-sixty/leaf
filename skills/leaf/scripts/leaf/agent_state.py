@@ -2,10 +2,13 @@
 they select from.
 
 The reading uses one transaction and holds the two lists the active view serves
-(`served_state.queues`): On me (`on_user`) holds open obligations, to-dos on the user and
-resends; On <agent> (`on_agent`) holds the answers the agent owes, its work in hand
-and its to-dos. The obligation inventory (`obligations`) also retains finished records, whatever
-their `status`. `source` states whether a document is live and whether an invalid
+(`served_state.queues`): On me (`on_user`) holds the open obligations on the user, the
+updates handed back to them among them, then the to-dos on the user; On <agent>
+(`on_agent`) holds the updates the agent owes an answer and its to-dos. The obligation
+inventory (`obligations`) also retains finished records, whatever their `status`.
+`activity.obligations` names each answer the agent owes: its update's record `id` and,
+as `answer`, the operation that answers it with the reference its delivery gave, so an
+agent recovers what it owes without the delivery. `source` states whether a document is live and whether an invalid
 source save leaves the last valid version active. Before the first valid revision,
 an invalid candidate registry leaves no active document or readable vocabulary; its
 source error still remains readable. A page this Leaf cannot serve as
@@ -253,7 +256,6 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
         for item in state["workflows"]
         if item["subject"]["kind"] == "widget" and inside(item["subject"]["id"])
     ]
-    obligations = set(state["activity"]["obligations"])
     return {
         "page": str(page_dir),
         "widget": next(
@@ -274,7 +276,9 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
         ],
         "activity": {
             "obligations": [
-                item["id"] for item in workflows if item["id"] in obligations
+                item
+                for item in state["activity"]["obligations"]
+                if item["id"] in {workflow["obligation"] for workflow in workflows}
             ],
         },
         "workflows": workflows,
@@ -282,8 +286,13 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             item
             for item in state["obligations"]
             if item["thread"] is None
-            and item["source"]["kind"] == "widget"
-            and (inside(item["source"]["id"]) or inside(item["prompt"]["target"]))
+            and (
+                item["source"]["kind"] == "widget"
+                and (inside(item["source"]["id"]) or inside(item["prompt"]["target"]))
+                or item["source"]["kind"] == "update"
+                and item["source"]["subject"]["kind"] == "widget"
+                and inside(item["source"]["subject"]["id"])
+            )
         ],
         "todos": [
             todo
@@ -364,11 +373,14 @@ def _page_state(
     )
     state["activity"] = {
         **activity,
-        "obligations": [item["id"] for item in activity["obligations"]],
+        "obligations": [
+            {"id": item["obligation"], "answer": item["answer"]}
+            for item in context.work.activity["obligations"]
+        ],
     }
-    # Every obligation is one of these workflows, so an agent reads it by id: its
-    # stage, subject and `answer` — the operation that settles it — are canonical,
-    # while `response` carries provisional response progress.
+    # Each answer owed names its update's record, in `obligations`; the workflows that
+    # name the same record (`obligation`) carry its delivery stage and subject, and
+    # `response` the provisional response progress.
     state["workflows"] = served["workflows"]
     state["user_views"] = read_user_views(
         page_dir, active["revision"] if active is not None else None
@@ -517,7 +529,6 @@ def _page_state(
             for workflow in state["workflows"]
             if workflow["thread"] == thread_id
         ]
-        obligations = set(state["activity"]["obligations"])
         state = {
             "page": str(page_dir),
             "thread": selected,
@@ -530,7 +541,9 @@ def _page_state(
             "reports": reports,
             "activity": {
                 "obligations": [
-                    item["id"] for item in workflows if item["id"] in obligations
+                    item
+                    for item in state["activity"]["obligations"]
+                    if item["id"] in {workflow["obligation"] for workflow in workflows}
                 ],
             },
             "workflows": workflows,

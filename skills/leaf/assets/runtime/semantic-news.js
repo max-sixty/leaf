@@ -47,10 +47,12 @@ function unreadContent(threadView) {
     .sort((a, b) => moved(a.message).seq - moved(b.message).seq);
 }
 
+// What the page asks of the user. An update handed back to them is news through its
+// failed response (`responseFailures`), not a second time as an obligation.
 function userObligations(items) {
   const held = new Map();
   for (const item of items) {
-    if (item.next_actor !== "user") continue;
+    if (item.next_actor !== "user" || item.source.kind === "update") continue;
     const key =
       item.thread === null ? ["page", item.id] : ["thread", item.thread, item.id];
     held.set(JSON.stringify(key), { source: item.id, thread: item.thread });
@@ -221,9 +223,7 @@ export function semanticNewsNotice(news) {
   }
   if (obligations.length)
     clauses.push(
-      obligations.length === 1
-        ? "Input needed"
-        : `${plural(obligations.length, "item")} waiting on me`,
+      obligations.length === 1 ? "Input needed" : `${obligations.length} waiting on me`,
     );
   if (availability.length) clauses.push(`${agentLabel()} active on this page`);
   return clauses.join("; ");

@@ -53,8 +53,14 @@ def test_drawing_preview_contains_page_content_and_freezes_it(
         button = shelf.get_by_role("button", name=label)
         expect(button).to_be_visible()
         if touch:
-            box = button.bounding_box()
-            assert box["width"] >= 44 and box["height"] >= 44
+            # Each control is a small mark on the drawing's corner whose press reaches
+            # the finger's 44px floor beyond what it paints.
+            assert button.evaluate("""button => {
+              const box = button.getBoundingClientRect();
+              const x = box.x + box.width / 2, y = box.y + box.height / 2;
+              return [[-21, -21], [21, -21], [-21, 21], [21, 21]].every(
+                ([dx, dy]) => document.elementFromPoint(x + dx, y + dy) === button);
+            }"""), f"{label} must take a press across the finger's reach"
     target.evaluate("el => el.style.background = 'blue'")
     page.keyboard.type("A comment about this area")
     rendered(page)

@@ -213,9 +213,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert report["status"] == 1
     assert report["browser"]["asked"] == report["browser"]["ran"] == ["render check"]
     assert report["browser"]["browser"] == "Chrome"
-    scrolls = [f for f in report["findings"] if f["code"] == "page-scrolls"]
-    assert {f["scheme"] for f in scrolls} == {"light", "dark"}, report
-    assert all(f["severity"] == "error" and f["values"]["past"] > 0 for f in scrolls)
+    [scrolls] = [f for f in report["findings"] if f["code"] == "page-scrolls"]
+    assert scrolls["widths"] == [360, 1920], report
+    assert scrolls["severity"] == "error" and scrolls["values"]["past"] > 0, scrolls
 
 
 def test_a_passing_render_check_saves_the_screens_the_author_reads(

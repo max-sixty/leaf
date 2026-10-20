@@ -639,7 +639,7 @@ export` writes a file that boots the page's own runtime offline, and that file
   (`signal-polyfill`). Were the publication and those readings TC39 signals,
   `SignalWatcher` would draw again on a read's move, and the base class would keep
   only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
-  and data delivery. Most widgets draw as a `LeafElement`; of those that still extend
+  and data delivery. Some widgets draw as a `LeafElement`; of those that still extend
   `HTMLElement`, `lf-tabs`, `lf-tally` and `lf-activity` repaint through
   `watchProjection`, and once they move the change would land in one class. Assessed
   on 2026-10-14, it is no simplification yet. Ordering

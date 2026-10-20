@@ -20,8 +20,8 @@ CONNECT tunnel in that proxy, and the proxy admits 127.0.0.1 once the user appro
 it or lists it in `sandbox.network.allowedDomains` (README, "Agent sandboxes"). The
 bridge refuses a request without the token in its record, which only the user's
 own processes can read: neither another user on the machine nor a page in a
-browser can drive it. Codex's sandbox has no such road; its commands still run
-confined (`TODO.md`).
+browser can drive it. Codex's sandbox has no such road, so Codex's agent runs a
+confined command through Leaf's MCP server instead (`codex_tool.py`).
 
 A session that runs no `leaf` command starts no bridge and no hook for one: the
 hook's `if` rules (`hooks/hooks.json`) have Claude Code start it only before a

@@ -67,6 +67,8 @@ never prints it; `cli.LeafGroup` prints what it returns (`cli.py`'s header).
   transactions, server state, HTTP servers, and detached starts;
 - `bridge`: the bridge Leaf's Claude Code hooks keep outside Claude Code's
   sandbox, which runs each `leaf` command the sandbox confines;
+- `codex_tool`: the MCP server Leaf's Codex plugin declares, whose `run` tool
+  runs a `leaf` command outside Codex's sandbox;
 - `piped_input`: the text a caller pipes to a command on stdin, read only from a
   pipe or a file;
 - `presence`: page, claim and neighboring-leaf presence;

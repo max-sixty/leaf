@@ -1,7 +1,7 @@
 """The `codex-app-server` and `codex-queue` journeys: a real Codex task reaching Leaf
 through one transport, and the steps a user takes at its terminal.
 
-    uv run leaf-dev journey codex-app-server|codex-queue [--preview]
+    uv run leaf-dev journey codex-app-server|codex-queue [--preview] [--sandbox]
 
 The suite drives the adapter with scripted App Server messages; this drives it with
 Codex itself. It installs this working tree's plugin payload (`extract_payload`) into
@@ -17,7 +17,10 @@ claim in process, and stops at the first check that fails.
 The steps, in order:
 
 - `setup`: the user asks for a page to review; serving it automatically connects
-  delivery using this journey's transport;
+  delivery using this journey's transport. With `--sandbox`, the task's shell
+  commands run in Codex's `workspace-write` sandbox and nothing approves an
+  escalation, so the task must serve through the plugin's MCP server
+  (`leaf.codex_tool`);
 - `release`: the journey's timed ask, sent while the task is idle, is answered in a
   turn Leaf starts (`journey.run_journey`);
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
@@ -100,8 +103,6 @@ RESUME_TURN = (
     "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
     "skip the remaining shell command and report the interruption."
 )
-# Where the queue wrapper finds the private App Server the task's `codex queue` reaches.
-ENDPOINT = "LEAF_JOURNEY_CODEX_ENDPOINT"
 
 
 class Codex(Terminal):
@@ -159,9 +160,18 @@ def check(page: Path, codex: Codex, sent: dict[str, str]) -> str | None:
     return titled
 
 
-def setup(codex: Codex, page: Path, executable: str, transport: str, preview: bool):
+def setup(
+    codex: Codex,
+    page: Path,
+    executable: str,
+    transport: str,
+    *,
+    preview: bool,
+    sandbox: bool,
+):
     """Ask for the page and require it served, with delivery connected through
-    `transport`."""
+    `transport`, and in the sandbox by a `leaf` command run through the plugin's
+    MCP server."""
     if preview:
         command = shlex.join(
             [
@@ -201,6 +211,16 @@ def setup(codex: Codex, page: Path, executable: str, transport: str, preview: bo
         ),
         f"the adapter did not select the {transport} transport",
     )
+    if sandbox:
+        require(
+            any(
+                block.get("name") == "mcp__leaf__run"
+                for record in codex.trace
+                if record["type"] == "assistant"
+                for block in record["message"]["content"]
+            ),
+            "the sandboxed task ran no `leaf` command through the plugin's MCP server",
+        )
 
 
 def steps(
@@ -462,21 +482,27 @@ def steps(
 
 def task_codex(root: Path, executable: str, transport: str) -> str:
     """Route the queue to the private server without exposing Leaf's observed
-    App Server transport to the task. Both transports use the real Codex executable."""
+    App Server transport to the task. Both transports use the real Codex executable.
+
+    The server's endpoint is kept in a file beside the wrapper rather than in the
+    environment, since Codex starts a plugin's MCP server, through which a sandboxed
+    task runs `leaf`, with only the variables the plugin names."""
     directory = root / "bin"
     directory.mkdir()
     wrapper = directory / "codex"
+    endpoint = directory / "endpoint"
     wrapper.write_text(
         f"#!{sys.executable}\n"
         "import os, sys\n"
+        "from pathlib import Path\n"
         "arguments = sys.argv[1:]\n"
+        f"endpoint = Path({str(endpoint)!r})\n"
         f"if {transport!r} == 'queue':\n"
         "    if arguments[0] == 'app-server':\n"
-        f"        os.environ[{ENDPOINT!r}] = "
-        "arguments[arguments.index('--listen') + 1]\n"
+        "        endpoint.write_text(arguments[arguments.index('--listen') + 1])\n"
         "        os.environ.pop('LEAF_CODEX_APP_SERVER', None)\n"
         "    elif arguments[0] == 'queue':\n"
-        f"        arguments += ['--remote', os.environ[{ENDPOINT!r}]]\n"
+        "        arguments += ['--remote', endpoint.read_text()]\n"
         f"os.execv({executable!r}, [{executable!r}, *arguments])\n"
     )
     wrapper.chmod(0o700)
@@ -485,10 +511,12 @@ def task_codex(root: Path, executable: str, transport: str) -> str:
 
 @contextmanager
 def answering(
-    browser, transport: str, *, preview: bool
+    browser, transport: str, *, preview: bool, sandbox: bool
 ) -> Iterator[tuple[User, Callable]]:
     """The user at the page a Codex task serves through `transport`, once it has,
-    and the steps that follow."""
+    and the steps that follow. With `sandbox`, the task's shell commands run in
+    Codex's sandbox and nothing approves an escalation, so a `leaf` command the
+    sandbox refuses reaches Leaf only through the plugin's MCP server."""
     codex_path = shutil.which("codex")
     if codex_path is None:
         raise click.ClickException("cannot find the `codex` executable on PATH")
@@ -523,11 +551,20 @@ def answering(
                     {
                         "cwd": str(place.work),
                         "approvalPolicy": "never",
-                        "sandbox": "danger-full-access",
+                        "sandbox": "workspace-write"
+                        if sandbox
+                        else "danger-full-access",
                     },
                 )["thread"]["id"]
                 started = time.monotonic()
-                setup(codex, place.page, executable, transport, preview)
+                setup(
+                    codex,
+                    place.page,
+                    executable,
+                    transport,
+                    preview=preview,
+                    sandbox=sandbox,
+                )
                 check(place.page, codex, {})
                 with user_at(browser, place, codex, started) as user:
                     yield (

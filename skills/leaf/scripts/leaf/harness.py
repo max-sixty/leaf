@@ -121,8 +121,9 @@ class Harness:
         """Open the road out of this harness's sandbox that this session's `leaf`
         commands take, for as long as the session lives (`lifetime`). The hook
         before a command naming `leaf` calls it, outside the sandbox. A harness
-        whose sandbox leaves no road out, as Codex's does, opens none
-        (`TODO.md`)."""
+        whose sandbox leaves no road out, as Codex's does, opens none; Codex's
+        agent runs a confined command through Leaf's MCP server instead
+        (`codex_tool.py`)."""
 
     def watcher_live(self, *, listening: bool) -> bool:
         """Whether this session's watcher can still take the page's input into a

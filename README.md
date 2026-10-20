@@ -103,17 +103,17 @@ Allowing `127.0.0.1` lets every sandboxed command reach any server listening on
 this machine's loopback, Leaf's bridge among them, and through the bridge run
 `leaf` commands with your own access, as Leaf's hooks already run.
 
-Codex's sandbox gives a command no such route. To have `leaf` commands run outside
-it without asking, add a rules file, such as `~/.codex/rules/leaf.rules`, and
-restart Codex:
+Codex's sandbox gives a command no such route, so Leaf's Codex plugin adds an MCP
+server, `leaf`, which Codex starts outside the sandbox. When the sandbox refuses a
+`leaf` command, the agent reruns it with the server's `run` tool. The plugin approves
+the tool's calls itself, so Codex doesn't ask you about them, and they run `leaf`
+with your own access, as Leaf's hooks already run. To be asked before each call, add
+this to `~/.codex/config.toml`:
 
+```toml
+[plugins."leaf@leaf".mcp_servers.leaf]
+default_tools_approval_mode = "prompt"
 ```
-prefix_rule(pattern = ["leaf"], decision = "allow")
-```
-
-The agent still chooses each command's arguments, such as the directory `page init`
-writes to. The rule applies only where the whole command line is `leaf` commands,
-so one chained after `cd` or piped into another program stays in the sandbox.
 
 </details>
 

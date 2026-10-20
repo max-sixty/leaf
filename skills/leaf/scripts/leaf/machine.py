@@ -49,26 +49,34 @@ def pid_alive(pid: int) -> bool:
     return True
 
 
-# What a harness's sandbox sets in each command it confines: the sandbox runtime
-# Claude Code runs its shell commands under (`SANDBOX_RUNTIME=1`), and Codex's
-# (`CODEX_SANDBOX=seatbelt`). Each is the harness's own statement, as CLAUDE_PID
-# is, rather than a guess from what a refusal looked like.
-SANDBOX_VARIABLES = ("SANDBOX_RUNTIME", "CODEX_SANDBOX")
+# What a harness's sandbox sets in each command it confines, and the way out of it:
+# the sandbox runtime Claude Code runs its shell commands under
+# (`SANDBOX_RUNTIME=1`), which the README's settings let reach Leaf's bridge, and
+# Codex's (`CODEX_SANDBOX=seatbelt`), which Leaf's plugin leaves through the `run`
+# tool of its MCP server (`codex_tool.py`). Each variable is the harness's own
+# statement, as CLAUDE_PID is, rather than a guess from what a refusal looked like.
+SANDBOX_REMEDIES = {
+    "SANDBOX_RUNTIME": (
+        'rerun it outside the sandbox; "Agent sandboxes" in '
+        f"{Path(__file__).resolve().parents[4] / 'README.md'} says how leaf runs "
+        "from that sandbox without asking"
+    ),
+    "CODEX_SANDBOX": (
+        "rerun it with the `run` tool of the `leaf` MCP server, which runs leaf "
+        "outside the sandbox"
+    ),
+}
 
 
 def sandbox_remedy() -> str | None:
     """Where an agent harness's sandbox confines this command, the clause a refusal
     the sandbox explains ends with, or None where no harness says so: the variable
-    that says it, and to rerun the command outside the sandbox, so the agent does
-    not read the refusal as the host's. It points at the README's section on running
-    `leaf` from each harness's sandbox without asking, for the agent to pass on."""
-    for name in SANDBOX_VARIABLES:
+    that says it, so the agent does not read the refusal as the host's, and the
+    harness's way to run the command outside the sandbox."""
+    for name, remedy in SANDBOX_REMEDIES.items():
         if value := os.environ.get(name):
-            readme = Path(__file__).resolve().parents[4] / "README.md"
             return (
-                f"this command runs in an agent's sandbox ({name}={value}), so rerun "
-                f'it outside the sandbox; "Agent sandboxes" in {readme} says how '
-                "leaf runs from that sandbox without asking"
+                f"this command runs in an agent's sandbox ({name}={value}), so {remedy}"
             )
     return None
 

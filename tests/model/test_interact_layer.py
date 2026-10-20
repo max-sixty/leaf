@@ -1898,7 +1898,9 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
     spelling = (
-        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.item"] + "]"
+        "["
+        + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.obligation"]
+        + "]"
     )
     assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 

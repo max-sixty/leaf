@@ -13,7 +13,7 @@ the rest of the output may be wrong until you do.
 
 `data_bindings` names each external data source and the widgets that read it; change a
 source's value with `leaf data set`. `leaf page state <page> <id>` shows one widget,
-with its actions, items and workflows, or one thread with its messages.
+with its actions, obligations and workflows, or one thread with its messages.
 
 ## Publish several authored files together
 
@@ -57,7 +57,7 @@ registry's `$restated`.
 When you move cards in a board, place each card in the column and rank `state` gives
 it (`$state` defines ranks).
 
-Take in a user's answer to a page's item in a stamped version. Where the widget's
+Take in a user's answer to a page's obligation in a stamped version. Where the widget's
 `x-state` declares a `record` form, write that form: `chosen` on exactly the picked
 `lf-option` elements you wrote, or the user's words as the body of a `needed`
 `lf-draft`. Leave an option the user added out of the markup; the log keeps it. Where

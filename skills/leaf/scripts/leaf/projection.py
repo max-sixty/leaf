@@ -595,8 +595,10 @@ def folded_value(e: dict, spec: dict):
     return value
 
 
-def item_value(owner, verb, spec, byid, spk, registry, projection, *, answered=False):
-    """Read an item's typed value and presence from the canonical state fold.
+def obligation_value(
+    owner, verb, spec, byid, spk, registry, projection, *, answered=False
+):
+    """Read an obligation's typed value and presence from the canonical state fold.
 
     Widget units use their declared record or custom action detail. Member units
     form one mapping; positions retain every container, including empty ones.
@@ -648,7 +650,7 @@ def page_reading(
     its authored construction; a stored revision's is held across reads, so only
     the fold over the log is taken here. Revision history is optional transaction
     input: this owner selects predecessors newest first and reads each under its
-    captured vocabulary, lazily when item registration needs it."""
+    captured vocabulary, lazily when obligation registration needs it."""
     return PageReading(
         reading,
         revision,

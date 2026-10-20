@@ -20,11 +20,11 @@ from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    SEATED_ITEM_LAYER,
-    SEATED_ITEM_WIDGETS,
+    SEATED_OBLIGATION_LAYER,
+    SEATED_OBLIGATION_WIDGETS,
     live_url,
 )
-from render_cases_layout import toggle_queue, with_one_item
+from render_cases_layout import toggle_queue, with_one_obligation
 from render_cases_navigation import (
     composer_quote,
 )
@@ -322,8 +322,8 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
             "Inline rollback",
             '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
-        layer_registry=SEATED_ITEM_LAYER,
-        layer_widgets=SEATED_ITEM_WIDGETS,
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     page = open_page(browser, live_url(url))
     seat = page.locator("#proposal > .lf-thread-seat")
@@ -400,8 +400,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
             "Inline reply rollback",
             '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
         ),
-        layer_registry=SEATED_ITEM_LAYER,
-        layer_widgets=SEATED_ITEM_WIDGETS,
+        layer_registry=SEATED_OBLIGATION_LAYER,
+        layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     root = append_carried_log_record(
         serve.page_dir,
@@ -1413,14 +1413,14 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 assert at["room"]["width"] > at["wide"]["width"], at
 
 
-def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
+def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     browser, serve
 ):
-    """On a sidebar page an item and a callout keep the prose's width and left edge, so
-    the item's ring and pin stand beside what it asks, as on a column page. One granted
+    """On a sidebar page an obligation and a callout keep the prose's width and left edge, so
+    the obligation's ring and pin stand beside what it asks, as on a column page. One granted
     `data-width`, or holding a block of its own that declares one, takes that room for
     the evidence. On a column page the wide block breaks out of the column, as it would
-    from a section, and the item spans it, so the ring it wears goes round the block
+    from a section, and the obligation spans it, so the ring it wears goes round the block
     rather than cutting across it, while its heading keeps the column; the table's
     twelve columns need the room, since a table granted it takes only what its columns
     need. A workspace states neither width, so there every one of them, and a board,
@@ -1462,12 +1462,12 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # A granted callout's padding and border fall inside the wide measure.
     for wide in ("granted", "granted-c", "holds"):
         assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
-    # The widened item frames its table, which stands wider than the measure.
+    # The widened obligation frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
-    # The item spans its block wherever the block breaks out, and an item granted the
-    # room itself holds its block in that room. In a list item, which stands in from the
-    # column, and where the page arranged the item, in a grid track, neither grows.
+    # The obligation spans its block wherever the block breaks out, and an obligation granted the
+    # room itself holds its block in that room. In a list obligation, which stands in from the
+    # column, and where the page arranged the obligation, in a grid track, neither grows.
     extras = (
         "<ol><li>"
         + item.format(id="listed", width="", table=table.format(id="listed"))
@@ -1518,10 +1518,10 @@ def test_an_item_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         at
     )
     assert at["tracked"]["width"] == 350, at
-    # An item inside a breakout takes its holder's room, as any block
+    # An obligation inside a breakout takes its holder's room, as any block
     # there does, however much room its own block asks for.
     assert at["wrapped"] == at["wrapper"], at
-    # An item that spans its block is a breakout the theme grows, so the gate reads it
+    # An obligation that spans its block is a breakout the theme grows, so the gate reads it
     # as one, even where it reaches further than a table of two columns does; a box the
     # page pulls out of the column by its margins, an inline one, or one it grows round
     # its block by margins and padding of its own, still stands in the margin.
@@ -1730,10 +1730,10 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
     """A table whose cells hold sentences wraps them inside the box it stands in, and
-    scrolls nothing: in an item, in a panel, and in a figure granted the page's room.
+    scrolls nothing: in an obligation, in a panel, and in a figure granted the page's room.
     Firefox and WebKit have no scroll-state container and dropped the table's
     `container-type: inline-size scroll-state` whole, so the width its caption reads
-    (100cqi) was the window's: an item's two-column table laid its rows out 1728px wide
+    (100cqi) was the window's: an obligation's two-column table laid its rows out 1728px wide
     in a 720px column and cut its second column off."""
     sentence = (
         "When a new copy is installed, the update copies each commit and records it. "
@@ -3229,7 +3229,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
 <div style="height: 1500px"></div>
 """,
     )
-    url = serve(with_one_item(source))
+    url = serve(with_one_obligation(source))
 
     reading = """() => {
       const main = document.querySelector('main'), ms = getComputedStyle(main);

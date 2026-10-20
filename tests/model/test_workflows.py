@@ -13,13 +13,13 @@ from interact_support import (
     declare_work,
     delivered,
     freeze_events,
-    items_on_user,
     last_deliverable_seq,
+    obligations_on_user,
     owed,
     page_state,
     publish,
     receive_through,
-    served_items,
+    served_obligations,
     served_thread,
     serving,
     state_json,
@@ -253,7 +253,7 @@ def test_input_after_a_settled_response_batch_does_not_revive_older_inputs(page_
     ]
 
 
-def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
+def test_unrelated_agent_update_does_not_clear_an_open_user_obligation(page_dir):
     publish(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -285,7 +285,7 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
 
     browser = page_state(page_dir)["browser"]
     [thread] = served_thread(browser)["threads"]
-    [owed] = served_items(browser)["user"]
+    [owed] = served_obligations(browser)["user"]
     assert owed["message"] == question["id"]
     assert thread["attention"] == {
         "kind": "needs_user",
@@ -294,14 +294,14 @@ def test_unrelated_agent_update_does_not_clear_an_open_user_item(page_dir):
     }
 
 
-def test_settling_reaction_closes_an_agent_root_item(page_dir):
+def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     publish(page_dir)
     question = thread_model.cmd_comment(
         page_dir, "", "", "", "One question:", '<lf-ask id="forty">Forty?</lf-ask>'
     )
     browser = page_state(page_dir)["browser"]
     [before] = served_thread(browser)["threads"]
-    [owed] = served_items(browser)["user"]
+    [owed] = served_obligations(browser)["user"]
     assert owed["message"] == question["id"]
     assert before["attention"]["kind"] == "needs_user"
 
@@ -317,7 +317,7 @@ def test_settling_reaction_closes_an_agent_root_item(page_dir):
 
     browser = page_state(page_dir)["browser"]
     [after] = served_thread(browser)["threads"]
-    assert served_items(browser)["user"] == []
+    assert served_obligations(browser)["user"] == []
     assert after["attention"] is None
 
 
@@ -413,7 +413,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     }
 
 
-def test_a_frozen_move_that_answers_no_item_keeps_a_receipt_and_owes_nothing(
+def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothing(
     page_dir,
 ):
     """A card moved on a board sent in a reply is a page move in another document:
@@ -874,7 +874,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     selecting = state_json(page_dir)
-    assert [item["widget"] for item in items_on_user(selecting)] == ["regions"]
+    assert [item["widget"] for item in obligations_on_user(selecting)] == ["regions"]
     assert selecting["activity"]["obligations"] == []
     assert selecting["workflows"] == []
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
@@ -893,7 +893,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         },
     )
     completed = state_json(page_dir)
-    assert items_on_user(completed) == []
+    assert obligations_on_user(completed) == []
     assert completed["activity"]["obligations"] == [answered["id"]]
     cleanup_model.prompt_turn("s1")
     receive_through(page_dir, last_deliverable_seq(page_dir))
@@ -908,7 +908,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
         {"kind": "undo", "author": "user", "undoes": answered["id"]},
     )
     resumed = state_json(page_dir)
-    assert [item["widget"] for item in items_on_user(resumed)] == ["regions"]
+    assert [item["widget"] for item in obligations_on_user(resumed)] == ["regions"]
     assert resumed["activity"]["obligations"] == []
     answered = append_command(
         page_dir,

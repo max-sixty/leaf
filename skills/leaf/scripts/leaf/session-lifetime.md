@@ -131,7 +131,7 @@ without persisting another workflow record.
 A workflow's `stage` and its `answer` are separate readings. The stage reports
 delivery for every update the user has handed over. The answer, which `workflows.py`
 states, is what the agent owes it: a reply, a version for a thread that asked for
-one, a version whose markup records a user's answer to a page item, or null. Only owed
+one, a version whose markup records a user's answer to a page obligation, or null. Only owed
 answers enter activity counts.
 
 Each consumer of the obligations selects its own set. `leaf status idle` refuses over
@@ -147,12 +147,12 @@ The start does not carry into the next turn, which answers the update or starts 
 again.
 
 Some updates owe nothing or settle without a reply. A widget action that answers no
-item, such as a draft edit or a moved card, owes nothing: its workflow reports delivery
+obligation, such as a draft edit or a moved card, owes nothing: its workflow reports delivery
 until its document takes it in. For a page action, that is until the markup records
 the action or a later version supersedes it; for an action in frozen thread markup,
 until the agent's next spoken turn in that thread, or a resolution that closes the
 thread after it. It does not make its thread the agent's turn. An action the user has
-not finished, such as a pick before the Done its item declares, has not been handed
+not finished, such as a pick before the Done its obligation declares, has not been handed
 over and has no workflow. A resolution or authored state that honors an update also
 settles it; a later version note settles a page action whose verb has no authored
 record form. A note already in force when the update arrives cannot answer it.
@@ -161,7 +161,7 @@ Consecutive user turns form one response batch addressed by its newest input. Be
 settlement each input retains a workflow, while only the newest carries the thread's
 `answer` and enters the obligation list. A response to an older input removes that
 input and leaves the newer obligation. A response to the newest settles the batch.
-Widget items remain independent and settle through their declared state.
+Widget obligations remain independent and settle through their declared state.
 
 Pickup never rewrites `status.json` or makes the page itself Picked up. Turn identity
 decides whether a receipt belongs to the open turn; ending a turn does not settle its

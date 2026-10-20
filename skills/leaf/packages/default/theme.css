@@ -1067,8 +1067,8 @@
       max-inline-size: none;
     }
   }
-  :is(:scope, :scope *)[data-lf-item]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
-    --lf-item-ring: none;
+  :is(:scope, :scope *)[data-lf-obligation]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
+    --lf-obligation-ring: none;
   }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus]) {
     outline: var(--focus-ring);
@@ -1691,12 +1691,12 @@
     flex: none;
     color: var(--ok-ink);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-items=open]::before {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-obligations=open]::before {
     content: "○" / "";
     font-weight: 400;
     color: var(--muted);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-items]) {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-obligations]) {
     visibility: hidden;
   }
   :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer-words {

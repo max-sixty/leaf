@@ -91,7 +91,7 @@ const publicationWords = (published) => [
 ];
 
 // The updates an open turn picked up, by kind: a comment in a thread, or an answer to an
-// item. A lone update is the user's own; several are counted.
+// obligation. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
   if (comments + answers === 1) return comments ? "the comment" : "the answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -328,7 +328,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
 // The page's two queues (`served_state.queues`), as the status's explanation names
 // them: each side's kinds and each open to-do's title. The floating panel counts what
 // waits on the user on its On me mark. What a widget registered is counted as what is
-// left to answer, since only a row or the walk names it by its widget (`itemWord`).
+// left to answer, since only a row or the walk names it by its widget (`obligationWord`).
 const QUEUE_WORDS = Object.freeze({
   widget: ["to answer", "to answer"],
   approval: ["approval", "approvals"],

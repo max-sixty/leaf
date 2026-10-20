@@ -10,7 +10,7 @@ import {
   foldProjection,
   foldedValue,
   foldWidgetStates,
-  itemValue,
+  obligationValue,
   isProjectionEntry,
   stateCoordinate,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
@@ -183,7 +183,7 @@ interface WireProjection {
 
 /** A request and its contained answer. The source owns the canonical value;
  * identity includes its kind so authored ids and message ids cannot collide. */
-export interface ItemRecord {
+export interface ObligationRecord {
   id: string;
   source:
     { kind: "widget"; id: string; tag: string } | { kind: "approval"; version: number };
@@ -191,20 +191,20 @@ export interface ItemRecord {
   message: string | null;
   prompt: { text: string | null; target: string };
   answer: { value: unknown; event: Event | null } | null;
-  /** `items.py` owns the statuses; only a question answered in words is
+  /** `obligations.py` owns the statuses; only a question answered in words is
    * `answered_elsewhere`. */
   status: "open" | "answered" | "answered_elsewhere" | "withdrawn";
   /** The agent's `leaf task end` that retired a question answered in words: where the
-   * answer is, or why the item no longer applies. */
+   * answer is, or why the obligation no longer applies. */
   end: { detail: string | null; event: Event } | null;
   next_actor: "user" | "agent" | null;
 }
 
-/** The selections `readItems` publishes from a view's one list of item records. */
-interface ItemLists {
-  all: ItemRecord[];
-  user: ItemRecord[];
-  unanswered: ItemRecord[];
+/** The selections `readObligations` publishes from a view's one list of obligation records. */
+interface ObligationLists {
+  all: ObligationRecord[];
+  user: ObligationRecord[];
+  unanswered: ObligationRecord[];
 }
 
 /** One served workflow, as `served_state.browser.served_workflows` serializes it;
@@ -263,14 +263,14 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
 };
 
 /** One step of the agent's plan, as `plans.plan_reading` serves it: plain, or naming a
- * to-do or item whose title, owner and state it shows; `done` of `total` counts its
+ * to-do or obligation whose title, owner and state it shows; `done` of `total` counts its
  * children, dropped ones left out. */
 interface WirePlanStep {
-  /** An item whose prompt has no text names no title. */
+  /** An obligation whose prompt has no text names no title. */
   title: string | null;
   state: "open" | "working" | "done" | "failed" | "dropped";
   owner: "agent" | "user";
-  item: { kind: "todo" | "item"; id: string } | null;
+  item: { kind: "todo" | "obligation"; id: string } | null;
   running: WireTodo["running"];
   since: string | null;
   steps: WirePlanStep[];
@@ -281,7 +281,7 @@ interface WirePlanStep {
 /** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
  * every to-do on either side, open or ended, an ended one with its outcome. It is the
  * one record of each; the queue items and thread readings the browser draws select
- * from it. Items are separate records and never appear in this list. */
+ * from it. Obligations are separate records and never appear in this list. */
 export interface WireTodo {
   id: string;
   owner: "agent" | "user";
@@ -308,7 +308,7 @@ export interface WireTodo {
 }
 
 /** One row of On me or On <agent>, as `served_state.queues` serves it: `owner` names
- * the list. A widget or approval row names its item by `id`, and a to-do row carries the
+ * the list. A widget or approval row names its obligation by `id`, and a to-do row carries the
  * fields a row draws. */
 interface QueueItem {
   kind: "widget" | "approval" | "todo" | "resend" | "answer" | "work";
@@ -319,7 +319,7 @@ interface QueueItem {
   /** Whether the agent has it in hand now. */
   live: boolean;
   /** A widget or approval row's current record, which `localQueues` joins on. */
-  item?: ItemRecord;
+  obligation?: ObligationRecord;
   [field: string]: unknown;
 }
 
@@ -403,15 +403,15 @@ interface AuthoritativeState {
           projection: WireProjection;
         };
         /** The frozen threads as this revision reads them: its registry classifies
-         * their widgets' decisions, and so the items and attention those give. */
+         * their widgets' decisions, and so the obligations and attention those give. */
         thread: {
           threads: Thread[];
           projection: WireProjection;
         };
-        /** Every item record of this view, its document's then its frozen threads',
+        /** Every obligation record of this view, its document's then its frozen threads',
          * answered and withdrawn ones included. The one copy of each: a list row and
-         * `approval_blocking` name an item by `id`. */
-        items: ItemRecord[];
+         * `approval_blocking` name an obligation by `id`. */
+        obligations: ObligationRecord[];
         /** Each gesture undo can take back, latest first; `newest` marks the user's
          * latest gesture (`served_state.document`). */
         undo: { event: Event; coordinate?: string[]; newest?: true }[];
@@ -433,7 +433,7 @@ interface AuthoritativeState {
         }[];
         published_at: string | null;
         queues: WireQueues;
-        /** The items approving this version waits on (`items.approval_blocking`). */
+        /** The obligations approving this version waits on (`obligations.approval_blocking`). */
         approval_blocking: string[];
       }
     >;
@@ -498,24 +498,24 @@ function normalizedProjection(view: PageView | null | undefined) {
   return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
 }
 
-const NO_ITEMS = {
-  all: [] as ItemRecord[],
-  user: [] as ItemRecord[],
-  unanswered: [] as ItemRecord[],
+const NO_OBLIGATIONS = {
+  all: [] as ObligationRecord[],
+  user: [] as ObligationRecord[],
+  unanswered: [] as ObligationRecord[],
 };
 
 /* The admitted inventory owns membership and widget completion. Approval and its
  * undo draw their direct result immediately. Widget values come from
  * the same local-inclusive fold used by their controls, so a partial answer is
- * visible before its POST settles the item. */
-function normalizedItems(
+ * visible before its POST settles the obligation. */
+function normalizedObligations(
   view: PageView | null,
   widgets: ReturnType<typeof foldWidgetStates>,
   document: SemanticDocument,
   projection: ReturnType<typeof foldProjection>,
   local: readonly LedgerEntry[],
-): ItemLists {
-  const all = (view?.items ?? []).map((item): ItemRecord => {
+): ObligationLists {
+  const all = (view?.obligations ?? []).map((item): ObligationRecord => {
     if (item.source.kind === "approval") {
       const version = item.source.version;
       const undone = new Set(
@@ -546,7 +546,7 @@ function normalizedItems(
     const completed =
       item.status === "answered" &&
       !(item.answer?.event && projection.pendingWithdrawals.has(item.answer.event.id));
-    const { value, present } = itemValue(widget, verb, completed);
+    const { value, present } = obligationValue(widget, verb, completed);
     const pendingValue =
       (widget.entries as { e: Event }[]).some(
         ({ e }) => e.action === verb && !Number.isInteger(e.seq),
@@ -664,8 +664,8 @@ function currentWidgetRelations(
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. A send moves an item the server listed only where the item is
  * its own subject: a Done or its undo moves a to-do between its list and done, and an
- * approval or its undo moves the approval item. What a send leaves anything else, such
- * as which items in its thread it answers, waits for the server's reading of it. This
+ * approval or its undo moves the approval obligation. What a send leaves anything else, such
+ * as which obligations in its thread it answers, waits for the server's reading of it. This
  * adds only the items a send alone implies: its own answer owed, which stands for the
  * response its thread was already owed, and the resend a refused one leaves. Nothing
  * here selects a list again. */
@@ -674,7 +674,7 @@ function localQueues(
   threads: readonly Pick<Thread, "id" | "resolved" | "attention">[],
   workflows: readonly Workflow[],
   todos: ReturnType<typeof localTodos>,
-  items: ItemLists,
+  items: ObligationLists,
 ) {
   const record = new Map(items.all.map((item) => [item.id, item]));
   const inventoryAt = new Map(items.all.map((item, at) => [item.id, at]));
@@ -698,9 +698,9 @@ function localQueues(
       reading.attention.reason === "resend",
     );
   };
-  const itemOf = (item: QueueItem) => {
+  const obligationOf = (item: QueueItem) => {
     const local = record.get(item.id);
-    if (!local) throw new Error(`Queue item ${item.id} names no item`);
+    if (!local) throw new Error(`Queue item ${item.id} names no obligation`);
     return local;
   };
   // Whether an item the server listed as open still stands open in this tab.
@@ -708,7 +708,7 @@ function localQueues(
     switch (item.kind) {
       case "widget":
       case "approval":
-        return itemOf(item).next_actor === "user";
+        return obligationOf(item).next_actor === "user";
       case "todo":
         return open.has(item.id);
       case "resend":
@@ -721,17 +721,17 @@ function localQueues(
   };
   // Whether an item the server listed as done stands open again in this tab.
   const reopened = (item: DoneItem) =>
-    carriesItem(item)
-      ? itemOf(item).status === "open" && itemOf(item).next_actor === "user"
+    carriesObligation(item)
+      ? obligationOf(item).status === "open" && obligationOf(item).next_actor === "user"
       : item.kind === "todo" && open.has(item.id);
   // Whether an item the server listed as open has ended in this tab.
   const endedHere = (item: QueueItem) =>
-    carriesItem(item)
-      ? itemOf(item).status !== "open"
+    carriesObligation(item)
+      ? obligationOf(item).status !== "open"
       : item.kind === "todo" && ended.has(item.id);
-  // A widget or approval item carries this tab's record of its item.
+  // A widget or approval obligation carries this tab's record of its obligation.
   const current = <T extends QueueItem>(item: T): T =>
-    carriesItem(item) ? { ...item, item: itemOf(item) } : item;
+    carriesObligation(item) ? { ...item, obligation: obligationOf(item) } : item;
   const asOpen = ({
     state: _state,
     ended: _ended,
@@ -742,7 +742,9 @@ function localQueues(
     ...current(item),
     live: false,
     state:
-      carriesItem(item) && itemOf(item).status === "withdrawn" ? "dropped" : "done",
+      carriesObligation(item) && obligationOf(item).status === "withdrawn"
+        ? "dropped"
+        : "done",
     ended: null,
     detail: null,
   });
@@ -781,7 +783,7 @@ function localQueues(
     ].toSorted(
       (a, b) =>
         onUserRank(a) - onUserRank(b) ||
-        (carriesItem(a) && carriesItem(b)
+        (carriesObligation(a) && carriesObligation(b)
           ? inventoryAt.get(a.id)! - inventoryAt.get(b.id)!
           : 0),
     ),
@@ -813,13 +815,13 @@ function localQueues(
   };
 }
 
-// The order the server lists On me in: widget and approval items, to-dos, then
-// resends; items among themselves in the order the view's item inventory holds them.
+// The order the server lists On me in: widget and approval obligations, to-dos, then
+// resends; obligations among themselves in the order the view's obligation inventory holds them.
 const onUserRank = (item: QueueItem) =>
-  carriesItem(item) ? 0 : item.kind === "todo" ? 1 : 2;
+  carriesObligation(item) ? 0 : item.kind === "todo" ? 1 : 2;
 
 // Whether a list item is a widget's or an approval's, which carries its record.
-const carriesItem = (item: QueueItem) =>
+const carriesObligation = (item: QueueItem) =>
   item.kind === "widget" || item.kind === "approval";
 
 type SemanticRoot = ReturnType<ReturnType<typeof createSemanticApplication>["read"]>;
@@ -1067,7 +1069,7 @@ export function createSemanticApplication({
     });
     // A local comment belongs to the shown document even before saved history arrives.
     // Fold it through the same ledger and receipt path in every phase; collection.phase
-    // still says whether this is a complete reading. The items need the log to say which
+    // still says whether this is a complete reading. The obligations need the log to say which
     // of them the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.
@@ -1088,8 +1090,8 @@ export function createSemanticApplication({
       projection,
     );
     const items = ready
-      ? normalizedItems(view, widgets, document, projection, local)
-      : NO_ITEMS;
+      ? normalizedObligations(view, widgets, document, projection, local)
+      : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
@@ -1275,7 +1277,7 @@ export function createSemanticApplication({
         // included until the reading they restore is drawn (held-news.js, `gesturedOn`).
         gestured: [...new Set(unresolved.flatMap(threadsOfEntry))],
       },
-      items: { phase, ...items },
+      obligations: { phase, ...items },
       // On me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {

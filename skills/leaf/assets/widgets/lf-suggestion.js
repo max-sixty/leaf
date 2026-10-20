@@ -120,7 +120,7 @@ function toRanges(segments, spans) {
 customElements.define(
   "lf-suggestion",
   class extends LeafElement {
-    // What the item was answered with: the decision.
+    // What the obligation was answered with: the decision.
     static answerWords(value) {
       return value.outcome === "accept" ? "Accepted" : "Rejected";
     }
@@ -283,7 +283,7 @@ customElements.define(
           ? [
               {
                 id: `suggestion:${this.id}`,
-                // Before settlement this contribution is the item, so suppress the shared
+                // Before settlement this contribution is the obligation, so suppress the shared
                 // ask at the same target. Afterwards Undo remains without inventing a
                 // second page-map reading.
                 kind: outcome ? "action" : "on-me",

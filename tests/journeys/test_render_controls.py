@@ -2403,7 +2403,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     """The feature-gallery sweep above reads broad authored UI with the chrome shut: it
     never presses a key, so the panel's views, its field, the leaf's menu and its
     Versions, the command reference and the sequence's chips are surfaces four readings
-    pass straight over. A `role="list"` whose children were not all list items shipped
+    pass straight over. A `role="list"` whose children were not all list obligations shipped
     through it, green every time.
 
     One page because the chrome is the same on every document. What varies here is which

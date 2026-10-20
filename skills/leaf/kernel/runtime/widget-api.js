@@ -8,11 +8,11 @@ import {
   dataReader,
   dispatchWidget,
   invalidateDom,
-  itemActions,
   joinDataDelivery,
   landInThread,
   loadDeferred,
   navigateToDatum,
+  obligationActions,
   placePageThreads,
   projectData,
   pushEntry,
@@ -58,7 +58,6 @@ import {
   highlightBlocks,
   inlineMarkdownFragment,
   isPagePaint,
-  itemsIn,
   keepView,
   langForPath,
   listWalkPosition,
@@ -67,11 +66,12 @@ import {
   markdownReady,
   markdownSourceOffset,
   markdownWords,
+  obligationsIn,
   openingView,
   paintMarkdown,
   placeKeeper,
   quietWord,
-  readItems,
+  readObligations,
   readThreads,
   releaseOutlets,
   renderMarkdown,
@@ -911,7 +911,7 @@ var done = (goal, read) => {
 };
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
-  return itemsIn(goal, open).map((item) => elementById(
+  return obligationsIn(goal, open).map((item) => elementById(
     /** @type {{id: string}} */
     item.source.id
   )).filter(
@@ -961,7 +961,7 @@ function readWork(scope) {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  const open = readItems().user.filter((item) => item.source.kind === "widget");
+  const open = readObligations().user.filter((item) => item.source.kind === "widget");
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map(
@@ -1712,8 +1712,6 @@ export {
   isCanonicalMediaUrl,
   isNativeLayer,
   isPagePaint,
-  itemActions,
-  itemsIn,
   keepView,
   keeps,
   keepsHidden,
@@ -1747,6 +1745,8 @@ export {
   noChange,
   nothing,
   notice,
+  obligationActions,
+  obligationsIn,
   offer,
   offered,
   onMotionPreferenceChange,
@@ -1778,7 +1778,7 @@ export {
   rankAt,
   reachedForWords,
   readHistory,
-  readItems,
+  readObligations,
   readQueues,
   readThreads,
   readWork,

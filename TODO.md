@@ -135,7 +135,7 @@ has tried; settle that before building it.
   card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
   options on 2026-10-12. Score the change with `evals/` before and after.
 - **Draw the agent's plan, and tell agents to write one.** `leaf task plan` records
-  the agent's breakdown as one outline whose steps are plain or name a to-do or item
+  the agent's breakdown as one outline whose steps are plain or name a to-do or obligation
   (`plans.py`), served as `plan` in the browser state and `page state`. Nothing draws
   it yet. Draw it on the floating panel's On view: the goal, its steps in order with
   done ones ticked in place, the current one marked, "2 of 5" and its elapsed time,
@@ -472,11 +472,11 @@ on 2026-10-07.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Derive the waiting status from the page's open item.** Consider using the item's
+- **Derive the waiting status from the page's open obligation.** Consider using the obligation's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
-  several open items and an informational page before choosing how the panel's
+  several open obligations and an informational page before choosing how the panel's
   status explains who owes the next move. Keep explicit agent status available when the
-  item alone does not explain the wait.
+  obligation alone does not explain the wait.
 
 ### Development velocity
 

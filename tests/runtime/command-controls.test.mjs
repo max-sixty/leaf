@@ -1277,7 +1277,7 @@ test("decision rows and routes reject computed titles with their command identit
   ]) {
     const id = row.routes?.[0].id ?? row.id;
     assert.throws(
-      () => decisionControls([{ source, row }], "the test item"),
+      () => decisionControls([{ source, row }], "the test obligation"),
       (error) => error.message.includes(id) && error.message.includes("title"),
     );
   }

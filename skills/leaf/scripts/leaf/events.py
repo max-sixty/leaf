@@ -241,7 +241,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     turn of its own (`exchange`), so it resumes the thread as a reply does.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
-    opened it, its ``root``: the name every item, workflow, summary, and title
+    opened it, its ``root``: the name every obligation, workflow, summary, and title
     uses for it. Admission keeps each message's parent in force while the message is
     (`event_contracts._parent_error`), so each reply it admits lands in a thread.
     """
@@ -520,7 +520,7 @@ def awaits_agent(thread: dict) -> bool:
     message may leave the open thread awaiting nobody, while one holding a widget
     that asks, such as an `lf-ask`, awaits the user. The browser
     does not receive it: each browser Thread's `attention` aggregates this turn with
-    the workflows and items open on the thread, so the panel, its filters and the
+    the workflows and obligations open on the thread, so the panel, its filters and the
     margin read one answer to whose turn it is."""
     return bool(not thread["resolved"] and unanswered_turns(thread))
 

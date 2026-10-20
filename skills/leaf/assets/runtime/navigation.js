@@ -18,7 +18,7 @@ import {
   scrollChainOf,
   scrollersOf,
 } from "./reading-regions.js";
-import { walkOrigin, heldItem, placeOf, stepFrom } from "./standing-target.js";
+import { walkOrigin, heldObligation, placeOf, stepFrom } from "./standing-target.js";
 import { focused } from "./focus.js";
 import { pageSelection } from "./composing/capture.js";
 import { blockAt, closestAcross, pageRange } from "./passages.js";
@@ -266,7 +266,7 @@ export function createNavigation({ threadDestinations, placedAt, heldPlace }) {
     // The place the floating panel holds while the user is in it is the same standing,
     // read without moving focus merely to paint whether its row is available.
     const at = heldPlace()?.focus?.deref() ?? focused();
-    const item = heldItem(at);
+    const item = heldObligation(at);
     if (item && under(at, item)) return item;
     const thread = closestAcross(at, THREAD);
     if (thread) return thread;

@@ -469,7 +469,7 @@ function paintReachNow() {
 // a frame passes without it being asked for again. A container that keeps moving for
 // longer than `PLAYING_MS` is the exception: whatever moves it, its own animation, a
 // sibling's or a script's, the page is playing rather than coming to rest, as a meter
-// pulsing for as long as work runs does. Its items stop holding the page, and its box is
+// pulsing for as long as work runs does. Its obligations stop holding the page, and its box is
 // due once it has held still for `STILL_MS`, which a timer waits for. Its watch is
 // uncounted (`queries`, below) for the same reason. A transition, a drag or any motion
 // that ends within `PLAYING_MS` stays counted, so the page settles after its sweep; one

@@ -130,7 +130,7 @@ export function createPageMapDialog({
     releaseAnnotations?.(entry);
     const destination = annotationFocus?.(entry);
     // A location without a presented annotation lands on its exact authored target.
-    // Commands that open a Thread or item retain their own navigation capability.
+    // Commands that open a Thread or obligation retain their own navigation capability.
     closeLayer(leavePageMap, () =>
       !destination && targetFor(entry)?.isConnected
         ? focusDestination(targetFor(entry), "move")

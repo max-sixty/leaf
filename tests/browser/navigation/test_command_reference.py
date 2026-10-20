@@ -735,6 +735,44 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
     assert "On a tab" in seen[0], seen[0]
 
 
+def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
+    """The floating panel's section listed ↑ ↓ Home End twice, once for the leaf's menu
+    and once for the open view, under the same words, and gave ← and → a row each with
+    one description between them: twelve rows for seven keys' meanings. One walk over
+    whichever list is open, and ← / → on one row as the margin's reads, list each key
+    once."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("?")
+    expect(page.locator(".lf-command-reference")).to_be_visible()
+    rows = page.evaluate(
+        """() => {
+          const listed = []; let inside = false;
+          for (const row of document.querySelectorAll('.lf-command-reference tr')) {
+            const heading = row.querySelector('h3');
+            if (heading) { inside = heading.textContent === 'In the floating panel'; continue; }
+            if (!inside || !row.dataset.lfCommand) continue;
+            listed.push([
+              row.dataset.lfCommand,
+              [...row.querySelectorAll('kbd')].map(key => key.textContent.trim()).join(' '),
+              row.querySelector('.lf-command-reference-command').textContent,
+            ]);
+          }
+          return listed;
+        }"""
+    )
+    assert [(command, title) for command, _, title in rows] == [
+        ("panel.floating.rows.previous", "Previous row"),
+        ("panel.floating.rows.next", "Next row"),
+        ("panel.floating.rows.first", "First row"),
+        ("panel.floating.rows.last", "Last row"),
+        ("panel.floating.menu.level", "Open or leave a list"),
+        ("panel.floating.menu.leave-forward", "Leave forward"),
+        ("panel.floating.menu.leave-backward", "Leave backward"),
+    ], rows
+    # The arrows' glyphs read the same on every platform; Tab's modifier does not.
+    assert [keys for _, keys, _ in rows[:5]] == ["↑", "↓", "home", "end", "← / →"], rows
+
+
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):
     """The reference is a column in a window-capped box, and only its results give up
     height to fit. Its count line was a shrinkable item too, squeezed to 13.8px under a

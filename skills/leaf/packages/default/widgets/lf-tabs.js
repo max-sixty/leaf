@@ -82,7 +82,6 @@ import {
   keepView,
   keeps,
   keepsText,
-  landingInsets,
   layoutChanged,
   listWalkPosition,
   frameFor,
@@ -112,6 +111,7 @@ import {
   rowArrows,
   scrollIntoView,
   focused,
+  fitsWhole,
 } from "/runtime/widget-api.js";
 
 // The sets whose strip stands over the whole document as its sticky header
@@ -616,7 +616,8 @@ export class TabSet extends HTMLElement {
   // in a workspace that fills the window (theme.css), and the tab comes into it the
   // same way, down the column.
   // Where the strip has room for it, the tab comes in with its run's label, so the
-  // name of the group the user opened stays beside it.
+  // name of the group the user opened stays beside it. That room is the landing's own
+  // (`fitsWhole`), the tab's ring room included.
   #showTab(btn) {
     const strip = this.#strip;
     if (!btn) return;
@@ -624,16 +625,10 @@ export class TabSet extends HTMLElement {
     const run = label && document.createRange();
     run?.setStartBefore(label);
     run?.setEndAfter(btn);
-    const span = run?.getBoundingClientRect();
-    const pad = landingInsets(strip);
-    // Only an axis the strip scrolls along has a room for the run to fit.
-    const fits =
-      span &&
-      (strip.scrollWidth <= strip.clientWidth ||
-        span.width <= strip.clientWidth - pad.left - pad.right) &&
-      (strip.scrollHeight <= strip.clientHeight ||
-        span.height <= strip.clientHeight - pad.top - pad.bottom);
-    scrollIntoView(fits ? run : btn, { block: "nearest", within: strip });
+    scrollIntoView(run && fitsWhole(run) ? run : btn, {
+      block: "nearest",
+      within: strip,
+    });
   }
 
   // The open tab stays in the row as the strip's width changes, and not only when a

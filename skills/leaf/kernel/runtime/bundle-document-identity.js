@@ -387,6 +387,7 @@ import {
   readCaret,
   readSampleVisibility,
   renderedOrder,
+  renderedParent,
   renderedUnder,
   renderingState,
   shadowHost,
@@ -6922,6 +6923,7 @@ function createReadTracking({ markRead, openThread }) {
     const mayRead = threadsPresented && document.hasFocus();
     const clips = /* @__PURE__ */ new Map();
     const completed = /* @__PURE__ */ new Map();
+    const unseenWords = [];
     for (const [node, rendered] of renderedBodies) {
       const { body, id, version, feedback } = rendered;
       if (!node.isConnected || !body.isConnected) {
@@ -6932,9 +6934,11 @@ function createReadTracking({ markRead, openThread }) {
       if (feedback) {
         const identity2 = feedback.reply_id ?? `input:${feedback.input_id}`;
         const key2 = `${identity2}:${feedback.presentation_kind}:${feedback.surface}`;
-        if (!visibleReplies.has(key2) && wordsAreVisible(body, clips, band)) {
-          visibleReplies.add(key2);
-          recordInteraction("reply_visible", feedback);
+        if (!visibleReplies.has(key2)) {
+          if (wordsAreVisible(body, clips, band)) {
+            visibleReplies.add(key2);
+            recordInteraction("reply_visible", feedback);
+          } else unseenWords.push(body);
         }
       }
       const item = mayRead && candidates.get(id);
@@ -6959,6 +6963,7 @@ function createReadTracking({ markRead, openThread }) {
         completed.set(key, item);
       }
     }
+    if (unseenWords.length) passAfterFades(unseenWords);
     if (completed.size) {
       const items = [...completed.values()];
       const visit = visitGeneration;
@@ -6971,6 +6976,19 @@ function createReadTracking({ markRead, openThread }) {
     const waiting = passWaiters;
     passWaiters = [];
     for (const then of waiting) then();
+  }
+  const awaitedRuns = /* @__PURE__ */ new WeakSet();
+  function passAfterFades(bodies) {
+    for (const body of bodies) {
+      const animations = body.getAnimations({ subtree: true });
+      for (let at = renderedParent(body); at; at = renderedParent(at))
+        animations.push(...at.getAnimations());
+      for (const { finished } of animations) {
+        if (awaitedRuns.has(finished)) continue;
+        awaitedRuns.add(finished);
+        finished.then(scheduleScan, scheduleScan);
+      }
+    }
   }
   function afterPass(then) {
     passWaiters.push(then);

@@ -884,9 +884,12 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     previous = search.get_by_role("button", name="Previous match")
     following = search.get_by_role("button", name="Next match")
     expect(following).to_have_attribute("aria-disabled", "true")
-    page.keyboard.type("Paragraph 1")
+    # A query that arrives with no key, as a paste or a phone's suggestion does, offers
+    # the arrows as soon as it matches.
+    search.get_by_role("searchbox").fill("Paragraph 1")
     count = search.locator(".lf-page-search-status")
     expect(count).to_have_text("1 of 11")
+    expect(following).not_to_have_attribute("aria-disabled", "true")
     expect(page.locator(".lf-fp-threads")).to_be_visible()
     following.click()
     expect(count).to_have_text("2 of 11")
@@ -896,9 +899,18 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     page.keyboard.type("0")
     expect(count).to_have_text("1 of 1")
     # A press on the marked match selects it, as Enter does, even once focus has left
-    # the box; a control painted over the words keeps its own press.
-    mark = page.locator(".lf-page-search-match").first.bounding_box()
-    at = (mark["x"] + mark["width"] / 2, mark["y"] + mark["height"] / 2)
+    # the box; a control painted over the words keeps its own press. The press aims at
+    # the words, since the mark moves to them a frame after the count changes.
+    at = page.evaluate(
+        """() => {
+          const text = document.querySelector("#p10").firstChild;
+          const words = document.createRange();
+          words.setStart(text, 0);
+          words.setEnd(text, "Paragraph 10".length);
+          const box = words.getBoundingClientRect();
+          return [box.x + box.width / 2, box.y + box.height / 2];
+        }"""
+    )
     page.evaluate(
         """([x, y]) => {
           const cover = Object.assign(document.createElement("button"), { id: "cover" });
@@ -3583,9 +3595,7 @@ def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     view = page.locator(".lf-fp-view[data-view=threads]")
     expect(view).to_be_visible()
     field(page).click()
-    for n in range(40):
-        page.keyboard.type(f"Line {n} of a long draft")
-        page.keyboard.press("Shift+Enter")
+    page.keyboard.insert_text("".join(f"Line {n} of a long draft\n" for n in range(40)))
     page.locator(".lf-fp-head .lf-fp-expand").click()
     settled(page)
     head = page.locator(".lf-fp-head").bounding_box()

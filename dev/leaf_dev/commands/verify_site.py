@@ -509,7 +509,13 @@ def user_session(
             return served_instead(reached, release)
         return AgentSession(context, page, failures, url, state_url, passive.json())
     activation = activation_url(url, passive.json())
-    activated = activation_read(context, activation)
+    try:
+        activated = activation_read(context, activation)
+    except PlaywrightError as error:
+        if "read ECONNRESET" not in str(error):
+            raise
+        context.close()
+        return "lost its activation connection"
     if activated is None:
         context.close()
         return STILL_STARTING
@@ -539,7 +545,8 @@ def agent_session(
 ) -> AgentSession:
     """Open one user session whose private container is serving `release`, retrying
     with a fresh context for up to 180 s while the rollout reaches allocations (they
-    answer as another release or as the edge's `503`). Nothing here writes."""
+    answer as another release or as the edge's `503`) or activation loses its
+    connection. Nothing here writes."""
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
     deadline = time.monotonic() + 180

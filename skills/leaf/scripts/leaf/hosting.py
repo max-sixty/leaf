@@ -536,7 +536,6 @@ def cmd_serve(
     from .http import page_endpoint
     from .layer import payload_provenance
     from .server_rows import RowPublisher
-    from .thread_titles import follow_claimant
 
     lease = None
     httpd = None
@@ -626,12 +625,6 @@ def cmd_serve(
         if httpd is None or not announced:
             return
         threading.Thread(target=rows.run, daemon=True).start()
-        threading.Thread(
-            target=follow_claimant,
-            args=(page_dir,),
-            name="leaf-title-claimant",
-            daemon=True,
-        ).start()
         threading.Thread(
             target=stop_when_service_ends,
             args=(page_dir,),

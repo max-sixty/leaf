@@ -5,6 +5,8 @@ skills/leaf/packages/**/vendor/
 # Corpus markup is assembled verbatim; its registry uses multiline JSON arrays.
 examples/corpus.html
 examples/corpus.page/registry.json
+# Compiler paths keep the browser build's generated JSON layout.
+build/browser/tsconfig.paths.json
 # Package locks, Tend workflows, recorded test output and the protocol baseline
 # keep their producers' bytes.
 **/pnpm-lock.yaml

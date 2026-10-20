@@ -257,7 +257,7 @@ var layoutPx = (length) => `${atLayoutPrecision(length)}px`;
 var roomPx = (length) => `${Math.floor(length * 64) / 64}px`;
 
 // runtime/control-selectors.js
-var TEXT_FIELD = "leaf-text";
+var TEXT_FIELD = document.documentElement.lfInputs.textField;
 var MODIFIER_KEYS = ["Shift", "Alt", "Control", "Meta"];
 var CARET_KEYS = [
   "ArrowLeft",
@@ -270,7 +270,7 @@ var CARET_KEYS = [
   "PageDown"
 ];
 var selectsAll = (event) => event.key.toLowerCase() === "a" && (event.metaKey || event.ctrlKey);
-var TEXT_BOX = `textarea, ${TEXT_FIELD}`;
+var TEXT_BOX = document.documentElement.lfInputs.textBox;
 var TAB_STOP = `a[href], button, input, select, ${TEXT_BOX}, summary, [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])`;
 var PRESS_SELECTORS = [
   "a[href]",
@@ -1000,26 +1000,8 @@ var land = (landing) => {
     restoring = was;
   }
 };
-var TYPED_TYPES = /* @__PURE__ */ new Set([
-  "text",
-  "search",
-  "url",
-  "tel",
-  "email",
-  "password",
-  "number",
-  "date",
-  "time",
-  "datetime-local",
-  "month",
-  "week"
-]);
-function typesText(node) {
-  return Boolean(node) && (node.matches(TEXT_BOX) || node.isContentEditable || node.tagName === "INPUT" && TYPED_TYPES.has(node.type));
-}
-function takesLetters(node) {
-  return typesText(node) || Boolean(node) && (node.tagName === "SELECT" || node.getAttribute("role") === "option");
-}
+var typesText = inputs.typesText;
+var takesLetters = inputs.takesLetters;
 function controlNavigationKeys(node) {
   if (node?.matches('input[type="radio"], [role="radio"]'))
     return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];

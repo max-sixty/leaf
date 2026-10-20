@@ -71,7 +71,38 @@
   // same counter and subscription after startup; no later listener starts over.
   let inputs = 0;
   const inputReaders = new Set();
+  // Early key holding and the runtime ask the same question of a key's origin.
+  // Selects and custom options keep typeahead without being text editors.
+  const textField = "leaf-text";
+  const textBox = `textarea, ${textField}`;
+  const typedTypes = new Set([
+    "text",
+    "search",
+    "url",
+    "tel",
+    "email",
+    "password",
+    "number",
+    "date",
+    "time",
+    "datetime-local",
+    "month",
+    "week",
+  ]);
+  const typesText = (node) =>
+    Boolean(node) &&
+    (node.matches(textBox) ||
+      node.isContentEditable ||
+      (node.localName === "input" && typedTypes.has(node.type)));
+  const takesLetters = (node) =>
+    typesText(node) ||
+    (Boolean(node) &&
+      (node.localName === "select" || node.getAttribute("role") === "option"));
   root.lfInputs = {
+    textField,
+    textBox,
+    typesText,
+    takesLetters,
     get count() {
       return inputs;
     },

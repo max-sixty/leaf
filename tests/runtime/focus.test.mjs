@@ -23,6 +23,8 @@ const {
   openLayer,
   openerOf,
   rove,
+  takesLetters,
+  typesText,
 } = await import("/runtime/focus.js");
 const { retainUserIntent } = await import("/runtime/user-intent.js");
 
@@ -62,6 +64,32 @@ const click = (target) =>
     new window.MouseEvent("click", { bubbles: true, composed: true, cancelable: true }),
   );
 const settled = () => new Promise((resolve) => setTimeout(resolve));
+
+test("text entry distinguishes editors, typeahead and controls that take no letters", () => {
+  const cases = [
+    ["input", { type: "text" }, true, true],
+    ["input", { type: "number" }, true, true],
+    ["input", { type: "date" }, true, true],
+    ["input", { type: "checkbox" }, false, false],
+    ["input", { type: "range" }, false, false],
+    ["textarea", {}, true, true],
+    ["leaf-text", {}, true, true],
+    ["div", { contenteditable: "true" }, true, true],
+    ["select", {}, false, true],
+    ["div", { role: "option" }, false, true],
+  ];
+  for (const [tag, attributes, text, letters] of cases) {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes))
+      node.setAttribute(name, value);
+    assert.equal(typesText(node), text, node.outerHTML);
+    assert.equal(takesLetters(node), letters, node.outerHTML);
+  }
+  for (const absent of [null, undefined]) {
+    assert.equal(typesText(absent), false);
+    assert.equal(takesLetters(absent), false);
+  }
+});
 
 test("a placement reaches every reader with the cause it names", () => {
   const { first, second, other } = scene();

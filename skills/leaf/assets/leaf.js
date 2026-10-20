@@ -85,9 +85,9 @@ import {
 import { createFloatingPanel } from "./runtime/floating-panel.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
-import { createItemView } from "./runtime/items/view.js";
+import { createObligationView } from "./runtime/obligations/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
-import { ITEM_CONTROL } from "./runtime/items/view-elements.js";
+import { OBLIGATION_CONTROL } from "./runtime/obligations/view-elements.js";
 import {
   commandHintLayer,
   createCommandHints,
@@ -238,6 +238,9 @@ const anchorPaint = annotationRenderer?.createAnchorPaint({
   targetPaint: visualMarkPaint,
   pointer: pointerAt,
   standingThreadId,
+  rowThread: () => floatingPanel?.hoveredThread() ?? null,
+  threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
+  marginThread: () => app?.overlay?.pointedThread() ?? null,
 });
 const drawingPaint = createDrawingInk({
   drawings: () => [
@@ -336,8 +339,8 @@ const version = createVersionController({
     const panelShown = floatingPanel.restoreStanding(panel);
     return (app?.overlay?.restoreStanding(margin) ?? false) || panelShown;
   },
-  captureItemStanding: () => items.captureStanding(),
-  restoreItemStanding: (standing) => items.restoreStanding(standing),
+  captureObligationStanding: () => items.captureStanding(),
+  restoreObligationStanding: (standing) => items.restoreStanding(standing),
   versions: { press: () => floatingPanel.doors.versions.press() },
 });
 
@@ -348,7 +351,7 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-  nextItemWithin: (options) => queueWalk.nextWithin(options),
+  nextObligationWithin: (options) => queueWalk.nextWithin(options),
   threadAvailable: !offlineInteractive,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
@@ -392,7 +395,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
-    goToItem: (...args) => items.goToItem(...args),
+    goToObligation: (...args) => items.goToObligation(...args),
   },
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
@@ -428,8 +431,8 @@ pageMapDialog = createPageMapDialog({
   annotationFocus: app.overlay?.mapFocusTarget,
 });
 
-// The item view is constructed below by its owner factory; all accesses above are inert closures.
-items = createItemView({
+// The obligation view is constructed below by its owner factory; all accesses above are inert closures.
+items = createObligationView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
   prepareTrip: anchorTravel.prepareTrip,
@@ -454,20 +457,21 @@ const commandHints = createCommandHints({
 });
 
 const standingTarget = createStandingTarget({
-  isItemControl: (node) => node?.matches?.(ITEM_CONTROL),
+  isObligationControl: (node) => node?.matches?.(OBLIGATION_CONTROL),
   standingIn: items.standingIn,
 });
 
 floatingPanel = createFloatingPanel({
   wireInput: inputs.wireInput,
   observeFeedback: app.read.observeFeedback,
+  firstUnread: app.read.firstUnread,
+  afterReadingPass: app.read.afterPass,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-  items: {
-    choicesOf: items.choicesOf,
-    open: (id) => app.openItem(id),
-  },
+  obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
+  arrivesAt: (item) => queueWalk.arrivesAt(item),
+  inWalkOrder: (items) => queueWalk.inWalkOrder(items),
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,
@@ -833,7 +837,7 @@ async function startPage() {
   if (!offlineInteractive) {
     layout.syncLayout();
     items.buildBulkAnswers();
-    items.syncItems();
+    items.syncObligations();
   }
   await settlePageInterface();
   landFragment();
@@ -861,11 +865,12 @@ async function startPage() {
 }
 
 startPage().catch((error) => {
-  if (!document.documentElement.lfDocumentLifetime.active) return;
   const reason = `page failed to start: ${error?.message ?? error}`;
-  window.dispatchEvent(
-    new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
-  );
-  reportPageError(error, "page failed to start");
-  applicationState.setReach("broken");
+  document.documentElement.lfDocumentLifetime.whenActive(`start ${reason}`, () => {
+    window.dispatchEvent(
+      new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
+    );
+    reportPageError(error, "page failed to start");
+    applicationState.setReach("broken");
+  });
 });

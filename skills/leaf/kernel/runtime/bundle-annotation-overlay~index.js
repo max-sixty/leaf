@@ -47,6 +47,7 @@ import {
 } from "./bundle-restore-state.js";
 import {
   anchorLabel,
+  arrivalOf,
   beginWalk,
   carryingThreadPlace,
   claimSeatReplies,
@@ -60,13 +61,13 @@ import {
   pageScope,
   pageSelection,
   placeKeeper,
-  placeOf,
   releaseReplies,
   retainUserIntent,
   revealHeld,
   rowWalk,
   selectionAnchor,
   showLatestTurn,
+  standingThreadId,
   strongestWorkflow,
   tabStore,
   threadFocusDestination,
@@ -101,10 +102,9 @@ import {
   syncMarginResidency,
   unregisterMarginRow
 } from "./bundle-annotation-overlay~margin-placement.js";
-import "./bundle-visible-target-parts.js";
 import {
   pointBand
-} from "./bundle-content-layout.js";
+} from "./bundle-page-controls.js";
 import {
   chromeForeground,
   chromeRoot,
@@ -204,7 +204,7 @@ import {
   standingIn,
   tabStops,
   under
-} from "./bundle-sample-visibility.js";
+} from "./bundle-frame-visibility.js";
 import {
   bareReaction,
   html,
@@ -974,6 +974,10 @@ function createThreadPreview({
     thread: () => previewList.querySelector(".lf-page-thread"),
     accompanied: () => previewSession && !previewSession.away ? previewList.querySelector(".lf-page-thread") : null,
     closeFocused: () => focused() === previewClose,
+    // Whether the user stands in the card's reply box.
+    replying: () => under(focused(), preview) && Boolean(closestAcross(focused(), REPLY_BOX)),
+    // Whether the open card has somewhere to stand (`threadCardPlace`).
+    stands: () => Boolean(previewSession && threadCardPlace(previewSession)),
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount
@@ -1233,6 +1237,7 @@ function createMarginProjection({
   scrollThreadIntoView,
   renderMarginThread,
   placedAt,
+  marksFor,
   scrollToElement
 }) {
   const {
@@ -1971,14 +1976,19 @@ function createMarginProjection({
     const focusedHost = closestAcross(active, "[data-lf-margin-for]");
     const pointerHost = hoveredHost?.isConnected ? hoveredHost : null;
     const onTarget = previewOpen() && active && active === targetFor(card.selection()?.entry);
-    const source = pointerHost ?? focusedHost ?? ((renderedUnder(active, preview) || previewOpen()) && !onTarget ? hosts.get(card.selection()?.entry?.key) : null);
+    const marker = pointerHost ?? focusedHost;
+    const source = marker ?? ((renderedUnder(active, preview) || previewOpen()) && !onTarget ? hosts.get(card.selection()?.entry?.key) : null);
     const entry = pageInventory.find(
       (candidate) => candidate.key === source?.lfEntry?.key
     );
     const drawingOnly = entry?.items.length && entry.items.every(
       (item) => item.kind === "comment" && Boolean(sourceItem(item).thread?.root.drawing)
     );
-    highlight(drawingOnly ? null : targetFor(entry) ?? null);
+    const standing = standingThreadId();
+    const standingShown = !marker && entry && marksFor(standing).length > 0 && threadReading(entry)?.items.some(
+      (item) => sourceItem(item).thread.id === standing
+    );
+    highlight(drawingOnly || standingShown ? null : targetFor(entry) ?? null);
   }
   function previewChanged() {
     refreshHighlight();
@@ -2114,6 +2124,7 @@ function createMarginProjection({
     rows: [
       {
         id: "margin.back",
+        touch: false,
         keys: ["Escape"],
         description: () => pageMapRung(false)?.description,
         title: () => pageMapRung(false)?.title,
@@ -2182,6 +2193,7 @@ function createMarginProjection({
     return thread && positioned && { thread, presented: positioned };
   }
   function paintSelectedMarginEntries(selections) {
+    refreshHighlight();
     const selected = /* @__PURE__ */ new Set();
     for (const selection of selections)
       for (const entry of pageInventory) {
@@ -2206,6 +2218,10 @@ function createMarginProjection({
     const entry = closestAcross(node, ".lf-margin-entry")?.lfEntry;
     return entry && threadReading(entry) ? threadIdOf(entry) : null;
   };
+  const pointedThread = () => {
+    const entry = hoveredHost?.isConnected ? hoveredHost.lfEntry : null;
+    return entry && threadReading(entry) ? threadIdOf(entry) : null;
+  };
   const threadIdsOf = (entry) => threadReading(entry).items.map((item) => sourceItem(item).thread.id);
   const seatedOnPage = (id) => claimed(id) || [
     ...document.querySelectorAll(`.lf-page-thread[data-thread="${CSS.escape(id)}"]`)
@@ -2228,7 +2244,7 @@ function createMarginProjection({
       expandedKey: expandedOptionsKey,
       expandedOwner: expandedOptionsOwner
     };
-    const place = active && !host && byKeyboard() && placeOf(active);
+    const place = active && !host && byKeyboard() && arrivalOf(active);
     const entry = place ? pageInventory.find(
       (candidate) => folded(candidate) && canFold(candidate, state) && under(place, targetFor(candidate))
     ) : null;
@@ -2251,7 +2267,7 @@ function createMarginProjection({
     awaitingRow = null;
     if (!node || focused() !== node || previewOpen() || annotationsHidden() || designModeActive())
       return;
-    const entry = threadEntryAt(node);
+    const entry = arrivalOf(node) && threadEntryAt(node);
     if (entry) accompany(node, entry);
   }
   function followStanding() {
@@ -2267,7 +2283,7 @@ function createMarginProjection({
         closePreview();
       return;
     }
-    const entry = threadEntryAt(active);
+    const entry = arrivalOf(active) && threadEntryAt(active);
     if (!entry) {
       if (previewOpen() && !inChrome(active)) closePreview();
       return;
@@ -2304,38 +2320,63 @@ function createMarginProjection({
     const active = focused();
     const host = closestAcross(active, "[data-lf-margin-for]");
     const control = active?.closest?.(".lf-margin-entry");
-    const entry = card.selection()?.entry ?? host?.lfEntry;
+    const selected = card.selection();
+    const entry = selected?.entry ?? host?.lfEntry;
     if (!entry) return null;
     const standing = {
       entry: entry.key,
-      preview: previewOpen() ? { thread: card.selection()?.threadItem } : null,
-      focus: card.closeFocused() ? { kind: "preview-close" } : control && host?.contains(control) ? {
+      preview: previewOpen() && !card.replying() ? { thread: selected.threadItem, accompanies: selected.accompanies } : null,
+      focus: card.closeFocused() ? { kind: "preview-close" } : under(active, preview) ? { kind: "preview" } : control && host?.contains(control) ? {
         kind: "entry",
         key: contributionEntryRecord(control)?.key,
         owner: contributionEntryRecord(control)?.owner ?? null
       } : null
     };
-    return standing.preview || standing.focus ? standing : null;
+    return standing.preview || standing.focus?.kind === "entry" ? standing : null;
   }
   function restoreStanding(standing) {
     if (!standing || typeof standing.entry !== "string") return false;
     const entry = pageInventory.find((candidate) => candidate.key === standing.entry);
     if (!entry) return false;
-    if (standing.preview) {
-      const button = threadMarginEntry(entry);
-      if (!button?.isConnected) return false;
-      const positioned = showPreview(entry, button, standing.preview.thread);
-      if (!positioned) return false;
-      if (standing.focus?.kind === "preview-close")
-        card.focusThread(positioned, { closeControl: true, cause: "return" });
-      return true;
-    }
-    if (standing.focus?.kind !== "entry") return false;
+    const shown = standing.preview ? restoreCard(entry, standing) : false;
+    return standing.focus?.kind === "entry" ? restoreEntryFocus(entry, standing) : shown;
+  }
+  function restoreCard(entry, { preview: { thread, accompanies }, focus }) {
+    const items = entry.items.filter((item2) => item2.kind === "comment");
+    const item = items.find((candidate) => candidate.id === thread) ?? items[0];
+    if (!item) return false;
+    const id = sourceItem(item).thread.id;
+    const selected = card.selection();
+    const kept = selected?.entry.key === entry.key && selected.threadItem === item.id;
+    if (kept && card.stands()) return true;
+    if (kept) closePreview();
+    const inCard = focus?.kind === "preview" || focus?.kind === "preview-close";
+    if (accompanies && !inCard) return Boolean(openInlineThread(id, { unfold: false }));
+    const intent = retainUserIntent();
+    const opened = openPageThread(id, {
+      part: "thread",
+      focus: inCard,
+      travel: false,
+      scroll: false,
+      intent
+    });
+    if (focus?.kind === "preview-close")
+      void opened.then((destination) => {
+        if (destination && under(destination, preview) && intent())
+          card.focusThread(Promise.resolve(true), {
+            closeControl: true,
+            cause: "return"
+          });
+      });
+    return true;
+  }
+  function restoreEntryFocus(entry, standing) {
     const host = hosts.get(entry.key);
     const control = clusterMarginEntries(host).find(
       (candidate) => contributionEntryRecord(candidate)?.key === standing.focus.key && (contributionEntryRecord(candidate)?.owner ?? null) === standing.focus.owner
     );
     if (!control) return false;
+    if (focused() === control) return true;
     focusDestination(control, "return");
     return true;
   }
@@ -2404,6 +2445,7 @@ function createMarginProjection({
     activateMarginEntry,
     closePreview,
     entryThread,
+    pointedThread,
     inlineThreadView,
     keyboardRung,
     optionsRung,
@@ -2428,13 +2470,23 @@ var PENDING = "lf-pending";
 var REACT = "lf-react";
 var HOVER = "lf-mark-hover";
 var HERE = "lf-mark-here";
-function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
+function createAnchorPaint({
+  targetPaint,
+  pointer,
+  standingThreadId: standingThreadId2,
+  rowThread,
+  threadRow,
+  marginThread
+}) {
   const marked = /* @__PURE__ */ new Map();
   const visualTargets = /* @__PURE__ */ new Map();
   let pendingMarks = [];
   let pendingOutline = [];
   let actionOutline = [];
   let hovering = null;
+  let hoverFromRow = false;
+  let hoverParts = [];
+  let hoveredRow = null;
   let hereParts = [];
   let hoverFrame = 0;
   let mounted = false;
@@ -2448,9 +2500,10 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
   function paintVisualStates() {
     const pending = new Set(pendingOutline);
     const action = new Set(actionOutline);
+    const hover = new Set(elementMarks(hoverParts));
     const here = new Set(elementMarks(hereParts));
     const elements = new Set(
-      [pending, action, here].flatMap((states) => [...states]).filter((element) => element instanceof Element)
+      [pending, action, hover, here].flatMap((states) => [...states]).filter((element) => element instanceof Element)
     );
     const focus = new Set(
       [...elements].filter((element) => element.matches("[data-lf-focus]"))
@@ -2458,6 +2511,7 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
     const sources = [
       ["pending", pending],
       ["action", action],
+      ["hover", hover],
       ["focus", focus],
       ["here", here]
     ];
@@ -2485,18 +2539,32 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
       element.classList.toggle("lf-action-target", action.has(element));
     }
   }
-  function paintHover(id) {
+  function paintHover(id, fromRow, repaintVisuals = true) {
     hovering = id;
+    hoverFromRow = fromRow;
     const where = marksFor(id);
+    const parts = fromRow ? where.filter((mark) => mark instanceof Element) : [];
+    for (const part of hoverParts)
+      if (!parts.includes(part)) part.classList.toggle(HOVER, false);
+    for (const part of parts) part.classList.toggle(HOVER, true);
+    hoverParts = parts;
     CSS.highlights.set(
       HOVER,
       Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
         priority: 1
       })
     );
+    if (repaintVisuals) paintVisualStates();
+  }
+  function markRow(id) {
+    const row = id && marksFor(id).length ? threadRow(id) : null;
+    if (row === hoveredRow) return;
+    hoveredRow?.classList.toggle(HOVER, false);
+    row?.classList.toggle(HOVER, true);
+    hoveredRow = row;
   }
   function paintStanding(repaintVisuals = true) {
-    const where = marksFor(standingThreadId());
+    const where = marksFor(standingThreadId2());
     const parts = where.filter((mark) => mark instanceof Element);
     for (const part of hereParts)
       if (!parts.includes(part)) part.classList.toggle(HERE, false);
@@ -2525,13 +2593,17 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
     return null;
   }
   function refreshHover() {
-    if (hoverFrame || !marked.size && !hovering) return;
+    if (hoverFrame || !marked.size && !hovering && !hoveredRow) return;
     hoverFrame = nextRender(() => {
       hoverFrame = 0;
       const at = pointer();
       const onMark = markAt(at.x, at.y);
       document.body.classList.toggle("lf-over-mark", Boolean(onMark));
-      if (onMark !== hovering) paintHover(onMark);
+      const row = rowThread();
+      const id = row ?? onMark;
+      if (id !== hovering || Boolean(row) !== hoverFromRow)
+        paintHover(id, Boolean(row));
+      markRow(id ?? marginThread());
     });
   }
   function paint({ readings, draft, action }) {
@@ -2576,7 +2648,7 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
       Object.assign(new Highlight(...pending), { priority: 3 })
     );
     paintStanding(false);
-    if (hovering) paintHover(hovering);
+    if (hovering) paintHover(hovering, hoverFromRow, false);
     paintVisualStates();
     refreshHover();
   }
@@ -2596,11 +2668,16 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
     actionOutline = [];
     paintOutlines(before);
     for (const element of hereParts) element.classList.toggle(HERE, false);
+    for (const element of [...hoverParts, hoveredRow])
+      element?.classList.toggle(HOVER, false);
     for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
     targetPaint.setTargets([]);
     pendingMarks = [];
     visualTargets.clear();
     hovering = null;
+    hoverFromRow = false;
+    hoverParts = [];
+    hoveredRow = null;
     hereParts = [];
   }
   return {
@@ -3084,7 +3161,6 @@ function createFloatingResponsePlacement({
     release: () => {
       editingAttachment = null;
       windowPosture = false;
-      selectedPassage = null;
       fabWithheld = false;
       fabBar.removeAttribute("data-lf-withheld");
       fabWithheldFocus = null;

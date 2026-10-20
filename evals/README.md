@@ -185,9 +185,13 @@ Leaf state for every sample. Pinned files under `evals/<case>/` are copied into
 that workspace at the same relative paths. Cite those paths in the prompt; the
 agent can open, register, crop or mark the captures. Ask it to write the page.
 Assertions grade the saved `index.html`, with additional `completed` and
-`page-valid` checks; the executor independently runs `page check --render` and
-keeps the page, native trace, reply, and check output under the sample's evidence.
-A visual `agent-rubric` can use `metadata.capture_evidence` to compare original
+`page-valid` checks; the executor independently runs `page check`, plain and with
+`--render`, and keeps the page, native trace, reply, and check output under the
+sample's evidence. A prompt may reuse a complete task's request by naming it, as
+`file://<task>/request.md`. A `python` assertion naming
+`dev/leaf_dev/page_defects.py` grades the page by the defects its user would notice
+at three widths, beside what the checks reported; its header says what it records,
+and `page-reads-at-every-width` uses it. A visual `agent-rubric` can use `metadata.capture_evidence` to compare original
 captures with registered page media, including cropped or marked images. Its
 `exact_inputs` records computed source matches, leaving visual comparison to
 transformed images. The judge can read only copied images under the run's

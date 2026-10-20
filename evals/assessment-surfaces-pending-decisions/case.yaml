@@ -48,7 +48,7 @@ assert:
       question heading and one operable answering widget. Each offers the proposed
       change and keeping the current behavior, begins undecided, and can be answered
       independently. The premise and tradeoff needed to decide are inside each decision.
-      Escape stays an informational finding, without an item requesting a decision
+      Escape stays an informational finding, without an obligation requesting a decision
       or confirmation of already verified behavior. Fail prose-only recommendations,
       a batch choice for both changes, or automatic selection of the author's pick.
 variants:
@@ -294,9 +294,9 @@ variants:
 
         You have opened one agent thread on remaining-next asking whether to prepare
         #59 next, its question in an lf-ask. The live source is valid and
-        queues.on_user contains only that item, widget:next-touch. queues.on_agent is
+        queues.on_user contains only that obligation, widget:next-touch. queues.on_agent is
         empty. Your drafted final reply ends:
-        "One item is on your On me list: whether to prepare #59 next as a separate reviewed
+        "One obligation is on your On me list: whether to prepare #59 next as a separate reviewed
         change. Nothing else currently needs your input."
 
         Finish the page and handoff. Files and services are unreachable here, so provide
@@ -307,7 +307,7 @@ variants:
         value: |
           Read this as the user's review handoff. Pass only if the independent
           proposed changes #51, #52, #53, #54, #55, #57 and #59 can each be answered as
-          registered items about whether to pursue or include each proposed scope.
+          registered obligations about whether to pursue or include each proposed scope.
           Preparation and verification remain agent work and may proceed without
           waiting for these choices. Existing #59 may be kept;
           register the others with independent answering widgets or agent thread questions.
@@ -315,13 +315,13 @@ variants:
           Recommending #59 first does not settle or defer the other proposals. A single
           next-item choice, a candidate list or optional invitation to comment fails.
           Keep explicitly deferred #47/#48/#58 settled. Fixing #42/#43, assessing
-          scope, extracting and verifying remain agent-owned work, not items asking permission.
+          scope, extracting and verifying remain agent-owned work, not obligations asking permission.
           Additional independently answerable scope questions for #49/#50/#56 are
           allowed when they preserve blockers and deferrals: blocked implementation
           does not itself block a scope decision. The draft's overview assigns #56
           to assessment, while its detailed table already presents a proposal;
           either keeping assessment on the agent or asking about that proposed
-          boundary is valid. Do not require exactly seven items.
+          boundary is valid. Do not require exactly seven obligations.
           This is a read-only plan: execution is not required. An agent thread or reply
           registers a question only through an lf-ask (or other asking widget) in its
           markup.
@@ -420,7 +420,7 @@ variants:
         metric: settled-queue
         value: |
           Pass only if the agent retires both existing questions with leaf
-          task end on their item IDs (widget:event-log-q and widget:registry-q)
+          task end on their obligation IDs (widget:event-log-q and widget:registry-q)
           with outcome done, since the user answered them in chat, and inspects
           the canonical queues with leaf page state afterward. Ending either
           dropped or failed fails: that records the question withdrawn though
@@ -428,7 +428,7 @@ variants:
           It must leave ci-work open on the agent, preserve the authorized CI
           wait, and introduce no user request for approval, permission to merge,
           or confirmation of the chat answers. An optional invitation to comment
-          is allowed; it must create no item or required user action. Fail if it
+          is allowed; it must create no obligation or required user action. Fail if it
           ends ci-work before CI finishes or claims an empty On me list means all
           work is complete. Do not require exact wording or invented result IDs.
   # From 01a12209-ecff-7132-8615-f7d8ada34ddb: the first paired run missed
@@ -462,7 +462,7 @@ variants:
           Pass only if the agent registers the phone test as a user request in
           the user's On me list and inspects the canonical lists using page state. The
           required review/approval of v6 must appear in the user's On me list: recognize
-          its automatically derived approval item. A status line or bare
+          its automatically derived approval obligation. A status line or bare
           prose alone fails. CI stays agent work, with no request for
           authorization to continue an authorized wait. The optional explorer
           creates no required request. The handoff does not equate an empty
@@ -470,7 +470,7 @@ variants:
           particular number of user to-dos.
   drafted-report:
     metadata:
-      purpose: "Asks: completing an assessment replaces prose requests for decisions with independently answerable items."
+      purpose: "Asks: completing an assessment replaces prose requests for decisions with independently answerable obligations."
     vars:
       prompt: |
         I asked for a survey of common but non-obvious navigation interactions,
@@ -526,7 +526,7 @@ variants:
   # its last read of the skill, which this case does not reproduce.
   decision-column:
     metadata:
-      purpose: "On me: a column or chat item that says something waits on the user names a registered item, whether or not the agent's next step depends on it."
+      purpose: "On me: a column or chat item that says something waits on the user names a registered obligation, whether or not the agent's next step depends on it."
     vars:
       prompt: |
         I asked what the main areas for refactoring Leaf's runtime are, which are
@@ -576,15 +576,15 @@ variants:
           Pass only if each of the three "Needs your decision" choices (pages
           painting over Leaf's panels, how a page restyles Leaf's interface, how
           installs get the kernel) and each of the two recommended refactors (grid
-          stack, change detector) becomes a registered On me item on the page before
+          stack, change detector) becomes a registered On me obligation on the page before
           handoff. The three choices each need an answering widget, optionally
           framed by lf-ask, since a reply asking about one would settle a thread
           question without deciding it; a refactor may also be asked in an agent
           thread opened with a direct question. Each decision is answerable on its
-          own; one item that accepts both recommended refactors together passes only
+          own; one obligation that accepts both recommended refactors together passes only
           if it states why each is clear-cut. The answer reads canonical queues
           with leaf page state after registering. Fail if any of these stays only
           a board card, a chat open item, a needs-input line, or an invitation to
           comment or drag. The landed z-index card and the measured polling card
-          stay informational, with no item. Do not require exact wording, IDs, or a
+          stay informational, with no obligation. Do not require exact wording, IDs, or a
           particular choice widget.

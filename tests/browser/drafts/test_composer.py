@@ -7,7 +7,7 @@ import pytest
 from leaf import event_log as events_model
 from leaf.render_checks import one_frame
 from playwright.sync_api import expect
-from render_cases_interaction import ITEM_PAGE, live_url
+from render_cases_interaction import OBLIGATION_PAGE, live_url
 from render_cases_layout import glyph_action_face, token_colour
 from render_cases_navigation import compose, pending_text
 from render_harness import (
@@ -289,7 +289,15 @@ def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser,
     held.pop().continue_()
     expect(box).not_to_have_attribute("aria-busy", "true")
     expect(page.locator(".lf-composer-media img")).to_have_count(0)
-    # The error is about the composer, which the panel's field does not speak for.
+    # The error is about the composer, so it stands over the box the paste was made in,
+    # and waits in the leaf's menu once the user writes there.
+    cover = page.locator(".lf-fab-bar .lf-compose-error")
+    expect(cover).to_have_text(
+        "Image not added — the comment moved before it finished uploading"
+    )
+    page.keyboard.type("Instead")
+    expect(cover).to_be_hidden()
+    expect(box).to_have_js_property("value", "Instead")
     expect_error_waits_in_menu(
         page, "Image not added — the comment moved before it finished uploading"
     )
@@ -552,7 +560,7 @@ def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
 def test_resume_writing_returns_to_an_option_being_added(browser, serve):
     """The field adding an option the author did not list is a writing place like any
     other: Resume writing comes back to it with its words, which stay its own."""
-    page = open_page(browser, serve(ITEM_PAGE))
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     field = page.locator("#jobs > .lf-another leaf-text")
     write(field, "An option of mine.")
     page.locator("body").focus()

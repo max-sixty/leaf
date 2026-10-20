@@ -1435,19 +1435,20 @@
         opacity: 0.45;
         cursor: default;
       }
+      /* The inputs follow the player as a row that wraps. A floated legend is laid
+         out at the row's start as its label rather than drawn on a border. */
       lf-sort-film .sort-inputs {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 6px 16px;
         margin: 0;
-        padding: 8px 12px;
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--field);
+        padding: 0;
+        border: 0;
       }
       lf-sort-film .sort-inputs legend {
-        padding: 0 4px;
+        float: left;
+        padding: 0;
         color: var(--muted);
         font-size: var(--t-6);
       }
@@ -2131,6 +2132,54 @@
         }
       }
 </style>
+<!-- quoted-playground.html authored styles -->
+<style>
+      /* Each alert's evidence, and beside it a box holding that alert's controls:
+         one with a sentence before them, one with each control in a field of its
+         own. The box takes the room the evidence leaves. */
+      .quoted-alert {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-3);
+      }
+
+      .quoted-alert + .quoted-alert {
+        margin-top: var(--sp-3);
+      }
+
+      .quoted-alert-evidence,
+      .quoted-alert-settings {
+        min-width: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+
+      .quoted-alert-evidence {
+        flex: 3 1 20rem;
+      }
+
+      .quoted-alert-evidence h3 {
+        margin: 0 0 var(--sp-1);
+        font-size: var(--t-5);
+      }
+
+      .quoted-alert-evidence p {
+        margin: 0;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.4 var(--sans);
+      }
+
+      .quoted-alert-settings {
+        flex: 2 1 12rem;
+        display: grid;
+        color: var(--ink-2);
+        font: var(--t-6) / 1.4 var(--sans);
+        align-content: start;
+        gap: var(--sp-3);
+      }
+</style>
 <!-- review-queue.html authored styles -->
 <style>
       /* The regions side by side, stacked where the workspace flows. */
@@ -2408,10 +2457,14 @@
     </script>
 <!-- feature-gallery.html authored script -->
 <script type="module">
-      import { afterPresentation, commands, readItems } from "/runtime/widget-api.js";
+      import {
+        afterPresentation,
+        commands,
+        readObligations,
+      } from "/runtime/widget-api.js";
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const item = readItems().all.find((q) => q.id === "widget:bg-choice");
+        const item = readObligations().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
         output.textContent = JSON.stringify(item, null, 2);
         output.hidden = false;
@@ -5453,7 +5506,7 @@ index b856171b57..cfa4f0448e 100644
 
 <lf-tab id="corpus-rust-sort" label="Explain Rust&#x27;s 2016 merge sort">
 <header>
-        <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
+        <h1>How Rust's 2016 merge sort uses natural runs</h1>
       </header>
       <div id="sort-regions">
         <lf-pane id="sort-stage-pane" label="The sort">
@@ -5989,15 +6042,16 @@ export const summarize = checks =>
               ></lf-atlas-worker>
               <lf-ask id="decision-dedupe-region">
                 <h3>What should the host do with the stalled work?</h3>
+                <p>
+                  I recommend restarting, which keeps the durable work and replaces the
+                  stalled process.
+                </p>
                 <lf-options id="decision-dedupe" choose>
                   <lf-option id="dedupe-restart">
+                    <small class="tag ok">recommended</small>
                     <strong>Restart with a fresh worker</strong> Preserve tree-w-5
                     (atlas/dedupe-attempt), its commits, and comments; reap w-5 and
                     start a new worker on it.
-                    <em
-                      >My take: keep the durable work and replace the stalled
-                      process.</em
-                    >
                   </lf-option>
                   <lf-option id="dedupe-park">
                     <strong>Park it for tomorrow</strong> Keep tree-w-5
@@ -6019,11 +6073,15 @@ export const summarize = checks =>
               enough to wait for an explicit choice.
               <lf-ask id="decision-zero-region">
                 <h3>What should happen when a nightly imports zero rows?</h3>
+                <p>
+                  I recommend failing and paging, since zero rows is a failure until
+                  proved otherwise.
+                </p>
                 <lf-options id="decision-zero" choose>
                   <lf-option id="zero-alert" for="parser-zero">
+                    <small class="tag ok">recommended</small>
                     <strong>Fail and page</strong> Preserve the export and stop the
                     downstream publish.
-                    <em>My take: zero rows is a failure until proved otherwise.</em>
                   </lf-option>
                   <lf-option id="zero-warn" for="parser-zero">
                     <strong>Warn and continue</strong> Record the empty import but
@@ -6061,12 +6119,13 @@ export const summarize = checks =>
               ></lf-atlas-worker>
               <lf-ask id="decision-schema-region">
                 <h3>What should the host do with the schema branch?</h3>
+                <p>I recommend landing it now, while the evidence is current.</p>
                 <lf-options id="decision-schema" choose>
                   <lf-option id="schema-land">
+                    <small class="tag ok">recommended</small>
                     <strong>Land it now</strong> Merge tree-w-8 (atlas/schema) from w-8.
                     Tests are green, it unblocks the dependent work, and shadow reads
                     begin before anything depends on it.
-                    <em>My take: land while the evidence is current.</em>
                   </lf-option>
                   <lf-option id="schema-hold">
                     <strong>Hold for the backfill</strong> Keep tree-w-8 (atlas/schema)
@@ -6136,11 +6195,12 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
               ></lf-atlas-worker>
               <lf-ask id="decision-api-region">
                 <h3>What should the host do with atlas/public-api?</h3>
+                <p>I recommend landing it, since the public contract is ready.</p>
                 <lf-options id="decision-api" choose>
                   <lf-option id="api-land">
+                    <small class="tag ok">recommended</small>
                     <strong>Land</strong> Merge tree-w-3 (atlas/public-api) from w-3.
                     The compatibility suite is green.
-                    <em>My take: the public contract is ready.</em>
                   </lf-option>
                   <lf-option id="api-revise">
                     <strong>Request changes</strong> Restate this card and start a fresh
@@ -7325,6 +7385,118 @@ stateDiagram-v2
       >
 </lf-tab>
 
+<lf-tab id="corpus-quoted-playground" label="Alert settings page, as first proposed">
+<h1 id="quoted-title">The alert settings page, as first proposed</h1>
+      <p id="quoted-lede">
+        The first proposal put each alert's threshold beside that alert's replay, and
+        only the page budget in the rail. This copy shows the preview and the
+        instruction it sent; the settings it quotes are no longer live.
+      </p>
+      <lf-sample id="quoted-alerts-sample" label="alert settings playground">
+        <lf-playground id="quoted-alerts" submit-label="Apply these settings">
+          <lf-playground-control
+            name="budget"
+            label="On-call page budget, per 30 days"
+            kind="range"
+            value="10"
+            min="0"
+            max="30"
+          ></lf-playground-control>
+          <lf-playground-preview id="quoted-alerts-preview">
+            <div class="quoted-alert" id="quoted-rate">
+              <article class="quoted-alert-evidence" id="quoted-rate-evidence">
+                <h3><code>payments-5xx-rate</code></h3>
+                <p>
+                  Over 1% of requests failing for 5 minutes: 12 pages in 30 days, 3 of
+                  them real.
+                </p>
+              </article>
+              <section
+                class="quoted-alert-settings"
+                id="quoted-rate-settings"
+                aria-label="payments-5xx-rate settings"
+              >
+                Pages payments on-call.
+                <lf-playground-control
+                  name="rate-threshold"
+                  label="Threshold"
+                  kind="choice"
+                  value="1%"
+                >
+                  <lf-playground-choice
+                    value="1%"
+                    label="over 1%"
+                  ></lf-playground-choice>
+                  <lf-playground-choice
+                    value="2%"
+                    label="over 2%"
+                  ></lf-playground-choice>
+                </lf-playground-control>
+              </section>
+            </div>
+            <div class="quoted-alert" id="quoted-latency">
+              <article class="quoted-alert-evidence" id="quoted-latency-evidence">
+                <h3><code>payments-p99-latency</code></h3>
+                <p>
+                  p99 latency over 800 ms for 10 minutes: 19 pages in 30 days, 2 of them
+                  real.
+                </p>
+              </article>
+              <section
+                class="quoted-alert-settings"
+                id="quoted-latency-settings"
+                aria-label="payments-p99-latency settings"
+              >
+                <div class="quoted-field">
+                  <lf-playground-control
+                    name="latency-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="800ms"
+                  >
+                    <lf-playground-choice
+                      value="800ms"
+                      label="over 800 ms"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="1200ms"
+                      label="over 1,200 ms"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                </div>
+                <div class="quoted-field">
+                  <lf-playground-control
+                    name="latency-route"
+                    label="Route"
+                    kind="choice"
+                    value="page"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                </div>
+              </section>
+            </div>
+          </lf-playground-preview>
+          <lf-playground-output id="quoted-alerts-instruction">
+            Set payments-5xx-rate to page over
+            <lf-playground-value for="rate-threshold"></lf-playground-value>, set
+            payments-p99-latency to
+            <lf-playground-value for="latency-route"></lf-playground-value> over
+            <lf-playground-value for="latency-threshold"></lf-playground-value>, and
+            keep payments on-call within
+            <lf-playground-value for="budget"></lf-playground-value> pages a month.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-sample>
+</lf-tab>
+
 <lf-tab id="corpus-review-queue" label="Release review queue">
 <header>
         <p class="eyebrow">release review · eight items</p>
@@ -8406,10 +8578,10 @@ diff --git a/src/constant.py b/src/constant.py
             </h2>
             <p id="bg-core-surfaces-guide">
               An <code>lf-ask</code> puts a heading and context around the choice below.
-              <strong>On me</strong> lists everything waiting on you: open items, a
-              question in a thread among them (such as the gallery thread about a pasted
-              image), to-dos the agent put on you, and updates whose reply failed and
-              need sending again.
+              <strong>On me</strong> lists everything waiting on you: open obligations,
+              a question in a thread among them (such as the gallery thread about a
+              pasted image), to-dos the agent put on you, and updates whose reply failed
+              and need sending again.
             </p>
             <ul id="bg-core-surfaces-steps">
               <li>
@@ -8426,14 +8598,14 @@ diff --git a/src/constant.py b/src/constant.py
                 Press it, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the On view opens
                 above the panel's row on On me, with a tab for the agent's list, such as
                 <strong>On Claude</strong>, each tab counting its list. What left each
-                list stands under it as Done: answered items under On me, sent replies
-                and ended to-dos under the agent's. Press Enter on a row: it goes where
-                <kbd>m</kbd> would.
+                list stands under it as Done: answered obligations under On me, sent
+                replies and ended to-dos under the agent's. Press Enter on a row: it
+                goes where <kbd>m</kbd> would.
               </li>
               <li>
                 On a stamped page that asks for sign-off, find the version approval
-                among the items: its row in On me holds the Approve control, approving
-                answers it, and Undo reopens it.
+                among the obligations: its row in On me holds the Approve control,
+                approving answers it, and Undo reopens it.
               </li>
               <li>
                 Comment on the map question, then press <kbd>m</kbd> until it lands
@@ -8451,15 +8623,15 @@ diff --git a/src/constant.py b/src/constant.py
               </lf-options>
             </lf-ask>
             <details id="bg-question-api">
-              <summary>Inspect the item record</summary>
+              <summary>Inspect the obligation record</summary>
               <p>
-                The map's item is <code>widget:bg-choice</code> whether or not it has an
-                <code>lf-ask</code> wrapper. Choose a map, then read its current record:
-                <code>answer.value</code> contains option ids, and
+                The map's obligation is <code>widget:bg-choice</code> whether or not it
+                has an <code>lf-ask</code> wrapper. Choose a map, then read its current
+                record: <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
               <button id="bg-read-question" class="button" type="button">
-                Read current item
+                Read current obligation
               </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
@@ -8476,9 +8648,9 @@ diff --git a/src/constant.py b/src/constant.py
                   Open On me: the to-do waits there, and its row has a Done button.
                 </li>
                 <li>
-                  Press <kbd>m</kbd> until it lands on the to-do, after the item above,
-                  then press <kbd>x</kbd>, or its row's <strong>Done</strong> in On me:
-                  the to-do moves under On me's Done, and the agent is told.
+                  Press <kbd>m</kbd> until it lands on the to-do, after the obligation
+                  above, then press <kbd>x</kbd>, or its row's <strong>Done</strong> in
+                  On me: the to-do moves under On me's Done, and the agent is told.
                 </li>
               </ul>
             </section>
@@ -8606,11 +8778,12 @@ diff --git a/src/constant.py b/src/constant.py
               ><span class="bg-feature-detail">: editable passages</span>
             </h2>
             <p id="bg-editing-guide">
-              Drafts render Markdown as readable prose. “Edit” opens its exact source;
-              “Save” records it, and “Cancel” or <kbd>Escape</kbd> discards the unsaved
-              edit. These controls stay in the box when annotations are hidden. Copy, at
-              the box’s top right, copies its Markdown. Press <kbd>z</kbd> to undo a
-              saved edit.
+              Drafts render Markdown as readable prose. Clicking the words, or the
+              pencil on the box’s edge, which shows while the pointer is over the box,
+              opens the exact source; the check saves it, and the cross or
+              <kbd>Escape</kbd> discards the unsaved edit. The box keeps its size while
+              editing, and these controls stay when annotations are hidden. Copy, beside
+              them, copies its Markdown. Press <kbd>z</kbd> to undo a saved edit.
             </p>
             <lf-draft id="bg-draft">
               <pre>
@@ -8710,7 +8883,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: approve a version</span>
               </h3>
               <p id="bg-signoff-guide">
-                This gallery deliberately leaves sample items unanswered, so
+                This gallery deliberately leaves sample obligations unanswered, so
                 <strong>Approve version</strong> remains unavailable. On a settled page
                 it records approval for the current version; <kbd>z</kbd>, or “Undo” in
                 the leaf's menu, takes that approval back.
@@ -8786,7 +8959,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 comment about <code>lf-option · bg-choice-street</code> without choosing
                 the option. Press <kbd>Escape</kbd> to leave design mode. On a touch
                 screen, choose “Design mode” under Annotations in the leaf's menu, tap
-                “Street map”, and tap “Exit Design mode” in the panel's row to leave.
+                “Street map”, and tap the ✕ at the end of the panel's row to leave.
               </p>
             </section>
 
@@ -8835,8 +9008,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   On a touch screen, choose “Draw mode” under Annotations in the leaf's
-                  menu; “Undo stroke” and “Exit Draw mode” stand in the panel's row
-                  while the mode is on.
+                  menu; the undo button on the drawing's comment box takes back a
+                  stroke, and the ✕ at the panel's row's end leaves the mode.
                 </li>
               </ul>
             </section>
@@ -8852,18 +9025,22 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <ul id="bg-area-capture-steps">
                 <li>
                   Open Annotations in the leaf's menu, choose “Capture area”, and drag a
-                  rectangle around this paragraph or a nearby widget. Arrow keys move
-                  the rectangle, and <kbd>Shift</kbd>
-                  with an arrow resizes it.
+                  rectangle around this paragraph or a nearby widget. Lifting the drag
+                  attaches the image to an anchored comment, where you can add words,
+                  remove the image with its ✕, or send it alone.
                 </li>
                 <li>
-                  Choose “Attach capture” in the panel's row, or press <kbd>Enter</kbd>:
-                  the image appears in an anchored comment, where you can add words,
-                  remove the image, or send it alone.
+                  Capture again and tap or click without dragging: nothing attaches, and
+                  capture waits for a drag.
                 </li>
                 <li>
-                  Press <kbd>Escape</kbd> or “Cancel capture” instead: you leave without
-                  a capture.
+                  Capture by keyboard instead: arrow keys move the rectangle,
+                  <kbd>Shift</kbd> with an arrow resizes it, and <kbd>Enter</kbd>
+                  attaches it.
+                </li>
+                <li>
+                  Press <kbd>Escape</kbd>, or the ✕ at the end of the panel's row, while
+                  capturing: you leave without a capture.
                 </li>
                 <li>
                   Capture a scrolled pane or a diagram: the image shows its current
@@ -9325,8 +9502,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 to the panel's comment field.
               </li>
               <li>
-                On a touch screen, select words and tap “Comment on selection” in the
-                panel's row: the field opens after the native selection menu closes.
+                On a touch screen, select words and tap the panel's field, which quotes
+                them: the comment field opens on them and the native selection menu
+                closes.
               </li>
             </ul>
             <p id="bg-revised-quotes-guide">
@@ -9545,9 +9723,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <ul id="bg-thread-unread-steps">
                 <li>
-                  Use “Next unread” in Threads, or press <kbd>g</kbd> then <kbd>u</kbd>:
-                  the earliest unread reply is revealed, including one covered by a
-                  summary.
+                  Use “Next unread” at the head of a thread opened in the panel, or
+                  press <kbd>g</kbd> then <kbd>u</kbd>: the earliest unread reply is
+                  revealed, including one covered by a summary.
                 </li>
                 <li>
                   Show a short reply in full: it leaves the count. Scroll through a long
@@ -9713,6 +9891,67 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </lf-ask>
           </section>
 
+          <section id="bg-ask-pictured">
+            <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
+            <h2>
+              <strong>Options that hold their pictures</strong
+              ><span class="bg-feature-detail">: each drawing over its own pick</span>
+            </h2>
+            <p id="bg-ask-pictured-guide">
+              Each option below holds the drawing of what choosing it gives, today's in
+              the option that keeps it. The cards stand side by side across the group's
+              wide width, so the two drawings compare in one row at the size they were
+              drawn, each above its own pick; narrow the window and the cards stack.
+            </p>
+            <lf-ask id="bg-pictured-ask">
+              <h3>Should the sample queue group its tickets by owner?</h3>
+              <lf-options id="bg-pictured-choice" choose data-width="wide">
+                <lf-option id="bg-pictured-group">
+                  <strong>Group by owner</strong> A heading over each owner's tickets.
+                  <figure id="bg-pictured-group-figure">
+                    <svg
+                      class="drawing"
+                      viewBox="0 0 420 150"
+                      width="420"
+                      height="150"
+                      role="img"
+                      aria-labelledby="bg-pictured-group-t"
+                    >
+                      <title id="bg-pictured-group-t">
+                        Two owner headings, each over two ticket rows
+                      </title>
+                      <text class="strong" x="12" y="22">Ana</text>
+                      <rect class="box" x="24" y="32" width="384" height="22" rx="3" />
+                      <rect class="box" x="24" y="58" width="384" height="22" rx="3" />
+                      <text class="strong" x="12" y="104">Ben</text>
+                      <rect class="box" x="24" y="114" width="384" height="22" rx="3" />
+                    </svg>
+                  </figure>
+                </lf-option>
+                <lf-option id="bg-pictured-flat">
+                  <strong>Keep one list</strong> Tickets in arrival order, as today.
+                  <figure id="bg-pictured-flat-figure">
+                    <svg
+                      class="drawing"
+                      viewBox="0 0 420 150"
+                      width="420"
+                      height="150"
+                      role="img"
+                      aria-labelledby="bg-pictured-flat-t"
+                    >
+                      <title id="bg-pictured-flat-t">
+                        Three ticket rows in one list
+                      </title>
+                      <rect class="box" x="12" y="14" width="396" height="22" rx="3" />
+                      <rect class="box" x="12" y="40" width="396" height="22" rx="3" />
+                      <rect class="box" x="12" y="66" width="396" height="22" rx="3" />
+                    </svg>
+                  </figure>
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+          </section>
+
           <section id="bg-side-list">
             <p class="eyebrow bg-feature-elements">lf-tabs · lf-tally</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
@@ -9720,14 +9959,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               The tab list stands left of the open item: each row shows its name and
               summary, with the chosen outcome on its own line. Rows sharing a
               <code>group</code> sit under that group's heading. The
-              <code>lf-tally</code> above it counts the queue's items still to answer.
+              <code>lf-tally</code> above it counts the queue's obligations still to
+              answer.
             </p>
             <ul id="bg-side-list-steps">
               <li>
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Press Next on me in the tally: it opens the first item, whose row
+                Press Next on me in the tally: it opens the first obligation, whose row
                 carries an open mark.
               </li>
               <li>
@@ -9900,18 +10140,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: annotations beside their targets</span>
             </h3>
             <p id="bg-margin-layer-guide">
-              Leaf places threads, unanswered items, actions, changes, and delivery or
-              work status beside the content they concern. With enough room beside the
-              reading column, their controls stand in the rail. Where the rail is
-              absent, the same controls appear as pins near their targets on the page.
-              Every annotation uses the same filled teardrop face as a pin. Its glyph
-              and label keep their meaning: a Thread opens a conversation, Accept acts
-              on a suggestion, and Sent reports delivery. Targets inside scrolling panes
-              or extending into the rail also use pins. Related controls share a compact
-              group; “More options” opens additional controls. When space is tight, a
-              group can fold to one pin; opening it reveals its controls over the page.
-              A workflow status can appear on an existing control, as the samples above
-              show.
+              Leaf places threads, unanswered obligations, actions, changes, and
+              delivery or work status beside the content they concern. With enough room
+              beside the reading column, their controls stand in the rail. Where the
+              rail is absent, the same controls appear as pins near their targets on the
+              page. Every annotation uses the same filled teardrop face as a pin. Its
+              glyph and label keep their meaning: a Thread opens a conversation, Accept
+              acts on a suggestion, and Sent reports delivery. Targets inside scrolling
+              panes or extending into the rail also use pins. Related controls share a
+              compact group; “More options” opens additional controls. When space is
+              tight, a group can fold to one pin; opening it reveals its controls over
+              the page. A workflow status can appear on an existing control, as the
+              samples above show.
             </p>
             <p id="bg-margin-layer-placement">
               Pins sit clear of text and controls when nearby space permits. In a
@@ -9934,7 +10174,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <strong>Action pins without a rail.</strong> This practice page has no
               rail. The suggestion's “Accept” and “Reject” controls appear as pins
               beside the proposed wording. Choose either, then use “Undo” to restore the
-              suggestion. These annotations work without a thread or an item.
+              suggestion. These annotations work without a thread or an obligation.
             </p>
             <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
               <template id="bg-margin-layer-actions-page" data-sample data-rail="none">
@@ -10742,9 +10982,9 @@ gallery/
               <section id="bg-recorded-media">
                 <h3>Recorded video and audio</h3>
                 <p>
-                  Play the eight-second test pattern, then drag its native timeline to a
-                  later frame. Pause and resume with the keyboard after tabbing to the
-                  player. The recording also plays in an offline export.
+                  Play the eight-second test pattern, then drag its timeline to a later
+                  frame. Pause and resume with the keyboard after tabbing to the player.
+                  The recording also plays in an offline export.
                 </p>
                 <video
                   id="bg-recording"

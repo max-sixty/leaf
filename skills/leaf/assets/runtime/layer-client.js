@@ -243,8 +243,16 @@ function observeKey(response) {
 }
 
 /** @type {PromiseWithResolvers<void>} */
-const { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
-export { revealLayer };
+const { promise: layerReady, resolve: layerRevealed } = Promise.withResolvers();
+// Once the layer is known, an event goes out in the task that sends it: awaiting the
+// settled promise would put the request behind every microtask queued before it, such
+// as the presentation the gesture's own publication claimed, and delay its answer by
+// as long as they take.
+let layerKnown = false;
+export const revealLayer = () => {
+  layerKnown = true;
+  layerRevealed();
+};
 
 // The page's one door to the log, spelled once. Two callers reach it — `post`, which
 // orders the user's own gestures through it, and the error report below, which
@@ -254,7 +262,7 @@ export { revealLayer };
 export const postEvent = async (event, held = runtime.data) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
-  await layerReady;
+  if (!layerKnown) await layerReady;
   countTraffic("sends");
   recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
   let response;
@@ -332,19 +340,20 @@ const reportedReasons = new WeakSet();
 const reportedPrimitives = new Set();
 const reportedErrors = new Set();
 export function reportPageError(reason, context = "") {
-  if (!document.documentElement.lfDocumentLifetime.active) return;
   if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
   else reportedPrimitives.add(String(reason));
   const text = exceptionText(reason, context);
-  console.error(`leaf: ${text}`);
-  if (offlineInteractive) return;
-  if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
-  reportedErrors.add(text);
-  postEvent({
-    kind: "error",
-    text,
-    ...(runtime.currentRevision != null && { revision: runtime.currentRevision }),
-  }).catch(() => {});
+  document.documentElement.lfDocumentLifetime.whenActive(`report ${text}`, () => {
+    console.error(`leaf: ${text}`);
+    if (offlineInteractive) return;
+    if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
+    reportedErrors.add(text);
+    postEvent({
+      kind: "error",
+      text,
+      ...(runtime.currentRevision != null && { revision: runtime.currentRevision }),
+    }).catch(() => {});
+  });
 }
 
 // What a consumer reports of a fault it carries: a rejection that travelled up to it

@@ -4,9 +4,12 @@ Each call owns a scratch cwd, credential home, temp directory and Leaf state.
 The arm's launcher initializes a writable page, so registry discovery and media
 registration use the same boundary as a real authoring run. The agent may edit,
 run commands and check rendering; this executor independently checks the final
-page without repairing it. Existing assertions read the authored HTML, not a
-claim in the reply. Page files, prompts and native traces survive in the sample's
-evidence directory. Reading and instruction-only probes stay with native providers.
+page, plain and with `--render`, without repairing it. Existing assertions read
+the authored HTML, not a claim in the reply. Page files, prompts, native traces
+and both checks' output survive in the sample's evidence directory. `check_log`
+lists the author's tool calls in order with the output of each page check it ran,
+so a grader can tell what the checks told the author and what it did next. Reading
+and instruction-only probes stay with native providers.
 The shared authoring prompt lives in `evals/workflows/authoring_eval.yaml`.
 """
 
@@ -20,6 +23,7 @@ from leaf.media import media_name
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    blocks,
     completed,
     instruction_context,
     run_agent,
@@ -64,6 +68,31 @@ def capture_evidence(page: Path, inputs: Path | None, shots: Path) -> dict:
             if source_digest == digest
         ]
     return {"inputs": sources, "media": media, "exact_inputs": exact_inputs}
+
+
+def check_log(trace: list[dict]) -> list[dict]:
+    """Each tool call the author made, in order and whole, with the whole output of
+    its page checks, so a reader can tell what a check reported and whether a later
+    call changed the page in answer. A call is its tool's name and input as the
+    harness recorded them: a shell command, an Edit's strings, a Write's text or a
+    Codex patch's `changes`."""
+    results = {
+        block["tool_use_id"]: block.get("content")
+        for block in blocks(trace)
+        if block.get("type") == "tool_result"
+    }
+    log = []
+    for block in blocks(trace):
+        if block.get("type") != "tool_use":
+            continue
+        entry = {"tool": block["name"], "input": block["input"]}
+        if "page check" in str(block["input"].get("command", "")):
+            output = results.get(block["id"])
+            if isinstance(output, list):
+                output = "\n".join(part.get("text", "") for part in output)
+            entry["output"] = output or ""
+        log.append(entry)
+    return log
 
 
 def execute(
@@ -118,6 +147,8 @@ def execute(
                 env={"LEAF": str(payload / "bin/leaf"), "XDG_STATE_HOME": str(state)},
                 harness=harness,
             )
+            plain = run_leaf(payload, state, "page", "check", str(page))
+            (evidence / "check-plain.txt").write_text(plain.stdout + plain.stderr)
             check = run_leaf(payload, state, "page", "check", str(page), "--render")
             (evidence / "check.txt").write_text(check.stdout + check.stderr)
             document = page / "index.html"
@@ -131,6 +162,12 @@ def execute(
                         "page-valid": check.returncode == 0,
                     },
                     "trace": summary,
+                    "check_output": {
+                        "plain": plain.stdout + plain.stderr,
+                        "render": check.stdout + check.stderr,
+                    },
+                    "check_log": check_log(trace),
+                    "payload": str(payload),
                     "setup_seconds": setup_seconds,
                     "input_media": inputs,
                     **(

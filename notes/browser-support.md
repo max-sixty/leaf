@@ -151,6 +151,24 @@ what fails and what still works.
   every frame of the pass.
 - **Disposition:** adopted without a fallback.
 
+### A recording's own controls
+
+- **Owners:** `runtime/video-controls.js` and its bar in
+  `styles/components/integration.css`; `runtime/prepaint.js` trades a video's
+  `controls` for `data-lf-player` before first paint.
+- **Why:** Firefox's own controls grow a recording's first-play button to three
+  times its size while fading it over 400 ms, which a replay skips
+  (`toolkit/content/widgets/videocontrols.js`), and Chromium's take no press on the
+  picture. No stylesheet reaches Firefox's controls, so Leaf draws its own.
+- **Observed 2026-10-20:** Playwright Firefox 155 and Chromium 153 play, pause,
+  step and scrub the bar the same way on first play and replay; neither shows a
+  black frame between the poster and the first frame, and the video's box keeps its
+  size throughout. `requestVideoFrameCallback`, which moves the timeline each
+  presented frame, and `anchor-size()`, which sizes the bar to the video, both run in
+  both engines; MDN lists `requestVideoFrameCallback` from Chrome 83, Firefox 132 and
+  Safari 15.4.
+- **Disposition:** adopted without a fallback.
+
 ## Known gaps
 
 ### Intrinsic block retirement motion
@@ -281,20 +299,40 @@ what fails and what still works.
   pending; continuing the document triggers the swap and cancellation. The native
   loader/form/popup/nested-sample/reload journey and this held-destination control
   exercise the compiled kernel.
-- **Disposition:** prepaint owns one document fault lifetime. `pageswap` or
-  `pagehide` retires it, and `pageshow` restores it for a cached realm. Startup
-  fault intake, the sample error port, and runtime error reporting consume that
-  lifetime. A canceled `beforeunload` does not retire it. No error-text matching
-  or delayed fault reporting participates.
+- **Observed, 2026-10-19:** stock Firefox 158, driven over WebDriver BiDi, and
+  Playwright's Firefox abort a document's in-flight loads as soon as an uncanceled
+  `beforeunload` lets a navigation start, and keep the document running until the
+  destination answers. A registry, widget module or state body cut off that way
+  failed startup or a state read, and the page posted a state body's and a widget
+  module's failure to its log as `error` events. Chrome 155 keeps the old
+  document's loads until it commits. Removing a loading sample fires the child's
+  `pagehide` before its aborted fetches reject, in both engines.
+- **Disposition:** prepaint owns one document fault lifetime, and startup fault
+  intake, the sample error port and runtime error reporting report through it
+  (`lfDocumentLifetime.whenActive`). After a `beforeunload`, a fault waits, since
+  neither engine says whether the navigation will replace the document: a leave
+  prompt the user stays at, or a link answered with a download or a 204, leaves it
+  in place with its aborted requests failed for good. `pageswap` or `pagehide` drops
+  what waited; the user's next press, key or edit reports it, and a persisted
+  `pageshow` reopens the lifetime for a cached realm. A press during a slow
+  navigation that then commits still reports the aborted loads. No error-text
+  matching participates.
 - **Compatibility limit:** [MDN's compatibility data](https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Window.json)
   lists `pageswap` from Chrome 124, no Firefox support, and partial Safari 18.2
   support because cross-origin navigation omits it
-  ([WebKit issue](https://webkit.org/b/306447)). Installed Playwright Chromium 153
-  and WebKit 26.6 expose the event; Firefox 155 does not. The Firefox double-reload
-  probe failed with native `NS_BINDING_ABORTED` and dynamic-module cancellation;
-  it does not establish whether this differs from the source runtime. `pagehide`
-  still retires departed documents there, but does not promise Chromium's earlier
-  cancellation boundary. Safari's opaque-frame ordering has not been established.
+  ([WebKit issue](https://webkit.org/b/306447)). Safari's ordering of departure
+  and cancellation has not been established.
+- **Page cache, 2026-10-19:** neither Chrome 155 nor Firefox 158 keeps a served
+  Leaf page in its back/forward cache. The document and the API answers carry
+  `Cache-Control: no-store` (Chrome names `MainResourceHasCacheControlNoStore` and
+  `JsNetworkRequestReceivedCacheControlNoStoreResource`), and Firefox also refuses
+  a page holding a sample. With `no-store` removed by a proxy, Chrome restored a
+  page and its sample; the page caught up with the log and recorded gestures, but
+  the child had treated its persisted `pagehide` as a departure, leaving the host
+  waiting for a next document. The child now ignores a persisted `pagehide`, as
+  the host does. Playwright disables both page caches
+  (`--disable-back-forward-cache`, `fission.bfcacheInParent`), so the suite hands
+  the child a cached round trip's events instead. Safari has not been exercised.
 
 ### Back during smooth arrival
 
@@ -496,7 +534,7 @@ application. Recheck the affected Leaf journey when resolving this entry.
   canvas engine is not enabled.
 - **Recheck:** run
   `test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor`
-  and `test_touch_capture_can_cancel_and_reopen_before_attaching` in
+  and `test_touch_capture_attaches_on_lift_and_a_tap_or_cancel_attaches_nothing` in
   `tests/browser/threads/test_media.py` and `tests/journeys/test_render_threads.py`. Compare the rasterizer's same crop with a
   native screenshot in each installed engine when updating SnapDOM.
 
@@ -643,3 +681,26 @@ container: "nearest"})` on a button in a sideways strip whose foot stands 1 px
 - **Recheck:** a 600 px scroller holding a 300 px `overflow-x: auto` strip of
   twenty 120 px buttons; scroll so the strip's foot is just past the band, call
   the native reveal on the sixteenth button, and read both scroll offsets.
+
+### Reveal of a Tab's arrival
+
+- **Disposition: worked around in Leaf.** Once the browser's own reveal has run,
+  `runtime/landing-scroll.js` lands a Tab's arrival the browser left not already
+  shown, nearest, reading the same scroll margins and padding. Revisit if both
+  engines reveal a partly hidden arrival on both axes.
+- **Affected:** Tab onto a control partly past a scroller's edge: a playground's
+  radio at its controls pane's foot in Firefox, a link at a wide table's end in
+  both engines.
+- **Observed, 2026-10-19 (Chromium 153, Firefox 155):** Firefox scrolls a
+  sequentially focused element only once less than about a line of its
+  margin-inflated box shows in its scroller, on either axis: a 13 px radio 2 to
+  6 px past a bounded block's foot or top stayed cut, and one 10 px past was
+  centred. Chromium reveals a partly hidden arrival nearest on the block axis, but
+  across only once none of it shows: a 69 px link 6 to 62 px past a table's end
+  stayed cut, and one wholly past it was centred. Firefox left the same link cut
+  at 50 px past and centred it at 56.
+- **Recheck:** a 100 px `overflow: auto` box holding a 13 px radio whose foot
+  stands 6 px past the box's foot, and a sideways box holding a 69 px link 6 px
+  past its end; Tab onto each from the control before it and read the scroll
+  offset. `test_tab_onto_a_control_partly_past_a_scrollers_edge_brings_it_in`
+  reads Leaf's correction, so it passes whatever the engines do.

@@ -99,6 +99,13 @@ function* nativeCommandScopes() {
 }
 // Every button a command names, with the declarations naming it. Gathering them reads no
 // predicate, so it is cheap to do on every pass; choosing among them is what reads.
+// Contribution controls have a native activation adapter that retains the projected
+// surface and gesture intent. Its registration is also the row's semantic callback, so
+// a scope projected onto its own control adds no second activation.
+const projectedOnto = (control, scope) =>
+  [...(projectedScopes.get(control)?.values() ?? [])].some(
+    (projected) => scopeIdentity(projected) === scopeIdentity(scope),
+  );
 function buttonDeclarations() {
   const declarations = new Map();
   for (const { source, scope } of nativeCommandScopes()) {
@@ -109,15 +116,7 @@ function buttonDeclarations() {
       for (const entry of routes.length ? routes : [row]) {
         const control = word(entry.control ?? row.control);
         if (!(control instanceof HTMLButtonElement) || !control.isConnected) continue;
-        // Contribution controls have a native activation adapter that retains the
-        // projected surface and gesture intent. Its registration is also the row's
-        // semantic callback; attaching its keyboard scope adds no second activation.
-        if (
-          [...(projectedScopes.get(control)?.values() ?? [])].some(
-            (projected) => scopeIdentity(projected) === scopeIdentity(scope),
-          )
-        )
-          continue;
+        if (projectedOnto(control, scope)) continue;
         if (!declarations.has(control)) declarations.set(control, []);
         const candidates = declarations.get(control);
         if (
@@ -267,7 +266,8 @@ function wireDeclaredButtons(scope) {
     if (!row.run || typeof row.routes === "function") continue;
     for (const entry of row.routes?.length ? row.routes : [row]) {
       const control = entry.control ?? row.control;
-      if (control instanceof HTMLButtonElement) wireButton(control);
+      if (control instanceof HTMLButtonElement && !projectedOnto(control, scope))
+        wireButton(control);
     }
   }
 }
@@ -283,7 +283,7 @@ function wireDeclaredButtons(scope) {
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 const elementScopes = new WeakMap();
 // The scopes other owners project onto an element, keyed by the owner, so one control can
-// carry several: a margin entry holds its widget's scope and an item's digit route at once.
+// carry several: a margin entry holds its widget's scope and an obligation's digit route at once.
 const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
 export const scopeIdentity = (scope) => scope.identity ?? scope;
@@ -508,8 +508,9 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * One `when` answering both left Enter live over the whole page, where the press no-opped.
  *
  * A control whose keys change with its state declares every state's rows at once, each
- * gated by its own row `when`, and calls paintKeys() when the state moves — a grab is
- * Enter on an already-focused grip, so no focus event would repaint its keys.
+ * gated by its own row `when`, and holds that state in a signal, or calls
+ * `paintKeysWithin` where the state is the document's — a grab is Enter on an
+ * already-focused grip, so no focus event would repaint its keys.
  *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * a module stays loaded after the last element it upgraded leaves — a version activation
@@ -671,6 +672,7 @@ export function projectCommandScope(control, projector, capability = null) {
   }
   projections.set(projector, capability.scope);
   projectedScopes.set(control, projections);
+  wireDeclaredButtons(capability.scope);
   rememberScopedElement(control);
   reflectTracked(control);
 }
@@ -716,7 +718,7 @@ export function commandsWithin(root) {
 // Every declaration on one element is painted as one native shortcut attribute. A local
 // declaration and any number of projected ones can coexist, so none may erase another's
 // bindings. Each scope's live rows are read and refused on their own; the attribute is
-// their union, since two scopes on one control may name one press: an item's route names
+// their union, since two scopes on one control may name one press: an obligation's route names
 // the intrinsic key of the command it routes to, which that command's own scope names.
 function reflectElementShortcuts(element) {
   const available = scopesAt(element).filter((scope) => !scope.when || scope.when());
@@ -779,12 +781,15 @@ export function reflectFirstScopes() {
 // A scope refused here is reported, and the elements after it still paint.
 //
 // An element's reflection reads its rows' liveness, and that reads two kinds of input.
-// What it reads from the semantic root is tracked: each reflection runs as a signals
-// effect, and a publication that moves something it read marks that element alone for
-// the next frame. What it reads from the document is a mechanical change, and its writer
-// says so: `paintKeys()` marks every element, and `paintKeysWithin(root)` the ones a
-// renderer's paint touched. A publication that moves nothing an element read, and no
-// renderer whose output it reads, leaves its reflection as it is.
+// What it reads from the semantic root or from a signal is tracked: each reflection runs
+// as a signals effect, and a publication or signal that moves something it read marks
+// that element alone for the next frame. So a module's own state that a row reads is a
+// signal: a plain variable is read once, and a change to it reaches the element only
+// when something else marks it. What it reads from the document is a mechanical
+// change, and its writer says so: `paintKeys()` marks every element, and
+// `paintKeysWithin(root)` the ones a renderer's paint touched. A publication that moves
+// nothing an element read, and no renderer whose output it reads, leaves its
+// reflection as it is.
 let keysDirty = true;
 const dirtyElements = new Set();
 const tracked = new WeakMap();

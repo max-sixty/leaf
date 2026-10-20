@@ -1085,7 +1085,9 @@ def test_render_reads_widget_chrome_where_it_stands(
         for f in pair
     ), failures
     clipped = [f for f in failures if f.code == "clipped-control"]
-    assert [f.values["id"] for f in clipped] == ["clipped-offer"] * 2, failures
+    assert [(f.values["id"], f.widths) for f in clipped] == [
+        ("clipped-offer", (360, 1920))
+    ], failures
     assert all(f.values["by"] == "<div id=clipped-holder>" for f in clipped), clipped
     words = sorted(
         {(f.code, f.at, f.values["words"]) for f in failures if f not in pair + clipped}

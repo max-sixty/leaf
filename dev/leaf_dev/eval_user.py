@@ -214,7 +214,7 @@ def comment_on_passage(
         ) as answer:
             if quote is not None:
                 view.dispatch_event("body", "mouseup")
-                view.get_by_role("button", name="Comment on selection").click()
+                view.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
                 box = view.locator(".lf-composer leaf-text")
             else:
                 box = view.locator(".lf-fp-field leaf-text")

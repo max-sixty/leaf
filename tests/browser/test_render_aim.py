@@ -28,8 +28,8 @@ from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
-    ITEM_PAGE,
-    ITEMS_PAGE,
+    OBLIGATION_PAGE,
+    OBLIGATIONS_PAGE,
     live_url,
 )
 from render_cases_layout import (
@@ -87,6 +87,7 @@ from render_harness import (
     scroll_settled,
     scroll_writes,
     select,
+    selection_field,
     sending,
     stamp_page,
     stored_draft_text,
@@ -266,7 +267,7 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     leave its reading of the page behind. Keep the whole comment route on the item the
     user pointed at.
     """
-    source = ITEMS_PAGE.replace(
+    source = OBLIGATIONS_PAGE.replace(
         "</head>",
         "<style>html { position: relative; margin-left: 40px; "
         "border-left: 30px solid transparent; } "
@@ -308,7 +309,7 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
         f"the aim moved {aligned['dx']:.1f}px across and {aligned['dy']:.1f}px down "
     )
 
-    # The press lands on the item's start, clear of the panel at the window's foot.
+    # The press lands on the obligation's start, clear of the panel at the window's foot.
     target.click(position={"x": 12, "y": 12})
     page.keyboard.up("Alt")
     open_compact_comment(page)
@@ -940,7 +941,7 @@ def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
     )
 
 
-TALL_ITEM_PAGE = leaf_page(
+TALL_OBLIGATION_PAGE = leaf_page(
     "A tall Ask",
     '<h1>Route</h1><lf-ask id="way"><h2>Which way?</h2>'
     + "".join(
@@ -965,14 +966,14 @@ ROWS_ON = """([target]) => {
 }"""
 
 
-@pytest.mark.parametrize("case", ["item", "thread"])
+@pytest.mark.parametrize("case", ["obligation", "thread"])
 def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     """A comment pointed at a row deep in its target stands its own margin row there;
-    the rest of the target's margin does not follow it. Commenting on an item hands it
-    to the agent, so its item marker leaves. A comment already on a thread target
+    the rest of the target's margin does not follow it. Commenting on an obligation hands it
+    to the agent, so its obligation marker leaves. A comment already on a thread target
     stays at the target's top, where `t` still lands it."""
-    if case == "item":
-        url, target = serve(TALL_ITEM_PAGE), "way"
+    if case == "obligation":
+        url, target = serve(TALL_OBLIGATION_PAGE), "way"
         row = f"#{target} p >> nth=25"
     else:
         url, target = serve(TALL_ROWS_PAGE), "whole"
@@ -1011,7 +1012,7 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
         target,
     )
     after = dict(page.evaluate(ROWS_ON, [target]))
-    if case == "item":
+    if case == "obligation":
         expect(
             page.locator(f'[data-lf-margin-for="{target}"] > .lf-margin-marker')
         ).to_have_attribute("data-lf-kinds", "comment")
@@ -1022,7 +1023,7 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
             )
     added = (
         list(after.values())
-        if case == "item"
+        if case == "obligation"
         else [top for index, top in after.items() if index not in dict(before)]
     )
     assert len(added) == 1 and abs(added[0] - depth) <= 30 and depth > 400, (
@@ -1214,7 +1215,7 @@ POINTED_WITHIN = {
         "#within tr >> nth=30",
     ),
     # A target's first line: its own row stands there already, so a comment pointed at
-    # it joins that row, an item's marker's, rather than standing pushed below it.
+    # it joins that row, an obligation's marker's, rather than standing pushed below it.
     "first line": (
         (
             '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route" choose>'
@@ -1585,7 +1586,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
 
 def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     """A transient chrome label paints above the page-level trace it summons."""
-    single = ITEM_PAGE.replace(
+    single = OBLIGATION_PAGE.replace(
         '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
     )
     page = open_page(browser, live_url(serve(single)))
@@ -2351,8 +2352,8 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     outside the mode, as it does for the target picker.
 
     A remark on the panel has no reader who can act on it, and a mode that took the
-    chrome took the way out of the view its own send opened. The active mode's Exit
-    control stands in the panel's row as the gesture's next step. The Threads key still
+    chrome took the way out of the view its own send opened. The active mode's ✕ stands
+    at the panel's row's end. The Threads key still
     opens the panel's Threads, where nothing under the pointer promises a comment, and
     its close closes it."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
@@ -2540,7 +2541,7 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
 
     Three of the doors that move it: the page scrolling (items come on screen with no
     box yet, and the boxes are drawn in document space), the panel opening (the column
-    re-centred, every block reflowed, and no scroll or replay said so — each item's own
+    re-centred, every block reflowed, and no scroll or replay said so — each obligation's own
     resize does), and the name under the pointer, which is drawn beside the box in the
     same space: it sat in viewport space once, with the scroll added on top, and stood a
     screen below its box on any page scrolled at all. The aim is one more of the
@@ -3656,7 +3657,7 @@ def test_a_phone_selection_in_a_tall_paragraph_stays_clear(iphone, serve, edge):
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     page.evaluate("window.phoneQuote = getSelection().getRangeAt(0).cloneRange()")
-    page.locator(".lf-fp-step", has_text="Comment on selection").tap()
+    selection_field(page).tap()
     expect(field).to_be_focused()
     rendered(page)
     geometry = page.evaluate("""() => {
@@ -3696,7 +3697,7 @@ def test_a_phone_comment_stays_inside_the_visual_viewport(browser, serve):
       getSelection().removeAllRanges();
       getSelection().addRange(range);
     }""")
-    page.locator(".lf-fp-step", has_text="Comment on selection").tap()
+    selection_field(page).tap()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     session = context.new_cdp_session(page)
     session.send("Emulation.setPageScaleFactor", {"pageScaleFactor": 1.25})
@@ -3969,8 +3970,8 @@ HEADED_PAGE = LONG_PAGE.replace(
 
 
 # A suggestion's accept and reject stand in the margin beside it, each wearing the digit
-# item travel gives it.
-ITEM_PANE_PAGE = DESIGN_PANE_PAGE.replace(
+# obligation travel gives it.
+OBLIGATION_PANE_PAGE = DESIGN_PANE_PAGE.replace(
     '<p id="pane-later">A later finding.</p>',
     '<p id="pane-later">Bring <lf-suggestion id="pane-ask"><lf-old>nine.</lf-old>'
     "<lf-new>ten.</lf-new></lf-suggestion> now.</p>",
@@ -4001,7 +4002,7 @@ def _drawn_on(section):
 
 def _paint_mode(page, mode, words):
     page.evaluate(RELEASE_FOCUS)
-    if mode == "item":
+    if mode == "obligation":
         page.keyboard.press("m")
         expect(page.locator("#pane-ask")).to_be_focused()
         expect(page.locator(".lf-command-binding-badge")).to_have_count(2)
@@ -4025,7 +4026,7 @@ def _paint_mode(page, mode, words):
     [
         *(
             (mode, "pane")
-            for mode in ("design", "picker", "go-to", "search", "item", "ink")
+            for mode in ("design", "picker", "go-to", "search", "obligation", "ink")
         ),
         ("design", "window"),
         ("design", "header"),
@@ -4044,12 +4045,12 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
     settles, and a legend's tags step inside their boxes as they cross a cut. The
     design legend, its boxes and tags placed and written on every scroll, trailed a
     pane by a frame, and so did the picker's and Go-to's chips, the search's mark and
-    an item's binding digits, each written on every frame of the gesture. Saved ink
+    an obligation's binding digits, each written on every frame of the gesture. Saved ink
     stands the same way."""
     source = {
         "window": LONG_PAGE,
         "header": HEADED_PAGE,
-        "pane": ITEM_PANE_PAGE if mode == "item" else DESIGN_PANE_PAGE,
+        "pane": OBLIGATION_PANE_PAGE if mode == "obligation" else DESIGN_PANE_PAGE,
     }[scroller]
     if mode == "go-to":
         # Go-to names links.

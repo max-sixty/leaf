@@ -12,14 +12,14 @@
  * presentation held when the user opened it (history.js, `readPlace`). A row that is a
  * view of the panel's own, such as Threads, has no press: the panel opens the view.
  *
- * A `gesture` row is the next step of something the user is doing right now, such as
- * commenting on the words a touch just selected, or a finger's way out of the mode it
- * stands in. It stands in the panel's row while that gesture holds it, and the higher
- * rank is the nearer gesture: one contributor's steps stand at a time.
+ * An `exit` row is the way out of the stance the user stands in, such as page search or
+ * Draw mode (keyboard/touch-controls.js), which stands at the row's end beside its
+ * counts. No other row stands in the panel's row: what a gesture does next, a finger
+ * does on what the gesture acts on (keyboard/AGENTS.md, "Touch routes").
  *
  * Each field may be a value or a function read when the rows are read, so a paint that
  * reads them through `watchProjection` (projection-watch.js) follows what they read.
- * A row whose answer moves outside the page's readings, such as a mode's steps, says
+ * A row whose answer moves outside the page's readings, such as a stance's way out, says
  * so with `pageControlsChanged`, and `watchPageControls` hears it. */
 import { afterScript } from "./rendering.js";
 
@@ -40,9 +40,8 @@ export const PAGE_CONTROL_RANK = Object.freeze({
   blanket: 80,
   versions: 90,
   keyboard: 95,
-  // The next steps in the mode or picker the user stands in.
-  steps: 120,
-  commentSelection: 130,
+  // The way out of the stance the user stands in.
+  exit: 120,
 });
 
 // What a row is about, which decides where a menu built from rows puts it: on the menu
@@ -65,57 +64,51 @@ const read = (value) => (typeof value === "function" ? value() : value);
  *   key: string,
  *   rank: number,
  *   label: string | (() => string),
- *   group: string,
+ *   group: string | (() => string),
  *   value?: string | (() => string),
  *   shortcut?: readonly string[] | (() => readonly string[]),
  *   copies?: string | (() => string),
  *   offered?: boolean | (() => boolean),
  *   urgent?: string | null | (() => string | null),
  *   disabled?: boolean | (() => boolean),
- *   gesture?: boolean,
+ *   exit?: boolean,
  *   press?: (held?: any) => void,
  * }} row
  */
 export function registerPageControl(row) {
-  if (
-    !row.key ||
-    !Number.isFinite(row.rank) ||
-    !row.label ||
-    !GROUPS.includes(row.group)
-  )
+  if (!row.key || !Number.isFinite(row.rank) || !row.label || !row.group)
     throw new TypeError(
-      `Page control ${row.key} needs a key, a numeric rank, a label and one of the groups ${GROUPS.join(", ")}`,
+      `Page control ${row.key} needs a key, a numeric rank, a label and a group`,
     );
   if (rows.has(row.key)) throw new TypeError(`Page control ${row.key} is registered`);
   rows.set(row.key, Object.freeze({ ...row, sequence: sequence++ }));
   pageControlsChanged();
 }
 
-/** The rows offered now, in rank order, each read as it reads now. Of the gesture rows,
- * only the nearest gesture's stand. */
+/** The rows offered now, in rank order, each read as it reads now. */
 export function pageControls() {
-  const offered = [...rows.values()]
+  return [...rows.values()]
     .sort((a, b) => a.rank - b.rank || a.sequence - b.sequence)
-    .filter((row) => read(row.offered) ?? true);
-  const nearest = Math.max(
-    ...offered.filter((row) => row.gesture).map((row) => row.rank),
-  );
-  return offered
-    .filter((row) => !row.gesture || row.rank === nearest)
-    .map((row) =>
-      Object.freeze({
+    .filter((row) => read(row.offered) ?? true)
+    .map((row) => {
+      const group = read(row.group);
+      if (!GROUPS.includes(group))
+        throw new TypeError(
+          `Page control ${row.key} is in group ${group}, not one of ${GROUPS.join(", ")}`,
+        );
+      return Object.freeze({
         key: row.key,
         label: read(row.label),
         value: read(row.value) ?? "",
         shortcut: read(row.shortcut) ?? EMPTY,
-        group: row.group,
+        group,
         copies: read(row.copies) ?? "",
         urgent: read(row.urgent) ?? null,
-        gesture: Boolean(row.gesture),
+        exit: Boolean(row.exit),
         disabled: Boolean(read(row.disabled)),
         press: row.press ?? null,
-      }),
-    );
+      });
+    });
 }
 
 /** Say that a row's answer moved outside the page's readings. Several in one script are

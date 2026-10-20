@@ -8,15 +8,13 @@ import sys
 
 import psutil
 import pytest
-from interact_support import STATED_TIMEOUT, publish, wait_for
-from leaf import server as server_model
-from leaf_dev.arms import PageClient
+from interact_support import STATED_TIMEOUT, wait_for
 
 
 @pytest.fixture(name="title_codex")
 def title_codex_fixture(tmp_path, monkeypatch):
     """A `codex` first on PATH whose App Server binds its socket, writes its pid,
-    and never answers, so a title request holds it open."""
+    and never answers, so the title thread opened on it holds it open."""
     programs = tmp_path / "title-codex"
     programs.mkdir()
     pid_file = tmp_path / "title-server.pid"
@@ -43,23 +41,11 @@ signal.pause()
 def test_a_terminated_page_server_stops_its_title_server(
     title_codex, codex_claimed_page
 ):
-    """SIGTERM, as a logout or a user's kill sends, ends a page server through its
-    exit handlers, so the App Server a title request holds stops with it."""
+    """A page server serving a Codex session's page holds an App Server for its
+    next title before any comment arrives. SIGTERM, as a logout or a user's kill
+    sends, ends the page server through its exit handlers, so that App Server
+    stops with it."""
     page = codex_claimed_page
-    (page / "index.html").write_text(
-        '<!doctype html>\n<html lang="en">\n<head><title>t</title></head>\n'
-        '<body><main><section id="plan"><h2>Plan</h2>\n'
-        "<p>Export runs nightly.</p></section></main></body>\n</html>\n"
-    )
-    publish(page)
-    client = PageClient(server_model.running_server(page)["url"])
-    client.post(
-        {
-            "kind": "comment",
-            "revision": client.state()["active"]["revision"],
-            "text": "Why is the export slow?",
-        }
-    )
     title_server = int(
         wait_for(
             lambda: title_codex.read_text() if title_codex.exists() else "",

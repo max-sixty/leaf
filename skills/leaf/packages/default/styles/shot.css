@@ -72,6 +72,12 @@
     opacity 120ms ease,
     scale 120ms ease;
 }
+@media (prefers-reduced-motion: reduce) {
+  :scope:is(lf-shot) .lf-shotcomparison::part(divider),
+  :scope:is(lf-shot) .lf-shotcomparison::part(handle) {
+    transition: none;
+  }
+}
 :scope:is(lf-shot) .lf-shot-handle {
   display: block;
   box-sizing: border-box;
@@ -455,6 +461,7 @@
   outline: var(--focus-ring);
   outline-offset: 1px;
   border-radius: var(--r);
+  --lf-wears-ring: 1;
 }
 
 @media print {

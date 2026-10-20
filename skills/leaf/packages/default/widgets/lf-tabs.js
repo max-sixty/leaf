@@ -53,13 +53,14 @@
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, then its items' state on a reserved line: an open mark
- * while any item the panel holds is unanswered, and once every one is answered a check, with
- * the answer's own words where the panel holds one item. So a queue shows each item's state
- * and how far the user has worked through it, and an undo that reopens an item puts the
- * open mark back. Which items a panel holds is `itemsIn` (items/place.js), read from the
- * admitted item inventory, so a tally of the queue counts the same items. A row whose panel
- * authors an item keeps the mark's room either way, so an answer moves no row. While the
+ * the panel's `summary` under the name, then its obligations' state on a reserved line: an open mark
+ * and "To answer" while any obligation the panel holds is unanswered, the words a tally counts
+ * by, and once every one is answered a check, with the answer's own words where the panel holds
+ * one obligation. So a queue shows each obligation's state
+ * and how far the user has worked through it, and an undo that reopens an obligation puts the
+ * open mark back. Which obligations a panel holds is `obligationsIn` (obligations/place.js), read from the
+ * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel
+ * authors an obligation keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
@@ -67,7 +68,7 @@
 import {
   afterScript,
   PRESS,
-  itemsIn,
+  obligationsIn,
   answerWords,
   under,
   backgroundFlash,
@@ -81,7 +82,6 @@ import {
   keepView,
   keeps,
   keepsText,
-  landingInsets,
   layoutChanged,
   listWalkPosition,
   frameFor,
@@ -111,6 +111,7 @@ import {
   rowArrows,
   scrollIntoView,
   focused,
+  fitsWhole,
 } from "/runtime/widget-api.js";
 
 // The sets whose strip stands over the whole document as its sticky header
@@ -144,7 +145,7 @@ export class TabSet extends HTMLElement {
   static parts = false;
   #parts = /** @type {typeof TabSet} */ (this.constructor).parts;
   #buttons = new Map(); // panel → its strip button
-  #stopItems = null;
+  #stopObligations = null;
   #active = null;
   #root = false;
   #contextObserver = null;
@@ -229,7 +230,7 @@ export class TabSet extends HTMLElement {
         relabel(summary, panel.getAttribute("summary"), { says: true });
         btn.append(summary);
       }
-      // The row's item state (`#marks`) keeps a line where the panel authors an item.
+      // The row's obligation state (`#marks`) keeps a line where the panel authors an obligation.
       if (side && elementsDeclaring(panel, "x-awaits").length) {
         const answer = document.createElement("span");
         answer.className = "lf-tab-answer";
@@ -333,7 +334,7 @@ export class TabSet extends HTMLElement {
       this.#replaceLocation(this.#active);
     }
     // The Δ count follows the version diff; the runtime announces each toggle.
-    this.#listenForItems();
+    this.#listenForObligations();
     watchComparison(this, () => this.#marks());
     whileConnected(this, (signal) => {
       this.#watchRootContext();
@@ -390,7 +391,7 @@ export class TabSet extends HTMLElement {
   }
 
   // What each panel holds, said with its summary as the tab's description: the
-  // version diff's marked passages, and in a side list its items' state, with the answer
+  // version diff's marked passages, and in a side list its obligations' state, with the answer
   // once they are all answered.
   #marks() {
     for (const [panel, btn] of this.#buttons) {
@@ -400,15 +401,23 @@ export class TabSet extends HTMLElement {
         changed ? `Δ${changed}` : "",
       );
       const slot = btn.querySelector(":scope > .lf-tab-answer");
-      const items = slot ? itemsIn(panel) : [];
+      const items = slot ? obligationsIn(panel) : [];
       const done = items.filter((item) => item.status === "answered");
       const answered = items.length > 0 && done.length === items.length;
       const only = items.length === 1 ? items[0] : null;
-      const answer = answered && only ? answerWords(only) : "";
+      // The open mark says what it means in words beside it, as the check beside an
+      // answer does, so no reader needs a legend, a hover or a screen reader for it.
+      const answer = answered
+        ? only
+          ? answerWords(only)
+          : ""
+        : items.length
+          ? "To answer"
+          : "";
       if (slot) {
         keeps(
           slot,
-          "data-lf-items",
+          "data-lf-obligations",
           answered ? "answered" : items.length ? "open" : null,
         );
         keepsText(slot.firstElementChild, answer);
@@ -422,7 +431,7 @@ export class TabSet extends HTMLElement {
           ? ""
           : !answered
             ? only
-              ? "Unanswered"
+              ? "To answer"
               : `${done.length} of ${items.length} answered`
             : only
               ? answer
@@ -436,10 +445,10 @@ export class TabSet extends HTMLElement {
     }
   }
 
-  // A side list's answers follow the page's item reading.
-  #listenForItems() {
-    if (!this.#side || !this.#buttons.size || this.#stopItems) return;
-    this.#stopItems = watchProjection(this, () => this.#marks());
+  // A side list's answers follow the page's obligation reading.
+  #listenForObligations() {
+    if (!this.#side || !this.#buttons.size || this.#stopObligations) return;
+    this.#stopObligations = watchProjection(this, () => this.#marks());
   }
 
   #activate(active, reason) {
@@ -522,11 +531,15 @@ export class TabSet extends HTMLElement {
     const wasFlow = this.#pageFlow;
     // The first tab set directly in the page is its navigation, whatever else the page
     // holds beside it; a later one is a tabbed section like any nested set. A page's
-    // parts are its navigation wherever they stand in it.
+    // parts are its navigation where the page lays them out, in a `main` that is no
+    // Layout's box (layouts.css, `--lf-layout-box`), as the theme and the prepaint
+    // read it; in any other `main` they stand as if placed anywhere else.
     const main = this.parentElement;
     this.#root =
       Boolean(main?.matches("body > main")) &&
-      (this.#parts || main.querySelector(":scope > lf-tabs") === this);
+      (this.#parts
+        ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
+        : main.querySelector(":scope > lf-tabs") === this);
     this.#pageFlow = this.#root && !this.#side;
     if (!this.#parts) keeps(this, "data-lf-tabs-flow", this.#pageFlow ? "page" : "box");
     this.#declareHeader();
@@ -603,7 +616,8 @@ export class TabSet extends HTMLElement {
   // in a workspace that fills the window (theme.css), and the tab comes into it the
   // same way, down the column.
   // Where the strip has room for it, the tab comes in with its run's label, so the
-  // name of the group the user opened stays beside it.
+  // name of the group the user opened stays beside it. That room is the landing's own
+  // (`fitsWhole`), the tab's ring room included.
   #showTab(btn) {
     const strip = this.#strip;
     if (!btn) return;
@@ -611,16 +625,10 @@ export class TabSet extends HTMLElement {
     const run = label && document.createRange();
     run?.setStartBefore(label);
     run?.setEndAfter(btn);
-    const span = run?.getBoundingClientRect();
-    const pad = landingInsets(strip);
-    // Only an axis the strip scrolls along has a room for the run to fit.
-    const fits =
-      span &&
-      (strip.scrollWidth <= strip.clientWidth ||
-        span.width <= strip.clientWidth - pad.left - pad.right) &&
-      (strip.scrollHeight <= strip.clientHeight ||
-        span.height <= strip.clientHeight - pad.top - pad.bottom);
-    scrollIntoView(fits ? run : btn, { block: "nearest", within: strip });
+    scrollIntoView(run && fitsWhole(run) ? run : btn, {
+      block: "nearest",
+      within: strip,
+    });
   }
 
   // The open tab stays in the row as the strip's width changes, and not only when a

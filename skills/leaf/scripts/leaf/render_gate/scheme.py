@@ -4,9 +4,12 @@ import time
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
+from leaf.event_endpoint import event_rejection
 from leaf.files import version_num
 from leaf.findings import Finding
+from leaf.refusals import Refused
 from leaf.registry.contract import element_declarations
+from leaf.registry.kernel import kinds_declaring
 from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
@@ -37,17 +40,28 @@ def served(page, url: str, path: str, timeout_ms: int | None = None):
 
 
 def answer_reports(page, heard) -> None:
-    """Answer every error the page reports to its agent here, handing `heard` each
-    report's text, so a reading neither writes to the page's log nor draws the
-    refusal a read-only server gives the post. Every other event goes through."""
+    """Answer here the events the runtime sends on its own, an error report and a
+    bookkeeping event, so a reading neither writes to the page's log nor draws the
+    refusal a read-only server gives the post.
+
+    An error the page reports to its agent hands its text to `heard`. A bookkeeping
+    event, such as the `read` a page sends once it has shown an agent message whole,
+    is refused as final, so the page doesn't send it again. It is refused under a 200,
+    because Chrome reports a failed fetch as a console error, which the gate counts
+    against the page. Every other event goes through, so a page that writes without
+    a gesture still draws the server's refusal."""
+    bookkeeping = kinds_declaring("bookkeeping")
 
     def report(route):
         event = route.request.post_data_json
-        if event["kind"] != "error":
+        if event["kind"] == "error":
+            heard(event["text"])
+            route.fulfill(status=204)
+        elif event["kind"] in bookkeeping:
+            refused = Refused("a render check records no reading")
+            route.fulfill(status=200, json=event_rejection(event, refused)[1])
+        else:
             route.continue_()
-            return
-        heard(event["text"])
-        route.fulfill(status=204)
 
     page.route("**/api/event", report)
 

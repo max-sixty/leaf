@@ -570,8 +570,8 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
     "<div id='riding' style='width: 900px'>Where the content of a scrolled box "
     "starts.</div></div>\n</main>",
 )
-# One item, so a page has something On me.
-ONE_ITEM = (
+# One obligation, so a page has something On me.
+ONE_OBLIGATION = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
     '<lf-option id="go-yes"><strong>Yes</strong></lf-option>'
@@ -580,12 +580,12 @@ ONE_ITEM = (
 )
 
 
-def with_one_item(html):
-    """The page with `ONE_ITEM` at the foot of its main, where it moves nothing above it."""
+def with_one_obligation(html):
+    """The page with `ONE_OBLIGATION` at the foot of its main, where it moves nothing above it."""
     assert html.count("</main>") == 1, (
-        "the fixture has no single main to add the item to"
+        "the fixture has no single main to add the obligation to"
     )
-    return html.replace("</main>", ONE_ITEM + "</main>")
+    return html.replace("</main>", ONE_OBLIGATION + "</main>")
 
 
 def toggle_queue(page, open=True):
@@ -866,13 +866,9 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")]) {
             el.classList?.remove("lf-mark-hover", "lf-projected-mark", "lf-binding-seat");
-            // The name a margin row anchors by, which the layout writes on whatever
-            // target a row comes to stand by, on its own schedule rather than a press's.
-            if (el.style?.anchorName) {
-                el.style.anchorName = el.style.anchorName.split(",")
-                    .map((name) => name.trim())
-                    .filter((name) => !/^--lf-a\d+$/.test(name)).join(", ");
-            }
+            // Anchor naming is presentation state. The layout may copy a name
+            // from a stylesheet into inline style while positioning a comment.
+            el.style?.removeProperty("anchor-name");
             if (!el.getAttribute("style")) el.removeAttribute("style");
         }
         return c.outerHTML;

@@ -96,6 +96,7 @@ import {
 import {
   ELEMENTS,
   pageScopes,
+  stances,
   textEntryScope,
   universalCommandReference,
 } from "./register.js";
@@ -127,6 +128,10 @@ export const userIn = (scope) => {
 // decisions fold and then every link on the page, once per keydown, from the first keystroke of
 // the first comment.
 export const standing = (scope) => userIn(scope) && pageHas(scope);
+/** The stance the user stands in, innermost, with its way out (register.js, `stances`),
+ * or null. */
+export const innermostStance = () =>
+  stances().find(({ scope }) => standing(scope)) ?? null;
 const nativeBoundary = (claims) => ({
   get rows() {
     const reference = universalCommandReference();
@@ -324,7 +329,7 @@ export const shadow = (quick = quickShortcuts()) => {
 // callback. Resolve that reference at invocation time so replacement, disconnection,
 // scope liveness, row liveness, and dynamic routes have the same meaning as they do for
 // an intrinsic key press. The source scope need not be where focus stands: that is the
-// point of an ancestor projection such as an item.
+// point of an ancestor projection such as an obligation.
 function referencedInvocation(reference) {
   if (!reference) return null;
   const current = referencedCommandEntry(reference);
@@ -516,7 +521,7 @@ export function activeCommandLabel(ids) {
   return command?.binding != null ? spell(command.binding) : "";
 }
 // Snapshot executable bindings by row while focus is still on the page. A widget's
-// intrinsic key and an item alias can share a command id while only one is shadowed.
+// intrinsic key and an obligation alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
 export function availableCommandRoutes({

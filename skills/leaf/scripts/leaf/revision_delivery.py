@@ -275,9 +275,22 @@ def rebase_document(
                 if delivered != body:
                     edits.append((start, end, delivered))
 
-    for start, end, value in sorted(edits, reverse=True):
-        source = source[:start] + value + source[end:]
-    return source
+    return _spliced(source, edits)
+
+
+def _spliced(source: str, edits: list[tuple[int, int, str]]) -> str:
+    """`source` with each `(start, end, text)` edit's range replaced by its text.
+
+    The ranges must not overlap. Edits at one offset land in the order their texts
+    sort. Joining the pieces once keeps delivery linear in the page's size, where
+    splicing each of a large page's thousands of marks into a fresh copy was not."""
+    pieces = []
+    at = 0
+    for start, end, text in sorted(edits):
+        pieces += (source[at:start], text)
+        at = end
+    pieces.append(source[at:])
+    return "".join(pieces)
 
 
 def media_size(data: bytes) -> tuple[int, int] | None:
@@ -341,7 +354,9 @@ def mark_declared(
     nested initial hosts share the outer template and draw deepest-first.
 
     The opening script writes only the fixed template delimiter at the parser's
-    active insertion point. With scripts disabled, or in a DOMParser source reading,
+    active insertion point. Each script removes itself as it runs, so the host keeps
+    its authored siblings, and a rule for the first or last child still finds it. With
+    scripts disabled, or in a DOMParser source reading,
     no template opens and the unmatched closing delimiter is ignored: the one raw
     authored host remains readable, including code containing raw-text delimiters.
 
@@ -451,7 +466,7 @@ def mark_declared(
                     (
                         "<script data-lf-runtime data-lf-initial>"
                         'document.write("<template data-lf-runtime data-lf-initial-source>");'
-                        "</script>"
+                        "document.currentScript.remove();</script>"
                     ),
                 )
             )
@@ -467,9 +482,7 @@ def mark_declared(
                     ),
                 )
             )
-    for offset, text in sorted(edits, reverse=True):
-        source = source[:offset] + text + source[offset:]
-    return source
+    return _spliced(source, [(offset, offset, text) for offset, text in edits])
 
 
 def initial_scripts(

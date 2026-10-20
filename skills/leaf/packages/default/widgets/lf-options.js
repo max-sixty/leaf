@@ -1,10 +1,10 @@
-/* lf-options: an item the user answers. The theme draws both of its forms and
+/* lf-options: an obligation the user answers. The theme draws both of its forms and
  * this module makes them answerable — without it the markup still reads as a decision,
  * and nothing here is load-bearing on the look.
  *
  * Which form a group takes is a fact about its options, decided in CSS and never here:
  * an option leading with a <strong> title argues its own case and is a card on a row of
- * its own, and a group whose options are bare labels is an item *about* the page,
+ * its own, and a group whose options are bare labels is an obligation *about* the page,
  * drawn as compact rows.
  * The difference this module sees is only what a row adds — `for`, the id of the block
  * the row names, rendered as a reference the user can follow. It points and never
@@ -38,7 +38,7 @@
  *
  * The keyboard walk stops at options. This widget assigns 1–9 to authored options,
  * then its add field and Done; generated options receive the remaining numbers. Each
- * of them wears its digit in the group's one badge column, Done included: an item
+ * of them wears its digit in the group's one badge column, Done included: an obligation
  * whose last step showed no key could not be finished by a user reading the keys.
  * Removing or disabling a choice leaves the other bindings intact. Tab remains the
  * platform's path through every control and into that field. There it follows Leaf's
@@ -48,9 +48,9 @@
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set
- * is whole, posted as an `answer` action and held as the item's closing
+ * is whole, posted as an `answer` action and held as the obligation's closing
  * condition (x-awaits.answered). Answered is paint on the press, never a wider word. A
- * second press withdraws that answer through the widget's exact undo, reopening the item;
+ * second press withdraws that answer through the widget's exact undo, reopening the obligation;
  * the set can still change after either press, and each toggle reaches the agent.
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
@@ -69,8 +69,8 @@
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
  * mark, the runtime's row walk moves among the options: ↑/↓ clamp at the ends, and Home and
- * End land on them. This widget owns 1–9; the item view forwards those declarations across the
- * whole item. The column is held whether or not a key is in it, which is the theme's
+ * End land on them. This widget owns 1–9; the obligation view forwards those declarations across the
+ * whole obligation. The column is held whether or not a key is in it, which is the theme's
  * half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise to work an option with
@@ -115,7 +115,6 @@ import {
   quoted,
   reachedForWords,
   rowWalk,
-  notice,
   worksInside,
   wrote,
   focusDestination,
@@ -133,7 +132,7 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 // while the control states arity in the two registers it has: corner shape for the eye and
 // this word in the aria-label below. The open word stays visually silent in every form. A
 // user who hears "choose any" knows the next press adds where "choose one" would have
-// replaced, and knows it while the item is still open rather than after answering it.
+// replaced, and knows it while the obligation is still open rather than after answering it.
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
@@ -146,7 +145,7 @@ const DONE_TAG = "lf-options-done";
 customElements.define(
   "lf-options",
   class extends LeafElement {
-    // What the item was answered with: the picked options' names, the group's own in its
+    // What the obligation was answered with: the picked options' names, the group's own in its
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.
     static answerWords(value, group) {
@@ -217,9 +216,9 @@ customElements.define(
         available: () => this.#available("choose"),
         commit: (added, choice, attempt) => {
           if (!this.#available("add") || !this.#available("choose")) return null;
-          const add = this.#dispatch("add", added, attempt);
+          const add = this.#dispatch("add", added, attempt, `Added “${added.text}”`);
           if (!add) return null;
-          const pick = this.#dispatch("choose", choice);
+          const pick = this.#dispatch("choose", choice, null, `Chose “${added.text}”`);
           // A refused `add` answers the draft at once: its words go back to the box
           // while the pick behind it is still in the wire, and the door refuses that
           // pick too, since it names no option the group holds.
@@ -260,11 +259,7 @@ customElements.define(
           : next.has(option)
             ? `Chose “${name}”`
             : `Dropped “${name}”`;
-        this.#dispatch("choose", this.#addition.detailFor(next))?.delivery.then(
-          (ok) => {
-            if (ok) notice(`${said} — sent`);
-          },
-        );
+        this.#dispatch("choose", this.#addition.detailFor(next), null, said);
       });
     }
 
@@ -272,12 +267,13 @@ customElements.define(
       return Boolean(this.reading?.actions[verb]?.available);
     }
 
-    #dispatch(verb, detail, attempt) {
+    #dispatch(verb, detail, attempt = null, says = "") {
       return this.controller?.dispatch({
         kind: "action",
         verb,
         detail,
         ...(attempt && { attempt }),
+        ...(says && { says }),
       });
     }
 
@@ -300,7 +296,7 @@ customElements.define(
         : [];
     }
 
-    // A page item owns the ordinary add form below its options. An item already
+    // A page obligation owns the ordinary add form below its options. An obligation already
     // inside a thread has no second form; its surrounding thread owns the reply.
     #reply() {
       return this.#addition.input ? null : threadInput(this);
@@ -342,13 +338,10 @@ customElements.define(
       const undo = this.#doneUndo();
       const dispatched = undo
         ? this.controller.dispatch({ kind: "undo", target: undo.attempt ?? undo.id })
-        : this.#dispatch("answer", {});
+        : this.#dispatch("answer", {}, null, "Marked answered");
       if (!dispatched) return Promise.resolve(false);
-      const sent = dispatched.delivery.then((accepted) => {
-        if (!accepted) return false; // reconciliation restored the prior state
-        if (!undo) notice("Marked answered — sent");
-        return true;
-      });
+      // A refusal answers false, and reconciliation has restored the prior state.
+      const sent = dispatched.delivery.then(Boolean);
       this.#answering = sent;
       this.#syncDone();
       const clear = () => {
@@ -394,7 +387,7 @@ customElements.define(
     }
 
     // From a mark, arrows walk the options and Space toggles. The group owns stable
-    // numbered commands; the item view forwards those same declarations.
+    // numbered commands; the obligation view forwards those same declarations.
     #keys() {
       const marks = this.#marks();
       const answerRows = [];

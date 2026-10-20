@@ -514,6 +514,39 @@ def test_a_short_workspace_shows_more_below_its_playground_regions(browser, serv
     expect(bodies["controls"]).not_to_have_attribute("data-lf-more-below", "")
 
 
+def test_a_playground_followed_by_a_note_keeps_its_instruction_off_the_note(
+    browser, serve
+):
+    # From the bad-pages eval (notes/agent-usability-evals.md): two of three authors
+    # put an open note after the playground, and the instruction drew over it at 900px.
+    source = leaf_page(
+        "Alert workspace with a note",
+        '<lf-ask id="noted-ask"><h1>Tune alert policies</h1>'
+        '<lf-playground id="noted-config" data-width="available">'
+        "<lf-playground-preview>"
+        + "<p>Checkout latency fired seven times last month.</p>"
+        * 12
+        + '<lf-playground-control name="latency" label="Latency window" kind="range" '
+        'value="5" min="1" max="15" unit="min"></lf-playground-control>'
+        "</lf-playground-preview><lf-playground-output>"
+        "Apply the chosen latency window.</lf-playground-output></lf-playground>"
+        '<details id="tally-note" open><summary>How the tally counts</summary>'
+        + "<p>Each firing counts once per alert.</p>" * 6
+        + "</details></lf-ask>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 900, 700)
+    instruction = page.locator("#noted-config .lf-playground-instruction-region")
+    note = page.locator("#tally-note")
+    assert (
+        instruction.bounding_box()["y"] + instruction.bounding_box()["height"]
+        <= note.bounding_box()["y"] + 0.5
+    )
+    note.scroll_into_view_if_needed()
+    expect(note.get_by_text("How the tally counts")).to_be_in_viewport()
+
+
 def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
     browser, serve
 ):
@@ -551,8 +584,10 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     stage, with the controls and the instruction they write in a rail beside it. While
     the root workspace fills the window each region scrolls on its own, the controls
     under their fixed presets and the instruction above its fixed actions; where it
-    doesn't, the page scrolls, and a narrow one stacks the regions. Either way each is a
-    named reading region."""
+    doesn't, the page scrolls all three, and a narrow one stacks the regions. A window
+    shorter than 480px keeps the rail beside the stage but doesn't hold it in view,
+    since the rail would show a few lines and its actions only by scrolling inside it.
+    Either way each is a named reading region."""
     source = ROOT / "examples" / "notification-playground.html"
     page = open_page(browser, serve(source))
     playground = page.locator("#notification-playground")
@@ -579,7 +614,9 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
           leaf.readingPosture(region(body))),
         scrollers: [controls, preview, instruction].map((body) =>
           leaf.scrollerFor(body) === body ? 'own' :
-          leaf.scrollerFor(body) === document.scrollingElement ? 'page' : 'other'),
+          leaf.scrollerFor(body) === document.scrollingElement ? 'page' :
+          leaf.scrollerFor(body) === playground.querySelector('.lf-playground-rail')
+            ? 'rail' : 'other'),
         sideBySide: Math.abs(previewBox.top - controlsBox.top) < 1
           && controlsBox.left >= previewBox.right
           && Math.abs(instructionBox.left - controlsBox.left) < 1
@@ -589,7 +626,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
           === playground.querySelector('.lf-playground-presets'),
         controlsSize: [controls.clientHeight, controls.scrollHeight],
         pageScrolls: document.scrollingElement.scrollHeight > innerHeight,
-        itemDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
+        obligationDisplay: getComputedStyle(document.querySelector('#notification-ask')).display,
         authoredWords: leaf.wrote(playground).includes('Concurrent release events'),
         spokenWords: leaf.says(playground).includes('Concurrent release events'),
       };
@@ -608,7 +645,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "sideBySide": True,
         "presetsHeadControls": True,
         "pageScrolls": False,
-        "itemDisplay": "flex",
+        "obligationDisplay": "flex",
         "authoredWords": True,
         "spokenWords": True,
     }
@@ -708,15 +745,15 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     for width, height in [(1100, 300), (700, 500), (500, 900)]:
         resized(page, width, height)
         flow = page.evaluate(reading)
+        # Too short to hold the regions is not too narrow to set them side by side.
+        assert flow["stacked"] is (width < 1100), (width, height, flow)
         assert flow == {
             **flow,
             "postures": ["flow", "flow", "flow"],
             "scrollers": ["page", "page", "page"],
             "pageScrolls": True,
-            "itemDisplay": "block",
+            "obligationDisplay": "block",
         }, (width, height)
-        # Too short to hold the regions is not too narrow to set them side by side.
-        assert flow["stacked"] is (width < 1100), (width, height, flow)
 
 
 def test_notification_playground_admits_only_its_exact_page_configuration(
@@ -943,6 +980,52 @@ def test_a_playground_control_written_in_the_preview_stands_beside_its_item(
     assert action["detail"]["values"]["latency-route"] == "ticket"
 
 
+def test_a_playground_rail_stays_in_view_beside_a_tall_stage(browser, serve):
+    """The alert playground's stage, an alert per section with its controls beside it,
+    runs past the window. While the user works down it, the rail beside it, the page
+    budget, the instruction and the submit button, stays in the window, so the user
+    sends what they set where they set it. In a window shorter than 480px the rail
+    flows with the page, which scrolls to its submit button, and stacked at phone width
+    it flows after the stage, as a sidebar page's stacked track does."""
+    page = open_page(browser, serve(ROOT / "examples" / "alert-thresholds.html"))
+    resized(page, 1024, 768)
+    playground = page.locator("#alert-playground")
+    stage = playground.locator(".lf-playground-preview-region")
+    budget = playground.get_by_role("slider", name="On-call page budget")
+    submit = playground.get_by_role("button", name="Apply these settings")
+    # The window the page shows ends where Leaf's floating row begins.
+    floor = page.locator(".lf-fp-row").bounding_box()["y"]
+
+    def within_window(locator):
+        box = locator.bounding_box()
+        return 0 <= box["y"] and box["y"] + box["height"] <= floor
+
+    assert stage.bounding_box()["height"] > 2 * 768
+    last = playground.locator("lf-playground-preview lf-playground-control").last
+    last.scroll_into_view_if_needed()
+    last.get_by_role("radio").last.click()
+    assert stage.bounding_box()["y"] < -768
+    assert within_window(budget) and within_window(submit)
+    budget.press("ArrowRight")
+    assert within_window(submit)
+
+    # Bounded to a window shorter than 480px, the rail would show a few lines and its
+    # submit button only by scrolling inside it, so there it flows and the page scrolls
+    # to the button.
+    resized(page, 844, 390)
+    track = playground.locator(".lf-playground-rail")
+    submit.scroll_into_view_if_needed()
+    floor = page.locator(".lf-fp-row").bounding_box()["y"]
+    assert within_window(submit)
+    assert track.evaluate("rail => rail.scrollTop") == 0
+
+    resized(page, 390, 844)
+    page.evaluate("document.scrollingElement.scrollTop = 0")
+    rail = playground.locator(".lf-playground-controls-region").bounding_box()
+    shown = stage.bounding_box()
+    assert rail["y"] >= shown["y"] + shown["height"]
+
+
 def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serve):
     """A quotation neither supplies controls nor yields its own value slots.
 
@@ -1032,6 +1115,36 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
             && !root.querySelector('[data-lf-reading-role]');
         }"""
     )
+
+
+def test_a_quoted_playground_draws_no_box_its_preview_wrote_only_for_controls(
+    browser, serve
+):
+    """The page styles each alert's settings box with a display of its own. Quoted,
+    the controls are gone. The latency box held only its controls, each in a field
+    of its own, so it goes with them rather than standing empty beside its alert;
+    the rate box also held a sentence, which stays. The stage ends below its last
+    alert, rather than holding a live stage's minimum height empty under it."""
+    source = ROOT / "tests/fixtures/pages/quoted-playground.html"
+    page = open_page(browser, serve(source))
+    playground = page.locator("#quoted-alerts")
+
+    expect(playground.locator("lf-playground-control:visible")).to_have_count(0)
+    expect(page.locator("#quoted-latency-settings")).to_be_hidden()
+    expect(page.locator("#quoted-latency-evidence")).to_be_visible()
+    expect(page.locator("#quoted-rate-settings")).to_have_text(
+        "Pages payments on-call."
+    )
+    expect(page.locator("#quoted-alerts-instruction")).to_contain_text(
+        "payments-p99-latency to page over 800ms"
+    )
+    room = playground.locator("lf-playground-preview").evaluate(
+        """stage => stage.getBoundingClientRect().bottom
+          - parseFloat(getComputedStyle(stage).paddingBottom)
+          - parseFloat(getComputedStyle(stage).borderBottomWidth)
+          - stage.lastElementChild.getBoundingClientRect().bottom"""
+    )
+    assert room == pytest.approx(0, abs=1)
 
 
 def test_playground_labels_can_be_selected_without_changing_the_controls(

@@ -80,6 +80,21 @@ def captured_source(page: Page) -> None:
     page.locator("#bg-source-captures").scroll_into_view_if_needed()
 
 
+def recorded_video(page: Page) -> None:
+    """The gallery's recording at rest under its play bar, beside the audio player."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-recorded-media").scroll_into_view_if_needed()
+
+
+def recorded_video_by_keyboard(page: Page) -> None:
+    """The recording the keyboard stands on, where Space and the arrows reach it."""
+    recorded_video(page)
+    page.keyboard.press("Tab")
+    page.locator("#bg-recording").focus()
+
+
 def markdown_preview_scrolled(page: Page) -> None:
     """A Markdown code example scrolled under the preview's focused viewport edge."""
     page.locator("#bg-gallery-tabs").get_by_role(
@@ -140,6 +155,18 @@ def drawing_comment(page: Page) -> None:
         page.locator(
             '.lf-composer-drawing canvas[data-lf-drawing-context="ready"]'
         ).wait_for(state="visible")
+
+
+def drawing_comment_hover(page: Page) -> None:
+    """The drawing's corner marks a pointer over it reveals."""
+    drawing_comment(page)
+    page.locator(".lf-composer-drawing .lf-media-open").hover()
+
+
+def drawing_comment_keyboard(page: Page) -> None:
+    """The drawing's Undo last stroke holding keyboard focus."""
+    drawing_comment(page)
+    page.get_by_role("button", name="Undo last stroke").focus()
 
 
 def drawing_photo_comment(page: Page) -> None:
@@ -422,11 +449,11 @@ def composer_resting(page: Page) -> None:
     page.mouse.down()
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
-    # Under a finger a selection offers Comment in the floating panel's row rather than
-    # a field. It arrives on a later frame, so the pointer decides, not whether it is
-    # there yet.
+    # Under a finger a selection is offered in the floating panel's field, which quotes
+    # it, rather than raising a field beside it. It arrives on a later frame, so the
+    # pointer decides, not whether it is there yet.
     if page.evaluate("matchMedia('(pointer: coarse)').matches"):
-        page.get_by_role("button", name="Comment on selection").click()
+        page.locator('.lf-fp-field leaf-text[data-says="selection"]').click()
 
 
 def composer_empty(page: Page) -> None:
@@ -563,7 +590,7 @@ def options_in_pane(page: Page) -> None:
 
 def tally_after_an_answer(page: Page) -> None:
     """A queue's tally after Next on me and one answer: the count down by one, the
-    answered row's check above the open marks, and Next on me's second item open."""
+    answered row's check above the open marks, and Next on me's second obligation open."""
     next_on_me = page.locator("#ar-left .lf-tally-next")
     next_on_me.click()
     page.locator("#ar-canary-consecutive").click()
@@ -817,14 +844,14 @@ def capture_menu(page: Page) -> None:
 
 
 def capture_area(page: Page) -> None:
-    """Select a page area, with its confirmation and cancellation controls visible."""
+    """Draw a page area, held before the lift that would attach it, with the way out
+    of area capture in the panel's row."""
     page.locator("#plan-context").scroll_into_view_if_needed()
     capture_menu(page)
     page.locator(".lf-region-selection").wait_for(state="visible")
     page.mouse.move(100, 200)
     page.mouse.down()
     page.mouse.move(360, 350, steps=4)
-    page.mouse.up()
 
 
 def capture_small_drag(page: Page) -> None:
@@ -847,7 +874,7 @@ def versions_menu(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open item, an `lf-ask`, reached with `m`: its ring and its marker in view."""
+    """The next open obligation, an `lf-ask`, reached with `m`: its ring and its marker in view."""
     page.keyboard.press("m")
     page.locator("lf-ask").first.wait_for()
 
@@ -903,6 +930,19 @@ def playground_controls(page: Page) -> None:
     control.focus()
     control.press("ArrowRight")
     page.locator(".lf-playground-controls").scroll_into_view_if_needed()
+
+
+def playground_tall_stage(page: Page) -> None:
+    """The last alert's controls, pressed far down a stage taller than the window."""
+    control = page.locator("lf-playground-preview lf-playground-control").last
+    control.scroll_into_view_if_needed()
+    control.get_by_role("radio").last.click()
+    page.mouse.move(0, 0)
+
+
+def page_end(page: Page) -> None:
+    """Scrolled to the page's end, where a rail beside a short window's stage stops."""
+    page.evaluate("() => scrollTo(0, document.scrollingElement.scrollHeight)")
 
 
 def visual_review_menu(page: Page) -> None:
@@ -1035,6 +1075,25 @@ STATES = (
         region="#bg-source-captures",
     ),
     State(
+        "recorded-video",
+        "developer/feature-gallery",
+        recorded_video,
+        region="#bg-recorded-media",
+    ),
+    State(
+        "recorded-video-dark",
+        "developer/feature-gallery",
+        recorded_video,
+        scheme="dark",
+        region="#bg-recorded-media",
+    ),
+    State(
+        "recorded-video-keyboard",
+        "developer/feature-gallery",
+        recorded_video_by_keyboard,
+        region="#bg-recorded-media",
+    ),
+    State(
         "panel-leaf",
         "developer/feature-gallery",
         panel_leaf,
@@ -1132,7 +1191,7 @@ STATES = (
         "drawing-photo-comment",
         "developer/feature-gallery",
         drawing_photo_comment,
-        region=".lf-composer-media:visible",
+        region=".lf-fab-bar",
     ),
     State("share-link", "developer/feature-gallery", share_link, region=".lf-fp-menu"),
     State("share-link-dark", "developer/feature-gallery", share_link, scheme="dark"),
@@ -1169,6 +1228,25 @@ STATES = (
         "developer/feature-gallery",
         drawing_comment,
         scheme="dark",
+    ),
+    State("drawing-comment-hover", "developer/feature-gallery", drawing_comment_hover),
+    State(
+        "drawing-comment-hover-dark",
+        "developer/feature-gallery",
+        drawing_comment_hover,
+        scheme="dark",
+    ),
+    State(
+        "drawing-comment-keyboard",
+        "developer/feature-gallery",
+        drawing_comment_keyboard,
+    ),
+    State(
+        "drawing-comment-touch",
+        "developer/feature-gallery",
+        drawing_comment,
+        viewport=(390, 844),
+        touch=True,
     ),
     State("progress-messages", "developer/feature-gallery", progress_messages),
     State(
@@ -1284,12 +1362,20 @@ STATES = (
         touch=True,
     ),
     State("playground-controls", "notification-playground", playground_controls),
+    State("playground-tall-stage", "alert-thresholds", playground_tall_stage),
+    State("playground-short-window", "data-explorer", page_end, viewport=(844, 390)),
     State(
         "playground-controls-phone",
         "notification-playground",
         playground_controls,
         viewport=(390, 844),
         touch=True,
+    ),
+    State(
+        "quoted-playground",
+        "../tests/fixtures/pages/quoted-playground",
+        at_rest,
+        region="#quoted-alerts",
     ),
     State(
         "margin-gallery-phone",
@@ -1536,6 +1622,21 @@ STATES = (
         "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
     ),
     State("alert-queue-tally", "alert-review", tally_after_an_answer),
+    State(
+        "alert-queue-tally-touch",
+        "alert-review",
+        tally_after_an_answer,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "alert-queue-tally-touch-dark",
+        "alert-review",
+        tally_after_an_answer,
+        viewport=(390, 844),
+        touch=True,
+        scheme="dark",
+    ),
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
@@ -1659,6 +1760,7 @@ STATES = (
     State("hub", "command-hub", at_rest),
     State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),
+    State("sort-narrow", "rust-sort", at_rest, viewport=(720, 900)),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
     State("sort-aim-cut", "rust-sort", aim_cut_by_pane),

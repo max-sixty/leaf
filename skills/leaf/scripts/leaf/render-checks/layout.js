@@ -6,14 +6,16 @@ import {
   renderedParent,
   shownBand,
   shownRegionBounds,
+  skipped,
   uiInside,
   userScrollport,
 } from "/runtime/check-api.js";
 import { laidOutItems } from "./framing.js";
 import { at as element, place } from "./locate.js";
 import { openRoots } from "./open-roots.js";
+import { clippedControls, restsOverPage } from "./reachability.js";
 import { scrollbarClearance } from "./scrollbars.js";
-import { shrunkLabelReading } from "./words.js";
+import { coveredWords, shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
@@ -24,12 +26,6 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // holding authored blocks (`data-lf-content="markup"`) break out.
 const breaksOut = (el) =>
   getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
-
-// An overlay that takes no presses at rest, such as the contents map's spine, stands
-// over the page by design and reveals over it when the user reaches for it, so the box
-// it has at rest is not the room it shows in.
-export const restsOverPage = (style) =>
-  style.position === "fixed" && style.pointerEvents === "none";
 
 // The box a block's width and margins resolve against: its nearest ancestor that
 // generates a block, inside that ancestor's border, padding and any scrollbar gutter,
@@ -63,16 +59,13 @@ export function marginResidents() {
     .join(" ");
 }
 
-// One settled-width geometry sample: the readings the gate reports across the width
-// sweep, each field read by its own consumer in render_gate/readings.py. Which findings
-// the gate answers for at every width is its choice, not a property of the reader:
-// reachabilityReading also moves with the width, and the gate reports it only at
-// the viewports it renders (validation.md). These readers are synchronous: taking them
-// in one browser turn preserves their findings while removing the protocol round trips
-// between fields. All but `squeezedTables` are read-only; it adds and removes a
-// wrapping rule, so it reads last and the others read the page as laid out. Resize and
-// rendering completion belong to the caller, so a sample neither advances the page nor
-// waits for a different layout.
+// One settled-size geometry sample: every reading that moves with the window, which the
+// gate takes only as these samples, across its sweep and at each render's own size
+// (render_gate/version.py), each field read by its own consumer in readings.py. These readers are synchronous: taking them in one browser turn
+// preserves their findings while removing the protocol round trips between fields. All
+// but `squeezedTables` are read-only; it adds and removes a wrapping rule, so it reads
+// last and the others read the page as laid out. Resize and rendering completion belong
+// to the caller, so a sample neither advances the page nor waits for a different layout.
 export function geometryReading(open) {
   return {
     overflow: rootOverflow(),
@@ -81,16 +74,9 @@ export function geometryReading(open) {
     margin: marginResidents(),
     arrangement: arrangedBoxes(open),
     labels: shrunkLabelReading(),
+    clipped: clippedControls(),
+    covered: coveredWords(),
     squeezed: squeezedTables(),
-  };
-}
-
-// The fixed viewport's column and margin findings in one round trip. Keep singleton
-// readers for callers asking one fact.
-export function columnGeometry() {
-  return {
-    overflow: rootOverflow(),
-    misplaced: misplacedBoxes(),
   };
 }
 
@@ -100,14 +86,17 @@ export function columnGeometry() {
 // members, since a pane's or a tab's content is the page's; a widget's own box is the
 // widget's business and is not read, and nothing Leaf generates is. Each box comes back
 // with its place under `main`, a selector another load of the same page resolves to the
-// same box, and the name every finding uses (locate.js).
-export function arrangedBoxes(open) {
+// same box, and the name every finding uses (locate.js). With `shown`, the walk keeps
+// to what the browser draws, leaving out skipped content such as a tab not chosen: a
+// reading of the view the user has asks nothing of it, and asking would make the
+// browser style and lay out each such subtree first (runtime/geometry.js, `skipped`).
+export function arrangedBoxes(open, { shown = false } = {}) {
   const main = pageDocument();
   if (!main) return [];
   const opens = new Set(open);
   const boxes = [];
   const walk = (el, path) => {
-    if (el.matches(".lf-ui, [data-lf-gen]")) return;
+    if (el.matches(".lf-ui, [data-lf-gen]") || (shown && skipped(el))) return;
     const widget = el.localName.includes("-");
     if (widget && !opens.has(el.localName)) return;
     if (!widget) boxes.push([el, path]);

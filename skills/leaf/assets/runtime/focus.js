@@ -479,7 +479,15 @@ function paintFocus(node) {
     paintedFocus = next;
   }
   const within = new Set();
-  for (let owner = next; owner; owner = renderedParent(owner)) within.add(owner);
+  // The document roots are in every element's ancestry, but no control draws
+  // their marks. Leaving them out also avoids withdrawing and restoring the
+  // same root marks when focus passes through a native drop in one gesture.
+  for (
+    let owner = next;
+    owner && owner !== document.body && owner !== document.documentElement;
+    owner = renderedParent(owner)
+  )
+    within.add(owner);
   for (const owner of paintedWithin) {
     if (!within.has(owner)) markFocus(owner, "focus-within", false);
   }
@@ -865,6 +873,30 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
     },
     { capture: true, passive: true },
   );
+// The box that wears the focus ring for `node`. A rule that rings a control's face
+// rather than the control declares it there, `--lf-wears-ring: 1` (theme.css), as a
+// playground's choice rings its radio and words together; the nearest such box around
+// the control is the one. Anything else wears its own. Those rules ring the face of the
+// control the focus paint marks, so only that control has one. A move paints after its
+// script, and a landing in that script, as an option walk's End is, reads the paint
+// now; a return's paint still waits for its frame.
+export function ringBox(node) {
+  if (
+    node &&
+    node !== paintedFocus &&
+    node === paintDestination?.deref() &&
+    !returnPaintPending
+  )
+    refreshFocusPaint();
+  if (!node?.matches?.("[data-lf-focus]")) return node;
+  for (
+    let box = renderedParent(node);
+    box instanceof Element;
+    box = renderedParent(box)
+  )
+    if (getComputedStyle(box).getPropertyValue("--lf-wears-ring") === "1") return box;
+  return node;
+}
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
 export const drawn = (node) =>
@@ -1198,7 +1230,7 @@ export function controlNavigationKeys(node) {
 // item out on the page and standing on a panel button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
-// user lands, since that is the whole of what the rung is for, and letting go of an item
+// user lands, since that is the whole of what the rung is for, and letting go of an obligation
 // names the act, since they were on the page all along.
 //
 // Where they land is the block they are reading in the page region they last acted in

@@ -220,7 +220,7 @@ def test_cancelling_the_background_registration_never_wakes_the_session(
     assert (watching.returncode, out, err) == (0, "", "")
 
 
-@pytest.mark.parametrize("event", ["PostToolBatch", "Stop"])
+@pytest.mark.parametrize("event", ["PostToolBatch", "UserPromptSubmit"])
 def test_the_registered_hook_delivers_or_says_nothing(claimed, event):
     """The harness command calls Leaf's launcher, and Leaf answers under uv.
 
@@ -462,9 +462,10 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
 ):
     """A fresh install releases another checkout's claims within harness shutdown.
 
-    Only the launcher and standalone stdlib cleanup exist in this install. No
-    package can be imported and uv refuses to run; macOS's system Python 3.9
-    exercises the same entry without site packages.
+    Only the launcher, standalone stdlib cleanup and the registry naming the
+    protocol its records carry exist in this install. No package can be imported
+    and uv refuses to run; macOS's system Python 3.9 exercises the same entry
+    without site packages.
     """
     project = tmp_path / "cold-plugin"
     launcher = project / "bin/leaf"
@@ -475,6 +476,11 @@ def test_the_registered_session_end_releases_shared_claims_without_an_environmen
     program.parent.mkdir(parents=True)
     program.write_bytes(
         (PLUGIN_ROOT / "skills/leaf/scripts/leaf/state.py").read_bytes()
+    )
+    registry = project / "skills/leaf/assets/registry.json"
+    registry.parent.mkdir(parents=True)
+    registry.write_bytes(
+        (PLUGIN_ROOT / "skills/leaf/assets/registry.json").read_bytes()
     )
     tools = tmp_path / "tools"
     tools.mkdir()

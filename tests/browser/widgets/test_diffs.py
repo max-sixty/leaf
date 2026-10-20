@@ -1,6 +1,7 @@
 """Diffs: comments, filtering and refreshes that keep the reader's inspection, file rows
 and their paths, the pinned file header, hunk landing, and print."""
 
+import json
 import re
 
 import pytest
@@ -30,6 +31,7 @@ from render_harness import (
     said,
     scroll_settled,
     select,
+    selection_field,
     sending,
     told,
     write,
@@ -834,7 +836,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']').evaluate(
         _SELECT_IN_ROW, "new route"
     )
-    page.get_by_role("button", name="Comment on selection").click()
+    selection_field(page).click()
     write(
         page.locator(".lf-composer leaf-text"),
         "A remark of the ordinary length a reviewer writes, long enough that the line it "
@@ -995,6 +997,55 @@ def test_a_diff_keeps_the_file_named_while_its_hunks_go_past_and_lands_below_tha
     expect_walk_says(page, "File 1 of 2")
 
 
+def test_tab_onto_a_seat_under_the_pinned_file_name_brings_it_out(browser, serve):
+    """A thread seated in a diff stands in the code's sideways scroller, which starts
+    the sticky-header slot again for whatever sticks inside it but lands nothing down,
+    so the browser's own focus scroll still reads the file name pinned over the seat.
+    Tab from the seat's reply field onto the control beside it, both under the pinned
+    name, brings the control out from under it, where it had stayed hidden."""
+    datum = json.dumps([LONG_DIFF_PATH, "new", 3], separators=(",", ":"))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Seated", f"<h1>Seated</h1>{long_diff('patch')}" + "<p>.</p>" * 40
+            ),
+            events=[
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 1,
+                    "text": "Why this value?",
+                    "anchor": {"section": "patch", "datum": datum},
+                }
+            ],
+        ),
+    )
+    resized(page, 1280, 720)
+    reply = page.locator("lf-diff .lf-diff-thread-outlet .lf-thread-reply leaf-text")
+    expect(reply).to_be_visible()
+    # The field just below the window's top, where the pinned name stands over it.
+    reply.evaluate(
+        "el => scrollBy({top: el.getBoundingClientRect().top - 4, behavior: 'instant'})"
+    )
+    scroll_settled(page)
+    reply.evaluate("el => el.focus({preventScroll: true})")
+    page.keyboard.press("Tab")
+    rendered(page)
+    read = page.evaluate(
+        """() => {
+        const root = document.getElementById('patch').shadowRoot;
+        const head = root.querySelector('.lf-diff-file > details > summary');
+        const seat = root.querySelector('.lf-diff-thread-outlet');
+        const focused = root.activeElement;
+        return {inSeat: seat.contains(focused), top: focused.getBoundingClientRect().top,
+                head: head.getBoundingClientRect().bottom};
+    }"""
+    )
+    assert read["inSeat"], read
+    assert read["top"] >= read["head"], read
+
+
 def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     browser, serve
 ):
@@ -1108,44 +1159,54 @@ _RING_WITHIN = """(el, frame) => {
 
 
 @pytest.mark.parametrize(
-    "engine, wide_host",
-    [("browser", True), ("webkit_browser", False), ("webkit_browser", True)],
-    ids=["chromium-outer-reader", "webkit-code", "webkit-outer-reader"],
+    "engine, hosts",
+    [("browser", ("wide",)), ("webkit_browser", ("narrow", "wide"))],
+    ids=["chromium", "webkit"],
 )
-def test_horizontal_wheel_reaches_the_diff_reader(request, serve, engine, wide_host):
-    """A fitting code box lets horizontal input reach its enclosing reader in WebKit too."""
-    source = leaf_page(
-        "Nested patch reader",
-        '<h1>Review</h1><div id="reader" data-bound="start">'
-        '<lf-diff id="patch"><pre>'
+def test_horizontal_wheel_reaches_the_diff_reader(
+    request, serve, subtests, engine, hosts
+):
+    """A fitting code box lets horizontal input reach its enclosing reader in WebKit too.
+    A narrow host scrolls its own code; a wide one fits it, so its reader scrolls."""
+    patch = (
         "diff --git a/reading.py b/reading.py\n"
         "--- a/reading.py\n+++ b/reading.py\n@@ -1 +1 @@\n"
         '-return "The previous release remains available for inspection."\n'
         '+return "The current release remains available for inspection."\n'
-        "</pre></lf-diff></div>",
-        head="<style>#reader { width: 500px; }"
-        f"#patch {{ width: {1000 if wide_host else 300}px; }}</style>",
     )
-    driver = request.getfixturevalue(engine)
-    url = serve(source)
-    page = open_page(driver, url)
+    source = leaf_page(
+        "Nested patch reader",
+        "<h1>Review</h1>"
+        + "".join(
+            f'<div id="reader-{host}" class="reader" data-bound="start">'
+            f'<lf-diff id="patch-{host}"><pre>{patch}</pre></lf-diff></div>'
+            for host in hosts
+        ),
+        head="<style>.reader { width: 500px; }"
+        "#patch-wide { width: 1000px; } #patch-narrow { width: 300px; }</style>",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1000, 900)
-    code = page.locator("#patch code[data-code]")
-    reader = page.locator("#reader") if wide_host else code
-    assert reader.evaluate("el => el.scrollWidth > el.clientWidth")
-    if wide_host:
-        assert code.evaluate("el => el.scrollWidth === el.clientWidth")
-    box = code.bounding_box()
-    assert box is not None
-    page.mouse.move(box["x"] + 120, box["y"] + 25)
-    page.mouse.wheel(200, 0)
-    page.wait_for_function(
-        "wide => { const host = document.querySelector('#patch'); "
-        "const box = wide ? document.querySelector('#reader') : "
-        "host.shadowRoot.querySelector('code[data-code]'); return box.scrollLeft > 0; }",
-        arg=wide_host,
-    )
-    assert reader.evaluate("el => el.scrollLeft") > 0
+    for host in hosts:
+        with subtests.test(host=host):
+            wide_host = host == "wide"
+            code = page.locator(f"#patch-{host} code[data-code]")
+            reader = page.locator(f"#reader-{host}") if wide_host else code
+            reader.scroll_into_view_if_needed()
+            assert reader.evaluate("el => el.scrollWidth > el.clientWidth")
+            if wide_host:
+                assert code.evaluate("el => el.scrollWidth === el.clientWidth")
+            box = code.bounding_box()
+            assert box is not None
+            page.mouse.move(box["x"] + 120, box["y"] + 25)
+            page.mouse.wheel(200, 0)
+            page.wait_for_function(
+                """host => { const patch = document.querySelector(`#patch-${host}`);
+                const box = host === 'wide' ? document.querySelector('#reader-wide') :
+                patch.shadowRoot.querySelector('code[data-code]'); return box.scrollLeft > 0; }""",
+                arg=host,
+            )
+            assert reader.evaluate("el => el.scrollLeft") > 0
 
 
 def test_a_diff_hunk_landing_preserves_sideways_reading_outside_its_shadow_tree(

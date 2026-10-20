@@ -232,13 +232,13 @@ variants:
           Read the page as a user who decides, workstream by workstream, whether to
           dispatch it. Pass only if every one of #7–#12 can be decided without
           leaving the material that decision rests on, in one of these forms:
-          (a) each workstream's section holds its own item (an lf-ask or answering
+          (a) each workstream's section holds its own obligation (an lf-ask or answering
               widget) for dispatching that workstream, with an explicit way to
               decline it as well as to dispatch it; or
-          (b) one item dispatches several clear-cut workstreams together, and that item
+          (b) one obligation dispatches several clear-cut workstreams together, and that obligation
               itself states, for each workstream it covers, the confirmed effect that
               makes it clear-cut; #11 and #12, whose verdicts are only plausible or
-              whose direction is unsettled, each get a separate item in or beside
+              whose direction is unsettled, each get a separate obligation in or beside
               their own section.
           Every dispatch decision begins undecided. Fail a single multi-select or
           checkbox list covering all six workstreams that stands apart from their
@@ -252,7 +252,7 @@ variants:
   # Reworded by #2506 (one ask); at 3fe3eb0af it passed 1/1 on Claude Code.
   dispatch-two-of-six:
     metadata:
-      purpose: "Asks: a choice constrained across items stays one item whose answer is the set."
+      purpose: "Asks: a choice constrained across obligations stays one obligation whose answer is the set."
     vars:
       prompt: |
         I asked you to sweep the repository for duplicated logic. Six workstreams
@@ -278,10 +278,10 @@ variants:
       - type: llm-rubric
         metric: judgment
         value: |
-          Pass only if the pick of two is posed as one item whose answer is the
+          Pass only if the pick of two is posed as one obligation whose answer is the
           set of chosen workstreams (for example an lf-options with multiple, or an
           equivalent single answering widget), in which every option carries enough
           of its workstream's case (effect, verdict, size) to compare them without
-          leaving the item. The page must say two are to be picked. Fail six
-          separate dispatch/decline items, which cannot express the two-session limit,
+          leaving the obligation. The page must say two are to be picked. Fail six
+          separate dispatch/decline obligations, which cannot express the two-session limit,
           and fail options that are bare names or links to sections elsewhere.

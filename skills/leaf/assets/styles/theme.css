@@ -675,6 +675,17 @@ html:not([data-lf-live]) {
   inherits: false;
   initial-value: 0;
 }
+/* A box that wears the focus ring for a control inside it, as its face, says so in the
+ * rule that rings it: a playground's choice rings its radio and words together, a
+ * joined option group's row rings its pick. A landing then shows that box with the
+ * control's ring room (focus.js, `ringBox`): measuring the radio left the face's ring
+ * cut at its pane's foot. It does not inherit, so the control inside answers for
+ * itself. */
+@property --lf-wears-ring {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   * {
     --lf-block-frame: 0;
@@ -715,6 +726,13 @@ body {
 html {
   background: var(--paper);
 }
+/* Read only by the root's own `scroll-padding-bottom`, so it does not inherit: the
+ * panel's every change of height then restyles the root alone. */
+@property --lf-panel-reach {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
 /* The live shell's fixed chrome arrives after the authored document, but its room is
  * part of the document's final layout. The render-blocking theme reserves that room so
  * the useful initial HTML paints where it will remain. The root stays the document
@@ -731,7 +749,14 @@ html {
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
      * `--lf-root-headers` (lf-tabs.js). */
     scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
-    scroll-padding-bottom: calc(var(--lf-foot-room) + var(--lf-landing-room));
+    /* The floating panel's box reaches from the window's foot to its top, a view open
+     * above the row included (`--lf-panel-reach`, floating-panel.js), and every landing
+     * clears it as it clears the row's own room, so an arrival with a view open lands
+     * above it. */
+    scroll-padding-bottom: calc(
+      max(var(--lf-foot-room), var(--lf-panel-reach) + var(--lf-floating-gap)) +
+        var(--lf-landing-room)
+    );
     /* The foot's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth. */
     body {
@@ -964,9 +989,12 @@ main {
  * above packages and Layouts, so it outranks a value stacked onto a box that scrolls (a
  * page tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
  * box that starts its slot other than at 0 states beside its `--lf-top` (a workspace
- * pane's body, a thread list). A box that clips without scrolling says
- * `overflow: clip`, since `hidden` scrolls, for a script, and so holds the headers
- * inside it. A box that sticks keeps the value it met for its own `top`, so a sticking
+ * pane's body, a thread list). A box the user scrolls only sideways restarts it for
+ * what it holds and keeps the headers over itself for their landings (`across`,
+ * state.css); one that means to scroll only sideways says `hidden` down, since
+ * `visible` beside a scrolling axis computes to `auto`. A box that clips without
+ * scrolling says `overflow: clip`, since `hidden` scrolls, for a script, and so holds the
+ * headers inside it. A box that sticks keeps the value it met for its own `top`, so a sticking
  * box that scrolls headers restarts the slot for them itself (a column's sidebar,
  * layouts.css).
  * A sticky header (a page tab strip, a diff's file header) has a stated height and
@@ -975,7 +1003,8 @@ main {
  * property cannot read itself. The stacked value goes on a box that does not itself
  * scroll, since a box that scrolls is read where it stands. A landing clears the
  * headers over a whole scroller through its `scroll-padding` and one over part of it
- * through `scroll-margin` on the rows under it, and the runtime's reading of what is on
+ * through the `scroll-margin` every box reads from the slot (surfaces.css), and the
+ * runtime's reading of what is on
  * screen takes the value at each element (geometry.js, `headerInset`). Registered so
  * that reading is a length. */
 @property --lf-top {
@@ -1701,7 +1730,7 @@ svg.drawing .danger {
  * the change is has to have. An element generating none measures (0,0) at the document's
  * origin, which is not a degenerate answer but a wrong one, naming the top of the page.
  * Four consumers met that separately and each worked around it where it stood: the ring
- * had nothing to hang on, the item walk's travel centred the document, a container's edge
+ * had nothing to hang on, the obligation walk's travel centred the document, a container's edge
  * rule reached past the wrapper to the slots, and the widget prepends a span to itself
  * for its controls to anchor from. None of the first three arises here now. The fourth
  * outlived the reason it was written for and earns its place on another: what a widget
@@ -2114,22 +2143,28 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
     visibility 0s linear 90ms;
 }
 .lf-margin-entry-label-word,
-.lf-margin-entry-context {
+.lf-margin-entry-context,
+.lf-margin-entry-more {
   display: block;
 }
 /* The label is one line, cut where the tooltip's width runs out: most are a kind's
-   word, and an item's is its question, which the marker's accessible name also says. */
+   word, and an obligation's is its question, which the marker's accessible name also says. */
 .lf-margin-entry-label-word {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lf-margin-entry-context {
+.lf-margin-entry-context,
+.lf-margin-entry-more {
   margin-block-start: 2px;
   color: color-mix(in srgb, var(--paper) 72%, transparent);
   font-size: 10px;
   line-height: 1.25;
   font-weight: 450;
+}
+/* What the entry's title says beyond the label, such as an agent's work on it. */
+.lf-margin-entry-more:empty {
+  display: none;
 }
 /* Inline controls keep their native label. Physical margin controls take the
    geometry owner's placement, whose readiness gates their first visible paint. */
@@ -2145,8 +2180,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   transform: translateY(0);
   transition-delay: 90ms;
 }
-/* A reaction held under a press says its word at once, as a focused destination does
-   below (held-word.js). */
+/* A margin entry held under a press says its label at once, as a focused destination
+   does below (held-word.js). */
 .lf-margin-entry[data-lf-held-word] > .lf-margin-entry-label {
   opacity: 1;
   visibility: visible;

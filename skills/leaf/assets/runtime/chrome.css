@@ -12,6 +12,7 @@
     --lf-fp-folded: 42px;
     --lf-fp-aim: 32px;
     --lf-fp-press: 28px;
+    --lf-fp-inset: 8px;
     --lf-fp-max: 540px;
     --lf-fp-gutter: 24px;
     --lf-fp-width: min( var(--lf-fp-max), calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right)) );
@@ -70,42 +71,47 @@
   .lf-fp-inner > :not(.lf-fp-opened) {
     flex-shrink: 0;
   }
-  :where(.lf-floating-panel) :is(button, input, textarea):where(:not(.lf-fp-outlet *)) {
-    font: inherit;
-    color: inherit;
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
-    background: none;
-    border: 0;
-    border-radius: 6px;
-    cursor: pointer;
-    white-space: nowrap;
-    padding: 0 8px;
-    min-height: var(--lf-fp-press);
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *)) {
-    position: relative;
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *))::after {
-    content: "";
-    position: absolute;
-    inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):hover {
-    background: var(--lf-fp-hover);
-  }
-  :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)):is(:disabled, [aria-disabled=true]) {
-    color: var(--lf-fp-muted);
-    cursor: default;
-    background: none;
-  }
-  :where(.lf-floating-panel) :is(button, input, textarea, a, .lf-fp-on-item):where(:not(.lf-fp-outlet *)):focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: -2px;
-  }
-  .lf-floating-panel .lf-action-icon {
-    width: 16px;
-    height: 16px;
+  @layer lf-base {
+    @scope (.lf-floating-panel) to (.lf-fp-outlet, .lf-fp-response, .lf-composer-media) {
+      :is(button, input, textarea) {
+        font: inherit;
+        color: inherit;
+      }
+      button {
+        background: none;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+        padding: 0 8px;
+        min-height: var(--lf-fp-press);
+      }
+      button:where(:not(.lf-fp-field *)) {
+        position: relative;
+      }
+      button:where(:not(.lf-fp-field *))::after {
+        content: "";
+        position: absolute;
+        inset: min(0px, (100% - var(--aim-floor)) / 2) 0;
+      }
+      button:hover {
+        background: var(--lf-fp-hover);
+      }
+      button:is(:disabled, [aria-disabled=true]) {
+        color: var(--lf-fp-muted);
+        cursor: default;
+        background: none;
+      }
+      :is(button, input, textarea, a, .lf-fp-on-item):focus-visible,
+      .lf-fp-on-item[data-walked] {
+        outline: var(--focus-ring);
+        outline-offset: -2px;
+      }
+      .lf-action-icon {
+        width: 16px;
+        height: 16px;
+      }
+    }
   }
   .lf-fp-row {
     display: flex;
@@ -203,78 +209,20 @@
     outline: var(--focus-ring);
     outline-offset: 0;
     border-radius: var(--r);
+    --lf-wears-ring: 1;
   }
-  .lf-fp-field {
+  :is(.lf-fp-field, .lf-fp-response) {
     anchor-name: --lf-fp-field;
+    --lf-media-ground: var(--lf-fp-surface);
+    --lf-media-ring: var(--lf-fp-ring);
   }
-  .lf-fp-field .lf-composer-media:not([hidden]) {
+  :is(.lf-fp-field, .lf-fp-response) .lf-composer-media:not([hidden]) {
     position: fixed;
-    --lf-fp-shelf-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--aim-floor) / 2 - 3px) );
-    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-fp-shelf-room));
-    left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
+    bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-media-room));
+    left: calc(anchor(--lf-fp-field left) - var(--lf-media-room));
     width: max-content;
-    max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-fp-shelf-room));
-    gap: var(--lf-fp-shelf-room);
-    padding: var(--lf-fp-shelf-room);
-  }
-  .lf-fp-field .lf-composer-media-item {
-    position: relative;
-    border: 0;
-    background: none;
-    overflow: visible;
-  }
-  .lf-fp-field .lf-composer-media-open {
-    width: auto;
-    height: 56px;
-    min-height: 0;
-    padding: 0;
-    background: none;
-    border-radius: 8px;
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
-  }
-  .lf-fp-field .lf-composer-media-open img {
-    width: auto;
-    min-width: 40px;
-    max-width: 104px;
-    border-radius: inherit;
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    inline-size: 18px;
-    min-block-size: 0;
-    block-size: 18px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--ink) 72%, var(--lf-fp-surface));
-    color: var(--lf-fp-surface);
-    box-shadow: 0 0 0 2px var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open)::before {
-    content: "";
-    position: absolute;
-    inset: calc((18px - var(--aim-floor)) / 2);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open):hover {
-    background: var(--ink);
-    color: var(--lf-fp-surface);
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open)[data-lf-focus] {
-    outline-offset: 2px;
-  }
-  .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) > svg {
-    inline-size: 10px;
-    block-size: 10px;
-  }
-  @media (hover: hover) {
-    .lf-fp-field .lf-composer-media-item:not(:hover, :focus-within) > button:not(.lf-media-open) {
-      opacity: 0;
-    }
-    .lf-fp-field .lf-composer-media-item > button:not(.lf-media-open) {
-      transition: opacity 120ms;
-    }
+    max-width: calc(anchor-size(--lf-fp-field width) + 2 * var(--lf-media-room));
+    margin: 0;
   }
   .lf-fp-response {
     display: none;
@@ -282,10 +230,10 @@
     min-width: 0;
     align-self: center;
   }
-  .lf-floating-panel:not([data-open]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
+  .lf-floating-panel:not([data-open], [data-offers]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
     display: none;
   }
-  .lf-floating-panel:not([data-open]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-response {
+  .lf-floating-panel:not([data-open], [data-offers]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-response {
     display: block;
   }
   .lf-fp-resolved {
@@ -336,22 +284,21 @@
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
+  .lf-fp-field leaf-text[data-says=selection]::part(placeholder) {
+    color: var(--ink);
+  }
   .lf-fp-field leaf-text[data-says=error]::part(placeholder) {
     color: var(--danger-ink);
     font-weight: 500;
   }
-  .lf-fp-error-cover {
-    position: absolute;
-    inset: 0;
-    margin: 0;
+  .lf-fp-field .lf-compose-error {
     padding: calc((var(--lf-fp-line) - 22px) / 2) 6px;
     background: var(--lf-fp-surface);
-    color: var(--danger-ink);
     font: 500 14px / 22px var(--sans);
     white-space: nowrap;
-    overflow: hidden;
+  }
+  .lf-fp-field .lf-compose-error > span {
     text-overflow: ellipsis;
-    cursor: text;
   }
   @media (prefers-reduced-motion: no-preference) {
     .lf-floating-panel[data-tone=working]:not([data-asks]) .lf-fp-field leaf-text[data-says=status]::part(placeholder) {
@@ -399,7 +346,7 @@
   .lf-floating-panel[data-writing] .lf-fp-field .lf-compose-submit {
     display: grid;
   }
-  .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {
+  .lf-floating-panel[data-typing] .lf-fp-quick {
     display: none;
   }
   .lf-fp-field .lf-compose-dictate {
@@ -510,10 +457,12 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
-  .lf-fp-step {
-    color: var(--ink);
-    box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
-    padding-inline: 10px;
+  .lf-fp-exit-seat {
+    flex: none;
+    display: flex;
+  }
+  .lf-fp-exit-seat[hidden] {
+    display: none;
   }
   .lf-fp-context {
     box-sizing: content-box;
@@ -534,11 +483,12 @@
   .lf-floating-panel[data-rest=mark] {
     width: var(--lf-fp-folded);
     left: auto;
-    right: calc(20px + var(--lf-safe-right));
+    right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
     margin: 0;
     .lf-fp-field,
     .lf-fp-row-notice,
     .lf-fp-quick,
+    .lf-fp-exit-seat,
     .lf-fp-context,
     .lf-fp-opened {
       display: none;
@@ -648,7 +598,7 @@
     align-items: center;
     gap: 4px;
     min-height: 42px;
-    padding: 6px 6px 0 14px;
+    padding: 6px 6px 0 calc(6px + var(--lf-fp-inset));
     box-sizing: border-box;
   }
   .lf-fp-head:empty {
@@ -758,13 +708,23 @@
     gap: 4px;
   }
   .lf-fp-face:not([data-shown]),
-  .lf-fp-quiet[data-unoffered] {
+  :is(.lf-fp-quiet, .lf-fp-next-unread)[data-unoffered] {
     visibility: hidden;
   }
   .lf-fp-settle:hover {
     color: var(--ink);
   }
   .lf-fp-settle .lf-action-icon {
+    width: 14px;
+    height: 14px;
+  }
+  .lf-fp-next-unread {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+  }
+  .lf-fp-next-unread .lf-action-icon {
     width: 14px;
     height: 14px;
   }
@@ -974,14 +934,18 @@
   .lf-fp-thread[data-resolved] .lf-fp-label {
     color: var(--lf-fp-muted);
   }
+  .lf-fp-thread.lf-mark-hover {
+    background: var(--mark-hover);
+  }
   .lf-fp-quote-head {
     display: grid;
     justify-items: start;
     gap: 4px;
     margin: 0 0 12px;
   }
-  .lf-fp-quote {
+  .lf-fp-quote-head > .lf-fp-quote {
     margin: 0;
+    padding-inline-start: calc(var(--lf-fp-inset) - 1px);
     min-width: 0;
     min-height: 0;
     cursor: default;
@@ -1117,9 +1081,6 @@
   .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
-  .lf-fp-on-item + .lf-fp-on-item {
-    border-top: 1px solid var(--lf-fp-faint);
-  }
   .lf-fp-on-done {
     margin: 0 8px;
     padding-top: 10px;
@@ -1154,6 +1115,9 @@
     margin-top: 9px;
     min-height: var(--lf-fp-press);
   }
+  .lf-fp-show {
+    margin-inline-start: auto;
+  }
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
     padding-inline: 11px;
@@ -1173,7 +1137,11 @@
     margin-right: 4px;
   }
   .lf-fp-messages {
-    padding: 0 8px;
+    padding-inline-end: 8px;
+  }
+  .lf-fp-messages > .lf-primary-part {
+    --lf-thread-text-inset: var(--lf-fp-inset);
+    padding-inline-start: 0;
   }
   .lf-fp-messages .lf-msg-editor {
     margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
@@ -1258,7 +1226,7 @@
   }
   .lf-fp-plan-time,
   .lf-fp-plan-line,
-  .lf-fp-plan-place {
+  .lf-fp-on-kind {
     font-size: 12px;
     color: var(--lf-fp-muted);
     font-variant-numeric: tabular-nums;
@@ -1275,7 +1243,7 @@
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
     border-radius: 6px;
   }
-  .lf-fp-plan-place {
+  .lf-fp-on-kind {
     margin: 0 0 2px;
   }
   .lf-fp-menu {
@@ -1313,9 +1281,7 @@
     display: grid;
   }
   .lf-fp-menu-back {
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
-    border-radius: 6px 6px 0 0;
+    margin-bottom: 6px;
   }
   .lf-fp-menu-back .lf-fp-label {
     display: flex;
@@ -1337,12 +1303,11 @@
     display: grid;
     gap: 1px;
     padding: 6px 8px 8px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--lf-fp-faint);
+    margin-bottom: 6px;
     color: var(--lf-fp-muted);
     font-size: 12px;
   }
-  .lf-fp-state b {
+  .lf-fp-summary {
     color: var(--ink);
     font-size: 13px;
     font-weight: 600;
@@ -1359,16 +1324,16 @@
     overflow: hidden;
     height: calc(var(--lines) * 1lh);
   }
-  .lf-fp-state[data-tone=working] b {
+  .lf-fp-state[data-tone=working] .lf-fp-summary {
     color: var(--accent);
   }
-  .lf-fp-state[data-tone=listening] b {
+  .lf-fp-state[data-tone=listening] .lf-fp-summary {
     color: var(--ok-ink);
   }
-  .lf-fp-state[data-tone=away] b {
+  .lf-fp-state[data-tone=away] .lf-fp-summary {
     color: var(--warn-ink);
   }
-  .lf-fp-state[data-tone=offline] b {
+  .lf-fp-state[data-tone=offline] .lf-fp-summary {
     color: var(--danger-ink);
   }
   .lf-fp-leaf {
@@ -1558,8 +1523,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-[data-lf-item] {
-  outline: var(--lf-item-ring, var(--focus-ring));
+[data-lf-obligation] {
+  outline: var(--lf-obligation-ring, var(--focus-ring));
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-landing);
 }
@@ -2015,6 +1980,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     padding: 3px 0;
     vertical-align: top;
   }
+  .lf-command-reference tr[data-lf-command] {
+    scroll-margin-block: var(--focus-ring-landing);
+  }
   .lf-command-reference tr.lf-sequence-command td {
     padding-top: 8px;
     border-top: 1px solid var(--rule);
@@ -2274,13 +2242,38 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-shadow: var(--raise-2);
   }
   .lf-page-search-status {
-    min-width: 0;
+    min-width: min-content;
+    margin-inline-start: 6px;
     min-height: 1lh;
     color: var(--muted);
     font-size: var(--t-6);
     font-variant-numeric: tabular-nums;
     text-align: right;
     white-space: nowrap;
+  }
+  .lf-page-search-box::part(input) {
+    flex: 1 1 4em;
+  }
+  .lf-page-search-status > span {
+    min-inline-size: max(100%, max-content);
+  }
+  .lf-page-search-box::part(end) {
+    flex-shrink: 1;
+    min-inline-size: 0;
+  }
+  .lf-page-search-step {
+    flex: none;
+    margin-inline-start: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+  }
+  .lf-page-search-status + .lf-page-search-step {
+    margin-inline-start: 4px;
+  }
+  .lf-page-search-step:not([aria-disabled=true]):hover {
+    background: var(--chip);
+    color: var(--ink);
   }
   .lf-legend-box {
     position: absolute;

@@ -15,15 +15,15 @@ from leaf.delivery import (
 )
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
-from leaf.events import build_threads
+from leaf.events import build_threads, is_answer
 from leaf.files import (
     latest_revision,
     require_revision,
 )
 from leaf.findings import Finding, Rejected
 from leaf.harness import message_identity
-from leaf.items import asking, local_item_entry, quoted_in
 from leaf.leases import contract_writer
+from leaf.obligations import asking, local_obligation_entry, quoted_in
 from leaf.passages import SourceReading
 from leaf.projection import (
     generated_children,
@@ -277,23 +277,8 @@ def cmd_comment(
         return append_admitted(page, event)[0]
 
 
-def is_answer(event: dict) -> bool:
-    """Whether an event is an agent's answer to the input its ``responds`` names.
-
-    A thread parent locates presentation; only ``responds`` names the input an
-    answer settles. User replies and progress carry none. A failure receipt names the
-    input it gives up on without answering it, so an answer may still follow it.
-    """
-    return (
-        event["kind"] == "reply"
-        and event["author"] == "agent"
-        and event.get("responds") is not None
-        and "failure" not in event
-    )
-
-
 def successful_replies(events: list[dict], for_event: str) -> list[dict]:
-    """Agent answers to this exact input (`is_answer`)."""
+    """Agent answers to this exact input (`events.is_answer`)."""
     return [
         event for event in events if is_answer(event) and event["responds"] == for_event
     ]
@@ -397,7 +382,7 @@ def post_reply(
     the user's message is answered and the work stays on the agent in one write.
 
     ``ephemeral`` posts progress at the same response address without answering it.
-    It remains content, and cannot carry an item, a to-do, widgets, failure or
+    It remains content, and cannot carry an obligation, a to-do, widgets, failure or
     relocation. Progress on an update the agent owes says what it has in hand, so it also takes that
     update in hand with its text as the line (`todos.start_reading`), which is why that
     text is one line: the update reads Working beside its thread and in the page's status, and
@@ -731,7 +716,7 @@ def _compose_and_append(
     if asks_back and not (
         markup
         and any(
-            local_item_entry(publication.registry.get(rec["tag"]) or {})
+            local_obligation_entry(publication.registry.get(rec["tag"]) or {})
             and asking(
                 rec["attrs"], publication.registry[rec["tag"]]["x-awaits"].get("when")
             )
@@ -852,7 +837,7 @@ def fail_answer(
     - a `reply` answer takes a reply carrying `failure` in its thread, which
       the user resends into; an open reply reservation refuses it until its
       turn gives the reply up;
-    - a `markup` answer takes a failed pickup: the user's answer to the item stands in the log,
+    - a `markup` answer takes a failed pickup: the user's answer to the obligation stands in the log,
       and answering again sends a new answer.
 
     An update with no answer outstanding writes nothing, except that a repeated reply

@@ -10,6 +10,7 @@ from interact_support import (
     append_carried_log_record,
     record_claim,
     wait_for,
+    write_record,
 )
 from leaf import event_log as events_model
 from leaf import hosting as hosting_model
@@ -334,7 +335,10 @@ RING_CASES = (
             ),
             "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
             "pr-walkthrough": (
-                ("#pr-flow-tab", ":where([data-lf-focus])"),
+                (
+                    "#pr-flow-tab",
+                    ".lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus])::after",
+                ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
                 ("lf-diff summary", ".lf-diff-file > details > summary"),
@@ -682,55 +686,7 @@ def _tab_walk(page, stem):
     return unindicated, faults
 
 
-# Every box the layer promises a press on, wherever it stands. Not a list of class names:
-# what makes something a target is that the runtime built it (data-lf-offer) or that it
-# stands in the runtime's own layer, and that the page under the pointer says a press
-# lands there. A twelfth control joins by being one, which is how the six this first
-# reported were found.
-#
-# The reading takes the element's box together with any absolutely positioned pseudo it
-# hangs, because a control may enlarge its target outside layout rather than make the
-# visible line or row taller.
-#
-# Inline boxes are out, and that is the target-size exception rather than an excuse: a
-# link inside a sentence is sized by the words around it, and nothing can be done about
-# that which does not damage the sentence.
-AIM_BOXES = """(floor) => {
-  const found = [];
-  const seen = new Set();
-  for (const el of document.querySelectorAll(
-    '[data-lf-offer], .lf-chrome button, .lf-chrome [role="button"],' +
-    ' .lf-chrome [role="checkbox"], .lf-chrome [role="tab"], .lf-chrome .lf-btn,' +
-    ' .lf-chrome .lf-outline-chip, .lf-chrome .lf-quote'
-  )) {
-    if (seen.has(el)) continue;
-    seen.add(el);
-    const style = getComputedStyle(el);
-    if (!['pointer', 'grab'].includes(style.cursor)) continue;
-    // A box that takes no press is not an aim, however its cursor reads.
-    if (style.pointerEvents === 'none') continue;
-    if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
-    if (style.display === 'inline') continue;
-    // The option mark is the one control held out, and it is a handover rather than an
-    // exemption: its box is being rewritten alongside the group's pressable rule, and
-    // this line goes with that change. It stands at 11x11 today.
-    if (el.classList.contains('lf-pick')) continue;
-    const box = el.getBoundingClientRect();
-    if (!box.width || !box.height) continue;
-    let [w, h] = [box.width, box.height];
-    for (const pseudo of ['::before', '::after']) {
-      const at = getComputedStyle(el, pseudo);
-      if (at.content === 'none' || at.position !== 'absolute') continue;
-      w = Math.max(w, parseFloat(at.width) || 0);
-      h = Math.max(h, parseFloat(at.height) || 0);
-    }
-    const name = (el.className || el.tagName).toString().trim().split(/\\s+/)[0]
-      + ` ${JSON.stringify((el.textContent || '').trim().slice(0, 32))}`;
-    if (Math.min(w, h) < floor - 0.5)
-      found.push(`${name} at ${w.toFixed(1)}x${h.toFixed(1)}`);
-  }
-  return found;
-}"""
+AIM_BOXES = browser_function("aims.js", "offeredAims")
 
 
 # What the sweep has to have stood in front of before its answer means anything. Each is
@@ -1233,12 +1189,16 @@ def test_sample_child_passage_and_reply_gestures_scroll_only_the_child(browser, 
     # A real child disclosure keeps its focused toggle in its own conversation.
     page.locator("#show-panel").click()
     expect(page.locator("#completed")).to_have_text("2")
-    expand = child.get_by_role("button", name="Show 1 progress message", exact=True)
+    expand = child.locator(".lf-fp-view").get_by_role(
+        "button", name="Show 1 progress message", exact=True
+    )
     expand.scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
     expand.focus()
     expand.press("Enter")
-    collapse = child.get_by_role("button", name="Hide 1 progress message", exact=True)
+    collapse = child.locator(".lf-fp-view").get_by_role(
+        "button", name="Hide 1 progress message", exact=True
+    )
     expect(collapse).to_be_focused()
     expect(collapse).to_be_in_viewport()
     rendered(child)
@@ -2193,7 +2153,7 @@ def test_leaves_keep_focus_through_reordering_and_stay_in_the_list_on_removal(
         "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
     )
 
-    cleanup_model.write_json(
+    write_record(
         other_dir / "status.json",
         {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
     )
@@ -2359,6 +2319,7 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
     expect(title).to_be_focused()
 
 
+@pytest.mark.watch_shifts
 def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, serve):
     """Axe covers semantic failures the render gate cannot see: an unnamed control,
     an invalid role relationship, or a contrast failure can occupy a perfectly good
@@ -2400,7 +2361,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     """The feature-gallery sweep above reads broad authored UI with the chrome shut: it
     never presses a key, so the panel's views, its field, the leaf's menu and its
     Versions, the command reference and the sequence's chips are surfaces four readings
-    pass straight over. A `role="list"` whose children were not all list items shipped
+    pass straight over. A `role="list"` whose children were not all list obligations shipped
     through it, green every time.
 
     One page because the chrome is the same on every document. What varies here is which
@@ -2892,11 +2853,11 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
         comments=2,
         anchored=[("aim-lead", "first view")],
         preview={
-            "kind": "example",
             "example": "corpus",
             "checkout": "fb77",
             "interaction": "user",
             "started": "2026-08-31T12:00:00+00:00",
+            "input": {"source": "corpus", "authored": "fb77"},
         },
     )
     # An agent's answer on a thread the walk leaves open carries a reaction strip,

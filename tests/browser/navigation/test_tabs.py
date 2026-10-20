@@ -9,6 +9,7 @@ from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
+from render_cases_layout import token_colour
 from render_harness import (
     FEATURE_GALLERY,
     PANEL,
@@ -16,6 +17,7 @@ from render_harness import (
     consume_browser_errors,
     http_error_console,
     leaf_page,
+    margins_laid_out,
     open_page,
     panel_control,
     panel_settled,
@@ -26,6 +28,7 @@ from render_harness import (
     write,
 )
 
+from browser.margin.test_entries import _refreshes_restate_no_margin_name
 from browser.threads import open_panel_thread
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -42,20 +45,24 @@ GALLERY_DESTINATIONS = {
 }
 
 
+@pytest.mark.watch_shifts
 def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_leaf):
     """The gallery is a journey through the core, not merely its samples beside it.
 
     A preview can name a gallery section directly: arriving at a fragment held in a
     closed tab is one runtime path whichever section it names, so one arrival proves
     it, and the same page answers which tab holds every other destination. Each core
-    surface then opens and shows the gallery's own content: its item in On me, its
+    surface then opens and shows the gallery's own content: its obligation in On me, its
     open, resolved, and media threads in Threads, its earlier version, the other open
     page, and at phone width its Page Map. Live external data, the Threads tab's
     presets operating a sample's panel, sign-off gating, design comments and transport
-    refusal are real journeys on it too.
+    refusal are real journeys on it too. The gallery also draws every kind of margin
+    entry at once, so the same page holds the margin readings: the unchanged refresh
+    watch, the margin entry atlas, and the rail-and-pins sample.
 
-    One page carries all of them because opening the gallery is most of their cost;
-    how each surface behaves belongs to that surface's own tests."""
+    One page carries all of them because opening the gallery, watched, is the suite's
+    most expensive page open; how each surface behaves belongs to that surface's own
+    tests."""
     live_leaf("second", "A second Leaf page")
     destination = "#bg-external-data"
     root = live_url(serve(FEATURE_GALLERY))
@@ -117,22 +124,39 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         "measurement is behind its source"
     )
 
+    # The gallery draws the margin entries the corpus has none of, and the writers that
+    # only run for those are watched nowhere else: readings whose move is made wear the
+    # `status` behavior on a span seat rather than a button.
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    _refreshes_restate_no_margin_name(
+        page,
+        {
+            ".lf-margin-cluster": 10,
+            '.lf-margin-entry[data-lf-behavior="status"]': 2,
+        },
+    )
+    _the_atlas_shows_every_margin_entry_face_in_its_treatment(page)
+    _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page)
+
     # The core chrome, each surface showing the gallery's own content.
     resized(page, 1600, 900)
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
         "aria-label", re.compile(r"^Page menu · \S")
     )
     panel_control(page, "queue").click()
-    map_item = page.locator(".lf-fp-on-item").filter(
+    map_obligation = page.locator(".lf-fp-on-item").filter(
         has_text="Which map should the sample team carry?"
     )
-    expect(map_item).to_have_count(1)
-    expect(map_item).to_have_attribute("data-key", '["widget","widget:bg-choice"]')
+    expect(map_obligation).to_have_count(1)
+    expect(map_obligation).to_have_attribute(
+        "data-key", '["widget","widget:bg-choice"]'
+    )
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
     gallery_tab("tab", name="Decisions").click()
     page.locator("#bg-question-api > summary").click()
-    page.get_by_role("button", name="Read current item", exact=True).click()
+    page.get_by_role("button", name="Read current obligation", exact=True).click()
     reading = json.loads(page.locator("#bg-question-reading").inner_text())
     assert reading["id"] == "widget:bg-choice"
     assert reading["source"]["id"] == "bg-choice"
@@ -315,6 +339,243 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     consume_browser_errors(page, http_error_console(400))
 
 
+def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
+    """The atlas samples every declared behavior, tone and rank, each face in the
+    treatment its state takes, and its projection through the Page Map."""
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
+
+    atlas = page.locator("#bg-margin-controls-samples")
+    expect(atlas).to_be_visible()
+
+    def sample(name):
+        return atlas.locator(f'[data-margin-entry-sample="{name}"] > .lf-margin-entry')
+
+    for name in ("label + context", "hover or focus", "open"):
+        expect(sample(name)).to_have_css("cursor", "pointer")
+    for name in (
+        "save",
+        "cancel",
+        "accept",
+        "reject",
+        "thread",
+        "more",
+        "sent",
+        "waiting for pickup",
+        "queued",
+        "update stale",
+        "turn ended",
+        "glyph face",
+        "count badge",
+        "picked up",
+        "working",
+        "working · fallback",
+        "resting",
+        "selected",
+    ):
+        expect(sample(name)).to_have_css("cursor", "default")
+
+    axes = atlas.locator(".lf-margin-entry").evaluate_all(
+        """buttons => ({
+          behaviors: buttons.map(button => button.dataset.lfBehavior),
+          tones: buttons.map(button => button.dataset.lfTone),
+          ranks: buttons.map(button => button.dataset.lfRank),
+        })"""
+    )
+    grammar = page.evaluate(
+        """async () => {
+          const {CONTRIBUTION_ENTRY_SCHEMA} =
+            await window.__lfWidgetApi();
+          return CONTRIBUTION_ENTRY_SCHEMA;
+        }"""
+    )
+    for axis in ("behaviors", "tones", "ranks"):
+        assert set(axes[axis]) == set(grammar[axis]), (
+            f"the gallery shows {sorted(set(axes[axis]))} of the declared "
+            f"{axis} {grammar[axis]}"
+        )
+
+    glyph = sample("glyph face")
+    expect(glyph.locator(".lf-margin-entry-glyph")).to_have_text("🤔")
+    count = sample("count badge")
+    expect(count.locator(":scope > .lf-margin-count")).to_have_text("3")
+    label = sample("label + context")
+    label.hover()
+    expect(label.locator(".lf-margin-entry-label-word")).to_have_text(
+        "Label + context…"
+    )
+    expect(label.locator(".lf-margin-entry-context")).to_have_text("Patch ready")
+    expect(label.locator(".lf-margin-entry-label")).to_have_css("visibility", "visible")
+    page.mouse.move(0, 0)
+
+    resting = sample("resting")
+    picked_up = sample("picked up")
+    working = sample("working")
+    stale = sample("update stale")
+    fallback = sample("working · fallback")
+    expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
+    expect(sample("my turn")).to_have_attribute("data-lf-turn", "user")
+    expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
+    expect(picked_up).to_have_css(
+        "border-top-color",
+        resting.evaluate("node => getComputedStyle(node).borderTopColor"),
+    )
+    expect(picked_up).to_have_css(
+        "background-color",
+        resting.evaluate("node => getComputedStyle(node).backgroundColor"),
+    )
+    expect(picked_up).to_have_css("box-shadow", "none")
+    picked_up_icon = picked_up.locator(".lf-margin-entry-icon")
+    expect(picked_up_icon).to_have_attribute("data-lf-icon", "comment")
+    expect(picked_up_icon).to_have_css("color", token_colour(page, "--accent"))
+    for control in (working, fallback):
+        expect(control).to_have_attribute("data-lf-agent-workflow", "working")
+        expect(control).to_have_css(
+            "border-top-color",
+            resting.evaluate("node => getComputedStyle(node).borderTopColor"),
+        )
+        expect(control).to_have_css(
+            "background-color",
+            resting.evaluate("node => getComputedStyle(node).backgroundColor"),
+        )
+        expect(control).to_have_css("box-shadow", "none")
+    expect(working.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "comment"
+    )
+    expect(fallback.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "activity"
+    )
+    expect(stale).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
+    expect(stale.locator(".lf-margin-entry-icon")).to_have_attribute(
+        "data-lf-icon", "activity"
+    )
+    for name, icon in (
+        ("sent", "sent"),
+        ("waiting for pickup", "waiting"),
+        ("queued", "pickup"),
+        ("turn ended", "waiting"),
+    ):
+        status = sample(name)
+        expect(status).to_have_attribute("role", "status")
+        expect(status.locator(".lf-margin-entry-icon")).to_have_attribute(
+            "data-lf-icon", icon
+        )
+    not_selected = sample("resting")
+    selected = sample("selected")
+    expect(not_selected).not_to_have_attribute(
+        "data-lf-target-selected", re.compile(".*")
+    )
+    expect(selected).to_have_attribute("data-lf-target-selected", "")
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(selected).to_have_css(
+        "border-top-width",
+        not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
+    )
+    expect(selected).to_have_css("box-shadow", "none")
+    expect(working.locator(".lf-margin-entry-icon")).to_have_css(
+        "color", token_colour(page, "--accent")
+    )
+
+    interactive = sample("hover or focus")
+    interactive.hover()
+    expect(interactive).to_have_css("background-color", token_colour(page, "--chip"))
+    expect(interactive).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(interactive.locator(".lf-margin-entry-label")).to_have_css(
+        "visibility", "visible"
+    )
+    page.mouse.move(0, 0)
+    interactive.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    expect(interactive).to_be_focused()
+    expect(interactive).to_have_css("outline-style", "solid")
+
+    opened = sample("open")
+    opened_result = atlas.locator(
+        '[data-margin-entry-sample="open"] .margin-entry-gallery-disclosure'
+    )
+    expect(opened).to_have_attribute("aria-expanded", "true")
+    expect(opened).to_have_css("border-top-color", token_colour(page, "--accent"))
+    expect(opened_result).to_be_visible()
+    opened.click()
+    expect(opened).to_have_attribute("aria-expanded", "false")
+    expect(opened_result).to_be_hidden()
+
+    projection = page.locator(
+        '[data-lf-margin-for="bg-margin-controls-samples"]'
+    ).get_by_role("button", name="Inspect projection", exact=True)
+    expect(projection).to_be_visible()
+    projection.focus()
+    expect(projection.locator(".lf-margin-entry-label-word")).to_have_text(
+        "Inspect projection…"
+    )
+    expect(projection.locator(".lf-margin-entry-context")).to_have_text(
+        "Compact face · full row"
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    map_projection = dialog.get_by_role(
+        "button", name="Inspect projection, Compact face · full row", exact=True
+    )
+    expect(map_projection).to_be_visible()
+    expect(map_projection.locator(".lf-page-map-action-label-word")).to_have_text(
+        "Inspect projection…"
+    )
+    expect(map_projection.locator(".lf-page-map-action-context")).to_have_text(
+        "Compact face · full row"
+    )
+    map_projection.click()
+    expect(dialog).to_be_hidden()
+    expect(projection).to_have_attribute("aria-expanded", "true")
+    expect(atlas.locator(".margin-entry-gallery-projection-result")).to_be_visible()
+
+
+def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
+    """The gallery's rail-and-pins sample: a comment on the schedule, which is wider
+    than the column, stands on it as a pin while the prose beside it keeps the rail, and
+    `o` hides the pin while the rail stays. The quiet-status example starts with
+    a visible receipt, without requiring a practice gesture to create it."""
+    resized(page, 1440, 900)
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
+    margins_laid_out(page)
+    pin = page.locator('.lf-margin-cluster[data-lf-margin-for="bg-margin-layer-table"]')
+    expect(pin).to_have_attribute("data-lf-place", "pin")
+    rail = page.locator('.lf-margin-cluster[data-lf-place="rail"]:visible')
+    assert rail.count() > 0
+    page.keyboard.press("Escape")
+    page.keyboard.press("o")
+    expect(pin).to_be_hidden()
+    expect(rail.first).to_be_visible()
+    page.keyboard.press("o")
+    expect(pin).to_be_visible()
+
+    sample = page.locator("#bg-margin-layer-status")
+    sample.scroll_into_view_if_needed()
+    child = sample.frame_locator("iframe")
+    # The receipt reads Sent, and Waiting for pickup two minutes after the gallery
+    # opened, which a slow runner can reach by now; either pins the same way.
+    status = child.locator(
+        '.lf-margin-entry:is([data-lf-kinds="sent"], [data-lf-kinds="waiting"])'
+    )
+    expect(status).to_be_visible()
+    expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
+    expect(child.get_by_role("button", name="On me", exact=True)).to_be_visible()
+    expect(child.get_by_role("button", name="Threads, 0 open")).to_be_visible()
+    for width in (720, 390):
+        resized(page, width, 900)
+        sample.scroll_into_view_if_needed()
+        expect(status).to_be_visible()
+        assert status.evaluate(
+            """el => {
+              const r = el.getBoundingClientRect();
+              const board = document.querySelector('lf-board');
+              return r.left >= 0 && r.right <= innerWidth && r.top >= 0
+                && r.bottom <= innerHeight && board.scrollWidth <= board.clientWidth;
+            }"""
+        )
+
+
 @pytest.mark.parametrize(
     "placement",
     # Directly in main beside other blocks, and inside one; alone in main is the
@@ -482,7 +743,8 @@ def test_a_tab_layout_completion_preserves_native_navigation(browser, serve, int
 def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serve):
     """The strip reads as an index inside the one frame that bounds its views.
 
-    The selected name becomes one compact paper face; the tab around it does not grow a
+    The strip stands on the frame's own ground, and the selected name takes the page
+    tabs' rule under it rather than a face of its own, so the tab around it grows no
     second frame inside the shared surface. The strip's closing rule keeps the index
     distinct from the panel, whose enclosing frame still answers how far that
     selected view runs.
@@ -543,6 +805,11 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
               shadow: tabStyle.boxShadow,
               tabDecoration: tabStyle.textDecorationLine,
               labelGround: labelStyle.backgroundColor,
+              labelShadow: labelStyle.boxShadow,
+              labelRule: {
+                width: parseFloat(labelStyle.borderBottomWidth),
+                color: labelStyle.borderBottomColor,
+              },
               labelInk: labelStyle.color,
               labelDecoration: labelStyle.textDecorationLine,
               labelPadding: ['Top', 'Right', 'Bottom', 'Left'].map(
@@ -562,6 +829,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
               ground: style(tabs).backgroundColor,
             },
             divider: {
+              ground: style(strip).backgroundColor,
               width: parseFloat(style(strip).borderBottomWidth),
               color: style(strip).borderBottomColor,
             },
@@ -590,8 +858,15 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     assert boundary["selected"]["shadow"] == "none", boundary
     assert boundary["inactive"]["shadow"] == "none", boundary
     assert boundary["selected"]["tabDecoration"] == "none", boundary
-    assert boundary["selected"]["labelGround"] == boundary["frame"]["ground"], boundary
+    assert boundary["divider"]["ground"] == boundary["frame"]["ground"], boundary
+    assert boundary["selected"]["labelGround"] == "rgba(0, 0, 0, 0)", boundary
     assert boundary["inactive"]["labelGround"] == "rgba(0, 0, 0, 0)", boundary
+    assert boundary["selected"]["labelShadow"] == "none", boundary
+    assert boundary["selected"]["labelRule"] == {
+        "width": 2,
+        "color": boundary["selected"]["labelInk"],
+    }, boundary
+    assert boundary["inactive"]["labelRule"]["color"] == "rgba(0, 0, 0, 0)", boundary
     assert boundary["selected"]["labelInk"] == boundary["palette"]["ink"], boundary
     assert (
         boundary["selected"]["labelPadding"] == boundary["inactive"]["labelPadding"]

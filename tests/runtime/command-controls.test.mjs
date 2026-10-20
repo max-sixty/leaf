@@ -377,6 +377,30 @@ test("a button declared on itself activates before its declaration is painted", 
   control.remove();
 });
 
+// A recording's play button stands in chrome while its scope is projected onto the
+// video, which a widget can stage after the page's last paint (video-controls.js).
+test("a button a projected scope names activates before its declaration is painted", () => {
+  const owner = document.createElement("div");
+  const control = document.createElement("button");
+  document.body.append(owner, control);
+  let count = 0;
+  const scope = commandScope("Probe projection", [
+    {
+      id: "probe.projected-press",
+      title: "Press",
+      keys: [" "],
+      control,
+      run: () => count++,
+    },
+  ]);
+  projectCommandScope(owner, "probe", scope);
+  control.click();
+  assert.equal(count, 1);
+  projectCommandScope(owner, "probe", null);
+  owner.remove();
+  control.remove();
+});
+
 // A projected entry retains native origin/surface/input without a second callback.
 test("a contribution invokes its declared command and derives refusal from it", async () => {
   const { registerContribution } =
@@ -1277,7 +1301,7 @@ test("decision rows and routes reject computed titles with their command identit
   ]) {
     const id = row.routes?.[0].id ?? row.id;
     assert.throws(
-      () => decisionControls([{ source, row }], "the test item"),
+      () => decisionControls([{ source, row }], "the test obligation"),
       (error) => error.message.includes(id) && error.message.includes("title"),
     );
   }

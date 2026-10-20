@@ -35,6 +35,7 @@ from interact_support import (
     lock_contention,
     package_findings,
     publish,
+    read_record,
     record_claim,
     registry_refusal,
     shipped_payload,
@@ -42,6 +43,7 @@ from interact_support import (
     vendored_before_a_key_rename,
     wait_for,
     words,
+    write_record,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -668,10 +670,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     leaves it to guess at the id it needs next.
 
     Every write prints what it wrote, as JSON: an appended event exactly as `page
-    events` reads it back, `seq` included, one line per record, and a status as the
-    status file holds it. A command that also names its thread prints both records.
-    `test_receipt_settles_one_known_request_once` holds the receipt's, since it needs
-    a page with a request seat.
+    events` reads it back, `seq` included, one line per record, and a status as its
+    declaration stands in the status file. A command that also names its thread
+    prints both records. `test_receipt_settles_one_known_request_once` holds the
+    receipt's, since it needs a page with a request seat.
 
     The default layer declares no instructions audiences, which is why the page is
     built here rather than taken from the packaged fixture.
@@ -710,7 +712,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert "already stamped as v1" in again.output
 
     [waiting] = written(["status", str(page_dir), "waiting", "pick a storage engine"])
-    assert waiting == json.loads((page_dir / schema_model.STATUS_FILE).read_text())
+    assert waiting.items() <= read_record(page_dir / schema_model.STATUS_FILE).items()
     assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
 
     # The comment's id is the thread's; --title names it in the same command.
@@ -1318,7 +1320,7 @@ def test_a_lent_page_comes_back_as_the_shape_it_was_made_from(tmp_path, monkeypa
     (first / "leaf.js").symlink_to(tmp_path / "nowhere")
     (first / "widgets" / "lf-planted.js").symlink_to(tmp_path / "nowhere")
     (first / "media" / "elsewhere").symlink_to(tmp_path, target_is_directory=True)
-    cleanup_model.write_json(first / "status.json", {"state": "idle"})
+    (first / "status.json").write_text("{}")
     pool.give_back("plain", first)
 
     second = pool.lend("plain", tmp_path / "second", initialize)
@@ -1898,7 +1900,9 @@ def test_layer_style_sources_consume_the_runtime_layout_names():
     sheet = (styles / "theme.css").read_text() + (styles / "chrome.css").read_text()
 
     spelling = (
-        "[" + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.item"] + "]"
+        "["
+        + read[str(page_paint)]["constants"]["PAGE_PAINT_ATTRIBUTE.obligation"]
+        + "]"
     )
     assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
@@ -3212,13 +3216,13 @@ def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
-    cleanup_model.write_json(page_dir / "cursor.json", {"seq": 1})
+    write_record(page_dir / "cursor.json", {"seq": 1})
     (page_dir / "events.jsonl").unlink()
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     assert result.exit_code == 0, result.output
-    assert interact_files.read_json(page_dir / "cursor.json") is None
+    assert read_record(page_dir / "cursor.json") is None
     assert events_model.read_cursor(page_dir) == 0
 
 
@@ -4609,7 +4613,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     key; the same listener handles pointer input. prepaint.js records inputs
     from the document's first script. focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. The
-    interaction log records keys and answers none. The code block's copy control hands Tab back to its source. Another is how every
+    interaction log records keys and answers none. A control standing over a page block, such as a code block's Copy, hands Tab back to its block. Another is how every
     drift this register replaced began — a
     `keydown` beside a display list, the two of them free to disagree about which keys the
     widget answers."""
@@ -4632,7 +4636,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "prepaint.js": 1,
         "focus.js": 2,
         "interaction-log.js": 1,
-        "code-copy.js": 1,
+        "block-controls.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."

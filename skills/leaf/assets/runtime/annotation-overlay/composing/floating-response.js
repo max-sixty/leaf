@@ -9,8 +9,10 @@
    through attachment changes under the shared rule in comment-placement.js;
    its durable anchor and native editor stay intact.
 
-   A detached draft uses the shared unanchored window posture, preserving its original
-   anchor and native editor. An explicit open uses that same posture while its existing
+   A detached draft stands beside the words the user selected while the browser Range
+   that selected them still holds them (`selectedPassage`), so a refused send's box
+   comes back where it stood; past that, it uses the shared unanchored window posture,
+   preserving its original anchor and native editor. An explicit open uses that same posture while its existing
    subject is hidden; a seated editor withholds instead. Resume writing can recover it
    even after that passage is gone.
    An attached editing field follows its passage out of view. The existing Resume writing route
@@ -100,10 +102,13 @@ export function createFloatingResponsePlacement({
   });
   fabBar.append(carry.grip);
   // The browser's selected Range is a mechanical place even when its durable quote
-  // is ambiguous. Keep it for this response transaction, only while its original
-  // endpoints survive. A revision replacing them retires it; semantic resolution
-  // is the only way to identify that passage again after the node lifetime ends.
-  // The detached draft itself remains reachable in the unanchored window posture.
+  // is ambiguous. Keep it for its anchor, only while its original endpoints survive,
+  // across the box's tenures: the box coming back to that draft, as a refused send's
+  // words or Resume writing bring it, stands beside the words it was written on, which
+  // a detached anchor alone cannot find again. A revision replacing them retires it;
+  // semantic resolution is the only way to identify that passage again after the node
+  // lifetime ends. The detached draft itself remains reachable in the unanchored window
+  // posture.
   let selectedPassage = null;
   const fabFrameAt = () => {
     if (!response.open || !response.floating) return null;
@@ -530,7 +535,6 @@ export function createFloatingResponsePlacement({
     release: () => {
       editingAttachment = null;
       windowPosture = false;
-      selectedPassage = null;
       fabWithheld = false;
       fabBar.removeAttribute("data-lf-withheld");
       fabWithheldFocus = null;

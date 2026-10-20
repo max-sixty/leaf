@@ -202,6 +202,7 @@ html:not([data-lf-live]) {
 @property --lf-frame-end { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-holds-edge { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-holds-height { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --lf-wears-ring { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   * {
     --lf-block-frame: 0;
@@ -231,13 +232,14 @@ body {
 html {
   background: var(--paper);
 }
+@property --lf-panel-reach { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @media screen {
   html[data-lf-live] {
     height: 100%;
     overflow-x: hidden;
     overflow-y: scroll;
     scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
-    scroll-padding-bottom: calc(var(--lf-foot-room) + var(--lf-landing-room));
+    scroll-padding-bottom: calc(max(var(--lf-foot-room), var(--lf-panel-reach) + var(--lf-floating-gap)) + var(--lf-landing-room));
     body {
       padding-bottom: var(--lf-foot-room);
     }
@@ -984,7 +986,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
     visibility 0s linear 90ms;
 }
 .lf-margin-entry-label-word,
-.lf-margin-entry-context {
+.lf-margin-entry-context,
+.lf-margin-entry-more {
   display: block;
 }
 .lf-margin-entry-label-word {
@@ -992,12 +995,16 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lf-margin-entry-context {
+.lf-margin-entry-context,
+.lf-margin-entry-more {
   margin-block-start: 2px;
   color: color-mix(in srgb, var(--paper) 72%, transparent);
   font-size: 10px;
   line-height: 1.25;
   font-weight: 450;
+}
+.lf-margin-entry-more:empty {
+  display: none;
 }
 .lf-margin-projection .lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
   inset: auto;

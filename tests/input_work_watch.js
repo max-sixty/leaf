@@ -48,7 +48,12 @@
   const localSource = (source) => {
     let local = sources.get(source.event);
     if (!local) {
-      local = { event: source.event, node: source.node, order: source.order };
+      local = {
+        event: source.event,
+        node: source.node,
+        order: source.order,
+        carried: source.carried,
+      };
       sources.set(source.event, local);
     }
     return source.nativeDefault
@@ -364,7 +369,8 @@
 
   // DOM nodes and Events cannot be cloned across an opaque frame boundary. Retain
   // their identity and creation order at the sending realm. A round trip recovers
-  // the original node and Event.
+  // the original node and Event. A source that arrives from another realm is
+  // `carried`: this document never heard its input.
   const realm = crypto.getRandomValues(new Uint32Array(4)).join(":");
   const sourceIds = new WeakMap();
   const messageSources = new Map();
@@ -384,7 +390,7 @@
     if (!packed) return null;
     let source = messageSources.get(packed.id);
     if (!source) {
-      source = { event: packed.event, node: null, order: packed.order };
+      source = { event: packed.event, node: null, order: packed.order, carried: true };
       messageSources.set(packed.id, source);
       sourceIds.set(source.event, packed.id);
     }

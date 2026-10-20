@@ -22,7 +22,7 @@ $ARGUMENTS
 
 ## Must remember
 
-- **Everything waiting on the user is an item on their On me list**, including
+- **Everything waiting on the user is an obligation on their On me list**, including
   each decision you leave to them that your next step doesn't depend on. Register
   it before a page heading, a chat open item or a `needs input:` line mentions it.
   `references/conversation-loop.md`, "The On lists", says how to register each
@@ -75,7 +75,7 @@ line for each refusal or note, with the words in `error` or `text`.
    page renders; the reading shows what you meant.
    `references/page-checkpoints.md`, "Stamp checkpoints", says when to stamp
    again; each later stamp repeats the render check and the reading for the views
-   and On me items it adds. A quick page takes this review once a stamp makes it a record.
+   and On me obligations it adds. A quick page takes this review once a stamp makes it a record.
 5. Read the contract that "Harness selection" below picks. Follow
    `references/conversation-loop.md`, "Status and handoff", and serve and hand
    over the page the way that contract says.
@@ -196,7 +196,7 @@ never have to follow a chain of references to find one.
   session's page.
 - `references/module-authoring.md`: before writing or changing browser behavior in
   a page script, page-owned widget or package widget. Then, as the behavior needs
-  them: `references/module-reading.md` for reading the page, content helpers, items
+  them: `references/module-reading.md` for reading the page, content helpers, obligations
   and history; `references/module-state.md` for recorded state and data;
   `references/module-input.md` for commands, focus and text entry;
   `references/module-scroll-and-motion.md` for scrolling, travel and motion; and

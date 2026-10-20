@@ -18,11 +18,15 @@
    The same rendered-body and room observations record first visible agent words in
    the best-effort interaction trace. Those diagnostics need neither focus, unread
    status nor complete exposure; they require a visible document and an actually
-   painted text range. They never change semantic state or delay presentation.
+   painted text range. They never change semantic state or delay presentation. A
+   surface fading in, as the leaf's menu and a view arriving in the panel do, moves no
+   box and announces nothing, so words a pass finds hidden under a running animation
+   are read again when it ends.
 
    The first unread destination belongs to this reading too. Its Go-to route (`g u`)
-   and the panel's visible control share the same exact-message arrival. Ordinary
-   `u` remains paired with `d` in whichever reading region the user stands in. */
+   and Next unread at the head of the floating panel's view of a thread, which goes to
+   that thread's first, share the same exact-message arrival. Ordinary `u` remains
+   paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { signal } from "/vendor/browser-runtime.js";
 import {
@@ -38,13 +42,14 @@ import { recordInteraction } from "../interaction-log.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
+import { renderedParent } from "../shadow-tree.js";
 
 import { savedReadingSettled } from "../keyboard/bindings.js";
 import {
-  onSampleVisibility,
-  sampleVisibility,
+  frameVisibility,
+  onFrameVisibility,
   readSampleVisibility,
-} from "../sample-visibility.js";
+} from "../frame-visibility.js";
 
 const keyOf = (item) => `${item.message}\u0000${item.version}`;
 const EPSILON = 1;
@@ -125,6 +130,8 @@ export function createReadTracking({ markRead, openThread }) {
   let presentationGeneration = 0;
   let visitGeneration = 0;
   let scheduled = false;
+  // What waits for the next pass over the presented threads (`afterPass`).
+  let passWaiters = [];
 
   function resetExposure() {
     visitGeneration++;
@@ -151,11 +158,14 @@ export function createReadTracking({ markRead, openThread }) {
     return unreadIn(committedThreads.value).filter(({ item }) => live.has(keyOf(item)));
   };
 
-  function firstUnread() {
-    const target = actionableUnread().sort(
-      (a, b) => moved(a.message).seq - moved(b.message).seq,
-    )[0];
-    if (target) void openThread(target.item.message, { part: "message" });
+  // The first unread message on the page, or in the thread keyed `thread`.
+  function firstUnread(thread = null) {
+    const target = actionableUnread()
+      .filter((each) => thread === null || each.thread.key === thread)
+      .sort((a, b) => moved(a.message).seq - moved(b.message).seq)[0];
+    return target
+      ? openThread(target.item.message, { part: "message" })
+      : Promise.resolve();
   }
 
   const firstUnreadCommand = {
@@ -166,7 +176,7 @@ export function createReadTracking({ markRead, openThread }) {
     title: "first unread",
     touch: false,
     when: () => actionableUnread().length > 0,
-    run: firstUnread,
+    run: () => void firstUnread(),
   };
 
   function scan(sampleBand) {
@@ -182,6 +192,7 @@ export function createReadTracking({ markRead, openThread }) {
     const mayRead = threadsPresented && document.hasFocus();
     const clips = new Map();
     const completed = new Map();
+    const unseenWords = [];
     for (const [node, rendered] of renderedBodies) {
       const { body, id, version, feedback } = rendered;
       if (!node.isConnected || !body.isConnected) {
@@ -192,9 +203,11 @@ export function createReadTracking({ markRead, openThread }) {
       if (feedback) {
         const identity = feedback.reply_id ?? `input:${feedback.input_id}`;
         const key = `${identity}:${feedback.presentation_kind}:${feedback.surface}`;
-        if (!visibleReplies.has(key) && wordsAreVisible(body, clips, band)) {
-          visibleReplies.add(key);
-          recordInteraction("reply_visible", feedback);
+        if (!visibleReplies.has(key)) {
+          if (wordsAreVisible(body, clips, band)) {
+            visibleReplies.add(key);
+            recordInteraction("reply_visible", feedback);
+          } else unseenWords.push(body);
         }
       }
       const item = mayRead && candidates.get(id);
@@ -234,6 +247,7 @@ export function createReadTracking({ markRead, openThread }) {
         completed.set(key, item);
       }
     }
+    if (unseenWords.length) passAfterFades(unseenWords);
     if (completed.size) {
       const items = [...completed.values()];
       const visit = visitGeneration;
@@ -244,6 +258,36 @@ export function createReadTracking({ markRead, openThread }) {
           for (const item of items) refusedThisVisit.add(keyOf(item));
       });
     }
+    if (!threadsPresented) return;
+    const waiting = passWaiters;
+    passWaiters = [];
+    for (const then of waiting) then();
+  }
+
+  // Neither the size observer nor the room announces a fade (the header). For words a
+  // pass found hidden, each animation or transition on their body, inside it, or on a
+  // box the body renders inside brings one more pass when that run ends or is
+  // cancelled. A replayed animation has a new `finished` promise and is awaited again.
+  const awaitedRuns = new WeakSet();
+  function passAfterFades(bodies) {
+    for (const body of bodies) {
+      const animations = body.getAnimations({ subtree: true });
+      for (let at = renderedParent(body); at; at = renderedParent(at))
+        animations.push(...at.getAnimations());
+      for (const { finished } of animations) {
+        if (awaitedRuns.has(finished)) continue;
+        awaitedRuns.add(finished);
+        finished.then(scheduleScan, scheduleScan);
+      }
+    }
+  }
+
+  // Runs `then` after the next pass over the presented threads, once what that pass
+  // read counts as read in `readThreads()`: what still stands unread then is what the
+  // page has not shown whole, as the floating panel's Next unread asks.
+  function afterPass(then) {
+    passWaiters.push(then);
+    scheduleScan();
   }
 
   let exposureGeneration = 0;
@@ -254,11 +298,16 @@ export function createReadTracking({ markRead, openThread }) {
     scheduled = true;
     nextRender(() => {
       scheduled = false;
-      if (!sampleVisibility()) return scan();
-      // The containing page owns its clips and chrome. Ask it when this scan runs;
-      // a rectangle from an earlier threshold crossing cannot acknowledge words.
+      // The containing page owns a sample's clips and chrome. Ask it when this scan
+      // runs; a rectangle from an earlier threshold crossing cannot acknowledge words.
+      const asked = readSampleVisibility();
+      if (!asked) {
+        // Any other frame reads words only while it shows.
+        if (frameVisibility()?.visible !== false) scan();
+        return;
+      }
       const generation = exposureGeneration;
-      void readSampleVisibility().then((reading) => {
+      void asked.then((reading) => {
         if (generation === exposureGeneration) scan(reading);
       }, reportError);
     });
@@ -274,8 +323,8 @@ export function createReadTracking({ markRead, openThread }) {
     addEventListener("blur", resetExposure);
     addEventListener("load", scheduleScan, true);
     frameWatches.push(
-      onSampleVisibility(() => {
-        if (sampleVisibility()?.visible) scheduleScan();
+      onFrameVisibility((visibility) => {
+        if (visibility.visible) scheduleScan();
         else resetExposure();
       }),
     );
@@ -373,6 +422,8 @@ export function createReadTracking({ markRead, openThread }) {
     present,
     observeMessage,
     observeFeedback,
+    firstUnread,
+    afterPass,
     firstUnreadCommand,
   };
 }

@@ -272,7 +272,7 @@ def _empty_question(at: str, v: dict) -> str:
         f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
         for w in v["widgets"]
     )
-    return f"{_line(at, v)}: this enclosing widget registers no item: " + (
+    return f"{_line(at, v)}: this enclosing widget registers no obligation: " + (
         widgets
         or "it holds no widget that declares x-awaits; a question with no widget is"
         " its words alone, with no heading"
@@ -587,7 +587,7 @@ _TEXT = {
         f" {', '.join(v['changed'])}. Render the supplied values without stepping"
         " from the DOM."
     ),
-    # Geometry, read at the fixed viewports and across the sweep.
+    # Geometry, read across the width sweep.
     "page-scrolls": lambda at, v: f"the page scrolls sideways by {v['past']}px",
     "outside-part": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['host']} it is part of"
@@ -875,7 +875,7 @@ _TEXT = {
     ),
     "empty-question": _empty_question,
     "untitled-question": lambda at, v: (
-        f"{_line(at, v)}: this enclosing widget needs a heading to title its items,"
+        f"{_line(at, v)}: this enclosing widget needs a heading to title its obligations,"
         " leading its content alone or in an <hgroup> or <header>"
     ),
     "unknown-word": lambda at, v: (
@@ -1138,7 +1138,7 @@ _TEXT = {
     ),
     "enclosing-id": _declared(lambda v: "x-awaits.encloses must require an id"),
     "enclosing-prose": _declared(
-        lambda v: "x-awaits.encloses must admit prose around the items it frames"
+        lambda v: "x-awaits.encloses must admit prose around the obligations it frames"
     ),
     "data-contract": _declared(
         lambda v: (
@@ -1244,7 +1244,7 @@ _TEXT = {
             " receipt, but is written by a value record"
         )
     ),
-    # Its interactions: local work, its item, and the state its verbs write.
+    # Its interactions: local work, its obligation, and the state its verbs write.
     "work-inline": _declared(
         lambda v: "declares x-work but is inline; local work chrome needs a block slot"
     ),
@@ -1255,7 +1255,7 @@ _TEXT = {
         )
     ),
     "awaits-unanswered": _declared(
-        lambda v: "x-awaits local item declares no `answered` condition"
+        lambda v: "x-awaits local obligation declares no `answered` condition"
     ),
     "awaits-verbs": _declared(
         lambda v: (
@@ -1275,7 +1275,7 @@ _TEXT = {
     "awaits-blanket": _declared(
         lambda v: (
             f"x-awaits blanket answer `{v['outcome']}` is not an outcome of a"
-            " deciding verb that answers its item"
+            " deciding verb that answers its obligation"
         )
     ),
     "unoverruled": _declared(
@@ -1295,7 +1295,7 @@ _TEXT = {
     "reserved-resolves": _declared(
         lambda v: (
             "declares attribute `resolves`, a reserved name (the thread an"
-            " answer to its item closes), but originates no local item"
+            " answer to its obligation closes), but originates no local obligation"
         )
     ),
     "verb-detail-schema": _declared(
@@ -1603,8 +1603,8 @@ _TEXT = {
         f'v{v["version"]} does not declare <meta name="lf-review" content="sign-off">,'
         " so it has no approval to record"
     ),
-    "unanswered-items": lambda at, v: (
-        f"v{v['version']} still has unanswered widget items: {', '.join(v['items'])}"
+    "unanswered-obligations": lambda at, v: (
+        f"v{v['version']} still has unanswered widget obligations: {', '.join(v['obligations'])}"
     ),
     # An action or a report, against its widget's declaration.
     "unknown-sender": lambda at, v: (
@@ -1778,8 +1778,8 @@ _TEXT = {
         f"{v['widget']} has no work seat; its widget declares no x-work and it holds"
         " no unsettled action"
     ),
-    "duplicate-item": lambda at, v: (
-        f"{v['widget']!r} already has item {v['item']!r}; use that item instead of"
+    "duplicate-obligation": lambda at, v: (
+        f"{v['widget']!r} already has obligation {v['obligation']!r}; use that obligation instead of"
         " opening duplicate work"
     ),
     "plan-depth": lambda at, v: (
@@ -1788,25 +1788,27 @@ _TEXT = {
         " deeper than the one above"
     ),
     "unknown-plan-item": lambda at, v: (
-        f"{v['item']!r} names no to-do or item on this page; name an id `leaf task"
-        " open` printed or an item id from `leaf page state`, or write a plain step"
+        f"{v['item']!r} names no to-do or obligation on this page; name an id `leaf task"
+        " open` printed or an obligation id from `leaf page state`, or write a plain step"
         " with a title and state"
     ),
     "unowed-start": lambda at, v: (
         f"{v['item']!r} is neither an open to-do of yours nor an update you owe an"
         " answer to; start the id a delivered update or `leaf task open` gave you"
     ),
-    "approval-item": lambda at, v: (
-        f"item {v['todo']!r} requires the user's approval of v{v['version']}; it ends"
+    "approval-obligation": lambda at, v: (
+        f"obligation {v['todo']!r} requires the user's approval of v{v['version']}; it ends"
         " at the page's Approval control"
     ),
-    "widget-item": lambda at, v: (
+    "widget-obligation": lambda at, v: (
         f"{v['todo']!r} is answered by its widget's state, so retire it in the document"
     ),
     "users-question": lambda at, v: (
         "the user's message or settling reaction answers a question asked in words"
     ),
-    "ended-item": lambda at, v: f"item {v['todo']!r} is already {v['status']}",
+    "ended-obligation": lambda at, v: (
+        f"obligation {v['todo']!r} is already {v['status']}"
+    ),
     "failed-question": lambda at, v: (
         "a question asked in words ends `done` when the user answered it elsewhere,"
         " or `dropped` when it no longer applies"

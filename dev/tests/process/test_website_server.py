@@ -17,6 +17,8 @@ from click.testing import CliRunner
 from interact_support import (
     PAGE,
     STATED_TIMEOUT,
+    owed_answers,
+    page_state,
 )
 from interact_support import (
     append_carried_log_record as append_event,
@@ -827,7 +829,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     )
     accept_in_turn("hosted-thread")
 
-    handling = website_server.full_state(page_dir, read_events(page_dir))
+    handling = page_state(page_dir)
     assert handling["activity"]["kind"] == "working"
     assert journey.still_answering(handling, comment["id"])
     # Another page's comment is not this gate's turn, whatever this page is doing.
@@ -840,10 +842,8 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
         expected=session_record("hosted-thread"),
     )
 
-    stopped = website_server.full_state(page_dir, read_events(page_dir))
-    assert [
-        obligation["input"] for obligation in stopped["activity"]["obligations"]
-    ] == [comment["id"]]
+    stopped = page_state(page_dir)
+    assert stopped["activity"]["obligations"] == [f"update:{comment['id']}"]
     assert not journey.still_answering(stopped, comment["id"])
 
 
@@ -854,17 +854,11 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     behind it. Extending the wait there would spend the step's whole budget to raise
     the failure it could already raise.
     """
-    obligation = {"input": "comment-id", "dropped": False}
     for kind in ("away", "unheld", "stalled", "closed", "listening"):
-        state = {"activity": {"kind": kind, "obligations": [obligation]}}
+        state = {"activity": {"kind": kind, "obligations": ["update:comment-id"]}}
         assert not journey.still_answering(state, "comment-id")
-    dropped = {
-        "activity": {
-            "kind": "working",
-            "obligations": [{"input": "comment-id", "dropped": True}],
-        }
-    }
-    assert not journey.still_answering(dropped, "comment-id")
+    working = {"activity": {"kind": "working", "obligations": ["update:comment-id"]}}
+    assert journey.still_answering(working, "comment-id")
     assert not journey.still_answering({}, "comment-id")
 
 
@@ -879,7 +873,7 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
         {"kind": "comment", "author": "user", "text": "edit the page"},
     )
     reply = harness.failure_receipt(page_dir, comment["id"], failure)
-    state = website_server.full_state(page_dir, read_events(page_dir))
+    state = page_state(page_dir)
     replies = [event for event in state["events"] if event["kind"] == "reply"]
     assert [event["id"] for event in replies] == [reply["id"]]
     contract = load_registry(page_dir)["$events"]["kinds"]["reply"]
@@ -887,7 +881,7 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
     assert journey.turn_failed(replies)
     assert journey.startup_failed(replies) == (failure == "startup_failed")
     assert journey.deployment_answer(replies, comment["id"]) is None
-    assert not state["activity"]["obligations"]
+    assert not owed_answers(page_dir)
     assert harness.attach(page_dir, comment["id"]) is None
 
 
@@ -1015,10 +1009,7 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     comment = {"id": "comment-id"}
     working = {
         "active": {"revision": 1, "url": "revisions/1.html"},
-        "activity": {
-            "kind": "working",
-            "obligations": [{"input": "comment-id", "dropped": False}],
-        },
+        "activity": {"kind": "working", "obligations": ["update:comment-id"]},
         "events": [
             {
                 "kind": "reply",
@@ -1298,6 +1289,32 @@ def test_the_agent_pass_waits_out_an_allocation_the_rollout_has_not_reached(
     assert slept == [10]
 
 
+def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatch):
+    release = "a471af1a" + "0" * 56
+    page = _DeployedPage("", revision=1, presented_at=900.0)
+
+    class Resetting(_RollingOutContainer):
+        def get(self, url: str, **kwargs):
+            if "api/view" in url:
+                raise verify_site.PlaywrightError(
+                    "APIRequestContext.get: read ECONNRESET"
+                )
+            return super().get(url, **kwargs)
+
+    resetting = Resetting(release, page)
+    ready = _DeployedContainer(release, page)
+    slept: list[float] = []
+    _rolling_clock(monkeypatch, [0.0, 12.0], slept)
+
+    site = _RollingSite([resetting, ready])
+    session = verify_site.agent_session(site, release, origin="https://leaf.page")
+
+    assert session.context is ready
+    assert resetting.closed and not ready.closed
+    assert site.opened == [resetting, ready]
+    assert slept == [10]
+
+
 def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
     """The bound still holds, and the message says which reading ran it out."""
     release = "a471af1a" + "0" * 56
@@ -1407,7 +1424,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             journey.TurnReading(
                 {
                     "active": {"revision": 2},
-                    "activity": {"kind": "away"},
+                    "activity": {"kind": "away", "obligations": []},
                     "source_error": None,
                     "events": TURN_LOG,
                     "browser": {
@@ -1594,7 +1611,7 @@ def test_a_reload_that_presented_offline_reports_the_status_it_presented_under(
             journey.TurnReading(
                 {
                     "active": {"revision": 2},
-                    "activity": {"kind": "away"},
+                    "activity": {"kind": "away", "obligations": []},
                     "source_error": None,
                     "events": TURN_LOG,
                     "browser": {

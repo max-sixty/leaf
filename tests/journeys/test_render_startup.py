@@ -53,6 +53,7 @@ from browser.startup import HELD_KEYS_PAGE, _hold_startup
 from browser.threads import open_panel_thread
 
 
+@pytest.mark.watch_shifts
 def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
     """Authored iframe markup opens a durable version rather than a practice copy."""
     url = live_url(serve(FEATURE_GALLERY))
@@ -81,6 +82,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         "checkout": "fb77",
         "interaction": "user",
         "started": "2026-08-31T12:00:00+00:00",
+        "input": {"source": "triage-board", "authored": "test"},
     }
     context = browser.new_context(
         viewport={"width": 1200, "height": 900},

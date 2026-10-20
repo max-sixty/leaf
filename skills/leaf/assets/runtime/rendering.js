@@ -91,20 +91,16 @@
    before it asks (`rendered` in scripts/leaf/render_checks.py).
 
    A document nobody can see gets no rendering updates: a hidden page, and a child page
-   whose frame is not rendered — an inactive tab's panel and a closed disclosure hold
-   their frames under `content-visibility: hidden`. Every queued callback runs before
-   such a document next paints, so it reads settled rather than waiting on an update
-   that will not come until someone can see it. A sample's host publishes whether its
-   frame is visible across the isolated document boundary; the child never reads the
-   host's DOM to decide whether it can paint. A host may hide or scroll away the frame
-   it is loading; that is
-   why `data-lf-presented`, which such a host waits on before showing the frame, never
-   waits on this reading. A native implicit-root observer supplies whether the sample
-   intersects the containing viewports; its host supplies only admission through
-   tab visibility, inertness and modal reach, never a cached clipping rectangle. */
+   whose frame is not on screen — scrolled away, or in an inactive tab's panel or a
+   closed disclosure, which hold their frames under `content-visibility: hidden`. Every
+   queued callback runs before such a document next paints, so it reads settled rather
+   than waiting on an update that will not come until someone can see it. Whether the
+   frame shows is `frameVisibility`'s answer (frame-visibility.js). A host may hide or
+   scroll away the frame it is loading; that is why `data-lf-presented`, which such a
+   host waits on before showing the frame, never waits on this reading. */
 
 import { enqueueWork, runWork, cancelWork } from "./queued-work.js";
-import { onSampleVisibility, sampleVisibility } from "./sample-visibility.js";
+import { frameVisibility, onFrameVisibility } from "./frame-visibility.js";
 
 const ROUNDS = 8;
 // What the next pass runs, what the running pass is working through, and what a
@@ -244,14 +240,7 @@ export const renderingState = () => {
   };
 };
 
-function rendered() {
-  if (document.hidden) return false;
-  const sample = sampleVisibility();
-  if (sample) return sample.visible;
-  for (let view = /** @type {Window} */ (window); view.frameElement; view = view.parent)
-    if (!view.frameElement.checkVisibility()) return false;
-  return true;
-}
+const rendered = () => !document.hidden && frameVisibility()?.visible !== false;
 
 function unsettle() {
   quiet = false;
@@ -305,7 +294,7 @@ export function afterSettling(settled) {
 }
 
 // Nothing has been heard yet: the page is unsettled until its first quiet update.
-onSampleVisibility(() => {
-  if (sampleVisibility()?.visible) unsettle();
+onFrameVisibility((visibility) => {
+  if (visibility.visible) unsettle();
 });
 unsettle();

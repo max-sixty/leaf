@@ -639,7 +639,7 @@ export function closestAcross(node, selector) {
 
 // getElementById searches the document tree alone, which is the same boundary again and
 // the one every question the runtime asks by id runs into: which element an anchor names,
-// what an action rests on, which unit a fold paints, which item a key steps to. A widget
+// what an action rests on, which unit a fold paints, which obligation a key steps to. A widget
 // that stages its authored children into a shadow tree takes their ids in there with it,
 // and each of those answers would come back null and quietly do nothing — the anchor
 // captured, the mark never painted, no error anywhere. The document first, because that

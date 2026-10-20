@@ -99,7 +99,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
      (`--thread-card-min`), so the card Send opens stands in the frame and grows out of
      the field (`.lf-margin-preview[data-lf-grows]`). Only the editor paints; the
      transparent rows neither take document flow nor intercept presses. Its tracks
-     shrink into that frame, including beside attached media. */
+     shrink into that frame, and attached images stand in its header row. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
     box-sizing: border-box;
     /* An auto-height positioned box borrows its inset-modified available height.
@@ -166,18 +166,35 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     grid-column: 1 / -1;
     grid-row: 2;
   }
-  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
-      .lf-composer-media:not([hidden])
-    ) {
-    grid-template-columns: auto minmax(0, 1fr);
+  /* Attached images stand in the header row the frame keeps for the card's author line,
+     over the field's start, so attaching neither widens the box nor moves a word, as
+     the floating panel hangs its shelf over its card (floating-panel.css). The pictures
+     fill that row down to the message body's gap above the field, from 7px under the
+     frame's top, which keeps each picture's removal mark inside the placed frame. The
+     shelf's padding, which holds their shadows and removal reach (response.css), is
+     taken back by its offsets. Only the pictures take presses, so the padding over page
+     text takes none. */
+  .lf-fab-bar:not([data-lf-presentation="inline"])
+    .lf-composer-media:not([hidden], :has(> .lf-composer-drawing)) {
+    --lf-media-h: calc(var(--lf-comment-frame-top) - var(--lf-msg-body-gap) - 7px);
+    position: absolute;
+    /* Out of the grid, so its offsets read from the box's edge, not the field's cell. */
+    grid-area: auto;
+    inset-block-start: calc(7px - var(--lf-media-room));
+    inset-inline-start: calc(var(--lf-comment-frame-inline) - var(--lf-media-room));
+    max-width: calc(
+      100% - 2 * var(--lf-comment-frame-inline) + 2 * var(--lf-media-room)
+    );
+    margin: 0;
+    pointer-events: none;
   }
-  .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
-    .lf-compose-field {
-    grid-column: 2;
+  .lf-fab-bar:not([data-lf-presentation="inline"])
+    .lf-composer-media:not([hidden], :has(> .lf-composer-drawing))
+    > * {
+    pointer-events: auto;
   }
-  /* A drawing's tile carries its undo and removal, more than the field's side of a
-     card-wide bar can spare under a finger, so a shelf holding one takes a row of its
-     own above the field. */
+  /* A drawing's picture stands taller than the header row, so a shelf holding one
+     takes a row of its own above the field. */
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(
       .lf-composer-media:not([hidden]) > .lf-composer-drawing
     ) {
@@ -236,11 +253,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el {
     width: 100%;
     height: 100%;
     overflow: hidden;
-  }
-  .lf-fab-bar:not([data-lf-presentation="inline"]) .lf-composer-media {
-    grid-column: 1;
-    grid-row: 1;
-    min-width: 42px;
   }
   /* thread-preview.js writes the width and height cap the card's placement gives it
      (comment-placement.js); these are the fallbacks for a card no placement has sized

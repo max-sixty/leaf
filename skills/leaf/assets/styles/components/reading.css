@@ -181,6 +181,10 @@
 :where(:root, .lf-thread-transcript) table {
   display: block;
   overflow-x: auto;
+  /* How far anything in a cell draws outside its box: a focus ring, or a capture's
+     frame, whose reach beside the image is its lift's blur. The table clips at its
+     own edges, so its outer cells keep this much room on their outer sides. */
+  --lf-table-edge: max(var(--focus-ring-room), var(--raise-1-blur));
   container-type: inline-size;
   container-type: inline-size scroll-state;
   --lf-top: 0px;
@@ -223,15 +227,16 @@
   }
 }
 /* The padding is a gutter, and the columns at the two ends have no neighbour to
-   keep away from: a gutter there set every table's first word that far in from the
-   prose above it, and stopped the last column short of the same edge. The ends, like
-   each cell's alignment, are the table's start and end, so a right-to-left table's
-   first column stands on the right edge with the prose. */
+   keep away from, so they keep only the table's edge room there: a link's ring or a
+   capture's frame in an outer column whole inside the table's clip, its words that
+   little in from the prose, and its row lines still starting on the prose edge. The
+   ends, like each cell's alignment, are the table's start and end, so a right-to-left
+   table's first column stands on the right edge with the prose. */
 :where(:root, .lf-thread-transcript) tr > :first-child {
-  padding-inline-start: 0;
+  padding-inline-start: var(--lf-table-edge);
 }
 :where(:root, .lf-thread-transcript) tr > :last-child {
-  padding-inline-end: 0;
+  padding-inline-end: var(--lf-table-edge);
 }
 /* A cell the user stands on, as a thread's target once its card closes, wears the ring
  * inside its own box. The table scrolls its columns, so it clips to its own edges, and
@@ -239,8 +244,7 @@
  * outward ring there lost the side on the table's edge. Room outside the table would
  * have to come from a negative margin, which overflows any scroller holding the table
  * flush, as an x-bound box does. Inset, the ring stands where the card's target trace
- * outlined the cell, and like the trace it meets the words of an outer column, which
- * keeps no padding on its outer side. */
+ * outlined the cell. */
 :where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
@@ -288,18 +292,6 @@
   > th:not([scope="row"]) {
   text-align: center;
   color: var(--ink);
-}
-/* A capture's frame is a box-shadow outside the image (theme.css, `img`), and the table
-   clips to its own edges because it scrolls its columns, so a capture in an outer
-   column lost the frame's outer side: the hairline and shadow right of every capture in
-   the last column. An outer cell holding an image, alone, linked or in a figure, keeps
-   room on its outer side for the frame's reach, which beside the image is its lift's
-   blur. */
-:where(:root, .lf-thread-transcript) tr > td:first-child:has(img) {
-  padding-inline-start: var(--raise-1-blur);
-}
-:where(:root, .lf-thread-transcript) tr > td:last-child:has(img) {
-  padding-inline-end: var(--raise-1-blur);
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;

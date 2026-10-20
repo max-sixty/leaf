@@ -30,7 +30,7 @@ import { watchScrolls } from "./arrivals.js";
    that holds the Range and counting that element's own clip. Use:
 
    - `shownBox` for travel, bounds, and reading-position landmarks;
-   - `shownParts` for item rings and element-anchor outlines;
+   - `shownParts` for obligation rings and element-anchor outlines;
    - `shownExtent` for what stands beside a target's parts: a margin row, the
      response field's room;
    - `shownRect` for visible placement of floating chrome and key badges;
@@ -489,9 +489,10 @@ export function shownRect(item, clips) {
 // only; its sides stay shownRect's, the
 // layout viewport's, since a pinch zoom's visual viewport is a pan across the page and not
 // a clip — read with its sides, a message wider than the zoomed view was never seen whole
-// across, and never counted read. Null when none of it shows.
-export function seenRect(item, clips) {
-  const shown = shownRect(item, clips);
+// across, and never counted read. Null when none of it shows. `box` is the extent asked
+// about, the item's own by default, or wider, as a focus ring's room is.
+export function seenRect(item, clips, box = shownBox(item)) {
+  const shown = clippedRect(box, item, clips);
   if (!shown) return null;
   const room = shownWindow({ within: shown, item });
   return room.width > 0 && room.height > 0

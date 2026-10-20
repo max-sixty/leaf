@@ -833,7 +833,9 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
     claim = service_model.page_claim(stale)
     written_before_811 = {**claim, "host": claim["harness"]}
     del written_before_811["harness"]
-    cleanup_model.write_json(service_model.claim_path(stale), written_before_811)
+    cleanup_model.write_json(
+        service_model.claim_path(stale), service_model.CLAIM.stored(written_before_811)
+    )
 
     # The reported failure: the watcher walks every page the session holds, and
     # the record it cannot read belongs to a page the user is not on.
@@ -857,7 +859,9 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
         {**claim, "harness": "some-harness-a-later-leaf-named"},
         {key: value for key, value in claim.items() if key != "generation"},
     ):
-        cleanup_model.write_json(service_model.claim_path(stale), unreadable)
+        cleanup_model.write_json(
+            service_model.claim_path(stale), service_model.CLAIM.stored(unreadable)
+        )
         hooks_model.cmd_hook(
             "claude-code", {"hook_event_name": "Stop", "session_id": "s8"}
         )
@@ -926,3 +930,18 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     record_claim(other, id="other-guarded")
     assert service_model.owned_pages("guarded") == []
     assert service_model.owned_pages("other-guarded") == [other.resolve()]
+
+
+def test_a_claim_outlives_a_protocol_bump_that_leaves_its_shape_alone(
+    tmp_path, monkeypatch
+):
+    """A Leaf updated across a protocol bump still reads the claims and session
+    records written before it, so a session keeps watching its page through the
+    update. Each record's format names the protocol its own shape last changed at
+    (`state.Record`)."""
+    page = tmp_path / "page"
+    page.mkdir()
+    record_claim(page)
+    events = cleanup_model.kernel_registry()["$events"]
+    monkeypatch.setitem(events, "protocol", events["protocol"] + 1)
+    assert service_model.claim_is_active(service_model.page_claim(page))

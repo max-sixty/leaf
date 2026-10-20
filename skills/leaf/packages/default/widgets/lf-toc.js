@@ -1,17 +1,9 @@
 /* lf-toc: navigation derived from the headings the page already says.
  *
- * The generated labels are link apparatus rather than a second copy of the page's
- * words, so the nav wears .lf-ui. When a heading titles an identified section, that
- * section is the destination: an eyebrow and heading arrive as one title, and the public
- * fragment names the section rather than its label. Otherwise the heading's id is the
- * destination, or an hgroup owns its heading's destination,
- * so an eyebrow and title share one address and measured box, for h1 as for every level.
- * A destination without an id is lent an `lf-` id, which no reader of the
- * page's ids takes for one its author wrote (`ADDRESSABLE`). The id goes on the destination
- * rather than on an element inserted beside it, because an inserted element changes
- * which child a page rule finds first or last and what an `h2 + p` rule finds next to
- * the heading.
- * max-level bounds the authored outline before the module creates links or lends ids.
+ * The outline, the destination of each of its links and the frame that holds them are
+ * `toc-view.js`'s, which the initial renderer draws before first paint, so the widget
+ * first shows at the box it keeps. The module redraws the outline in those same nodes
+ * whenever the document's headings change, and measures and moves the map.
  *
  * In the roomy margin the outline becomes a reading map. Each row receives the length
  * of the section it leads as its flex share, so the quiet spine describes the document
@@ -32,6 +24,10 @@
  * landing band changes. Where the browser has no scroll timeline (Firefox), the same
  * keyframes run as a paused animation whose time each scroll's paint sets, so the lens
  * follows a frame behind the scroll, still writing nothing to the page.
+ * The lens and the current entry follow the scroller of the document the outline
+ * covers, not the scroller of the box the widget stands in. A sidebar's sticking track
+ * scrolls only its own contents and usually stands at its scroll end, so an outline
+ * that read it marked the last section as current at every scroll.
  * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
  * document, and the height of the track the rows are laid into, which the page's chrome
  * can shorten without the document moving at all; a widget whose view rearranges
@@ -55,8 +51,8 @@ import {
   atScrollEnd,
   frameFor,
   holdFocus,
-  html,
   inChrome,
+  initialRender,
   keeps,
   landingInsets,
   LAYOUT,
@@ -64,20 +60,18 @@ import {
   once,
   PAGE_INTERFACE,
   PRESENTATION,
-  ref,
-  render,
-  repeat,
   scrollerFor,
   scrollIntoView,
   scrollLimit,
+  setChildren,
   sizeObserver,
   whileConnected,
   wrote,
   focused,
   standingIn,
 } from "/runtime/widget-api.js";
+import { drawOutline, outlineDocument } from "./toc-view.js";
 
-const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
 // The lens is never shorter than this, or than 1.2% of the map, so it stays in sight.
 const LENS_FLOOR = 14;
 // Firefox lacks ScrollTimeline.
@@ -90,6 +84,7 @@ customElements.define(
   "lf-toc",
   class extends HTMLElement {
     #main;
+    #drawing;
     #nav;
     #rows;
     #lens;
@@ -117,126 +112,44 @@ customElements.define(
       this.#measure();
     };
     #onPresentation = () => this.#measure();
-    #navRef = (nav) => (this.#nav = nav);
-    #rowsRef = (rows) => (this.#rows = rows);
-    #lensRef = (lens) => (this.#lens = lens);
     #onNavScroll = () => {
       // A resize may clamp scrollTop before the measurement that restores focus.
       if (this.#nav.getBoundingClientRect().height === this.#navHeight)
         this.#rememberFocus();
     };
 
-    // The outline is of the document it stands in: the page's `main`, or the part of a
-    // page made of parts that holds it (`data-lf-views="parts"`, lf-tabs.js).
-    #document() {
-      return this.closest('body > main > [data-lf-views="parts"] > *, main');
-    }
-
     connectedCallback() {
-      const main = this.#document();
-      if (!once(this) && main === this.#main && scrollerFor(this) === this.#scroller)
+      const main = outlineDocument(this);
+      if (!once(this) && main === this.#main && scrollerFor(main) === this.#scroller)
         return;
       // Moving to another reading region changes the resources, even if the
       // arrival batch keeps this element connected throughout the move.
       this.#stopWatching?.();
       this.#main = main;
       if (!main) return;
+      this.#drawing ??= initialRender(this);
+      ({ nav: this.#nav, track: this.#rows, lens: this.#lens } = this.#drawing);
       this.#reconcile();
       this.#stopWatching = whileConnected(this, (signal) => this.#watch(signal));
     }
 
-    // Authored revisions retain this widget when its own markup did not change.
-    // Lit retains rows by the heading's authored id or node identity. A destination
-    // may serve several headings, and grouping can change it without changing a row.
+    // Authored revisions retain this widget when its own markup did not change, and
+    // the outline retains rows by the heading's authored id or node identity. A
+    // destination may serve several headings, and grouping can change it without
+    // changing a row.
     #reconcile() {
-      const maxLevel = Number(this.getAttribute("max-level") ?? 6);
-      const headings = [...this.#main.querySelectorAll(HEADING_SELECTOR)]
-        .filter((heading) => heading.localName !== "h1")
-        .filter((heading) => !inChrome(heading) && !heading.closest("lf-toc"))
-        .filter((heading) => Number(heading.localName.slice(1)) <= maxLevel)
-        .map((heading) => ({ heading, label: wrote(heading).trim() }))
-        .filter(({ label }) => label);
-
-      const pageTitle = [...this.#main.querySelectorAll("h1")].find(
-        (candidate) => !inChrome(candidate),
-      );
-      const startDestination = pageTitle
-        ? this.#destinationFor(pageTitle, 0)
-        : this.#main.id
-          ? this.#main
-          : this.#targetFor(this.#main, 0);
       const previous = this.#sections.map(({ destination }) => destination);
-      const floor = Math.min(
-        ...headings.map(({ heading }) => Number(heading.localName.slice(1))),
-      );
-      /** @type {{heading: any, label: string, destination: any, depth: number, row?: Element, link?: Element}[]} */
-      const items = headings.map(({ heading, label }, index) => ({
-        heading,
-        label,
-        destination: this.#destinationFor(heading, index + 1),
-        depth: Math.min(Number(heading.localName.slice(1)) - floor, 4),
-      }));
-      const title = (pageTitle ? wrote(pageTitle).trim() : "") || "Top";
       const held = this.#sections.find(({ link }) => link === focused());
       const restore = held && holdFocus(this.#nav);
-      // Each row and link binds itself to the item it renders, so a section holds the
-      // row it measures whatever order Lit keeps the rows in.
-      const start = { destination: startDestination };
-      const outline = repeat(
-        items,
-        ({ heading }) => heading.id || heading,
-        (item) => html`
-          <li data-lf-depth=${item.depth} ${ref((row) => (item.row = row))}>
-            <a href=${`#${item.destination.id}`} ${ref((link) => (item.link = link))}
-              >${item.label}</a
-            >
-          </li>
-        `,
-      );
-      render(
-        html`
-          <nav
-            class="lf-toc-nav lf-ui"
-            data-lf-gen="1"
-            aria-label="On this page"
-            ${ref(this.#navRef)}
-          >
-            <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>
-              On this page
-            </p>
-            <details class="lf-toc-disclosure">
-              <summary class="lf-toc-toggle lf-label" data-lf-gen="1" data-lf-said>
-                On this page
-              </summary>
-              <div class="lf-toc-rows" ${ref(this.#rowsRef)}>
-                <span
-                  class="lf-toc-window"
-                  aria-hidden="true"
-                  ${ref(this.#lensRef)}
-                ></span>
-                <div
-                  class="lf-toc-start"
-                  data-lf-depth="0"
-                  ${ref((row) => (start.row = row))}
-                >
-                  <a
-                    href=${`#${startDestination.id}`}
-                    ${ref((link) => (start.link = link))}
-                    >${title}</a
-                  >
-                </div>
-                <ol>
-                  ${outline}
-                </ol>
-              </div>
-            </details>
-          </nav>
-        `,
-        this,
-      );
-      this.#sections = headings.length ? [start, ...items] : [];
+      this.#sections = drawOutline(this, this.#drawing, {
+        label: wrote,
+        chrome: inChrome,
+        place: setChildren,
+        keeps,
+        lends: true,
+      });
       // A new key still represents the user's place when its heading or destination
-      // survives. The template renderer already retains focus through keyed moves.
+      // survives. Placing the rows already retains focus through keyed moves.
       if (restore) {
         const continuation =
           this.#sections.find(({ heading }) => heading === held.heading) ??
@@ -245,7 +158,7 @@ customElements.define(
           );
         restore(continuation?.link);
       }
-      this.toggleAttribute("data-lf-toc-empty", !headings.length);
+      this.toggleAttribute("data-lf-toc-empty", !this.#sections.length);
       this.#observeDestinations(previous);
     }
 
@@ -263,9 +176,9 @@ customElements.define(
     }
 
     #watch(signal) {
-      this.#main = this.#document();
+      this.#main = outlineDocument(this);
       if (!this.#main) return;
-      this.#scroller = scrollerFor(this);
+      this.#scroller = scrollerFor(this.#main);
       // Root scrolling is reported on Document; nested scrollports report on the
       // element itself. Keep one paint path while using the platform's event target for
       // each kind of scroller.
@@ -639,22 +552,6 @@ customElements.define(
         });
         this.#lensMotion.pause();
       }
-    }
-
-    #destinationFor(heading, position) {
-      const section = heading.closest("section[id]");
-      if (section?.querySelector(HEADING_SELECTOR) === heading) return section;
-      const destination = heading.closest("hgroup") ?? heading;
-      return destination.id ? destination : this.#targetFor(destination, position);
-    }
-
-    #targetFor(heading, position) {
-      const stem = `lf-${this.id}-section-${position}`;
-      let id = stem;
-      let suffix = 2;
-      while (document.getElementById(id)) id = `${stem}-${suffix++}`;
-      heading.id = id;
-      return heading;
     }
   },
 );

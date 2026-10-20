@@ -6,9 +6,11 @@ session's process and a server that outlives the command. Its hooks run outside 
 sandbox, so the hook Claude Code runs before a shell command naming `leaf`
 (`ensure`) starts a bridge for this install there, and `bin/leaf` hands each
 command confined by Claude Code's sandbox (`SANDBOX_RUNTIME`) to it (`run`). The command then runs as an unsandboxed one
-would, with its arguments, working directory and environment. Its stdin, output
-and exit status pass as they come, so a command that never reads a stdin that
-never ends still finishes.
+would, with its arguments, working directory and environment. Its output and exit
+status pass as they come, and so does its stdin, read beside the command, so a
+command that never reads a stdin that never ends still finishes. The command reads
+that stdin through a pipe, so it learns from the client whether the caller's own
+was piped (`piped_input`).
 
 The only road out of that sandbox a command can take without settings is Claude
 Code's network proxy, which every sandboxed command's `HTTP_PROXY` names: a direct
@@ -18,8 +20,8 @@ CONNECT tunnel in that proxy, and the proxy admits 127.0.0.1 once the user appro
 it or lists it in `sandbox.network.allowedDomains` (README, "Agent sandboxes"). The
 bridge refuses a request without the token in its record, which only the user's
 own processes can read: neither another user on the machine nor a page in a
-browser can drive it. Codex's sandbox has no such road; its commands still run
-confined (`TODO.md`).
+browser can drive it. Codex's sandbox has no such road, so Codex's agent runs a
+confined command through Leaf's MCP server instead (`codex_tool.py`).
 
 A session that runs no `leaf` command starts no bridge and no hook for one: the
 hook's `if` rules (`hooks/hooks.json`) have Claude Code start it only before a
@@ -59,7 +61,19 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from .leases import release_lease, take_lease
-from .state import state_home, write_json
+from .piped_input import STDIN_PIPED, piped
+from .state import STRING, Record, object_schema, state_home
+
+# Where the running bridge listens, the token a request carries, and its process.
+ADDRESS = Record(
+    "bridge",
+    object_schema(
+        {"port": {"type": "integer"}, "token": STRING, "pid": {"type": "integer"}}
+    ),
+    since=13,
+)
+# A session the bridge serves, with the lifetime it lives by (`Harness.lifetime`).
+REGISTRATION = Record("bridge-session", object_schema({"id": STRING}), since=13)
 
 # One bridge per installed tree: a plugin update is a new tree, whose sessions
 # reach its own bridge while the old one serves out the sessions still on it.
@@ -119,7 +133,7 @@ def ensure(session: str, lifetime: dict) -> None:
     sessions.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     sessions.mkdir(exist_ok=True)
     key = hashlib.sha256(session.encode()).hexdigest()[:32]
-    write_json(sessions / f"{key}.json", {"id": session, **lifetime})
+    REGISTRATION.write(sessions / f"{key}.json", {"id": session, **lifetime})
     if (lease := take_lease(bridge_path("lock"))) is None:
         return
     # Closing this copy leaves the lease held by the bridge's.
@@ -136,13 +150,12 @@ def ensure(session: str, lifetime: dict) -> None:
 
 def live_sessions() -> bool:
     """Whether a registered session still lives; forgets the rest."""
-    from .files import read_json
     from .service import lifetime_is_live
     from .state import session_record
 
     alive = False
     for entry in bridge_path("sessions").glob("*.json"):
-        if (record := read_json(entry)) and lifetime_is_live(
+        if (record := REGISTRATION.read(entry)) and lifetime_is_live(
             record, session_record(record["id"])
         ):
             alive = True
@@ -239,7 +252,7 @@ def serve(lease_fd: int) -> None:
     # Closing the server waits for the commands it is running.
     socketserver.ThreadingTCPServer.daemon_threads = False
     server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Handler)
-    write_json(
+    ADDRESS.write(
         bridge_path("json"),
         {"port": server.server_address[1], "token": token, "pid": os.getpid()},
     )
@@ -308,14 +321,19 @@ def run(argv: list[str]) -> int:
         for name, value in os.environ.items()
         if name != "SANDBOX_RUNTIME" and "proxy" not in name.lower()
     }
+    # The command reads the pipe this relays stdin over, so it learns from here
+    # whether the caller's own stdin was piped (`piped_input`).
+    try:
+        env[STDIN_PIPED] = "1" if piped(0) else "0"
+    except OSError:
+        env[STDIN_PIPED] = "0"
     request = {"argv": argv, "cwd": os.getcwd(), "env": env}
     # A bridge a hook has just started takes a moment to publish its address, and a
     # retiring one closes connections it has not accepted. Its pid may be in
     # another namespace, so only its acceptance says it is up.
     refusal = "no bridge has published its address"
     for _ in range(50):
-        with contextlib.suppress(FileNotFoundError):
-            record = json.loads(bridge_path("json").read_text())
+        if record := ADDRESS.read(bridge_path("json")):
             try:
                 stream = connect(record["port"]).makefile("rwb")
                 body = json.dumps(request | {"token": record["token"]})
@@ -349,6 +367,8 @@ def run(argv: list[str]) -> int:
         with contextlib.suppress(OSError):
             while data := os.read(0, 65536):
                 write(STDIN, data)
+        # A closed stdin fails the read above, and the command still gets its end.
+        with contextlib.suppress(OSError):
             write(STDIN, b"")
 
     def beat() -> None:

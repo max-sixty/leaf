@@ -35,12 +35,11 @@ const modules = [
       `// prettier-ignore\nexport const drawingSchema = ${JSON.stringify(schema)};\n`,
   },
   {
-    // The one version Leaf has, which a record kept outside a page's log and document
-    // carries in its `format` as `registry.kernel.record_format` writes it.
+    // The composer draft's format, named for the protocol at which its drawing last
+    // changed shape, as `state.Record` names a record's.
     out: `${assets}/runtime/protocol.js`,
-    from: ["$events", "protocol"],
-    code: (protocol) =>
-      `export const recordFormat = (kind) => \`leaf-\${kind}/${protocol}\`;\n`,
+    from: ["$events", "draft_since"],
+    code: (since) => `export const DRAFT_FORMAT = "leaf-draft/${since}";\n`,
   },
   {
     // The kinds said in a thread, and each widget kind with the side that writes the

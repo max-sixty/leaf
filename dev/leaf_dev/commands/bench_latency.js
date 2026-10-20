@@ -137,6 +137,9 @@
       url: entry.name,
       initiator: entry.initiatorType,
       bytes: entry.transferSize,
+      // When it started and its last byte arrived, in epoch milliseconds.
+      start: performance.timeOrigin + entry.startTime,
+      end: performance.timeOrigin + entry.responseEnd,
     })),
   });
   Object.defineProperty(window, "__leafBench", {

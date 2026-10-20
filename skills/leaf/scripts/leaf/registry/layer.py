@@ -34,7 +34,7 @@ LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
 # layer (`registry.kernel`): Python reads the running Leaf's own copy and the browser a
 # copy generated from it, so a layer's change would reach neither. A page's older
 # runtime reads `$marks` from the vocabulary it was vendored with.
-KERNEL_FACTS = frozenset({"$passages", "$names", "$marks"})
+KERNEL_FACTS = frozenset({"$passages", "$names", "$marks", "$authored"})
 # The facts that document a declaration's keys, each beside the schema that admits
 # those keys (`validate_layer_declarations`).
 DOCUMENTED_KEYS = {

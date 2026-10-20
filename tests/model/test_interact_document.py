@@ -42,9 +42,9 @@ from interact_support import (
     declare_data_input,
     found,
     fresh_process,
-    items_on_user,
     lock_contention,
     model_layer,
+    obligations_on_user,
     publish,
     read_page_data,
     refused_on,
@@ -1110,7 +1110,7 @@ def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
     assert rejected["active"] == accepted["active"]
     assert rejected["source"]["error"]
     assert not rejected["source"]["live"]
-    assert rejected["items"] == accepted["items"]
+    assert rejected["obligations"] == accepted["obligations"]
     assert check(page_dir).exit_code != 0
 
     repaired = {**declaration, "description": "Revised plan"}
@@ -2113,7 +2113,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
     """A page widget names itself, and a message, a widget frozen into one, or any
     other event a thread holds names that thread, for `page state`, `status --on`
     and the thread commands alike. Narrowed to a widget, the reading holds what
-    stands inside it: the item carries the pick on its choice."""
+    stands inside it: the obligation carries the pick on its choice."""
     live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
@@ -2367,9 +2367,9 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     }
     assert state["data"] == {"file": "data.json", "dir": "data", "errors": []}
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
-    # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The item
+    # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The obligation
     # names the region the user is sent to and the group that answers it.
-    assert items_on_user(state) == [
+    assert obligations_on_user(state) == [
         {
             "id": "widget:g1",
             "tag": "lf-options",
@@ -2393,7 +2393,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert items_on_user(state) == []
+    assert obligations_on_user(state) == []
     assert state["state"] == [
         {
             "widget": "g1",
@@ -2501,8 +2501,10 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     assert read_page_data(page_dir) == first
 
     # Any process may rewrite the value file, so a reading judges what it finds.
-    stored.write_text(
-        json.dumps({**json.loads(stored.read_text()), "value": {"api": "ready"}})
+    stored.write_bytes(
+        data_model.PUBLICATION.encode(
+            {"run": "2" * 32, "updated": cleanup_model.now_iso(), "value": "ready"}
+        )
     )
     [error] = state_json(page_dir)["data"]["errors"]
     assert "deployments" in error
@@ -2869,16 +2871,10 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
         data_model.cmd_data_set(page_dir, "loop", {})
 
     # A value another process wrote is judged on reading by the same validator.
-    (page_dir / "data.json").write_text('{"sources":{"loop":{"contract":"loop"}}}')
-    (page_dir / "data").mkdir(exist_ok=True)
-    data_model.source_file(page_dir, "loop").write_text(
-        json.dumps(
-            {
-                "run": "1" * 32,
-                "updated": "2026-01-01T00:00:00Z",
-                "value": {},
-            }
-        )
+    data_model.write_data(
+        page_dir,
+        {"loop": "loop"},
+        {"loop": {"run": "1" * 32, "updated": "2026-01-01T00:00:00Z", "value": {}}},
     )
     assert read_page_data(page_dir)["sources"]["loop"]["error"] == (
         "source 'loop' contract 'loop' could not validate its value: "
@@ -2886,8 +2882,10 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     )
 
 
-def test_page_state_names_the_item_region_but_keeps_state_on_its_request(page_dir):
-    """An item retains its source identity under an authored context wrapper.
+def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
+    page_dir,
+):
+    """An obligation retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
     opts = """<lf-options id="g1" choose>
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
@@ -2902,7 +2900,7 @@ def test_page_state_names_the_item_region_but_keeps_state_on_its_request(page_di
     publish(page_dir)
 
     state = state_json(page_dir)
-    assert items_on_user(state) == [
+    assert obligations_on_user(state) == [
         {
             "id": "widget:g1",
             "tag": "lf-options",
@@ -2924,7 +2922,7 @@ def test_page_state_names_the_item_region_but_keeps_state_on_its_request(page_di
         },
     )
     state = state_json(page_dir)
-    assert items_on_user(state) == []
+    assert obligations_on_user(state) == []
     assert state["state"][0]["widget"] == "g1"
 
 
@@ -2936,7 +2934,7 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    assert items_on_user(state_json(page_dir)) == []
+    assert obligations_on_user(state_json(page_dir)) == []
 
 
 def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
@@ -3168,8 +3166,8 @@ def test_page_state_points_to_a_users_suggestion_record(page_dir):
     assert record["suggestion"] is True
 
 
-def test_page_state_holds_a_thread_item_open_until_its_verb(page_dir):
-    """A widget in thread markup presents an item like one on the page; `until` holds a
+def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
+    """A widget in thread markup presents an obligation like one on the page; `until` holds a
     `multiple` group open across picks, and only the named verb closes it."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
@@ -3187,7 +3185,7 @@ def test_page_state_holds_a_thread_item_open_until_its_verb(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert items_on_user(state_json(page_dir)) == [
+    assert obligations_on_user(state_json(page_dir)) == [
         {
             "id": "widget:gm",
             "tag": "lf-options",
@@ -3207,7 +3205,7 @@ def test_page_state_holds_a_thread_item_open_until_its_verb(page_dir):
             "detail": {"value": ["m-cap"]},
         },
     )
-    assert items_on_user(state_json(page_dir)) == [
+    assert obligations_on_user(state_json(page_dir)) == [
         {
             "id": "widget:gm",
             "tag": "lf-options",
@@ -3227,7 +3225,7 @@ def test_page_state_holds_a_thread_item_open_until_its_verb(page_dir):
             "detail": {},
         },
     )
-    assert items_on_user(state_json(page_dir)) == []
+    assert obligations_on_user(state_json(page_dir)) == []
 
 
 def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
@@ -3257,7 +3255,7 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
     )
     publish(page_dir)
 
-    assert items_on_user(state_json(page_dir)) == [
+    assert obligations_on_user(state_json(page_dir)) == [
         {
             "id": "widget:future-review",
             "tag": "lf-options",
@@ -3287,7 +3285,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
     publish(page_dir)
-    assert items_on_user(state_json(page_dir)) == []
+    assert obligations_on_user(state_json(page_dir)) == []
     rep = append_command(
         page_dir,
         {
@@ -3301,7 +3299,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         },
     )
     state = state_json(page_dir)
-    assert items_on_user(state) == []
+    assert obligations_on_user(state) == []
     assert state["reports"] == [
         {
             "id": rep["id"],
@@ -3357,7 +3355,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "disposition": "settled",
         }
     ]
-    assert items_on_user(state) == []
+    assert obligations_on_user(state) == []
 
 
 def test_report_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
@@ -3410,11 +3408,11 @@ def test_page_state_before_first_stamp(page_dir):
     assert state["active"]["revision"] == 1
     assert state["active"]["version"] is None
     assert state["active"]["label"] == "Draft"
-    assert state["elements"] and items_on_user(state) == []
+    assert state["elements"] and obligations_on_user(state) == []
     assert state["title"] == "t"
 
 
-def test_a_quoted_item_does_not_hide_a_real_request_in_the_same_goal(page_dir):
+def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_dir):
     markup = (
         '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="blocked"><strong>Blocked goal</strong>'
@@ -3430,7 +3428,7 @@ def test_a_quoted_item_does_not_hide_a_real_request_in_the_same_goal(page_dir):
         PAGE.replace("</section>", markup + "</section>")
     )
     publish(page_dir)
-    assert items_on_user(state_json(page_dir)) == [
+    assert obligations_on_user(state_json(page_dir)) == [
         {
             "id": "widget:real",
             "tag": "lf-options",
@@ -3459,7 +3457,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
         PAGE.replace("</section>", command("active", True, "paste") + "</section>")
     )
     publish(page_dir)
-    assert items_on_user(state_json(page_dir)) == [
+    assert obligations_on_user(state_json(page_dir)) == [
         {
             "id": "widget:cargo",
             "tag": "lf-draft",
@@ -3480,7 +3478,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             "detail": {"value": "ledger_id,amount\n7,42"},
         },
     )
-    assert items_on_user(state_json(page_dir)) == []
+    assert obligations_on_user(state_json(page_dir)) == []
 
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -3489,7 +3487,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
         )
     )
     publish(page_dir)
-    assert items_on_user(state_json(page_dir)) == []
+    assert obligations_on_user(state_json(page_dir)) == []
 
 
 # The colour-vision maths the series palette is stepped against, written out here because
@@ -3831,11 +3829,11 @@ def test_a_cold_source_check_reads_no_revision_history(page_dir, monkeypatch):
 def test_a_cold_page_state_reads_only_the_element_index_of_history(
     page_dir, monkeypatch
 ):
-    """A new process scans every revision for the ids, items and data bindings it
+    """A new process scans every revision for the ids, obligations and data bindings it
     declared, and building each one's authoring indexes, which those inventory
     scans never read, was most of what a command on a long page cost. A document
     builds its element index as it is read and the rest on first use, so here only
-    the candidate and the active revision are read whole. The withdrawn item is the
+    the candidate and the active revision are read whole. The withdrawn obligation is the
     control: it is known only from the revision that asked."""
     source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
     for edit in range(4):
@@ -3856,11 +3854,13 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
     )
     with fresh_process():
         state = agent_state_model.cmd_page_state(page_dir)
-    assert [item["status"] for item in state["items"]] == ["withdrawn"]
+    assert [item["status"] for item in state["obligations"]] == ["withdrawn"]
     assert set(authored) == {active.read_text()}
 
 
-def test_item_history_survives_parse_eviction_and_new_revisions(page_dir, monkeypatch):
+def test_obligation_history_survives_parse_eviction_and_new_revisions(
+    page_dir, monkeypatch
+):
     """A retry or new version reuses completed historical registration work.
 
     A history larger than the parse cache used to parse every predecessor on every
@@ -4330,7 +4330,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     ]
     assert current["detail"] == {"value": ["o-shim"]}
     source.write_text(PAGE)
-    assert stamp(page_dir, "retire answered item").exit_code == 0
+    assert stamp(page_dir, "retire answered obligation").exit_code == 0
     assert picked in events_model.read_events(page_dir)
     assert not any(
         event.get("restated") for event in events_model.read_events(page_dir)
@@ -4338,7 +4338,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 
 
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
-    """An action admitted by an earlier Leaf stays in force, and keeps its item
+    """An action admitted by an earlier Leaf stays in force, and keeps its obligation
     answered, under a Leaf that records the same operation's definition with other
     fields. Before #2329 the definition carried `update`, the verb flag now
     named `text`; matching every recorded field dropped each decision on a page
@@ -4376,7 +4376,9 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     reading = state_json(page_dir)
     [current] = [item for item in reading["state"] if item["action"] == "choose"]
     assert current["detail"] == {"value": ["o-shim"]}
-    [item] = reading["items"]
+    [item] = [
+        item for item in reading["obligations"] if item["source"]["kind"] == "widget"
+    ]
     assert item["status"] == "answered"
     assert item["answer"]["event"]["id"] == picked["id"]
 

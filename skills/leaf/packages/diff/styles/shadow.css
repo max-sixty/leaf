@@ -21,7 +21,8 @@
   overflow: clip;
   background: var(--pre-bg);
   border: 1px solid var(--code-border);
-  border-radius: var(--r);
+  border-radius: var(--lf-diff-r-start) var(--lf-diff-r-start) var(--lf-diff-r-end)
+    var(--lf-diff-r-end);
 }
 :scope:host(.lf-rendered) {
   --lf-diff-head-inset: 10px;
@@ -173,12 +174,13 @@
   > details
   > summary[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
   overflow: visible;
-  border-start-start-radius: calc(var(--r) - 1px);
-  border-start-end-radius: calc(var(--r) - 1px);
+  border-start-start-radius: calc(var(--lf-diff-r-start) - 1px);
+  border-start-end-radius: calc(var(--lf-diff-r-start) - 1px);
 }
 .lf-diff-fold:not([open])
   > .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus]) {
-  border-radius: calc(var(--r) - 1px);
+  border-end-start-radius: calc(var(--lf-diff-r-end) - 1px);
+  border-end-end-radius: calc(var(--lf-diff-r-end) - 1px);
 }
 .lf-diff-head[data-path-cut]:is([data-lf-held-word], [data-lf-focus])
   > .lf-diff-path::after {
@@ -258,11 +260,21 @@
   white-space: nowrap;
 }
 /* The file comment is a sibling of its disclosure, so each keeps its own action.
-   Both follow the sticky header; the shared height reserves the comment's square. */
+   Both follow the sticky header; the shared height reserves the comment's square.
+   The files the filter shows are one bordered list: each draws its top edge on the
+   hairline above it, and only the list's two ends keep their corners (the radii here,
+   which the file's box reads). A card a file, 8px apart, made forty-six files forty-six
+   boxes of one line each. A file's own conversations hang under it in their own box
+   (.lf-diff-file-thread-outlet), so that file ends a run of the list and the next file
+   shown starts another 8px below. The widget marks where each run starts and ends
+   (`markRuns`, lf-diff.js), since the nearest shown file before another, past those
+   the filter hides, is not something a selector can read. */
 .lf-diff-file {
   position: relative;
   display: flow-root;
-  margin: 8px 0 0;
+  margin: -1px 0 0;
+  --lf-diff-r-start: 0px;
+  --lf-diff-r-end: 0px;
   /* How tall the bar of presses on the file's name line stands, and how far
                    down the name it starts. Both are said here because the pull below is
                    the same distance in the other direction: the bar is laid out above the
@@ -275,6 +287,13 @@
   /* The file's row: 7px above and below a path's line, 35px in all, or the
                    bar of presses where that stands taller, as under a finger. */
   --lf-diff-head-h: 35px;
+}
+.lf-diff-run-start {
+  margin-top: 8px;
+  --lf-diff-r-start: var(--r);
+}
+.lf-diff-run-end {
+  --lf-diff-r-end: var(--r);
 }
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: max(
@@ -429,19 +448,6 @@
     --lf-head-inset: calc(var(--lf-diff-action-top) - 1px);
   }
 }
-/* The room that header takes, so a landing arrives below it rather than behind it. The
-   scroller's `scroll-padding` clears what stands over the whole of it, the head room and
-   a page tab strip; this is the rest of the same sum. Only where the header pins: unpinned,
-   it covers nothing. The code's sideways scroller is a tab stop of its own, and its focus
-   clears the header and the ring's landing room beside it; as a box that scrolls it starts
-   `--lf-top` again for what it holds, so the layer's reading of the headers over it
-   cannot reach it there. */
-:scope:host(.lf-rendered[data-lf-diff-pinned]) [data-line] {
-  scroll-margin-top: var(--lf-diff-head-h);
-}
-:scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file .lf-text-scroller {
-  scroll-margin-top: calc(var(--lf-diff-head-h) + var(--focus-ring-landing));
-}
 /* The path is evidence — a file's name in the file's own voice — and a shadow tree
    inherits no document rule, so the mono is stated here or it is the UA's. */
 .lf-diff-path {
@@ -533,7 +539,10 @@
   border: none;
   border-top: 1px solid var(--code-border);
   border-radius: 0;
-  overflow-x: auto;
+  /* Sideways only: `hidden` down rather than `visible`, which would compute to `auto`
+     beside it and make the box one that scrolls down, which starts the landing band
+     again and cuts the rows off from the file header over them (state.css, `across`). */
+  overflow: auto hidden;
   color: var(--code-ink);
 }
 /* The scroll region's tab stop (lf-diff.js): reachable is only half — focus has to

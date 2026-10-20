@@ -732,8 +732,9 @@ export` writes a file that boots the page's own runtime offline, and that file
   API its clients stay connected while the object is out of memory, without
   duration charges
   ([docs](https://developers.cloudflare.com/durable-objects/best-practices/websockets/)).
-  Each look also renews the user's attention lease (`_news` in `http.py`), so a
-  push channel has to carry that lease too. Push would show an agent's change
+  When the page server answers `api/news`, it renews the user's attention lease
+  (`_news` in `http.py`); the Durable Object's saved answer does not. A push
+  channel for a live page must carry that lease too. Push would show an agent's change
   sooner: locally the file watcher notices an append in about 90 ms against
   polling's 125 ms average, and on leaf.page, where a look takes about 370 ms, it
   would save roughly 250 ms. Push would not change how a tab loses or finds its

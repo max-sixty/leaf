@@ -354,7 +354,7 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(
     blocked on each would never end; they stay pending for the next turn, and go
     in with the user's move when one arrives."""
     error = append_carried_log_record(
-        claimed, {"kind": "error", "author": "page", "message": "a widget threw"}
+        claimed, {"kind": "error", "author": "page", "text": "a widget threw"}
     )
     repeated = {"hook_event_name": "Stop", "session_id": "s1", "stop_hook_active": True}
 
@@ -408,7 +408,7 @@ def test_codex_stop_leaves_quiet_input_but_delivers_the_whole_batch_with_owed_in
             ),
             append_carried_log_record(
                 page_dir,
-                {"kind": "error", "author": "page", "message": "a widget threw"},
+                {"kind": "error", "author": "page", "text": "a widget threw"},
             ),
         ]
         cleanup_model.prompt_turn("codex-thread", "quiet")

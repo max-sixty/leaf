@@ -99,6 +99,48 @@ def is_ecma_regex(value) -> bool:
     return not isinstance(value, str) or bool(_ecma(value))
 
 
+@functools.cache
+def leaf_resources() -> dict[str, dict]:
+    """The schemas Leaf's own schemas name by a `leaf:` reference, by that name:
+    `leaf:event/<kind>` is one kernel event record (`$events.kinds`), `leaf:event`
+    any of them, and `leaf:verb` an x-state verb (`schema.VERB_SCHEMA`). A reference
+    may point into one, as `leaf:event/comment#/properties/anchor` does.
+
+    Each event record is left open, so that a schema adding fields to one, as a
+    served message or a delivered event does, closes it again with
+    `unevaluatedProperties` or leaves it open. The served state and the delivery
+    envelope refer to these, and the browser build types the same references
+    (`build/browser/contract-types.mjs`)."""
+    from leaf.registry.kernel import kernel_event_kinds
+    from leaf.schema import VERB_SCHEMA
+
+    events = {
+        f"leaf:event/{kind}": {
+            "$id": f"leaf:event/{kind}",
+            **{
+                key: value
+                for key, value in contract["record"].items()
+                if key != "additionalProperties"
+            },
+        }
+        for kind, contract in kernel_event_kinds().items()
+    }
+    return {
+        **events,
+        "leaf:event": {
+            "$id": "leaf:event",
+            "anyOf": [{"$ref": identity} for identity in sorted(events)],
+        },
+        "leaf:verb": {"$id": "leaf:verb", **VERB_SCHEMA},
+    }
+
+
+def with_leaf_resources(schema: dict) -> dict:
+    """`schema` with every `leaf:` reference it may make resolvable, as a validator
+    needs it."""
+    return {**schema, "$defs": {**schema.get("$defs", {}), **leaf_resources()}}
+
+
 def schema_resource_registry(schema: dict):
     """One self-contained resource graph for a vendored JSON Schema."""
     resource = DRAFT202012.create_resource(schema)

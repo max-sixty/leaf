@@ -1689,7 +1689,8 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
         .textContent=${entry.title}
       ></button>` : entry.title;
   const scope = promoted ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>` : nothing;
-  const actionCell = html`<div role="gridcell" class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
+  const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
+  const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
   return html`
     <div
       id=${entry.rowId}
@@ -1706,6 +1707,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     label: entry.keyLabel
   }) : nothing}
       </div>
+      ${descriptionCell}
     </div>
   `;
 }

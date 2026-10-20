@@ -243,55 +243,55 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     page.keyboard.press("ArrowDown")
     expect(commands.last).to_have_attribute("data-lf-selected", "true")
 
-    # On a phone, every complete binding stays in its own cell, on its command's line.
-    # Search adds a scope to each match; that context takes a second line rather than
-    # squeezing the action down to one word or painting over it.
+    # On a phone, every complete binding stays whole in its own cell, clear of its
+    # command. Search adds a scope to each match; that context wraps to a second line
+    # rather than squeezing the command's words or painting over them.
     resized(page, 390, 800)
+    overlap = """(a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5
+      && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5"""
     geometry = help_el.evaluate(
-        """help => ({
-          results: (results => ({client: results.clientWidth, scroll: results.scrollWidth}))(
-            help.querySelector('.lf-command-reference-results')),
-          keys: [...help.querySelectorAll('[role=row]:not([hidden]) .lf-binding-sequence')]
-            .map(key => ({
-              top: key.getBoundingClientRect().top,
-              right: key.getBoundingClientRect().right,
-              actionTop: key.closest('[role=row]')
-                .querySelector('.lf-command-reference-action-main').getBoundingClientRect().top,
-              cellRight: key.closest('[role=gridcell]').getBoundingClientRect().right,
-            })),
-        })"""
+        f"""help => {{
+          const overlap = {overlap};
+          const results = help.querySelector('.lf-command-reference-results');
+          return {{
+            overflow: results.scrollWidth - results.clientWidth,
+            keys: [...help.querySelectorAll('[role=row]:not([hidden]) .lf-binding-sequence')]
+              .map(key => {{
+                const box = key.getBoundingClientRect();
+                const row = key.closest('[role=row]');
+                return {{
+                  command: row.dataset.lfCommand,
+                  outside: box.right - key.closest('[role=gridcell]').getBoundingClientRect().right,
+                  covers: overlap(box, row.querySelector('.lf-command-reference-action')
+                    .getBoundingClientRect()),
+                }};
+              }}),
+          }};
+        }}"""
     )
-    assert geometry["results"]["scroll"] <= geometry["results"]["client"], geometry
-    assert all(key["right"] <= key["cellRight"] for key in geometry["keys"]), geometry
-    assert all(abs(key["top"] - key["actionTop"]) <= 3 for key in geometry["keys"]), (
-        geometry
-    )
+    assert geometry["overflow"] <= 0, geometry
+    assert not [
+        key for key in geometry["keys"] if key["outside"] > 0.5 or key["covers"]
+    ], geometry
     search.fill("space")
     matches = help_el.locator(
         ".lf-command-reference-binding-matches [role=row][data-lf-command]:visible"
     ).evaluate_all(
-        """rows => rows.map(row => {
-          const cell = row.querySelector('.lf-command-reference-action').getBoundingClientRect();
-          const scope = row.querySelector('.lf-command-reference-scope').getBoundingClientRect();
-          const key = row.querySelector('.lf-binding-sequence').getBoundingClientRect();
-          return {cellLeft: cell.left, scopeLeft: scope.left,
-                  keyTop: key.top,
-                  actionTop: row.querySelector('.lf-command-reference-action-main')
-                    .getBoundingClientRect().top,
-                  keyRight: key.right,
-                  keyCellRight: row.querySelector('.lf-command-reference-key')
-                    .getBoundingClientRect().right};
-        })"""
+        f"""rows => rows.map(row => {{
+          const overlap = {overlap};
+          const command = row.querySelector('.lf-command-reference-command');
+          const words = document.createRange();
+          words.selectNodeContents(command);
+          return {{
+            command: row.dataset.lfCommand,
+            lines: new Set([...words.getClientRects()].map(rect => Math.round(rect.top))).size,
+            covered: overlap(command.getBoundingClientRect(),
+              row.querySelector('.lf-command-reference-scope').getBoundingClientRect()),
+          }};
+        }})"""
     )
     assert matches
-    assert all(item["keyRight"] <= item["keyCellRight"] for item in matches), matches
-    assert all(abs(item["keyTop"] - item["actionTop"]) <= 3 for item in matches), (
-        matches
-    )
-    assert all(
-        item["scopeLeft"] == pytest.approx(item["cellLeft"], abs=0.5)
-        for item in matches
-    ), matches
+    assert all(item["lines"] == 1 and not item["covered"] for item in matches), matches
     resized(page, 1200, 800)
 
     # A key query may also occur in command ids and prose. Actual bindings lead the

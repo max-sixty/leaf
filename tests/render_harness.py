@@ -2291,11 +2291,11 @@ def any_suggestion_control(scope, key: str | None = None, *, visible=True):
 
 
 def command_reference_rows(page, heading):
-    """The rows of the command reference table titled `heading`."""
+    """The rows of the command reference section titled `heading`."""
     heading_id = page.get_by_role("heading", name=heading, exact=True).get_attribute(
         "id"
     )
-    return page.locator(f'tbody[aria-labelledby="{heading_id}"]')
+    return page.locator(f'[role=rowgroup][aria-labelledby="{heading_id}"]')
 
 
 # The page shell's box on screen: where the document's room starts and ends. The runtime

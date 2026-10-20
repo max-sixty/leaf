@@ -632,9 +632,11 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
   const scope = promoted
     ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>`
     : nothing;
-  // Whitespace in this cell is observable to accessibility and command consumers.
+  // Whitespace in these cells is observable to accessibility and command consumers.
   // prettier-ignore
-  const actionCell = html`<div role="gridcell" class="lf-command-reference-action"><div class="lf-command-reference-action-main">${action}${scope}</div>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}</div>`;
+  const actionCell = html`<div role="gridcell" class="lf-command-reference-action">${action}${scope}</div>`;
+  // prettier-ignore
+  const descriptionCell = entry.description ? html`<div role="gridcell" id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</div>` : nothing;
   return html`
     <div
       id=${entry.rowId}
@@ -655,6 +657,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
             : nothing
         }
       </div>
+      ${descriptionCell}
     </div>
   `;
 }

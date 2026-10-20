@@ -574,7 +574,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     )
     expect(back).to_have_text("Close options")
     expect(
-        back.locator("xpath=ancestor::tr").locator(".lf-command-reference-description")
+        back.locator("xpath=ancestor::*[@role='row'][1]").locator(".lf-command-reference-description")
     ).to_have_text("Fold the secondary page actions")
     back.click()
     expect(reference).to_be_hidden()

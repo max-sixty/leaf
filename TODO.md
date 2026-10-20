@@ -424,10 +424,12 @@ on 2026-10-07.
   removed that trigger, since the hook now does the watching. **Unconfirmed:** check
   whether any remaining block, such as input the turn still owes an answer to, reaches
   a turn whose answer is already written.
-- **Reproduce the Codex delivery-start race.** Another client may start a turn
-  between Leaf's idle check and its start request. **Unconfirmed:** test the installed
-  App Server's behavior before changing delivery policy; the
-  [Codex brief](notes/codex-integration.md#delivery-start-race) owns the experiment.
+- **Decide how a Codex delivery avoids joining another client's turn.** App Server's
+  `turn/start` steers into a running turn. A follow-up the user queued in Codex starts
+  just after Leaf's idle check reads idle, so Leaf's delivery joins it and Leaf posts
+  that turn's answer as its reply to the comment. The
+  [Codex brief](notes/codex-integration.md#delivery-start-race) holds the
+  measurements, the reproduction and the two options.
 
 - **Measure how often agents produce bad pages.** Write `evals/` cases in which agents
   author ordinary pages, and have a judge read each result at wide, middle and phone

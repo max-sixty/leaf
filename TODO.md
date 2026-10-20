@@ -618,7 +618,14 @@ export` writes a file that boots the page's own runtime offline, and that file
   startup takes up to a couple of seconds. Trigger: a page presents in about 250 ms
   consistently, measured with `leaf-dev probe`'s startup phases on the examples;
   then delete the hold, which a 2026-10-14 trial measured at 240 runtime and 540
-  test lines.
+  test lines. On 2026-10-19 it had not fired. Reloading each example five times
+  on one running server, the median `startup.presented.at` was 167 to 238 ms on
+  six of nine examples, but 289 ms on `code-comparison`, 335 ms on `command-hub`
+  and 487 ms on `pr-walkthrough`. With a 4x CPU throttle the same medians were
+  632 ms (`triage-board`) to 1826 ms (`pr-walkthrough`). On four examples, a
+  server's first load took 120 to 230 ms longer than its reloads.
+  `uv run leaf-dev probe EXAMPLE [--cpu-throttle 4]` reads one first load; the
+  Mac's load average was near 12 on 18 cores throughout.
 - **Unconfirmed — Let Lit follow what a widget reads.** `LeafElement`
   (`runtime/leaf-element.js`) collects what `render()` reads with Leaf's own
   `collectReads` over Preact signals and outside readings such as the clock, because

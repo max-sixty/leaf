@@ -206,10 +206,11 @@ def test_the_render_gate_renders_each_scheme_viewport_and_margin_width_on_an_arm
 
 
 def test_the_render_gate_reports_a_compact_spill_and_unreserved_heights(browser, serve):
-    """A row that fits the wide viewport and spills from the compact one fails there
-    alone, in both schemes. On the same page, a widget that states the height its
-    module draws at holds it from first paint, so the gate has nothing to say about it;
-    one stating none, or another height, is told the height to state."""
+    """A row that fits the wide viewport and spills from the compact one fails at the
+    widths it spills at, read once by the sweep. On the same page, a widget that
+    states the height its module draws at holds it from first paint, so the gate has
+    nothing to say about it; one stating none, or another height, is told the height
+    to state."""
     source = leaf_page(
         "compact spill and reserved heights",
         """
@@ -238,9 +239,9 @@ lf-test-drawn { display: block; }
     )
 
     overflow = [f for f in reading.failures if f.code == "page-scrolls"]
-    assert len(overflow) == 2, reading.failures
-    assert all(f.viewports == ("540x720",) for f in overflow), overflow
-    assert {f.scheme for f in overflow} == {"light", "dark"}
+    assert [(f.widths, f.scheme, f.viewports) for f in overflow] == [
+        ((360, 600), None, ())
+    ], reading.failures
     assert [(f.code, f.at, f.values) for f in reading.advice] == [
         (
             "unreserved-height",
@@ -273,7 +274,11 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     the overlay bar. Below both, a decision in a card of fixed height, whose prose
     grows at 440px and narrower (a margin stands in for its wrapping) until it pushes
     the decision's controls under the card's clip: a press nobody can reach, which only
-    the sweep's narrowest widths see."""
+    the sweep's narrowest widths see. A card as tall as the window holds its decision
+    below 600px of plan, so a window 720px tall clips it and one 900px tall does not:
+    only the phone render's sweep, at its own height, sees it. A card whose rule for the
+    dark scheme pushes its decision under the clip is clipped only in the two dark
+    renders, which each read the geometry once."""
     source = leaf_page(
         "mid-width overflow",
         f"""
@@ -289,6 +294,13 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 <p>The release passed its checks.</p><lf-options id="go" choose>
 <lf-option id="go-yes"><strong>Yes</strong></lf-option>
 </lf-options></lf-ask></div>
+<div id="short"><div id="plan-body"></div><lf-ask id="hold-decision"><h2>Hold it?</h2>
+<lf-options id="hold" choose><lf-option id="hold-yes"><strong>Yes</strong></lf-option>
+</lf-options></lf-ask></div>
+<div id="dusk"><lf-ask id="dusk-decision"><h2>Wait?</h2>
+<p>The canary is still running.</p><lf-options id="wait" choose>
+<lf-option id="wait-yes"><strong>Yes</strong></lf-option>
+</lf-options></lf-ask></div>
 """,
         head="""<style>
 #tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
@@ -298,6 +310,10 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 @media (min-width: 600px) and (max-width: 900px) { #strip { padding-bottom: 0; } }
 #card { height: 400px; overflow: hidden; }
 @media (max-width: 440px) { #card p { margin-bottom: 400px; } }
+#short { height: 100vh; overflow: hidden; }
+#plan-body { height: 600px; }
+#dusk { height: 400px; overflow: hidden; }
+@media (prefers-color-scheme: dark) { #dusk p { margin-bottom: 400px; } }
 </style>""",
     )
 
@@ -308,7 +324,10 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
     clipped = [f for f in reading.failures if f.code == "clipped-control"]
     assert clipped, reading.failures
     assert {(f.values["by"], f.widths) for f in clipped} == {
-        ("<div id=card>", (360, 440))
+        ("<div id=card>", (360, 440)),
+        ("<div id=short>", (360, 540)),
+        ("<div id=dusk>", (1200, 1200)),
+        ("<div id=dusk>", (540, 540)),
     }, clipped
     assert {(f.code, f.at, f.widths) for f in reading.failures} - {
         (f.code, f.at, f.widths) for f in clipped

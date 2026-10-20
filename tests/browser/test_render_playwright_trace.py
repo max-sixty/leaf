@@ -1350,7 +1350,7 @@ def test_trace_render_gate_restores_the_zoomed_time_window(browser, serve):
 
     before = time_window()
     # Marks outside the zoomed window are drawing, not controls hidden by a clip.
-    assert evaluate_probe(user, "reachabilityReading")["clipped"] == []
+    assert evaluate_probe(user, "clippedControls") == []
     assert time_window() == before
 
 

@@ -12,17 +12,15 @@ from leaf.render_gate.command import BrowserCheck
 def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
     """The sweep names a fault per element and per unbroken run of widths, with its
     reading at the run's narrowest. Here a spill clears between 1520px and 640px and
-    returns below; the run taking in the 540px viewport is that viewport's to report,
-    and the wide run is still the sweep's. A clipped control is read the same way: one
-    cut off only at 440px and below is the sweep's, and of two cut off around 540px,
-    the one the 540px render read is that render's. The other is clipped only at the
-    sweep's desktop height, which the 540x720 render never reads, so it stays the
-    sweep's. A squeezed table is advice wherever the sweep finds it, a run across the
-    540px viewport included, since no fixed viewport reads it. Two drawings that share
-    a name are told apart by their place."""
+    returns below, so it is two runs. A clipped control is read the same way, and the
+    phone widths' second sample, at the phone's height, joins it: a control clipped
+    in either sample of a width is clipped at that width. One clipped in both is one
+    run; one clipped only at the desktop height, or only at the phone's, is a run of
+    its own. A squeezed table is advice wherever the sweep finds it. Two drawings that
+    share a name are told apart by their place."""
     widths = sorted({*render_gate_readings.SWEEP_WIDTHS, 540}, reverse=True)
 
-    def at(width):
+    def at(width, short=False):
         spill = 1560 <= width <= 1600 or width <= 600
         drawings = [
             {"at": "<svg> in <figure id=f>", "place": place, "labels": n, "drawn": d}
@@ -44,11 +42,12 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
                 | {"by": "<div id=row>"}
                 for place, clipped in (
                     ("#narrow", width <= 440),
-                    ("#phone", 520 <= width <= 560),
-                    ("#tall", 520 <= width <= 560),
+                    ("#tall", 520 <= width <= 560 and not short),
+                    ("#short", 400 <= width <= 480 and short),
                 )
                 if clipped
             ],
+            "covered": [],
             "labels": {"threshold_px": 10, "drawings": drawings},
             "squeezed": [
                 {
@@ -67,27 +66,18 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
         }
 
     readings = [(width, at(width)) for width in widths]
-    swept = render_gate_readings.swept_faults(readings)
-    reading = dict(readings)[540]
-    rendered = [
-        (Finding.read(record), 540)
-        for record in [reading["misplaced"][0], reading["clipped"][0]]
+    short = [(width, at(width, short=True)) for width in widths if width <= 540]
+    swept = render_gate_readings.swept_faults([*readings, *short])
+    assert [(f.code, f.at, f.widths) for f in swept] == [
+        ("past-column", "<pre>", (1560, 1600)),
+        ("past-column", "<pre>", (360, 600)),
+        ("clipped-control", "<button id=tall>", (520, 560)),
+        ("clipped-control", "<button id=short>", (400, 480)),
+        ("clipped-control", "<button id=narrow>", (360, 440)),
     ]
-    assert [f.values["place"] for f, _ in rendered] == ["#x>0", "#phone"]
-    spill, tall, clipped = render_gate_readings.unrendered(swept, rendered)
-    assert (spill.code, spill.at, spill.widths) == (
-        "past-column",
-        "<pre>",
-        (1560, 1600),
-    )
-    assert (clipped.code, clipped.at, clipped.widths, clipped.severity) == (
-        "clipped-control",
-        "<button id=narrow>",
-        (360, 440),
-        "error",
-    )
+    spill, _, _, _, clipped = swept
+    assert clipped.severity == "error"
     assert clipped.values["lost"] == 360
-    assert (tall.at, tall.widths) == ("<button id=tall>", (520, 560))
     assert spill.values["past"] == 1560
     assert str(spill) == (
         "at 1560–1600px wide, <pre> is set 1560px past the column, out in the margin"

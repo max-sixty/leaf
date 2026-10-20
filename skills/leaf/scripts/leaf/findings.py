@@ -587,7 +587,7 @@ _TEXT = {
         f" {', '.join(v['changed'])}. Render the supplied values without stepping"
         " from the DOM."
     ),
-    # Geometry, read at the fixed viewports and across the sweep.
+    # Geometry, read across the width sweep.
     "page-scrolls": lambda at, v: f"the page scrolls sideways by {v['past']}px",
     "outside-part": lambda at, v: (
         f"{at} stands {v['past']}px outside the {v['host']} it is part of"

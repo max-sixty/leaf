@@ -4,6 +4,9 @@
 # before held a drawing; the lf-option entry and the lf-options example both showed
 # text faces. With the child reading those entries, base 4c29f3003 drew the options
 # in 0 of 3 runs and the rewritten entry and example in 3 of 3.
+# reason-beside-options: while the registry's examples wrote the reason into the
+# recommended card (`<em>My take: …</em>`), base 2c52f93ec kept it out of the cards
+# in 0 of 5 Claude Code runs; with the reason in the lf-ask's prose, 5 of 5.
 description: options-draw-their-arrangement
 metadata:
   purpose:
@@ -43,3 +46,14 @@ assert:
       or an `lf-diagram`) that shows where the reply box sits under that option.
       Fail if any option in the group is only words and chips, even when a figure
       showing both arrangements stands elsewhere in the section.
+  - type: llm-rubric
+    metric: reason-beside-options
+    value: |
+      Find why the author recommends pinning the reply box at the panel's foot. Pass
+      only if that reason is prose outside every `lf-option`, such as a paragraph in
+      the `lf-ask` before or after the `lf-options` group. Inside the cards, each
+      option may state its own properties and consequences at a similar depth, such
+      as where replies grow or what moves. Fail if any `lf-option` holds the author's
+      argument for picking it, such as "My take: …", "I'd pick this", or "recommended
+      because …", even when the same reason also appears outside, and fail if the
+      reason is missing.

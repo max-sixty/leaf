@@ -200,7 +200,7 @@ export function semanticNewsNotice(news) {
     const verb = message.kind === "reply" ? "reply" : "comment";
     clauses.push(
       message.edited
-        ? `${agent} updated a ${verb}`
+        ? `${agent} edited a ${verb}`
         : `${agent} ${verb === "reply" ? "replied" : "commented"}`,
     );
   } else if (content.length) {

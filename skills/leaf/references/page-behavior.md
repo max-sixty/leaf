@@ -32,7 +32,8 @@ each region's obligations and `obligationActions.next({within})` moving to the n
 the user (`module-reading.md`, "Reading obligations and the On lists").
 
 `leaf page check` opens the page once in the host's browser when it has code of its own,
-such as a script or a page widget, or a data widget such as a chart. It fails on any
+such as a script or a page widget, or places a widget whose module reads what no static
+check opens: a data widget such as a chart, or a screenshot pair's images. It fails on any
 uncaught exception or rejected promise, naming the source location, and on any widget
 that couldn't draw. A module that throws on first paint, or a chart whose data doesn't
 parse, therefore fails before you hand over the URL. Code that runs only after a gesture

@@ -1123,9 +1123,9 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
 
 
 def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
-    """Work under way past the view's cap waits behind New update; the reply that follows
-    it takes the press over, which then says New reply and brings the reply's start into
-    sight, not the work before it."""
+    """Work under way past the view's cap waits behind New message; the reply
+    that follows it takes the press over, which then says New reply and brings the
+    reply's start into sight, not the work before it."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?")
     page = floating(browser, url)
@@ -1143,7 +1143,7 @@ def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
 
     press = view.locator(".lf-fp-new-reply")
     say("Reading the jobs, the mounts and the frost dates. " * 80, ephemeral=True)
-    expect(press).to_have_text("New update")
+    expect(press).to_have_text("New message")
     say("The mounts come first. " + "They need the frost to lift. " * 120)
     expect(press).to_have_text("New reply")
     press.click()
@@ -1950,7 +1950,8 @@ def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):
 def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     """Folding to the leaf, from the leaf's menu or its key, is a choice the panel
     keeps across a reload, until the leaf is pressed again; `c` still reaches the
-    page's field, and Go-to's Threads door opens the panel's own Threads."""
+    page's field, and Go-to's Threads door opens the panel's own Threads. Folded, the
+    leaf stands as far from the window's right edge as from its foot."""
     url = serve(LONG_PAGE, comments=1)
     page = floating(browser, url)
     page.locator(".lf-fp-leaf").click()
@@ -1959,6 +1960,11 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(panel).to_have_attribute("data-rest", "mark")
     expect(page.locator(".lf-fp-field")).to_be_hidden()
     expect(page.locator(".lf-fp-quick")).to_be_hidden()
+    leaf = page.locator(".lf-fp-leaf").bounding_box()
+    window = page.viewport_size
+    right = window["width"] - (leaf["x"] + leaf["width"])
+    foot = window["height"] - (leaf["y"] + leaf["height"])
+    assert right == pytest.approx(foot, abs=0.5), (right, foot)
 
     page.reload()
     expect(panel).to_have_attribute("data-rest", "mark")

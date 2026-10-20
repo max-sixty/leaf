@@ -92,12 +92,12 @@
           <h2>Which cutover mode should we use?</h2>
           <p id="mode-premise">
             All three modes finish inside the window; they differ in what a failure
-            costs.
+            costs. I recommend big bang, the simplest to run.
           </p>
           <lf-options id="cutover-mode" choose>
             <lf-option id="mode-big-bang"
-              ><strong>Big bang</strong> Stop writes, copy everything, switch once.
-              <em>My take: the simplest to run.</em></lf-option
+              ><small class="tag ok">recommended</small><strong>Big bang</strong> Stop
+              writes, copy everything, switch once.</lf-option
             >
             <lf-option id="mode-shard"
               ><strong>Shard by shard</strong> Move and switch one shard at a

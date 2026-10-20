@@ -437,16 +437,14 @@ on 2026-10-07.
   confirmed" record); or keep it and document Escape beside the session-end case in
   `hook_transport.py`'s header.
 
-- **Measure how often agents produce bad pages.** Write `evals/` cases in which agents
-  author ordinary pages, and have a judge read each result at wide, middle and phone
-  widths for defects a user would notice. Record beside each defect whether
-  `page check` reported it and whether the agent changed the page in response. That
-  gives the rate of bad pages and how much the checks catch. Fix a recurring defect in
-  the widget, Layout or theme that produced it, so pages need fewer checks, rather
-  than adding readings or widths to the check. In the
-  [layout vocabulary eval](notes/agent-usability-evals.md#layout-vocabulary-2026-09-29)
-  every one of the 36 runs passed the gate, yet the judge still found tiny text at
-  900px and phone defects.
+- **Decide the Leaf-owned defects the bad-pages eval left open.**
+  [Bad pages and the checks](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)
+  lists four that follow from recorded choices: an open thread card covers the text
+  near its passage (14 of 40 pages), a phone's thread pin covers words (5), a
+  playground's bounded stage is 190–280px tall at 900×700 (4 of 9 configurations), and
+  `lf-tally` counts an obligation left with the agent while its Next on me skips it
+  (2). Decide whether each choice stays, then fix the owner of any that goes and rerun
+  `page-reads-at-every-width`.
 - **Read the full render gate after handover.** Actual user views now supply passive
   geometry checks as agent context (`conversation-loop.md`, "The user's view"). The
   broader headless gate still runs on request. `page check --render` blocks the
@@ -470,7 +468,11 @@ on 2026-10-07.
   and every widget in thread markup report through `leaf wait` once a browser draws
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
-  get wrong and stop running those they reliably get right.
+  get wrong and stop running those they reliably get right. `page-reads-at-every-width`
+  covers documents, dashboards, queues and playgrounds: none of its 40 final pages had
+  a widget that failed to draw, and every plain-check finding during authoring was
+  markup ([notes](notes/agent-usability-evals.md#bad-pages-and-the-checks-2026-10-20)).
+  Thread markup and the other widgets above are still unmeasured.
 - **Derive the waiting status from the page's open obligation.** Consider using the obligation's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
   several open obligations and an informational page before choosing how the panel's

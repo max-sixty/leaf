@@ -102,7 +102,7 @@ revision the vocabulary won 3, 2 and 1 of the three queue, dashboard and documen
 pairs, and every revision met the width preference.
 Its reasons kept naming tiny text at 900px and on a phone, which the render check
 now reads at every swept width, and an Ask whose premise and controls fall below the
-first screen (TODO.md, "Measure how often agents produce bad pages").
+first screen ("Bad pages and the checks" below measures how often).
 
 ### Authoring against plain HTML, 2026-10-12
 
@@ -377,6 +377,118 @@ The audit is `.tmp/comparison/audit.json`; the original saved runs are under
 This pass repairs grading across decision and final-record phases and clarifies who
 may retire an ask. Further compositions and authoring advice need current task-specific
 evidence, rather than the older configuration verdict alone.
+
+## Bad pages and the checks, 2026-10-20
+
+`page-reads-at-every-width` has an agent author one ordinary page in a single turn,
+from the request of the document, dashboard, queue or configuration task, with no
+user feedback. `dev/leaf_dev/page_defects.py` then has a Codex judge (Sol 6.1, medium)
+use a live copy of the final page at 1600×1000, 900×700 and 390×844 with touch,
+comment on a sentence, and list every defect a user would notice, without seeing any
+check. A second, text-only turn sets each defect beside `page check` on the final
+page, plain and with `--render`, and beside the checks the author ran itself.
+
+```sh
+uv run leaf-dev eval 'page-reads-at-every-width*' --harness claude-code --repeat 3 -j 2
+uv run leaf-dev eval 'page-reads-at-every-width*' --harness codex --repeat 3 -j 2
+uv run leaf-dev eval page-reads-at-every-width page-reads-at-every-width/dashboard page-reads-at-every-width/queue --harness claude-code --repeat 2 -j 2
+uv run leaf-dev eval page-reads-at-every-width page-reads-at-every-width/dashboard page-reads-at-every-width/queue --harness codex --repeat 2 -j 2
+```
+
+The runs authored 37 pages at main `e1ed34cec`: 19 on Claude Code with Opus 5.5
+(mean $1.33 a page) and 18 on Codex with Sol 6.1. The last two commands ran with
+[#3328](https://github.com/max-sixty/leaf/pull/3328) in the tree, which changes only
+an ask that holds a playground before other content. Three more configuration pages,
+authored after that fix to check it, count in the defect table but not in the rates.
+Each defect's owner is a hand classification from the judge's description and
+screenshots. Each judgment's `metadata.page_defects` in `results.json` holds the
+defects and check readings.
+
+Pages with at least one defect, by the defect's owner, with Wilson 95% intervals:
+
+| Owner of the defect                                 | Claude Code, 19 pages | Codex, 18 pages | All, 37 pages    |
+| --------------------------------------------------- | --------------------- | --------------- | ---------------- |
+| Author's content: a supplied fact wrong or left out | 17 (69–97%)           | 0 (0–18%)       | 17, 46% (31–62%) |
+| Author's layout: a drawing, chart, table or order   | 5 (12–49%)            | 2 (3–33%)       | 7, 19% (9–34%)   |
+| A Leaf widget                                       | 2 (3–31%)             | 4 (9–45%)       | 6, 16% (8–31%)   |
+| Leaf's thread chrome                                | 10 (32–73%)           | 7 (20–61%)      | 17, 46% (31–62%) |
+| Any rendering defect but the chrome's               | 7 (19–59%)            | 5 (12–51%)      | 12, 32% (20–49%) |
+| Any defect but the chrome's                         | 18 (75–99%)           | 5 (12–51%)      | 23, 62% (46–76%) |
+
+Rendering defects other than the chrome's fell on 6 of 11 dashboards, 4 of 6
+configurations, 2 of 10 queues and no document. Every defect on all 40 pages, beside
+the checks:
+
+| Defect                                                                                                                                                                                                                                                        | Owner                          | Defects (pages) | Final plain check | Final render check | Author's own checks           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------- | ----------------- | ------------------ | ----------------------------- |
+| A supplied fact stated wrongly or left out                                                                                                                                                                                                                    | author                         | 26 (19)         | 0                 | 0                  | none reported                 |
+| SVG labels a few pixels high on a phone or at 900px                                                                                                                                                                                                           | author                         | 3 (3)           | 0                 | 3                  | reported; changed, not enough |
+| Other author layout: a chart annotation cut off at the phone's edge (2), labels too faint, a chart tooltip reading "UTC 935", a phone table dropping a column, a note's table clipped, headline metrics three screens down (2), two footer spans run together | author                         | 9 (7)           | 0                 | 0                  | none reported                 |
+| A playground followed by a note draws its instruction over the note at 900×700                                                                                                                                                                                | `lf-ask` (fixed, #3328)        | 2 (2)           | 0                 | 0                  | none reported                 |
+| A playground's stage gets 190–280px at 900×700, under its presets and instruction                                                                                                                                                                             | `lf-playground` in a workspace | 4 (4)           | 0                 | 0                  | none reported                 |
+| The tally says "1 of 8 to answer" while its Next on me is disabled                                                                                                                                                                                            | `lf-tally`                     | 2 (2)           | 0                 | 0                  | none reported                 |
+| An open thread card covers the text near its passage at 900px and on a phone                                                                                                                                                                                  | thread chrome                  | 14 (14)         | 0                 | 0                  | none reported                 |
+| A thread's pin covers words at a line's end on a phone                                                                                                                                                                                                        | thread chrome                  | 5 (5)           | 0                 | 0                  | none reported                 |
+| The inline thread header's pencil overlaps "Waiting for pickup" on a phone                                                                                                                                                                                    | thread chrome                  | 1 (1)           | 0                 | 0                  | none reported                 |
+
+Of the 66 defects, the final render check reported 3 and the plain check none. The
+checks read neither the page's facts nor Leaf's own chrome (`render_gate/readings.py`
+leaves chrome to the suite), so their reach is the 20 rendering defects outside the
+chrome, of which they reported 3. Their value shows earlier: on 35 of the 40 pages the
+author's own checks reported 143 findings, and the final page still had 10 of them.
+The render check's were labels shrunk below 10px (52 on 10 pages, 9 kept on 4), tables
+squeezed at 360px (7), labels drawn over each other in a chart (6), scrollbar
+clearance (3), content past the column (1), a verbatim mismatch (1) and a console
+error (1). The plain check's were markup: targets with no id (35 on 18 pages), schema
+refusals (27 on 7 pages), and 10 runs before `index.html` existed. Every author ran a
+check, and 27 of 40 ran `--render`; on the 13 pages whose authors did not, mostly
+queues and Codex pages, the final render check found nothing.
+
+For "Decide what plain `page check` runs in a browser" (TODO.md): no final page had a
+widget that failed to draw or a console error, and the one console error during
+authoring, an `lf-chart` transform reading `NaN`, came from the render check and was
+fixed. Every plain-check finding was markup.
+
+How far to trust these numbers:
+
+- The judge's recall is partial. Every judge opened a thread, yet it reported the
+  thread card over neighbouring text on 14 of the 40 pages; the rates are lower
+  bounds.
+- Four content defects checked against the requests were real: a backfill of
+  "about 550k" sessions where the request says 312k, "holding keeps half its
+  checkouts timing out" where 50% is the rollout stage and the error rate is 0.91%,
+  errors that "held at 0.91% since the pause" though the buckets after it read 0.97,
+  0.95 and 0.93, and a fifth contact called the fourth. The judge is a Codex model and no
+  second judge read the pages, so the gap between Claude Code's 17 of 19 and Codex's
+  0 of 18 is unconfirmed. Codex pages restated the supplied facts more nearly word
+  for word, and Claude Code pages added derived claims; the "half of eu-west's
+  checkouts" claim appeared on 5 of 6 Claude Code dashboards.
+- The 3 render-reported defects match the check messages the matching turn quoted.
+  The other readings were not checked by hand.
+
+The overlap from a playground followed by a note came from `lf-ask`: its full-height
+rule gave every child the height signal, so a playground that was not the last child
+shrank below the floors of its rows and drew past its own box. The fix holds the
+context at its own height. The three configuration pages authored after it have no
+such overlap, including one with a note after its playground;
+`test_a_playground_followed_by_a_note_keeps_its_instruction_off_the_note` holds it.
+
+The other recurring Leaf-owned defects follow from recorded choices, and are open
+decisions rather than fixes:
+
+- A thread card opens over the text near its passage, which Escape uncovers (root
+  `AGENTS.md`, "Working on the repository"); the judge counted it on 14 pages.
+- On a phone a thread's pin stands over the end of the line it marks (5 pages).
+- A playground in a workspace keeps its stage bounded down to 500px tall, which
+  `test_inline_playground_keeps_evidence_and_long_instruction_reachable_in_a_short_workspace`
+  pins; at 900×700 the judge found the stage too short on 4 of 9 configuration
+  pages.
+- `lf-tally` counts an obligation the user discussed and left with the agent as still
+  to answer, while Next on me walks only those waiting on the user. Both queue pages
+  where the judge cleared an answer after commenting showed "1 of 8 to answer" with
+  Next on me disabled. That the comment moved the obligation to the agent is a
+  reading of `obligations.discussed`, not reproduced: clearing an answer without a
+  comment re-enables Next on me.
 
 ## Remaining evaluation gaps
 

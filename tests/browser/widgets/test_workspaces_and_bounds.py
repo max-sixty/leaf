@@ -220,7 +220,8 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(
 ):
     """On a phone the workspace flows and the page scrolls, and its header sticks at the
     window's top, so a tally's Next on me stays under the pointer that pressed it. The
-    obligation it lands on stands below the header, which the landing clears."""
+    obligation it lands on stands below the header, which the landing clears, and a
+    tab set's sticky strip sticks under it."""
 
     def item(key):
         return (
@@ -241,7 +242,10 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(
                 '<lf-tabs id="queue" list="side">'
                 + item("first")
                 + item("second")
-                + "</lf-tabs>",
+                + "</lf-tabs>"
+                '<lf-tabs id="views"><lf-tab id="v-one" label="One">'
+                '<div id="v-long" style="height: 1600px"></div></lf-tab>'
+                '<lf-tab id="v-two" label="Two"><p>Two</p></lf-tab></lf-tabs>',
                 layout="workspace",
             )
         ),
@@ -262,6 +266,11 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(
         second.bounding_box(),
         header,
     )
+    # A tab set in the body sticks its strip under the header, not behind it.
+    page.locator("#v-long").evaluate("el => el.scrollIntoView({block: 'center'})")
+    scroll_settled(page)
+    strip = page.locator("#views > .lf-tabstrip").bounding_box()
+    assert strip["y"] >= header["y"] + header["height"] - 1, (strip, header)
 
 
 PANE_BAND_PAGE = leaf_page(

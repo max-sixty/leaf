@@ -19,7 +19,6 @@ import {
   MAX_DRAWING_POINTS,
   MAX_DRAWING_SAYS_LENGTH,
   MAX_DRAWING_STROKES,
-  PAGE_CONTROL_RANK,
   acceptData,
   beginRead,
   commandSteps,
@@ -43,8 +42,6 @@ import {
   obligationEnding,
   obligationWord,
   ownedObligationControl,
-  pageControls,
-  pageControlsChanged,
   paintBarReactions,
   paintCoreControls,
   pendingAbout,
@@ -57,7 +54,6 @@ import {
   readPlace,
   readPlan,
   readQueues,
-  registerPageControl,
   returnPlace,
   sendReaction,
   standingThread,
@@ -65,7 +61,6 @@ import {
   threadInput,
   versionPicker,
   versionsReading,
-  watchPageControls,
   watchProjection
 } from "./runtime/bundle-document-identity.js";
 import "./runtime/bundle-dress.js";
@@ -201,12 +196,18 @@ import {
   visibleTargetParts
 } from "./runtime/bundle-visible-target-parts.js";
 import {
+  PAGE_CONTROL_RANK,
   livePoint,
   openResidency,
+  pageControls,
+  pageControlsChanged,
   placePoints,
   pointInto,
-  scheduleResidency
-} from "./runtime/bundle-content-layout.js";
+  railStands,
+  registerPageControl,
+  scheduleResidency,
+  watchPageControls
+} from "./runtime/bundle-page-controls.js";
 import {
   ADDRESSABLE,
   addressableSays,
@@ -8439,8 +8440,9 @@ function createPageMapDialog({
     rank: PAGE_CONTROL_RANK.map,
     label: "Page Map",
     value: () => String(entries.length),
+    shortcut: () => commandSteps("navigation.page-map"),
     offered: () => entries.length > 0,
-    group: "keys",
+    group: () => railStands() ? "keys" : "navigate",
     press: () => openPageMap()
   });
   const pageMapIsActive = () => dialog.open || Boolean(activeInAnnotations?.());

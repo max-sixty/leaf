@@ -57,6 +57,8 @@ import {
   contributionReceipts,
 } from "./contribution-controls.js";
 import { contributionSource } from "./contributions.js";
+import { railStands } from "./content-layout.js";
+import { commandSteps } from "./keyboard/control-keys.js";
 
 import { contributionItemKey, KINDS } from "./contribution-model.js";
 import { marginMapGroups } from "./margin-map-model.js";
@@ -113,14 +115,18 @@ export function createPageMapDialog({
   let target = null;
   let trackedOffers = new Set();
   // The Map is a row of the page's controls while it has entries, which a keyboard
-  // reaches by `g P` (keyboard/go-to-sequence.js).
+  // reaches by `g P` (keyboard/go-to-sequence.js). Beside the rail, whose markers show
+  // the page's annotations where they stand, it is a keyboard's convenience; where the
+  // window has no room for the rail, the markers are pins over the content, and the
+  // map is where a reader surveys them, so Navigate offers it to a mouse too.
   registerPageControl({
     key: "map",
     rank: PAGE_CONTROL_RANK.map,
     label: "Page Map",
     value: () => String(entries.length),
+    shortcut: () => commandSteps("navigation.page-map"),
     offered: () => entries.length > 0,
-    group: "keys",
+    group: () => (railStands() ? "keys" : "navigate"),
     press: () => openPageMap(),
   });
 

@@ -6,8 +6,9 @@
 import { nextFrame, nextRender } from "./rendering.js";
 import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-elements.js";
-import { pageDocument } from "./passages.js";
+import { layoutBox, pageDocument } from "./passages.js";
 import { marks } from "./marks.js";
+import { pageControlsChanged } from "./page-controls.js";
 // One computed reading seats the rail first without moving the column, then each
 // authored resident on its preferred side, or in flow when there is no room. The
 // column's runtime grid offset is removed before measuring, including RTL, while an
@@ -34,8 +35,15 @@ function readResidency() {
   const { changed } = document.documentElement.lfInitial.residency();
   if (changed) layoutChanged(pageDocument());
   readFinished?.(changed);
-  if (changed) repaintPage();
+  if (!changed) return;
+  repaintPage();
+  // A page control may stand where it does by whether the rail stands (page-map-dialog.js).
+  pageControlsChanged();
 }
+// Whether the reading seated the margin's rail beside `main`, the column, rather than
+// leaving its rows to pin over the content where the window has no room for it.
+export const railStands = (main = layoutBox()) =>
+  (main?.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
 export function scheduleResidency() {
   if (residencyOpen) residencyPending ||= nextRender(residencyPass);
 }
@@ -100,5 +108,3 @@ export function openResidency({ onRead }) {
     });
   readResidency();
 }
-
-export const residencyStarted = () => residencyOpen;

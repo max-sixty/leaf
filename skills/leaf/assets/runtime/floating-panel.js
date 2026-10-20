@@ -1194,7 +1194,7 @@ export function createFloatingPanel({
     const reply = answer.keys.find((key) => !message(key).ephemeral);
     const next = reply
       ? { key: top.thread, message: reply, label: "New reply" }
-      : { key: top.thread, message: answer.keys[0], label: "New update" };
+      : { key: top.thread, message: answer.keys[0], label: "New message" };
     if (waiting?.message === next.message) return;
     const arriving = !waiting;
     waiting = next;

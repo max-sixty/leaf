@@ -238,7 +238,7 @@ export function createRegionSelector({
       id: "capture.region.cancel",
       keys: ["Escape"],
       title: "Cancel capture",
-      touch: "Cancel capture",
+      exit: true,
       when: () => !ended,
       run: cancel,
     },

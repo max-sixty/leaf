@@ -1,8 +1,11 @@
 /* The page's commands a finger reaches, as rows of the page's controls (page-controls.js).
  * `touch` names a row a finger needs; the same row serves a mouse. Page commands stand in
  * the floating panel's menu, and the innermost active scope supplies gesture steps,
- * which stand in its row. Words, availability and activation all come from the same row
- * as keyboard dispatch.
+ * which stand in its row. A scope with a row marked `exit` is a stance, such as page
+ * search or Draw mode: while the innermost one stands, the panel's row offers that row
+ * as its one way out (`stance`), and the panel says the scope's title
+ * (status-context.js). Words, availability and activation all come from the same row as
+ * keyboard dispatch.
  *
  * A command's words and liveness are read in the repaint frame (`paintTouchControls`),
  * where the register is read, rather than in a presentation's paint: a liveness
@@ -15,7 +18,7 @@ import {
   registerPageControl,
 } from "../page-controls.js";
 import { returnPlace } from "../history.js";
-import { bindings, live, spell, word } from "./bindings.js";
+import { bindings, live, spell, titleOf, word } from "./bindings.js";
 import { invokePress, standing } from "./dispatch.js";
 import { touchPresses } from "./register.js";
 
@@ -48,13 +51,40 @@ function place(press, gesture) {
   return press.id;
 }
 
+// The stance the user stands in now: its scope's title, and its exit row's words and
+// latest press.
+let stance = null;
+let stanceRegistered = false;
+/** The title of the stance the user stands in, or null. */
+export const stanceReading = () => stance?.title ?? null;
+
+function placeStanceExit() {
+  if (stanceRegistered) return;
+  stanceRegistered = true;
+  registerPageControl({
+    key: "stance:exit",
+    rank: PAGE_CONTROL_RANK.steps,
+    exit: true,
+    label: () => stance?.label ?? "",
+    group: "page",
+    offered: () => Boolean(stance),
+    disabled: () => stance?.disabled ?? true,
+    press: () => {
+      if (stance && live(stance.press.row)) invokePress(stance.press);
+    },
+  });
+}
+
+const sameStance = (a, b) =>
+  a?.title === b?.title && a?.label === b?.label && a?.disabled === b?.disabled;
+
 const same = (a, b) =>
   a?.label === b?.label &&
   a?.disabled === b?.disabled &&
   a?.shortcut.join(" ") === b?.shortcut.join(" ");
 
 export function paintTouchControls() {
-  const { commands, steps } = touchPresses();
+  const { commands, steps, exits } = touchPresses();
   // Every step is placed before any is shown, so the row orders them as they are declared
   // rather than by which the user happened to reach first.
   for (const { presses: scoped } of steps)
@@ -65,6 +95,19 @@ export function paintTouchControls() {
     ...(innermost?.presses.map((press) => press.id) ?? []),
   ]);
   let changed = false;
+  if (exits.length) placeStanceExit();
+  const exit = exits.find(({ scope }) => standing(scope));
+  const title = exit && titleOf(exit.press.row);
+  const nextStance = exit
+    ? {
+        title: word(exit.scope.title),
+        label: title[0].toUpperCase() + title.slice(1),
+        disabled: !live(exit.press.row),
+        press: exit.press,
+      }
+    : null;
+  if (!sameStance(nextStance, stance)) changed = true;
+  stance = nextStance;
   for (const [id, press] of presses) {
     const [binding] = bindings(press.row);
     const next = shown.has(id)

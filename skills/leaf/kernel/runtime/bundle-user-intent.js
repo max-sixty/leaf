@@ -4041,16 +4041,18 @@ function pageScopes() {
 }
 function touchPresses2() {
   pageScopes();
+  const named = STACK.flatMap(
+    (name) => typeof name === "string" ? scopes.get(name) ?? [] : []
+  );
   return {
     commands: PAGE_COMMANDS.flatMap(
       (id) => commands.has(id) ? touchPresses(commands.get(id)) : []
     ),
-    steps: STACK.flatMap(
-      (name) => typeof name === "string" ? (scopes.get(name) ?? []).map((scope) => ({
-        scope,
-        presses: scope.rows.flatMap(touchPresses)
-      })) : []
-    ).filter(({ presses }) => presses.length)
+    steps: named.map((scope) => ({ scope, presses: scope.rows.flatMap(touchPresses) })).filter(({ presses }) => presses.length),
+    // A stance's way out, the one row of its scope marked `exit`, innermost first.
+    exits: named.flatMap(
+      (scope) => scope.rows.filter((row) => row.exit).map((row) => ({ scope, press: { id: row.id, row, binding: void 0 } }))
+    )
   };
 }
 var universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);

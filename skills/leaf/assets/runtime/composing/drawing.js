@@ -669,7 +669,7 @@ export function createDrawingController({
         id: "draw.mode.exit",
         keys: ["w"],
         title: "exit Draw mode",
-        touch: "Exit Draw mode",
+        exit: true,
         run: () => setDrawMode(false),
       },
     ],

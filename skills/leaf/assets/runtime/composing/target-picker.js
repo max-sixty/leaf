@@ -648,14 +648,7 @@ export function createTargetPicker({
         : hints.prefix()
           ? "back one letter"
           : "close picker",
-    touch: () =>
-      pageSearchOpen
-        ? searchReturnsToHints
-          ? "Back to hints"
-          : "Close search"
-        : hints.prefix()
-          ? "Back one letter"
-          : "Cancel selection",
+    exit: true,
     run: back,
   };
 

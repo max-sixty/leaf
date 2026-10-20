@@ -510,6 +510,13 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
+  .lf-fp-exit-seat {
+    flex: none;
+    display: flex;
+  }
+  .lf-fp-exit-seat[hidden] {
+    display: none;
+  }
   .lf-fp-step {
     color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
@@ -539,6 +546,7 @@
     .lf-fp-field,
     .lf-fp-row-notice,
     .lf-fp-quick,
+    .lf-fp-exit-seat,
     .lf-fp-context,
     .lf-fp-opened {
       display: none;

@@ -258,18 +258,22 @@ export function pageScopes() {
 // user is innermost in. Read from the live register, since a scope may join or leave it.
 export function touchPresses() {
   pageScopes();
+  const named = STACK.flatMap((name) =>
+    typeof name === "string" ? (scopes.get(name) ?? []) : [],
+  );
   return {
     commands: PAGE_COMMANDS.flatMap((id) =>
       commands.has(id) ? pressesOf(commands.get(id)) : [],
     ),
-    steps: STACK.flatMap((name) =>
-      typeof name === "string"
-        ? (scopes.get(name) ?? []).map((scope) => ({
-            scope,
-            presses: scope.rows.flatMap(pressesOf),
-          }))
-        : [],
-    ).filter(({ presses }) => presses.length),
+    steps: named
+      .map((scope) => ({ scope, presses: scope.rows.flatMap(pressesOf) }))
+      .filter(({ presses }) => presses.length),
+    // A stance's way out, the one row of its scope marked `exit`, innermost first.
+    exits: named.flatMap((scope) =>
+      scope.rows
+        .filter((row) => row.exit)
+        .map((row) => ({ scope, press: { id: row.id, row, binding: undefined } })),
+    ),
   };
 }
 export const universalCommandReference = () =>

@@ -1134,7 +1134,7 @@ def test_a_posted_drawing_stands_down_without_a_false_page_reference(browser, se
         if e["kind"] == "comment"
     ]
     # Out of Draw mode, whose step holds the panel's row, to reach Threads.
-    page.locator(".lf-fp-step", has_text="Exit Draw mode").click()
+    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
     references = open_panel_thread(page, comment).locator(".lf-drawing-reference")
     expect(references.first).to_have_text("Drawing comment")
     assert set(references.all_text_contents()) == {"Drawing comment"}

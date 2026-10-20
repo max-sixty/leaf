@@ -81,8 +81,11 @@ the page's controls (`page-controls.js`), for a finger and a mouse alike. The ro
 that control in `touch`, and `touch-controls.js` builds it from the same row the key
 uses: a page command's control is a row of the floating panel's menu, and a page-scope
 row's control stands in the panel's row as a gesture's step while its scope is the
-innermost one offering steps. A mode a finger can enter declares its
-way out. The register refuses a page command without `touch`; `false` says a finger
+innermost one offering steps. A stance a finger can enter, such as page search, the
+target picker or Draw mode, marks its way out `exit` instead of giving it words: while
+it is the innermost stance standing, the panel says the scope's title and offers that
+row as one ✕ at the row's end, beside the counts or the steps, whatever Escape would
+close first. The register refuses a page command without `touch`; `false` says a finger
 reaches the result directly, as it does for walks and Go-to by scrolling and tapping.
 
 The comment field has one primary action, Dictate while empty and Send once it has

@@ -646,6 +646,10 @@ export function checked(rows, where, ready) {
       throw new Error(
         `leaf: row ${i} of ${where} leaves the native press to the platform but runs no result`,
       );
+    if (row.exit && (!row.run || row.touch || row.routes))
+      throw new Error(
+        `leaf: ${row.id} is its stance's way out, which the panel's row offers in its own words, so it needs a run and no touch words or routes`,
+      );
     if (row.touch && (!row.run || row.routes))
       throw new Error(
         `leaf: ${row.id} stands in for its keys under a finger, so it needs a run, and a routed row names its words on each route`,

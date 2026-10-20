@@ -1728,8 +1728,9 @@ def panel_control(page, key, at=None):
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). A gesture's
-    next step stands in the marks' place as a `.lf-fp-step` chip named by its words, and
-    the page comment is `page_comment`'s."""
+    next step stands in the marks' place as a `.lf-fp-step` chip named by its words, the
+    way out of the stance the user stands in is the `.lf-fp-exit` ✕ named by its
+    `aria-label`, and the page comment is `page_comment`'s."""
     if key in PANEL_ROW_CONTROLS:
         control = page.locator(PANEL_ROW_CONTROLS[key])
     elif key == "approval":

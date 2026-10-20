@@ -235,6 +235,7 @@ const PICK = "command:target.picker.open";
 // gesture, which stands in the counts' place instead.
 const listed = (entry) =>
   !entry.gesture &&
+  !entry.exit &&
   !HELD_ELSEWHERE.includes(entry.key) &&
   !(entry.key === PICK && advertisesKeys());
 // A browser offers the clipboard only to a secure context (https or localhost), so a
@@ -260,13 +261,17 @@ const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 // What passes in the panel's one seat for words that pass: a notice while one shows,
 // else what the status line says between notices, the Go-to filter's word or a walk's
-// position ("1 of 3 waiting on me · Options"). The user asked on 16 October that whatever
-// is not anchored to the page stand at the panel rather than against the window.
+// position ("1 of 3 waiting on me · Options"). The stance the user stands in heads
+// whichever of them passes ("In Draw mode · Codex replied"), or passes alone. The user
+// asked on 16 October that whatever is not anchored to the page stand at the panel
+// rather than against the window.
 function passing() {
   const notice = noticeReading();
-  if (notice.visible) return { message: notice.message, visible: true };
-  const { goTo, walk } = statusContextReading();
-  const message = goTo ?? (walk?.shown ? walk.text : "");
+  const { goTo, walk, stance } = statusContextReading();
+  const said = notice.visible
+    ? notice.message
+    : (goTo ?? (walk?.shown ? walk.text : ""));
+  const message = [stance, said].filter(Boolean).join(" · ");
   return { message, visible: Boolean(message) };
 }
 const clock = (at) =>
@@ -430,6 +435,9 @@ export function createFloatingPanel({
   lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
+  // The way out of the stance the user stands in, at the row's end beside the counts or
+  // a gesture's steps, and there while the user types (touch-controls.js, `stance`).
+  const exitSeat = el("div", "lf-fp-exit-seat");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
   // (composing/surface.js, `responseHome`). While its composer is open it stands in the
@@ -441,7 +449,7 @@ export function createFloatingPanel({
   // here. Rejected: a view of its own above the row, which stood a second field over
   // the panel's own.
   const responseSeat = el("div", "lf-fp-response");
-  row.append(leaf, field, responseSeat, rowNoticeSeat, quick);
+  row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
 
   const CONNECTING = {
     tone: "",
@@ -2925,6 +2933,24 @@ export function createFloatingPanel({
     // commenting on the words a finger selected, stands in the counts' place while that
     // gesture holds it (page-controls.js, `gesture`).
     const steps = rows().filter((entry) => entry.gesture);
+    const exit = rows().find((entry) => entry.exit);
+    render(
+      exit
+        ? html`<button
+            type="button"
+            class="lf-fp-chip lf-fp-exit"
+            aria-label=${exit.label}
+            title=${exit.label}
+            ?disabled=${exit.disabled}
+            @mousedown=${(event) => event.preventDefault()}
+            @click=${() => exit.press()}
+          >
+            ${iconTemplate("cross", "lf-action-icon")}
+          </button>`
+        : nothing,
+      exitSeat,
+    );
+    keepsHidden(exitSeat, !exit);
     keeps(quick, "data-steps", steps.length ? "" : null);
     if (steps.length) {
       render(

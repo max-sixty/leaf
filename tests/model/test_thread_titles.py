@@ -1,6 +1,6 @@
 """Thread titles: the title a page server asks a model for as a thread's opening
-comment arrives, under Claude Code and Codex alike, and the App Server it holds
-open for one."""
+comment arrives, under Claude Code, Codex and Pi alike, and the App Server it
+holds open for one."""
 
 import contextlib
 import json
@@ -365,6 +365,103 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     )
     turns = [m for m in received if m.get("method") == "turn/start"]
     assert "Can the import run in parallel?" in turns[-1]["params"]["input"][0]["text"]
+
+
+# Pi's records in `--mode json`, ending with the run's; then a Pi that lingers after
+# answering, as the real one does for some 3 s.
+TITLING_PI = """\
+#!{python}
+import json, os, sys, time
+with open(os.environ["TITLING_RECORD"], "a") as record:
+    call = {{
+        "argv": sys.argv[1:],
+        "stdin": sys.stdin.read(),
+        "env": dict(os.environ),
+        "cwd": os.getcwd(),
+    }}
+    record.write(json.dumps(call) + "\\n")
+answer = {{
+    "role": "assistant",
+    "content": [{{"type": "text", "text": " Export speed "}}],
+    "provider": "openai-codex",
+    "model": "gpt-6.1-sol",
+    "usage": {{"input": 200, "output": 7, "cost": {{"total": 0.00048}}}},
+    "stopReason": "stop",
+}}
+for record in (
+    {{"type": "session", "id": "title-session"}},
+    {{"type": "message_end", "message": answer}},
+    {{"type": "agent_end", "messages": [answer]}},
+):
+    print(json.dumps(record), flush=True)
+time.sleep(3600)
+"""
+
+
+def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monkeypatch):
+    """Pi's agent names a thread only when it replies; its page server asks Pi's
+    configured model for a title as the comment opening the thread arrives, in a
+    print-mode run with none of the user's tools, extensions, hooks or session
+    identity, and takes the answer as soon as Pi prints it, without waiting for Pi
+    to exit."""
+    record_claim(page_dir, id="pi-session", harness="pi", agent="Pi")
+    assert stamp(page_dir, "first").exit_code == 0
+    programs = tmp_path / "programs"
+    programs.mkdir()
+    pi = programs / "pi"
+    pi.write_text(TITLING_PI.format(python=sys.executable))
+    pi.chmod(0o755)
+    record = tmp_path / "pi-calls.jsonl"
+    monkeypatch.setenv("TITLING_RECORD", str(record))
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("PI_SESSION_ID", "pi-session")
+    monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
+    # Only the answer, never Pi's exit, can end the request within the wait below.
+    monkeypatch.setattr(thread_titles, "TIMEOUT", 3600)
+
+    status, body = endpoint_model.accept_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Why does the export take a minute?",
+        },
+        dict,
+    )
+    assert status == 200, body
+    [title] = wait_for(
+        lambda: [
+            e for e in events_model.read_events(page_dir) if e["kind"] == "thread_title"
+        ],
+        bool,
+        failure="the thread was never named",
+    )
+    [comment] = [
+        e for e in events_model.read_events(page_dir) if e["kind"] == "comment"
+    ]
+    assert (title["thread"], title["title"]) == (comment["id"], "Export speed")
+    assert (title["agent"], title["session"]) == ("Pi", "pi-session")
+
+    [call] = [json.loads(line) for line in record.read_text().splitlines()]
+    assert "Why does the export take a minute?" in call["stdin"]
+    assert "PI_SESSION_ID" not in call["env"]
+    assert "LEAF_PI_PID" not in call["env"]
+    assert Path(call["cwd"]).resolve() == page_dir.resolve()
+    argv = call["argv"]
+    assert argv[argv.index("--system-prompt") + 1] == thread_titles.INSTRUCTIONS
+    # Pi's hooks are extensions, Leaf's own among them.
+    for switch in ("--print", "--no-session", "--no-tools", "--no-extensions"):
+        assert switch in argv
+
+    log = leases_model.titles_log("pi-session")
+    [line] = wait_for(
+        lambda: log.read_text().splitlines() if log.exists() else [],
+        bool,
+        failure="the request was never logged",
+    )
+    logged = json.loads(line)
+    assert logged["event"] == "thread_title_generated"
+    assert (logged["model"], logged["costUsd"]) == ("openai-codex/gpt-6.1-sol", 0.00048)
 
 
 def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):

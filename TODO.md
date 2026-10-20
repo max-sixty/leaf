@@ -79,20 +79,17 @@ has tried; settle that before building it.
   bar and the switch between them went. Work through its remaining list. The phone
   waits until the desktop design is firm, and where a passage thread opens from
   Threads waits until later.
-- **Give "update" one meaning on screen.** It names the user's input ("Undo the
-  latest update", "Stalled update", "1 update to send again", the On view's
-  Update rows) and, since the floating card's held-news notice, the agent's progress
-  ("1 new update"); the glossary keeps it for the user's input alone. Choose one
-  sense, rename the other surfaces, and update the glossary to match.
-- **Find the labels where cutting at the room misleads.** Since 2026-10-14 a label
-  holding a room (`data-lf-room`, `controls.css`) cuts words past it with an ellipsis
-  rather than widening its control, which had shifted the banner (the user's
-  decision). An ellipsis at the end cuts the count or the later news first, so some
-  cuts lose the fact the label exists for: On me at 100 or more reads "On me: 1…",
-  and the user called that count essential; the agent's On count reads the same way,
-  and a held-news notice that first said "1 new reply" cuts "1 new reply · 1 reaction
-  changed" to "1 new re…". Start with On me, then each room's owner, and give each
-  misleading cut a room that holds it or a shorter form, such as "99+".
+- **Say when a held-news notice holds more than it shows.** A notice in a seat's
+  head row keeps the width of the news it first said (`data-lf-room`) and shows each
+  fact whole or not at all (`newsNotice`), so "1 new reply" with a message arriving
+  after it still reads "1 new reply", with nothing on screen saying more waits; the
+  title that names every fact doesn't reach touch. A count growing past that room
+  ("1 new reply", then "2 new replies") still cuts at its end ("2 new repl…"). The
+  notice stands absolutely over the free head row, so its room could be the whole
+  slot up to the visible end (`thread-card.js`, `#retainHeaderSlot`), if a notice
+  wider than its words under the pointer is acceptable; a "+1" for dropped facts is
+  the other route. In a margin card the notice takes its width from the heads'
+  track, and a wide one moved the head's time sideways in CI (PR #3250's first run).
 
 ### Agent and author experience
 

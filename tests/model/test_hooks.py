@@ -399,7 +399,7 @@ def test_codex_stop_leaves_quiet_input_but_delivers_the_whole_batch_with_owed_in
         )
         receive_through(page_dir, last_deliverable_seq(page_dir))
         thread_model.post_reply(
-            page_dir, {"to": asked["id"], "for": asked["id"]}, "Because."
+            page_dir, {"parent": asked["id"], "responds": asked["id"]}, "Because."
         )
         cursor = events_model.read_cursor(page_dir)
         quiet = [
@@ -883,7 +883,7 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
                 delivery_model.receive_one(frozen, "s1")
                 thread_model.post_reply(
                     page_dir,
-                    {"to": asked["id"], "for": asked["id"]},
+                    {"parent": asked["id"], "responds": asked["id"]},
                     "Because B preserves the invariant",
                 )
             except Exception as error:  # noqa: BLE001 - forward worker failures to assertion
@@ -921,7 +921,9 @@ def test_prompt_pickup_does_not_restamp_a_response_settled_after_planning(claime
     delivery_model.receive_one(frozen, "s1")
     plans = hook_transport_model.read_plans("s1")
     assert plans[0].acknowledged
-    thread_model.post_reply(claimed, {"to": asked["id"], "for": asked["id"]}, "Handled")
+    thread_model.post_reply(
+        claimed, {"parent": asked["id"], "responds": asked["id"]}, "Handled"
+    )
     before = events_model.read_events(claimed)
     hook_transport_model.pick_up_acknowledged("s1", plans)
     assert events_model.read_events(claimed) == before

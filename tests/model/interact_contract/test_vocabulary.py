@@ -538,7 +538,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
     )
     thread_model.post_reply(
         page_dir,
-        {"to": "c1", "for": "c1"},
+        {"parent": "c1", "responds": "c1"},
         "Use this control.",
         '<lf-thread-local id="thread-choice" value="author">Local</lf-thread-local>',
     )

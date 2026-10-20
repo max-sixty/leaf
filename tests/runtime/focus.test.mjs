@@ -65,6 +65,16 @@ const click = (target) =>
   );
 const settled = () => new Promise((resolve) => setTimeout(resolve));
 
+test("a departing package releases its standing reader", () => {
+  const { first, second } = scene();
+  const places = [];
+  const stop = onStanding((node) => places.push(node));
+  focusDestination(first, "move");
+  stop();
+  focusDestination(second, "move");
+  assert.deepEqual(places, [first]);
+});
+
 test("text entry distinguishes editors, typeahead and controls that take no letters", () => {
   const cases = [
     ["input", { type: "text" }, true, true],

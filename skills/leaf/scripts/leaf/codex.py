@@ -1010,8 +1010,7 @@ class AppServerReplyStream:
                 page.set_stream_reply(
                     self.session_id,
                     self.turn_id,
-                    self.target["reply_to"],
-                    self.target["responds"],
+                    self.target,
                     self.attempt,
                     item_id,
                     text,
@@ -1608,7 +1607,7 @@ RECORD_VARIANTS = {
     )
 }
 _STRING = {"type": "string"}
-_ANSWER_FIELDS = {"reply": ("to", "for"), "markup": ("action",)}
+_ANSWER_FIELDS = {"reply": ("parent", "responds"), "markup": ("action",)}
 _ANSWER = {
     "type": "object",
     "properties": {"kind": {"enum": list(_ANSWER_FIELDS)}},
@@ -1711,7 +1710,7 @@ RECORD_SCHEMA = {
         ),
     ],
 }
-RECORD = Record("codex-delivery", RECORD_SCHEMA, since=13)
+RECORD = Record("codex-delivery", RECORD_SCHEMA, since=14)
 
 
 def read_record(path: Path) -> DeliveryRecord | None:

@@ -2,8 +2,9 @@
 
 The arm's WebsiteCodexHarness owns the model, instructions, delivery and reply
 projection. A subprocess imports it normally from the arm's worker directory,
-with a private login home. Observation retains native notifications and each
-projected reply update; it changes neither the turn nor the text being scored.
+with a private login home. The adapter's private page diagnostics retain published
+reply updates, native status and follower completion; the evaluator queries that
+evidence without replacing the adapter's classes or lifecycle.
 Promptfoo judges meaning, while fixed checks require completed exact-input replies.
 Each turn's time to its first words, to text showing in the reply, and to its
 completed answer joins the metadata as `timings`, read from the adapter's own
@@ -16,7 +17,7 @@ import os
 import signal
 import subprocess
 import sys
-import threading
+import time
 from pathlib import Path
 
 from leaf_dev import ROOT
@@ -172,11 +173,19 @@ def run_hosted() -> None:
     import leaf_website
     from leaf import __file__ as leaf_source
     from leaf.event_log import read_events
+    from leaf.interaction_log import read_interactions
     from leaf.thread import successful_replies
 
     from leaf_dev.commands.preview import terminated
     from leaf_dev.review_scenario import post
 
+    try:
+        kinds = leaf_website.HOSTED_TURN_RECORDS
+    except AttributeError as error:
+        raise RuntimeError(
+            "This arm does not produce hosted-turn diagnostics; it cannot run the "
+            "hosted reply experiment. Select an arm with producer-owned evidence."
+        ) from error
     request = json.load(sys.stdin)
     os.environ.setdefault("LEAF_AGENT", leaf_website.WEBSITE_AGENT)
     page, work = Path(request["page"]), Path(request["work"])
@@ -199,52 +208,55 @@ def run_hosted() -> None:
         )
         + "\n"
     )
-    updates, replies, statuses, finished = [], [], [], threading.Event()
-    hosted_turn = leaf_website.HostedTurn
-
-    class ObservedTurn(hosted_turn):
-        def observe(self, message, update):
-            with (work / "notifications.jsonl").open("a") as stream:
-                stream.write(json.dumps(message) + "\n")
-            super().observe(message, update)
-            if message.get("method") == "turn/completed":
-                statuses.append(message["params"]["turn"]["status"])
-
-        def observe_reply(self, update, published):
-            super().observe_reply(update, published)
-            if published and update and update.get("message", {}).get("complete"):
-                updates.append(update["message"])
-
-    class ObservedHarness(leaf_website.WebsiteCodexHarness):
-        def _run_follow_turn(self, turn):
-            try:
-                super()._run_follow_turn(turn)
-            finally:
-                finished.set()
-
-    leaf_website.HostedTurn = ObservedTurn
-    agent = ObservedHarness(log_path=work / "codex.log")
+    replies, inputs = [], []
+    agent = leaf_website.WebsiteCodexHarness(log_path=work / "codex.log")
     signal.signal(signal.SIGTERM, terminated)
     try:
         for number, question in enumerate(CASES[request["case"]]):
-            finished.clear()
             event = post(request["url"], f"website-{number}", question)
+            inputs.append(event)
             agent.attach(page, event)
-            if not finished.wait(TURN_LIMIT):
-                break
-            replies.append(
-                {
-                    "question": question,
-                    "replies": successful_replies(read_events(page), event),
-                }
-            )
+            deadline = time.monotonic() + TURN_LIMIT
+            while not any(
+                record["type"] == kinds["following"] and record.get("eventId") == event
+                for record in read_interactions(page)
+            ):
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(0.1)
+            else:
+                replies.append(
+                    {
+                        "question": question,
+                        "replies": successful_replies(read_events(page), event),
+                    }
+                )
+                continue
+            # A timeout remains incomplete evidence for the fixed grade.
+            break
     finally:
         agent.close()
         (work / "events.jsonl").write_text((page / "events.jsonl").read_text())
+    records = [
+        record for record in read_interactions(page) if record.get("eventId") in inputs
+    ]
+    (work / "observations.jsonl").write_text((page / "observations.jsonl").read_text())
+    ended = {
+        record["turnId"]: record["completed"]
+        for record in records
+        if record["type"] == kinds["following"]
+    }
+    statuses = [
+        record["status"]
+        for record in records
+        if record["type"] == kinds["terminal"] and ended.get(record["turnId"])
+    ]
     output = {
         "model": leaf_website.HOSTED_MODEL,
         "turns": replies,
-        "shown_updates": updates,
+        "shown_updates": [
+            record["reply"] for record in records if record["type"] == kinds["reply"]
+        ],
     }
     response = {
         "output": json.dumps(output),

@@ -654,6 +654,97 @@ const bundles = {
     ],
   }),
 
+  // The optional file navigator uses Trees' vanilla model and its own shadow-DOM
+  // renderer. Upstream includes its styles and Preact runtime; no React wrapper,
+  // external stylesheet, or consumer build reaches the page.
+  trees: () => ({
+    out: `${packageVendor("file-tree")}/pierre-trees.esm.js`,
+    entryPoints: [input("trees/entry.mjs")],
+    platform: "browser",
+    target: "chrome105",
+    // Keep upstream's core/override ordering inside the page's vendor tier, so
+    // authored styles retain the same precedence as every other widget's.
+    adapt: [
+      {
+        file: /@pierre\/trees\/dist\/model\/FileTreeController\.js$/,
+        // beta.6 treats a nonempty query with no matches as unfiltered, exposing
+        // unrelated root rows. The controller must retain an empty filtered set;
+        // its existing empty-query branch remains the route back to all files.
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              'this.#searchMode === "hide-non-matches" && matchingPaths.length > 0',
+              'this.#searchMode === "hide-non-matches"',
+              "Trees empty search-result set",
+            ),
+            'this.#searchMode !== "hide-non-matches" || this.#searchMatchPathSet.size === 0',
+            'this.#searchMode !== "hide-non-matches"',
+            "Trees empty search-result visibility",
+          ),
+      },
+      {
+        file: /@pierre\/trees\/dist\/render\/FileTreeView\.js$/,
+        // Retain is a persistent filter, not a transient search mode: rows keep
+        // ordinary pointer focus and tree navigation while the field owns match
+        // navigation. Blur and activation keep the query; Escape dismisses it.
+        edit: (source) => {
+          source = seam(
+            source,
+            'if (searchBlurBehavior === "retain" && !searchInputUserInteractedRef.current) return;',
+            'if (searchBlurBehavior === "retain") return;',
+            "Trees retained search on blur",
+          );
+          source = seam(
+            source,
+            "if (plan.closeSearch) controller.closeSearch();",
+            'if (plan.closeSearch && searchBlurBehavior !== "retain") controller.closeSearch();',
+            "Trees retained search on pointer activation",
+          );
+          source = seam(
+            source,
+            "if (controller.isSearchOpen()) event.preventDefault();",
+            'if (controller.isSearchOpen() && frame.searchBlurBehavior !== "retain") event.preventDefault();',
+            "Trees retained-filter row focus",
+          );
+          source = seam(
+            source,
+            "const flowRowFrame = {\n\t\tcontextHoverPath:",
+            "const flowRowFrame = {\n\t\tsearchBlurBehavior,\n\t\tcontextHoverPath:",
+            "Trees retained-filter row policy",
+          );
+          // A retained filter is hosted navigation: yield Enter to the exact
+          // control's declared command instead of swallowing it in the model.
+          // Search arrows and Escape keep their ordinary upstream behavior.
+          return seam(
+            source,
+            'if (isSearchOpen) {\n\t\t\tif (event.key === "Escape")',
+            'if (isSearchOpen && (event.key === "Escape" || searchBlurBehavior !== "retain" || getActiveTreeElement(rootRef.current) === searchInputRef.current)) {\n\t\t\tif (event.key === "Enter" && searchBlurBehavior === "retain") return;\n\t\t\tif (event.key === "Escape")',
+            "Trees retained-search Enter delegation",
+          );
+        },
+      },
+      {
+        file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "return `${LAYER_ORDER}\n@layer base {\n  ${coreCSS}\n}`;",
+              "return `@layer lf-base {\n${LAYER_ORDER}\n@layer base {\n  ${coreCSS}\n}\n}`;",
+              "Trees core CSS cascade",
+            ),
+            "return `${LAYER_ORDER}\n@layer unsafe {\n  ${unsafeCSS}\n}`;",
+            "return `@layer lf-base {\n${LAYER_ORDER}\n@layer unsafe {\n  ${unsafeCSS}\n}\n}`;",
+            "Trees override CSS cascade",
+          ),
+      },
+    ],
+    banner: {
+      js: `/*! @pierre/trees ${version("@pierre/trees")} — Apache-2.0 — licenses: pierre-trees.LICENSES.txt */`,
+    },
+  }),
+
   // Split chrome controls from optional widgets, sharing their dependency graph. Both
   // entry points register the same components once. Optional controls remain on
   // demand; the shared chunks are core payload because chrome also reads them. Lit

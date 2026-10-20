@@ -223,7 +223,7 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     root = panel_comment(
         serve.page_dir, "Make the banner quieter", {"section": "h-how"}
     )
-    address = {"to": root, "for": root}
+    address = {"parent": root, "responds": root}
     thread_model.post_reply(
         serve.page_dir, address, "Reading the banner's styles.", ephemeral=True
     )
@@ -344,11 +344,11 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     rendered(page)
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "The status line can drop one weight.",
     )
     thread_model.post_reply(
-        serve.page_dir, {"to": root}, "And the title the muted ink."
+        serve.page_dir, {"parent": root}, "And the title the muted ink."
     )
     told(page)
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
@@ -370,7 +370,7 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
     no draft, and shows when the user presses it."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Make the banner quieter", {"section": "m19"})
-    address = {"to": root, "for": root}
+    address = {"parent": root, "responds": root}
     thread_model.post_reply(
         serve.page_dir, address, "Reading the banner's styles.", ephemeral=True
     )
@@ -409,7 +409,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     root = panel_comment(
         serve.page_dir, "Make the banner quieter", {"section": "h-how"}
     )
-    address = {"to": root, "for": root}
+    address = {"parent": root, "responds": root}
     for words in ("Comparing the banner.", "Checking both schemes.", "Measuring."):
         thread_model.post_reply(serve.page_dir, address, words, ephemeral=True)
     thread_model.post_reply(serve.page_dir, address, "Done: the banner is quieter.")

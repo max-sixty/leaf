@@ -100,8 +100,8 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
                                 "answer": {
                                     "kind": "reply",
                                     "writer": "turn",
-                                    "to": "user-event",
-                                    "for": "user-event",
+                                    "parent": "user-event",
+                                    "responds": "user-event",
                                     "attempt": "leaf-delivery-1",
                                 },
                             }
@@ -578,7 +578,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
         with pytest.raises(Refused) as refused:
             post_reply(
                 page_dir,
-                {"to": comment["id"], "for": comment["id"]},
+                {"parent": comment["id"], "responds": comment["id"]},
                 "Competing tool reply",
                 identity={"agent": "Codex", "session": "hosted-thread"},
             )

@@ -363,9 +363,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
         assert codex_adapter_model.adapter_is_live("codex-thread")
 
         for comment in comments:
-            thread_model.post_reply(
-                page, {"to": comment["id"], "for": comment["id"]}, "received"
-            )
+            thread_model.post_reply(page, {"responds": comment["id"]}, "received")
         declare_idle(page)
     finally:
         cleanup_model.end_session("codex-thread")

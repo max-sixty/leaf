@@ -9,7 +9,7 @@ settled, and emits two readings of them, each the one home of its facts:
   the update an answer, the user once a harness handed the update back, and nobody once a
   reply answered it. `obligations.response_address` derives the operation, one of:
 
-  - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread message, or an
+  - `{"kind": "reply", "parent": <message>, "responds": <event>}` — a thread message, or an
     action in an answered obligation in frozen thread markup. The agent answers it with
     `leaf response reply <answer.ref>`.
   - `{"kind": "markup", "action": <action>}` — a page action that is part of its

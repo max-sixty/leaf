@@ -351,28 +351,6 @@ function suppliedDatum(source, key) {
   return supplied instanceof Element && under(supplied, source) && /** @type {HTMLElement | SVGElement} */
   supplied.dataset.lfProjection === source.id ? supplied : null;
 }
-function requireReference(verb, owner, attribute) {
-  if (typeof attribute !== "string" || !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute))
-    throw new TypeError(
-      `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`
-    );
-}
-function referencedProjection(owner, attribute) {
-  const id = owner.getAttribute(attribute);
-  if (!id) return null;
-  const { tag, key } = registry[owner.localName]["x-refers"][attribute];
-  if (tag) {
-    const within = registry[tag]["x-unique"][key];
-    const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
-    const scope2 = scopeOf(owner);
-    return [...scope2?.querySelectorAll(tag) ?? []].find(
-      (member) => scopeOf(member) === scope2 && member.getAttribute(key) === id
-    ) ?? null;
-  }
-  const scope = authoredScope(owner);
-  const page = pageDocument();
-  return elementById(id, scope) ?? (scope === page ? null : elementById(id, page));
-}
 function addressedElements(source, key) {
   if (typeof source.lfElementsFor === "function")
     return [...source.lfElementsFor(key) ?? []].filter(
@@ -1494,8 +1472,6 @@ export {
   sectionOf,
   projectedDatum,
   datumLabel,
-  requireReference,
-  referencedProjection,
   addressedElements,
   revealAddressed,
   visualParts,

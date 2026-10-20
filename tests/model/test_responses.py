@@ -254,7 +254,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     # A widget input is answered on its frozen message, not on its own event id.
     selected_ref = response_reference(page_dir, selected)
     destination = delivery_model.response_address(selected_ref)
-    assert destination["to"] == asked["id"]
+    assert destination["parent"] == asked["id"]
     questioned = CliRunner().invoke(
         cli_model.cli,
         [
@@ -728,7 +728,7 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
     # A proactive command cannot infer which pending input this progress means.
     with pytest.raises(Refused) as refused:
         thread_model.post_reply(
-            page_dir, {"to": comment["id"]}, "Proactive", ephemeral=True
+            page_dir, {"parent": comment["id"]}, "Proactive", ephemeral=True
         )
     assert refused_on(refused.value).code == "owed-response"
     answer = thread_model.post_response(reference, "The durable answer.")
@@ -970,7 +970,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
     with pytest.raises(Refused, match="leaf response reply"):
         thread_model.post_reply(
             page_dir,
-            {"to": comment["id"], "for": comment["id"]},
+            {"parent": comment["id"], "responds": comment["id"]},
             "Premature",
             attempt=attempt,
             identity=identity,

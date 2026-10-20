@@ -653,12 +653,12 @@ def test_a_stuck_card_head_keeps_the_name_and_lets_its_annotations_scroll_out(
     )
     thread_model.post_reply(
         serve.page_dir,
-        {"to": root, "for": root},
+        {"responds": root},
         "I'm capturing both widths.",
         ephemeral=True,
     )
     answer = thread_model.post_reply(
-        serve.page_dir, {"to": root, "for": root}, LANDING_WORDS * 8
+        serve.page_dir, {"responds": root}, LANDING_WORDS * 8
     )["id"]
     thread_model.cmd_edit(serve.page_dir, answer, "Edited. " + LANDING_WORDS * 8)
     # Later turns leave room to scroll the answer past the top in either direction.

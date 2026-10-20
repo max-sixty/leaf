@@ -128,6 +128,85 @@ print("queued")
     return program, log
 
 
+def test_selecting_a_checkout_replaces_the_sessions_delivery_runtime(
+    codex_claimed_page, under_codex, codex_env, tmp_path
+):
+    """The previous adapter retires, and its successor queues the page's input.
+
+    Two real Python package locations model installed Leaf and a selected checkout;
+    the fake external Codex endpoint records the delivery instead of opening a turn.
+    """
+    foreign = tmp_path / "installed"
+    shutil.copytree(PLUGIN_ROOT / "skills/leaf", foreign / "skills/leaf")
+    launcher = foreign / "bin/leaf"
+    launcher.parent.mkdir()
+    launcher.write_text(
+        "#!/bin/sh\n"
+        f"export PYTHONPATH={shlex.quote(str(foreign / 'skills/leaf/scripts'))}\n"
+        f'exec {shlex.quote(sys.executable)} -m leaf "$@"\n'
+    )
+    launcher.chmod(0o755)
+    program, log = fake_codex_cli(tmp_path)
+    results = tmp_path / "starts.json"
+    first = [
+        str(launcher),
+        "codex",
+        "start",
+        str(codex_claimed_page),
+        "--codex-path",
+        str(program),
+    ]
+    select_runtime = (
+        "from pathlib import Path; from leaf.session_runtime import select_launcher; "
+        f"select_launcher('codex-thread', Path({str(PLUGIN_ROOT / 'bin/leaf')!r}))"
+    )
+    calls = [first, [sys.executable, "-c", select_runtime], [*LEAF_COMMAND, *first[1:]]]
+    runner = PLUGIN_ROOT / "tests/fixtures/programs/codex_starts.py"
+    task = under_codex(
+        shlex.join([sys.executable, str(runner), json.dumps(calls), str(results)]),
+        codex_env | {"CODEX_THREAD_ID": "codex-thread", "FAKE_CODEX_LOG": str(log)},
+        app_server=False,
+        finished=tmp_path / "finished",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        outcomes = wait_for(
+            lambda: files_model.read_json(results),
+            lambda value: value is not None,
+            failure="delivery runtime replacement did not finish",
+        )
+        assert all(status == 0 for status, _out, _err in outcomes), outcomes
+        assert json.loads(outcomes[0][1])["started"]
+        assert json.loads(outcomes[2][1])["started"]
+        assert codex_adapter_model._running_adapter("codex-thread")["launcher"] == str(
+            PLUGIN_ROOT / "bin/leaf"
+        )
+        append_carried_log_record(
+            codex_claimed_page,
+            {
+                "kind": "comment",
+                "author": "user",
+                "text": "Review with the selected checkout",
+            },
+        )
+        wait_for(
+            lambda: log.read_text(),
+            lambda text: '"--message"' in text,
+            failure="the replacement adapter did not queue the pending input",
+        )
+    finally:
+        release_held(task)
+        task.communicate(timeout=STATED_TIMEOUT)
+        cleanup_model.end_session("codex-thread")
+        wait_for(
+            lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+            lambda live: not live,
+            failure="the replaced delivery runtime did not end",
+        )
+
+
 def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
     page_dir, monkeypatch
 ):
@@ -312,7 +391,7 @@ def test_embedded_codex_delivery_abandons_only_its_mutable_delivery_record(page_
     codex_model.abandon_codex_delivery("hosted-thread", first["id"])
     thread_model.post_reply(
         page_dir,
-        {"to": first["id"], "for": first["id"]},
+        {"parent": first["id"], "responds": first["id"]},
         "try again later",
         identity={"agent": "Leaf guide", "session": "website-agent"},
     )
@@ -337,7 +416,7 @@ def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
     first = events_model.read_events(page_dir)[-1]
     thread_model.post_reply(
         page_dir,
-        {"to": first["id"], "for": first["id"]},
+        {"parent": first["id"], "responds": first["id"]},
         "try again later",
         identity={"agent": "Leaf guide", "session": "website-agent"},
     )
@@ -356,7 +435,7 @@ def test_embedded_codex_delivery_keeps_settled_input_in_the_complete_page_batch(
     delivered_events = payload["batches"][0]["events"]
     assert [event["text"] for event in delivered_events] == ["first", "second"]
     assert "answer" not in delivered_events[0]
-    assert delivered_events[1]["answer"]["for"] == delivered_events[1]["id"]
+    assert delivered_events[1]["answer"]["responds"] == delivered_events[1]["id"]
 
 
 def test_embedded_codex_delivery_keeps_page_actions_before_a_comment(page_dir):
@@ -1272,7 +1351,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page,
-            {"to": comment["id"], "for": comment["id"]},
+            {"parent": comment["id"], "responds": comment["id"]},
             "Competing reply",
             identity={"agent": "Codex", "session": "codex-thread"},
         )
@@ -1307,7 +1386,7 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     assert service_model.page_claim(page) == claim
     accepted = thread_model.post_reply(
         page,
-        {"to": comment["id"], "for": comment["id"]},
+        {"parent": comment["id"], "responds": comment["id"]},
         "Recovered outside the failed provider turn",
         identity={"agent": "Codex", "session": "codex-thread"},
     )

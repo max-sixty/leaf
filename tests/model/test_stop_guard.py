@@ -76,8 +76,8 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
         "answer": {
             "kind": "reply",
             "writer": "turn",
-            "to": "widget-owner-thread",
-            "for": "widget-action",
+            "parent": "widget-owner-thread",
+            "responds": "widget-action",
             "attempt": "leaf-delivery-1",
         },
         "response": {
@@ -86,7 +86,7 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
             "has_text": True,
             "session": "codex-thread",
             "turn": "leaf-turn",
-            "reply_to": "widget-owner-thread",
+            "parent": "widget-owner-thread",
             "responds": "widget-action",
         },
     }
@@ -184,8 +184,8 @@ def test_stop_hook_keeps_codex_inside_the_exact_wait_session(
     thread_model.post_reply(
         page,
         {
-            "to": events_model.read_events(page)[0]["id"],
-            "for": events_model.read_events(page)[0]["id"],
+            "parent": events_model.read_events(page)[0]["id"],
+            "responds": events_model.read_events(page)[0]["id"],
         },
         "so it does",
     )
@@ -506,7 +506,9 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     # A reply clears it, and the thread stays open behind it: closing one is the
     # user's to do, so an open thread is not an unanswered one.
     thread_model.post_reply(
-        claimed, {"to": asked["id"], "for": asked["id"]}, "because the fold is absolute"
+        claimed,
+        {"parent": asked["id"], "responds": asked["id"]},
+        "because the fold is absolute",
     )
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -542,7 +544,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     assert delivered_ref(claimed, follow["id"]) in continued(capsys.readouterr().out)
     thread_model.post_reply(
         claimed,
-        {"to": follow["id"], "for": follow["id"]},
+        {"parent": follow["id"], "responds": follow["id"]},
         "C is slower on the hot path",
     )
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
@@ -581,7 +583,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert delivered_ref(claimed, answered["id"]) in continued(capsys.readouterr().out)
     thread_model.post_reply(
-        claimed, {"to": answered["id"], "for": answered["id"]}, "sqlite it is"
+        claimed, {"parent": answered["id"], "responds": answered["id"]}, "sqlite it is"
     )
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
@@ -845,7 +847,7 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(claimed, capsys):
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
     answer = thread_model.post_reply(
-        claimed, {"to": asked["id"], "for": asked["id"]}, "because"
+        claimed, {"parent": asked["id"], "responds": asked["id"]}, "because"
     )
     append_carried_log_record(
         claimed,
@@ -983,7 +985,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     assert _stop(capsys) is None
 
     thread_model.post_reply(
-        claimed, {"to": follow["id"], "for": follow["id"]}, "All three are up."
+        claimed, {"parent": follow["id"], "responds": follow["id"]}, "All three are up."
     )
     end_work(claimed)
     assert _idle(claimed).exit_code == 0
@@ -1036,7 +1038,7 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
 
     for move in (done, follow):
         thread_model.post_reply(
-            claimed, {"to": move["id"], "for": move["id"]}, "East it is."
+            claimed, {"parent": move["id"], "responds": move["id"]}, "East it is."
         )
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
@@ -1064,7 +1066,7 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     thread_model.post_reply(
-        claimed, {"to": asked["id"], "for": asked["id"]}, "Because."
+        claimed, {"parent": asked["id"], "responds": asked["id"]}, "Because."
     )
     resolve = append_carried_log_record(
         claimed, {"kind": "resolve", "author": "user", "parent": asked["id"]}

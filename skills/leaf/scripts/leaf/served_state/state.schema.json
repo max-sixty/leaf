@@ -402,7 +402,7 @@
         "state": { "type": ["string", "null"] },
         "session": { "type": ["string", "null"] },
         "turn": { "type": ["string", "null"] },
-        "reply_to": { "type": ["string", "null"] },
+        "parent": { "type": ["string", "null"] },
         "responds": { "type": ["string", "null"] },
         "settles": { "type": ["boolean", "null"] },
         "attempt": { "type": "string" },
@@ -412,7 +412,7 @@
         "state",
         "session",
         "turn",
-        "reply_to",
+        "parent",
         "responds",
         "settles",
         "has_text"

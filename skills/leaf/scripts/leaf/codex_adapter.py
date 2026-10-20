@@ -119,11 +119,14 @@ from .state import (
 from .thread import delivery_reply_reserved
 
 QUEUE_TIMEOUT = 20
-# What the adapter's lease file holds while it runs: the App Server it delivers
-# through, if not its own (`_running_adapter`).
+# The adapter's transport and the immutable runtime running it. A session can
+# select a replacement runtime while this lease remains held (`_running_adapter`).
 ADAPTER = Record(
     "codex-adapter",
-    object_schema({"app_server": {"type": ["string", "null"]}}),
+    object_schema(
+        {"app_server": {"type": ["string", "null"]}},
+        {"launcher": {"type": "string"}},
+    ),
     since=13,
 )
 
@@ -846,6 +849,8 @@ def run_adapter(
     if harness is None or harness.name != CodexHarness.name:
         raise Refused("the Codex adapter needs a Codex task identity")
     with ExitStack() as resources:
+        from .session_runtime import own_launcher, selected_launcher
+
         lease = take_lease(adapter_lease_path(harness.session))
         if lease is None:
             raise Refused("a Codex delivery adapter is already active")
@@ -853,7 +858,9 @@ def run_adapter(
         # in the task reports the one it joins.
         resources.callback(release_lease, lease)
         lease.truncate(0)
-        lease.write(ADAPTER.encode({"app_server": app_server}))
+        lease.write(
+            ADAPTER.encode({"app_server": app_server, "launcher": str(own_launcher())})
+        )
         lease.flush()
         watch = Watch(harness)
         if not watch.acquire():
@@ -885,6 +892,12 @@ def run_adapter(
             return 1
         failures = 0
         while True:
+            selected = selected_launcher(harness.session)
+            if selected is not None and selected != own_launcher():
+                # Selection belongs to the session, so the former adapter leaves
+                # before reading another page. Preparation holds the start lock
+                # until these leases and the connection are released.
+                return 0
             try:
                 recovered = codex.recover_codex_receipt(harness.session)
                 if not recovered:
@@ -978,8 +991,29 @@ def preparing_adapter(
     if app_server is not None:
         app_server_socket_path(app_server)
     launch_lock = adapter_start_lock_path(session_id)
-    with flocked(launch_lock):
-        record = _running_adapter(session_id)
+    with ExitStack() as preparation:
+        from .session_runtime import selected_launcher
+
+        deadline = time.monotonic() + START_TIMEOUT
+        while True:
+            preparation.enter_context(flocked(launch_lock))
+            launcher = selected_launcher(session_id)
+            record = _running_adapter(session_id)
+            if (
+                record is None
+                or launcher is None
+                or record.get("launcher") == str(launcher)
+            ):
+                break
+            # The former adapter observes the selection on its next bounded
+            # pass. Let it take the start lock on its way out too, then retry
+            # preparation under that lock rather than racing a third start.
+            preparation.pop_all().close()
+            if time.monotonic() >= deadline:
+                raise Refused(
+                    "the former Leaf delivery adapter did not release its session"
+                )
+            time.sleep(0.05)
         if record is not None:
             running = record["app_server"]
             if app_server is not None and app_server != running:
@@ -992,9 +1026,14 @@ def preparing_adapter(
             return
         if app_server is not None:
             check_delivery_queue(app_server, session_id)
-        # The connection captures its causal lifecycle before observing turns.
-        # Establish it in the launching harness, independently of page ownership.
-        ensure_session(session_id, harness.lifetime())
+        # Existing active ownership already proves the canonical lifetime and
+        # generation. A detached preview can replace its adapter, but its process
+        # ancestry cannot rediscover the interactive harness that took the page.
+        # A new acquisition still establishes that evidence in its own harness.
+        # owned_pages checks generation and liveness, so retained claims cannot
+        # lend an ended session their former authority.
+        if not owned_pages(session_id):
+            ensure_session(session_id, harness.lifetime())
         with starting_detached(
             [
                 "codex",
@@ -1008,6 +1047,7 @@ def preparing_adapter(
             log=adapter_log_path(session_id),
             cwd=state_home(),
             timeout=START_TIMEOUT,
+            launcher=launcher,
         ):
             pass
         yield {"task": session_id, "app_server": app_server, "started": True}

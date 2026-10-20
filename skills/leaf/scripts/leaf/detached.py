@@ -51,6 +51,7 @@ def starting_detached(
     cwd: Path | None = None,
     timeout: float | None = None,
     module: str = "leaf",
+    launcher: Path | None = None,
 ):
     """Spawn `python -m MODULE ARGUMENTS --handshake FD` in a session of its own, and
     yield its announcement, then accept and confirm on context exit.
@@ -58,22 +59,25 @@ def starting_detached(
     Raises `StartRefused` with the child's reason when it refuses, exits, or does not
     answer within `timeout`; a child that has not answered by then is terminated.
     `what` names the child in a refusal that carries no reason of its own.
-    sys.executable is the resolved uv environment, so this skips uv.
+    sys.executable is the resolved uv environment, so this skips uv. A selected
+    session runtime supplies its launcher when starting delivery; the handshake
+    descriptor passes through that launcher's exec chain unchanged.
     """
     caller, child = socket.socketpair()
     try:
+        environment = detached_environment(harness)
+        if launcher is not None:
+            environment.pop("LEAF_HOST_LAUNCHER", None)
         with open(log or os.devnull, "wb", buffering=0) as output:
             process = subprocess.Popen(
                 [
-                    sys.executable,
-                    "-m",
-                    module,
+                    *([str(launcher)] if launcher else [sys.executable, "-m", module]),
                     *arguments,
                     "--handshake",
                     str(child.fileno()),
                 ],
                 cwd=cwd,
-                env=detached_environment(harness),
+                env=environment,
                 stdin=subprocess.DEVNULL,
                 stdout=output,
                 stderr=output,

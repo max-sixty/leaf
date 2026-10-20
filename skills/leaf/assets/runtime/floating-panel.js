@@ -644,12 +644,12 @@ export function createFloatingPanel({
         // A refusal takes back the thread the send drew, which the server never held,
         // and its view goes with it (`paintPanel`); the words go back to the page's
         // draft (drafts.js, `standGesture`). Unless the user has opened another view
-        // since, the field stands for the page again holding them, with the caret in
-        // them where the user still stands in the panel or has done nothing since.
-        const untouched = retainUserIntent();
+        // since, the field stands for the page again holding them. The caret follows
+        // only while no later input has changed where the user is reading.
+        const untouched = retainUserIntent({ source: host });
         void Promise.resolve(flight).then((sent) => {
           if (sent || (trail.length && trail.at(-1) !== route)) return;
-          caretToField = standingIn(host) || untouched();
+          caretToField = untouched();
           paint();
         });
       },

@@ -12,10 +12,7 @@ the source, and the history (the log and the revisions). That is how a saved
 `index.html` reaches an open tab: the next read sees the source change and makes
 the revision. A cached "no new revision" stays valid while only the log grows,
 because admission checked each event against the revision it names. A refusal is
-checked again when the source or the history changes. The same reasoning holds
-across processes: a source that is the active revision's captured input, such as
-one `leaf page stamp` just activated, activates as that revision with no check
-(`validation.source.active_input`).
+checked again when the source or the history changes.
 
 When a revision drops the passage an open thread is anchored to, activation appends
 a `reanchor` event in the same log transaction, which moves the thread to the
@@ -51,7 +48,7 @@ from leaf.revision_artifact import (
 )
 from leaf.served_state.reading import source_readings
 from leaf.service import PageTransaction
-from leaf.validation.source import SourceCheck, active_input, check_source
+from leaf.validation.source import SourceCheck, check_source
 from leaf.validation.source_history import (
     EMPTY_READING,
     PredecessorReading,
@@ -102,12 +99,10 @@ def _activate_source(page_dir: Path, page) -> Activation:
         and (answer.activation.error is None or answer.history == history)
     ):
         return answer.activation
-    if (active := active_input(page_dir)) is not None:
-        activation = Activation(active, None, False)
-    else:
-        activation = activate_checked_source(
-            page, check_source(page_dir, page.events)
-        )
+    activation = activate_checked_source(
+        page,
+        check_source(page_dir, page.events),
+    )
     settled = activation._replace(created=False) if activation.created else activation
     held.answer = _Answer(source, history, settled)
     return activation

@@ -15,13 +15,7 @@ from leaf.layer import incompatible_layer
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import IncompatibleLayer, read_page_registry
-from leaf.files import list_revisions
-from leaf.revision_artifact import (
-    ArtifactError,
-    RevisionArtifact,
-    capture_artifact,
-    read_revision,
-)
+from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, SourceDocument, script_kind
@@ -251,9 +245,10 @@ def _presentation_errors(parser) -> list[Finding]:
 
 
 def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
-    """The source's non-blocking drift, for `page check` to report beside what
-    `check_source` found. Only a check that reports advice reads it: judging the
-    page's recorded data cold costs a stamp more than the rest of its check."""
+    """The source's non-blocking drift, which `page check` reports beside what
+    `check_source` found. It is read apart from the check because judging the
+    page's recorded data takes a cold process about 200 ms on a large page, and no
+    other caller of the check reports advice."""
     parser = checked.document
     stored_data = read_data(page_dir, checked.registry)
     return [
@@ -269,41 +264,6 @@ def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:
         ),
         *unpointable_blocks(parser),
     ]
-
-
-def active_input(page_dir: Path) -> int | None:
-    """The active revision when the source is the input it captured, else None.
-
-    Such a source is no candidate (`PredecessorReading.unchanged`), and no event
-    since can refuse it, since admission checked each against the revision it
-    names. So activation needs no check of it, whichever process activated it: a
-    stamp, or this server before it restarted. A source this can't read the same
-    way, such as one under a vocabulary that no longer reads, gets the full check,
-    which reports why."""
-    revisions = list_revisions(page_dir)
-    if not revisions:
-        return None
-    active = read_revision(page_dir, revisions[-1])
-    data, error = _source_bytes(page_dir)
-    if error or data != active.document.data:
-        return None
-    try:
-        page_registry = read_page_registry(page_dir)
-    except RegistryError:
-        return None
-    if page_registry is None:
-        return None
-    try:
-        artifact = capture_artifact(
-            page_dir,
-            active.document,
-            page_registry.registry,
-            declaration_sources=page_registry.declaration_sources,
-            widget_sources=page_registry.widget_sources,
-        )
-    except ArtifactError:
-        return None
-    return revisions[-1] if artifact.digest == active.digest else None
 
 
 def check_source(page_dir: Path, events: list) -> SourceCheck:

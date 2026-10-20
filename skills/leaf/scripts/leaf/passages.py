@@ -720,17 +720,20 @@ class SourceReading:
         (`projection.retirement_outcomes`), and under the user's rewritten bodies
         and created children where a caller passes them
         (`projection.rewritten_bodies`, `projection.generated_children`)."""
-        # Each is keyed by the id of an element the parser opens, so one naming no
-        # element of this document changes nothing.
-        carried = tuple(
+        # The parser consults an outcome only by the id of an element it opens, so
+        # outcomes naming none of this document's elements leave it as authored. A
+        # rewrite or a created child may stand on an element another created child
+        # brought, which the authored walk never opens, so those are kept whole.
+        carried = (
             tuple(
                 sorted(
-                    (owner, value)
-                    for owner, value in (given or {}).items()
-                    if owner in self.passages.enclosing
+                    (widget, outcome)
+                    for widget, outcome in decided.items()
+                    if widget in self.passages.enclosing
                 )
-            )
-            for given in (decided, rewrites, additions)
+            ),
+            tuple(sorted((rewrites or {}).items())),
+            tuple(sorted((additions or {}).items())),
         )
         if not any(carried):
             return self.passages

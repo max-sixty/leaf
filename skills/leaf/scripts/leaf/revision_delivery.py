@@ -279,10 +279,11 @@ def rebase_document(
 
 
 def _spliced(source: str, edits: list[tuple[int, int, str]]) -> str:
-    """`source` with each `(start, end, text)` edit's range replaced by its text,
-    in one pass: a page's start tags take thousands of marks, and splicing each into
-    a copy of the whole document made delivery quadratic in its size. Edits at one
-    offset land in the order their texts sort."""
+    """`source` with each `(start, end, text)` edit's range replaced by its text.
+
+    The ranges must not overlap. Edits at one offset land in the order their texts
+    sort. Joining the pieces once keeps delivery linear in the page's size, where
+    splicing each of a large page's thousands of marks into a fresh copy was not."""
     pieces = []
     at = 0
     for start, end, text in sorted(edits):

@@ -58,6 +58,9 @@
  * reads. One whose ring shows moves nothing, so a control in a stuck header, whose
  * margin counts it as shown, stays put, as does a box longer than its room that shows
  * in part.
+ * A marked decision also wears a ring around its own box while Tab is inside
+ * it. Once the focused control is visible, reveal that ring if the decision
+ * fits the room. Its own scroll margin already reserves the outline's gap.
  */
 import { localScrollBy, scrollAxes } from "./element-frame.js";
 import { deepFocus, onStanding, ringBox } from "./focus.js";
@@ -311,7 +314,15 @@ export function scrollIntoView(
 onStanding((node, cause) => {
   if (cause !== "step" || !node) return;
   nextRender(() => {
-    if (deepFocus() === node && !ringShown(node))
-      scrollIntoView(node, { block: "nearest" });
+    if (deepFocus() !== node) return;
+    if (!ringShown(node)) scrollIntoView(node, { block: "nearest" });
+    // A decision's attention ring is worn by its box, even while Tab stands on
+    // a control inside it. Native focus reveal knows only the control's box.
+    for (let box = node; box instanceof Element; box = renderedParent(box)) {
+      if (!box.matches("[data-lf-obligation]")) continue;
+      if (getComputedStyle(box).outlineStyle === "none") continue;
+      if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
+      break;
+    }
   });
 });

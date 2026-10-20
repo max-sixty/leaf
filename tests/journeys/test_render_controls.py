@@ -335,7 +335,10 @@ RING_CASES = (
             ),
             "review-a-plan": (("main details > summary", ":where([data-lf-focus])"),),
             "pr-walkthrough": (
-                ("#pr-flow-tab", ":where([data-lf-focus])"),
+                (
+                    "#pr-flow-tab",
+                    ".lf-rendered:has(> :is(lf-tab, lf-part)[data-lf-focus])::after",
+                ),
                 ("lf-gloss:visible > .lf-gloss-mark", ".lf-gloss-mark"),
                 (".lf-diff-search input", "wa-input::part"),
                 ("lf-diff summary", ".lf-diff-file > details > summary"),

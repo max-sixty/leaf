@@ -620,8 +620,14 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
 onStanding((node, cause) => {
   if (cause !== "step" || !node) return;
   nextRender(() => {
-    if (deepFocus() === node && !ringShown(node))
-      scrollIntoView(node, { block: "nearest" });
+    if (deepFocus() !== node) return;
+    if (!ringShown(node)) scrollIntoView(node, { block: "nearest" });
+    for (let box = node; box instanceof Element; box = renderedParent(box)) {
+      if (!box.matches("[data-lf-obligation]")) continue;
+      if (getComputedStyle(box).outlineStyle === "none") continue;
+      if (!ringShown(box)) scrollIntoView(box, { block: "nearest" });
+      break;
+    }
   });
 });
 

@@ -4,6 +4,7 @@ from ..events import (
     active_summaries,
     awaits_agent,
     bare_reaction,
+    is_answer,
     seat_root,
     turn_message,
     unanswered_agent_turn,
@@ -11,7 +12,6 @@ from ..events import (
 from ..projection import FrozenThreadReading
 from ..read_state import content_version, unread_content
 from ..schema import agent_name
-from ..thread import is_answer
 from .wire import browser_projection
 
 
@@ -38,7 +38,7 @@ def _response_key(responds: str) -> dict:
     under: an explicit `response reply` takes an author's retry key from a namespace of
     its own, so it can never consume the provider final's append identity. The input
     they both answer is the identity they share. A failure receipt is no answer
-    (`thread.is_answer`), so it keeps its own name. The log can hold a second answer to
+    (`events.is_answer`), so it keeps its own name. The log can hold a second answer to
     an input though no writer gives one; a name stands for one message, so only the
     input's first answer in the log takes it."""
     return {"key": f"response:{responds}"}

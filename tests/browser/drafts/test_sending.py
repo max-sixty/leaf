@@ -129,7 +129,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         ),
     )
     draft_control(page, "save", "draft-ops").click()
-    item = draft.locator(".lf-draft-footer")
+    item = draft.locator(".lf-draft-tools")
     expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     expect(editor).to_have_js_property("value", "Keep these unsent words.")
     expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()

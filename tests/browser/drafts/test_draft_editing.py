@@ -36,9 +36,10 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serve):
     """The draft stays in place and double-click keeps the selected word on edit.
 
-    The editor leaves room for Copy beside the caret. The frame's inset focus paint
-    changes without reaching outside the reading box, and print keeps the saved body
-    while dropping the shared editor."""
+    The editor sets its words exactly where the prose stood, since the toolbar hovers
+    over the border rather than taking room beside the caret. The frame's inset focus
+    paint changes without reaching outside the reading box, and print keeps the saved
+    body while dropping the shared editor."""
     page = open_page(browser, serve(JOURNEY_V1))
     metrics = """(sel) => {
       const el = document.querySelector('#draft-ops ' + sel), s = getComputedStyle(el);
@@ -53,11 +54,12 @@ def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serv
     # reach it: an outset ring is paint, so every rect stayed exactly as asserted
     # below while the frame the user sees grew 2px on every side, corners
     # rounding wider to match. Bytes, not pixels — the same encoder over the same
-    # content gives the same file, so identical files are identical paint.
+    # content gives the same file, so identical files are identical paint. The band
+    # stops at the box's middle, short of the toolbar that hovers over its top right.
     band = {
         "x": host["x"] - 4,
         "y": host["y"] - 4,
-        "width": host["width"] + 8,
+        "width": host["width"] / 2,
         "height": 4,
     }
     inside = {"x": host["x"], "y": host["y"], "width": 40, "height": 40}
@@ -92,10 +94,9 @@ def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serv
         "the open editor is indistinguishable from the read view at the box's edge"
     )
     edited = page.evaluate(metrics, "leaf-text")
-    assert (edited[0], edited[1], edited[3]) == (read[0], read[1], read[3]), (
-        "the editor moved the draft's words or changed their line height"
+    assert edited == read, (
+        "the editor moved, narrowed or changed the height of the draft's words"
     )
-    assert edited[2] < read[2], "the editor left no room for Copy beside the caret"
     assert page.locator("#draft-ops").bounding_box() == host, (
         "the draft changed shape under the pointer when the editor opened"
     )
@@ -504,7 +505,7 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
 def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, serve):
     """Editing operations stay in their box while the annotation layer is hidden.
 
-    The footer offers Save and Cancel, and Escape cancels as the button does, so a
+    The toolbar offers Save and Cancel, and Escape cancels as the button does, so a
     closed box holds no unsent words. The box's Copy control copies the Markdown source
     the box shows, the open editor's while it stands."""
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])

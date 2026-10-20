@@ -418,11 +418,11 @@ async function acceptedEvent(
       (candidate) => candidate.attempt === posted.attempt,
     );
     if (!event) return null;
+    // An update the agent owes an answer publishes its own obligation, on the agent
+    // until it answers (`obligations.update_obligation`).
     return {
       event,
-      needsReply: state.activity.obligations.some(
-        (obligation) => obligation.input === event.id,
-      ),
+      needsReply: state.activity.obligations.includes(`update:${event.id}`),
     };
   } catch {
     return null;

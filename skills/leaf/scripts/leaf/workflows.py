@@ -1,41 +1,49 @@
-"""Canonical workflows for exact user inputs and proactive subject work.
+"""The updates the user has handed over: each owed update's obligation and every
+unsettled update's workflow.
 
-A workflow is one update the user has handed over that has not yet settled.
-`stage` says how far it has reached the agent (Sent, Queued, Picked up, Working,
-Replying), which the margin, the Page Map and a thread's receipt show. `answer` is
-what the agent owes it: an addressed operation, or null for nothing. Every consumer
-that holds the agent to something — delivery, `page state`, activity counts, the
-Stop hook, `leaf status idle`, and the panel's counts — reads `answer` here rather
-than deciding again. An update with an answer is owed until that answer is written.
-`activity.turn_obligations` decides how long an owed update holds the agent's turn.
+One fold (`handed_over`) reads which updates the user has handed over and which have
+settled, and emits two readings of them, each the one home of its facts:
 
-Answers are one of:
+- An **obligation record** (`obligations.update_obligation`) for each update an
+  operation answers: what is owed and by whom. Its next actor is the agent while it owes
+  the update an answer, the user once a harness handed the update back, and nobody once a
+  reply answered it. `obligations.response_address` derives the operation, one of:
 
-- `{"kind": "reply", "to": <message>, "for": <event>}` — a thread message, or an
-  action in an answered obligation in frozen thread markup. The agent answers it with
-  `leaf response reply <answer.ref>`. While a turn has reserved the reply
-  (`delivery`'s header), `activity` adds `writer: "turn"` and the reservation's
-  attempt.
-- `{"kind": "markup", "action": <action>}` — a page action that is part of its
-  widget's answered obligation and the authored markup does not yet record, answered by
-  a stamped version that writes it in. An option the user added stays in the log,
-  so a version that takes in a pick of it need not write it into the markup.
+  - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread message, or an
+    action in an answered obligation in frozen thread markup. The agent answers it with
+    `leaf response reply <answer.ref>`.
+  - `{"kind": "markup", "action": <action>}` — a page action that is part of its
+    widget's answered obligation and the authored markup does not yet record, answered
+    by a stamped version that writes it in. An option the user added stays in the log,
+    so a version that takes in a pick of it need not write it into the markup.
 
-`receipt_refs` maps each claim the update was delivered under to the newest
-`answer.ref` a pickup recorded for it (`delivery.record_pickup`), and `activity`
-sets the answer's `ref` from the page's current claim. An update no delivery has
-carried has no ref.
+  Every consumer that holds the agent to something — delivery, `page state`, activity
+  counts, the Stop hook, `leaf status idle`, the On lists and thread attention — reads
+  these records rather than deciding again. `activity.turn_obligations` decides how long
+  an owed update holds the agent's turn.
 
-Some workflows carry no answer. When the user sends two messages in a row in a
-thread, the older one's workflow has a null answer, and the reply to the newer one
-answers both. A widget action that answers no obligation, such as an edit to a user-owned
-draft or a moved card, owes nothing. The log goes on applying it to later readings
-of the document, and `page check` makes the next version write any part of it the
-markup must record. Its receipt shows until the document takes it in: on the page,
-until the markup records it or a later version's note takes it in
-(`page_action_unsettled`);
-in a thread's frozen markup, which no version rewrites, until the agent's next
-message in that thread or a resolution after it.
+- A **workflow** for each unsettled update: its delivery. `stage` says how far it has
+  reached the agent (Sent, Queued, Picked up, Working, Replying), which the margin, the
+  Page Map and a thread's receipt show. `obligation` names the record it serves, or is
+  null for an update that owes nothing. `receipt_refs` maps each claim the update was
+  delivered under to the newest `answer.ref` a pickup recorded for it
+  (`delivery.record_pickup`); `activity` binds the ref the page's current claim can use
+  onto the owed answer. An update no delivery has carried has no ref.
+
+A record exists only for an update an operation names: the newest unanswered turn in an
+open thread, the newest unsettled owed action on a widget's unit, an update a harness
+handed back, and every input a reply answered. When the user sends two messages in a row
+in a thread, the reply to the newer one answers both, so the older one publishes no
+record and its workflow names the newer one's. A widget action that answers no
+obligation, such as an edit to a user-owned draft or a moved card, owes nothing and
+publishes none. The log goes on applying it to later readings of the document, and
+`page check` makes the next version write any part of it the markup must record. Its
+receipt shows until the document takes it in: on the page, until the markup records it
+or a later version's note takes it in (`page_action_unsettled`); in a thread's frozen
+markup, which no version rewrites, until the agent's next message in that thread or a
+resolution after it. A settled page action leaves the inventory: its widget's own record
+carries its ending. An unanswered turn in a thread the user resolved first publishes
+none.
 
 Whether an update needs delivering is decided apart from its workflow. Admission
 records whether the update changes the user's outstanding obligations, owed answers, work
@@ -49,25 +57,29 @@ widget is owed, and `obligations` decides when that is.
 
 When a harness gives up on an update, `thread.fail_answer` writes the failure, a
 reply in the thread or a failed pickup of a page action, each carrying `failure`.
-The workflow then stays, answered with a failed response and waiting on the user,
-until the user acts again or the markup records the action.
+The update's record then waits on the user, and its workflow stays at `answered` with
+the failed response, until the user acts again or the markup records the action.
 """
+
+from typing import NamedTuple
 
 from .events import (
     conversation_turns,
     exchange,
+    is_answer,
     turn_message,
     unanswered_turns,
 )
+from .obligations import collection, update_obligation
 from .projection import (
     NO_RECORD,
     PageReading,
     generated_children,
     recorded_state,
 )
-from .todos import (
-    TodoReading,
-)
+from .registry.kernel import verb_writers
+from .thread_context import widget_messages
+from .todos import TodoReading
 
 
 def obligation_reading(readings) -> dict:
@@ -122,7 +134,12 @@ def obligation_reading(readings) -> dict:
                 if todo["owner"] == "user" and todo["state"] == "open"
             ],
         },
-        "answers": [item["answer"] for item in workflows if item["answer"] is not None],
+        # The updates the agent owes an answer, by their records.
+        "answers": [
+            record["id"]
+            for record in work.updates["all"]
+            if record["next_actor"] == "agent"
+        ],
         "work": [
             {
                 "id": identity,
@@ -140,6 +157,19 @@ def obligation_reading(readings) -> dict:
             for identity, subject in in_hand
         ],
         "approvals": [event["id"] for event in work.approvals],
+    }
+
+
+def agent_inputs(work) -> set[str]:
+    """The inputs whose next move is the agent's, of `work` (a `WorkReading`): every
+    unsettled update but those handed back to the user. A start may take one in hand,
+    and a message among them may wake a hook."""
+    records = {record["id"]: record for record in work.updates["all"]}
+    return {
+        item["input"]
+        for item in work.workflows
+        if item["obligation"] is None
+        or records[item["obligation"]]["next_actor"] != "user"
     }
 
 
@@ -199,7 +229,16 @@ def page_action_unsettled(
     return not versioned and not recorded
 
 
-def canonical_workflows(
+class Handover(NamedTuple):
+    """The updates the user has handed over: `records`, the obligation each owed or
+    answered update publishes (`obligations.collection`), and `workflows`, every
+    unsettled update's delivery, each naming the record it serves."""
+
+    records: dict
+    workflows: list[dict]
+
+
+def handed_over(
     threads: dict,
     thread_reading,
     *,
@@ -207,8 +246,9 @@ def canonical_workflows(
     events: list | None = None,
     todo_reading: TodoReading | None = None,
     items: dict,
-) -> list[dict]:
-    """The unsettled user inputs and strongest evidence held for each.
+) -> Handover:
+    """The unsettled user inputs and strongest evidence held for each, and the record
+    each owed or answered input publishes.
 
     A start in force (`todos.item_starts`) holds an update it names, and a start running
     on an open to-do over a widget holds that widget's actions delivered before it, as
@@ -223,9 +263,9 @@ def canonical_workflows(
     (`todos.item_starts`). Replies
     and authored state settle the source update, so the workflow disappears instead
     of becoming a second outcome surface; a failed response instead keeps an
-    answered workflow whose next actor is the user. Consecutive inputs retain distinct
-    workflows even though the thread's single response obligation is
-    addressed to the newest one.
+    answered workflow, whose record waits on the user. Consecutive inputs retain
+    distinct workflows even though the thread's single response obligation is
+    addressed to the newest one, whose record each of them names.
     """
     if page is not None:
         events = page.events
@@ -291,12 +331,18 @@ def canonical_workflows(
             default=None,
         )
 
+    records: dict[str, dict] = {}
+
+    def publish(record: dict) -> str:
+        records[record["id"]] = record
+        return record["id"]
+
     def workflow(
         source: dict,
         target: dict,
         coordinate: list[str],
         *,
-        answer: dict | None,
+        obligation: str | None,
         covering: list[dict],
     ) -> dict:
         """One update's workflow. `covering` are the starts that take it in hand for the
@@ -324,7 +370,7 @@ def canonical_workflows(
             "revision": source.get("revision"),
             "subject": target,
             "coordinate": coordinate,
-            "answer": answer,
+            "obligation": obligation,
             "stage": stage,
             "ts": evidence.get("ts"),
             "fallback_stage": (
@@ -352,7 +398,6 @@ def canonical_workflows(
                 else []
             ),
             "condition": None,
-            "next_actor": "agent",
             "response": None,
             "held_by": start,
             "started_by": [
@@ -366,10 +411,14 @@ def canonical_workflows(
             ],
         }
 
-    def failed(source: dict, target: dict, coordinate: list[str], record: dict) -> dict:
+    def failed(
+        source: dict, target: dict, coordinate: list[str], record: dict, obligation: str
+    ) -> dict:
         """The update a harness failure record returned to the user: answered, with a
-        failed response, and the user's to send again."""
-        returned = workflow(source, target, coordinate, answer=None, covering=[])
+        failed response, serving the record that is now the user's to send again."""
+        returned = workflow(
+            source, target, coordinate, obligation=obligation, covering=[]
+        )
         returned.update(
             {
                 "stage": "answered",
@@ -387,7 +436,6 @@ def canonical_workflows(
                     }
                 ],
                 "condition": {"kind": "failed", "operation": "response"},
-                "next_actor": "user",
                 "response": {
                     "id": record["id"],
                     "attempt": record.get("attempt"),
@@ -413,31 +461,44 @@ def canonical_workflows(
                 for message in turns
             ):
                 continue
-            workflows.append(failed(source, target, coordinate, response))
+            handed_back = publish(
+                update_obligation(
+                    source["id"],
+                    target,
+                    thread_id,
+                    turn_message(source),
+                    next_actor="user",
+                )
+            )
+            workflows.append(failed(source, target, coordinate, response, handed_back))
         unanswered_inputs = unanswered_turns(thread)
         if not unanswered_inputs:
             continue
         # Every exact input keeps its own transport/work evidence. The response
         # contract deliberately coalesces consecutive user turns onto the newest
-        # address, so only that workflow carries the answer.
+        # address, so only that input publishes a record, and each workflow names it.
         response_address = unanswered_inputs[-1]
         covering = [
             starts[source["id"]]
             for source in unanswered_inputs
             if source["id"] in starts
         ]
-        answer = {
-            "kind": "reply",
-            "to": turn_message(response_address),
-            "for": response_address["id"],
-        }
+        owed = publish(
+            update_obligation(
+                response_address["id"],
+                target,
+                thread_id,
+                turn_message(response_address),
+                next_actor="agent",
+            )
+        )
         for source in unanswered_inputs:
             workflows.append(
                 workflow(
                     source,
                     target,
                     coordinate,
-                    answer=answer if source is response_address else None,
+                    obligation=owed,
                     covering=covering,
                 )
             )
@@ -449,14 +510,13 @@ def canonical_workflows(
     # until the finishing action carries one. The two documents differ only in what
     # settles an action and which operation answers an owed one.
     def page_action(coordinate: tuple, source: dict, spec: dict, owed: bool):
-        unsettled = page_action_unsettled(
+        return page_action_unsettled(
             coordinate,
             source,
             spec,
             page,
             owed=owed,
         )
-        return unsettled, {"kind": "markup", "action": source["id"]} if owed else None
 
     def thread_action(_coordinate: tuple, source: dict, _spec: dict, owed: bool):
         # No later authored document absorbs frozen markup, so the thread's next
@@ -472,7 +532,7 @@ def canonical_workflows(
         if not thread or (
             thread["resolved"] and thread["resolved"]["seq"] >= source["seq"]
         ):
-            return False, None
+            return False
         settled = any(
             message["author"] == "agent"
             and not message.get("failure")
@@ -483,10 +543,11 @@ def canonical_workflows(
             )
             for message in conversation_turns(thread)
         )
-        return not settled, (
-            {"kind": "reply", "to": thread_id, "for": source["id"]} if owed else None
-        )
+        return not settled
 
+    holding_message = (
+        widget_messages(thread_reading.structure) if thread_reading is not None else {}
+    )
     obligation_by_source = {
         item["source"]["id"]: item
         for item in items["all"]
@@ -511,14 +572,13 @@ def canonical_workflows(
             if item is not None and item["status"] == "open":
                 continue
             owed = item is not None and item["status"] == "answered"
-            unsettled, answer = settlement(coordinate, source, spec, owed)
             actions.append(
                 (
                     source,
                     {"kind": "widget", "id": source["widget"]},
                     list(coordinate),
-                    unsettled,
-                    answer,
+                    settlement(coordinate, source, spec, owed),
+                    owed,
                     settlement is page_action,
                 )
             )
@@ -541,32 +601,91 @@ def canonical_workflows(
             newest[key] = action
     pending = {
         (target["id"], coordinate[1])
-        for source, target, coordinate, unsettled, _answer, on_page in actions
+        for source, target, coordinate, unsettled, _owed, on_page in actions
         if unsettled and (on_page or newest[(target["id"], coordinate[1])][0] is source)
     }
     # A harness that gave up on an owed action recorded the failure its answer takes — a
     # failed pickup for a page action, a failure reply for a frozen one — which hands
     # the action back to the user until the action settles or a newer action replaces it.
-    for source, target, coordinate, _unsettled, answer, _on_page in actions:
+    # An owed action publishes its record: a frozen one stands in the thread whose
+    # message holds its widget, a page one in none.
+    for source, target, coordinate, _unsettled, owed, on_page in actions:
         key = (target["id"], coordinate[1])
         if key not in pending or newest[key][0] is not source:
             continue
-        if answer is not None and (
-            gave_up := deliveries.get(source["id"], {}).get("failed")
+        gave_up = owed and (
+            deliveries.get(source["id"], {}).get("failed")
             or failed_responses.get(source["id"])
-        ):
-            workflows.append(failed(source, target, coordinate, gave_up))
+        )
+        obligation = (
+            publish(
+                update_obligation(
+                    source["id"],
+                    target,
+                    None if on_page else thread_reading.thread_by_widget[target["id"]],
+                    None if on_page else holding_message[target["id"]],
+                    next_actor="user" if gave_up else "agent",
+                )
+            )
+            if owed
+            else None
+        )
+        if gave_up:
+            workflows.append(failed(source, target, coordinate, gave_up, obligation))
         else:
             workflows.append(
                 workflow(
                     source,
                     target,
                     coordinate,
-                    answer=answer,
+                    obligation=obligation,
                     covering=[held]
                     if (held := holding(source, target, delivered_at(source)))
                     else [],
                 )
             )
 
-    return sorted(workflows, key=lambda item: (item["seq"], item["id"]))
+    # Every input a reply answered keeps its record, answered by its first answer in
+    # the log, in the thread that answer stands in, whether or not the thread is
+    # resolved: the agent's list's Done. An input handed back since holds its open
+    # record instead.
+    by_id = {event["id"]: event for event in events}
+    thread_of = {
+        message["id"]: thread_id
+        for thread_id, thread in threads.items()
+        for message in thread["msgs"]
+    }
+    for reply in events:
+        if (
+            not is_answer(reply)
+            or reply["id"] not in thread_of
+            or f"update:{reply['responds']}" in records
+        ):
+            continue
+        source = by_id[reply["responds"]]
+        thread_id = thread_of[reply["id"]]
+        frozen = source["kind"] in verb_writers()
+        publish(
+            update_obligation(
+                source["id"],
+                {"kind": "widget", "id": source["widget"]}
+                if frozen
+                else {"kind": "thread", "id": thread_id},
+                thread_id,
+                holding_message.get(source["widget"])
+                if frozen
+                else turn_message(source),
+                next_actor=None,
+                answer=reply,
+            )
+        )
+
+    return Handover(
+        collection(
+            sorted(
+                records.values(),
+                key=lambda record: by_id[record["source"]["id"]]["seq"],
+            )
+        ),
+        sorted(workflows, key=lambda item: (item["seq"], item["id"])),
+    )

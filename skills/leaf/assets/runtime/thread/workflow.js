@@ -1,11 +1,11 @@
 /* Canonical browser reading of one exact message workflow.
 
    Python binds accepted delivery, turn, response, activity and condition evidence to
-   an input, and derives each thread's attention from them. It also serves which thread
-   each workflow stands in (`thread`), whether it holds that thread the agent's turn
-   (`holds_thread`), and the workflows strongest first (`served_workflows`). The
-   application publisher adds the unresolved local send after the served ones; only a
-   thread the user opened takes its attention from it. Every message, compact thread row and margin entry reads
+   an input, names the obligation record each serves (`obligation`), and derives each
+   thread's attention from the records open in it. It also serves which thread each
+   workflow stands in (`thread`) and the workflows strongest first (`served_workflows`).
+   The application publisher adds the unresolved local send after the served ones; only
+   a thread the user opened takes its attention from it. Every message, compact thread row and margin entry reads
    these values; none reclassifies receipts, streams, turn ownership, whose turn a
    thread is, or which workflow is stronger. `strongestWorkflow` only places this tab's
    own sends against the served order. A workflow's word is `workflowLabel` and its face
@@ -72,11 +72,18 @@ export const isPageWidgetWorkflow = (workflow, revision) =>
   workflow.thread === null &&
   workflow.revision <= revision;
 
+// Whether a workflow's update is back with the user to send again: a served one the
+// harness gave up on keeps its failed response at `answered`, the one stage only that
+// reaches, and this tab's refused send failed its delivery.
+const handedBack = (workflow) =>
+  workflow.stage === "answered" ||
+  (workflow.stage === "sending" && workflow.condition?.kind === "failed");
+
 // A send this tab has not delivered is the only workflow at `sending`. It ranks below
 // every served workflow with the same next actor, and an update that is the user's to
 // make still ranks above every one that is the agent's.
 const tier = (workflow) =>
-  (workflow.next_actor === "user" ? 0 : 2) + Number(workflow.stage === "sending");
+  (handedBack(workflow) ? 0 : 2) + Number(workflow.stage === "sending");
 
 // The first of the strongest tier. `workflows` keeps the published order, served
 // strongest first and this tab's sends after, so a caller selects by filtering it.
@@ -104,12 +111,15 @@ export function threadAttention(thread) {
       : workflow?.subject.kind === "thread"
         ? "resend"
         : "retry";
+    // The updates in the thread the agent still owes an answer.
+    const owed = new Set(
+      (thread.obligations ?? [])
+        .filter((item) => item.source.kind === "update" && item.next_actor === "agent")
+        .map((item) => item.id),
+    );
     const secondary = strongestWorkflow(
       thread.workflows.filter(
-        (candidate) =>
-          candidate.next_actor === "agent" &&
-          candidate.holds_thread &&
-          candidate.id !== workflow?.id,
+        (candidate) => owed.has(candidate.obligation) && candidate.id !== workflow?.id,
       ),
     );
     return Object.freeze({

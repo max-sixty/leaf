@@ -3323,7 +3323,8 @@ var workflowTitle = (workflow) => {
 var progressFace = (workflow) => !workflow || workflow.condition ? null : workflow.stage === "picked_up" ? "picked_up" : ["working", "replying"].includes(workflow.stage) ? "working" : null;
 var isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 var isPageWidgetWorkflow = (workflow, revision) => workflow.subject.kind === "widget" && workflow.thread === null && workflow.revision <= revision;
-var tier = (workflow) => (workflow.next_actor === "user" ? 0 : 2) + Number(workflow.stage === "sending");
+var handedBack = (workflow) => workflow.stage === "answered" || workflow.stage === "sending" && workflow.condition?.kind === "failed";
+var tier = (workflow) => (handedBack(workflow) ? 0 : 2) + Number(workflow.stage === "sending");
 function strongestWorkflow(workflows) {
   let strongest = null;
   for (const candidate of workflows)
@@ -3339,9 +3340,12 @@ function threadAttention(thread) {
   if (thread.attention?.kind === "needs_user") {
     const answering = thread.attention.reason === "widget";
     const nextMove = answering ? "answer" : workflow?.subject.kind === "thread" ? "resend" : "retry";
+    const owed = new Set(
+      (thread.obligations ?? []).filter((item) => item.source.kind === "update" && item.next_actor === "agent").map((item) => item.id)
+    );
     const secondary = strongestWorkflow(
       thread.workflows.filter(
-        (candidate) => candidate.next_actor === "agent" && candidate.holds_thread && candidate.id !== workflow?.id
+        (candidate) => owed.has(candidate.obligation) && candidate.id !== workflow?.id
       )
     );
     return Object.freeze({

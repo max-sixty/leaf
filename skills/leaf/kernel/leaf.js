@@ -5639,7 +5639,6 @@ var QUEUE_WORDS = Object.freeze({
   resend: ["update to send again", "updates to send again"],
   answer: ["answer", "answers"],
   reply: ["reply", "replies"],
-  work: ["update with work started", "updates with work started"],
   todo: ["to-do", "to-dos"]
 });
 function queueKinds(items2) {

@@ -35,10 +35,10 @@ from datetime import datetime
 from pathlib import Path
 
 import click
+from leaf.events import is_answer
 from leaf.interaction_log import interaction_time, read_interactions
 from leaf.registry.kernel import kinds_declaring
 from leaf.state import now_iso
-from leaf.thread import is_answer
 from leaf.todos import start_reading
 
 

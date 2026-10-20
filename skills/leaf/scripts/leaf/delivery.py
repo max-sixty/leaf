@@ -206,9 +206,10 @@ def _subject(event: dict, threads: list[str], by_id: dict[str, dict]) -> dict:
 def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     """Map every event that owns an answer to its exact response address.
 
-    The address is the workflow's `answer`, so a delivery, a writer's refusal and
+    The address is the owed answer `activity` derives from the input's obligation
+    record (`obligations.response_address`), so a delivery, a writer's refusal and
     the Stop hook name the same operation. An input a newer one in its thread covers
-    owns none; the newest carries the thread's one answer.
+    publishes no record and owns none; the newest carries the thread's one answer.
     """
     from .served_state.context import read_page
 
@@ -625,7 +626,7 @@ def record_pickup(
     ``refs`` are the `answer.ref`s the receipt's envelope batch gave the inputs it
     owes, each with the claim the batch was captured under (`batch_refs`), which
     the record keeps for the inputs it names, so the page's workflows can name each
-    owed input's ref to the owner who can use it (`activity._bind_receipt_refs`). A
+    owed input's ref to the owner who can use it (`activity._receipt_bindings`). A
     transition that carries no envelope, such as the prompt re-presenting debt an
     earlier receipt recorded, passes none.
     """

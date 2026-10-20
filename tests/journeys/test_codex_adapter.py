@@ -19,6 +19,7 @@ from interact_support import (
     append_carried_log_record,
     codex_records,
     declare_idle,
+    owed_answers,
     page_state,
     publish,
     read_record,
@@ -296,9 +297,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             {"hook_event_name": "UserPromptSubmit", "session_id": "codex-thread"},
         )
         assert capsys.readouterr().out == ""
-        assert [
-            item["stage"] for item in page_state(page)["activity"]["obligations"]
-        ] == ["picked_up"]
+        assert [item["stage"] for item in owed_answers(page)] == ["picked_up"]
         hooks_model.cmd_hook(
             "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
         )

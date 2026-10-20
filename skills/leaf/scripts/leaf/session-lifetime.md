@@ -93,10 +93,10 @@ or subject binding; the current harness contract does not.
 `workflows` is the shared projection for exact user inputs. Each entry names its
 `input` event, its `thread` or `widget` `subject`, its strongest proven `stage`
 (`sent`, `queued`, `picked_up`, `working`, `replying`, or the retained terminal
-`answered` outcome), and any separately proven `condition`. The served list also
-names the `thread` each workflow belongs to (null for a page widget), whether the
-agent is `at_work` on it (`working` or `replying`), and whether it `holds_thread` the
-agent's turn. It lists the strongest first (`served_state.work.served_workflows`): a
+`answered` outcome), any separately proven `condition`, and the `obligation` record it
+serves, or null for an update that owes nothing. The served list also names the
+`thread` each workflow belongs to (null for a page widget) and whether the agent is
+`at_work` on it (`working` or `replying`). It lists the strongest first (`served_state.work.served_workflows`): a
 surface that shows one workflow of several shows the first, and the browser places
 only its own unresolved sends against that order.
 
@@ -120,19 +120,23 @@ Recovery stays with the agent unless the user has a concrete gesture to make. Or
 durable stale, ended, interrupted, and failed observations prove uncertainty or a
 stopped operation but give the user no recovery gesture, so they remain agent-owned.
 A terminal harness failure hands recovery to the user, whatever the update's answer:
-`workflows.py` names the record each answer takes. It settles the Stop obligation; a
-failure reply or a failed pickup retains an `answered` workflow with a failed
-response condition until the user acts again. A local send refusal similarly has a
+`workflows.py` names the record each answer takes. It settles the Stop obligation: the
+update's obligation record turns the user's to send again, and a failure reply or a
+failed pickup retains an `answered` workflow with a failed response condition until the
+user acts again. A local send refusal similarly has a
 browser-owned Retry gesture; that unresolved overlay may put the thread in Needs you
 without persisting another workflow record.
 
 ### Answers and obligations
 
-A workflow's `stage` and its `answer` are separate readings. The stage reports
-delivery for every update the user has handed over. The answer, which `workflows.py`
-states, is what the agent owes it: a reply, a version for a thread that asked for
-one, a version whose markup records a user's answer to a page obligation, or null. Only owed
-answers enter activity counts.
+A workflow's `stage` and its update's obligation are separate readings. The stage
+reports delivery for every update the user has handed over. The obligation record,
+which `workflows.py` publishes, says who owes the update a move: the agent while it owes
+a reply, or a version whose markup records a user's answer to a page obligation; the
+user once a harness handed it back; nobody once answered. An update that owes nothing
+publishes none. `obligations.response_address` derives the operation that answers a
+record, and `activity` binds it to the reference the update's receipts give the page's
+current claim. Only the records the agent owes enter activity counts.
 
 Each consumer of the obligations selects its own set. `leaf status idle` refuses over
 `activity.blocking_obligations`: the acknowledged updates nothing else is set to

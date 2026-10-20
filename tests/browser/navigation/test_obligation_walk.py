@@ -642,10 +642,12 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
         ),
     )
 
+    # The widgets' own obligations; a pick also publishes the update's, the version
+    # the agent then owes.
     def questions():
         return page.evaluate(
             """async () => (await window.__lfWidgetApi())
-              .readObligations().all"""
+              .readObligations().all.filter((item) => item.source.kind === "widget")"""
         )
 
     initial = questions()

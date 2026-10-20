@@ -3,9 +3,14 @@
    A settlement's landing is the surface's own: `optimistic` carries the user where the
    gesture leaves them, and `reverse` puts them back once it no longer stands. The log
    refusing it runs `reverse` here; the user taking it back runs the same `reverse`,
-   which the undo door holds by the gesture's attempt, under the undo's intent. */
+   which the undo door holds by the gesture's attempt, under the undo's intent.
+
+   A sent settlement says what it did in the notice seat, since its landing may carry the
+   user away from the thread and leave nothing on screen to say it was resolved; `z`
+   says the reverse (undo.js). */
 import { randomId } from "../ids.js";
 import { paintKeys } from "../keyboard/scopes.js";
+import { notice } from "../notifications.js";
 import { pendingForParent } from "../pending/model.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { whenDocumentPresented } from "../semantic-state.js";
@@ -29,6 +34,7 @@ export async function settleThread({
     ? actions.reopen(key, { attempt })
     : actions.resolve(key, { attempt });
   if (!answer) return;
+  notice(resolved ? "Reopened the thread" : "Resolved the thread");
   if (landing) retainReversal(attempt, landing.reverse);
   await landGesture({
     landing,

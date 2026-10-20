@@ -5425,6 +5425,7 @@ async function settleThread({
   const attempt = randomId();
   const answer = resolved2 ? actions.reopen(key, { attempt }) : actions.resolve(key, { attempt });
   if (!answer) return;
+  notice(resolved2 ? "Reopened the thread" : "Resolved the thread");
   if (landing) retainReversal(attempt, landing.reverse);
   await landGesture({
     landing,

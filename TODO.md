@@ -51,7 +51,7 @@ has tried; settle that before building it.
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
   behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
-  activity, selection, and reply editing in the implemented accordion.
+  activity, selection, and reply editing in the floating panel's Threads view.
 - **Name a Pi Thread promptly.** Claude Code and Codex pages and leaf.page name a
   thread from the user's words a few seconds after they arrive (`thread_titles`).
   `PiHarness` has no `title_generator`, so a Pi page's thread is named only by the
@@ -456,9 +456,9 @@ on 2026-10-07.
   a fresh start. Decide whether that coverage is worth the time before building it.
 - **Decide what plain `page check` runs in a browser from the mistakes agents make.**
   It runs a page once in the host's browser, about 1.3 s, where the page has a script
-  or places a page widget or a data widget (`needs_browser`,
+  or places a page widget, a data widget or a widget naming page media (`needs_browser`,
   `render_gate/page_code.py`); any other page checks in about 0.15 s. Widgets that fail on their attribute values
-  (`lf-playground`, `lf-shot`, `lf-visual-review`, `lf-text-document`)
+  (`lf-playground`, `lf-visual-review`, `lf-text-document`)
   and every widget in thread markup report through `leaf wait` once a browser draws
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
@@ -630,8 +630,10 @@ export` writes a file that boots the page's own runtime offline, and that file
   (`signal-polyfill`). Were the publication and those readings TC39 signals,
   `SignalWatcher` would draw again on a read's move, and the base class would keep
   only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
-  and data delivery. Every widget draws as a `LeafElement` now, so the change would
-  land in one class, but assessed on 2026-10-14 it is no simplification yet. Ordering
+  and data delivery. Some widgets draw as a `LeafElement`; of those that still extend
+  `HTMLElement`, `lf-tabs`, `lf-tally` and `lf-activity` repaint through
+  `watchProjection`, and once they move the change would land in one class. Assessed
+  on 2026-10-14, it is no simplification yet. Ordering
   no longer stands in the way: `LeafElement.scheduleUpdate` puts every update in the
   parent-ordered widget queue (`queueWidgetUpdate`), `SignalWatcher`'s included. What
   does: a move must claim the widget's region inside the publication that made it,
@@ -644,7 +646,7 @@ export` writes a file that boots the page's own runtime offline, and that file
   stage browsers ship, or Lit's signal integration exposes the notify a claim needs.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
-  experimental and about 500 lines in the core runtime, consumed by `lf-shot`,
+  experimental and about 820 lines in the core runtime, consumed by `lf-shot`,
   `lf-visual-review` and `leaf-dev stills`. A package could own it, so the core keeps
   only what every page needs. Try it on non-Leaf captures first (another site, a
   terminal, a plot); where the capture is a browser's, recording each element's box

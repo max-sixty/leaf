@@ -7,8 +7,9 @@ other page files and the external state listed below.
 
 Each JSON record below is a `state.Record`, declared once with its schema beside
 the module named for it, whose functions are its only writers. The record carries
-the protocol of the Leaf that wrote it, and one this Leaf does not read, such as
-an earlier Leaf's, reads as absent (`state.Record`).
+the protocol at which its kind's shape last changed, and one this Leaf does not
+read, such as one an earlier Leaf wrote before that change, reads as absent
+(`state.Record`).
 
 - `index.html` — mutable author document. The server validates it before activation and
   never serves it directly. An invalid save creates no revision, leaves the previous

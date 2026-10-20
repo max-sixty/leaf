@@ -10,7 +10,13 @@ from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATION_PAGE, PANEL_PAGE, SUGGESTION_PAGE
+from render_cases_interaction import (
+    OBLIGATION_PAGE,
+    PANEL_PAGE,
+    SUGGESTION_PAGE,
+    executable_revision,
+    live_url,
+)
 from render_cases_layout import standing_ring
 from render_harness import (
     PANEL,
@@ -24,8 +30,10 @@ from render_harness import (
     panel_settled,
     resized,
     sending,
+    stamp_page,
     ticked,
     told,
+    wait_for_revision,
     write,
 )
 
@@ -402,6 +410,63 @@ def test_a_thread_in_view_opens_beside_it_and_leaves_the_tab_strip(browser, serv
     assert open_where_the_user_stands(page, "open-words") is True
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     assert strip.evaluate("s => s.scrollLeft") == left
+
+
+MOVED_PASSAGE_PAGE = leaf_page(
+    "a passage a revision moves into a closed tab",
+    """
+  <lf-tabs id="views">
+    <lf-tab id="view-open" label="Open"><p id="moved-words">Words a revision moves.</p></lf-tab>
+    <lf-tab id="view-closed" label="Closed"><p id="other-words">Other words.</p></lf-tab>
+  </lf-tabs>""",
+)
+
+
+@pytest.mark.parametrize("installation", ["in-place", "fresh"])
+@pytest.mark.parametrize("passage", ["drawn", "in-a-closed-tab"])
+def test_a_card_open_across_a_revision_opens_where_its_passage_stands(
+    browser, serve, installation, passage
+):
+    """A revision keeps an open card's thread in front of the reader as any opening
+    does: the card beside its passage where the revision still draws it, else the
+    floating panel, leaving closed the tab the revision moved the passage into. A user
+    who stood in the card stands in the thread wherever it opens. Before,
+    an in-place revision left the card open and unseen, waiting for a passage nothing
+    would draw, and a fresh document reopened the card only for the margin to close
+    it."""
+    page = open_page(
+        browser,
+        live_url(serve(MOVED_PASSAGE_PAGE, events=[_comment_on("moved-words")])),
+    )
+    resized(page, 1440, 900)
+    assert open_where_the_user_stands(page, "moved-words") is True
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    page.locator(".lf-margin-preview-close").focus()
+    moved = '<p id="moved-words">Words a revision moves.</p>'
+    revised = (
+        MOVED_PASSAGE_PAGE.replace(moved, "").replace(
+            '<p id="other-words">Other words.</p>', f"<p>Other words.</p>{moved}"
+        )
+        if passage == "in-a-closed-tab"
+        else MOVED_PASSAGE_PAGE.replace("Other words.", "Revised words.")
+    )
+    if installation == "fresh":
+        revised = executable_revision(revised, "fresh")
+    first_document = page.evaluate("performance.timeOrigin")
+    stamp_page(serve.page_dir, revised, "Revise it")
+    wait_for_revision(page, 2)
+    assert (page.evaluate("performance.timeOrigin") != first_document) == (
+        installation == "fresh"
+    )
+    if passage == "drawn":
+        expect(card).to_be_visible()
+        expect(page.locator(".lf-margin-preview-close")).to_be_focused()
+        expect(page.locator(PANEL_THREAD)).to_have_count(0)
+    else:
+        expect(page.locator(PANEL_THREAD)).to_be_focused()
+        expect(page.locator("#view-closed")).to_be_hidden()
+        expect(card).to_be_hidden()
 
 
 def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):

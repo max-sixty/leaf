@@ -7873,14 +7873,17 @@ function createFloatingPanel({
       <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
   }
-  declareSide((node) => {
-    const part = [openView(), head, replyOutlet].find((at) => at && under(node, at));
-    const thread = part && openIn(part);
-    if (thread) return placedAt(thread.id)?.place ?? null;
-    const id = under(node, stage) ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation : null;
-    const record = id && readObligations().all.find((item) => item.id === id);
-    return record ? obligationPlace(record).node : null;
-  });
+  declareSide(
+    (node) => {
+      const part = [openView(), head, replyOutlet].find((at) => at && under(node, at));
+      const thread = part && openIn(part);
+      if (thread) return placedAt(thread.id)?.place ?? null;
+      const id = under(node, stage) ? closestAcross(node, ".lf-fp-on-item[data-obligation]")?.dataset.obligation : null;
+      const record = id && readObligations().all.find((item) => item.id === id);
+      return record ? obligationPlace(record).node : null;
+    },
+    { beside: true }
+  );
   const approvalControl = () => {
     const card2 = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
     return card2?.querySelector("button") ?? card2;
@@ -8714,6 +8717,7 @@ function createFloatingPanel({
   function restoreStanding(standing) {
     const thread = standing && threadByKey(standing.thread);
     if (!thread) return false;
+    if (trail.at(-1)?.thread === thread.key && openView()) return true;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
     landAtEnd = null;
     void present({ release: true }).then(() => {

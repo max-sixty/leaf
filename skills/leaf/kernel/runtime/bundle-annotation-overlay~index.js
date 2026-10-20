@@ -47,6 +47,7 @@ import {
 } from "./bundle-restore-state.js";
 import {
   anchorLabel,
+  arrivalOf,
   beginWalk,
   carryingThreadPlace,
   claimSeatReplies,
@@ -60,7 +61,6 @@ import {
   pageScope,
   pageSelection,
   placeKeeper,
-  placeOf,
   releaseReplies,
   retainUserIntent,
   revealHeld,
@@ -974,6 +974,10 @@ function createThreadPreview({
     thread: () => previewList.querySelector(".lf-page-thread"),
     accompanied: () => previewSession && !previewSession.away ? previewList.querySelector(".lf-page-thread") : null,
     closeFocused: () => focused() === previewClose,
+    // Whether the user stands in the card's reply box.
+    replying: () => under(focused(), preview) && Boolean(closestAcross(focused(), REPLY_BOX)),
+    // Whether the open card has somewhere to stand (`threadCardPlace`).
+    stands: () => Boolean(previewSession && threadCardPlace(previewSession)),
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount
@@ -2240,7 +2244,7 @@ function createMarginProjection({
       expandedKey: expandedOptionsKey,
       expandedOwner: expandedOptionsOwner
     };
-    const place = active && !host && byKeyboard() && placeOf(active);
+    const place = active && !host && byKeyboard() && arrivalOf(active);
     const entry = place ? pageInventory.find(
       (candidate) => folded(candidate) && canFold(candidate, state) && under(place, targetFor(candidate))
     ) : null;
@@ -2263,7 +2267,7 @@ function createMarginProjection({
     awaitingRow = null;
     if (!node || focused() !== node || previewOpen() || annotationsHidden() || designModeActive())
       return;
-    const entry = threadEntryAt(node);
+    const entry = arrivalOf(node) && threadEntryAt(node);
     if (entry) accompany(node, entry);
   }
   function followStanding() {
@@ -2279,7 +2283,7 @@ function createMarginProjection({
         closePreview();
       return;
     }
-    const entry = threadEntryAt(active);
+    const entry = arrivalOf(active) && threadEntryAt(active);
     if (!entry) {
       if (previewOpen() && !inChrome(active)) closePreview();
       return;
@@ -2316,38 +2320,63 @@ function createMarginProjection({
     const active = focused();
     const host = closestAcross(active, "[data-lf-margin-for]");
     const control = active?.closest?.(".lf-margin-entry");
-    const entry = card.selection()?.entry ?? host?.lfEntry;
+    const selected = card.selection();
+    const entry = selected?.entry ?? host?.lfEntry;
     if (!entry) return null;
     const standing = {
       entry: entry.key,
-      preview: previewOpen() ? { thread: card.selection()?.threadItem } : null,
-      focus: card.closeFocused() ? { kind: "preview-close" } : control && host?.contains(control) ? {
+      preview: previewOpen() && !card.replying() ? { thread: selected.threadItem, accompanies: selected.accompanies } : null,
+      focus: card.closeFocused() ? { kind: "preview-close" } : under(active, preview) ? { kind: "preview" } : control && host?.contains(control) ? {
         kind: "entry",
         key: contributionEntryRecord(control)?.key,
         owner: contributionEntryRecord(control)?.owner ?? null
       } : null
     };
-    return standing.preview || standing.focus ? standing : null;
+    return standing.preview || standing.focus?.kind === "entry" ? standing : null;
   }
   function restoreStanding(standing) {
     if (!standing || typeof standing.entry !== "string") return false;
     const entry = pageInventory.find((candidate) => candidate.key === standing.entry);
     if (!entry) return false;
-    if (standing.preview) {
-      const button = threadMarginEntry(entry);
-      if (!button?.isConnected) return false;
-      const positioned = showPreview(entry, button, standing.preview.thread);
-      if (!positioned) return false;
-      if (standing.focus?.kind === "preview-close")
-        card.focusThread(positioned, { closeControl: true, cause: "return" });
-      return true;
-    }
-    if (standing.focus?.kind !== "entry") return false;
+    const shown = standing.preview ? restoreCard(entry, standing) : false;
+    return standing.focus?.kind === "entry" ? restoreEntryFocus(entry, standing) : shown;
+  }
+  function restoreCard(entry, { preview: { thread, accompanies }, focus }) {
+    const items = entry.items.filter((item2) => item2.kind === "comment");
+    const item = items.find((candidate) => candidate.id === thread) ?? items[0];
+    if (!item) return false;
+    const id = sourceItem(item).thread.id;
+    const selected = card.selection();
+    const kept = selected?.entry.key === entry.key && selected.threadItem === item.id;
+    if (kept && card.stands()) return true;
+    if (kept) closePreview();
+    const inCard = focus?.kind === "preview" || focus?.kind === "preview-close";
+    if (accompanies && !inCard) return Boolean(openInlineThread(id, { unfold: false }));
+    const intent = retainUserIntent();
+    const opened = openPageThread(id, {
+      part: "thread",
+      focus: inCard,
+      travel: false,
+      scroll: false,
+      intent
+    });
+    if (focus?.kind === "preview-close")
+      void opened.then((destination) => {
+        if (destination && under(destination, preview) && intent())
+          card.focusThread(Promise.resolve(true), {
+            closeControl: true,
+            cause: "return"
+          });
+      });
+    return true;
+  }
+  function restoreEntryFocus(entry, standing) {
     const host = hosts.get(entry.key);
     const control = clusterMarginEntries(host).find(
       (candidate) => contributionEntryRecord(candidate)?.key === standing.focus.key && (contributionEntryRecord(candidate)?.owner ?? null) === standing.focus.owner
     );
     if (!control) return false;
+    if (focused() === control) return true;
     focusDestination(control, "return");
     return true;
   }

@@ -2590,9 +2590,14 @@ if arguments[:2] == ["app-server", "--listen"]:
     assert not Path(endpoint.removeprefix("unix://")).exists()
 
 
-def test_a_private_app_server_stops_when_its_process_exits(tmp_path):
+@pytest.mark.parametrize(
+    "ending",
+    ["sys.exit(0)", "from leaf.server import exit_serving; exit_serving(0)"],
+)
+def test_a_private_app_server_stops_when_its_process_exits(tmp_path, ending):
     """A page server's title request holds its App Server on a daemon thread, which
-    never unwinds when the page server exits; the server, in a session of its own,
+    never unwinds when the page server exits, whether by an exit or by ending itself
+    at once, as it does when its service ends; the server, in a session of its own,
     would run on with no socket anyone can find."""
     program = tmp_path / "fake-codex"
     pid_file = tmp_path / "server.pid"
@@ -2617,7 +2622,7 @@ def hold():
         time.sleep(600)
 threading.Thread(target=hold, daemon=True).start()
 assert ready.wait(20)
-sys.exit(0)
+{ending}
 """
     try:
         subprocess.run(

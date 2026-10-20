@@ -66,12 +66,12 @@ the page and link it from the reply with a fragment link such as
 the reasoning matters to someone using the result, keep the thread anchored to that
 section.
 
-A reply renders as Markdown. Use `--text` for a one-liner, and pass anything longer
-on stdin from a file:
+A reply renders as Markdown. Use `--text` for a one-liner, and `--file`, or a
+heredoc on stdin, for anything longer:
 
 ```bash
 leaf response reply <answer.ref> --done --text "…"
-leaf response reply <answer.ref> --done < reply.md
+leaf response reply <answer.ref> --done --file reply.md
 ```
 
 A user's message can carry a pasted image or a **Capture area** of the page; the
@@ -224,7 +224,7 @@ decisions, reasoning, and open questions in Markdown prose, and put its outcomes
 the page too:
 
 ```bash
-leaf thread summarize <page> --from <first-message-id> --through <last-message-id> < summary.md
+leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --file summary.md
 ```
 
 The summary replaces the range in the thread, and the originals stay available to

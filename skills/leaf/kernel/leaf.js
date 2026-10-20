@@ -170,7 +170,6 @@ import {
   sendMessage,
   settleThread,
   showHeld,
-  sideOf,
   snapSelection,
   standingThreadId,
   stepFrom,
@@ -8819,7 +8818,7 @@ function createObligationView({
       return record;
     const answered = record;
     const item = obligationNode(answered);
-    return held === item || inChrome(held) && sideOf(held) === item || hasReviewedFocus() ? answered : null;
+    return held === item || inChrome(held) && placeOf(held) === item || hasReviewedFocus() ? answered : null;
   }
   const standingIn2 = () => obligationNode(standingObligation());
   const actionsFor = (source) => decisionControls(commandsWithin(source), `Obligation ${source.id}`).filter(

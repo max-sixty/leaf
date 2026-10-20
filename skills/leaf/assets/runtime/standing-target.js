@@ -44,6 +44,8 @@ import { pageReadingBlock } from "./reading-place.js";
 const sides = new Set();
 
 // A presentation owner's reading of the source target one of its nodes shows, or null.
+// A side is asked of the node the user stands on, inside any shadow tree it is in, so
+// each climbs across shadow roots to its own surface.
 export function declareSide(bridge) {
   sides.add(bridge);
   return () => sides.delete(bridge);
@@ -66,17 +68,6 @@ export function obligationHolding(items, node) {
     if (at && (!held || under(at, held.at))) held = { item, at };
   }
   return held?.item ?? null;
-}
-
-// The source target a presentation node shows, by its owner's declaration, or null
-// for a node no side claims. A side is asked of the node the user stands on, inside any
-// shadow tree it is in, so each climbs across shadow roots to its own surface.
-export function sideOf(node) {
-  for (const side of sides) {
-    const place = side(node);
-    if (place) return place;
-  }
-  return null;
 }
 
 export const placeOf = (node) => placeFrom(node, new Set());

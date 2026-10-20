@@ -1040,13 +1040,6 @@ function obligationHolding(items, node) {
   }
   return held?.item ?? null;
 }
-function sideOf(node) {
-  for (const side of sides) {
-    const place2 = side(node);
-    if (place2) return place2;
-  }
-  return null;
-}
 var placeOf = (node) => placeFrom(node, /* @__PURE__ */ new Set());
 function placeFrom(node, visited) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
@@ -7235,7 +7228,6 @@ export {
   obligationsIn,
   declareSide,
   obligationHolding,
-  sideOf,
   placeOf,
   walkOrigin,
   stepFrom,

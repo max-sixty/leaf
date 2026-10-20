@@ -1072,6 +1072,17 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
 
+    # From the control on the reply's widget, which stands at the page lf-ask, its digit
+    # answers it, and the answered obligation keeps its ring there: the control is a
+    # review route to it, as an On card is.
+    contributed.focus()
+    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
+    page.keyboard.press("1")
+    round_trip(page)
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    expect(contributed).to_be_focused()
+    expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
+
 
 OBLIGATION_IN_A_PANE_PAGE = leaf_page(
     "ask in a pane",

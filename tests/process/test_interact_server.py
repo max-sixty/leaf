@@ -1809,8 +1809,8 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     )
     assert status == 400
     unanswered = refused_on(body)
-    assert (unanswered.code, unanswered.values["items"]) == (
-        "unanswered-items",
+    assert (unanswered.code, unanswered.values["obligations"]) == (
+        "unanswered-obligations",
         ["widget:choice"],
     )
 
@@ -1862,7 +1862,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
-    assert refused_on(body).values["items"] == ["widget:thread-approval"]
+    assert refused_on(body).values["obligations"] == ["widget:thread-approval"]
 
     status, body = fetch(
         f"{server}/api/event",
@@ -4662,7 +4662,7 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
 ):
     """A Leaf that renamed an x- key reads only the new name, so a page an older Leaf
     vendored, at the same protocol, would lose what it declares under the old one: a
-    framed item its prompt and landing region. The page is refused until a re-vendor,
+    framed obligation its prompt and landing region. The page is refused until a re-vendor,
     which the refusal names. Afterwards the revision saved since serves with the
     prompt, while the one saved before neither opens nor takes input, as a revision
     saved at another protocol does."""
@@ -4691,7 +4691,7 @@ def _serve_after_a_key_rename(page_dir):
     # Re-vendoring activates valid source with the renamed vocabulary itself.
     [item] = [
         item
-        for item in page_state(page_dir)["browser"]["views"]["2"]["items"]
+        for item in page_state(page_dir)["browser"]["views"]["2"]["obligations"]
         if item["source"]["id"] == "route"
     ]
     assert item["prompt"] == {"text": "Which route?", "target": "route-ask"}

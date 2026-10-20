@@ -1,10 +1,10 @@
-"""Agent-facing page state: the On me and On <agent> lists, and the items and to-dos
+"""Agent-facing page state: the On me and On <agent> lists, and the obligations and to-dos
 they select from.
 
 The reading uses one transaction and holds the two lists the active view serves
-(`served_state.queues`): On me (`on_user`) holds open items, to-dos on the user and
+(`served_state.queues`): On me (`on_user`) holds open obligations, to-dos on the user and
 resends; On <agent> (`on_agent`) holds the answers the agent owes, its work in hand
-and its to-dos. The item inventory (`items`) also retains finished records, whatever
+and its to-dos. The obligation inventory (`obligations`) also retains finished records, whatever
 their `status`. `source` states whether a document is live and whether an invalid
 source save leaves the last valid version active. Before the first valid revision,
 an invalid candidate registry leaves no active document or readable vocabulary; its
@@ -131,12 +131,12 @@ def _base_state(
         # What is on the user (On me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; the agent's plan, which arranges them (`plans`); and the complete
-        # canonical item inventory those lists select from, whose records an item's
+        # canonical obligation inventory those lists select from, whose records an obligation's
         # row names by `id`.
         "queues": {"on_user": [], "on_agent": []},
         "todos": [],
         "plan": None,
-        "items": [],
+        "obligations": [],
         # Current semantic facts only. A thread's history belongs to
         # `page state PAGE THREAD`; keeping its sequence list here would make this
         # default snapshot grow with every thread turn. A reaction nobody
@@ -243,7 +243,7 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
     """The page reading narrowed to one widget on the page and what it holds: its
     element, the actions and reports in force on it or on anything inside it, the
     workflows there, the reports aimed at them, the to-dos open on them, and the
-    items sourced by them."""
+    obligations sourced by them."""
 
     def inside(element: str | None) -> bool:
         return element is not None and widget in enclosing.get(element, ())
@@ -278,9 +278,9 @@ def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> 
             ],
         },
         "workflows": workflows,
-        "items": [
+        "obligations": [
             item
-            for item in state["items"]
+            for item in state["obligations"]
             if item["thread"] is None
             and item["source"]["kind"] == "widget"
             and (inside(item["source"]["id"]) or inside(item["prompt"]["target"]))
@@ -311,7 +311,7 @@ def _page_state(
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, every open to-do on either side,
-    the items, the two lists, On me and On <agent>, that they and the workflows add up
+    the obligations, the two lists, On me and On <agent>, that they and the workflows add up
     to (`served_state.queues`, the panel's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
@@ -373,7 +373,7 @@ def _page_state(
     state["user_views"] = read_user_views(
         page_dir, active["revision"] if active is not None else None
     )
-    # Before a first revision there is no document, so no thread, item, widget, or
+    # Before a first revision there is no document, so no thread, obligation, widget, or
     # claim subject either: every reading below keeps its empty default.
     if reading is not None:
         browser = served["browser"]
@@ -391,7 +391,7 @@ def _page_state(
                 item["message"] for item in served_threads[thread["id"]]["unread"]
             ]
             thread["attention"] = served_threads[thread["id"]]["attention"]
-        state["items"] = view["items"]
+        state["obligations"] = view["obligations"]
         state["todos"] = [todo for todo in browser["todos"] if todo["state"] == "open"]
         state["plan"] = browser["plan"]
         served_queues = view["queues"]
@@ -535,6 +535,8 @@ def _page_state(
             },
             "workflows": workflows,
             "todos": [todo for todo in state["todos"] if todo["thread"] == thread_id],
-            "items": [item for item in state["items"] if item["thread"] == thread_id],
+            "obligations": [
+                item for item in state["obligations"] if item["thread"] == thread_id
+            ],
         }
     return state

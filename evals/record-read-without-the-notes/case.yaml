@@ -24,8 +24,8 @@ vars:
     \ a record the user will work\nthrough over the next few days.\n\n`leaf page check ~/.local/state/leaf/pages/tend-open-items\
     \ --render` just passed:\n\n  \u2713 index.html: renders clean in Chrome, light and dark at 1200x900\
     \ and 540x720\n    screens to read before handing the page over, in ~/.local/state/leaf/screens/tend-open-items-f18529c2b8a7:\n\
-    \      1200px-1.png \u2026 1200px-2.png: desktop\n      1200px-item-1.png \u2026 1200px-item-8.png:\
-    \ desktop, each press of `m` from the top, at the next open item, the first 8 of the page's open items\n\
+    \      1200px-1.png \u2026 1200px-2.png: desktop\n      1200px-obligation-1.png \u2026 1200px-obligation-8.png:\
+    \ desktop, each press of `m` from the top, at the next open obligation, the first 8 of the page's open obligations\n\
     \      1920px-1.png \u2026 1920px-2.png: the widest window\n      390px-1.png \u2026 390px-4.png:\
     \ phone\n\nThe page includes a contents outline and a full review-history section.\n\nThe research reports are still in your context. Say what you do between this check\nand\
     \ handing the URL to the user, step by step, and who does each step.\n"
@@ -46,4 +46,4 @@ assert:
       both desktop and phone widths, reaching a later section before scrolling through
       the article to find the navigation. The test may be delegated to the independent
       reader. A generic instruction to test navigation, inspect screenshots, or press
-      `a` through the items does not establish this opening-view check.
+      `a` through the obligations does not establish this opening-view check.

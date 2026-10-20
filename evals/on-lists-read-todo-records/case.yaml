@@ -3,7 +3,7 @@
 # `title` and `running` start, is in `todos`. Scores conversation-loop.md, "The On
 # lists", reading those rows. The reading below lists `todos` in another order than
 # the rows, so only a join by id puts each to-do on its side. On Claude Code, base
-# 45ee9550e (whose instruction names only an item's record) passed 2 of 2 on the
+# 45ee9550e (whose instruction names only an item's record; since renamed obligation) passed 2 of 2 on the
 # shrunk reading, and the change passed 2 of 2.
 description: on-lists-read-todo-records
 metadata:
@@ -19,14 +19,14 @@ vars:
     resumed after a break, and the user wrote in the terminal: "Where are we? What's
     waiting on me, and what are you still doing?" You ran
 
-        leaf page state ~/.local/state/leaf/pages/latency | jq '{source, items, todos, queues, threads: [.threads[] | {id, title, attention}]}'
+        leaf page state ~/.local/state/leaf/pages/latency | jq '{source, obligations, todos, queues, threads: [.threads[] | {id, title, attention}]}'
 
     and it printed:
 
     ```json
     {
       "source": {"error": null, "live": true},
-      "items": [
+      "obligations": [
         {"id": "widget:deploy-window", "source": {"kind": "widget", "id": "deploy-window", "tag": "lf-options"},
          "thread": null, "message": null, "status": "open", "next_actor": "user",
          "prompt": {"text": "Which window should the deploy go out in?", "target": "deploy-window"},

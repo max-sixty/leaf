@@ -40,7 +40,7 @@ from render_cases_interaction import (
     REF_PAGE,
     RELATIVE_WIDGET_MODULE,
     RELATIVE_WIDGET_PAGE,
-    THREAD_ITEMS,
+    THREAD_OBLIGATIONS,
     TWO_HOLDER_PAGE,
     TWO_HOLDER_SPARE_PAGE,
     drifting_widget,
@@ -63,7 +63,7 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     example_media,
-    expect_items_answered,
+    expect_obligations_answered,
     expect_panel_offers,
     holding,
     leaf_page,
@@ -1705,8 +1705,8 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     page.wait_for_function(onscreen, arg="tail-end")
 
 
-def test_a_thread_item_waits_until_answered(browser, serve):
-    """A question in a thread is one of the page's items — an obligation for the user
+def test_a_thread_obligation_waits_until_answered(browser, serve):
+    """A question in a thread is one of the page's obligations — an obligation for the user
         wherever it stands — and `m` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
@@ -1719,10 +1719,10 @@ def test_a_thread_item_waits_until_answered(browser, serve):
     registry declares the attribute as a record form, which a thread verb can never
     have, no version being able to carry a thread's markup."""
     url = serve(REPLY_HOST_PAGE)
-    for event in THREAD_ITEMS:
+    for event in THREAD_OBLIGATIONS:
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
-    expect_items_answered(page, "0/2")
+    expect_obligations_answered(page, "0/2")
 
     page.keyboard.press("m")
     one = page.locator(f'{PANEL_THREAD}[data-thread="c-which"]')
@@ -1743,7 +1743,7 @@ def test_a_thread_item_waits_until_answered(browser, serve):
     expect(one).to_be_focused()
 
     page.locator("#tq-redis").click()
-    expect_items_answered(page, "1/2")
+    expect_obligations_answered(page, "1/2")
 
     open_panel_thread(page, "c-any")
     expect(page.locator("#tq-set .lf-done")).to_be_visible()
@@ -1783,10 +1783,10 @@ def test_a_thread_item_waits_until_answered(browser, serve):
 
     page.locator("#tq-logs").click()
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
-    expect_items_answered(page, "1/2")
+    expect_obligations_answered(page, "1/2")
     with sending(page, "the answer"):
         page.locator("#tq-set .lf-done").click()
-    expect_items_answered(page, "2/2")
+    expect_obligations_answered(page, "2/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect_panel_says(page, "Marked answered — sent")
     # Said once, by the log's answer. An `answered` attribute on the group said it
@@ -1810,7 +1810,7 @@ def test_a_thread_item_waits_until_answered(browser, serve):
     # writes, so there is nothing for a version or a markup copy to fall behind. A
     # message's widgets draw where its thread is open, so the tab opens it to look.
     other = open_page(browser, url)
-    expect_items_answered(other, "2/2")
+    expect_obligations_answered(other, "2/2")
     open_panel_thread(other, "c-any")
     expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     assert (
@@ -1834,12 +1834,12 @@ def test_a_thread_item_waits_until_answered(browser, serve):
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
-    expect_items_answered(page, "2/2")
+    expect_obligations_answered(page, "2/2")
     holding(page, held, 1, "the thread answer's withdrawal")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect_items_answered(page, "1/2")
+    expect_obligations_answered(page, "1/2")
 
     # The sequence's promise holds from a mark: g T leaves the option's digit scope and
     # reaches Threads. A stray digit there neither travels nor picks; t then c makes the
@@ -1869,7 +1869,7 @@ def test_a_thread_item_waits_until_answered(browser, serve):
 )
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided):
     """An input action discharges the request live; the honoring version removes its
-    authored `needed` condition and its item, so incorporating its state into source
+    authored `needed` condition and its obligation, so incorporating its state into source
     cannot turn the input back into a decision."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
@@ -1888,7 +1888,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     expect(draft.get_by_role("textbox")).to_have_js_property("value", provided)
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
-    expect_items_answered(page, "1/5")
+    expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
         "aria-label", re.compile(r"^On me: [1-9]")
     )
@@ -1900,7 +1900,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
-    # A draft without `needed` is optional editing, not an item framed by an `lf-ask`.
+    # A draft without `needed` is optional editing, not an obligation framed by an `lf-ask`.
     honoring = honoring.replace(
         '<lf-ask id="decision-ledger-fixture-region">',
         '<div id="decision-ledger-fixture-region">',
@@ -1911,9 +1911,9 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     assert '<lf-ask id="decision-ledger-fixture-region">' not in honoring
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    # The saved answer remains in the reviewable item inventory after the source
+    # The saved answer remains in the reviewable obligation inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
-    expect_items_answered(page, "1/5")
+    expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
         "aria-label", re.compile(r"^On me: [1-9]")
     )

@@ -118,6 +118,7 @@ import {
   ref,
   render,
   repeat,
+  signal,
 } from "/vendor/browser-runtime.js";
 import { el, reveal } from "./widget-elements.js";
 import { iconElement, iconTemplate } from "./icons.js";
@@ -503,14 +504,17 @@ export function createFloatingPanel({
         >${part.text}</span
       >`;
     });
-  // The trail of views open above the row, innermost last; empty at rest.
-  let trail = [];
+  // The trail of views open above the row, innermost last; empty at rest. It, whether
+  // the menu is open and the list standing in it are signals, since the panel's keys
+  // read them and follow the signals they read (keyboard/scopes.js): a press that opens
+  // Threads gives the panel its `/` with no other call.
+  const trail = signal([]);
   let leaving = null;
-  let menuOpen = false;
+  const menuOpen = signal(false);
   // The list standing in the menu's place, a group or Versions, or null for the menu,
   // and the height it first stood at, which it keeps while it stands, as a view keeps
   // its room (`holdRoom`), so news changing the list moves none of the menu's rows.
-  let menuAt = null;
+  const menuAt = signal(null);
   let menuRoom = null;
   let filter = "open";
   let query = "";
@@ -648,7 +652,7 @@ export function createFloatingPanel({
         // only while no later input has changed where the user is reading.
         const untouched = retainUserIntent({ source: host });
         void Promise.resolve(flight).then((sent) => {
-          if (sent || (trail.length && trail.at(-1) !== route)) return;
+          if (sent || (trail.value.length && trail.value.at(-1) !== route)) return;
           caretToField = untouched();
           paint();
         });
@@ -681,7 +685,7 @@ export function createFloatingPanel({
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sent: (flight) => {
           // The user's turn lets go of the height a press held (`pressAt`).
-          rooms.delete(routeKey(trail.at(-1)));
+          rooms.delete(routeKey(trail.value.at(-1)));
           rewriting = false;
           landAtEnd = { key, after: drawnTurns() };
           // The user's turn grows the view to show it and takes New reply away.
@@ -691,10 +695,10 @@ export function createFloatingPanel({
           // head, so the view keeps its head where it stood (`spare`). The refusal has
           // drawn the thread without the turn, and the field with the words it hands
           // back, by the time it settles the send.
-          const route = trail.at(-1);
+          const route = trail.value.at(-1);
           void Promise.resolve(flight).then((ok) => {
             const view = openView();
-            if (ok || trail.at(-1) !== route || !view || stoodAt === null) return;
+            if (ok || trail.value.at(-1) !== route || !view || stoodAt === null) return;
             const height =
               view.offsetHeight + view.getBoundingClientRect().top - stoodAt;
             if (!holdThread(height)) return;
@@ -832,7 +836,7 @@ export function createFloatingPanel({
   const pathTo = (route) =>
     route.view === "thread" ? [{ view: "threads" }, route] : [route];
   function open(route, { replace = false, reopen = false, focus = true } = {}) {
-    const before = trail.at(-1);
+    const before = trail.value.at(-1);
     setMenu(false);
     if (before && routeKey(before) === routeKey(route) && !replace) {
       if (reopen) return;
@@ -846,20 +850,21 @@ export function createFloatingPanel({
     if (route.view !== "threads" && route.view !== "thread") searching = false;
     // A thread opened from a list, Threads or On, has that list behind it, so its
     // back link returns where the user came from.
-    trail =
+    trail.value =
       replace && before
-        ? [...trail.slice(0, -1), route]
+        ? [...trail.value.slice(0, -1), route]
         : route.view === "thread" && LISTS.includes(before?.view)
           ? [before, route]
           : pathTo(route);
-    if (replace && route.view === "thread" && trail.length === 1) trail = pathTo(route);
+    if (replace && route.view === "thread" && trail.value.length === 1)
+      trail.value = pathTo(route);
     if (route.view === "thread") arriveAt(route.thread);
     transition(before, { focus });
   }
   // Where the page's package draws its conversations, a thread opens in its reader,
   // and the view it was chosen from goes, uncovering the page.
   function openInPackage(key, { focus = true, message = null } = {}) {
-    if (trail.length) close();
+    if (trail.value.length) close();
     void threadActions.open(threadByKey(key)?.key ?? key, {
       part: null,
       focus,
@@ -875,9 +880,9 @@ export function createFloatingPanel({
   // Whether the paint that next stands the page's field in the row puts the caret in it.
   let caretToField = false;
   function clearRow() {
-    const before = trail.at(-1);
+    const before = trail.value.at(-1);
     if (prefs().rest === "mark") prefs().setRest("row");
-    trail = [];
+    trail.value = [];
     setMenu(false);
     transition(before, { focus: false });
   }
@@ -897,14 +902,14 @@ export function createFloatingPanel({
       placedAt,
     );
   function resolveLanding(thread) {
-    const route = trail.at(-1);
-    const fromThreads = trail.at(-2)?.view === "threads";
+    const route = trail.value.at(-1);
+    const fromThreads = trail.value.at(-2)?.view === "threads";
     const at = openThreads().indexOf(thread);
     const mayLand = retainUserIntent();
     let mayRestore = () => false;
     return {
       optimistic: () => {
-        if (!mayLand() || trail.at(-1) !== route) return false;
+        if (!mayLand() || trail.value.at(-1) !== route) return false;
         const kept = openThreads();
         const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
         if (next) {
@@ -921,7 +926,7 @@ export function createFloatingPanel({
       // reading, and a view opening or closing then would move the panel under no
       // press. The undo door passes the intent of the press that asked for it.
       reverse: (may = mayRestore) => {
-        if (!may() || trail.at(-1)?.view !== "threads") return;
+        if (!may() || trail.value.at(-1)?.view !== "threads") return;
         const row = shownView()?.querySelector(
           `.lf-fp-thread[data-key="${CSS.escape(thread.key)}"]`,
         );
@@ -935,32 +940,32 @@ export function createFloatingPanel({
   // acted since, so the reply they did not write in goes with the reopening
   // (folding.js, `settleThread`).
   function reopenLanding() {
-    const route = trail.at(-1);
+    const route = trail.value.at(-1);
     const mayLand = retainUserIntent();
     let mayRestore = () => false;
     return {
       optimistic: () => {
         const input = fieldInput();
-        if (!mayLand() || trail.at(-1) !== route || !input) return false;
+        if (!mayLand() || trail.value.at(-1) !== route || !input) return false;
         focusDestination(input, "move");
         mayRestore = retainUserIntent();
         return true;
       },
       reverse: (may = mayRestore) => {
         const view = shownView();
-        if (!may() || trail.at(-1) !== route || !view) return;
+        if (!may() || trail.value.at(-1) !== route || !view) return;
         focusDestination(view, "return");
       },
     };
   }
   function back() {
-    const before = trail.at(-1);
-    trail = trail.slice(0, -1);
+    const before = trail.value.at(-1);
+    trail.value = trail.value.slice(0, -1);
     transition(before);
   }
   function close() {
-    const before = trail.at(-1);
-    trail = [];
+    const before = trail.value.at(-1);
+    trail.value = [];
     searching = false;
     transition(before);
   }
@@ -977,9 +982,9 @@ export function createFloatingPanel({
     run();
   }
   function setMenu(on) {
-    if (menuOpen === on) return;
-    menuOpen = on;
-    menuAt = null;
+    if (menuOpen.value === on) return;
+    menuOpen.value = on;
+    menuAt.value = null;
     menuRoom = null;
     held = null;
     paint();
@@ -990,12 +995,12 @@ export function createFloatingPanel({
   // came by key, or from outside the panel, as `g V` does, stands on the first row the
   // list offers, and going back, on the row that opened it.
   function showMenuAt(level) {
-    const before = menuOpen ? menuAt : undefined;
+    const before = menuOpen.value ? menuAt.value : undefined;
     if (before && level && routeKey(before) === routeKey(level)) return;
     const outside = !standingIn(host);
     if (renderedUnder(focused(), menu)) focusDestination(leaf, "return");
-    menuOpen = true;
-    menuAt = level;
+    menuOpen.value = true;
+    menuAt.value = level;
     menuRoom = null;
     held = null;
     paint();
@@ -1170,11 +1175,11 @@ export function createFloatingPanel({
   // read a short reply.
   let unreadSeat = null;
   function decideUnreadSeat() {
-    const route = trail.at(-1);
+    const route = trail.value.at(-1);
     if (route?.view !== "thread" || unreadSeat !== null) return;
     const key = routeKey(route);
     afterReadingPass(() => {
-      const top = trail.at(-1);
+      const top = trail.value.at(-1);
       if (!top || routeKey(top) !== key || unreadSeat !== null) return;
       unreadSeat = (threadByKey(route.thread)?.unread.length ?? 0) > 0;
       if (unreadSeat) paint();
@@ -1213,7 +1218,7 @@ export function createFloatingPanel({
   let rewriting = false;
   let spare = false;
   const holdThread = (height) => {
-    const top = trail.at(-1);
+    const top = trail.value.at(-1);
     if (top?.view !== "thread" || rooms.has(routeKey(top)) || height === null)
       return false;
     rooms.set(routeKey(top), height);
@@ -1244,7 +1249,7 @@ export function createFloatingPanel({
       ),
     );
   function pressAt(node, landed = null) {
-    const top = trail.at(-1);
+    const top = trail.value.at(-1);
     const view = openView();
     if (top?.view !== "thread" || !view || !(node instanceof Element)) return;
     const inView = renderedUnder(node, view);
@@ -1289,7 +1294,7 @@ export function createFloatingPanel({
   });
   const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
   onStanding((node, cause) => {
-    const top = trail.at(-1);
+    const top = trail.value.at(-1);
     if (top?.view !== "thread" || cause === "drop") return;
     const view = openView();
     const writing = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
@@ -1304,7 +1309,7 @@ export function createFloatingPanel({
     paint();
   });
   function holdRoom() {
-    const top = trail.at(-1);
+    const top = trail.value.at(-1);
     if (!top || top.view === "thread" || rooms.has(routeKey(top))) return false;
     const view = stage.querySelector(".lf-fp-view:not([data-leaving])");
     if (!view || view.querySelector(".lf-fp-asked:empty")) return false;
@@ -1326,7 +1331,7 @@ export function createFloatingPanel({
   let placed = null;
   // Read where the reader's drawing lands, after layout and before the frame is shown.
   function fitAnswer() {
-    const top = trail.at(-1);
+    const top = trail.value.at(-1);
     const view = openView();
     const outlet = outletOf();
     if (top?.view !== "thread" || !view || !outlet) {
@@ -1459,7 +1464,7 @@ export function createFloatingPanel({
   // news has taken it off offer.
   let seats = [];
   function holdMenu() {
-    if (!menuOpen || held !== null || !statusReading()) return false;
+    if (!menuOpen.value || held !== null || !statusReading()) return false;
     const state = menu.querySelector(".lf-fp-state");
     if (!state) return false;
     const lines = (part) => {
@@ -1475,7 +1480,7 @@ export function createFloatingPanel({
     return true;
   }
   function transition(before, { focus = true } = {}) {
-    const after = trail.at(-1);
+    const after = trail.value.at(-1);
     postureMoved = true;
     // The thread the user stands in as the change begins, on the page or in the panel,
     // read before the paint that may take its view away.
@@ -1557,7 +1562,7 @@ export function createFloatingPanel({
       void Promise.resolve(drawn).then(() => {
         const at = shownView();
         const target = at && ((!coarse() && viewParts.reply(at)) || at);
-        if (target && trail.at(-1) === route && intent())
+        if (target && trail.value.at(-1) === route && intent())
           focusDestination(target, "move");
       });
       return;
@@ -1655,7 +1660,7 @@ export function createFloatingPanel({
         () => {},
         {
           disabled: entry.disabled,
-          role: menuOpen ? "menuitem" : null,
+          role: menuOpen.value ? "menuitem" : null,
           row: entry.key,
           title: entry.value || null,
         },
@@ -1678,7 +1683,7 @@ export function createFloatingPanel({
       {
         urgent: Boolean(entry.urgent),
         disabled: entry.disabled,
-        role: menuOpen ? "menuitem" : null,
+        role: menuOpen.value ? "menuitem" : null,
         row: entry.key,
         opens: view === "versions",
       },
@@ -1686,26 +1691,26 @@ export function createFloatingPanel({
   }
   // The menu, or the list standing in its place under a head that goes back to it.
   function menuTemplate() {
-    if (!menuAt)
+    if (!menuAt.value)
       return html`<div class="lf-fp-menu-page" role="none">${rootTemplate()}</div>`;
     return html`<div class="lf-fp-menu-page" role="none">
       <button
         type="button"
         role="menuitem"
         class="lf-fp-item lf-fp-menu-back"
-        aria-label=${`Back to the page menu from ${titleOf(menuAt)}`}
+        aria-label=${`Back to the page menu from ${titleOf(menuAt.value)}`}
         @click=${() => showMenuAt(null)}
       >
         <span class="lf-fp-label"
-          >${iconTemplate("next", "lf-fp-chevron")}<b>${titleOf(menuAt)}</b></span
+          >${iconTemplate("next", "lf-fp-chevron")}<b>${titleOf(menuAt.value)}</b></span
         >
       </button>
       ${
-        menuAt.view === "versions"
+        menuAt.value.view === "versions"
           ? versionsList()
-          : menuAt.view === "errors"
+          : menuAt.value.view === "errors"
             ? errorsList()
-            : groupList(menuAt.group)
+            : groupList(menuAt.value.group)
       }
     </div>`;
   }
@@ -2103,16 +2108,16 @@ export function createFloatingPanel({
     leaves: ".lf-fp-page[href]",
   });
   const listRows = () => {
-    const rows = LIST_ROWS[trail.at(-1)?.view];
+    const rows = LIST_ROWS[trail.value.at(-1)?.view];
     const view = shownView();
     return rows && view ? [...view.querySelectorAll(rows)] : [];
   };
-  const threadRows = () => (trail.at(-1)?.view === "threads" ? listRows() : []);
+  const threadRows = () => (trail.value.at(-1)?.view === "threads" ? listRows() : []);
   const openView = () =>
     stage.querySelector('.lf-fp-view[data-view="thread"]:not([data-leaving])');
   const outletOf = () => openView()?.querySelector(".lf-fp-outlet") ?? null;
   function nominate(collection, parts) {
-    const top = trail.at(-1);
+    const top = trail.value.at(-1);
     // On draws each question asked in words as its message, in its card's outlet.
     if (top?.view === "queue") {
       for (const outlet of stage.querySelectorAll(
@@ -2159,7 +2164,7 @@ export function createFloatingPanel({
   // below it, and Escape from the reply returns to the view, as a card's reply returns
   // to the card.
   const openIn = (view) => {
-    const top = trail.at(-1);
+    const top = trail.value.at(-1);
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     return thread &&
       !view.hasAttribute("data-leaving") &&
@@ -2318,7 +2323,7 @@ export function createFloatingPanel({
   // user's list, turned to it where the view shows the agent's, else opened or closed.
   function openOnMe() {
     const turned = chooseQueueTab("you");
-    if (turned && trail.at(-1)?.view === "queue") paint();
+    if (turned && trail.value.at(-1)?.view === "queue") paint();
     else open({ view: "queue" });
   }
   // Each list in the `m` walk's order (queue-walk.js, `inWalkOrder`), so the cards the
@@ -2357,7 +2362,7 @@ export function createFloatingPanel({
   };
   let walkedLanded = null;
   function landWalked() {
-    const key = trail.at(-1)?.view === "queue" ? walkedStop() : null;
+    const key = trail.value.at(-1)?.view === "queue" ? walkedStop() : null;
     if (key === walkedLanded) return;
     walkedLanded = key;
     const view = shownView();
@@ -2775,7 +2780,7 @@ export function createFloatingPanel({
     focusDestination(head.querySelector(".lf-fp-search"), "move");
   }
   function headTemplate(top) {
-    const parent = trail.at(-2);
+    const parent = trail.value.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
     /** @type {unknown} */
     let aux = nothing;
@@ -2961,14 +2966,14 @@ export function createFloatingPanel({
 
   // ---------- paint ----------
   function setRest(rest) {
-    const before = trail.at(-1);
+    const before = trail.value.at(-1);
     // Folding takes away whatever the user stood on in the panel but the leaf, so it
     // keeps them on the leaf it folds to; from the page they stay where they are.
     const inside = standingIn(host);
     prefs().setRest(rest);
-    trail = [];
-    menuOpen = false;
-    menuAt = null;
+    trail.value = [];
+    menuOpen.value = false;
+    menuAt.value = null;
     menuRoom = null;
     held = null;
     transition(before, { focus: false });
@@ -2993,7 +2998,7 @@ export function createFloatingPanel({
       // A thread's view draws a thread of the reading. One the reading no longer holds,
       // as a refused send's or an undone comment's, leaves it nothing to draw, so it goes
       // with its thread, as a card does (margin-projection.js), whoever opened it.
-      const top = trail.at(-1);
+      const top = trail.value.at(-1);
       if (top?.view === "thread" && !threadByKey(top.thread)) close();
       paintNow();
       if ([holdRoom(), holdMenu()].some(Boolean)) paintNow();
@@ -3015,7 +3020,7 @@ export function createFloatingPanel({
   // card standing without its question (thread/held-news.js).
   const asked = new WeakSet();
   function seatOnItems() {
-    if (trail.at(-1)?.view !== "queue") return;
+    if (trail.value.at(-1)?.view !== "queue") return;
     let draw = false;
     for (const card of stage.querySelectorAll(
       ".lf-fp-view:not([data-leaving]) .lf-fp-on-item[data-key]",
@@ -3033,7 +3038,7 @@ export function createFloatingPanel({
   // once the drawing it waits for lands: on the panel's paint, the reader's presentation,
   // or the outlet's resize (`fit`).
   function landReader() {
-    const top = trail.at(-1);
+    const top = trail.value.at(-1);
     if (!landAtEnd || top?.view !== "thread" || top.thread !== landAtEnd.key) return;
     const view = stage.querySelector(
       '.lf-fp-view[data-view="thread"]:not([data-leaving])',
@@ -3049,18 +3054,18 @@ export function createFloatingPanel({
     decideUnreadSeat();
   }
   function paintNow() {
-    const top = trail.at(-1) ?? null;
-    const folded = prefs().rest === "mark" && !top && !menuOpen;
+    const top = trail.value.at(-1) ?? null;
+    const folded = prefs().rest === "mark" && !top && !menuOpen.value;
     keeps(host, "data-rest", folded ? "mark" : "row");
     keeps(host, "data-open", top ? top.view : null);
-    keeps(host, "data-menu", menuOpen ? "" : null);
+    keeps(host, "data-menu", menuOpen.value ? "" : null);
     keeps(mark, "class", `lf-dot${status().tone ? ` ${status().tone}` : ""}`);
     keeps(
       leaf,
       "aria-label",
       folded ? `Unfold Leaf · ${status().summary}` : `Page menu · ${status().summary}`,
     );
-    keeps(leaf, "aria-expanded", folded ? null : String(menuOpen));
+    keeps(leaf, "aria-expanded", folded ? null : String(menuOpen.value));
 
     // What waits on the user, which the folded leaf carries as a badge and a dot.
     const onUser = onUserCount();
@@ -3077,16 +3082,20 @@ export function createFloatingPanel({
     );
     keeps(errorDot, "data-shown", unseen ? "" : null);
 
-    render(menuOpen ? menuTemplate() : nothing, menu);
+    render(menuOpen.value ? menuTemplate() : nothing, menu);
     // A copy control the menu keeps for its next showing leaves the list the render just
     // took down, which it would otherwise hold whole, rows and all, as its parent.
     for (const copy of [...copyItems.values(), ...copies.values()])
       if (!copy.isConnected) copy.remove();
-    keeps(menu, "data-level", menuOpen && menuAt ? menuAt.view : null);
-    keeps(menu, "style", menuOpen && menuRoom ? `height: ${menuRoom}px` : null);
+    keeps(
+      menu,
+      "data-level",
+      menuOpen.value && menuAt.value ? menuAt.value.view : null,
+    );
+    keeps(menu, "style", menuOpen.value && menuRoom ? `height: ${menuRoom}px` : null);
     // A text to select, which About holds where no clipboard copies it, is no menu's row.
     keeps(menu, "role", menu.querySelector("textarea") ? "dialog" : "menu");
-    if (menuOpen) {
+    if (menuOpen.value) {
       const rows = menuRows();
       rove(rows, rows.includes(focused()) ? focused() : rows[0]);
     }
@@ -3397,8 +3406,8 @@ export function createFloatingPanel({
       paint();
       return;
     }
-    setMenu(!menuOpen);
-    if (menuOpen && keyed) {
+    setMenu(!menuOpen.value);
+    if (menuOpen.value && keyed) {
       const first = menu.querySelector("button");
       if (first) focusDestination(first, "move");
     }
@@ -3411,7 +3420,7 @@ export function createFloatingPanel({
   // notice by itself, since a folded panel has no field to say it in. An error the
   // folded panel holds waits under the leaf's dot.
   const peekAsks = () =>
-    menuOpen
+    menuOpen.value
       ? null
       : peekAsked === leaf
         ? STATUS
@@ -3484,14 +3493,14 @@ export function createFloatingPanel({
               paint();
             },
           };
-    if (menuOpen && menuAt)
+    if (menuOpen.value && menuAt.value)
       return {
         root: host,
         title: "back to menu",
         description: "Go back from the list to the page menu",
         out: () => showMenuAt(null),
       };
-    if (menuOpen)
+    if (menuOpen.value)
       return {
         root: host,
         title: "close menu",
@@ -3501,11 +3510,11 @@ export function createFloatingPanel({
           focusDestination(leaf, "return");
         },
       };
-    if (!trail.length) return null;
+    if (!trail.value.length) return null;
     return {
       root: host,
-      title: `close ${titleOf(trail.at(-1)).toLowerCase()}`,
-      description: `Close ${titleOf(trail.at(-1))}`,
+      title: `close ${titleOf(trail.value.at(-1)).toLowerCase()}`,
+      description: `Close ${titleOf(trail.value.at(-1))}`,
       // Putting a view away returns the user to the page, where the view's thread or
       // list took them from.
       out: () => {
@@ -3532,7 +3541,7 @@ export function createFloatingPanel({
   };
   // One walk over whichever list is open, the menu while it stands and the view's list
   // otherwise, so each key has one meaning and one row in the command reference.
-  const walkedRows = () => (menuOpen ? menuRows() : listRows());
+  const walkedRows = () => (menuOpen.value ? menuRows() : listRows());
   keys(
     host,
     "In the floating panel",
@@ -3546,7 +3555,7 @@ export function createFloatingPanel({
         // position over either list.
         position: () => null,
         landed: (row) => rove(walkedRows(), row),
-      }).map((row) => ({ ...row, when: () => menuOpen || inList() }))
+      }).map((row) => ({ ...row, when: () => menuOpen.value || inList() }))
     ).concat(
       // → goes into the list a row opens, as its chevron points, and ← back to the menu.
       {
@@ -3555,11 +3564,11 @@ export function createFloatingPanel({
         description:
           "Open the list a row of the page menu leads to, or go back to the menu",
         title: "open or leave a list",
-        when: () => menuOpen && renderedUnder(focused(), menu),
+        when: () => menuOpen.value && renderedUnder(focused(), menu),
         run: (binding) => {
           const [backward] = rowArrows(menu);
           if (binding === backward) {
-            if (menuAt) showMenuAt(null);
+            if (menuAt.value) showMenuAt(null);
           } else if (focused()?.hasAttribute("data-opens")) focused().click();
         },
       },
@@ -3571,7 +3580,7 @@ export function createFloatingPanel({
         description: `Leave the page menu ${key === "Tab" ? "forward" : "backward"}`,
         title: key === "Tab" ? "leave forward" : "leave backward",
         native: true,
-        when: () => menuOpen && renderedUnder(focused(), menu),
+        when: () => menuOpen.value && renderedUnder(focused(), menu),
         run: () => {
           focusDestination(leaf, "move");
           setMenu(false);
@@ -3595,13 +3604,13 @@ export function createFloatingPanel({
         run: findThreads,
       },
     ],
-    () => trail.at(-1)?.view === "threads",
+    () => trail.value.at(-1)?.view === "threads",
   );
   // Versions is a list for choosing, as the menu is, so while it holds focus the
   // page's character keys rest rather than move the page under it, and a version's
   // number shows it. Two doors stay open: `?`, and Go-to, whose `g V` puts Versions
   // away as it opened it.
-  const versionsShown = () => menuOpen && menuAt?.view === "versions";
+  const versionsShown = () => menuOpen.value && menuAt.value?.view === "versions";
   const numbered = () =>
     versionsReading()
       .rows.filter(({ version }) => version !== null && version <= 9)
@@ -3649,7 +3658,7 @@ export function createFloatingPanel({
       keys: ["Escape"],
       description: "Leave the comment field, keeping the view open above it",
       title: "leave field",
-      when: () => !menuOpen && trail.length > 0,
+      when: () => !menuOpen.value && trail.value.length > 0,
       run: () => focusDestination(leaf, "return"),
     },
   ]);
@@ -3678,7 +3687,8 @@ export function createFloatingPanel({
   onStanding((node, _cause, left) => {
     // The menu lasts while the user stands in it or on the leaf that opened it, so Tab
     // past its row, or a press in the field, puts it away.
-    if (menuOpen && node && node !== leaf && !renderedUnder(node, menu)) setMenu(false);
+    if (menuOpen.value && node && node !== leaf && !renderedUnder(node, menu))
+      setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
     // Stepping in from the page holds where the user stood. A row the panel just took
     // away, as a pressed menu row hands the user to the leaf, is no longer under the
@@ -3697,8 +3707,8 @@ export function createFloatingPanel({
     "pointerdown",
     (event) => {
       if (event.composedPath().includes(host) || !nativeModalAdmits(host)) return;
-      if (menuOpen) setMenu(false);
-      if (trail.length) close();
+      if (menuOpen.value) setMenu(false);
+      if (trail.value.length) close();
     },
     true,
   );
@@ -3716,7 +3726,7 @@ export function createFloatingPanel({
   }
   const doors = Object.freeze({
     threads: {
-      shows: () => trail.at(-1)?.view === "threads",
+      shows: () => trail.value.at(-1)?.view === "threads",
       press: () => {
         filter = "open";
         query = "";
@@ -3724,17 +3734,17 @@ export function createFloatingPanel({
       },
     },
     queue: {
-      shows: () => trail.at(-1)?.view === "queue" && queueTab === "you",
+      shows: () => trail.value.at(-1)?.view === "queue" && queueTab === "you",
       press: openOnMe,
     },
     leaves: {
-      shows: () => trail.at(-1)?.view === "leaves",
+      shows: () => trail.value.at(-1)?.view === "leaves",
       press: () => open({ view: "leaves" }),
     },
     versions: {
-      shows: () => menuOpen && menuAt?.view === "versions",
+      shows: () => menuOpen.value && menuAt.value?.view === "versions",
       press: () =>
-        menuOpen && menuAt?.view === "versions"
+        menuOpen.value && menuAt.value?.view === "versions"
           ? putVersionsAway()
           : showMenuAt({ view: "versions" }),
     },
@@ -3750,7 +3760,7 @@ export function createFloatingPanel({
   function showForSample({ thread, status }) {
     const wanted = thread ? threadByKey(thread) : null;
     if (thread && !wanted) return Promise.resolve(false);
-    const top = trail.at(-1);
+    const top = trail.value.at(-1);
     const shown = top?.view === "thread" ? threadByKey(top.thread)?.key : null;
     if (
       (wanted?.key ?? null) !== (shown ?? null) &&
@@ -3775,7 +3785,7 @@ export function createFloatingPanel({
   // still shows the thread, so its restore changes nothing. A view opened by the
   // user's next visit does not come back (restore-state.js); this is not that.
   function captureStanding() {
-    const top = trail.at(-1);
+    const top = trail.value.at(-1);
     const view = openView();
     if (top?.view !== "thread" || !view) return null;
     return {
@@ -3786,12 +3796,12 @@ export function createFloatingPanel({
   function restoreStanding(standing) {
     const thread = standing && threadByKey(standing.thread);
     if (!thread) return false;
-    if (trail.at(-1)?.thread === thread.key && openView()) return true;
+    if (trail.value.at(-1)?.thread === thread.key && openView()) return true;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
     landAtEnd = null;
     void present({ release: true }).then(() => {
       const view = openView();
-      if (view && trail.at(-1)?.thread === thread.key)
+      if (view && trail.value.at(-1)?.thread === thread.key)
         moveScrollerBy(view, standing.scroll - view.scrollTop);
     });
     return true;
@@ -3834,7 +3844,7 @@ export function createFloatingPanel({
       // the user's place in it where they stood in the panel, read before the panel's
       // reader, and the message they stood on, goes.
       yielded: () => {
-        const top = trail.at(-1);
+        const top = trail.value.at(-1);
         if (top?.view !== "thread") return null;
         const focus = standingIn(host);
         const message = focus
@@ -3857,7 +3867,7 @@ export function createFloatingPanel({
             unplaced.delete(thread.key);
             // The page draws it, so a view of it here goes, as On the page puts it
             // away, and the thread shows once.
-            const top = trail.at(-1);
+            const top = trail.value.at(-1);
             if (top?.view === "thread" && threadByKey(top.thread)?.key === thread.key)
               close();
             return false;
@@ -3879,7 +3889,7 @@ export function createFloatingPanel({
     registerNoticePresentation(() => paint());
     // An error arriving while the user reads the list is seen there.
     registerErrorPresentation(() => {
-      if (menuOpen && menuAt?.view === "errors") seeErrors();
+      if (menuOpen.value && menuAt.value?.view === "errors") seeErrors();
       paint();
     });
     registerStatusContextPresentation(() => paint());

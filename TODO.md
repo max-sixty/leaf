@@ -558,6 +558,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
   and needs no second copy — the same SVG with its fill set — but only an icon whose
   outline is a closed shape fills cleanly. Trigger: a user misreads what a pin holds.
+- **#30 — Try a feed of ready-to-approve actions.** An agent pass prepares
+  actions, such as a drafted email, and the user approves, edits, dismisses or
+  discusses each. Every verb exists as an item; Leaf lacks an agent that runs
+  unprompted and a list across pages. The [feed note](notes/feeds/README.md) waits on
+  the user's pick between a "Today" page owned by one background session and On me
+  across every page, and on whether agents' offers become items.
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).

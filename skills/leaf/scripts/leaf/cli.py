@@ -1137,8 +1137,12 @@ def response_reply(
     which waits on them until their next message in the thread. A progress line
     (--ephemeral) or a failure (--failure) takes none of them.
 
-    The reply can also set frozen HTML, the thread's title and a new anchor. Saved
-    page edits are checked and made live before it posts. After an answer posts,
+    The reply can also set frozen HTML, the thread's title and a new anchor. It
+    publishes your saved page edits with it, checking them as `page check` does
+    without a browser: an error refuses the reply, and the first reply on a revision
+    notes the advice `page check` gives on its source. Nothing runs in a browser,
+    where `page check` runs a page's scripts and data widgets; one that fails for
+    the user arrives as an `error` event. After an answer posts,
     your turn's final message is not posted as a second reply; an --ephemeral line
     does not change that. Rerunning a reply that already posted prints the earlier
     one; give a retried --ephemeral line an --attempt so it posts once.
@@ -1181,8 +1185,8 @@ def thread_reply(dir: str, thread: str, **options) -> dict | None:
     """Post a new agent message to THREAD (--text or stdin).
 
     A message is refused while the thread owes a response; answer it with
-    `leaf response reply <answer.ref>`. --ephemeral posts progress.
-    Saved page edits are validated and activated before posting.
+    `leaf response reply <answer.ref>`. --ephemeral posts progress. Saved page
+    edits are checked and published as `leaf response reply` says.
     """
     from leaf.thread import post_reply
 

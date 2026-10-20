@@ -1004,7 +1004,11 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     sample = page.locator("#bg-margin-layer-status")
     sample.scroll_into_view_if_needed()
     child = sample.frame_locator("iframe")
-    status = child.locator('.lf-margin-entry[data-lf-kinds="sent"]')
+    # The receipt reads Sent, and Waiting for pickup two minutes after the gallery
+    # opened, which a slow runner can reach by now; either pins the same way.
+    status = child.locator(
+        '.lf-margin-entry:is([data-lf-kinds="sent"], [data-lf-kinds="waiting"])'
+    )
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
     expect(child.get_by_role("button", name="On me", exact=True)).to_be_visible()

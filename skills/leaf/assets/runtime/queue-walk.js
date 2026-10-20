@@ -365,13 +365,11 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "m",
         title: "Next on me",
-        description: "Next item waiting on me",
       },
       {
         id: "queue.previous",
         binding: "Shift+m",
         title: "Previous on me",
-        description: "Previous item waiting on me",
       },
     ],
     title: "On me",

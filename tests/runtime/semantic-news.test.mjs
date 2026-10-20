@@ -160,7 +160,7 @@ test("structural questions own their thread obligation and reopening starts a ne
       ["user_obligation", "t", "choice"],
     ],
   );
-  assert.equal(semanticNewsNotice(current), "2 items waiting on me");
+  assert.equal(semanticNewsNotice(current), "2 waiting on me");
   assert.deepEqual(combineSemanticNews(reopened.news, reopened.news), reopened.news);
   assert.deepEqual(observeSemanticNews(reopened.observed, owed).news, []);
 });

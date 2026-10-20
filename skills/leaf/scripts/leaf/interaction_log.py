@@ -5,7 +5,8 @@ events. The developer response-time query interprets events through the current
 application readers. Browser gestures, request timings and run context use
 observations.jsonl.
 
-Browser transport is validated at admission. The reader skips malformed lines,
+A browser batch is admitted whole by `interaction-batch.schema.json`, the schema
+leaf.page's Worker admits it by too (`admit_batch`). The reader skips malformed lines,
 deduplicates retries and reports sequence gaps before selection. Stored ts belongs
 to the host clock; observed_at and monotonic_ms belong to one browser tab.
 
@@ -16,7 +17,6 @@ decide which fields to redact or omit for those users.
 
 import fcntl
 import json
-import math
 import os
 from collections import defaultdict
 from datetime import datetime
@@ -25,6 +25,10 @@ from pathlib import Path
 from .event_log import jsonl_line
 from .schema import INTERACTIONS_FILE
 from .state import now_iso, session_record
+
+BATCH_SCHEMA = json.loads(
+    Path(__file__).with_name("interaction-batch.schema.json").read_text()
+)
 
 
 def append_interactions(page_dir: Path, records: list[dict]) -> list[dict]:
@@ -45,15 +49,25 @@ def append_interactions(page_dir: Path, records: list[dict]) -> list[dict]:
     return records
 
 
+def admit_batch(batch: object) -> dict:
+    """The browser's batch, refused whole where it fails `BATCH_SCHEMA`, so the
+    local server and leaf.page take the same batches."""
+    # A harness hook records diagnostics through this module and loads no schema
+    # engine (`test_hook_registration`), so only admission imports one.
+    from .registry.schema import schema_error
+
+    if error := schema_error(BATCH_SCHEMA, batch):
+        raise ValueError(f"interaction batch: {error}")
+    return batch
+
+
 def client_records(session: str, page: str, entries: list[dict]) -> list[dict]:
-    """Validate browser observations and attach their host-owned identity.
+    """An admitted batch's observations with their host-owned identity.
 
     The browser's wall clock stays `observed_at`; stored `ts` is host receipt
     time for every source. Duration calculations use the browser's monotonic
     clock within its session. Diagnostic payload fields remain open.
     """
-    for entry in entries:
-        validate_client_entry(entry)
     return [
         {
             **{key: value for key, value in entry.items() if key != "ts"},
@@ -95,22 +109,6 @@ def interaction_time(value: str) -> datetime:
     if result.tzinfo is None:
         raise ValueError("interaction times require a timezone offset")
     return result
-
-
-def validate_client_entry(entry: object) -> None:
-    """Validate the common browser transport fields once, at admission."""
-    if not isinstance(entry, dict):
-        raise TypeError("interaction entry must be an object")
-    if not isinstance(entry.get("type"), str) or not entry["type"]:
-        raise ValueError("interaction type must be a nonempty string")
-    interaction_time(entry.get("observed_at"))
-    if type(entry.get("sequence")) is not int or entry["sequence"] < 1:
-        raise ValueError("interaction sequence must be a positive integer")
-    clock = entry.get("monotonic_ms")
-    if type(clock) not in (int, float) or not math.isfinite(clock) or clock < 0:
-        raise ValueError("interaction monotonic_ms must be finite and nonnegative")
-    if entry.get("visibility") not in ("visible", "hidden"):
-        raise ValueError("interaction visibility must be visible or hidden")
 
 
 def read_interactions(

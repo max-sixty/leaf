@@ -3,8 +3,8 @@
 
    The page writes `<video controls>`, and that stays its readable form: a page with no
    runtime, or one that failed to start, keeps the browser's controls. Once the runtime
-   runs, each video standing in the page, a widget's shadow stage included
-   (arrivals.js), trades `controls` for `data-lf-player`
+   runs, each video standing in the document or a widget's first shadow stage
+   (arrivals.js), where the bar can anchor to it, trades `controls` for `data-lf-player`
    while it stands, and gets the attribute back when it leaves. prepaint.js makes the
    trade for the served document's videos before their first paint, so the browser's
    controls never draw there to give way to the bar. The browsers' own
@@ -40,7 +40,7 @@ import {
   tabFromBlock,
   writeInsets,
 } from "./block-controls.js";
-import { headerLevels } from "./css-anchors.js";
+import { headerLevels, nameable } from "./css-anchors.js";
 import { focused } from "./focus.js";
 import { iconElement } from "./icons.js";
 import { keeps } from "./keeps.js";
@@ -229,7 +229,10 @@ export function watchVideos() {
   watchArrivals(`video[controls], video[${PLAYER}]`, [], {
     arriveBatch(videos) {
       // Read every video before any video is written, bar connected or anchor named.
-      const read = videos.map((video) => {
+      // A bar in chrome anchors only to a video the document can name: one in the
+      // document or the first shadow stage in (css-anchors.js). A video staged deeper
+      // keeps the browser's controls.
+      const read = videos.filter(nameable).map((video) => {
         const player = players.get(video) ?? prepare(video);
         return {
           player,

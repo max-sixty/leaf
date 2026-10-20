@@ -37,6 +37,7 @@ import {
   localScrollBy,
   marks,
   nameAnchor,
+  nameable,
   refreshAnchorView,
   resolveAnchor,
   scrollAxes,
@@ -2313,7 +2314,7 @@ function giveBack(video) {
 function watchVideos() {
   watchArrivals(`video[controls], video[${PLAYER}]`, [], {
     arriveBatch(videos) {
-      const read = videos.map((video) => {
+      const read = videos.filter(nameable).map((video) => {
         const player = players.get(video) ?? prepare(video);
         return {
           player,

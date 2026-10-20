@@ -8714,6 +8714,7 @@ function createFloatingPanel({
   function restoreStanding(standing) {
     const thread = standing && threadByKey(standing.thread);
     if (!thread) return false;
+    if (trail.at(-1)?.thread === thread.key && openView()) return true;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
     landAtEnd = null;
     void present({ release: true }).then(() => {

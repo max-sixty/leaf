@@ -1346,6 +1346,7 @@ export function createVersionController({
   async function activateRevision(doc, target) {
     const currentIntent = retainUserIntent();
     const view = captureView();
+    const retainedStanding = captureRetainedStanding();
     const editingContinuity = captureEditingContinuity();
     // A pending selection counts too: cancel its old-document request before the
     // authored page changes, then restore that base against the arriving revision.
@@ -1517,6 +1518,7 @@ export function createVersionController({
           syncLayout();
           if (currentIntent()) {
             restoreView(view, currentIntent);
+            restoreRetainedStanding(retainedStanding);
             restoreCarryScroll();
             await restoreEditingContinuity(editingContinuity, currentIntent);
           }

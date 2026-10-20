@@ -3402,6 +3402,7 @@ function createVersionController({
   async function activateRevision(doc, target) {
     const currentIntent = retainUserIntent();
     const view = captureView();
+    const retainedStanding = captureRetainedStanding();
     const editingContinuity = captureEditingContinuity();
     const comparedFrom = selectedBase();
     if (comparedFrom !== null) setDiff(false);
@@ -3523,6 +3524,7 @@ function createVersionController({
         syncLayout();
         if (currentIntent()) {
           restoreView(view, currentIntent);
+          restoreRetainedStanding(retainedStanding);
           restoreCarryScroll();
           await restoreEditingContinuity(editingContinuity, currentIntent);
         }

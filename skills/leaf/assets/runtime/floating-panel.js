@@ -3763,11 +3763,12 @@ export function createFloatingPanel({
     return present({ release: true }).then(() => true);
   }
 
-  // A live revision that loads a fresh document carries the thread open here, and where
-  // its view was read to, across it (version.js, the revision handoff): the reader is
-  // still at it, so the view comes back as they left it, without taking focus, which
-  // the reply's own editing continuity hands back. A view opened by the user's next
-  // visit does not come back (restore-state.js); this is not that.
+  // A live revision carries the thread open here, and where its view was read to,
+  // across it (version.js, `captureRetainedStanding`): the reader is still at it, so
+  // the view comes back as they left it, without taking focus, which the reply's own
+  // editing continuity hands back. A revision installed in place keeps the view, which
+  // still shows the thread, so its restore changes nothing. A view opened by the
+  // user's next visit does not come back (restore-state.js); this is not that.
   function captureStanding() {
     const top = trail.at(-1);
     const view = openView();
@@ -3780,6 +3781,7 @@ export function createFloatingPanel({
   function restoreStanding(standing) {
     const thread = standing && threadByKey(standing.thread);
     if (!thread) return false;
+    if (trail.at(-1)?.thread === thread.key && openView()) return true;
     open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
     landAtEnd = null;
     void present({ release: true }).then(() => {

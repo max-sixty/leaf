@@ -1155,6 +1155,7 @@ var syntaxLanguages = {
   "typescript": () => import("/vendor/syntax/typescript.js"),
   "yaml": () => import("/vendor/syntax/yaml.js")
 };
+var syntaxLanguageNames = { "shellscript": "bash", "bash": "bash", "sh": "bash", "shell": "bash", "zsh": "bash", "css": "css", "diff": "diff", "go": "go", "html": "html", "java": "java", "javascript": "javascript", "js": "javascript", "cjs": "javascript", "mjs": "javascript", "json": "json", "markdown": "markdown", "md": "markdown", "python": "python", "py": "python", "rust": "rust", "rs": "rust", "sql": "sql", "toml": "toml", "typescript": "typescript", "ts": "typescript", "cts": "typescript", "mts": "typescript", "yaml": "yaml", "yml": "yaml" };
 
 // runtime/syntax.js
 var registry2 = runtime.registry;
@@ -1209,7 +1210,7 @@ var LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
 var BLOCK = "pre > code[class]";
 var languageOf = (code) => {
   const lang = code.className.match(LANGUAGE_CLASS)?.[1];
-  return registry2.$languages.names.includes(lang) ? lang : void 0;
+  return Object.hasOwn(syntaxLanguageNames, lang) ? syntaxLanguageNames[lang] : void 0;
 };
 var tokenizing = /* @__PURE__ */ new WeakSet();
 async function highlightBlocks(root) {

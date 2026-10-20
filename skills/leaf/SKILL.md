@@ -40,9 +40,12 @@ When the harness sets `$LEAF`, use that launcher for every command shown as
 file is missing, report that the plugin payload is incomplete. In a checkout the
 launcher is `bin/leaf`. Pages usually live at `~/.local/state/leaf/pages/<slug>/`,
 but every command takes the directory explicitly; export or copy anything that
-must outlive the page directory. A command prints its result on stdout, as JSON
-unless its help names another format. On stderr it prints one JSON object per
-line for each refusal or note, with the words in `error` or `text`.
+must outlive the page directory. A command that takes a body, such as a reply's
+text, a changelog or a plan's JSON, takes it as `--text` inline, from the file
+`--file` names (`-` for stdin), or from a pipe or heredoc on stdin. A command
+prints its result on stdout, as JSON unless its help names another format. On
+stderr it prints one JSON object per line for each refusal or note, with the
+words in `error` or `text`.
 
 1. Read `references/conversation-loop.md`, "When to write", to record the work
    you take on. Run `leaf page init <page>`, adding a package when the page needs

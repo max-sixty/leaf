@@ -162,14 +162,17 @@ class ClaudeCode(Terminal):
         time.sleep(0.5)
         self.tmux("send-keys", "-t", self.pane, "Enter")
 
-    def escape(self) -> None:
-        """Press Escape until the turn has ended. A second press on an idle prompt
-        opens Claude Code's rewind menu, so each waits to see the first land."""
+    def escape(self, ended: Callable[[], bool]) -> None:
+        """Press Escape until `ended` says the turn has, waiting up to 5 s after
+        each press before pressing again. A press after the turn ended does harm:
+        on an idle prompt it opens Claude Code's rewind menu, and otherwise it
+        interrupts the turn a watch or a nudge opened next, which can start before
+        Claude Code's record reads idle."""
         for _ in range(3):
             self.tmux("send-keys", "-t", self.pane, "Escape")
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline:
-                if self.idle():
+                if ended():
                     return
                 time.sleep(0.25)
         raise click.ClickException(f"the turn went on after Escape\n{self.screen()}")
@@ -305,17 +308,24 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
         user.passed(name, started, *details)
         cc.keep(name)
 
+    def closed(turn: str) -> bool:
+        """Whether the page's claim has closed `turn`, or opened another after it."""
+        claim = page_claim(page)
+        return claim["turn_closed"] is not None or claim["turn"] != turn
+
+    def escape(turn: str) -> None:
+        """Press Escape on `turn` until Claude Code is idle or the claim has moved
+        past it."""
+        cc.escape(lambda: cc.idle() or closed(turn))
+
     def after_escape(name: str, turn: str) -> str:
         """What an Escape that ended `turn` left: required with the hooks module,
         reported without. The watch after Escape may already have woken a turn of
         its own, which opens only once `turn` has closed."""
-
-        def closed() -> bool:
-            claim = page_claim(page)
-            return claim["turn_closed"] is not None or claim["turn"] != turn
-
         cc.until(
-            lambda: closed() or not module, f"{name}: Escape left the turn open", 30
+            lambda: closed(turn) or not module,
+            f"{name}: Escape left the turn open",
+            30,
         )
         if module:
             cc.until(
@@ -324,7 +334,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
                 30,
             )
         return (
-            f"after Escape: turn {'closed' if closed() else 'open'}, "
+            f"after Escape: turn {'closed' if closed(turn) else 'open'}, "
             f"{'a' if watched() else 'no'} watch running, the page reads "
             f"{activity()}"
         )
@@ -393,7 +403,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     started = time.monotonic()
     user_turn("escape")
     turn = page_claim(page)["turn"]
-    cc.escape()
+    escape(turn)
     escaped = after_escape("escape", turn)
     before = nudged()
     user.comment("escape")
@@ -413,7 +423,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
         "woken: the turn read the comment before Escape",
     )
     before = nudged()
-    cc.escape()
+    escape(turn)
     escaped = after_escape("woken", turn)
     if module:
         # The stopped turn never read the comment, so the watch after Escape wakes

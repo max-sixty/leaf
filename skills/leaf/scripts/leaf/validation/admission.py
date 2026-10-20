@@ -1,6 +1,5 @@
 """What an agent's writer hands in: message markup, bodies, and the ids it names."""
 
-import sys
 from pathlib import Path
 
 from leaf.activity import answer_command
@@ -10,6 +9,7 @@ from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.findings import Finding, Rejected
 from leaf.passages import SourceReading
+from leaf.piped_input import piped_stdin
 from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
@@ -39,7 +39,7 @@ def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
     page exists. `check_markup` asks that of `--markup` and runs only when one is
     given; this asks it of the link and image destinations beside it, which is where
     the runtime resolves one — a path quoted in a sentence stays the author's words."""
-    body = text if text is not None else sys.stdin.read()
+    body = text if text is not None else piped_stdin()
     if not body and not allow_empty:
         raise Refused("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):

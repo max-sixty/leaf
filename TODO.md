@@ -120,11 +120,18 @@ has tried; settle that before building it.
   [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
   using current code and an unfamiliar author; two samples per task do not settle
   which compositions work generally.
-- **Keep agent activity intelligible throughout a task.** Run the
-  [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
-  multi-step work, and delegation. Show the plan as well as the current step;
-  check that the hosted website agent's status is readable without delaying its
-  reply. Keep delegated work visible while its watcher is live.
+- **Keep delegated work in the panel's status while its watcher is live.** The
+  [status evaluations](notes/user-feedback-responsiveness.md#status-evaluations)
+  pass, and the plan and to-do keep delegated work listed, but after the
+  coordinator's turn ends the status stops reading Working while its workers still
+  run. Decide whether Claude Code's `busy` record should keep it reading as work in
+  the background (the note's "Proposed improvements").
+- **Decide what the reply budget counts.** A small page change takes 21–42 s to
+  reply on every harness against a 7 s target, and Leaf's delivery and tool time is
+  0.3–2.6 s of it ([readings](notes/user-feedback-responsiveness.md#latency-targets-and-readings)).
+  Decide whether the target counts Leaf's share or the whole reply, and whether
+  `leaf response reply` should report what `leaf page check` does, saving the
+  agent a model call per revision.
 - **#24 — Measure time to an initial reviewable page and the value of review.**
   Retrospective replay now proves one usable Leaf candidate and one usable HTML
   candidate before their authors finished. Their observation triggers differ;

@@ -794,6 +794,22 @@ def file_bind(dir: str, binding: str, path: Path) -> dict:
     }
 
 
+def json_input(input_file):
+    """The JSON value a command's `--file` holds, or else its piped stdin
+    (`piped_input`)."""
+    from leaf.piped_input import piped_stdin
+
+    text = input_file.read() if input_file else piped_stdin()
+    if not text.strip():
+        raise click.ClickException("no JSON given")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise click.ClickException(
+            f"invalid JSON ({error.msg}, line {error.lineno})"
+        ) from error
+
+
 @cli.group(short_help="Set or clear page-bound external data.")
 def data() -> None:
     """Manage each bound source's current value, one JSON file per source."""
@@ -806,19 +822,13 @@ def data() -> None:
     "--file",
     "input_file",
     type=click.File("r", encoding="utf-8"),
-    default="-",
     help="JSON value to read (default: stdin)",
 )
 def data_set(dir: str, source: str, input_file) -> dict:
     """Validate and replace SOURCE with one complete JSON value."""
     from leaf.data import cmd_data_set
 
-    try:
-        value = json.loads(input_file.read())
-    except json.JSONDecodeError as error:
-        raise click.ClickException(
-            f"invalid JSON ({error.msg}, line {error.lineno})"
-        ) from error
+    value = json_input(input_file)
     return cmd_data_set(resolve_dir(dir), source, value)
 
 
@@ -1307,7 +1317,6 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> dict:
     "--file",
     "input_file",
     type=click.File("r", encoding="utf-8"),
-    default="-",
     help="JSON outline to read (default: stdin)",
 )
 def task_plan(dir: str, input_file) -> dict:
@@ -1329,10 +1338,5 @@ def task_plan(dir: str, input_file) -> dict:
     nothing; it stays on its list. `[]` clears the plan."""
     from leaf.plans import cmd_plan
 
-    try:
-        steps = json.loads(input_file.read())
-    except json.JSONDecodeError as error:
-        raise click.ClickException(
-            f"invalid JSON ({error.msg}, line {error.lineno})"
-        ) from error
+    steps = json_input(input_file)
     return cmd_plan(resolve_dir(dir), steps)

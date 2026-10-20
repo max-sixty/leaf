@@ -634,9 +634,9 @@ def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
         original.replace("Alpha and Gamma", "Beta and Epsilon")
     )
     assert activate_source(page_dir).created
-    (page_dir / "index.html").write_text(original.replace(
-        '<p id="wording">Alpha and Gamma</p>', ""
-    ))
+    (page_dir / "index.html").write_text(
+        original.replace('<p id="wording">Alpha and Gamma</p>', "")
+    )
     assert activate_source(page_dir).created
     assert [moved["values"] for moved in reply("--text", "Removed the wording.")] == [
         {"thread": roots[0]["id"], "section": None},

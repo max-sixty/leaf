@@ -33,9 +33,13 @@
     /* A press's face: as tall as a line of answers holding only words, so a press
        arriving in one moves nothing. Under a finger it is the row's line. */
     --lf-fp-press: 28px;
+    /* The panel is as wide as its measure (`--lf-fp-max`, wider while the field has
+       more room) where the window holds it, and the window less a gutter where not. */
+    --lf-fp-max: 540px;
+    --lf-fp-gutter: 24px;
     --lf-fp-width: min(
-      540px,
-      calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
+      var(--lf-fp-max),
+      calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right))
     );
     /* A view is as tall as what it holds, up to this: the window less the row's band
        and a band of the page above the box, so a long thread or list reads in most of
@@ -251,10 +255,7 @@
     display: grid;
   }
   .lf-floating-panel[data-expanded] {
-    --lf-fp-width: min(
-      760px,
-      calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
-    );
+    --lf-fp-max: 760px;
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
     max-height: 75dvh;
@@ -1530,7 +1531,7 @@
 
   @media screen and (width <= 480px) {
     :is(.lf-floating-panel, .lf-fp-ground) {
-      --lf-fp-width: calc(100vw - 20px - var(--lf-safe-left) - var(--lf-safe-right));
+      --lf-fp-gutter: 20px;
     }
     .lf-floating-panel[data-rest="mark"] {
       right: calc(16px + var(--lf-safe-right));

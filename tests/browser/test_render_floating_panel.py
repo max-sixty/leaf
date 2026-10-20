@@ -2729,6 +2729,25 @@ def test_a_long_draft_offers_more_room_at_a_press(browser, serve):
     assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=1)
 
 
+def test_more_room_on_a_phone_keeps_the_panel_its_width(browser, serve):
+    """On a phone the panel already spans the window less its gutter, so more room to
+    write leaves it as wide as it was. The wider panel's own width named the desktop's
+    24px gutter rather than the phone's 20px, so pressing for more room narrowed it."""
+    context = browser.new_context(viewport={"width": 390, "height": 800})
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    panel = page.locator(".lf-floating-panel")
+    expand = page.locator(".lf-fp-row > .lf-fp-expand")
+    field(page).click()
+    page.keyboard.type("A line of words long enough to wrap in the panel's field, " * 4)
+    expect(expand).to_be_visible()
+    settled(page)
+    narrow = panel.bounding_box()["width"]
+    expand.click()
+    expect(expand).to_have_attribute("aria-pressed", "true")
+    settled(page)
+    assert panel.bounding_box()["width"] == pytest.approx(narrow, abs=0.5)
+
+
 def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     """A long draft and an open view share the window: the view takes what the field
     leaves and scrolls inside it, so its head, where Close stands, stays in the window.

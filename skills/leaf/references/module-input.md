@@ -228,7 +228,7 @@ element drawn on; a moving visual listens for it and freezes what it shows.
 A widget's own text box is `offer(TEXT_FIELD)`, Leaf's Markdown editor, which shows the
 draft as the sent message will read, behaves like a textarea, and fires `input` only for
 the user's edits. `TEXT_FIELD` is its tag, and `TEXT_BOX` matches it or a native
-textarea. The field matches `:state(ready)` once its editor exists. When the field
+textarea. The field matches `:state(ready)` once it draws its words. When the field
 replaces text the user was reading, leave that text in place until the field is ready,
 so the scroller doesn't shrink.
 

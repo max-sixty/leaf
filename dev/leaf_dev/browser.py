@@ -90,11 +90,11 @@ def shell_executable() -> str:
     Chrome that ends first leaves both behind for every later launch to make `secd`
     read back. The shell has no keychain access and creates none.
 
-    Playwright reports where its full Chromium build would be whether or not that
-    build is installed, and `leaf-dev setup` installs the shell alone. Both sit under
-    one registry root at one build number, so the shell's path follows from
-    Chromium's; where a developer installed the full build instead, that is the
-    browser to hand over. The `chromium-<build>` directory is found by name rather
+    Playwright reports where its full Chromium build (Chrome for Testing) would be,
+    and `leaf-dev setup` installs it beside the shell for the evals that need full
+    Chrome. Both sit under one registry root at one build number, so the shell's path
+    follows from Chromium's; where a developer installed only the full build, that is
+    the browser to hand over. The `chromium-<build>` directory is found by name rather
     than by depth, because macOS nests the executable inside an app bundle and Linux
     does not.
 

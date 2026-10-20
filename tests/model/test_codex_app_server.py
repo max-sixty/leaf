@@ -1524,6 +1524,39 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
     assert after["milestones"]["answered"]["event_id"] == replies[0]["id"]
 
 
+def test_a_stream_reply_finishes_when_its_diagnostic_sink_is_unwritable(page_dir):
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Answer this input"},
+    )
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    cleanup_model.open_session_turn("codex-thread", "turn-1")
+    stream = codex_model.AppServerReplyStream(
+        "codex-thread",
+        "turn-1",
+        "delivery-1",
+        {
+            "page": str(page_dir),
+            "parent": comment["id"],
+            "responds": comment["id"],
+            "ref": response_reference(page_dir, comment),
+        },
+    )
+    # The diagnostic file cannot be opened, while normal page writes remain valid.
+    (page_dir / interaction_log_model.INTERACTIONS_FILE).mkdir()
+    assert stream.restore("The complete answer.")
+    reply = read_record(page_dir / "status.json")["stream"]["reply"]
+    assert reply["text"] == "The complete answer."
+    assert reply["responds"] == comment["id"]
+
+    assert stream.finish("completed", "The complete answer.") is None
+    [answer] = thread_model.successful_replies(
+        events_model.read_events(page_dir), comment["id"]
+    )
+    assert answer["text"] == "The complete answer."
+    assert read_record(page_dir / "status.json")["stream"]["reply"] is None
+
+
 def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir):
     comment = append_carried_log_record(
         page_dir,

@@ -525,7 +525,9 @@ class PageTransaction:
         """Publish provisional words and record their availability, not visibility.
 
         A nonblank transition records no text. Reconnects may repeat it; readers
-        select the first observation for the exact input and attempt.
+        select the first observation for the exact input and attempt. Diagnostic
+        I/O failure is reported without interrupting the published reply; explicit
+        diagnostic ingestion still propagates write failures (`interaction_log`).
         """
         self._write_stream({**stream, "reply": reply})
         if reply["text"].strip() and (
@@ -536,22 +538,29 @@ class PageTransaction:
                 for key in ("session", "turn", "attempt", "responds")
             )
         ):
-            append_interactions(
-                self.page_dir,
-                [
-                    {
-                        "source": "server",
-                        "type": "reply_stream_words",
-                        "input_id": reply["responds"],
-                        "parent": reply["parent"],
-                        "attempt": reply["attempt"],
-                        "session": reply["session"],
-                        "turn": reply["turn"],
-                        "agent": reply["agent"],
-                        "context": session_context(reply["session"], self.claim),
-                    }
-                ],
-            )
+            try:
+                append_interactions(
+                    self.page_dir,
+                    [
+                        {
+                            "source": "server",
+                            "type": "reply_stream_words",
+                            "input_id": reply["responds"],
+                            "parent": reply["parent"],
+                            "attempt": reply["attempt"],
+                            "session": reply["session"],
+                            "turn": reply["turn"],
+                            "agent": reply["agent"],
+                            "context": session_context(reply["session"], self.claim),
+                        }
+                    ],
+                )
+            except OSError as error:
+                print(
+                    f"Stream diagnostic not written: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
     def reserve_delivery_reply(
         self,

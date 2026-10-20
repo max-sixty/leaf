@@ -83,10 +83,10 @@ variants:
       - type: llm-rubric
         metric: captures-readable
         value: |
-          Pass only if the block holding the captures is granted width past the
-          reading column: `data-width="wide"` or `data-width="available"` on the
-          `lf-options` that holds them, or on the table or figure that holds them.
-          Fail if no block holding a capture carries `data-width`.
+          Pass only if the `lf-options` element holding the captures carries
+          `data-width="wide"` or `data-width="available"`. Width on a figure, image
+          or table inside an option does not widen the option, so it fails, as does
+          a group with no `data-width`.
   compact-values:
     metadata:
       purpose: "Choices: a value that names the whole outcome stays a compact label."

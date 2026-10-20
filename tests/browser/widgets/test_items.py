@@ -102,14 +102,15 @@ PICTURED_ITEM = """
     <h3>Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice" choose{width}>
       <lf-option id="{id}-yes"><strong>Show the goal and step</strong> A line over each item.
-        <figure><svg id="{id}-yes-picture" class="drawing" viewBox="0 0 480 240"
-          width="480" height="240" role="img" aria-label="Items under their step">
-          <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></figure>
+        <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
+          viewBox="0 0 480 240" width="480" height="240" role="img"
+          aria-label="Items under their step">
+          <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
       <lf-option id="{id}-no"><strong>Leave the list as it is</strong> Items as today.
-        <figure><svg id="{id}-no-picture" class="drawing" viewBox="0 0 480 240"
-          width="480" height="240" role="img" aria-label="Items as today">
-          <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></figure>
+        <p><a href="#{id}-no-picture"><svg id="{id}-no-picture" class="drawing"
+          viewBox="0 0 480 240" width="480" height="240" role="img" aria-label="Items as today">
+          <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
     </lf-options>
   </lf-ask>
@@ -127,8 +128,9 @@ PICTURED_ITEM_PAGE = leaf_page(
 def test_options_holding_pictures_lay_across(browser, serve):
     """An item whose options each hold a picture of what choosing it gives, with no
     figure before them, sets the cards side by side, so each picture stands over its
-    own pick and the two compare in one row. A group given `data-width` lays them
-    across its own width, where each picture draws at the size it was written."""
+    own pick and the two compare in one row, though each is wrapped in a link. A group given
+    `data-width` lays them across its own width, where each picture draws at the size
+    it was written."""
     page = open_page(browser, serve(PICTURED_ITEM_PAGE))
     resized(page, 1440, 900)
     at = page.evaluate(

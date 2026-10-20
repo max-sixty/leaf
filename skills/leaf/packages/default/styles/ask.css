@@ -50,9 +50,10 @@
  * above its own pick; a group given `data-width` lays them across its own width.
  * The content decides, so there is no attribute for it: an lf-ask of words alone keeps its
  * cards reading down, since there the cards are most of what the reader weighs. The rule
- * reads only those relations, a figure before the list or one an option holds itself:
- * where the heading sits, and what follows the list, change nothing. The list is the
- * lf-ask's own child because the variable that says so does not inherit.
+ * reads only those relations: a figure before the list, or one anywhere in an option,
+ * such as an image wrapped in the link that opens it. Where the heading sits, and what
+ * follows the list, change nothing. The list is the lf-ask's own child because the
+ * variable that says so does not inherit.
  *
  * It replaced a 16rem options track that floated the evidence beside a sticky list at
  * 50rem and wider. The track held only for a list no taller than its evidence: three
@@ -61,7 +62,7 @@
  * for the wide measure. */
 :scope:is(lf-ask):has(
     > :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options,
-    > lf-options > lf-option > :is(figure, img, svg, table, lf-chart, lf-shot)
+    > lf-options > lf-option :is(figure, img, svg, table, lf-chart, lf-shot)
   ) {
   --lf-options-across: 1;
 }

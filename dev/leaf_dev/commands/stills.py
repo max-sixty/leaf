@@ -238,8 +238,8 @@ def panel_leaf(page: Page) -> None:
 
 
 def panel_status_hover(page: Page) -> None:
-    """The expanded panel while the pointer rests over its status."""
-    page.locator(".lf-fp-field").hover()
+    """The expanded panel while the pointer rests over its leaf."""
+    page.locator(".lf-fp-leaf").hover()
 
 
 def open_threads(page: Page) -> None:

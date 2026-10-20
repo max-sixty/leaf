@@ -65,10 +65,13 @@ def hold_mode(path: Path, mode: int) -> None:
         path.chmod(mode)
 
 
-# A session's files that end with it: hook capability and turn observations.
+# A session's hook capability observations, which end with it.
 HOOKS_SUFFIX = "hooks"
 STEP_HOOK_SUFFIX = "step-hook"
+# Its lifecycle, and the pages it has been told to reconnect (`reconnect.NOTICES`),
+# which outlive it (`_retire`).
 SESSION_SUFFIX = "lifecycle"
+RECONNECT_SUFFIX = "reconnect"
 
 
 def session_file(session_id: str, suffix: str) -> Path:
@@ -643,9 +646,13 @@ def _retire(session_id: str) -> None:
         for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):
             session_file(session_id, suffix).unlink(missing_ok=True)
         return
-    kept = {session_file(session_id, SESSION_SUFFIX), session_lock_path(session_id)}
+    kept = {
+        session_file(session_id, SESSION_SUFFIX),
+        session_file(session_id, RECONNECT_SUFFIX),
+        session_lock_path(session_id),
+    }
     for path in _session_paths(session_id):
-        if path not in kept and path.suffix != ".reconnect" and not path.is_dir():
+        if path not in kept and not path.is_dir():
             _unlink_unheld(path)
 
 

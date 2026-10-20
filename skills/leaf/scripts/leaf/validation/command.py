@@ -12,13 +12,14 @@ gate needed one.
 from pathlib import Path
 
 from leaf.event_log import read_events
+from leaf.files import list_revisions
 from leaf.findings import Finding
 from leaf.layer import payload_provenance, provenance_label, same_leaf
 from leaf.leases import page_locked
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import layer_metadata
 
-from .source import check_source, source_advice
+from .source import check_source, moved_threads, source_advice
 
 
 def cmd_check(page_dir: Path, render: bool = False) -> dict:
@@ -70,10 +71,11 @@ def _check(page_dir: Path, render: bool) -> dict:
         return reported(1, [refusal])
     events = read_events(page_dir)
     result = check_source(page_dir, events)
+    active = max(list_revisions(page_dir), default=0)
     found = [
         *result.errors,
+        *moved_threads(page_dir, events, active - 1, result),
         *source_advice(page_dir, result),
-        *result.advice,
         *leaf_versions(page_dir),
     ]
     if result.errors:

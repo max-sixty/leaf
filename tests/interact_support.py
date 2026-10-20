@@ -36,7 +36,7 @@ import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
-from conftest import CLAUDE_IDENTITY, LEAF_COMMAND
+from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
 from leaf import cli as cli_model
 from leaf import codex as codex_model
 from leaf import codex_adapter as codex_adapter_model
@@ -2630,9 +2630,42 @@ def delivered_ref(page_dir: Path, input_id: str) -> str:
     return ref
 
 
+class _CheckedAppServerSocket:
+    """The stand-in's end of an App Server connection, which holds each message to
+    Codex's schema for its sender: what Leaf sends it, and what it sends Leaf."""
+
+    def __init__(self, socket, found: list):
+        self._socket = socket
+        self._found = found
+
+    def _check(self, raw, sender: str):
+        message = json.loads(raw)
+        if isinstance(message, dict):
+            collect_app_server_error(self._found, message, sender)
+
+    def recv(self, *args, **kwargs):
+        raw = self._socket.recv(*args, **kwargs)
+        self._check(raw, "Client")
+        return raw
+
+    def __iter__(self):
+        for raw in self._socket:
+            self._check(raw, "Client")
+            yield raw
+
+    def send(self, raw):
+        self._check(raw, "Server")
+        return self._socket.send(raw)
+
+    def __getattr__(self, name):
+        return getattr(self._socket, name)
+
+
 @pytest.fixture(name="app_server")
-def app_server_fixture():
-    """Serve an App Server stand-in for one handler, until the test ends.
+def app_server_fixture(app_server_messages):
+    """Serve an App Server stand-in for one handler, until the test ends. The
+    handler's socket holds every message either side sends to Codex's schema
+    (`app_server_messages`).
 
     The observer under test connects over a real websocket, so a test that made its
     own server owned three things: the server, the thread serving it, and the stop
@@ -2647,10 +2680,13 @@ def app_server_fixture():
     serving = []
 
     def serve(handle, socket_path=None) -> str:
+        def checked(socket):
+            return handle(_CheckedAppServerSocket(socket, app_server_messages))
+
         server = (
-            serve_unix_websocket(handle, str(socket_path))
+            serve_unix_websocket(checked, str(socket_path))
             if socket_path
-            else serve_websocket(handle, "127.0.0.1", 0)
+            else serve_websocket(checked, "127.0.0.1", 0)
         )
         worker = threading.Thread(target=server.serve_forever, daemon=True)
         worker.start()

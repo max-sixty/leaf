@@ -23,7 +23,7 @@ from leaf.styles import (
     css_syntax_errors,
     inline_style_at,
 )
-from leaf.thread_context import thread_ids, thread_structure
+from leaf.thread_context import thread_ids, thread_names, thread_structure
 from leaf.validation.instances import (
     instance_errors,
     reference_errors,
@@ -248,6 +248,50 @@ def _presentation_errors(parser) -> list[Finding]:
             css_syntax_errors(inline["style"], inline_style_at(inline), block=True)
         )
     return errors
+
+
+def moved_threads(
+    page_dir: Path, events: list, after: int, checked: SourceCheck
+) -> list[Finding]:
+    """The open threads that revisions after `after` moved and that still stand
+    where the move put them.
+
+    The server activates a valid save before anyone checks it, writing a `reanchor`
+    event for each thread the revision moved, so the moves are read from the log;
+    the moves activating `checked` would make (`checked.advice`) take their
+    thread's place. A reply that has since placed the thread itself, resolving it,
+    or taking back the reaction that opened it leaves the move out. `page check` asks for the moves at the active revision,
+    and the first reply on a revision (`thread._revision_advice`) for those since
+    the agent's last reply."""
+    from leaf.events import build_threads
+    from leaf.revision_artifact import active_enclosing
+
+    pending = {finding.values["thread"]: finding for finding in checked.advice}
+    names = thread_names(events)
+    placed = {}
+    for event in events:
+        if event["kind"] == "reanchor":
+            placed[event["thread"]] = event
+        elif event["kind"] == "reply" and "anchor" in event:
+            placed[names[event["parent"]]] = event
+    threads = build_threads(events, active_enclosing(page_dir))
+    recorded = [
+        Finding(
+            "relocated-anchor",
+            values={
+                "thread": thread,
+                "section": (event["anchor"] or {}).get("section"),
+            },
+            severity="advice",
+        )
+        for thread, event in placed.items()
+        if event["kind"] == "reanchor"
+        and event["revision"] > after
+        and thread not in pending
+        and thread in threads
+        and not threads[thread]["resolved"]
+    ]
+    return [*recorded, *pending.values()]
 
 
 def source_advice(page_dir: Path, checked: SourceCheck) -> list[Finding]:

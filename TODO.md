@@ -93,19 +93,16 @@ has tried; settle that before building it.
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
   user pages, between 2026-07-22 and 2026-10-11.
-- **Run `leaf` in Codex's sandbox without settings.** Codex's sandbox refuses what a
-  `leaf` command needs and, unlike Claude Code's, leaves a command no route out:
-  with network off it has no proxy, and a direct connection to 127.0.0.1 or a Unix
-  socket is refused (measured at codex-cli 0.160.0), so the bridge Claude Code's
-  sandboxed commands use (`bridge.py`) cannot serve it. A plugin's MCP server runs
-  outside both harnesses' sandboxes (measured on macOS). Ship one whose tool runs
-  `leaf` with the arguments it is given, have a sandboxed refusal name it, and
-  drop the README's Codex rule. Codex asks before each MCP tool call unless the
-  user approves the tool or sets the server's `default_tools_approval_mode =
-"approve"`; find whether a plugin can declare that itself. A session that never
-  runs `leaf` should pay nothing for this, as Claude Code's do for the bridge, so
-  find whether Codex starts a plugin's MCP server in every session or only on first
-  use.
+- **Decide where a sandboxed Codex task keeps its pages.** Leaf's MCP server
+  (`codex_tool.py`) runs `leaf` commands outside Codex's sandbox, but the agent
+  writes `index.html` with its own tools, which the sandbox confines to the task's
+  directory and the temporary directories. A page in the state home, where
+  `SKILL.md` says pages usually live, is outside them, so each write there asks
+  the user or, under `approval_policy = "never"`, fails. The sandboxed journey
+  (`leaf-dev journey codex-queue --sandbox`) passes because its page is in the
+  task's directory. Choose between pages in the task's directory under a sandbox,
+  a `leaf` command that writes the source, and asking users to add the state home
+  to `sandbox_workspace_write.writable_roots`.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before

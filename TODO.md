@@ -51,7 +51,7 @@ has tried; settle that before building it.
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
   behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
-  activity, selection, and reply editing in the implemented accordion.
+  activity, selection, and reply editing in the floating panel's Threads view.
 - **Keep a long Thread's current status visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
@@ -634,8 +634,10 @@ export` writes a file that boots the page's own runtime offline, and that file
   (`signal-polyfill`). Were the publication and those readings TC39 signals,
   `SignalWatcher` would draw again on a read's move, and the base class would keep
   only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
-  and data delivery. Every widget draws as a `LeafElement` now, so the change would
-  land in one class, but assessed on 2026-10-14 it is no simplification yet. Ordering
+  and data delivery. Some widgets draw as a `LeafElement`; of those that still extend
+  `HTMLElement`, `lf-tabs`, `lf-tally` and `lf-activity` repaint through
+  `watchProjection`, and once they move the change would land in one class. Assessed
+  on 2026-10-14, it is no simplification yet. Ordering
   no longer stands in the way: `LeafElement.scheduleUpdate` puts every update in the
   parent-ordered widget queue (`queueWidgetUpdate`), `SignalWatcher`'s included. What
   does: a move must claim the widget's region inside the publication that made it,
@@ -648,7 +650,7 @@ export` writes a file that boots the page's own runtime offline, and that file
   stage browsers ship, or Lit's signal integration exposes the notify a claim needs.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
-  experimental and about 500 lines in the core runtime, consumed by `lf-shot`,
+  experimental and about 820 lines in the core runtime, consumed by `lf-shot`,
   `lf-visual-review` and `leaf-dev stills`. A package could own it, so the core keeps
   only what every page needs. Try it on non-Leaf captures first (another site, a
   terminal, a plot); where the capture is a browser's, recording each element's box

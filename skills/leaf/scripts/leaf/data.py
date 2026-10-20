@@ -39,9 +39,12 @@ CONTRACTS = Record(
             }
         }
     ),
+    since=13,
 )
 PUBLICATION = Record(
-    "data-source", object_schema({"run": STRING, "updated": TIME, "value": {}})
+    "data-source",
+    object_schema({"run": STRING, "updated": TIME, "value": {}}),
+    since=13,
 )
 
 

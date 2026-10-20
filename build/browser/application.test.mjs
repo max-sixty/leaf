@@ -1046,20 +1046,19 @@ const lifecycle = [
     ],
   },
   {
-    name: "a comment accepted and then presented",
+    name: "a comment accepted and then logged",
     event: { kind: "comment", attempt: "gesture", text: "Note", revision: 1 },
     steps: [
       ["accept", "accepted", "gesture"],
-      ["log", "accepted:logged", "log"],
-      ["present", null, "log"],
+      ["log", null, "log"],
     ],
   },
   {
-    name: "a comment presented before its POST answers",
+    name: "a comment logged before its POST answers",
     event: { kind: "comment", attempt: "gesture", text: "Note", revision: 1 },
     steps: [
       ["log", "sending:logged", "log"],
-      ["present", "sending:presented", "log"],
+      ["present", "sending:logged", "log"],
       ["accept", null, "log"],
     ],
   },
@@ -1140,7 +1139,7 @@ test("refusal takes the gestures that depend on the refused one with it", () => 
   );
 });
 
-test("thread acceptance is semantic before presentation can retire its local handle", () => {
+test("a comment the log holds leaves the ledger once its POST accepts it", () => {
   const app = capture();
   const comment = {
     kind: "comment",
@@ -1158,12 +1157,34 @@ test("thread acceptance is semantic before presentation can retire its local han
   read.browser.receipts = [accepted];
   read.browser.views[1].thread.threads = [servedThread([accepted])];
   app.adopt(read);
-  app.accept("comment", accepted);
   assert.equal(app.read().effective.thread.all.length, 1);
   assert.equal(app.read().unresolved.length, 1);
-  app.present([accepted]);
+  app.accept("comment", accepted);
   assert.equal(app.read().unresolved.length, 0);
+  assert.equal(app.read().effective.thread.all.length, 1);
   assert.equal(app.read().effective.thread.all[0].root.id, "e1");
+});
+
+test("the reading that logs an accepted comment retires it in its own publication", () => {
+  const app = setup();
+  const comment = { kind: "comment", attempt: "note", text: "Note", revision: 1 };
+  app.enqueue(comment, "now");
+  const logged = { ...comment, id: "e1", seq: 1, author: "user", ts: "now" };
+  app.accept("note", logged);
+  const reading = state(2);
+  reading.browser.receipts = [logged];
+  reading.browser.views[1].thread.threads = [servedThread([logged])];
+  app.adopt(reading);
+  assert.deepEqual(app.read().unresolved, []);
+  // The pass drawing that reading still reads the thread as the user's gesture, and
+  // its proof moves nothing a paint reads.
+  assert.deepEqual(app.read().effective.thread.gestured, ["e1"]);
+  const adopted = app.read();
+  app.present([logged]);
+  assert.equal(app.read(), adopted);
+  // The next reading is news like any other.
+  app.adopt(state(3));
+  assert.deepEqual(app.read().effective.thread.gestured, []);
 });
 
 test("refusal removes a local thread without requiring a saved reading", () => {
@@ -1251,7 +1272,10 @@ for (const resolved of [null, { author: "user" }]) {
     assert.deepEqual(turn(), [owed, null]);
     const answer = { kind: "reply", attempt: "answer", id: "e-answer" };
     app.accept("answer", answer);
-    app.present([answer]);
+    const logged = state(3);
+    logged.browser.receipts = [answer];
+    logged.browser.views[1].thread.threads = accepted.browser.views[1].thread.threads;
+    app.adopt(logged);
     assert.deepEqual(app.read().unresolved, []);
     assert.deepEqual(turn(), [owed, resolved]);
 

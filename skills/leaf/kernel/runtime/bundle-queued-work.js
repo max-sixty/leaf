@@ -1551,9 +1551,11 @@ function admittedId(attempt, unresolved, receipts) {
   return unresolved.find((entry) => entry.event.attempt === attempt)?.admitted?.id ?? receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null;
 }
 function advance(entry, signal, admitted = null) {
+  const action = entry.event.kind === "action";
+  if (signal === "present" && !action) return entry;
   const state = LIFECYCLE[entry.state][signal];
   if (!state) return entry;
-  if (state === "accepted:presented" && entry.event.kind !== "action") return null;
+  if (state === "accepted:logged" && !action) return null;
   return { ...entry, state, admitted: entry.admitted ?? admitted };
 }
 function normalizedProjection(view) {
@@ -1902,6 +1904,10 @@ function createSemanticApplication({
     },
     authoritative: null,
     unresolved: [],
+    // The entries the adopted reading retired from the ledger by logging them, until the
+    // next reading is adopted. Their threads stay gestured while the page draws the
+    // reading that settled them, as they were while the ledger held them.
+    settled: [],
     // Content versions this tab has marked read and the log has not yet answered for.
     // Marking read is bookkeeping, not a gesture, so it has no place in the ordered
     // `unresolved` ledger; each leaves once the answer carrying it is applied.
@@ -1925,6 +1931,7 @@ function createSemanticApplication({
       null,
       [],
       [],
+      [],
       "waiting",
       true
     ),
@@ -1937,7 +1944,7 @@ function createSemanticApplication({
   let publicationDepth = 0;
   let activePresentation = null;
   if (presentation) presentation.seal(presentation.begin(initial.semanticEpoch));
-  function derive(document, state, unresolved, markingRead, phase, hostAvailable) {
+  function derive(document, state, unresolved, settled, markingRead, phase, hostAvailable) {
     const receipts = state?.browser.receipts ?? [];
     const local = unresolved.filter((entry2) => DRAWN_LOCALLY.has(entry2.state));
     const refused = unresolved.filter((entry2) => entry2.state === "refused");
@@ -2126,8 +2133,9 @@ function createSemanticApplication({
           threads: threads.filter(discussed)
         },
         // The threads the gestures this tab's ledger still holds concern, refused ones
-        // included until the reading they restore is drawn (held-news.js, `gesturedOn`).
-        gestured: [...new Set(unresolved.flatMap(threadsOfEntry))]
+        // included until the reading they restore is drawn, and those the adopted
+        // reading settled (held-news.js, `gesturedOn`).
+        gestured: [...new Set([...unresolved, ...settled].flatMap(threadsOfEntry))]
       },
       obligations: { phase, ...items },
       // The agent's plan in force, as the server read it (`plans.plan_reading`).
@@ -2160,6 +2168,7 @@ function createSemanticApplication({
         next.document,
         next.authoritative,
         next.unresolved,
+        next.settled,
         next.markingRead,
         next.phase,
         next.hostAvailable
@@ -2211,13 +2220,16 @@ function createSemanticApplication({
   });
   const transition = (signal, admitted) => {
     const left = [];
+    let moved2 = false;
     const unresolved = publisher.peek().unresolved.flatMap((item) => {
       if (!admitted.has(item.event.attempt)) return [item];
-      const next = advance(item, signal, admitted.get(item.event.attempt) ?? null);
-      if (!next) left.push(item.event.attempt);
+      const event = admitted.get(item.event.attempt) ?? null;
+      const next = advance(item, signal, event);
+      if (next !== item) moved2 = true;
+      if (!next) left.push({ ...item, admitted: item.admitted ?? event });
       return next ? [next] : [];
     });
-    return { unresolved, left };
+    return { unresolved, left, moved: moved2 };
   };
   const byAttempt = (receipts) => new Map(
     receipts.flatMap(
@@ -2342,7 +2354,7 @@ function createSemanticApplication({
       const prior = publisher.peek();
       if (!adoptable(state, document)) return false;
       const authoritative = structuredClone(state);
-      const { unresolved } = transition(
+      const { unresolved, left } = transition(
         "log",
         byAttempt(authoritative.browser.receipts)
       );
@@ -2362,6 +2374,7 @@ function createSemanticApplication({
         } : prior.document,
         authoritative,
         unresolved,
+        settled: left,
         phase: "ready",
         reach: "reached"
       });
@@ -2452,11 +2465,11 @@ function createSemanticApplication({
       });
       return dependents;
     },
-    // A document pass carrying these receipts has run. Returns the attempts that left.
+    // A document pass carrying these receipts has run, which moves only the actions
+    // among them, and publishes only where one moved.
     present(receipts) {
-      const { unresolved, left } = transition("present", byAttempt(receipts));
-      publish({ unresolved });
-      return left;
+      const { unresolved, moved: moved2 } = transition("present", byAttempt(receipts));
+      if (moved2) publish({ unresolved });
     },
     // The entries no document pass has presented yet.
     unpresented: () => unresolvedPart.read().filter((item) => UNPRESENTED.has(item.state)),

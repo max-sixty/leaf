@@ -73,11 +73,16 @@ import type {
  * part, since a refused attempt has no receipt to read.
  *
  * `sending` and `accepted` are drawn from the gesture; from `:logged` on, the log's
- * own event draws it. An entry leaves in exactly two ways. A refused one waits for
- * `release`, once the reading it restores is on the page. An accepted one leaves on
- * reaching `accepted:presented`, unless it is an action: an action's widget can hold a
- * reading past the document pass (a deferred widget), so an action waits there for
- * `release`, which its owner calls once those regions have committed. A signal a state has no edge for leaves it where it is. */
+ * own event draws it. An entry leaves in exactly three ways. A refused one waits for
+ * `release`, once the reading it restores is on the page. An accepted one other than
+ * an action leaves on reaching `accepted:logged`, in the publication that logs or
+ * accepts it: the reading draws it from then on, so its leaving changes nothing a
+ * paint draws, and the pass that draws that reading draws it once (`settled` keeps its
+ * thread gestured through that pass). An action waits for the pass: its widget can
+ * hold a reading past the document pass (a deferred widget), so it goes on to
+ * `accepted:presented` and waits there for `release`, which its owner calls once those
+ * regions have committed. A signal a state has no edge for leaves it where it is, and
+ * `present` reaches only actions. */
 type GestureState =
   | "sending"
   | "sending:logged"
@@ -166,9 +171,11 @@ function advance(
   signal: Signal,
   admitted: Event | null = null,
 ): LedgerEntry | null {
+  const action = entry.event.kind === "action";
+  if (signal === "present" && !action) return entry;
   const state = LIFECYCLE[entry.state][signal];
   if (!state) return entry;
-  if (state === "accepted:presented" && entry.event.kind !== "action") return null;
+  if (state === "accepted:logged" && !action) return null;
   return { ...entry, state, admitted: entry.admitted ?? admitted };
 }
 
@@ -808,6 +815,10 @@ export function createSemanticApplication({
     } as SemanticDocument,
     authoritative: null as AuthoritativeState | null,
     unresolved: [] as LedgerEntry[],
+    // The entries the adopted reading retired from the ledger by logging them, until the
+    // next reading is adopted. Their threads stay gestured while the page draws the
+    // reading that settled them, as they were while the ledger held them.
+    settled: [] as LedgerEntry[],
     // Content versions this tab has marked read and the log has not yet answered for.
     // Marking read is bookkeeping, not a gesture, so it has no place in the ordered
     // `unresolved` ledger; each leaves once the answer carrying it is applied.
@@ -831,6 +842,7 @@ export function createSemanticApplication({
       null,
       [],
       [],
+      [],
       "waiting",
       true,
     ),
@@ -849,6 +861,7 @@ export function createSemanticApplication({
     document: SemanticDocument,
     state: AuthoritativeState | null,
     unresolved: LedgerEntry[],
+    settled: LedgerEntry[],
     markingRead: ContentVersion[],
     phase: string,
     hostAvailable: boolean,
@@ -1117,8 +1130,9 @@ export function createSemanticApplication({
           threads: threads.filter(discussed),
         },
         // The threads the gestures this tab's ledger still holds concern, refused ones
-        // included until the reading they restore is drawn (held-news.js, `gesturedOn`).
-        gestured: [...new Set(unresolved.flatMap(threadsOfEntry))],
+        // included until the reading they restore is drawn, and those the adopted
+        // reading settled (held-news.js, `gesturedOn`).
+        gestured: [...new Set([...unresolved, ...settled].flatMap(threadsOfEntry))],
       },
       obligations: { phase, ...items },
       // The agent's plan in force, as the server read it (`plans.plan_reading`).
@@ -1156,6 +1170,7 @@ export function createSemanticApplication({
         next.document,
         next.authoritative,
         next.unresolved,
+        next.settled,
         next.markingRead,
         next.phase,
         next.hostAvailable,
@@ -1237,16 +1252,20 @@ export function createSemanticApplication({
         ),
     });
   // The ledger after `signal` reaches each attempt `admitted` names, with the log's
-  // event for it (or null), and the attempts that left. The caller publishes it.
+  // event for it (or null), the entries that left, with that event, and whether any
+  // entry moved. The caller publishes it.
   const transition = (signal: Signal, admitted: Map<string, Event | null>) => {
-    const left: string[] = [];
+    const left: LedgerEntry[] = [];
+    let moved = false;
     const unresolved = publisher.peek().unresolved.flatMap((item) => {
       if (!admitted.has(item.event.attempt)) return [item];
-      const next = advance(item, signal, admitted.get(item.event.attempt) ?? null);
-      if (!next) left.push(item.event.attempt);
+      const event = admitted.get(item.event.attempt) ?? null;
+      const next = advance(item, signal, event);
+      if (next !== item) moved = true;
+      if (!next) left.push({ ...item, admitted: item.admitted ?? event });
       return next ? [next] : [];
     });
-    return { unresolved, left };
+    return { unresolved, left, moved };
   };
   const byAttempt = (receipts: readonly Event[]) =>
     new Map<string, Event | null>(
@@ -1382,8 +1401,9 @@ export function createSemanticApplication({
       if (!adoptable(state, document)) return false;
       const authoritative = structuredClone(state);
       // The reading and what it logs are one publication: the entries whose receipts
-      // it holds stop drawing from the gesture as the log starts drawing them.
-      const { unresolved } = transition(
+      // it holds stop drawing from the gesture as the log starts drawing them, and an
+      // accepted one other than an action leaves with it.
+      const { unresolved, left } = transition(
         "log",
         byAttempt(authoritative.browser.receipts),
       );
@@ -1410,6 +1430,7 @@ export function createSemanticApplication({
           : prior.document,
         authoritative,
         unresolved,
+        settled: left,
         phase: "ready",
         reach: "reached",
       });
@@ -1542,11 +1563,11 @@ export function createSemanticApplication({
       });
       return dependents;
     },
-    // A document pass carrying these receipts has run. Returns the attempts that left.
+    // A document pass carrying these receipts has run, which moves only the actions
+    // among them, and publishes only where one moved.
     present(receipts: Event[]) {
-      const { unresolved, left } = transition("present", byAttempt(receipts));
-      publish({ unresolved });
-      return left;
+      const { unresolved, moved } = transition("present", byAttempt(receipts));
+      if (moved) publish({ unresolved });
     },
     // The entries no document pass has presented yet.
     unpresented: () =>

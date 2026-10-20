@@ -114,12 +114,15 @@ hook of the session holding the page runs itself (`vendoring.renew_layer`).
 The number is also the only version of what Leaf keeps outside a page's log and
 document: every JSON record in a page directory or in the state home, which every
 installed Leaf on the machine shares (`state.Record`), and the composer's draft in
-browser storage, which outlives a re-vendor. Each carries `leaf-<kind>/<protocol>`
-in its `format` (`runtime/protocol.js` is generated from the same number), and a
-reader at another number leaves it alone: it reads the record as absent, or keeps
-a draft's words without its drawing.
-So a change to one of those shapes that an older reader would misread bumps the number
-too.
+browser storage, which outlives a re-vendor. Each carries `leaf-<kind>/<number>`
+in its `format`, and a reader at another format leaves it alone: it reads the record
+as absent, or keeps a draft's words without its drawing.
+A record's number is its `since`, the protocol at which its own shape last changed,
+so a bump for another change leaves a session's claim, its delivery cursor and a
+page's port readable. A change to a record's shape that a reader at the same format
+would misread sets its `since` to the current protocol, bumping the protocol first
+where `since` already names it. The draft carries the current protocol
+(`runtime/protocol.js` is generated from it), so a bump drops a draft's drawing.
 
 The render gate's probes are outside the number. They come from the Leaf running the
 check and import `check-api.js` and `widget-api.js` from the page's runtime, so a

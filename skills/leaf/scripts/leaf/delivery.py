@@ -103,6 +103,7 @@ DELIVERY = Record(
             )
         },
     ),
+    since=13,
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (

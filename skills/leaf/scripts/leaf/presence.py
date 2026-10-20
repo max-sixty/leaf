@@ -35,7 +35,7 @@ PRESENCE_CACHE_S = 2.0
 # news before the next ask renews it.
 VIEWED_RENEW_S = 30
 # When a browser last had the page visible, in POSIX seconds (`renew_viewed`).
-VIEWED = Record("viewed", object_schema({"t": {"type": "number"}}))
+VIEWED = Record("viewed", object_schema({"t": {"type": "number"}}), since=13)
 # (row-directory stamp, producer publications): the machine's, so one slot.
 _candidates = ((), ())
 _candidates_lock = threading.Lock()

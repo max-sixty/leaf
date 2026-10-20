@@ -29,9 +29,10 @@ The steps, in order:
   and its watch has ended.
 
 Between steps every comment sent so far has exactly one reply and a pickup, the
-page's claim names Pi's session with its turn closed, and the watch is running. Pi's
-stderr joins the run's evidence. It spends a few model turns on the host's Codex
-login, so CI does not run it.
+last one's thread was named by the page server's own title request
+(`thread_titles`), the page's claim names Pi's session with its turn closed, and
+the watch is running. Pi's stderr joins the run's evidence. It spends a few model
+turns on the host's Codex login, so CI does not run it.
 """
 
 import itertools
@@ -198,20 +199,30 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     """The steps after setup, as the module docstring lists them."""
     sent: list[str] = []
 
-    def check() -> dict:
+    def check() -> tuple[dict, str]:
+        """What holds between steps, and how the page server titled the last
+        comment's thread."""
         claim = settled(page, pi.session, {name: user.ids[name] for name in sent})
         require(
             wait_is_live(None, pi.session),
             "no watch holds the session's pages between runs",
         )
-        return claim
+        record = pi.page_server_title(pi.session, user.ids[sent[-1]])
+        require(
+            record is not None, f"the page server did not title `{sent[-1]}`'s thread"
+        )
+        return claim, (
+            f"titled in {record['durationMs']} ms by {record['model']}, "
+            f"${record['costUsd']:.5f}"
+        )
 
     started = time.monotonic()
     user.release()
     pi.settle(lambda: True, "the run that answered `release` did not settle")
     sent.append("release")
-    turn = check()["turn"]
-    user.passed("release", started)
+    claim, titled = check()
+    turn = claim["turn"]
+    user.passed("release", started, titled)
 
     started = time.monotonic()
     before = pi.settled
@@ -244,8 +255,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
         "the comment sent during the user's run started another run",
     )
     sent.append("mid-turn")
-    check()
-    user.passed("mid-turn", started)
+    user.passed("mid-turn", started, check()[1])
 
     started = time.monotonic()
     pi.say(USER_TURN)
@@ -262,8 +272,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     user.comment("escape")
     pi.settle(lambda: user.answered("escape"), "`escape` was not answered")
     sent.append("escape")
-    check()
-    user.passed("escape", started)
+    user.passed("escape", started, check()[1])
 
     started = time.monotonic()
     pi.say(USER_TURN)
@@ -306,8 +315,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
         "held input did not enter a fresh turn after Escape",
     )
     sent.append("held-escape")
-    check()
-    user.passed("held-escape", started)
+    user.passed("held-escape", started, check()[1])
 
     started = time.monotonic()
     pi.process.stdin.close()
@@ -345,12 +353,14 @@ def answering(browser) -> Iterator[tuple[User, Callable]]:
     executable = PI_PROJECT / "node_modules" / ".bin" / "pi"
 
     def isolated_environment(place: Isolation) -> dict[str, str]:
-        return environment(
+        env = environment(
             XDG_STATE_HOME=str(place.state),
             PI_CODING_AGENT_DIR=str(pi_home(place.root / "pi-home")),
             PI_SKIP_VERSION_CHECK="1",
             PI_TELEMETRY="0",
         )
+        # The page server titles a thread through the `pi` on PATH.
+        return {**env, "PATH": f"{executable.parent}{os.pathsep}{env['PATH']}"}
 
     with isolated("pi", isolated_environment) as place:
         prepare(ROOT, place.state, place.page)

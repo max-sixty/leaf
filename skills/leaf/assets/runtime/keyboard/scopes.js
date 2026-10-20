@@ -508,8 +508,9 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  * One `when` answering both left Enter live over the whole page, where the press no-opped.
  *
  * A control whose keys change with its state declares every state's rows at once, each
- * gated by its own row `when`, and calls paintKeys() when the state moves — a grab is
- * Enter on an already-focused grip, so no focus event would repaint its keys.
+ * gated by its own row `when`, and holds that state in a signal, or calls
+ * `paintKeysWithin` where the state is the document's — a grab is Enter on an
+ * already-focused grip, so no focus event would repaint its keys.
  *
  * Registering at upgrade rather than at module load is what keeps the reference honest:
  * a module stays loaded after the last element it upgraded leaves — a version activation
@@ -780,12 +781,15 @@ export function reflectFirstScopes() {
 // A scope refused here is reported, and the elements after it still paint.
 //
 // An element's reflection reads its rows' liveness, and that reads two kinds of input.
-// What it reads from the semantic root is tracked: each reflection runs as a signals
-// effect, and a publication that moves something it read marks that element alone for
-// the next frame. What it reads from the document is a mechanical change, and its writer
-// says so: `paintKeys()` marks every element, and `paintKeysWithin(root)` the ones a
-// renderer's paint touched. A publication that moves nothing an element read, and no
-// renderer whose output it reads, leaves its reflection as it is.
+// What it reads from the semantic root or from a signal is tracked: each reflection runs
+// as a signals effect, and a publication or signal that moves something it read marks
+// that element alone for the next frame. So a module's own state that a row reads is a
+// signal: a plain variable is read once, and a change to it reaches the element only
+// when something else marks it. What it reads from the document is a mechanical
+// change, and its writer says so: `paintKeys()` marks every element, and
+// `paintKeysWithin(root)` the ones a renderer's paint touched. A publication that moves
+// nothing an element read, and no renderer whose output it reads, leaves its
+// reflection as it is.
 let keysDirty = true;
 const dirtyElements = new Set();
 const tracked = new WeakMap();

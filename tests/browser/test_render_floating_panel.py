@@ -192,9 +192,15 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
         "() => !document.querySelector('.lf-floating-panel').contains(document.activeElement)"
     )
 
+    # A view a pointer opens names its keys as one a key opens does: the field its
+    # Escape, and Threads its `/`.
     page.locator(".lf-fp-threads").click()
     inventory = page.locator(".lf-fp-view[data-view=threads]")
     expect(inventory).to_be_visible()
+    expect(page.locator(".lf-fp-field")).to_have_attribute(
+        "aria-keyshortcuts", "Escape"
+    )
+    expect(page.locator(".lf-fp-opened")).to_have_attribute("aria-keyshortcuts", "/")
     field(page).click()
     page.keyboard.press("Escape")
     expect(inventory).to_be_visible()
@@ -202,6 +208,9 @@ def test_escape_leaves_the_field_before_it_puts_a_view_away(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fp-view")).to_have_count(0)
     expect(page.locator(".lf-fp-leaf")).not_to_be_focused()
+    expect(page.locator(".lf-fp-field")).not_to_have_attribute(
+        "aria-keyshortcuts", "Escape"
+    )
 
 
 def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):

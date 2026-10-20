@@ -1056,9 +1056,9 @@ function obligationsIn(region, items = readObligations().all) {
 }
 
 // runtime/standing-target.js
-var sides = /* @__PURE__ */ new Set();
-function declareSide(bridge) {
-  sides.add(bridge);
+var sides = /* @__PURE__ */ new Map();
+function declareSide(bridge, { beside = false } = {}) {
+  sides.set(bridge, beside);
   return () => sides.delete(bridge);
 }
 function obligationHolding(items, node) {
@@ -1073,16 +1073,18 @@ function obligationHolding(items, node) {
   }
   return held?.item ?? null;
 }
-var placeOf = (node) => placeFrom(node, /* @__PURE__ */ new Set());
-function placeFrom(node, visited) {
+var placeOf = (node) => placeFrom(node, /* @__PURE__ */ new Set(), true);
+var arrivalOf = (node) => placeFrom(node, /* @__PURE__ */ new Set(), false);
+function placeFrom(node, visited, countBeside) {
   const at = node?.nodeType === 1 ? node : node?.parentElement;
   if (!at || at === document.body || visited.has(at)) return null;
   visited.add(at);
   if (obligationHolding(readObligations().all, at)) return at;
-  for (const side of sides) {
+  for (const [side, beside] of sides) {
     const place2 = side(at);
+    if (place2 && beside && !countBeside) return null;
     if (place2)
-      return inChrome(place2) && !obligationHolding(readObligations().all, place2) ? placeFrom(place2, visited) : place2;
+      return inChrome(place2) && !obligationHolding(readObligations().all, place2) ? placeFrom(place2, visited, countBeside) : place2;
   }
   return inChrome(at) ? null : at;
 }
@@ -7578,6 +7580,7 @@ export {
   declareSide,
   obligationHolding,
   placeOf,
+  arrivalOf,
   walkOrigin,
   stepFrom,
   heldObligation,

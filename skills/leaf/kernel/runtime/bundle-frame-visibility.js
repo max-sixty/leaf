@@ -5,21 +5,61 @@ import {
   runWork
 } from "./bundle-queued-work.js";
 
-// runtime/sample-visibility.js
+// runtime/frame-visibility.js
 var child = document.documentElement.lfSample;
-var visibility = child ? { visible: false } : null;
 var admitted = false;
-var intersecting = false;
 var observers = /* @__PURE__ */ new Set();
 var readings = /* @__PURE__ */ new Map();
 var readingId = 0;
-var sampleVisibility = () => visibility;
-function onSampleVisibility(callback) {
+function watchFrame(frame2, callback) {
+  let intersecting = false;
+  const seen = new IntersectionObserver(
+    (entries) => {
+      const { width, height } = entries.at(-1).intersectionRect;
+      intersecting = width > 0 && height > 0;
+      callback();
+    },
+    // Edge adjacency is already "intersecting" at zero area, so a positive threshold
+    // makes the first painted pixel a delivery. A whole frame coming into view is one
+    // too, which brings a sample's exposure reading round.
+    { threshold: [0, Number.EPSILON, 1] }
+  );
+  seen.observe(frame2);
+  const styled = new MutationObserver((records) => {
+    if (records.some(({ target }) => target === frame2 || target.contains(frame2)))
+      callback();
+  });
+  styled.observe(frame2.ownerDocument, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["inert", "open", "hidden", "aria-hidden", "class", "style"]
+  });
+  return {
+    shown: () => intersecting && frame2.checkVisibility({ visibilityProperty: true }) && getComputedStyle(frame2).contentVisibility !== "hidden",
+    stop: () => {
+      seen.disconnect();
+      styled.disconnect();
+    }
+  };
+}
+var owners = [];
+if (!child)
+  for (let view = (
+    /** @type {Window} */
+    window
+  ); view.frameElement; view = view.parent)
+    owners.push(watchFrame(view.frameElement, publish));
+function frameVisibility() {
+  if (child) return { visible: admitted };
+  if (owners.length) return { visible: owners.every((owner) => owner.shown()) };
+  return null;
+}
+function onFrameVisibility(callback) {
   observers.add(callback);
   return () => observers.delete(callback);
 }
 function readSampleVisibility() {
-  if (!child) return Promise.resolve(null);
+  if (!child) return null;
   return new Promise((resolve, reject) => {
     const id = ++readingId;
     readings.set(id, { resolve, reject });
@@ -27,7 +67,7 @@ function readSampleVisibility() {
   });
 }
 function publish() {
-  visibility = { visible: admitted && intersecting };
+  const visibility = frameVisibility();
   for (const callback of observers) callback(visibility);
 }
 if (child) {
@@ -50,25 +90,10 @@ if (child) {
     admitted = detail.visible;
     publish();
   });
-  const seen = new IntersectionObserver(
-    ([entry]) => {
-      const { width, height } = entry.intersectionRect;
-      intersecting = width > 0 && height > 0;
-      publish();
-    },
-    // Edge adjacency is already "intersecting" at zero area. A positive threshold
-    // makes the first painted pixel a delivery rather than leaving visibility stale.
-    { threshold: [0, Number.EPSILON] }
-  );
-  const screen = document.createElement("div");
-  screen.dataset.lfRuntime = "";
-  screen.style.cssText = "all:initial;position:fixed;inset:0;visibility:hidden;contain:strict;pointer-events:none";
-  document.documentElement.append(screen);
-  seen.observe(screen);
-  addEventListener("pagehide", (event) => {
-    if (!event.persisted) seen.disconnect();
-  });
 }
+addEventListener("pagehide", (event) => {
+  if (!event.persisted) for (const owner of owners) owner.stop();
+});
 
 // runtime/rendering.js
 var ROUNDS = 8;
@@ -177,17 +202,7 @@ var renderingState = () => {
     preparationsSettled: preparations === 0 || !visible
   };
 };
-function rendered() {
-  if (document.hidden) return false;
-  const sample = sampleVisibility();
-  if (sample) return sample.visible;
-  for (let view = (
-    /** @type {Window} */
-    window
-  ); view.frameElement; view = view.parent)
-    if (!view.frameElement.checkVisibility()) return false;
-  return true;
-}
+var rendered = () => !document.hidden && frameVisibility()?.visible !== false;
 function unsettle() {
   quiet = false;
   if (checking) return;
@@ -223,8 +238,8 @@ function afterSettling(settled) {
   settling.push({ settled, since: begun });
   nextFrame(owed);
 }
-onSampleVisibility(() => {
-  if (sampleVisibility()?.visible) unsettle();
+onFrameVisibility((visibility) => {
+  if (visibility.visible) unsettle();
 });
 unsettle();
 
@@ -1092,8 +1107,9 @@ function move(parent, node, before) {
 }
 
 export {
-  sampleVisibility,
-  onSampleVisibility,
+  watchFrame,
+  frameVisibility,
+  onFrameVisibility,
   readSampleVisibility,
   observePreparations,
   holdRendering,

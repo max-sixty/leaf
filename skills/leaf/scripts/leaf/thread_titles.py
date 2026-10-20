@@ -21,18 +21,31 @@ asks for a title as soon as it can reach the harness's model:
 
 A Codex title waits for no turn, so a thread opened while the task is busy, or on a
 task whose App Server Leaf cannot reach, is named as promptly as one opened while it
-is idle. The page server starts an App Server for the request rather than running
-`codex exec`, so Codex is asked in one way wherever it is reached
-(`app_server_title`), and the server says which MCP servers to turn off by name
-(`config/read`). Starting and stopping it took 0.1–0.3 s of the 3.9–5.2 s a title
-took (codex-cli 0.160, load average about 35).
+is idle. The page server asks an App Server of its own rather than running `codex
+exec`, so Codex is asked in one way wherever it is reached (`app_server_title`), and
+the server says which MCP servers to turn off by name (`config/read`).
+
+Before a new thread's first turn reaches the model, Codex connects a websocket to the
+model and sends it a warm-up request, which took 0.7–1.0 s, and a new server first
+fetches the model list, about 0.4 s more. The model then answered in 1.3–2.2 s
+(codex-cli 0.160, gpt-6.1-sol at low effort, load average about 7). A server kept
+running saves only the model list, since each thread connects anew, so asking on a
+server that is already running, the task's own included, would save little. Instead
+each title's server and thread are started before its comment arrives
+(`prepare_codex_title`): when the page server starts serving a Codex session's page,
+and again once each title is answered. A title then took 2.0–2.3 s, against 3.3–3.9 s
+when started on request, as the first title still is on a page server that was
+already serving when a Codex session claimed the page. The cost is an idle App Server
+of about 105 MB for each page server that has served a Codex claimant.
 
 Every harness is sent the same request (`title_request`): a system prompt saying to
 title the thread, then the passage the thread is on and its first spoken message,
 each between tags of its own, and a last line asking for the title. That is the
 request's whole context: none of the task's transcript, and none of the tools or
-the context the harness loads by default. Claude Code and Codex answer in the same
-schema; Pi has no answer schema, so its title is the answer's text, and on its
+the context the harness loads by default, except the AGENTS.md in Codex's home,
+which no App Server setting leaves out (codex-cli 0.160). Claude Code and Codex
+answer in the same schema; Pi has no answer schema, so its title is the answer's
+text, and on its
 `openai-codex` provider 24 of 24 answers were titles, to messages asking for a fix,
 a shell command, a poem or a sum among them. The request runs beside the agent's
 work and never delays it.
@@ -48,8 +61,10 @@ that fails or finds no words leaves the thread untitled for the agent's reply to
 name, and tells the caller's `record`.
 """
 
+import contextlib
 import json
 import os
+import queue
 import shutil
 import subprocess
 import tempfile
@@ -358,6 +373,84 @@ def pi_title(request: str, page_dir: Path) -> dict:
     }
 
 
+def open_title_thread(socket, model: str | None, page_dir: Path) -> str:
+    """Open the ephemeral thread one title is asked on, over a new connection to an
+    App Server, run in the page directory, and return its id; `model` None takes
+    the server's configured model."""
+    app_server_handshake(socket, 0, "leaf-thread-titles", "Leaf thread titles")
+    # A thread starts every MCP server the user configured, its project's included,
+    # and an override replacing the table leaves them configured, so each is turned
+    # off by name, read from the directory the thread runs in.
+    configured = app_server_request(socket, "config/read", 1, {"cwd": str(page_dir)})
+    servers = configured["config"].get("mcp_servers") or {}
+    thread = app_server_request(
+        socket,
+        "thread/start",
+        2,
+        {
+            **({"model": model} if model else {}),
+            "cwd": str(page_dir),
+            "ephemeral": True,
+            "approvalPolicy": "never",
+            # A sandbox confines only the tools a turn runs, and this one has none,
+            # so the request also works where Codex cannot start one, as in the
+            # website's container.
+            "sandbox": "read-only",
+            "baseInstructions": INSTRUCTIONS,
+            "config": {
+                **TITLE_CONFIG,
+                "mcp_servers": {name: {"enabled": False} for name in servers},
+            },
+        },
+    )
+    return thread["thread"]["id"]
+
+
+def ask_title(socket, thread_id: str, request: str, deadline: float) -> dict:
+    """Ask for a title in one turn on the thread `open_title_thread` opened, and read
+    the answer by `deadline` (`time.monotonic`)."""
+    # A thread that took longer to open than the request waits asks nothing.
+    if time.monotonic() >= deadline:
+        raise TimeoutError(f"no title within {TIMEOUT} s")
+    app_server_request(
+        socket,
+        "turn/start",
+        3,
+        {
+            "threadId": thread_id,
+            "input": [{"type": "text", "text": request}],
+            "effort": APP_SERVER_EFFORT,
+            "outputSchema": OUTPUT_SCHEMA,
+        },
+    )
+    answer = None
+    usage = None
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(f"no title within {TIMEOUT} s")
+        message = json.loads(socket.recv(timeout=remaining))
+        params = message.get("params") or {}
+        if params.get("threadId") != thread_id:
+            continue
+        method = message.get("method")
+        if method == "item/completed" and params["item"]["type"] == "agentMessage":
+            answer = params["item"]["text"]
+        elif method == "thread/tokenUsage/updated":
+            usage = params["tokenUsage"]["last"]
+        elif method == "turn/completed":
+            turn = params["turn"]
+            if turn["status"] != "completed" or answer is None:
+                raise RuntimeError(
+                    f"the title turn ended {turn['status']}: {turn.get('error')}"
+                )
+            return {
+                "title": json.loads(answer)["title"].strip(),
+                "inputTokens": usage and usage["inputTokens"],
+                "outputTokens": usage and usage["outputTokens"],
+            }
+
+
 def app_server_title(endpoint: str, model: str | None) -> Generate:
     """A request for one title as an ephemeral thread on the App Server at
     `endpoint`, run in the page directory; `model` None takes the server's
@@ -367,115 +460,117 @@ def app_server_title(endpoint: str, model: str | None) -> Generate:
         started = time.monotonic()
         socket = app_server_connect(endpoint)
         try:
-            request_ids = iter(range(5))
-            app_server_handshake(
-                socket, next(request_ids), "leaf-thread-titles", "Leaf thread titles"
-            )
-            # A thread starts every MCP server the user configured, its project's
-            # included, and an override replacing the table leaves them configured,
-            # so each is turned off by name, read from the directory the thread
-            # runs in.
-            configured = app_server_request(
-                socket, "config/read", next(request_ids), {"cwd": str(page_dir)}
-            )
-            servers = configured["config"].get("mcp_servers") or {}
-            thread = app_server_request(
-                socket,
-                "thread/start",
-                next(request_ids),
-                {
-                    **({"model": model} if model else {}),
-                    "cwd": str(page_dir),
-                    "ephemeral": True,
-                    "approvalPolicy": "never",
-                    # A sandbox confines only the tools a turn runs, and this one
-                    # has none, so the request also works where Codex cannot start
-                    # one, as in the website's container.
-                    "sandbox": "read-only",
-                    "baseInstructions": INSTRUCTIONS,
-                    "config": {
-                        **TITLE_CONFIG,
-                        "mcp_servers": {name: {"enabled": False} for name in servers},
-                    },
-                },
-            )
-            thread_id = thread["thread"]["id"]
-            app_server_request(
-                socket,
-                "turn/start",
-                next(request_ids),
-                {
-                    "threadId": thread_id,
-                    "input": [{"type": "text", "text": request}],
-                    "effort": APP_SERVER_EFFORT,
-                    "outputSchema": OUTPUT_SCHEMA,
-                },
-            )
-            answer = None
-            usage = None
-            deadline = started + TIMEOUT
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError(f"no title within {TIMEOUT} s")
-                message = json.loads(socket.recv(timeout=remaining))
-                params = message.get("params") or {}
-                if params.get("threadId") != thread_id:
-                    continue
-                method = message.get("method")
-                if (
-                    method == "item/completed"
-                    and params["item"]["type"] == "agentMessage"
-                ):
-                    answer = params["item"]["text"]
-                elif method == "thread/tokenUsage/updated":
-                    usage = params["tokenUsage"]["last"]
-                elif method == "turn/completed":
-                    turn = params["turn"]
-                    if turn["status"] != "completed" or answer is None:
-                        raise RuntimeError(
-                            f"the title turn ended {turn['status']}: "
-                            f"{turn.get('error')}"
-                        )
-                    break
+            thread_id = open_title_thread(socket, model, page_dir)
+            reading = ask_title(socket, thread_id, request, started + TIMEOUT)
         finally:
             socket.close()
-        return {
-            "title": json.loads(answer)["title"].strip(),
-            "durationMs": round((time.monotonic() - started) * 1000),
-            "inputTokens": usage and usage["inputTokens"],
-            "outputTokens": usage and usage["outputTokens"],
-        }
+        return {**reading, "durationMs": round((time.monotonic() - started) * 1000)}
 
     return generate
 
 
-def codex_title(request: str, page_dir: Path) -> dict:
-    """Ask Codex for a title through an App Server of the request's own, started from
-    the `codex` on PATH on the user's own login and configuration, and stopped once
-    it answers.
+class TitleThreadUnopened(Exception):
+    """A Codex title's server or thread failed to start, so nothing was asked."""
+
+
+class CodexTitleThread:
+    """One Codex title's App Server and thread, started from the `codex` on PATH on
+    the user's own login and configuration before the request they answer, and
+    stopped once they have answered it (`prepare_codex_title`).
 
     The page server's environment is that of whichever session started it, so the
     server is given none of that session's identity."""
-    executable = shutil.which("codex")
-    if executable is None:
-        raise FileNotFoundError("no `codex` on PATH")
+
+    def __init__(self, page_dir: Path) -> None:
+        self._request: queue.SimpleQueue = queue.SimpleQueue()
+        self._answer: queue.SimpleQueue = queue.SimpleQueue()
+        threading.Thread(
+            target=self._serve,
+            args=(page_dir,),
+            name="leaf-codex-title",
+            daemon=True,
+        ).start()
+
+    def _serve(self, page_dir: Path) -> None:
+        opened = False
+        try:
+            executable = shutil.which("codex")
+            if executable is None:
+                raise FileNotFoundError("no `codex` on PATH")
+            env = {
+                name: value
+                for name, value in os.environ.items()
+                if name not in IDENTITY_VARIABLES
+            }
+            with private_app_server(
+                executable, env=env, arguments=TITLE_SERVER_ARGUMENTS
+            ) as endpoint:
+                socket = app_server_connect(endpoint)
+                try:
+                    thread_id = open_title_thread(socket, None, page_dir)
+                    opened = True
+                    request, deadline = self._request.get()
+                    self._answer.put(ask_title(socket, thread_id, request, deadline))
+                finally:
+                    socket.close()
+        # Every class, since `ask` raises it in the request's own thread, which
+        # reports it (`_name_thread`).
+        except Exception as error:  # noqa: BLE001 - raised by `ask`
+            if not opened:
+                unopened = TitleThreadUnopened(f"{type(error).__name__}: {error}")
+                unopened.__cause__ = error
+                error = unopened
+            self._answer.put(error)
+
+    def ask(self, request: str, deadline: float) -> dict:
+        """The title of `request`, once the thread is open, by `deadline`."""
+        self._request.put((request, deadline))
+        try:
+            answer = self._answer.get(timeout=max(0.0, deadline - time.monotonic()))
+        except queue.Empty:
+            raise TimeoutError(f"no title within {TIMEOUT} s") from None
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+# The thread each page's next Codex title is asked on, started ahead of it.
+_next_codex_titles: dict[Path, CodexTitleThread] = {}
+_next_codex_titles_lock = threading.Lock()
+
+
+def prepare_codex_title(page_dir: Path) -> None:
+    """Start the App Server and thread the page's next Codex title is asked on,
+    unless they are started already."""
+    with _next_codex_titles_lock:
+        if page_dir not in _next_codex_titles:
+            _next_codex_titles[page_dir] = CodexTitleThread(page_dir)
+
+
+def codex_title(request: str, page_dir: Path) -> dict:
+    """Ask Codex for a title on the thread started for it (`prepare_codex_title`),
+    or on one started now where there is none or it failed to start, and start the
+    next title's once this one is answered."""
     started = time.monotonic()
-    env = {
-        name: value
-        for name, value in os.environ.items()
-        if name not in IDENTITY_VARIABLES
-    }
-    with private_app_server(
-        executable, env=env, arguments=TITLE_SERVER_ARGUMENTS
-    ) as endpoint:
-        reading = app_server_title(endpoint, None)(request, page_dir)
+    deadline = started + TIMEOUT
+    with _next_codex_titles_lock:
+        prepared = _next_codex_titles.pop(page_dir, None)
+    try:
+        reading = None
+        if prepared is not None:
+            # A start that failed, perhaps hours before the comment, says nothing
+            # of whether one would start now.
+            with contextlib.suppress(TitleThreadUnopened):
+                reading = prepared.ask(request, deadline)
+        asked_prepared = reading is not None
+        if reading is None:
+            reading = CodexTitleThread(page_dir).ask(request, deadline)
+    finally:
+        prepare_codex_title(page_dir)
     return {
         **reading,
-        # The request's share of `durationMs`; the rest is the server starting and
-        # stopping.
-        "requestMs": reading["durationMs"],
         "durationMs": round((time.monotonic() - started) * 1000),
+        "prepared": asked_prepared,
     }
 
 

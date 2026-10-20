@@ -70,7 +70,7 @@ it.
 | Turn entry to visible pickup, idle session          | Without waiting for model output; under 1 s | 0.1–0.8 s on every harness                                                         |
 | Input in model context to accepted claim            | Before substantive work; under 2 s          | first command; 3.3 s (Pi) to 5.8–10.5 s (Claude Code) after the comment; see below |
 | Status or result write to browser paint             | Next state application; under 1 s           | status 16–76 ms, reply 87–183 ms; revision 262–277 ms, corpus 0.64–1.22 s (below)  |
-| Comment admission to thread title                   | under 2 s                                   | Claude Code 1.2–2.7 s, Pi 2.0–2.7 s, Codex App Server 3.1–5.7 s                    |
+| Comment admission to thread title                   | under 2 s                                   | Claude Code 1.2–2.7 s, Pi 2.0–2.7 s, Codex App Server 1.7–2.6 s                    |
 | Comment admission to reply, for a small page change | under 7 s                                   | Claude Code 23–36 s, Codex App Server 21–23 s, Pi 30–42 s                          |
 
 The claim row counts from the comment's admission, so it includes the agent's first
@@ -82,7 +82,12 @@ names each command as it runs.
 Two paint readings miss: the corpus's comment paints in a median 105 ms, and a
 revision of the corpus, a page far larger than a user's, paints within 1 s only
 when the tab finds the save before a stamp locks the page (below).
-Codex App Server titles in 3.1–5.7 s against 2 s, where the others are near it.
+
+Every harness titles near the 2 s target, and the model's own answer is most of it:
+1.3–2.2 s of a Codex title. Codex App Server titled in 3.0–8.5 s until its page
+server started each title's App Server and thread before the comment arrived
+(`thread_titles`), and in 1.7–2.6 s since, over two journeys at a load average of 8
+to 10.
 
 ### A corpus revision's paint
 

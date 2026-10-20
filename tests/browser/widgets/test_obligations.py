@@ -403,9 +403,7 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve):
     # The overlay and the dispatcher offer it because there is something to reach.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Next item waiting on me"
-    )
+    expect(page.locator(".lf-command-reference")).to_contain_text("Next on me")
     page.keyboard.press("Escape")
     assert "m" in available_commands(page).get("queue.walk", [])
 

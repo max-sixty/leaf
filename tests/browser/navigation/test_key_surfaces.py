@@ -143,13 +143,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Next item waiting on me",
+            has_text="Next on me",
         ).locator("kbd")
     ).to_have_text("m")
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Previous item waiting on me",
+            has_text="Previous on me",
         ).locator("kbd")
     ).to_have_text("M")
     expect(

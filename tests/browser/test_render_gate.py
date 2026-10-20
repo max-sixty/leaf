@@ -386,13 +386,16 @@ def test_user_view_checks_read_current_geometry_without_changing_the_page(
     """A passive reading exposes layout and measured checks at the actual width.
 
     The same drawing's labels shrink further on a narrower window; large labels are
-    clean at desktop and cross the stated threshold on mobile. Reading leaves the
-    DOM, focus, selection, and scroll position intact.
+    clean at desktop and cross the stated threshold on mobile. A closed disclosure's
+    arrangement is no part of the view, so the reading leaves it out. Reading leaves
+    the DOM, focus, selection, and scroll position intact.
     """
     source = DRAWN_LABELS_PAGE.replace(
         "<h1>Rollout</h1>",
         '<h1>Rollout</h1><div id="arrangement" style="display:flex; gap:16px">'
-        "<p>Canary</p><p>Global</p></div>",
+        "<p>Canary</p><p>Global</p></div>"
+        '<details><summary>Later</summary><div style="display:flex; gap:16px">'
+        "<p>Europe</p><p>Asia</p></div></details>",
     )
     page = open_page(browser, serve(source, packages=()))
 

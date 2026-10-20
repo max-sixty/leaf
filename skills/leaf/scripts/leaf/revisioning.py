@@ -48,7 +48,7 @@ from leaf.revision_artifact import (
 )
 from leaf.served_state.reading import source_readings
 from leaf.service import PageTransaction
-from leaf.validation.source import SourceCheck, check_source
+from leaf.validation.source import SourceCheck, active_input, check_source
 from leaf.validation.source_history import (
     EMPTY_READING,
     PredecessorReading,
@@ -99,10 +99,12 @@ def _activate_source(page_dir: Path, page) -> Activation:
         and (answer.activation.error is None or answer.history == history)
     ):
         return answer.activation
-    activation = activate_checked_source(
-        page,
-        check_source(page_dir, page.events),
-    )
+    if (active := active_input(page_dir)) is not None:
+        activation = Activation(active, None, False)
+    else:
+        activation = activate_checked_source(
+            page, check_source(page_dir, page.events)
+        )
     settled = activation._replace(created=False) if activation.created else activation
     held.answer = _Answer(source, history, settled)
     return activation

@@ -1,6 +1,7 @@
 """Text-passage readings of authored HTML."""
 
 import re
+import weakref
 from functools import cached_property, lru_cache
 from html import escape
 from typing import TYPE_CHECKING, NamedTuple
@@ -712,23 +713,35 @@ class SourceReading:
         vocabulary anything (`enclosing_ids`)."""
         return self.passages.enclosing
 
-    def decided_passages(self, decided: dict) -> Passages:
+    def decided_passages(
+        self, decided: dict, rewrites: dict | None = None, additions: dict | None = None
+    ) -> Passages:
         """The passage reading under the retirement outcomes in force
-        (`projection.retirement_outcomes`)."""
+        (`projection.retirement_outcomes`), and under the user's rewritten bodies
+        and created children where a caller passes them
+        (`projection.rewritten_bodies`, `projection.generated_children`)."""
+        # Each is keyed by the id of an element the parser opens, so one naming no
+        # element of this document changes nothing.
         carried = tuple(
-            sorted(
-                (widget, outcome)
-                for widget, outcome in decided.items()
-                if widget in self.passages.enclosing
+            tuple(
+                sorted(
+                    (owner, value)
+                    for owner, value in (given or {}).items()
+                    if owner in self.passages.enclosing
+                )
             )
+            for given in (decided, rewrites, additions)
         )
-        if not carried:
+        if not any(carried):
             return self.passages
         # One read of the pair: threads share a held reading, and another's
         # outcomes may replace it between a check and a second read.
         held = self._decided
         if held is None or held[0] != carried:
-            held = (carried, page_passages(self.document, self.registry, dict(carried)))
+            held = (
+                carried,
+                page_passages(self.document, self.registry, *map(dict, carried)),
+            )
             self._decided = held
         return held[1]
 
@@ -749,5 +762,15 @@ def enclosing_ids(document: SourceDocument) -> dict:
     an element sits off the tag stack, before anything asks the registry what it
     shows. Words are the other half and the vocabulary's word entirely, so this
     is the reading for a caller that may not raise on the registry gate — it can
-    have where an element sits, and must not ask what it says."""
-    return page_passages(document, {}).enclosing
+    have where an element sits, and must not ask what it says.
+
+    A document is immutable, so the walk runs once per document: checking a page
+    reads its containment once for each live sample it declares."""
+    if (held := _ENCLOSING.get(document)) is None:
+        held = _ENCLOSING[document] = page_passages(document, {}).enclosing
+    return held
+
+
+_ENCLOSING: "weakref.WeakKeyDictionary[SourceDocument, dict]" = (
+    weakref.WeakKeyDictionary()
+)

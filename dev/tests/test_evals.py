@@ -34,6 +34,11 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path):
         "parent-keeps-leaf-responsive/during-work",
         "page-reads-at-every-width/queue",
     }
+    assert all(
+        provider["config"]["viewports"] == ["desktop"]
+        for provider in config["providers"]
+        if provider["label"].endswith("/workflow")
+    )
     # A prompt may reuse another task's request by naming its file.
     queue = next(
         test
@@ -61,7 +66,17 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
     monkeypatch.setattr(module, "build_arm", build_arm)
     result = CliRunner().invoke(
         module.eval,
-        ["--harness", "claude-code", "todo-outlasts-the-turn", "--repeat", "3"],
+        [
+            "--harness",
+            "claude-code",
+            "patch-review",
+            "--viewport",
+            "phone",
+            "--viewport",
+            "desktop",
+            "--repeat",
+            "3",
+        ],
     )
     assert result.exit_code == 100, result.output
     assert calls.read_text().strip().endswith("--repeat 3")
@@ -69,3 +84,6 @@ def test_eval_command_delegates_configuration_and_status_to_promptfoo(
         next((tmp_path / "runs").glob("*/promptfooconfig.json")).read_text()
     )
     assert config["providers"] and len(config["tests"]) == 1
+    assert len(config["providers"]) == 1
+    assert config["providers"][0]["config"]["viewports"] == ["phone", "desktop"]
+    assert "--viewport" not in calls.read_text()

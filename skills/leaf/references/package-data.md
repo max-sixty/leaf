@@ -222,6 +222,41 @@ share one:
 <lf-builds id="release-builds" source="release-ci"></lf-builds>
 ```
 
+### Widget outputs
+
+A widget may also publish a typed value derived from its current inputs. Its registry
+entry declares `"x-output": {"files": {"contract": "file-list"}}`; the contract is
+an ordinary `$data.contracts` entry. A consumer uses the same `x-data` input API for
+an external source or another widget's output:
+
+```json
+"x-data": {
+  "files": {
+    "contract": "file-list",
+    "source": "source",
+    "reference": "for",
+    "output": "files"
+  }
+},
+"x-refers": {"for": {}}
+```
+
+The input's `reference` names its ordinary element relation, and `output` names the
+producer's declared output. The consumer declares both attributes in `properties`.
+A page binds either `source="project-files"` or `for="review"`, where `review`
+is a widget publishing `files`. Binding both is an error. An input may remain
+unbound and receive null; a widget that requires a binding states that requirement
+in its attribute schema. `page check` verifies the referenced widget declares the
+named output with the input's contract. Consumers never identify a producer by tag.
+
+The producer calls `publishOutput(this, "files", value)` after deriving its complete
+value, and publishes `null` when that output is unavailable. Output values belong to
+the widget instance: leaving the document clears them; returning restores them until
+the producer publishes again. Outputs are ephemeral browser derivations, not stored
+sources, and have no fabricated source revision or run receipt. Data reading,
+projection, and presentation follow [module-state.md, "Bound data and
+projections"](module-state.md#bound-data-and-projections).
+
 The agent gathers the value and sets it whole; Leaf fetches nothing:
 
 ```bash

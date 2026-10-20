@@ -20,11 +20,8 @@
    A target that re-renders what a key addresses states it through `layoutChanged`, and
    every live indication is resolved again then. */
 
-import {
-  addressedElements,
-  referencedProjection,
-  requireReference,
-} from "./anchor-resolution.js";
+import { referencedProjection, requireReference } from "./references.js";
+import { addressedElements } from "./anchor-resolution.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { LAYOUT } from "./widget-elements.js";
 

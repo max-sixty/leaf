@@ -188,7 +188,7 @@ export class LeafElement extends LitElement {
     return this.#controller;
   }
 
-  /** The bound source of a declared `x-data` input, one copy a delivery (data.js). */
+  /** The bound reading of a declared `x-data` input, one copy a delivery (data.js). */
   data(input) {
     let read = this.#data.get(input);
     if (!read) this.#data.set(input, (read = dataReader(this, input)));

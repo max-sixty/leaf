@@ -118,7 +118,7 @@
     },
     "codex-adapter": {
       "since": 13,
-      "schema": {"type":"object","properties":{"app_server":{"type":["string","null"]}},"required":["app_server"]}
+      "schema": {"type":"object","properties":{"app_server":{"type":["string","null"]},"launcher":{"type":"string"}},"required":["app_server"]}
     },
     "codex-delivery": {
       "since": 13,
@@ -162,7 +162,7 @@
     },
     "session": {
       "since": 13,
-      "schema": {"type":"object","properties":{"id":{"type":"string"},"generation":{"type":"string"},"ended":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]},"turn":{"type":["string","null"]},"turn_opened":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]},"turn_closed":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]},"revision":{"type":"integer","minimum":1},"provider":{"type":"boolean"},"lifetime":{"type":"object"},"transcript_path":{"type":"string"}},"required":["id","generation","ended","turn","turn_opened","turn_closed","revision","provider","lifetime"]}
+      "schema": {"type":"object","properties":{"id":{"type":"string"},"generation":{"type":"string"},"ended":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]},"turn":{"type":["string","null"]},"turn_opened":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]},"turn_closed":{"anyOf":[{"type":"null"},{"type":"string","format":"date-time"}]},"revision":{"type":"integer","minimum":1},"provider":{"type":"boolean"},"lifetime":{"type":"object"},"transcript_path":{"type":"string"},"launcher":{"type":"string"}},"required":["id","generation","ended","turn","turn_opened","turn_closed","revision","provider","lifetime"]}
     },
     "status": {
       "since": 13,

@@ -17,7 +17,7 @@ def test_discovery_retains_observations_and_gaps_without_scoring(tmp_path, monke
     work = run / "samples" / "saved-document"
     work.mkdir(parents=True)
     (work / "prompt-1.txt").write_text("Original request")
-    comparison = comparison_inputs("document")
+    comparison = comparison_inputs("document", ("phone",))
     record = {
         "provider": {"label": "codex/candidate/workflow"},
         "response": {
@@ -66,7 +66,7 @@ def test_discovery_retains_observations_and_gaps_without_scoring(tmp_path, monke
         assert pages["page_before_decision"]["page"] == work / "page-phase3"
         assert pages["page"]["page"] == work / "page-phase4"
         assert pages["page"]["payload"].as_posix() == "/original/runtime"
-        assert widths == {"desktop": (1600, 1000)}
+        assert widths == comparison["widths"]
         assert json.dumps(comparison, indent=2) in prompt
         assert "Investigate long decision premises" in prompt
         assert "overall" not in schema["properties"]

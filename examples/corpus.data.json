@@ -28,6 +28,10 @@
       "file": "../tests/fixtures/pages/thread-journey-inline.patch",
       "format": "unified-diff"
     },
+    "worktrunk-change": {
+      "file": "pr-walkthrough.patch",
+      "format": "unified-diff"
+    },
     "gallery-source": {
       "file": "developer/feature-gallery-source.toml",
       "lines": "1:4"
@@ -1302,6 +1306,32 @@
         "height": 640,
         "callId": "call@13",
         "phase": "after"
+      }
+    ]
+  },
+  "proposed-layout": {
+    "files": [
+      {
+        "path": "README.md"
+      },
+      {
+        "path": "src/importer.py",
+        "status": "modified"
+      },
+      {
+        "path": "src/formats/csv.py",
+        "status": "added"
+      },
+      {
+        "path": "src/formats/json.py",
+        "status": "renamed"
+      },
+      {
+        "path": "tests/test_importer.py"
+      },
+      {
+        "path": "legacy/parser.py",
+        "status": "deleted"
       }
     ]
   },

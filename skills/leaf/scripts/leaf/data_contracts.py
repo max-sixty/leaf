@@ -80,7 +80,7 @@ def data_bindings(lf_elements: list, registry: dict):
     """
     for ordinal, rec in enumerate(lf_elements):
         for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
-            source = rec["attrs"].get(spec["source"])
+            source = rec["attrs"].get(spec.get("source"))
             if isinstance(source, str) and re.fullmatch(DATA_SOURCE_NAME, source):
                 yield ordinal, rec, input_name, spec, source
 
@@ -170,6 +170,7 @@ def data_document_readings(
                     *(
                         spec["source"]
                         for spec in declarations[rec["tag"]]["x-data"].values()
+                        if "source" in spec
                     ),
                 }
                 if key in rec["attrs"]
@@ -318,7 +319,7 @@ def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> 
         input_spec = entry.get("x-data", {}).get(measured["input"])
         if not input_spec:
             continue  # registry validation owns the malformed declaration
-        source = rec["attrs"].get(input_spec["source"])
+        source = rec["attrs"].get(input_spec.get("source"))
         captured = rec["attrs"].get(measured["run"])
         snapshot = stored["sources"].get(source) if isinstance(source, str) else None
         current = snapshot.get("run") if isinstance(snapshot, dict) else None

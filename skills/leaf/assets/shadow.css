@@ -417,7 +417,7 @@ summary {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
-  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  font: var(--msg-font);
   color: color-mix(in srgb, var(--ink) 50%, transparent);
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
@@ -742,9 +742,12 @@ button.lf-thread-notice[data-lf-focus] {
   --quote-inset: 10px;
   --pre-inset: 10px;
 }
-leaf-text.lf-fab-input,
-.lf-msg-body {
+leaf-text.lf-fab-input {
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  color: var(--ink);
+}
+.lf-msg-body {
+  font: var(--msg-font);
   color: var(--ink);
 }
 .lf-msg-body {
@@ -1558,6 +1561,9 @@ button.lf-media-open {
 }
 .lf-thread-transcript .lf-msg-editor {
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
+}
+.lf-msg-editor > .lf-compose-field > leaf-text {
+  font: var(--msg-font);
 }
 .lf-msg-edit-foot {
   display: block;

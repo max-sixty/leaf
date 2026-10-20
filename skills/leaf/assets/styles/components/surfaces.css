@@ -791,7 +791,7 @@ summary {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
-  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  font: var(--msg-font);
   /* Ink at the sheen's default rest (`lf-sheen`), so the words keep their face when
      the work ends. */
   color: color-mix(in srgb, var(--ink) 50%, transparent);

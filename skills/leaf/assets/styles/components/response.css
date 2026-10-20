@@ -455,6 +455,9 @@ button.lf-media-open {
 .lf-thread-transcript .lf-msg-editor {
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
 }
+.lf-msg-editor > .lf-compose-field > leaf-text {
+  font: var(--msg-font);
+}
 /* Its foot stands for its last line, whose height a reveal clears above it. */
 .lf-msg-edit-foot {
   display: block;
@@ -534,7 +537,7 @@ button.lf-media-open {
      their height, vertical padding and type. Tab extends
      the control at its trailing edge without replacing or moving the field.
      The field can grow with its words without changing its corner. The shared UI
-     supplies the thread’s 14px face and line height; vertical padding keeps
+     supplies the layer’s 14px sans and line height; vertical padding keeps
      that face in the 32px resting box. */
 .lf-response-control {
   box-sizing: border-box;

@@ -3,18 +3,21 @@ Leaf's Codex plugin declares (`codex_tool.py`), which Codex starts outside its
 sandbox."""
 
 import json
+import os
+import shutil
 import subprocess
 import sys
+import time
 
 import pytest
-from interact_support import ROOT
+from interact_support import ROOT, STATED_TIMEOUT
 
 SERVER = ROOT / "skills" / "leaf" / "scripts" / "leaf" / "codex_tool.py"
 
 # Stands in for Leaf behind the plugin's launcher, which runs a host's launcher in
 # its place: it says where it ran, for which thread, with which words and stdin.
 HOST_LAUNCHER = """#!/bin/sh
-if [ "$1" = wait ]; then exec sleep 600; fi
+if [ "$1" = wait ]; then echo $$ > wait.pid; exec sleep 600; fi
 printf '%s|%s|%s|%s' "$PWD" "$CODEX_THREAD_ID" "$*" "$(cat)"
 echo refused >&2
 exit 3
@@ -99,14 +102,65 @@ def test_a_call_runs_leaf_where_and_for_whom_codex_says(server, tmp_path):
     }
 
 
-def test_a_call_that_hangs_holds_up_no_other_and_ends_when_cancelled(server, tmp_path):
-    """A command that outlives Codex's tool timeout, such as a `leaf wait` that
-    finds no input, leaves later calls answered, and Codex's cancellation ends it
-    rather than leaving it holding the session's wait."""
+def test_a_call_that_hangs_holds_up_no_other_and_ends_with_the_server(server, tmp_path):
+    """A command that runs on, such as a `leaf wait` that finds no input, leaves
+    later calls answered, and ends when Codex closes the server rather than holding
+    the session's wait after it."""
     server.call(1, {"args": ["wait"], "cwd": str(tmp_path)})
     server.call(2, {"args": ["page", "check"], "cwd": str(tmp_path)})
     assert server.receive()["id"] == 2
-    server.send({"method": "notifications/cancelled", "params": {"requestId": 1}})
-    ended = server.receive()
-    assert ended["id"] == 1
-    assert ended["result"]["isError"]
+    waiting = _written_pid(tmp_path / "wait.pid")
+    server.process.stdin.close()
+    server.process.wait(timeout=STATED_TIMEOUT)
+    deadline = time.monotonic() + STATED_TIMEOUT
+    while _alive(waiting):
+        assert time.monotonic() < deadline, "the call's command outlived the server"
+        time.sleep(0.05)
+
+
+def test_a_call_ends_before_codex_gives_up_on_it(tmp_path, monkeypatch):
+    """Codex abandons a call at its timeout and cancels nothing, so the server
+    ends the command first and says so with whatever it printed."""
+    from leaf import codex_tool
+
+    launcher = tmp_path / "host-leaf"
+    launcher.write_text(HOST_LAUNCHER)
+    launcher.chmod(0o700)
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(launcher))
+    ended = codex_tool.run({"args": ["wait"], "cwd": str(tmp_path)}, None, 0.5)
+    assert ended["isError"]
+    assert "leaf ended this command after 0.5 s" in ended["content"][0]["text"]
+    assert not _alive(int((tmp_path / "wait.pid").read_text()))
+
+
+def _written_pid(path) -> int:
+    deadline = time.monotonic() + STATED_TIMEOUT
+    while not (text := path.read_text() if path.exists() else ""):
+        assert time.monotonic() < deadline, f"nothing wrote {path}"
+        time.sleep(0.05)
+    return int(text)
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+@pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")
+def test_a_codex_sandbox_refusal_names_the_tool(tmp_path, monkeypatch):
+    """Where Codex's sandbox refuses a `leaf` command what it needs, the refusal
+    tells the agent to rerun it with the tool."""
+    monkeypatch.setenv("CODEX_SANDBOX", "seatbelt")
+    page = tmp_path / "page"
+    profile = f'(version 1)(allow default)(deny file-write* (subpath "{os.path.realpath(tmp_path)}"))'
+    refused = subprocess.run(
+        ["sandbox-exec", "-p", profile, ROOT / "bin" / "leaf", "page", "init", page],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert refused.returncode == 1
+    assert "rerun it with the `run` tool of the `leaf` MCP server" in refused.stderr

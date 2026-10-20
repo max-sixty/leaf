@@ -18,9 +18,9 @@ The steps, in order:
 
 - `setup`: the user asks for a page to review; serving it automatically connects
   delivery using this journey's transport. With `--sandbox`, the task's shell
-  commands run in Codex's `workspace-write` sandbox and nothing approves an
-  escalation, so the task must serve through the plugin's MCP server
-  (`leaf.codex_tool`);
+  commands run in Codex's `workspace-write` sandbox, which may write the task's
+  directory but not the state home, and nothing approves an escalation, so the task
+  must serve through the plugin's MCP server (`leaf.codex_tool`);
 - `release`: the journey's timed ask, sent while the task is idle, is answered in a
   turn Leaf starts (`journey.run_journey`);
 - `rich-choice` and `rich-question`: comments asking, in the author's own words, for
@@ -526,7 +526,19 @@ def answering(
         nonlocal executable
         # Keep the journey's isolated executable on PATH; a login shell would
         # replace it with the user's Codex and bypass the queue wrapper.
-        home = codex_home(place.root / "codex-home", "allow_login_shell = false\n")
+        config = "allow_login_shell = false\n"
+        if sandbox:
+            # The journey's state home is under TMPDIR, which the sandbox otherwise
+            # lets a command write, where a user's is not. And the journey cannot
+            # answer Codex's question whether to allow Leaf's MCP tool, so it
+            # allows it as a user who answered "always" has.
+            config += (
+                "[sandbox_workspace_write]\n"
+                "exclude_tmpdir_env_var = true\n"
+                '[plugins."leaf@leaf".mcp_servers.leaf]\n'
+                'default_tools_approval_mode = "approve"\n'
+            )
+        home = codex_home(place.root / "codex-home", config)
         executable = task_codex(place.root, codex_path, transport)
         return environment(
             XDG_STATE_HOME=str(place.state),

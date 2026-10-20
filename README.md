@@ -104,15 +104,15 @@ this machine's loopback, Leaf's bridge among them, and through the bridge run
 `leaf` commands with your own access, as Leaf's hooks already run.
 
 Codex's sandbox gives a command no such route, so Leaf's Codex plugin adds an MCP
-server, `leaf`, which Codex starts outside the sandbox. When the sandbox refuses a
-`leaf` command, the agent reruns it with the server's `run` tool. The plugin approves
-the tool's calls itself, so Codex doesn't ask you about them, and they run `leaf`
-with your own access, as Leaf's hooks already run. To be asked before each call, add
-this to `~/.codex/config.toml`:
+server, `leaf`, which Codex starts outside the sandbox. In the sandbox the agent runs
+`leaf` commands with the server's `run` tool. The first time, Codex asks whether to
+allow the tool, for the session or always. Allowing it lets the agent run any `leaf`
+command with your own access, including a package's scripts, with arguments it
+chooses. To allow it without being asked, add this to `~/.codex/config.toml`:
 
 ```toml
 [plugins."leaf@leaf".mcp_servers.leaf]
-default_tools_approval_mode = "prompt"
+default_tools_approval_mode = "approve"
 ```
 
 </details>

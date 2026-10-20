@@ -52,19 +52,25 @@ def pid_alive(pid: int) -> bool:
 # What a harness's sandbox sets in each command it confines, and the way out of it:
 # the sandbox runtime Claude Code runs its shell commands under
 # (`SANDBOX_RUNTIME=1`), which the README's settings let reach Leaf's bridge, and
-# Codex's (`CODEX_SANDBOX=seatbelt`), which Leaf's plugin leaves through the `run`
-# tool of its MCP server (`codex_tool.py`). Each variable is the harness's own
+# Codex's, which Leaf's plugin leaves through the `run` tool of its MCP server
+# (`codex_tool.py`). Codex names its macOS sandbox (`CODEX_SANDBOX=seatbelt`) and,
+# on every platform, a sandbox that denies the network
+# (`CODEX_SANDBOX_NETWORK_DISABLED=1`). Each variable is the harness's own
 # statement, as CLAUDE_PID is, rather than a guess from what a refusal looked like.
+_CODEX_REMEDY = (
+    "rerun it with the `run` tool of the `leaf` MCP server, which runs leaf outside "
+    "the sandbox; if Codex refuses that call for want of approval, ask the user to "
+    'allow the tool ("Agent sandboxes" in '
+    f"{Path(__file__).resolve().parents[4] / 'README.md'})"
+)
 SANDBOX_REMEDIES = {
     "SANDBOX_RUNTIME": (
         'rerun it outside the sandbox; "Agent sandboxes" in '
         f"{Path(__file__).resolve().parents[4] / 'README.md'} says how leaf runs "
         "from that sandbox without asking"
     ),
-    "CODEX_SANDBOX": (
-        "rerun it with the `run` tool of the `leaf` MCP server, which runs leaf "
-        "outside the sandbox"
-    ),
+    "CODEX_SANDBOX": _CODEX_REMEDY,
+    "CODEX_SANDBOX_NETWORK_DISABLED": _CODEX_REMEDY,
 }
 
 

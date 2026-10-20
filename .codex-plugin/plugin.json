@@ -24,9 +24,11 @@
         "CHROME_PATH",
         "CHROME_BIN",
         "PLAYWRIGHT_NODEJS_PATH",
-        "SSH_CONNECTION"
+        "SSH_CONNECTION",
+        "LEAF_HOST_LAUNCHER",
+        "LEAF_PAGE_COMMIT"
       ],
-      "default_tools_approval_mode": "approve"
+      "tool_timeout_sec": 300
     }
   },
   "keywords": [

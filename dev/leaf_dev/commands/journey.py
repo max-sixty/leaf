@@ -1469,6 +1469,8 @@ def journey(
         raise click.UsageError("--sandbox is an option of claude-code and codex")
     if preview and HARNESS_TARGETS.get(target, {}).get("harness") != "codex":
         raise click.UsageError("--preview is an option of the codex targets")
+    if preview and sandbox:
+        raise click.UsageError("--preview runs leaf-dev, which a sandbox refuses")
     website = target not in HARNESS_TARGETS
     if website and browser is False:
         raise click.UsageError(

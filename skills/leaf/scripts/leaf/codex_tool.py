@@ -12,31 +12,41 @@ sandboxed refusal names its tool (`machine.sandbox_remedy`).
 Codex starts a plugin's MCP servers with every session, whether or not it calls
 them (measured at 0.160.0: `initialize` and `tools/list` arrive in a session that
 calls no tool), so every Codex session with Leaf installed pays this program's
-start. It is therefore a standalone stdlib program on the system's Python, as
-`state.py`'s SessionEnd entry is, speaking MCP's stdio transport (one JSON-RPC
-message per line) itself: it starts in about 20 ms and 17 MB, where the MCP SDK's
-imports alone took 0.3 s and 74 MB. The `leaf` command it runs goes through this
-install's launcher, so it runs this tree, and the launcher's `uv` is paid only by
-a call.
+start and keeps it running. It is therefore a standalone stdlib program on the
+system's Python, as `state.py`'s SessionEnd entry is, speaking MCP's stdio
+transport (one JSON-RPC message per line) itself: it answers `tools/list` about
+20 ms after it starts and holds 17 MB, where the MCP SDK's imports alone took
+0.3 s and 74 MB. The `leaf` command it runs goes through this install's launcher,
+so it runs this tree, and the launcher's `uv` is paid only by a call.
 
-The manifest also declares `default_tools_approval_mode = "approve"`, which Codex
-honors from a plugin (measured: the same call under `approval_policy = "never"`
-fails as needing approval without it), so a call asks the user nothing; a user's
-`[plugins."leaf@leaf".mcp_servers.leaf]` overrides it. A call runs `leaf` with
-the user's own access, as Leaf's hooks already do.
+A call runs `leaf` with the user's own access and the arguments the agent chooses,
+which can run a package's scripts, so Codex asks the user before the first one,
+offering to allow the tool for the session or always (measured at 0.160.0, with
+no approval mode declared). The manifest declares none; a plugin can, and Codex
+honors `default_tools_approval_mode = "approve"` from a plugin's manifest as from
+the user's `[plugins."leaf@leaf".mcp_servers.leaf]`.
 
 Codex starts the server with a short list of variables (PATH, HOME and the like)
 plus those the manifest's `env_vars` names, the ones a `leaf` command reads from
-its harness: the state home, Codex's home and App Server endpoint, a launch's
-session and voice, and the browser. A shell command learns its Codex thread from
+its harness or host. A shell command learns its Codex thread from
 `CODEX_THREAD_ID`, which Codex sets in its shell alone, so each call passes on the
 thread its request's `_meta` names. The call states its working directory, since
 the server's own is the plugin's root, and its stdin, since the server's is the
 transport.
 
-Each call runs on a thread of its own, so a command that outlives Codex's tool
-timeout, such as a `leaf wait` that finds no input, holds up no later call, and a
-cancellation Codex sends ends its process group."""
+Each call runs on a thread of its own, so a long command holds up no other. Codex
+gives up on a call after the manifest's `tool_timeout_sec` and cancels nothing
+(measured at 0.160.0), so the server ends a call's process group shortly before
+then, and a `leaf wait` that finds no input returns what it printed rather than
+holding the session's wait unseen. A user who sets a shorter timeout for the server
+in their own config is not heard: Codex then gives up first, and the command still
+ends at the manifest's deadline. The server ends every call's group as it exits,
+whether Codex closes its stdin or signals it.
+
+Codex starts the server once per session and never again: once it exits, every
+later call fails with "Transport closed" (measured at 0.160.0). So the server
+answers every request, a failing one with its error, and exits only when Codex
+stops it."""
 
 from __future__ import annotations
 
@@ -49,7 +59,13 @@ import sys
 import threading
 from pathlib import Path
 
-LAUNCHER = Path(__file__).resolve().parents[4] / "bin" / "leaf"
+ROOT = Path(__file__).resolve().parents[4]
+LAUNCHER = ROOT / "bin" / "leaf"
+# Seconds before Codex gives up on a call that the server ends it, so the agent
+# reads the command's output and why it ended rather than Codex's timeout.
+MARGIN = 10
+# Seconds a command ended at its deadline has to exit before it is killed.
+GRACE = 5
 
 TOOL = {
     "name": "run",
@@ -79,7 +95,7 @@ TOOL = {
 }
 
 _write = threading.Lock()
-_running: dict = {}
+_running: set = set()
 
 
 def send(message: dict) -> None:
@@ -88,18 +104,19 @@ def send(message: dict) -> None:
         sys.stdout.flush()
 
 
-def run(request: dict) -> dict:
-    """The tool's result for one `tools/call` request."""
-    arguments = request["params"]["arguments"]
-    cwd = arguments["cwd"]
+def run(arguments: dict, thread: str | None, deadline: float) -> dict:
+    """The tool's result for one call's `arguments`, run for Codex's `thread`."""
+    words, cwd = arguments["args"], arguments["cwd"]
+    if not (isinstance(words, list) and all(isinstance(w, str) for w in words)):
+        return text_result([f"args must be a list of strings, not {words!r}"], 2)
     if not os.path.isabs(cwd):
         return text_result([f"cwd must be an absolute directory, not {cwd!r}"], 2)
     environment = dict(os.environ)
-    if thread := request["params"].get("_meta", {}).get("threadId"):
+    if thread:
         environment["CODEX_THREAD_ID"] = thread
     stdin = arguments.get("stdin")
     process = subprocess.Popen(
-        [str(LAUNCHER), *arguments["args"]],
+        [str(LAUNCHER), *words],
         cwd=cwd,
         env=environment,
         stdin=subprocess.DEVNULL if stdin is None else subprocess.PIPE,
@@ -108,12 +125,26 @@ def run(request: dict) -> dict:
         text=True,
         start_new_session=True,
     )
-    _running[request["id"]] = process
+    _running.add(process)
     try:
-        stdout, stderr = process.communicate(stdin)
+        try:
+            stdout, stderr = process.communicate(stdin, timeout=deadline)
+        except subprocess.TimeoutExpired:
+            end(process)
+            try:
+                stdout, stderr = process.communicate(timeout=GRACE)
+            except subprocess.TimeoutExpired:
+                end(process, signal.SIGKILL)
+                stdout, stderr = process.communicate()
+            stderr += f"leaf ended this command after {deadline:g} s, before Codex's tool timeout\n"
     finally:
-        del _running[request["id"]]
+        _running.discard(process)
     return text_result([stdout, stderr], process.returncode)
+
+
+def end(process: subprocess.Popen, signal_number: int = signal.SIGTERM) -> None:
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(process.pid, signal_number)
 
 
 def text_result(texts: list, status: int) -> dict:
@@ -123,11 +154,14 @@ def text_result(texts: list, status: int) -> dict:
     return {"content": content, "isError": bool(status)}
 
 
-def call(request: dict) -> None:
+def call(request: dict, deadline: float) -> None:
+    params = request["params"]
     try:
-        result = run(request)
-    except OSError as error:
-        result = text_result([str(error)], 1)
+        result = run(
+            params["arguments"], params.get("_meta", {}).get("threadId"), deadline
+        )
+    except Exception as error:  # noqa: BLE001 - every failure answers the call
+        result = text_result([f"{type(error).__name__}: {error}"], 1)
     send({"id": request["id"], "result": result})
 
 
@@ -146,31 +180,30 @@ def answer(request: dict) -> dict:
     raise LookupError(method)
 
 
-def main() -> None:
+def serve(deadline: float) -> None:
     for line in sys.stdin:
         request = json.loads(line)
         if "id" not in request:
-            if request.get("method") == "notifications/cancelled":
-                process = _running.get(request["params"]["requestId"])
-                if process is not None:
-                    with contextlib.suppress(ProcessLookupError):
-                        os.killpg(process.pid, signal.SIGTERM)
             continue
         if request.get("method") == "tools/call":
-            threading.Thread(target=call, args=(request,), daemon=True).start()
+            threading.Thread(target=call, args=(request, deadline), daemon=True).start()
             continue
         try:
             send({"id": request["id"], "result": answer(request)})
-        except LookupError:
-            send(
-                {
-                    "id": request["id"],
-                    "error": {
-                        "code": -32601,
-                        "message": f"no method {request['method']}",
-                    },
-                }
-            )
+        except Exception as error:  # noqa: BLE001 - every request is answered
+            code = -32601 if isinstance(error, LookupError) else -32603
+            send({"id": request["id"], "error": {"code": code, "message": repr(error)}})
+
+
+def main() -> None:
+    manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text())
+    deadline = manifest["mcpServers"]["leaf"]["tool_timeout_sec"] - MARGIN
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    try:
+        serve(deadline)
+    finally:
+        for process in list(_running):
+            end(process)
 
 
 if __name__ == "__main__":

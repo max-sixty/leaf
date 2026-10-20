@@ -291,10 +291,6 @@ and its chrome coordinate.
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
-- **Keep a playground's rail in view beside a tall preview.** With controls beside
-  each item in the preview (#2711), the user works down a long stage while the
-  page-wide controls, the instruction and the submit button scroll away above it.
-  Bound the rail to the window's height, as the sidebar's sticky panel is (#2636).
 - **Decide whether a sidebar built from several blocks sticks.** A sidebar panel
   sticks only when it is a single block, so existing multi-panel pages keep
   flowing; dropping that condition makes every sidebar page's panel stick.
@@ -360,9 +356,6 @@ height and where a switch lands wait on the workspace decision under Layout.
   label sticky at the row's start, stepping clear of the start press while stuck
   (`scroll-state(stuck)`, Chrome 133+), keeps it named, but `#showTab` then has to
   bring a tab in clear of a label whose width changes once it sticks.
-- **Close the tally's small gaps.** On a phone the workspace header, tally
-  included, scrolls away after Next; Undo's announcement doesn't name what it
-  undid; the `m` help text is ambiguous; and a row's ○ mark has no legend.
 
 ### Before/after comparison
 

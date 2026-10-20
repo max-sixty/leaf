@@ -24,12 +24,13 @@ import { turns } from "./model.js";
    editors, exact-version read observation and the single authored widget instances.
    Nominations settle before the fallback panel paints, so native authored nodes have
    one physical destination on every pass. A message part is one of its thread's turns
-   (model.js, `turns`), the messages a card draws: a reaction stands as the pressed chip
-   on the message it answers, so naming one as a part of its own is refused, as naming a
-   message the thread lacks is. A message part offers the user's rewrite of it, and a
-   reply part ↑ to the latest, as a thread card does, through the thread's one rewrite
-   owner over the parts this reader draws (`threadRewrites`). Layout and
-   disclosure belong to the caller. The thread's reply destination is its reply box as
+   (model.js, `turns`), the messages a card draws: its root, even a reaction, and its
+   spoken messages. A later reaction stands as the pressed chip on the message it
+   answers, so naming one as a part of its own is refused, as naming a message the
+   thread lacks is. A message part offers the user's rewrite of it, and a reply part ↑
+   to the latest, as a thread card does, through the thread's one rewrite owner over
+   the parts this reader draws (`threadRewrites`). Layout and disclosure belong to the
+   caller. The thread's reply destination is its reply box as
    the parts stand: a reply part's, or the one the presentation drawing them declares
    (focus.js, `threadPart`), as the floating panel declares its field. A reply part takes
    the presentation's words for its box and its own landing of a send (replies.js,

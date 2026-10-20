@@ -158,8 +158,9 @@ inside messages live there.
 `render(shownCollection, parts)` names outlets inside the widget: a whole conversation
 with `parts.thread(thread.key, outlet)`, or its parts with
 `parts.message(thread.key, message.key, outlet)` for each of its `threadTurns` and
-`parts.reply(thread.key, outlet)`. A reaction is drawn on the message it answers, so
-naming one as a message part throws.
+`parts.reply(thread.key, outlet)`. A reaction a thread opens on is its root turn; any
+later reaction is drawn as the chip on the message it answers, so naming one as a
+message part throws.
 Leaf fills them and keeps the rendering, reactions, read tracking and reply draft; the
 package keeps layout, order, selection, scroll and disclosure. `parts.reply` takes
 `{hint, accessibleName, sent}`, where `sent()` runs after a send instead of moving the

@@ -164,7 +164,8 @@ import {
   commitPoint,
   livePoint,
   registerPageControl,
-  settleResidency
+  settleResidency,
+  visibleTargetParts
 } from "./bundle-page-controls.js";
 import {
   ADDRESSABLE,
@@ -6158,8 +6159,14 @@ function createThreadDestinations({
       if (surfaceFocusTarget(id, { part: localPart })) return openSurface();
       if (showHeldThread(id) && surfaceFocusTarget(id, { part: localPart }))
         return openSurface();
+      const place = preview && !trip ? threadTarget(id) : null;
+      const placeDrawn = () => visibleTargetParts(place).length > 0;
+      if (place && scroll && !placeDrawn()) {
+        await reveal(place, intent).ready;
+        if (!mayPresent()) return null;
+      }
       let opened = null;
-      if (preview)
+      if (preview && (!place || placeDrawn()))
         intent.handoff(() => {
           opened = preview.open(id, { origin });
         });

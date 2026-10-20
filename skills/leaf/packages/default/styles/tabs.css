@@ -773,7 +773,8 @@
    * painted face in the column, a rule under the tab in a row. The open part is ruled off
    * from the column. The list sticks under the title, so it stands in one place
    * whichever part is open and wherever it is read, and scrolls on its own where it
-   * holds more names than the window's height leaves under the title. On a phone it is
+   * holds more names than the window's height leaves under the title, a height it holds
+   * on purpose (`--lf-holds-height`), as a sticking block does. On a phone it is
    * a row sticking over the part, scrolled sideways. Placed anywhere else, as when the corpus
    * embeds a page of parts, the list is a strip's row over the open part.
    *
@@ -811,6 +812,7 @@
       padding: var(--sp-4) 8px;
       overflow-x: hidden;
       overflow-y: auto;
+      --lf-holds-height: 1;
       border-bottom: 0;
       border-radius: 0;
       --lf-tabstrip-bg: var(--paper);

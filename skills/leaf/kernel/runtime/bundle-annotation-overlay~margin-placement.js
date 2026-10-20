@@ -1,9 +1,7 @@
 import {
-  visibleTargetParts
-} from "./bundle-visible-target-parts.js";
-import {
   pointBand,
-  railStands
+  railStands,
+  visibleTargetParts
 } from "./bundle-page-controls.js";
 import {
   anchorBox,

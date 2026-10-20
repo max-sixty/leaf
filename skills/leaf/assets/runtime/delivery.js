@@ -71,7 +71,7 @@ export function createDelivery({
         await retry(
           runtime.keyRefused
             ? "Key refused — open Leaf's link in a new tab and the change will send"
-            : "Connection lost — retrying the change…",
+            : "Connection lost — keep this page open while it retries",
         );
         continue;
       }

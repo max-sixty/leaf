@@ -9,9 +9,10 @@
    A failed fetch is an offline answer: the authored page and local comments remain
    useful, while Decisions await the complete reading their actions need. Fixed status
    chrome reports the loss; a request still in flight remains loading. A successful
-   response with malformed state is not an offline answer. Parsing or rendering errors pass to the recovery boundary and leave
-   the candidate sequence unresolved; authored content stays readable while
-   state-dependent controls remain unavailable. */
+   response with malformed state is not an offline answer. A live server's error is no
+   state either, but the status names it as the server's fault. Parsing or rendering
+   errors pass to the recovery boundary and leave the candidate sequence unresolved;
+   authored content stays readable while state-dependent controls remain unavailable. */
 
 import { countTraffic } from "./traffic.js";
 import { activityTransitionDue, tickClock } from "./presence.js";
@@ -27,7 +28,9 @@ import {
   sessionIsActive,
 } from "./layer-client.js";
 
-// The answer, decoded, with nothing applied yet.
+// The answer, decoded, with nothing applied yet: `{state, fault}`, with `state` null
+// where nothing answered, and `fault` the live server's words where it answered with
+// an error of its own.
 //
 // Reading and applying are separate acts because the page must stay free to ask again
 // while an application is still running. Applying can take arbitrarily long and can be
@@ -38,7 +41,7 @@ import {
 async function readState(bound) {
   countTraffic("asked");
   try {
-    if (offlineInteractive) return offlineState();
+    if (offlineInteractive) return { state: offlineState(), fault: null };
     const signal = globalThis.AbortSignal.timeout(bound);
     const held = runtime.data;
     let res;
@@ -54,18 +57,26 @@ async function readState(bound) {
       // offline authored page is honest. A successful but malformed response is
       // different — let JSON or processing errors escape so the caller retains the
       // recovery boundary.
-      return null;
+      return NOTHING;
     }
-    if (!admitResponse(res)) return null;
+    if (!admitResponse(res)) return NOTHING;
     // A refusal is not state: the server answers a missing key with error-shaped JSON
     // at 401. A live server refusing the key and a dead one both leave the page
     // unreachable from here; the page status says which, since only the refused key has a
-    // recourse the user takes (`runtime.keyRefused`).
-    if (!res.ok) return null;
+    // recourse the user takes (`runtime.keyRefused`). A gateway answering for a server
+    // behind it that isn't there, such as the website's edge while a container starts,
+    // is no answer either. Any other failure is the live server's own, which names
+    // itself (http.py, `_answer`): the page says that fault rather than calling the
+    // server offline, and asks again as it would of an absent one.
+    if (!res.ok) {
+      if (res.status === 401 || NO_SERVER_BEHIND.has(res.status)) return NOTHING;
+      const answer = await res.json().catch(() => null);
+      return { state: null, fault: answer?.error ?? `HTTP ${res.status}` };
+    }
     try {
-      return completeData(await res.json(), held);
+      return { state: completeData(await res.json(), held), fault: null };
     } catch (error) {
-      if (signal.aborted) return null;
+      if (signal.aborted) return NOTHING;
       throw error;
     }
   } finally {
@@ -76,10 +87,7 @@ async function readState(bound) {
 
 // A read whose rejection is observed here rather than wherever it is finally awaited.
 function buffer(bound) {
-  return readState(bound).then(
-    (state) => ({ state }),
-    (error) => ({ error }),
-  );
+  return readState(bound).catch((error) => ({ error }));
 }
 
 // Start the page's first read without leaving a rejection unobserved while widget
@@ -120,11 +128,13 @@ export function createStateFeed({
     document.dispatchEvent(new Event("lf-tick"));
   }
 
-  // What the page does with an answer that brought no state.
-  async function readNothing() {
+  // What the page does with an answer that brought no state, and the server's `fault`
+  // where it said why.
+  async function readNothing(fault = null) {
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
-    applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
+    if (fault !== null) applicationState.setReach("faulted", fault);
+    else applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
     await invalidateDom();
     await tick();
   }
@@ -137,9 +147,9 @@ export function createStateFeed({
   async function readAndApply(read = buffer(STATE_READ_TIMEOUT_MS)) {
     const answer = await read;
     if ("error" in answer) throw answer.error;
-    const { state } = answer;
+    const { state, fault } = answer;
     if (!state) {
-      await readNothing();
+      await readNothing(fault);
       return;
     }
     await receiveState(state);
@@ -211,7 +221,7 @@ export function createStateFeed({
     const askOnce = async () => {
       const returned = readingReturn();
       try {
-        const state = await readState(STATE_READ_TIMEOUT_MS);
+        const { state, fault } = await readState(STATE_READ_TIMEOUT_MS);
         if (state) {
           applyingReads += 1;
           void receiveState(state)
@@ -241,7 +251,7 @@ export function createStateFeed({
               applyingReads -= 1;
             });
         } else {
-          void readNothing()
+          void readNothing(fault)
             .then(async () => {
               await present();
               if (!applyingReads && !stateApplying()) completeReadingReturn(returned);
@@ -392,3 +402,9 @@ const FIRST_READ_TIMEOUT_MS = 120_000;
 // rather than the gate's. On expiry readState produces the same offline answer as any
 // lost request, and the shared retry clock asks again.
 const STATE_READ_TIMEOUT_MS = 10_000;
+
+// A read nothing answered.
+const NOTHING = Object.freeze({ state: null, fault: null });
+
+// Statuses a gateway sends when no server stands behind it.
+const NO_SERVER_BEHIND = new Set([502, 503, 504]);

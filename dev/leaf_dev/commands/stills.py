@@ -1567,6 +1567,21 @@ STATES = (
         "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
     ),
     State("alert-queue-tally", "alert-review", tally_after_an_answer),
+    State(
+        "alert-queue-tally-touch",
+        "alert-review",
+        tally_after_an_answer,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "alert-queue-tally-touch-dark",
+        "alert-review",
+        tally_after_an_answer,
+        viewport=(390, 844),
+        touch=True,
+        scheme="dark",
+    ),
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),

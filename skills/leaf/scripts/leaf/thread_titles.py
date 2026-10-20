@@ -1,5 +1,5 @@
-"""Name a thread from its opening message, with one small model request on the
-harness's own model.
+"""Name a thread from its opening message, with one request to a small model
+through the harness the page's agent runs in.
 
 An opening or reply may carry its untitled thread's first title atomically;
 `thread_title` names one independently or renames it. An agent answering with
@@ -23,13 +23,16 @@ A Codex title waits for no turn, so a thread opened while the task is busy, or o
 task whose App Server Leaf cannot reach, is named as promptly as one opened while it
 is idle. The page server asks an App Server of its own rather than running `codex
 exec`, so Codex is asked in one way wherever it is reached (`app_server_title`), and
-the server says which MCP servers to turn off by name (`config/read`).
+the server says which MCP servers to turn off by name (`config/read`). Every Codex
+title is asked of `CODEX_TITLE_MODEL`, whatever model the user's tasks, or the
+website's, run on.
 
 Before a new thread's first turn reaches the model, Codex connects a websocket to the
 model and sends it a warm-up request, which took 0.7–1.0 s, and a new server first
-fetches the model list, about 0.4 s more. The model then answered in 1.3–2.2 s
-(codex-cli 0.160, gpt-6.1-sol at low effort, load average about 7). A server kept
-running saves only the model list, since each thread connects anew, so asking on a
+fetches the model list, about 0.4 s more. With the warm-up, a title's turn took
+2.2–3.3 s on gpt-6-luna with no reasoning, against 2.5–4.4 s, and once 7.2 s, on
+gpt-6.1-sol at low effort (codex-cli 0.160, two dozen each, load average 4 to 7). A
+server kept running saves only the model list, since each thread connects anew, so asking on a
 server that is already running, the task's own included, would save little. Instead
 a page server holds the server and thread the next title is asked on while a Codex
 session holds the page's claim (`prepare_for_claimant`). It starts them when it
@@ -37,8 +40,16 @@ starts serving a Codex session's page or a Codex session claims a page it serves
 again once each title is answered, and stops them once the claim ends, lapses with
 its claimant's death or passes to another harness's session, reading the claim
 where the server's lifetime does (`server.stop_when_service_ends`). A title then
-took 2.0–2.3 s, against 3.3–3.9 s when started on request. The cost is an idle App
-Server of about 105 MB for each served page a Codex session holds.
+took 2.0–2.3 s on gpt-6.1-sol, against 3.3–3.9 s when started on request. In the
+`codex-app-server` journey, a thread was titled 1.5 s after its comment was admitted
+on gpt-6-luna, against 2.3–2.4 s on gpt-6.1-sol (three runs each, load average 4 to
+9). The cost is an idle App Server of about 105 MB for each served page a Codex
+session holds.
+
+On a ChatGPT login, gpt-6-luna limits bursts more tightly than gpt-6.1-sol. Of twelve
+titles asked back to back, the last six failed with a 429 within 2 s, where
+gpt-6.1-sol answered all twelve. One of the 12 titles asked in three journeys failed
+the same way. After a burst, a title every 20 s for four minutes never failed.
 
 Every harness is sent the same request (`title_request`): a system prompt saying to
 title the thread, then the passage the thread is on and its first spoken message,
@@ -59,8 +70,10 @@ to 330 on this machine, and cost $0.0005 at Pi's catalog price for gpt-6.1-sol, 
 The title is written as the session that holds the page's claim, and only while the
 thread is still untitled (`thread.name_untitled`), so a name the agent gave first
 stands, and an agent's reply that comes later leaves this one in place. A request
-that fails or finds no words leaves the thread untitled for the agent's reply to
-name, and tells the caller's `record`.
+that fails or finds no words leaves the thread untitled, and tells the caller's
+`record`. A delivery the agent answers with its own reply asks it to name an
+untitled thread; one a Codex turn's final message answers does not, so its thread
+stays untitled until the user's next message in it asks again.
 """
 
 import contextlib
@@ -119,9 +132,13 @@ TIMEOUT = 60
 # says nothing about one. With a shell, the model sometimes acted on a message that
 # asks for work instead of naming it. Nor does it run the user's hooks: with the
 # feature on, a title thread ran a config's UserPromptSubmit and Stop hooks, which
-# here retitle the user's terminal tab. Low effort rather than Worktrunk's `none`,
-# which not every model a task configures accepts; neither reasoned on a title.
-APP_SERVER_EFFORT = "low"
+# here retitle the user's terminal tab.
+#
+# Codex titles run at the least effort gpt-6-luna accepts. Its API takes `none`,
+# though the App Server's model list starts at `low`, and refuses `minimal`
+# (codex-cli 0.160). An account without the model fails the title's turn.
+CODEX_TITLE_MODEL = "gpt-6-luna"
+APP_SERVER_EFFORT = "none"
 TITLE_CONFIG = {
     "features": {
         feature: False
@@ -376,10 +393,10 @@ def pi_title(request: str, page_dir: Path) -> dict:
     }
 
 
-def open_title_thread(socket, model: str | None, page_dir: Path) -> str:
-    """Open the ephemeral thread one title is asked on, over a new connection to an
-    App Server, run in the page directory, and return its id; `model` None takes
-    the server's configured model."""
+def open_title_thread(socket, page_dir: Path) -> str:
+    """Open the ephemeral thread one title is asked on, on `CODEX_TITLE_MODEL`, over
+    a new connection to an App Server, run in the page directory, and return its
+    id."""
     app_server_handshake(socket, 0, "leaf-thread-titles", "Leaf thread titles")
     # A thread starts every MCP server the user configured, its project's included,
     # and an override replacing the table leaves them configured, so each is turned
@@ -391,7 +408,7 @@ def open_title_thread(socket, model: str | None, page_dir: Path) -> str:
         "thread/start",
         2,
         {
-            **({"model": model} if model else {}),
+            "model": CODEX_TITLE_MODEL,
             "cwd": str(page_dir),
             "ephemeral": True,
             "approvalPolicy": "never",
@@ -454,16 +471,15 @@ def ask_title(socket, thread_id: str, request: str, deadline: float) -> dict:
             }
 
 
-def app_server_title(endpoint: str, model: str | None) -> Generate:
+def app_server_title(endpoint: str) -> Generate:
     """A request for one title as an ephemeral thread on the App Server at
-    `endpoint`, run in the page directory; `model` None takes the server's
-    configured model."""
+    `endpoint`, run in the page directory."""
 
     def generate(request: str, page_dir: Path) -> dict:
         started = time.monotonic()
         socket = app_server_connect(endpoint)
         try:
-            thread_id = open_title_thread(socket, model, page_dir)
+            thread_id = open_title_thread(socket, page_dir)
             reading = ask_title(socket, thread_id, request, started + TIMEOUT)
         finally:
             socket.close()
@@ -510,7 +526,7 @@ class CodexTitleThread:
             ) as endpoint:
                 socket = app_server_connect(endpoint)
                 try:
-                    thread_id = open_title_thread(socket, None, page_dir)
+                    thread_id = open_title_thread(socket, page_dir)
                     opened = True
                     asked = self._request.get()
                     if asked is None:

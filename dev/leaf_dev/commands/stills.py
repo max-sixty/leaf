@@ -83,9 +83,9 @@ def captured_source(page: Page) -> None:
 def native_code(page: Page) -> None:
     """Native fenced code using short language labels."""
     page.locator("#bg-gallery-tabs").get_by_role(
-        "tab", name="Data & work", exact=True
+        "tab", name="Page & layout", exact=True
     ).click()
-    page.locator("#bg-plain-code").scroll_into_view_if_needed()
+    page.locator("#bg-javascript-code").scroll_into_view_if_needed()
 
 
 def recorded_video(page: Page) -> None:

@@ -103,6 +103,7 @@ from typing import NamedTuple
 from urllib.parse import urljoin
 
 import click
+import psutil
 from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
@@ -857,6 +858,33 @@ class Isolation(NamedTuple):
     evidence: Path
 
 
+def stop_left_running(state: Path) -> list[str]:
+    """Stop every process running with `state` as its state home, which only the
+    journey's session and what it started have, and return their command lines.
+    Each gets 10 s to exit on SIGTERM before SIGKILL. The system hides its own
+    binaries' environments, such as `sleep`'s, but not Leaf's Python or a harness's,
+    which are what write the state home."""
+    left = []
+    for process in psutil.process_iter():
+        try:
+            if process.environ().get("XDG_STATE_HOME") == str(state):
+                left.append(process)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    commands = []
+    for process in left:
+        try:
+            commands.append(" ".join(process.cmdline())[:200])
+            process.terminate()
+        except psutil.NoSuchProcess:
+            pass
+    _, alive = psutil.wait_procs(left, timeout=10)
+    for process in alive:
+        process.kill()
+    psutil.wait_procs(alive, timeout=10)
+    return commands
+
+
 @contextmanager
 def isolated(
     target: str, environment: Callable[[Isolation], dict[str, str]]
@@ -867,9 +895,11 @@ def isolated(
     throwaway home rather than the session running this.
 
     Every run keeps the page's log in its evidence directory, beside whatever the
-    harness module writes there (`trace.jsonl`, its screen or log). The root, which
-    holds a copy of the login, is removed when every check passes and kept, with its
-    path printed, when one fails."""
+    harness module writes there (`trace.jsonl`, its screen or log). Before reading
+    the log, it stops every process the session left running (`stop_left_running`),
+    since one that writes the state home later would race the copy and the removal.
+    The root, which holds a copy of the login, is removed when every check passes
+    and kept, with its path printed, when one fails."""
     evidence = run_directory(ROOT / ".tmp" / "journey")
     # Claude Code records trust by the resolved path.
     root = Path(tempfile.mkdtemp(prefix=f"leaf-journey-{target}-")).resolve()
@@ -889,6 +919,12 @@ def isolated(
         passed = True
     finally:
         run_leaf(ROOT, place.state, "server", "stop", str(place.page))
+        if left := stop_left_running(place.state):
+            click.echo(
+                "Stopped what the session left running:\n"
+                + "\n".join(f"  {command}" for command in left),
+                err=True,
+            )
         for name in ("events.jsonl", "observations.jsonl"):
             if (place.page / name).exists():
                 shutil.copy(place.page / name, evidence / name)

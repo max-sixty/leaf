@@ -660,8 +660,9 @@ export function createFloatingPanel({
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         busy: () => !errorCover.hidden,
         sent: (flight) => {
-          // The user's turn lets go of the height a gesture held (`actedIn`).
+          // The user's turn lets go of the height a press held (`pressAt`).
           rooms.delete(routeKey(trail.at(-1)));
+          rewriting = false;
           landAtEnd = { key, after: drawnTurns() };
           // The user's turn grows the view to show it and takes New reply away.
           waiting = null;
@@ -1104,16 +1105,21 @@ export function createFloatingPanel({
   const unplaced = new Set();
   // A thread's view stands on its foot, so what grows in it carries its head, and all
   // the view holds, up the window. That is the growth news and the user's own turns
-  // make (`fitAnswer`), but a gesture in the view growing what it shows would carry the
-  // press itself, or the words it opened, from under the user: Full quote, a fold's
-  // Show, a rewrite opening in a box the reply box's size, taller than the words it
-  // replaces. So a press in the view, or the caret coming into a rewrite there, holds
-  // the view at the height it stood at (`stood`, read where the reader's drawing
-  // lands) until the user's next turn, and what the gesture grows goes on inside the
-  // view, revealed by scrolling (thread/reply-landing.js, `revealEditor`). A card grows
-  // down from the same press, so there the press stays put by itself. Rejected: a hold
-  // for each control that grows the view, which missed each one added after it, as the
-  // folds did.
+  // make (`fitAnswer`), but a press keeps what it pressed under the pointer. So where
+  // what a press in the view or its head grows would carry the pressed control away,
+  // as Full quote, Show on a fold that opens below it, a rewrite's pencil, or Next
+  // unread opening a fold to reach its reply would, the view holds the height it stood
+  // at as the press came (`judgePress`, before the frame shows the growth) until the
+  // user's next turn, and what the press grew goes on inside the view, revealed by
+  // scrolling. A press whose growth leaves it in place, as Show on progress, which opens
+  // above it, holds nothing, so the view grows to show what opened; nor does a press
+  // that grows nothing, so an answer the user waits for still grows the view. The caret
+  // in a rewrite, which a key can open from the field, holds the view while it stays
+  // there, the rewrite's lower lines revealed by scrolling (thread/reply-landing.js,
+  // `revealEditor`). A card grows down from the same press, so there the press stays
+  // put by itself. Rejected: a hold for each control that grows the view, which missed
+  // each one added after it, as the folds did; and every press in the view holding it,
+  // which kept an awaited answer from growing it after a click on the words.
   //
   // A turn the log refuses leaves the view, which would carry its head down from under
   // the user's aim, as nothing they pressed. So the view keeps its head where it stood
@@ -1123,6 +1129,7 @@ export function createFloatingPanel({
   // (`spare`, `landReader`).
   let stood = null;
   let stoodAt = null;
+  let rewriting = false;
   let spare = false;
   const holdThread = (height) => {
     const top = trail.at(-1);
@@ -1131,15 +1138,74 @@ export function createFloatingPanel({
     rooms.set(routeKey(top), height);
     return true;
   };
-  // Holds the open thread's view, in the task of the gesture, before what it grows draws.
-  const actedIn = (node) => {
+  // The press being judged: the control pressed, where it stood in the view's content,
+  // and how tall the view and what it holds stood. Once what the press grows has drawn,
+  // after the press's own handlers, or where the route it started opens what holds its
+  // destination (`lf-reveal`), as Next unread's opening a fold does, before the frame
+  // shows it, the view holds the height it stood at only where, growing up the window
+  // to hold what the press grew, it would carry the press away. A route that lands with
+  // nothing opened (`landed`) leaves the view as it stands.
+  let pressed = null;
+  const contentTop = (node, view) =>
+    node.getBoundingClientRect().top -
+    view.getBoundingClientRect().top +
+    view.scrollTop;
+  function pressAt(node, landed = null) {
+    const top = trail.at(-1);
     const view = openView();
-    if (view && node && renderedUnder(node, view) && holdThread(stood)) paint();
-  };
-  stage.addEventListener("click", (event) => actedIn(event.target), { capture: true });
+    if (top?.view !== "thread" || !view || !(node instanceof Element)) return;
+    const inView = renderedUnder(node, view);
+    const press = {
+      node,
+      inView,
+      landed: Boolean(landed),
+      at: inView ? contentTop(node, view) : 0,
+      height: stood,
+      holds: view.scrollHeight,
+    };
+    pressed = press;
+    if (landed)
+      void Promise.resolve(landed).finally(() => {
+        if (pressed === press) pressed = null;
+      });
+  }
+  function judgePress(press) {
+    if (!press || pressed !== press) return;
+    pressed = null;
+    const view = openView();
+    if (!view || !press.node.isConnected || view.scrollHeight - press.holds < 0.5)
+      return;
+    // How far the view would grow up the window to hold it, as far as its cap.
+    const cap = Number.parseFloat(getComputedStyle(view.parentElement).maxHeight);
+    const grows = Math.min(view.scrollHeight, cap) - press.height;
+    const moves = (press.inView ? contentTop(press.node, view) - press.at : 0) - grows;
+    if (Math.abs(moves) >= 0.5 && holdThread(press.height)) paint();
+  }
+  opened.addEventListener("click", (event) => pressAt(event.target), { capture: true });
+  opened.addEventListener("click", () => {
+    if (!pressed?.landed) judgePress(pressed);
+  });
+  // A route reveals its destination outside in, so the fold holding it opens after
+  // this hears it; the judgment waits for the route's task to finish.
+  stage.addEventListener("lf-reveal", () => {
+    const press = pressed;
+    if (press?.landed) queueMicrotask(() => judgePress(press));
+  });
+  const inRewrite = (node) => Boolean(node && closestAcross(node, ".lf-msg-editor"));
   onStanding((node, cause) => {
-    if (cause !== "drop" && node && closestAcross(node, ".lf-msg-editor"))
-      actedIn(node);
+    const top = trail.at(-1);
+    if (top?.view !== "thread" || cause === "drop") return;
+    const view = openView();
+    const writing = inRewrite(node) && Boolean(view) && renderedUnder(node, view);
+    if (writing === rewriting) return;
+    if (writing) {
+      rewriting = holdThread(stood);
+      if (!rewriting) return;
+    } else {
+      rewriting = false;
+      rooms.delete(routeKey(top));
+    }
+    paint();
   });
   function holdRoom() {
     const top = trail.at(-1);
@@ -1327,6 +1393,8 @@ export function createFloatingPanel({
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
     if (changed) {
       rooms.clear();
+      rewriting = false;
+      pressed = null;
       spare = false;
       quoteExpanded = false;
       waiting = null;
@@ -2609,7 +2677,8 @@ export function createFloatingPanel({
                 class="lf-fp-next-unread"
                 ?disabled=${!thread.unread.length}
                 ?data-unoffered=${!thread.unread.length}
-                @click=${() => firstUnread(thread.key)}
+                @click=${(event) =>
+                  pressAt(event.currentTarget, firstUnread(thread.key))}
               >
                 ${iconTemplate("down", "lf-action-icon")}Next unread
               </button>`

@@ -486,7 +486,7 @@
   .lf-floating-panel[data-rest=mark] {
     width: var(--lf-fp-folded);
     left: auto;
-    right: calc(20px + var(--lf-safe-right));
+    right: calc(var(--lf-floating-gap) + var(--lf-safe-right));
     margin: 0;
     .lf-fp-field,
     .lf-fp-row-notice,

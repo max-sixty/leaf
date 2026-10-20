@@ -118,7 +118,9 @@ QUEUE_TIMEOUT = 20
 # What the adapter's lease file holds while it runs: the App Server it delivers
 # through, if not its own (`_running_adapter`).
 ADAPTER = Record(
-    "codex-adapter", object_schema({"app_server": {"type": ["string", "null"]}})
+    "codex-adapter",
+    object_schema({"app_server": {"type": ["string", "null"]}}),
+    since=13,
 )
 
 

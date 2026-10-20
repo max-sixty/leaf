@@ -8046,39 +8046,25 @@ function createFloatingPanel({
     const rows2 = listRows();
     return rows2.length > 0 && (at === shownView() || rows2.includes(at));
   };
+  const walkedRows = () => menuOpen ? menuRows() : listRows();
   keys(
     host,
     "In the floating panel",
     /** @type {object[]} */
     rowWalk({
-      id: "panel.floating.menu",
+      id: "panel.floating.rows",
       noun: "Row",
-      plural: "rows of the page menu",
-      rows: menuRows,
-      // A menu names its rows' places to a screen reader itself, so the walk shows none.
+      plural: "rows of the page menu or the open view",
+      rows: walkedRows,
+      // A menu names its rows' places to a screen reader itself; the walk shows no
+      // position over either list.
       position: () => null,
-      landed: (row2) => rove(menuRows(), row2)
-    }).map((row2) => ({ ...row2, when: () => menuOpen })).concat(
-      rowWalk({
-        id: "panel.floating.list",
-        noun: "Row",
-        plural: "rows of the open view",
-        rows: listRows,
-        position: () => null,
-        landed: (row2) => rove(listRows(), row2)
-      }).map((row2) => ({ ...row2, when: () => !menuOpen && inList() })),
+      landed: (row2) => rove(walkedRows(), row2)
+    }).map((row2) => ({ ...row2, when: () => menuOpen || inList() })).concat(
       // → goes into the list a row opens, as its chevron points, and ← back to the menu.
       {
         id: "panel.floating.menu.level",
         keys: ["ArrowLeft", "ArrowRight"],
-        routes: [
-          { id: "panel.floating.menu.level-left", binding: "ArrowLeft", title: "left" },
-          {
-            id: "panel.floating.menu.level-right",
-            binding: "ArrowRight",
-            title: "right"
-          }
-        ],
         description: "Open the list a row of the page menu leads to, or go back to the menu",
         title: "open or leave a list",
         when: () => menuOpen && renderedUnder(focused(), menu),

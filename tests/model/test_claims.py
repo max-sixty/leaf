@@ -930,3 +930,18 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
     record_claim(other, id="other-guarded")
     assert service_model.owned_pages("guarded") == []
     assert service_model.owned_pages("other-guarded") == [other.resolve()]
+
+
+def test_a_claim_outlives_a_protocol_bump_that_leaves_its_shape_alone(
+    tmp_path, monkeypatch
+):
+    """A Leaf updated across a protocol bump still reads the claims and session
+    records written before it, so a session keeps watching its page through the
+    update. Each record's format names the protocol its own shape last changed at
+    (`state.Record`)."""
+    page = tmp_path / "page"
+    page.mkdir()
+    record_claim(page)
+    events = cleanup_model.kernel_registry()["$events"]
+    monkeypatch.setitem(events, "protocol", events["protocol"] + 1)
+    assert service_model.claim_is_active(service_model.page_claim(page))

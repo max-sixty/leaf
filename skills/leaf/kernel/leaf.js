@@ -5655,11 +5655,11 @@ function statusWords({
     `${saved} It picks them up next turn.`
   ];
 }
-function pageStatus(state, { reach: reach2 = "reached" } = {}) {
+function pageStatus(state, { reach: reach2 = "reached", fault: fault2 = null } = {}) {
   if (reach2 === "broken")
     return {
       kind: "broken",
-      tone: "offline",
+      tone: "blocked",
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
       adds: "",
@@ -5668,17 +5668,27 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   if (reach2 === "refused")
     return {
       kind: "refused",
-      tone: "offline",
+      tone: "blocked",
       summary: "Key refused \u2014 open Leaf's link in a new tab",
       explanation: KEY_REFUSED_LINE,
       adds: "Keep this tab open so pending changes can send.",
       asks: true
     };
+  if (reach2 === "faulted") {
+    const said = fault2.replace(/\.$/, "");
+    return {
+      kind: "faulted",
+      tone: "blocked",
+      summary: "Server error \u2014 retrying",
+      explanation: `The server answered with an error: ${said}. Retrying.`,
+      adds: `It answered: ${said}. Retrying.`
+    };
+  }
   if (reach2 !== "reached")
     return {
       kind: "unreachable",
-      tone: "offline",
-      summary: "Server offline \u2014 reconnecting; keep page open",
+      tone: "",
+      summary: "Server offline \u2014 reconnecting",
       explanation: OFFLINE_LINE,
       adds: ""
     };
@@ -5763,7 +5773,13 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
   const named = (items2, whom) => items2.length ? `Waiting on ${whom}: ${queueKinds(items2).join(", ")}.` : "";
   return [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" ");
 }
-var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "refused", "unreachable", "publication"]);
+var WITHOUT_QUEUES = /* @__PURE__ */ new Set([
+  "broken",
+  "refused",
+  "faulted",
+  "unreachable",
+  "publication"
+]);
 function statusModel(status, queues, agent) {
   const { kind, tone: tone2, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
@@ -5825,11 +5841,12 @@ var LOADING = Object.freeze({
   adds: LOADING_LINE
 });
 var reach = readPart((root) => root.reach);
+var fault = readPart((root) => root.fault);
 var upgraded = false;
 function currentStatus() {
   const answer = reach();
   if (answer === "waiting" && !upgraded) return null;
-  const status = answer === "waiting" ? LOADING : pageStatus(runtime.state, { reach: answer });
+  const status = answer === "waiting" ? LOADING : pageStatus(runtime.state, { reach: answer, fault: fault() });
   return { status, model: statusModel(status, readQueues(), agentName()) };
 }
 var statusReading = () => currentStatus()?.model ?? null;
@@ -5879,11 +5896,11 @@ function paintTab() {
 }
 var saidKind;
 var saidActionableWork;
-var holdUnreached = holdingError({ announce: false });
+var holdBlocked = holdingError({ announce: false });
 function paintStatus() {
   const current = currentStatus();
-  holdUnreached(
-    ["unreachable", "refused", "broken"].includes(current?.status.kind) ? current.status.summary : null
+  holdBlocked(
+    ["refused", "broken"].includes(current?.status.kind) ? current.status.summary : null
   );
   if (!current) return;
   const { status, model } = current;

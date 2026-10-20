@@ -43,7 +43,6 @@ from leaf.state import (
     now_iso,
     object_schema,
     page_key,
-    retire_session,
     session_claims,
     session_lock_path,
     session_record,
@@ -100,8 +99,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     old locator therefore stops being current at the canonical commit, which also
     admits the prepared new locator. Failed preparation leaves ownership intact.
     Resident writers retain the same flat payload path, so their atomic updates
-    cannot destroy discovery. A page leaving a session that has ended may take
-    the last claim it held, which retires its files (`state.retire_session`).
+    cannot destroy discovery.
     """
     path = claim_path(page_dir)
     previous = CLAIM.read(path)
@@ -118,7 +116,6 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     CLAIM.write(path, claim)
     if previous is not None and previous["id"] != claim["id"]:
         (session_claims(previous["id"]) / path.name).unlink(missing_ok=True)
-        retire_session(previous["id"])
 
 
 # The keys a claim's reading takes from its session's lifetime (`claim_reading`).
@@ -726,7 +723,7 @@ def undeclared() -> dict:
     return {"state": "waiting", "detail": "", "stream": no_stream()}
 
 
-_OBJECT_OR_NONE = {"type": ["object", "null"]}
+_TURN = {"session": STRING, "turn": STRING}
 STATUS = Record(
     "status",
     object_schema(
@@ -735,13 +732,43 @@ STATUS = Record(
             "detail": STRING,
             "stream": object_schema(
                 {
-                    "activity": _OBJECT_OR_NONE,
-                    "reply": _OBJECT_OR_NONE,
+                    # What the task is doing now (`set_stream_activity`).
+                    "activity": {
+                        **object_schema(
+                            {
+                                **_TURN,
+                                "kind": STRING,
+                                "ts": TIME,
+                                "after": {"type": "integer"},
+                            },
+                            {"detail": STRING},
+                        ),
+                        "type": ["object", "null"],
+                    },
+                    # The reply it is drafting (`set_stream_reply`).
+                    "reply": {
+                        **object_schema(
+                            {
+                                **_TURN,
+                                "attempt": STRING,
+                                "reply_to": STRING,
+                                "responds": STRING,
+                                "item": {"type": ["string", "null"]},
+                                "text": STRING,
+                                "state": STRING,
+                                "settles": {"type": "boolean"},
+                                "agent": STRING,
+                                "ts": TIME,
+                                "updated_at": TIME,
+                            }
+                        ),
+                        "type": ["object", "null"],
+                    },
                     # By response address.
                     "reply_reservations": {
                         "type": "object",
                         "additionalProperties": object_schema(
-                            {"session": STRING, "attempt": STRING, "turn": STRING}
+                            {**_TURN, "attempt": STRING}
                         ),
                     },
                 }

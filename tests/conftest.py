@@ -569,7 +569,9 @@ def declared_records(monkeypatch):
 
     def checked(record, value):
         written = encode(record, value)
-        if error := schema_error(record.schema, json.loads(written)):
+        stored = json.loads(written)
+        del stored["format"]
+        if error := schema_error(record.schema, stored):
             raise AssertionError(
                 f"a {record.kind} record that fails its schema: {error}"
             )

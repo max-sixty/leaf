@@ -470,14 +470,15 @@ The files a session keeps in the state home's `sessions/` all carry its name
 (`state.session_file`), and its end removes them (`state.end_session`,
 `end_harness_instance`). A session that left none there, as most sessions of a
 harness Leaf is installed in never use Leaf, ends without writing one. The
-observations that end with a session go at its end. While a claim names the
-session, its lifecycle and reconnect notices stay: its pages read the turn they
-show from the lifecycle, and a resumed session's hooks read the notices. Once no
-claim names an ended session, each of its files that no process holds a lock on
-goes, the session lock last, so a lease still held, such as a watch's, stays with
-its holder. A page claimed away from an ended session may take its last claim, so
-the transfer retires it too (`service.publish_claim`, `state.retire_session`). A
-session whose harness died without a SessionEnd never ends, and keeps its files.
+observations that end with a session go at its end. A session that still
+holds a claim keeps its lifecycle and reconnect notices: its pages read the turn
+they show from the lifecycle, and a resumed session's hooks read the notices. A
+session holding no claim loses each of its files that no process holds a lock on,
+the session lock last, so a lease still held, such as a watch's, stays with its
+holder. A session that ends holding a claim keeps those files after the page is
+claimed away, since a failed takeover restores the claim it replaced
+(`service.restore_page_claim`); so does a session whose harness died without a
+SessionEnd.
 
 ### Starting a server
 

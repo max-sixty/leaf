@@ -335,11 +335,11 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     write_record(
         claimed / schema_model.PREVIEW_FILE,
         {
-            "kind": "example",
             "example": "triage-board",
             "checkout": "leaf",
             "interaction": "user",
             "started": "2026-09-01T10:00:00+00:00",
+            "input": {"source": "triage-board", "authored": "leaf"},
         },
     )
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})

@@ -76,12 +76,12 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
 
 
 def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
-    """A session's files in the state home go once nothing can read them
+    """A session's end removes the files nothing will read again
     (`session-lifetime.md`, "A session's files"). A session that never used Leaf,
-    as most sessions of a harness Leaf is installed in, ends without a file. An
-    ended session keeps its lifecycle while its claim stands, since the page shows
-    its turn from it, and the transfer of that claim retires the rest, except a
-    lease another process still holds. A live session's transfer retires nothing."""
+    as most sessions of a harness Leaf is installed in, ends without a file. A
+    session that ends holding a claim keeps its lifecycle, since the page shows its
+    turn from it. One that holds none keeps only a lease another process still
+    holds."""
 
     def files(session):
         key = cleanup_model.session_file(session, cleanup_model.SESSION_SUFFIX).stem
@@ -93,19 +93,18 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
     cleanup_model.end_harness_instance("never-used-leaf")
     assert files("never-used-leaf") == []
 
-    record_claim(page_dir, id="ended")
-    leases_model.mark_hooks("ended")
-    held = leases_model.take_lease(leases_model.waiter_lease_path(None, "ended"))
-    cleanup_model.end_harness_instance("ended")
-    assert files("ended") == ["delivery.lock", "lifecycle", "wait"]
-    assert service_model.page_claim(page_dir)["turn_closed"] is not None
-
-    record_claim(page_dir, id="live")
-    assert files("ended") == ["wait"]
+    record_claim(page_dir, id="released")
+    leases_model.mark_hooks("released")
+    held = leases_model.take_lease(leases_model.waiter_lease_path(None, "released"))
+    record_claim(page_dir, id="holder")
+    leases_model.mark_hooks("holder")
+    cleanup_model.end_harness_instance("released")
+    assert files("released") == ["wait"]
     leases_model.release_lease(held)
 
-    record_claim(page_dir, id="successor")
-    assert files("live") == ["delivery.lock", "lifecycle"]
+    cleanup_model.end_harness_instance("holder")
+    assert files("holder") == ["delivery.lock", "lifecycle"]
+    assert service_model.page_claim(page_dir)["turn_closed"] is not None
 
 
 def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir, native_codex_chat):
@@ -482,7 +481,7 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
                 page_dir / "service.json", {**service, "lifetime": "persistent"}
             )
         elif case == "preview":
-            write_record(page_dir / "preview.json", {})
+            cleanup_model.write_json(page_dir / "preview.json", {})
         elif case == "transferred":
             record_claim(page_dir, id="successor")
         elif case == "foreign-harness":

@@ -2897,11 +2897,11 @@ def test_every_control_the_layer_offers_is_a_box_the_user_can_hit(
         comments=2,
         anchored=[("aim-lead", "first view")],
         preview={
-            "kind": "example",
             "example": "corpus",
             "checkout": "fb77",
             "interaction": "user",
             "started": "2026-08-31T12:00:00+00:00",
+            "input": {"source": "corpus", "authored": "fb77"},
         },
     )
     # An agent's answer on a thread the walk leaves open carries a reaction strip,

@@ -54,6 +54,23 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(
     collecting["state"] = "collecting"
     collecting.pop("pending")
     collecting["batches"] = [deepcopy(captured)]
+    # Fields only a collecting record, or one kind of answer, requires.
+    for field in ("through_seq", "threads"):
+        record = deepcopy(collecting)
+        del record["batches"][0][field]
+        unreadable.append(record)
+    for field in ("threads", "kind"):
+        record = deepcopy(collecting)
+        del record["batches"][0]["events"][0][field]
+        unreadable.append(record)
+    for answer in (
+        {"kind": "reply", "for": "captured"},
+        {"kind": "reply", "to": "thread"},
+        {"kind": "markup"},
+    ):
+        record = deepcopy(collecting)
+        record["batches"][0]["events"][0]["answer"] = answer
+        unreadable.append(record)
 
     for index, record in enumerate(unreadable):
         identity = f"{index:08x}"

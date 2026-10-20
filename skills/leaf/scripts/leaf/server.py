@@ -44,9 +44,13 @@ SERVICE = Record(
     ),
 )
 # What a developer preview shows in browser chrome, as `leaf-dev preview` writes it.
-# The page receives it whole, so the served state declares its shape
-# (`served_state/state.schema.json`, `preview`).
-PREVIEW = Record("preview", {"type": "object"})
+# The page receives it whole, so its shape is the served state's `preview`.
+PREVIEW = Record(
+    "preview",
+    read_json(Path(__file__).with_name("served_state") / "state.schema.json")["$defs"][
+        "Reading"
+    ]["properties"]["preview"],
+)
 
 
 def read_service(page_dir: Path) -> dict | None:

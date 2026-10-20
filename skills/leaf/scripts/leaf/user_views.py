@@ -94,10 +94,8 @@ _RECORD = _object(
         **_PROPERTIES,
         "received_at": _INSTANT,
         "checks": {
-            "anyOf": [
-                {"type": "null"},
-                _object({**_CHECKS["properties"], "checked_at": _INSTANT}),
-            ]
+            **_object({**_CHECKS["properties"], "checked_at": _INSTANT}),
+            "type": ["object", "null"],
         },
     }
 )

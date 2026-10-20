@@ -676,15 +676,18 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
     start = working(claimed, "Handling the new work")
     status = service_model.read_status(claimed)
     status["stream"] = {
+        **service_model.no_stream(),
         "activity": {
             "session": claim["id"],
             "turn": "older-turn",
             "detail": "Older streamed work",
             "ts": start["ts"],
             "after": 0,
-        }
+        },
     }
-    write_record(claimed / "status.json", status)
+    cleanup_model.write_json(
+        claimed / "status.json", service_model.STATUS.stored(status)
+    )
 
     activity = page_state(claimed)["activity"]
     assert (activity["kind"], activity["detail"]) == (

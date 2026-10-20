@@ -6,7 +6,7 @@ Leaf environment. One atomic record owns harness lifetime, generation, turn iden
 and dated opening/ending evidence. Claims reference its generation; ending the
 generation invalidates them without page discovery, page locks or claim rewrites.
 Desktop instance unloading closes observations while retaining chat ownership.
-A session's files go once nothing can read them (`retire_session`).
+A session's end removes the files nothing will read again (`_retire`).
 
 The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
@@ -278,22 +278,36 @@ class Record:
 
 def _complete(schema: dict, value) -> bool:
     """Whether `value` has each field `schema` requires, and so does every object
-    within it that the schema declares, through properties, maps and arrays."""
-    if not schema.keys() & {"required", "properties", "additionalProperties", "items"}:
-        return True
+    within it that the schema declares: through properties, maps and arrays, and
+    through each `allOf` clause, a conditional one where its `if` names, by `enum`
+    or `const`, the values `value` holds. Types and values are the writers' to hold
+    (`tests/conftest.py`)."""
     if isinstance(value, list):
-        items = schema.get("items", {})
-        return all(_complete(items, item) for item in value)
+        return all(_complete(schema.get("items", {}), item) for item in value)
     if not isinstance(value, dict):
-        return "required" not in schema
+        return True
     properties = schema.get("properties", {})
     others = schema.get("additionalProperties")
-    return set(schema.get("required", ())) <= value.keys() and all(
-        _complete(properties[name], item)
-        if name in properties
-        else not isinstance(others, dict) or _complete(others, item)
-        for name, item in value.items()
+    return (
+        set(schema.get("required", ())) <= value.keys()
+        and all(
+            _complete(properties[name], item)
+            if name in properties
+            else not isinstance(others, dict) or _complete(others, item)
+            for name, item in value.items()
+        )
+        and all(_clause_complete(clause, value) for clause in schema.get("allOf", ()))
     )
+
+
+def _clause_complete(clause: dict, value: dict) -> bool:
+    if "if" not in clause:
+        return _complete(clause, value)
+    applies = all(
+        name in value and value[name] in declared.get("enum", [declared.get("const")])
+        for name, declared in clause["if"].get("properties", {}).items()
+    )
+    return not applies or _complete(clause.get("then", {}), value)
 
 
 def object_schema(required: dict, optional: dict | None = None) -> dict:
@@ -570,24 +584,6 @@ def _session_paths(session_id: str) -> list[Path]:
     session (`session_file`)."""
     pattern = session_file(session_id, "*")
     return list(pattern.parent.glob(pattern.name))
-
-
-def retire_session(session_id: str) -> None:
-    """Remove an ended session's files once it holds no claim.
-
-    `publish_claim` asks this of the session a page leaves, since that may be the
-    last claim it held after its end. A session whose lock another process holds
-    is in use, and is left for its next ending or transfer: the wait is bounded,
-    because the caller may hold another session's lock."""
-    if not session_file(session_id, SESSION_SUFFIX).exists():
-        return
-    try:
-        with flocked(session_lock_path(session_id), deadline=time.monotonic() + 0.1):
-            record = session_record(session_id)
-            if record is not None and record["ended"] is not None:
-                _retire(session_id)
-    except TimeoutError:
-        pass
 
 
 def _retire(session_id: str) -> None:

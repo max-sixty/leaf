@@ -1687,12 +1687,12 @@ RECORD = Record("codex-delivery", RECORD_SCHEMA)
 
 def read_record(path: Path) -> DeliveryRecord | None:
     """Decode one task record, live or archived, or None where this Leaf reads
-    none: one in a state this Leaf does not know or lacking a field its state
-    requires, as another Leaf's may, or an offered record whose delivery this Leaf
-    does not read. An unreadable record never authorizes deletion."""
+    none, as for one in a state this Leaf does not know, or an offered record
+    whose delivery this Leaf does not read. An unreadable record never authorizes
+    deletion."""
     record = RECORD.read(path)
     variant = RECORD_VARIANTS.get(record["state"]) if record else None
-    if variant is None or any(item.name not in record for item in fields(variant)):
+    if variant is None:
         return None
     if variant is not Collecting and stored_delivery(path.stem) is None:
         return None

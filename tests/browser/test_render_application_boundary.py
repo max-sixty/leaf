@@ -1774,7 +1774,9 @@ def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
         "() => !document.querySelector('#workspace').presentation.primary"
     )
     panel_control(page, "queue").click()
-    page.locator(PANEL).get_by_role("button", name="Show", exact=True).first.click()
+    page.locator(f'{PANEL} [data-obligation="widget:channel-options"]').get_by_role(
+        "button", name="Show", exact=True
+    ).click()
     panel_settled(page, view="thread")
     in_panel = page.locator(PANEL_THREAD).locator("lf-option#email")
     expect(in_panel).to_be_visible()

@@ -12,10 +12,12 @@ import {
 import {
   clamp,
   layoutChanged,
-  repaintPage
+  repaintPage,
+  shownParts
 } from "./bundle-page-paint.js";
 import {
   afterScript,
+  drawn,
   nextFrame,
   nextRender,
   sizeObserver,
@@ -184,10 +186,10 @@ function pointInto(target, node) {
 function opens(target, line) {
   for (let at = line; at && at !== target; at = upFrom(at))
     for (let before = at.previousSibling; before; before = before.previousSibling)
-      if (drawn(before)) return false;
+      if (drawn2(before)) return false;
   return true;
 }
-var drawn = (node) => node.nodeType === Node.TEXT_NODE ? Boolean(node.data.trim()) && Boolean(node.parentElement?.checkVisibility()) : node.nodeType === Node.ELEMENT_NODE && !inChrome(node) && node.checkVisibility() && [...node.getClientRects()].some((box) => box.width && box.height);
+var drawn2 = (node) => node.nodeType === Node.TEXT_NODE ? Boolean(node.data.trim()) && Boolean(node.parentElement?.checkVisibility()) : node.nodeType === Node.ELEMENT_NODE && !inChrome(node) && node.checkVisibility() && [...node.getClientRects()].some((box) => box.width && box.height);
 function livePoint(target, point) {
   return target && point?.isConnected && point !== target && under(point, target) && point.getClientRects().length ? point : null;
 }
@@ -232,6 +234,12 @@ function pointBand(box, point) {
   return { left, top, right, bottom, width: right - left, height: bottom - top };
 }
 
+// runtime/visible-target-parts.js
+function visibleTargetParts(target) {
+  const parts = shownParts(target).filter(drawn);
+  return drawn(target) ? [target, ...parts.filter((part) => part !== target)] : parts;
+}
+
 export {
   pointInto,
   livePoint,
@@ -246,5 +254,6 @@ export {
   railStands,
   scheduleResidency,
   settleResidency,
-  openResidency
+  openResidency,
+  visibleTargetParts
 };

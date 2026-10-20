@@ -192,9 +192,6 @@ import {
   scrollBehavior
 } from "./runtime/bundle-motion.js";
 import {
-  visibleTargetParts
-} from "./runtime/bundle-visible-target-parts.js";
-import {
   PAGE_CONTROL_RANK,
   livePoint,
   openResidency,
@@ -205,6 +202,7 @@ import {
   railStands,
   registerPageControl,
   scheduleResidency,
+  visibleTargetParts,
   watchPageControls
 } from "./runtime/bundle-page-controls.js";
 import {
@@ -6543,10 +6541,10 @@ function createFloatingPanel({
         queueMicrotask(paint);
         const route = { view: "thread", thread: handle.attempt };
         open(route, { replace: true });
-        const untouched = retainUserIntent();
+        const untouched = retainUserIntent({ source: host });
         void Promise.resolve(flight).then((sent) => {
           if (sent || trail.length && trail.at(-1) !== route) return;
-          caretToField = standingIn(host) || untouched();
+          caretToField = untouched();
           paint();
         });
       }

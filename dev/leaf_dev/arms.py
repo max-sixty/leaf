@@ -266,10 +266,19 @@ def extract_payload(
 def build_arm(ref: str | None, dest: Path, *, paths: Iterable[str] = PAYLOAD) -> str:
     """Extract `paths` at `ref`, or as the working tree has it when `ref` is None,
     into `dest`, replacing any earlier arm there, and build its environment; return
-    the commit, HEAD's for the working tree."""
+    the commit, HEAD's for the working tree.
+
+    The arm's Python is compiled to bytecode here, as a used install's and the
+    working tree's already are. Without it, an arm's first server compiles each
+    module it imports while answering the page, and a timing that compares the arm
+    with the working tree counts that compilation against the arm."""
     extract_payload(dest, ref, paths=paths)
     with tempfile.TemporaryDirectory() as state:
         run_leaf(dest, Path(state), "--root", check=True)
+    # Serial: `-j` needs a forkserver socket, which a sandboxed CI runner refuses.
+    subprocess.run(
+        [dest / ".venv/bin/python", "-m", "compileall", "-q", dest], check=True
+    )
     return subprocess.run(
         ["git", "-C", ROOT, "rev-parse", f"{ref or 'HEAD'}^{{commit}}"],
         capture_output=True,

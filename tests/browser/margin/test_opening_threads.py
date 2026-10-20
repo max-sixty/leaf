@@ -285,6 +285,125 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(options).to_be_hidden()
 
 
+HIDDEN_TAB_PAGE = leaf_page(
+    "a thread in a closed tab",
+    """
+  <lf-tabs id="views">
+    <lf-tab id="view-open" label="Open"><p>The tab the page opens on.</p></lf-tab>
+    <lf-tab id="view-closed" label="Closed">
+      <p id="closed-words">Words in the tab the page does not open on.</p>
+    </lf-tab>
+  </lf-tabs>""",
+)
+
+
+@pytest.mark.parametrize(
+    "options",
+    [{"focus": False, "travel": False, "flash": False}, {"part": "thread"}],
+    ids=["where-the-user-stands", "travelling"],
+)
+def test_opening_a_thread_reveals_its_closed_tab(browser, serve, options):
+    """Opening a thread reveals its passage whether or not the page travels to it: its
+    card stands beside the passage's margin row, which a closed tab hides. Opened where
+    the user stands (`travel: false`), the card never placed and the opening never
+    answered."""
+    page = open_page(
+        browser, serve(HIDDEN_TAB_PAGE, events=[_comment_on("closed-words")])
+    )
+    resized(page, 1440, 900)
+    expect(page.locator("#view-closed")).to_be_hidden()
+    opened = page.evaluate(
+        """async options => {
+          const {readThreads, threadActions} = await window.__lfWidgetApi();
+          const [thread] = readThreads().threads;
+          const opening = threadActions.open(thread.key, options);
+          const late = new Promise(resolve => setTimeout(() => resolve('late'), 5000));
+          const shown = await Promise.race([opening, late]);
+          return shown === 'late' ? shown : Boolean(shown);
+        }""",
+        options,
+    )
+    assert opened is True
+    expect(page.locator("#closed-words")).to_be_visible()
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+
+
+LONG_STRIP_PAGE = leaf_page(
+    "a thread in the closed tab of a long strip",
+    """
+  <lf-tabs id="views">
+    <lf-tab id="view-open" label="The open tab"><p id="open-words">Words.</p></lf-tab>"""
+    + "".join(
+        f'<lf-tab id="view-{n}" label="Another long tab name {n}"><p>Tab {n}.</p></lf-tab>'
+        for n in range(8)
+    )
+    + """
+    <lf-tab id="view-last" label="The last tab"><p id="last-words">Words.</p></lf-tab>
+  </lf-tabs>
+  <p id="hidden-words" hidden>Words the page hides.</p>
+  <p id="unseen-words" style="visibility: hidden">Words the page leaves unseen.</p>""",
+)
+
+
+def open_where_the_user_stands(page, section, **options):
+    """Open the thread about `section` without travel, as the render gate does, and
+    say whether it opened, or "late" where it had not answered within five seconds."""
+    return page.evaluate(
+        """async ([section, options]) => {
+          const {readThreads, threadActions} = await window.__lfWidgetApi();
+          const thread = readThreads().threads.find(t => t.anchor.section === section);
+          const opening = threadActions.open(
+            thread.key, {focus: false, travel: false, flash: false, ...options});
+          const late = new Promise(resolve => setTimeout(() => resolve('late'), 5000));
+          const shown = await Promise.race([opening, late]);
+          return shown === 'late' ? shown : Boolean(shown);
+        }""",
+        [section, options],
+    )
+
+
+def test_a_thread_whose_passage_stays_hidden_opens_in_the_panel(browser, serve):
+    """Where the passage stays hidden, its card has no row to stand beside, so the
+    floating panel shows the thread. A thread opened with `scroll: false` reveals no
+    closed tab, since a tab switch scrolls its strip, and a passage the page hides,
+    with `hidden` or `visibility: hidden`, can't be revealed at all."""
+    page = open_page(
+        browser,
+        serve(
+            LONG_STRIP_PAGE,
+            events=[
+                _comment_on("last-words"),
+                _comment_on("hidden-words"),
+                _comment_on("unseen-words"),
+            ],
+        ),
+    )
+    resized(page, 390, 844)
+    strip = page.locator("#views > .lf-tabstrip")
+    assert strip.evaluate("s => s.scrollWidth > s.clientWidth"), "the strip fits"
+    assert open_where_the_user_stands(page, "last-words", scroll=False) is True
+    expect(page.locator(PANEL)).to_have_attribute("data-open", re.compile(".+"))
+    expect(page.locator("#view-last")).to_be_hidden()
+    assert strip.evaluate("s => s.scrollLeft") == 0
+    for section in ("hidden-words", "unseen-words"):
+        assert open_where_the_user_stands(page, section) is True, section
+
+
+def test_a_thread_in_view_opens_beside_it_and_leaves_the_tab_strip(browser, serve):
+    """A thread whose passage is in view opens its card beside it, and the tab strip the
+    user scrolled stays where they left it."""
+    page = open_page(
+        browser, serve(LONG_STRIP_PAGE, events=[_comment_on("open-words")])
+    )
+    resized(page, 390, 844)
+    strip = page.locator("#views > .lf-tabstrip")
+    left = strip.evaluate("s => (s.scrollLeft = s.scrollWidth, s.scrollLeft)")
+    assert left > 0, "the strip fits, so it proves nothing"
+    assert open_where_the_user_stands(page, "open-words") is True
+    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    assert strip.evaluate("s => s.scrollLeft") == left
+
+
 def test_one_information_margin_entry_does_not_raise_a_preview(browser, serve):
     """A single non-thread reading travels directly; cards are reserved for threads."""
     page = open_page(

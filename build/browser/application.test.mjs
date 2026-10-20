@@ -1046,20 +1046,19 @@ const lifecycle = [
     ],
   },
   {
-    name: "a comment accepted and then presented",
+    name: "a comment accepted and then logged",
     event: { kind: "comment", attempt: "gesture", text: "Note", revision: 1 },
     steps: [
       ["accept", "accepted", "gesture"],
-      ["log", "accepted:logged", "log"],
-      ["present", null, "log"],
+      ["log", null, "log"],
     ],
   },
   {
-    name: "a comment presented before its POST answers",
+    name: "a comment logged before its POST answers",
     event: { kind: "comment", attempt: "gesture", text: "Note", revision: 1 },
     steps: [
       ["log", "sending:logged", "log"],
-      ["present", "sending:presented", "log"],
+      ["present", "sending:logged", "log"],
       ["accept", null, "log"],
     ],
   },
@@ -1140,7 +1139,7 @@ test("refusal takes the gestures that depend on the refused one with it", () => 
   );
 });
 
-test("thread acceptance is semantic before presentation can retire its local handle", () => {
+test("a comment the log holds leaves the ledger once its POST accepts it", () => {
   const app = capture();
   const comment = {
     kind: "comment",
@@ -1158,13 +1157,81 @@ test("thread acceptance is semantic before presentation can retire its local han
   read.browser.receipts = [accepted];
   read.browser.views[1].thread.threads = [servedThread([accepted])];
   app.adopt(read);
-  app.accept("comment", accepted);
   assert.equal(app.read().effective.thread.all.length, 1);
   assert.equal(app.read().unresolved.length, 1);
-  app.present([accepted]);
+  app.accept("comment", accepted);
   assert.equal(app.read().unresolved.length, 0);
+  assert.equal(app.read().effective.thread.all.length, 1);
   assert.equal(app.read().effective.thread.all[0].root.id, "e1");
 });
+
+test("the reading that logs an accepted comment retires it in its own publication", () => {
+  const app = setup();
+  const comment = { kind: "comment", attempt: "note", text: "Note", revision: 1 };
+  app.enqueue(comment, "now");
+  const logged = { ...comment, id: "e1", seq: 1, author: "user", ts: "now" };
+  app.accept("note", logged);
+  const reading = state(2);
+  reading.browser.receipts = [logged];
+  reading.browser.views[1].thread.threads = [servedThread([logged])];
+  app.adopt(reading);
+  assert.deepEqual(app.read().unresolved, []);
+  // The pass drawing that reading still reads the thread as the user's gesture, and
+  // its proof moves nothing a paint reads.
+  assert.deepEqual(app.read().effective.thread.gestured, ["e1"]);
+  const adopted = app.read();
+  app.present([logged]);
+  assert.equal(app.read(), adopted);
+  // The next reading is news like any other.
+  app.adopt(state(3));
+  assert.deepEqual(app.read().effective.thread.gestured, []);
+});
+
+// Whether the user's comment still counts as their gesture in its thread, after each
+// step: held news shows in that thread until a pass has drawn the reading logging it.
+const settling = [
+  {
+    name: "a reading the page failed to draw, and its retry",
+    steps: ["accept", "log", "log", "present", "log"],
+    gestured: [true, true, true, true, false],
+  },
+  {
+    name: "an acceptance after a reading logged it, before the pass",
+    steps: ["log", "accept", "present", "log"],
+    gestured: [true, true, true, false],
+  },
+  {
+    name: "an acceptance after the pass drew the reading logging it",
+    steps: ["log", "present", "accept"],
+    gestured: [true, true, false],
+  },
+];
+for (const { name, steps, gestured } of settling)
+  test(`a settled comment's thread stays gestured until it is drawn: ${name}`, () => {
+    const app = setup();
+    const comment = { kind: "comment", attempt: "note", text: "Note", revision: 1 };
+    app.enqueue(comment, "now");
+    const logged = { ...comment, id: "e1", seq: 1, author: "user", ts: "now" };
+    let taken = 1;
+    const signals = {
+      accept: () => app.accept("note", logged),
+      log: () => {
+        const reading = state(++taken);
+        reading.browser.receipts = [logged];
+        reading.browser.views[1].thread.threads = [servedThread([logged])];
+        app.adopt(reading);
+      },
+      present: () => app.present([logged]),
+    };
+    steps.forEach((signal, index) => {
+      signals[signal]();
+      assert.equal(
+        app.read().effective.thread.gestured.length > 0,
+        gestured[index],
+        `after ${steps.slice(0, index + 1).join(", ")}`,
+      );
+    });
+  });
 
 test("refusal removes a local thread without requiring a saved reading", () => {
   const app = capture();
@@ -1251,7 +1318,10 @@ for (const resolved of [null, { author: "user" }]) {
     assert.deepEqual(turn(), [owed, null]);
     const answer = { kind: "reply", attempt: "answer", id: "e-answer" };
     app.accept("answer", answer);
-    app.present([answer]);
+    const logged = state(3);
+    logged.browser.receipts = [answer];
+    logged.browser.views[1].thread.threads = accepted.browser.views[1].thread.threads;
+    app.adopt(logged);
     assert.deepEqual(app.read().unresolved, []);
     assert.deepEqual(turn(), [owed, resolved]);
 

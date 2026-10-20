@@ -30,7 +30,7 @@ from .leases import page_locked
 from .locations import canonical_path
 from .refusals import Refused
 from .schema import FILE_BINDINGS_FILE, HTML_NAME
-from .state import flocked, replace_bytes, state_home_path, write_json
+from .state import flocked, replace_bytes, state_home, write_json
 
 MAX_FILE_BYTES = 256 * 1024
 BINDING_ID = re.compile(HTML_NAME)
@@ -182,7 +182,7 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
         if path is None:
             raise FileBindingError(f"No file is bound as {binding!r}.")
         key = hashlib.sha256(os.fsencode(path)).hexdigest()
-        locks = state_home_path() / "files"
+        locks = state_home() / "files"
         locks.mkdir(parents=True, exist_ok=True)
         with flocked(locks / f"{key}.lock"):
             current = _read(path)

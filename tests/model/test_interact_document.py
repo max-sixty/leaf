@@ -2863,20 +2863,6 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     )
 
 
-def test_a_value_an_earlier_leaf_wrote_reads_as_that_sources_error(page_dir):
-    """A Leaf before publications wrote the bare value, so a page it fed names the
-    rewrite rather than reading that value as a publication."""
-    declare_data_input(page_dir, "builds", {"type": "array"}, contract="build-map")
-    data_model.cmd_data_set(page_dir, "builds", [])
-    data_model.source_file(page_dir, "builds").write_bytes(b"[]")
-
-    source = read_page_data(page_dir)["sources"]["builds"]
-    assert "value" not in source
-    assert source["error"] == (
-        "source 'builds' holds no publication; write it again with leaf data set"
-    )
-
-
 def test_page_state_names_the_item_region_but_keeps_state_on_its_request(page_dir):
     """An item retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""

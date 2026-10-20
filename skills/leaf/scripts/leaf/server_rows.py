@@ -34,7 +34,7 @@ from .registry.schema import json_validator
 from .served_state.reading import page_reading
 from .served_state.service import PageStateService
 from .service import page_claim
-from .state import page_key, state_home_path, write_json
+from .state import page_key, state_home, write_json
 
 ACTIVITY_FIELDS = frozenset(
     {
@@ -61,7 +61,7 @@ def compact_activity(activity: dict) -> dict:
 
 
 def row_path(page_dir: Path) -> Path:
-    return state_home_path() / "rows" / f"{page_key(page_dir)}.json"
+    return state_home() / "rows" / f"{page_key(page_dir)}.json"
 
 
 _STRING = {"type": "string"}

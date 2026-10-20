@@ -993,6 +993,11 @@ export function createThreadPreview({
         ? previewList.querySelector(".lf-page-thread")
         : null,
     closeFocused: () => focused() === previewClose,
+    // Whether the user stands in the card's reply box.
+    replying: () =>
+      under(focused(), preview) && Boolean(closestAcross(focused(), REPLY_BOX)),
+    // Whether the open card has somewhere to stand (`threadCardPlace`).
+    stands: () => Boolean(previewSession && threadCardPlace(previewSession)),
     place: placeThreadPreview,
     schedulePosition: scheduleThreadPreviewPosition,
     mount,

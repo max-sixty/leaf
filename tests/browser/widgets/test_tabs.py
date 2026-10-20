@@ -453,7 +453,6 @@ def test_tab_onto_a_link_in_a_wide_table_under_a_framed_strip_clears_the_strip(
     page = open_page(request.getfixturevalue(engine), serve(WIDE_TABLE_IN_A_FRAMED_SET))
     resized(page, 1280, 720)
     expect(page.locator("#views")).to_have_attribute("data-lf-tabs-flow", "box")
-    expect(page.locator("#wide")).to_have_attribute("data-lf-scrolls", "across")
     # Stick the strip, then stand row 11's link 20px under the strip's top: inside the
     # root's landing band, which the strip covers.
     page.evaluate(

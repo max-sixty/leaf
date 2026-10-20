@@ -72,9 +72,18 @@ function fields(schema, path = "", found = new Set()) {
   if (typeof schema !== "object") return found;
   for (const [name, field] of Object.entries(schema.properties ?? {}))
     fields(field, `${path}.${name}`, found.add(`${path}.${name}`));
-  for (const branch of [schema.anyOf, schema.oneOf, schema.allOf].flat())
+  for (const branch of [
+    schema.anyOf,
+    schema.oneOf,
+    schema.allOf,
+    Object.values(schema.dependentSchemas ?? {}),
+  ].flat())
     fields(branch, path, found);
+  for (const [index, item] of (schema.prefixItems ?? []).entries())
+    fields(item, `${path}[${index}]`, found);
   fields(schema.items, `${path}[]`, found);
+  fields(schema.additionalProperties, `${path}.*`, found);
+  fields(schema.unevaluatedProperties, `${path}.*`, found);
   return found;
 }
 
@@ -191,7 +200,9 @@ function diff(old, now, path, side) {
     // A missing conjunct takes anything; a missing branch, nothing, so a branch the new
     // schema drops takes with it each field no remaining branch names.
     const missing = keyword === "allOf";
-    const kept = new Set(after.flatMap((branch) => [...fields(branch)]));
+    // What the new schema still names: its remaining branches and what they share.
+    const { anyOf, oneOf, ...shared } = now;
+    const kept = new Set([shared, ...after].flatMap((branch) => [...fields(branch)]));
     for (let index = 0; index < Math.max(before.length, after.length); index++) {
       nested(`|${index}`, before[index] ?? missing, after[index] ?? missing);
       if (!missing && !after[index])

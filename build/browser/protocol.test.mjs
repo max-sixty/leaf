@@ -269,6 +269,19 @@ test("the comparison sees through unions, references and maps", () => {
     changed((s) => s.served.properties.pick.anyOf.pop(), payloads),
     ["served state.pick.payload.x: the field is gone"],
   );
+  const listed = structuredClone(payloads);
+  const listing = (field) => ({ type: "array", prefixItems: [payload(field)] });
+  listed.served.properties.pick = { anyOf: [listing("y"), listing("x")] };
+  assert.deepEqual(
+    changed((s) => s.served.properties.pick.anyOf.pop(), listed),
+    ["served state.pick[0].payload.x: the field is gone"],
+  );
+  const shared = structuredClone(payloads);
+  shared.served.properties.pick.properties = payload("x").properties;
+  assert.deepEqual(
+    changed((s) => s.served.properties.pick.anyOf.pop(), shared),
+    [],
+  );
   // A reference compares by its text, and its target where it is declared.
   const nested = structuredClone(baseline);
   nested.served.$defs.Tree = {

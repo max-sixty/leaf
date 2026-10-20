@@ -1904,9 +1904,10 @@ function createSemanticApplication({
     },
     authoritative: null,
     unresolved: [],
-    // The entries the adopted reading retired from the ledger by logging them, until the
-    // next reading is adopted. Their threads stay gestured while the page draws the
-    // reading that settled them, as they were while the ledger held them.
+    // The entries that left the ledger once a reading logged them. Each stays until the
+    // first reading adopted after a document pass drew its receipt (`drawn`), so its
+    // thread stays gestured through that pass, a failed one and its retry included, as
+    // it was while the ledger held it.
     settled: [],
     // Content versions this tab has marked read and the log has not yet answered for.
     // Marking read is bookkeeping, not a gesture, so it has no place in the ordered
@@ -1941,6 +1942,7 @@ function createSemanticApplication({
   const widgets = publisher.select(widgetIndex);
   let dataTaken = -Infinity;
   let order = 0;
+  const drawn = /* @__PURE__ */ new Set();
   let publicationDepth = 0;
   let activePresentation = null;
   if (presentation) presentation.seal(presentation.begin(initial.semanticEpoch));
@@ -1986,12 +1988,12 @@ function createSemanticApplication({
     const servedItems = ready ? normalizedObligations(view, widgets2, document, projection, local) : NO_OBLIGATIONS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     const named = threadNames(folded);
-    const threadOfEntry = ({ event, thread: drawn, namedParent }) => {
-      const drawnIn = drawn && named.get(drawn.id)?.id;
+    const threadOfEntry = ({ event, thread: drawn2, namedParent }) => {
+      const drawnIn = drawn2 && named.get(drawn2.id)?.id;
       if (drawnIn) return drawnIn;
       switch (event.kind) {
         case "comment":
-          return drawn?.id ?? null;
+          return drawn2?.id ?? null;
         case "reply":
           return named.get(event.parent)?.id ?? event.parent;
         case "edit":
@@ -2358,6 +2360,13 @@ function createSemanticApplication({
         "log",
         byAttempt(authoritative.browser.receipts)
       );
+      const settled = [
+        ...prior.settled.filter((item) => !drawn.has(item.event.attempt)),
+        ...left
+      ];
+      for (const attempt of drawn)
+        if (!unresolved.some((item) => item.event.attempt === attempt))
+          drawn.delete(attempt);
       const capture = (value, previous) => value === previous ? value : structuredClone(value);
       publish({
         document: document ? {
@@ -2374,7 +2383,7 @@ function createSemanticApplication({
         } : prior.document,
         authoritative,
         unresolved,
-        settled: left,
+        settled,
         phase: "ready",
         reach: "reached"
       });
@@ -2435,8 +2444,12 @@ function createSemanticApplication({
     // The POST accepted `attempt` as the log's `accepted`.
     accept(attempt, accepted) {
       if (!entry(attempt)) return;
-      const { unresolved } = transition("accept", /* @__PURE__ */ new Map([[attempt, accepted]]));
-      publish({ unresolved });
+      const { unresolved, left } = transition("accept", /* @__PURE__ */ new Map([[attempt, accepted]]));
+      const settled = left.filter((item) => !drawn.delete(item.event.attempt));
+      publish({
+        unresolved,
+        ...settled.length && { settled: [...publisher.peek().settled, ...settled] }
+      });
     },
     // The POST refused `attempt`, or it can no longer be sent. What depends on it goes
     // with it: every gesture naming it by its pending id (`namesEvent`), such as an undo
@@ -2468,8 +2481,12 @@ function createSemanticApplication({
     // A document pass carrying these receipts has run, which moves only the actions
     // among them, and publishes only where one moved.
     present(receipts) {
-      const { unresolved, moved: moved2 } = transition("present", byAttempt(receipts));
-      if (moved2) publish({ unresolved });
+      const { unresolved, settled } = publisher.peek();
+      const attempts = byAttempt(receipts);
+      for (const item of [...settled, ...unresolved])
+        if (attempts.has(item.event.attempt)) drawn.add(item.event.attempt);
+      const { unresolved: next, moved: moved2 } = transition("present", attempts);
+      if (moved2) publish({ unresolved: next });
     },
     // The entries no document pass has presented yet.
     unpresented: () => unresolvedPart.read().filter((item) => UNPRESENTED.has(item.state)),

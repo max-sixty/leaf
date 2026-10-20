@@ -121,9 +121,10 @@ def _publication(page_dir: Path, source: str) -> tuple[dict, str] | None:
     """The source's publication and its value's revision, or None before one exists."""
     path = source_file(page_dir, source)
     stamp = file_stamp(path)
-    if stamp is None:
-        return None
     held = memo(page_dir, _Publications).held
+    if stamp is None:
+        held.pop(source, None)
+        return None
     kept = held.get(source)
     if kept is not None and kept[0] == stamp:
         return kept[1]
@@ -167,14 +168,19 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
     changed binding or validation result is news even when the file bytes match.
     A rerun is news even when it writes the same value. A page whose layer cannot be
     read has no contracts to judge its values by, and reads as holding none."""
+    contracts = read_contracts(page_dir)
     sources = (
         {
             source: read_source(page_dir, source, contract, registry)
-            for source, contract in sorted(read_contracts(page_dir).items())
+            for source, contract in sorted(contracts.items())
         }
         if registry is not None
         else {}
     )
+    # A source the page no longer binds keeps nothing.
+    held = memo(page_dir, _Publications).held
+    for source in held.keys() - contracts.keys():
+        held.pop(source, None)
     identity = json.dumps(
         {
             source: [

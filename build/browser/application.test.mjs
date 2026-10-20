@@ -1187,6 +1187,52 @@ test("the reading that logs an accepted comment retires it in its own publicatio
   assert.deepEqual(app.read().effective.thread.gestured, []);
 });
 
+// Whether the user's comment still counts as their gesture in its thread, after each
+// step: held news shows in that thread until a pass has drawn the reading logging it.
+const settling = [
+  {
+    name: "a reading the page failed to draw, and its retry",
+    steps: ["accept", "log", "log", "present", "log"],
+    gestured: [true, true, true, true, false],
+  },
+  {
+    name: "an acceptance after a reading logged it, before the pass",
+    steps: ["log", "accept", "present", "log"],
+    gestured: [true, true, true, false],
+  },
+  {
+    name: "an acceptance after the pass drew the reading logging it",
+    steps: ["log", "present", "accept"],
+    gestured: [true, true, false],
+  },
+];
+for (const { name, steps, gestured } of settling)
+  test(`a settled comment's thread stays gestured until it is drawn: ${name}`, () => {
+    const app = setup();
+    const comment = { kind: "comment", attempt: "note", text: "Note", revision: 1 };
+    app.enqueue(comment, "now");
+    const logged = { ...comment, id: "e1", seq: 1, author: "user", ts: "now" };
+    let taken = 1;
+    const signals = {
+      accept: () => app.accept("note", logged),
+      log: () => {
+        const reading = state(++taken);
+        reading.browser.receipts = [logged];
+        reading.browser.views[1].thread.threads = [servedThread([logged])];
+        app.adopt(reading);
+      },
+      present: () => app.present([logged]),
+    };
+    steps.forEach((signal, index) => {
+      signals[signal]();
+      assert.equal(
+        app.read().effective.thread.gestured.length > 0,
+        gestured[index],
+        `after ${steps.slice(0, index + 1).join(", ")}`,
+      );
+    });
+  });
+
 test("refusal removes a local thread without requiring a saved reading", () => {
   const app = capture();
   app.enqueue(

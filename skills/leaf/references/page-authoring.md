@@ -10,11 +10,11 @@ have to picture from a description, and put that thing on the page in its own fo
 
 - An existing interface is a screenshot, cropped or marked so the eye lands on the
   point, with crops cutting through background rather than text. Leaf frames every
-  image, so capture a panel, card or menu with about 24px of the page around it: a
-  clip at its bounding box cuts off its shadow and squares its rounded corners against
-  the frame. A visual change between two versions is an `lf-shot` before-and-after
-  pair, and captures that vary along other axes go in a table of captures
-  (`authoring-evidence.md`, "Source files and media").
+  image, so capture a panel, card or menu with enough of the page around it to hold
+  its whole shadow: a clip at its bounding box cuts the shadow off and squares its
+  rounded corners against the frame. A visual change between two versions is an
+  `lf-shot` before-and-after pair, and captures that vary along other axes go in a
+  table of captures (`authoring-evidence.md`, "Source files and media").
 - A behavior, such as an interaction, a motion or a process over time, runs: in a live
   sample the user operates (`live-samples.md`), or in a page module that draws it with
   controls to pause and scrub, so each moment stays readable and commentable.

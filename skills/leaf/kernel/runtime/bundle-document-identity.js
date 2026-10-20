@@ -7205,7 +7205,7 @@ function semanticNewsNotice(news) {
     const { agent } = message;
     const verb = message.kind === "reply" ? "reply" : "comment";
     clauses.push(
-      message.edited ? `${agent} updated a ${verb}` : `${agent} ${verb === "reply" ? "replied" : "commented"}`
+      message.edited ? `${agent} edited a ${verb}` : `${agent} ${verb === "reply" ? "replied" : "commented"}`
     );
   } else if (content.length) {
     const replies = content.filter(({ message }) => message.kind === "reply");

@@ -1123,9 +1123,9 @@ def test_an_answer_the_user_waits_for_grows_the_view_up_to_its_cap(browser, serv
 
 
 def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
-    """Work under way past the view's cap waits behind New update; the reply that follows
-    it takes the press over, which then says New reply and brings the reply's start into
-    sight, not the work before it."""
+    """Work under way past the view's cap waits behind New message; the reply
+    that follows it takes the press over, which then says New reply and brings the
+    reply's start into sight, not the work before it."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?")
     page = floating(browser, url)
@@ -1143,7 +1143,7 @@ def test_new_reply_leads_to_the_reply_once_one_follows_the_work(browser, serve):
 
     press = view.locator(".lf-fp-new-reply")
     say("Reading the jobs, the mounts and the frost dates. " * 80, ephemeral=True)
-    expect(press).to_have_text("New update")
+    expect(press).to_have_text("New message")
     say("The mounts come first. " + "They need the frost to lift. " * 120)
     expect(press).to_have_text("New reply")
     press.click()
@@ -3174,6 +3174,59 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     disclosure.click()
     expect(disclosure).to_have_attribute("aria-expanded", "true")
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+
+
+def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
+    """In a thread's view the head's words, the quote's and each message's start on one
+    edge, the quote's rule standing left of it. A rewrite's frame reaches back only as
+    far as that rule, so its words keep the message's and its frame stays clear of the
+    panel's edge."""
+    url = serve(PAGE_ANNOTATED)
+    panel_comment(
+        serve.page_dir,
+        "Is the window long enough?",
+        anchor={"section": "p3", "quote": "Paragraph 3."},
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-msg")).to_contain_text("Is the window long enough?")
+    settled(page)
+    starts = """() => {
+      const edge = document.querySelector('.lf-fp-card').getBoundingClientRect().left;
+      const words = (node) => {
+        const text = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+          acceptNode: (t) => (t.textContent.trim() ? 1 : 3),
+        }).nextNode();
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        return range.getClientRects()[0].left - edge;
+      };
+      const view = document.querySelector('.lf-fp-view[data-view=thread]');
+      const quote = view.querySelector('.lf-fp-quote');
+      const frame = view.querySelector('.lf-msg-editor .lf-compose-field');
+      const text = frame?.querySelector('leaf-text');
+      return {
+        head: words(document.querySelector('.lf-fp-head')),
+        quote: words(quote),
+        message: words(view.querySelector('.lf-msg')),
+        rule: quote.getBoundingClientRect().left - edge,
+        frame: frame && frame.getBoundingClientRect().left - edge,
+        rewrite: text && text.getBoundingClientRect().left - edge
+          + parseFloat(getComputedStyle(text).paddingLeft),
+      };
+    }"""
+    at = page.evaluate(starts)
+    assert at["head"] == pytest.approx(at["quote"], abs=0.5), at
+    assert at["message"] == pytest.approx(at["head"], abs=0.5), at
+    assert 0 < at["rule"] < at["head"] - 4, at
+
+    view.locator(".lf-msg-body").dblclick()
+    expect(view.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    at = page.evaluate(starts)
+    assert at["rewrite"] == pytest.approx(at["message"], abs=0.5), at
+    assert at["frame"] == pytest.approx(at["rule"], abs=0.5), at
 
 
 def test_the_go_to_doors_open_the_panel_s_views(browser, serve):

@@ -10,8 +10,9 @@ asks for a title as soon as it can reach the harness's model:
 - a page server, as the user's comment or reply in the untitled thread is admitted
   (`name_admitted_thread`), through the generator the claimant's harness supplies
   (`Harness.title_generator`): a `claude -p` Haiku request for Claude Code
-  (`claude_code_title`), and an App Server of its own for Codex (`codex_title`),
-  whichever transport carries the task's turns;
+  (`claude_code_title`), an App Server of its own for Codex (`codex_title`),
+  whichever transport carries the task's turns, and a `pi --print` run on the
+  model the user configured for Pi (`pi_title`);
 - the website's host, as the Worker dispatches the user's update in the untitled
   thread to it (`name_thread`), through an ephemeral thread on the App Server it owns
   (`app_server_title`), whether the update starts a turn or waits for a running one
@@ -30,8 +31,15 @@ Every harness is sent the same request (`title_request`): a system prompt saying
 title the thread, then the passage the thread is on and its first spoken message,
 each between tags of its own, and a last line asking for the title. That is the
 request's whole context: none of the task's transcript, and none of the tools or
-the context the harness loads by default. Each answers in the same schema. The
-request runs beside the agent's work and never delays it.
+the context the harness loads by default. Claude Code and Codex answer in the same
+schema; Pi has no answer schema, so its title is the answer's text, and on its
+`openai-codex` provider 24 of 24 answers were titles, to messages asking for a fix,
+a shell command, a poem or a sum among them. The request runs beside the agent's
+work and never delays it.
+
+A Pi title took 2.0–4.1 s from the request to the answer, at a load average of 270
+to 330 on this machine, and cost $0.0005 at Pi's catalog price for gpt-6.1-sol, some
+200 tokens in and 10 out (Pi 1.0.4).
 
 The title is written as the session that holds the page's claim, and only while the
 thread is still untitled (`thread.name_untitled`), so a name the agent gave first
@@ -44,6 +52,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 from collections.abc import Callable
@@ -157,6 +166,33 @@ CLAUDE_CODE_ENVIRONMENT = {
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
 }
 
+# Pi: a print-mode run of the model the user configured, with no tools, and none of
+# the extensions (Leaf's own among them, and every hook, since Pi's hooks are
+# extensions), MCP servers, skills, prompt templates or context files the user
+# installed. An empty appended prompt stands in for the APPEND_SYSTEM.md Pi would
+# otherwise add to `INSTRUCTIONS`. Offline skips the version check and catalog
+# refresh a start makes.
+# Pi has no answer schema, so the title is the answer's text. Thinking off is the
+# least a model accepts: `minimal` on gpt-6.1-sol, which reasoned on no title.
+PI_COMMAND = (
+    "--print",
+    "--mode",
+    "json",
+    "--no-session",
+    "--no-tools",
+    "--no-extensions",
+    "--no-mcp",
+    "--no-skills",
+    "--no-prompt-templates",
+    "--no-context-files",
+    "--append-system-prompt",
+    "",
+    "--no-themes",
+    "--offline",
+    "--thinking",
+    "off",
+)
+
 Record = Callable[..., None]
 # How much of the passage and of the message a request carries: the first this many
 # characters of each, which name the subject if any do.
@@ -241,6 +277,84 @@ def claude_code_title(request: str, page_dir: Path) -> dict:
         "apiDurationMs": answer["duration_api_ms"],
         "inputTokens": usage["input_tokens"],
         "outputTokens": usage["output_tokens"],
+    }
+
+
+def pi_title(request: str, page_dir: Path) -> dict:
+    """Ask Pi's configured model for a title through the `pi` on PATH, on the user's
+    own login and Pi home, run in the page directory.
+
+    The page server's environment is that of whichever Pi session started it, so the
+    child is given none of that session's identity. The request goes on stdin, out of
+    the process table.
+
+    Pi exits some 3 s after it answers (Pi 1.0.4 on its `openai-codex` provider,
+    where the model took 1–2 s), so the answer is read as Pi prints it, and the
+    process is killed once it has, with no session to save."""
+    executable = shutil.which("pi")
+    if executable is None:
+        raise FileNotFoundError("no `pi` on PATH")
+    started = time.monotonic()
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if name not in IDENTITY_VARIABLES
+    }
+    with (
+        tempfile.TemporaryFile("w+") as errors,
+        subprocess.Popen(
+            [executable, *PI_COMMAND, "--system-prompt", INSTRUCTIONS],
+            cwd=page_dir,
+            env=env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=errors,
+            text=True,
+        ) as process,
+    ):
+        deadline = threading.Timer(TIMEOUT, process.kill)
+        deadline.start()
+        try:
+            process.stdin.write(request)
+            process.stdin.close()
+            settled = next(
+                (
+                    record
+                    for record in map(json.loads, process.stdout)
+                    # A run that failed and that Pi will retry ends first.
+                    if record["type"] == "agent_end" and not record["willRetry"]
+                ),
+                None,
+            )
+        finally:
+            deadline.cancel()
+            process.kill()
+            process.wait()
+        if settled is None:
+            if time.monotonic() - started >= TIMEOUT:
+                raise TimeoutError(f"no title within {TIMEOUT} s")
+            errors.seek(0)
+            raise RuntimeError(
+                f"pi exited {process.returncode} without an answer: "
+                f"{errors.read().strip()[-300:]}"
+            )
+    answer = settled["messages"][-1]
+    if answer["role"] != "assistant" or answer["stopReason"] != "stop":
+        raise RuntimeError(
+            f"the title run ended {answer.get('stopReason')}: "
+            f"{answer.get('errorMessage')}"
+        )
+    usage = answer["usage"]
+    return {
+        "title": "".join(
+            part["text"] for part in answer["content"] if part["type"] == "text"
+        ).strip(),
+        "durationMs": round((time.monotonic() - started) * 1000),
+        "model": f"{answer['provider']}/{answer['model']}",
+        "inputTokens": usage["input"],
+        "outputTokens": usage["output"],
+        # Pi prices each answer from its model catalog.
+        "costUsd": usage["cost"]["total"],
     }
 
 

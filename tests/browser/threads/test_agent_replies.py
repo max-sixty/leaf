@@ -302,7 +302,7 @@ def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_i
     browser, serve, request
 ):
     """An App Server final repeats the words it streamed, and it folds the progress
-    before it into Previous updates. That fold is the answer's news, so a card the user
+    before it into its disclosure. That fold is the answer's news, so a card the user
     is writing in, which holds it, says a reply arrived rather than that a summary
     changed.
     """
@@ -349,7 +349,7 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     browser, serve, request, streamed
 ):
     """The agent acknowledges a move with progress before it answers, and the answer
-    folds that progress into Previous updates. In an open card the user is reading but
+    folds that progress into its disclosure. In an open card the user is reading but
     not writing in, that fold changes only the thread's end, so the answer shows as it
     lands, streamed or not. The progress disclosure stays put when the answer gains
     its feedback control, and nothing above the progress moves.
@@ -569,7 +569,7 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
         ephemeral=True,
     )
     told(page)
-    notice = thread.get_by_role("button", name="1 new update", exact=True)
+    notice = thread.get_by_role("button", name="1 new message", exact=True)
     expect(notice).to_be_visible()
     expect(words).to_have_text("Reading the jobs")
     rendered(page)
@@ -578,6 +578,50 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
     notice.click()
     expect(words).to_contain_text("what each one needs before it can start")
     assert editor.evaluate("box => box.value") == "Start with the mounts."
+
+
+def test_held_news_too_long_for_its_notice_drops_a_later_fact_whole(browser, serve):
+    """A seat's notice keeps the width of the news it first said. News that grows past
+    it shows its first fact whole and drops the later one, which the notice's name
+    still says, rather than cutting the first fact mid-word ("1 new re…")."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    page = open_page(browser, url)
+    resized(page, 390, 900)
+    thread = page.locator("#jobs .lf-page-thread")
+    expect(thread).to_be_visible()
+    write(thread.locator("leaf-text"), "Start with the mounts.")
+    rendered(page)
+
+    thread_model.post_reply(
+        serve.page_dir, {"to": root, "for": root}, "The mounts come first."
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    expect(notice).to_be_visible()
+    rendered(page)
+    width = notice.bounding_box()["width"]
+
+    append_user_reply(serve.page_dir, root, "And the bird bath?")
+    told(page)
+    notice = thread.get_by_role(
+        "button", name="1 new reply · 1 new message", exact=True
+    )
+    expect(notice).to_be_visible()
+    rendered(page)
+    assert notice.bounding_box()["width"] == pytest.approx(width, abs=0.5)
+    facts = notice.locator(":scope > span > span")
+    assert facts.nth(0).evaluate("fact => fact.scrollWidth <= fact.clientWidth")
+    # The later fact wraps past the words' clip, so nothing of it draws or takes a press.
+    assert facts.nth(1).evaluate(
+        """fact => {
+            const box = fact.getBoundingClientRect();
+            const hit = fact
+                .getRootNode()
+                .elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+            return !fact.contains(hit);
+        }"""
+    )
 
 
 def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(

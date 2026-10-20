@@ -816,7 +816,6 @@ def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
         browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
     )
     resized(page, 741, 838)
-    page.keyboard.press("Tab")
     page.locator(".lf-margin-marker").first.focus()
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview .lf-page-thread")

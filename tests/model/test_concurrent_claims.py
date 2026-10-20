@@ -61,6 +61,7 @@ def test_resident_flat_claim_updates_preserve_session_discovery(page_dir):
     assert prior_locator.is_symlink()
     record_claim(page, id="successor")
     # A delayed old alias is only a locator, never successor ownership in prior.
+    prior_locator.parent.mkdir(exist_ok=True)
     prior_locator.symlink_to(Path("..") / canonical.name)
     assert claim_records("prior") == []
     assert [claim["id"] for claim in claim_records()] == ["successor"]
@@ -82,7 +83,7 @@ def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(
 
     observed_missing = Event()
     successor_written = Event()
-    stands = state._stands
+    stands = state.page_stands
 
     def observe_before_recreation(path):
         exists = stands(path)
@@ -93,7 +94,7 @@ def test_a_scan_of_a_missing_page_preserves_its_concurrent_successor(
             )
         return exists
 
-    monkeypatch.setattr(state, "_stands", observe_before_recreation)
+    monkeypatch.setattr(state, "page_stands", observe_before_recreation)
     with ThreadPoolExecutor(max_workers=1) as executor:
         scan = executor.submit(claim_records, session)
         try:

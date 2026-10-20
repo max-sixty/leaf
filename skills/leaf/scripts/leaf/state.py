@@ -345,10 +345,12 @@ def pages_gone(pages: list[Path]) -> bool:
     directory, so no Leaf process sees the moment; whoever next enumerates the
     record's directory retires it. A page this process can't stat, as on an
     unmounted volume or behind a folder it may not read, stands."""
-    return bool(pages) and not any(_stands(page) for page in pages)
+    return bool(pages) and not any(page_stands(page) for page in pages)
 
 
-def _stands(page: Path) -> bool:
+def page_stands(page: Path) -> bool:
+    """Whether a page directory is there, counting one this process can't stat as
+    there: only its absence makes a page gone (`pages_gone`)."""
     try:
         return stat.S_ISDIR(page.stat().st_mode)
     except (FileNotFoundError, NotADirectoryError):
@@ -822,10 +824,16 @@ def retire_claim(payload: Path, stored: dict) -> None:
 def _drop_claim(payload: Path, stored: dict | None) -> None:
     payload.unlink(missing_ok=True)
     if stored is not None:
-        partition = session_claims(stored["id"])
-        (partition / payload.name).unlink(missing_ok=True)
-        with contextlib.suppress(OSError):
-            partition.rmdir()  # once it holds no other locator
+        drop_locator(stored["id"], payload.name)
+
+
+def drop_locator(session_id: str, name: str) -> None:
+    """Remove a session's locator, and its partition once that holds no other.
+    The caller holds the claims lock."""
+    partition = session_claims(session_id)
+    (partition / name).unlink(missing_ok=True)
+    with contextlib.suppress(OSError):
+        partition.rmdir()
 
 
 def main() -> None:

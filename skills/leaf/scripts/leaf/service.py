@@ -44,6 +44,7 @@ from leaf.state import (
     Record,
     chat_exists,
     claims_lock,
+    drop_locator,
     ensure_session,
     flocked,
     fsync_parents,
@@ -51,6 +52,7 @@ from leaf.state import (
     now_iso,
     object_schema,
     page_key,
+    page_stands,
     remove_claim,
     session_claims,
     session_lock_path,
@@ -128,7 +130,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
             staged.unlink(missing_ok=True)
         CLAIM.write(path, claim)
         if previous is not None and previous["id"] != claim["id"]:
-            (session_claims(previous["id"]) / path.name).unlink(missing_ok=True)
+            drop_locator(previous["id"], path.name)
 
 
 # The keys a claim's reading takes from its session's lifetime (`claim_reading`).
@@ -271,7 +273,7 @@ def claim_records(session_id: str | None = None) -> list:
             claim is not None
             and claim_path(Path(claim["page"])) == path.resolve()
             and (session_id is None or claim["id"] == session_id)
-            and Path(claim["page"]).is_dir()
+            and page_stands(Path(claim["page"]))
         ):
             claims.append(claim)
     return claims

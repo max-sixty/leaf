@@ -322,7 +322,7 @@
   .lf-floating-panel[data-asks][data-tone=away] {
     --lf-fp-asks: var(--warn-ink);
   }
-  .lf-floating-panel[data-asks][data-tone=offline] {
+  .lf-floating-panel[data-asks][data-tone=blocked] {
     --lf-fp-asks: var(--danger-ink);
   }
   .lf-fp-field .lf-compose-placeholder kbd {
@@ -1337,7 +1337,7 @@
   .lf-fp-state[data-tone=away] .lf-fp-summary {
     color: var(--warn-ink);
   }
-  .lf-fp-state[data-tone=offline] .lf-fp-summary {
+  .lf-fp-state[data-tone=blocked] .lf-fp-summary {
     color: var(--danger-ink);
   }
   .lf-fp-leaf {
@@ -1359,10 +1359,6 @@
     pointer-events: none;
     display: none;
     transition: opacity 120ms;
-  }
-  .lf-floating-panel[data-rest=row] .lf-fp-peek {
-    right: auto;
-    left: anchor(left);
   }
   .lf-fp-peek[data-shown] {
     display: block;
@@ -1655,7 +1651,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-dot.away {
     background: var(--warn);
   }
-  .lf-dot.offline {
+  .lf-dot.blocked {
     background: var(--danger);
   }
   @layer lf-reset {

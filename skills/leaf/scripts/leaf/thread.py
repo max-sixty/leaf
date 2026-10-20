@@ -37,8 +37,8 @@ from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.thread_context import thread_message, thread_names
 from leaf.validation.admission import (
     check_markup,
+    checked_text,
     logged_id,
-    read_text_arg,
     revision_publication,
     thread_obligation,
 )
@@ -240,8 +240,7 @@ def cmd_comment(
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
-    # Reading a body may wait on stdin; do that before taking the page lease.
-    body = read_text_arg(page_dir, text)
+    body = checked_text(page_dir, text)
     with PageTransaction(page_dir) as page:
         events = page.events
         revision, anchor = current_anchor(
@@ -373,7 +372,7 @@ def post_reply(
     the user's message gets the agent's first words and its Working line from one
     write.
     """
-    text = read_text_arg(page_dir, text)
+    text = checked_text(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -985,8 +984,7 @@ def cmd_edit(
     from leaf.page_view import PageView
     from leaf.registry.storage import require_registry
 
-    # Text comes from stdin when neither option gives it; read it before the lease.
-    body = read_text_arg(page_dir, text) if text is not None or title is None else None
+    body = checked_text(page_dir, text) if text is not None or title is None else None
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         named = None
@@ -1022,7 +1020,7 @@ def cmd_summarize(
     thread its first message sits in."""
     from leaf.registry.storage import require_registry
 
-    body = read_text_arg(page_dir, text, allow_empty=text == "")
+    body = checked_text(page_dir, text, allow_empty=True)
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
         record, _ = append_admitted(

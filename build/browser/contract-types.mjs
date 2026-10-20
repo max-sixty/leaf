@@ -7,7 +7,8 @@
  * detail stays open: the page's registry, rather than the kernel, owns it.
  *
  * The served state refers to its own definitions as `#/$defs/<Name>`, each of which
- * becomes `Served<Name>`, and to the schemas `registry.schema.leaf_resources` names
+ * becomes `Served<Name>`, to its whole answer as `#`, which becomes `ServedState`
+ * (an event answer carries one), and to the schemas `registry.schema.leaf_resources` names
  * by `leaf:` reference: `leaf:event/<kind>` becomes that kind's `EventMap` entry,
  * `leaf:event` an `Event`, and `leaf:verb` `ServedVerb`, generated from the schema
  * Python composes. A reference may point to one property, as
@@ -26,7 +27,7 @@ const ANNOTATIONS = new Set(["description", "title", "$schema", "$id", "$comment
 
 function reference(ref) {
   const [uri, pointer = ""] = ref.split("#");
-  if (!uri) return `Served${pointer.replace("/$defs/", "")}`;
+  if (!uri) return pointer ? `Served${pointer.replace("/$defs/", "")}` : "ServedState";
   const named =
     uri === "leaf:verb"
       ? "ServedVerb"

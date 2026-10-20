@@ -827,10 +827,12 @@ export function createSemanticApplication({
     phase: "waiting",
     // How the server answered the page's latest read: not yet (`waiting`), with a
     // reading the page adopted (`reached`), with nothing (`unreachable`, or `refused`
-    // where it refused this tab's key), or with one the page could not apply
-    // (`broken`). It is what the page's status says about the server, and no semantic
-    // epoch.
-    reach: "waiting" as "waiting" | "reached" | "unreachable" | "refused" | "broken",
+    // where it refused this tab's key), with an error of its own (`faulted`, whose
+    // words `fault` keeps), or with one the page could not apply (`broken`). It is
+    // what the page's status says about the server, and no semantic epoch.
+    reach: "waiting" as
+      "waiting" | "reached" | "unreachable" | "refused" | "faulted" | "broken",
+    fault: null as string | null,
     hostAvailable: true,
     data: { version: null as string | null, sources: {} as Record<string, unknown> },
     // Ephemeral typed values derived by mounted widgets; no server run or revision.
@@ -1370,9 +1372,10 @@ export function createSemanticApplication({
     setPhase(phase: string) {
       return publish({ phase });
     },
-    setReach(reach: typeof initial.reach) {
-      if (publisher.peek().reach === reach) return publisher.peek();
-      return publish({ reach });
+    setReach(reach: typeof initial.reach, fault: string | null = null) {
+      const now = publisher.peek();
+      if (now.reach === reach && now.fault === fault) return now;
+      return publish({ reach, fault });
     },
     publishOutput(
       widget: string,
@@ -1465,6 +1468,7 @@ export function createSemanticApplication({
         settled,
         phase: "ready",
         reach: "reached",
+        fault: null,
       });
       return true;
     },

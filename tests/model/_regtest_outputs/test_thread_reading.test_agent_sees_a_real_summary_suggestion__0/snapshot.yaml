@@ -77,8 +77,8 @@ delivery:
           a line>"`. It shows at once and starts the update, which reads Working
           until you answer. Do the work and put the result on the page, with what
           shows it (captures, a figure, the numbers). Then answer with `leaf response
-          reply <answer.ref> --done < reply.md`: what changed, in a sentence or
-          two, linking the section that shows it. If the event asks for no work,
+          reply <answer.ref> --done --file reply.md`: what changed, in a sentence
+          or two, linking the section that shows it. If the event asks for no work,
           as a question may not, answer it with that reply at once. The page holds
           the work; the thread holds only the conversation about it. A successful
           non-progress `leaf response reply` checks any saved page edit and makes

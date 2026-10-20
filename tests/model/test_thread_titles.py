@@ -20,6 +20,7 @@ from interact_support import (
     record_claim,
     stamp,
     wait_for,
+    write_record,
     yaml_document,
 )
 from leaf import codex as codex_model
@@ -431,8 +432,8 @@ def test_a_codex_title_server_that_fails_to_start_leaves_the_title_to_a_new_one(
         lambda prepared: not prepared,
         failure="the comment never took the prepared server",
     )
-    # The comment's write wakes the page server's follower, which starts the next
-    # title's server only once this title is answered.
+    # The comment's write wakes the page server's lifetime check, which starts the
+    # next title's server only once this title is answered.
     thread_titles.prepare_for_claimant(page_dir)
     assert not thread_titles._next_codex_titles
     released.set()
@@ -479,12 +480,14 @@ with unix_serve(handle, sys.argv[3].removeprefix("unix://")) as server:
 
 
 def test_a_codex_title_server_runs_while_a_codex_session_holds_the_page(
-    page_dir, tmp_path, monkeypatch, spawn
+    page_dir, tmp_path, monkeypatch, spawn, session_process
 ):
     """A page server holds the next title's App Server only for a Codex claimant:
     it starts one when a Codex session claims a page it already serves, and stops
-    it when a Claude Code session takes the page, which titles with Haiku, or the
-    Codex session ends, rather than leave an idle server of some 100 MB behind."""
+    it when a Claude Code session takes the page, which titles with Haiku, the
+    Codex session ends, or its process dies without ending it, which writes
+    nothing to the page, rather than leave an idle server of some 100 MB behind. A
+    persistent server outlives every claim, so only the title server stops."""
     programs = tmp_path / "programs"
     programs.mkdir()
     codex = programs / "codex"
@@ -502,31 +505,49 @@ def test_a_codex_title_server_runs_while_a_codex_session_holds_the_page(
         )
 
     record_claim(page_dir, id="s1", harness="claude-code", agent="Claude")
-    # The page server's follower, run in a process of its own as it is there, until
-    # its stdin closes. It then ends as a page server ends itself, stopping the
-    # title server it holds.
-    follow = """
+    write_record(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": 1,
+            "enabled": True,
+            "lifetime": "persistent",
+        },
+    )
+    claimant = session_process()
+    # The page server's lifetime check, run in a process of its own as it is
+    # there, until its stdin closes. It then ends as a page server ends itself,
+    # stopping the title server it holds.
+    serve = """
 import sys, threading
 from pathlib import Path
-from leaf.server import exit_serving
-from leaf.thread_titles import follow_claimant
+from leaf.server import exit_serving, stop_when_service_ends
 page = Path(sys.argv[1])
-threading.Thread(target=follow_claimant, args=(page,), daemon=True).start()
+threading.Thread(target=stop_when_service_ends, args=(page,), daemon=True).start()
 sys.stdin.read()
 exit_serving(0)
 """
-    follower = spawn(
-        [sys.executable, "-c", follow, str(page_dir)], stdin=subprocess.PIPE
-    )
+    server = spawn([sys.executable, "-c", serve, str(page_dir)], stdin=subprocess.PIPE)
     try:
         endings = {
             "Claude Code took the page": lambda: record_claim(
                 page_dir, id="s1", harness="claude-code", agent="Claude"
             ),
-            "the Codex session ended": lambda: state_model.end_session("codex-thread"),
+            "the Codex session ended": lambda: state_model.end_session("codex-2"),
+            "the Codex process was killed": lambda: (
+                claimant.kill(),
+                claimant.wait(timeout=STATED_TIMEOUT),
+            ),
         }
         for claims, (ending, end) in enumerate(endings.items(), start=1):
-            record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+            record_claim(
+                page_dir,
+                id=f"codex-{claims}",
+                harness="codex",
+                agent="Codex",
+                pid=claimant.pid,
+            )
             *_, pid = wait_for(
                 servers,
                 lambda pids, claims=claims: len(pids) == claims,
@@ -539,9 +560,10 @@ exit_serving(0)
                 lambda running: not running,
                 failure=f"the title server ran on after {ending}",
             )
+        assert server.poll() is None
     finally:
-        follower.stdin.close()
-        follower.wait(timeout=STATED_TIMEOUT)
+        server.stdin.close()
+        server.wait(timeout=STATED_TIMEOUT)
 
 
 # Pi's records in `--mode json`: a run that failed and that Pi retries, then the

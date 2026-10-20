@@ -34,12 +34,11 @@ server that is already running, the task's own included, would save little. Inst
 a page server holds the server and thread the next title is asked on while a Codex
 session holds the page's claim (`prepare_for_claimant`). It starts them when it
 starts serving a Codex session's page or a Codex session claims a page it serves,
-again once each title is answered, and stops them once the claim ends or passes to
-another harness's session, reading the claim on each of the page's writes
-(`follow_claimant`). A claimant that dies without ending its session leaves them
-until the page's next write or its server's exit. A title then took 2.0–2.3 s,
-against 3.3–3.9 s when started on request. The cost is an idle App Server of about
-105 MB for each served page a Codex session holds.
+again once each title is answered, and stops them once the claim ends, lapses with
+its claimant's death or passes to another harness's session, reading the claim
+where the server's lifetime does (`server.stop_when_service_ends`). A title then
+took 2.0–2.3 s, against 3.3–3.9 s when started on request. The cost is an idle App
+Server of about 105 MB for each served page a Codex session holds.
 
 Every harness is sent the same request (`title_request`): a system prompt saying to
 title the thread, then the passage the thread is on and its first spoken message,
@@ -86,7 +85,6 @@ from .codex import (
 )
 from .event_log import EventRefused
 from .events import build_threads, spoken_turns
-from .file_changes import page_changes
 from .harness import IDENTITY_VARIABLES, claim_harness
 from .leases import titles_log
 from .revision_artifact import active_enclosing
@@ -558,7 +556,8 @@ def prepare_for_claimant(page_dir: Path) -> None:
     """Hold the App Server and thread the page's next title is asked on while, and
     only while, the page's active claimant asks Codex for its titles
     (`codex_title`): start them unless they are started or a title is being asked,
-    and stop them once the claim ends or passes to a session of another harness.
+    and stop them once the claim is no longer active (`claim_is_active`) or passes
+    to a session of another harness.
 
     The claim is read under the lock, so of two callers the later reading wins."""
     with _next_codex_titles_lock:
@@ -573,18 +572,6 @@ def prepare_for_claimant(page_dir: Path) -> None:
         elif not codex and prepared is not None:
             del _next_codex_titles[page_dir]
             prepared.close()
-
-
-def follow_claimant(page_dir: Path) -> None:
-    """Prepare the page's next title for its claimant (`prepare_for_claimant`) for
-    as long as this process serves the page, again on each write to the page's
-    inputs, which include its claim and the claimant session's lifecycle
-    (`served_state.reading`)."""
-    while True:
-        changes = page_changes(page_dir)
-        mark = changes.mark()
-        prepare_for_claimant(page_dir)
-        changes.wait(mark, None)
 
 
 def codex_title(request: str, page_dir: Path) -> dict:

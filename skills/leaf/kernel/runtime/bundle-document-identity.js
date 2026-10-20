@@ -825,7 +825,7 @@ function sentDrawing(drawing) {
 }
 
 // runtime/protocol.js
-var recordFormat = (kind) => `leaf-${kind}/13`;
+var DRAFT_FORMAT = "leaf-draft/13";
 
 // runtime/composing/text-field.js
 import {
@@ -1518,7 +1518,6 @@ function createSelectionComposer({
 }) {
   const closeReactions = () => setReact(false);
   const COMPOSER_KEY = "composer:";
-  const DRAFT_FORMAT = recordFormat("draft");
   const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
   let pendingRevision = null;

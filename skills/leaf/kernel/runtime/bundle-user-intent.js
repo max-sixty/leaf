@@ -110,7 +110,6 @@ import {
   admitResponse,
   adoptRegistry,
   announce,
-  answersTouch,
   bindings,
   checked,
   clampedRow,
@@ -4087,10 +4086,16 @@ function assemble() {
   const rows = PAGE_COMMANDS.flatMap(
     (id) => commands.has(id) ? [commands.get(id)] : []
   );
-  const unanswered = rows.filter((row) => !answersTouch(row)).map((row) => row.id);
+  const unanswered = rows.filter((row) => row.touch === void 0).map((row) => row.id);
   if (unanswered.length)
     throw new Error(
       `leaf: ${unanswered.join(", ")} must declare \`touch\`: its words under a finger, or false where a finger reaches it directly`
+    );
+  const scopeRows = [...scopes.values()].flat().flatMap((scope) => scope.rows);
+  const unreached = scopeRows.filter((row) => row.run && !row.exit && row.touch !== false).map((row) => row.id);
+  if (unreached.length)
+    throw new Error(
+      `leaf: ${unreached.join(", ")} must be its stance's \`exit\` or declare \`touch: false\`: only a page command takes a finger's words`
     );
   return STACK.flatMap((name) => {
     if (name === PAGE) return { rows };
@@ -4115,12 +4120,9 @@ var namedScopes = () => STACK.flatMap((name) => typeof name === "string" ? scope
 var exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
 function touchPresses2() {
   pageScopes();
-  return {
-    commands: PAGE_COMMANDS.flatMap(
-      (id) => commands.has(id) ? touchPresses(commands.get(id)) : []
-    ),
-    steps: namedScopes().map((scope) => ({ scope, presses: scope.rows.flatMap(touchPresses) })).filter(({ scope, presses }) => presses.length || exitOf(scope))
-  };
+  return PAGE_COMMANDS.flatMap(
+    (id) => commands.has(id) ? touchPresses(commands.get(id)) : []
+  );
 }
 function stances() {
   pageScopes();

@@ -1341,6 +1341,7 @@ export function createResponseSurface({
     rows: [
       {
         id: "composer.close",
+        touch: false,
         keys: ["Escape"],
         description: () =>
           composer.composerHolds()

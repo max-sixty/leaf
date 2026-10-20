@@ -2352,8 +2352,8 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     outside the mode, as it does for the target picker.
 
     A remark on the panel has no reader who can act on it, and a mode that took the
-    chrome took the way out of the view its own send opened. The active mode's Exit
-    control stands in the panel's row as the gesture's next step. The Threads key still
+    chrome took the way out of the view its own send opened. The active mode's ✕ stands
+    at the panel's row's end. The Threads key still
     opens the panel's Threads, where nothing under the pointer promises a comment, and
     its close closes it."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))

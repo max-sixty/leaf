@@ -679,6 +679,7 @@ export function createTargetPicker({
 
   const TARGET_HINT_TYPE = {
     id: "target.picker.hint.type",
+    touch: false,
     keys: HINT_KEYS,
     label: "a–z",
     description: "Type the hint for a target",

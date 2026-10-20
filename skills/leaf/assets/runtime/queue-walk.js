@@ -29,7 +29,7 @@
    the chrome is a binding badge, not a page position, so its controls do not become the
    walk's origin. The user stands on an obligation when they stand in its widget, in its thread
    (`threadHere`), or in its widget or element, and the press steps off it. Standing on
-   a to-do Done ends, `x` is that Done, a step in the panel's row under a finger
+   a to-do Done ends, `x` is that Done, as is the Done on its On me row
    (`queue-api.js`, `done`): the user's `todo_end`, which leaves On me in the turn it is
    pressed.
 

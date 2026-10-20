@@ -11,8 +11,10 @@
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
     --lf-fp-aim: 32px;
-    --lf-fp-line: 32px;
-    --lf-fp-width: min( 540px, calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right)) );
+    --lf-fp-press: 28px;
+    --lf-fp-max: 540px;
+    --lf-fp-gutter: 24px;
+    --lf-fp-width: min( var(--lf-fp-max), calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right)) );
     --lf-fp-view-height: calc(100dvh - var(--lf-foot-room) - 160px);
   }
   .lf-fp-ground {
@@ -79,7 +81,7 @@
     cursor: pointer;
     white-space: nowrap;
     padding: 0 8px;
-    min-height: 28px;
+    min-height: var(--lf-fp-press);
   }
   :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *, .lf-fp-field *)) {
     position: relative;
@@ -106,7 +108,6 @@
     height: 16px;
   }
   .lf-fp-row {
-    --lf-fp-row-pad: 6px;
     display: flex;
     align-items: flex-end;
     gap: 2px;
@@ -125,18 +126,16 @@
     min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {
+    position: relative;
     flex: none;
     display: grid;
     place-items: center;
-    width: 32px;
+    width: var(--lf-fp-aim);
     min-height: var(--lf-fp-line);
     padding: 0;
   }
   .lf-fp-leaf .lf-dot {
     --lf-mark-w: 19px;
-  }
-  .lf-fp-leaf {
-    position: relative;
   }
   .lf-fp-error-dot {
     position: absolute;
@@ -179,7 +178,7 @@
     display: grid;
   }
   .lf-floating-panel[data-expanded] {
-    --lf-fp-width: min( 760px, calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right)) );
+    --lf-fp-max: 760px;
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
     max-height: 75dvh;
@@ -210,7 +209,7 @@
   }
   .lf-fp-field .lf-composer-media:not([hidden]) {
     position: fixed;
-    --lf-fp-shelf-room: max(10px, calc(var(--aim-floor) / 2 - 3px));
+    --lf-fp-shelf-room: max( calc(var(--raise-1-drop) + var(--raise-1-blur)), calc(var(--aim-floor) / 2 - 3px) );
     bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-fp-shelf-room));
     left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
     width: max-content;
@@ -231,7 +230,7 @@
     padding: 0;
     background: none;
     border-radius: 8px;
-    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 4px 14px var(--shade);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), var(--raise-1);
   }
   .lf-fp-field .lf-composer-media-open img {
     width: auto;
@@ -550,7 +549,6 @@
     }
     .lf-fp-leaf {
       width: var(--lf-fp-folded);
-      min-width: 0;
       height: var(--lf-fp-folded);
       min-height: 0;
       border-radius: var(--lf-fp-radius);
@@ -698,7 +696,7 @@
     display: contents;
   }
   .lf-fp-news-outlet > .lf-thread-news {
-    --lf-fp-news-reach: calc((max(28px, var(--aim-floor)) - 1lh) / 2);
+    --lf-fp-news-reach: calc((max(var(--lf-fp-press), var(--aim-floor)) - 1lh) / 2);
     align-self: auto;
     min-height: 0;
     padding-block: var(--lf-fp-news-reach);
@@ -740,7 +738,7 @@
   .lf-fp-icon-btn {
     display: grid;
     place-items: center;
-    min-width: max(28px, var(--aim-floor));
+    min-width: max(var(--lf-fp-press), var(--aim-floor));
     padding: 0;
     color: var(--lf-fp-muted);
   }
@@ -1154,7 +1152,7 @@
     align-items: center;
     gap: 6px;
     margin-top: 9px;
-    min-height: 28px;
+    min-height: var(--lf-fp-press);
   }
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
@@ -1406,7 +1404,7 @@
   }
   @media screen and (width <= 480px) {
     :is(.lf-floating-panel, .lf-fp-ground) {
-      --lf-fp-width: calc(100vw - 20px - var(--lf-safe-left) - var(--lf-safe-right));
+      --lf-fp-gutter: 20px;
     }
     .lf-floating-panel[data-rest=mark] {
       right: calc(16px + var(--lf-safe-right));
@@ -1415,22 +1413,13 @@
   @media (pointer: coarse) {
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
-      --lf-fp-line: 34px;
       --lf-fp-aim: var(--aim-floor);
-    }
-    .lf-fp-row {
-      --lf-fp-row-pad: 7px;
+      --lf-fp-press: var(--lf-fp-line);
     }
     .lf-fp-item,
     .lf-fp-thread,
     .lf-fp-page {
       min-height: 44px;
-    }
-    :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
-      min-height: 34px;
-    }
-    .lf-fp-leaf {
-      min-width: var(--lf-fp-aim);
     }
   }
   @media (prefers-reduced-motion: reduce) {

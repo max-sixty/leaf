@@ -202,7 +202,7 @@
    revision demonstrates and what rem…". It keeps to the part of the table on screen
    (the table is its own inline-size container) and stays there as the columns scroll. */
 :where(:root, .lf-thread-transcript) caption {
-  text-align: left;
+  text-align: start;
   font-size: var(--t-6);
   color: var(--muted);
   margin-bottom: 6px;
@@ -211,7 +211,7 @@
   max-inline-size: 100cqi;
 }
 :where(:root, .lf-thread-transcript) :is(th, td) {
-  text-align: left;
+  text-align: start;
   padding: 8px 14px;
   border-bottom: 1px solid var(--rule);
   vertical-align: top;
@@ -223,13 +223,15 @@
   }
 }
 /* The padding is a gutter, and the columns at the two ends have no neighbour to
-   keep away from: 10px of it there set every table's first word 10px right of
-   the prose above it, and stopped the last column short of the same edge. */
+   keep away from: a gutter there set every table's first word that far in from the
+   prose above it, and stopped the last column short of the same edge. The ends, like
+   each cell's alignment, are the table's start and end, so a right-to-left table's
+   first column stands on the right edge with the prose. */
 :where(:root, .lf-thread-transcript) tr > :first-child {
-  padding-left: 0;
+  padding-inline-start: 0;
 }
 :where(:root, .lf-thread-transcript) tr > :last-child {
-  padding-right: 0;
+  padding-inline-end: 0;
 }
 /* A cell the user stands on, as a thread's target once its card closes, wears the ring
  * inside its own box. The table scrolls its columns, so it clips to its own edges, and
@@ -291,12 +293,13 @@
    clips to its own edges because it scrolls its columns, so a capture in an outer
    column lost the frame's outer side: the hairline and shadow right of every capture in
    the last column. An outer cell holding an image, alone, linked or in a figure, keeps
-   room on its outer side for the frame's reach. */
+   room on its outer side for the frame's reach, which beside the image is its lift's
+   blur. */
 :where(:root, .lf-thread-transcript) tr > td:first-child:has(img) {
-  padding-inline-start: var(--raise-1-reach);
+  padding-inline-start: var(--raise-1-blur);
 }
 :where(:root, .lf-thread-transcript) tr > td:last-child:has(img) {
-  padding-inline-end: var(--raise-1-reach);
+  padding-inline-end: var(--raise-1-blur);
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
@@ -396,6 +399,5 @@ leaf-text.lf-fab-input,
   padding: 0;
   margin: 0;
   font: inherit;
-  line-height: inherit;
   overflow: visible;
 }

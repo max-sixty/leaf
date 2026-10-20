@@ -30,13 +30,16 @@
     /* The narrowest a mark or the leaf stands, larger under a finger. A mark with a
        count keeps its count's room besides, which is wider (`.lf-fp-on-user`). */
     --lf-fp-aim: 32px;
-    /* The row's one line: the leaf, each mark and press beside the field, and the
-       field's first line of words are each this tall, and the row stands them all on
-       its foot, so every one of them is centred on the line the words are written on. */
-    --lf-fp-line: 32px;
+    /* A press's face: as tall as a line of answers holding only words, so a press
+       arriving in one moves nothing. Under a finger it is the row's line. */
+    --lf-fp-press: 28px;
+    /* The panel is as wide as its measure (`--lf-fp-max`, wider while the field has
+       more room) where the window holds it, and the window less a gutter where not. */
+    --lf-fp-max: 540px;
+    --lf-fp-gutter: 24px;
     --lf-fp-width: min(
-      540px,
-      calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
+      var(--lf-fp-max),
+      calc(100vw - var(--lf-fp-gutter) - var(--lf-safe-left) - var(--lf-safe-right))
     );
     /* A view is as tall as what it holds, up to this: the window less the row's band
        and a band of the page above the box, so a long thread or list reads in most of
@@ -125,7 +128,7 @@
     cursor: pointer;
     white-space: nowrap;
     padding: 0 8px;
-    min-height: 28px;
+    min-height: var(--lf-fp-press);
   }
   /* Each press reaches the pointer's floor (`--aim-floor`) above and below a face that
      can be shorter: the crumb's back is a line of small words, and under a finger the
@@ -168,9 +171,9 @@
   /* ---------- the row ---------- */
   /* One alignment for the whole row: everything in it, the field's presses
      included, stands on the row's foot and is a line tall (`--lf-fp-line`), so a field
-     grown to several lines keeps them beside its last. */
+     grown to several lines keeps them beside its last. The line and the row's padding
+     are the theme's, which reserves the row at the window's foot (`--lf-floating-row`). */
   .lf-fp-row {
-    --lf-fp-row-pad: 6px;
     display: flex;
     align-items: flex-end;
     gap: 2px;
@@ -193,10 +196,11 @@
     min-height: calc(2 * var(--lf-fp-line) + 2 * var(--lf-fp-row-pad) + 4px);
   }
   .lf-fp-leaf {
+    position: relative;
     flex: none;
     display: grid;
     place-items: center;
-    width: 32px;
+    width: var(--lf-fp-aim);
     min-height: var(--lf-fp-line);
     padding: 0;
   }
@@ -204,9 +208,6 @@
     --lf-mark-w: 19px;
   }
   /* An error waiting unseen in the leaf's menu marks the leaf's corner. */
-  .lf-fp-leaf {
-    position: relative;
-  }
   .lf-fp-error-dot {
     position: absolute;
     top: 3px;
@@ -252,10 +253,7 @@
     display: grid;
   }
   .lf-floating-panel[data-expanded] {
-    --lf-fp-width: min(
-      760px,
-      calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
-    );
+    --lf-fp-max: 760px;
   }
   .lf-floating-panel[data-expanded] .lf-fp-field .lf-compose-field > leaf-text {
     max-height: 75dvh;
@@ -303,8 +301,12 @@
     /* The shelf scrolls sideways when its images outrun the field, and a scroller cuts
        what it holds at its padding box, so its padding holds each image's shadow and
        the reach of its removal, which also keeps one image's removal off the next;
-       the offsets take that padding back. */
-    --lf-fp-shelf-room: max(10px, calc(var(--aim-floor) / 2 - 3px));
+       the offsets take that padding back. An image lies at --raise-1, whose shadow
+       reaches its drop and blur below it. */
+    --lf-fp-shelf-room: max(
+      calc(var(--raise-1-drop) + var(--raise-1-blur)),
+      calc(var(--aim-floor) / 2 - 3px)
+    );
     bottom: calc(anchor(--lf-fp-panel top) + 8px - var(--lf-fp-shelf-room));
     left: calc(anchor(--lf-fp-field left) - var(--lf-fp-shelf-room));
     width: max-content;
@@ -331,7 +333,7 @@
     border-radius: 8px;
     box-shadow:
       0 0 0 1px var(--lf-fp-ring),
-      0 4px 14px var(--shade);
+      var(--raise-1);
   }
   .lf-fp-field .lf-composer-media-open img {
     width: auto;
@@ -729,7 +731,6 @@
     }
     .lf-fp-leaf {
       width: var(--lf-fp-folded);
-      min-width: 0;
       height: var(--lf-fp-folded);
       min-height: 0;
       border-radius: var(--lf-fp-radius);
@@ -900,7 +901,7 @@
      its words, so its arrival grows no line: the room a pointer aims at reaches above
      and below them, as tall as a control's. */
   .lf-fp-news-outlet > .lf-thread-news {
-    --lf-fp-news-reach: calc((max(28px, var(--aim-floor)) - 1lh) / 2);
+    --lf-fp-news-reach: calc((max(var(--lf-fp-press), var(--aim-floor)) - 1lh) / 2);
     align-self: auto;
     min-height: 0;
     padding-block: var(--lf-fp-news-reach);
@@ -944,7 +945,7 @@
   .lf-fp-icon-btn {
     display: grid;
     place-items: center;
-    min-width: max(28px, var(--aim-floor));
+    min-width: max(var(--lf-fp-press), var(--aim-floor));
     padding: 0;
     color: var(--lf-fp-muted);
   }
@@ -1410,7 +1411,7 @@
     align-items: center;
     gap: 6px;
     margin-top: 9px;
-    min-height: 28px;
+    min-height: var(--lf-fp-press);
   }
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
@@ -1696,7 +1697,7 @@
 
   @media screen and (width <= 480px) {
     :is(.lf-floating-panel, .lf-fp-ground) {
-      --lf-fp-width: calc(100vw - 20px - var(--lf-safe-left) - var(--lf-safe-right));
+      --lf-fp-gutter: 20px;
     }
     .lf-floating-panel[data-rest="mark"] {
       right: calc(16px + var(--lf-safe-right));
@@ -1705,22 +1706,13 @@
   @media (pointer: coarse) {
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
-      --lf-fp-line: 34px;
       --lf-fp-aim: var(--aim-floor);
-    }
-    .lf-fp-row {
-      --lf-fp-row-pad: 7px;
+      --lf-fp-press: var(--lf-fp-line);
     }
     .lf-fp-item,
     .lf-fp-thread,
     .lf-fp-page {
       min-height: 44px;
-    }
-    :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
-      min-height: 34px;
-    }
-    .lf-fp-leaf {
-      min-width: var(--lf-fp-aim);
     }
   }
   @media (prefers-reduced-motion: reduce) {

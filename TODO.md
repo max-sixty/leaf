@@ -130,10 +130,6 @@ has tried; settle that before building it.
   [Test compositions where evidence supports them](notes/workspace-followups.md#item-20),
   using current code and an unfamiliar author; two samples per task do not settle
   which compositions work generally.
-- **Give a recommendation's reason beside the options, not in its card.** The
-  default registry's `lf-options` example writes the reason into the recommended
-  card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
-  options on 2026-10-12. Score the change with `evals/` before and after.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;

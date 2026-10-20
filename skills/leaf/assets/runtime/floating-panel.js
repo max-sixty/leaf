@@ -449,11 +449,12 @@ export function createFloatingPanel({
   // (composing/surface.js, `responseHome`). While its composer is open it stands in the
   // field's place, as each destination's own editor does there: its words go to a new
   // thread on the passage it quotes, which the box says. The field comes back when the
-  // box closes, and while a view is open above the row, whose field it is. Which of the
-  // two shows is the stylesheet's reading of the composer's own open state
-  // (floating-panel.css), so the box seated in the page, or put away, moves nothing
-  // here. Rejected: a view of its own above the row, which stood a second field over
-  // the panel's own.
+  // box closes, while a view is open above the row, whose field it is, and while the
+  // field quotes words selected on the page, which a press there comments on. Which of
+  // the two shows is the stylesheet's reading of the composer's own open state and the
+  // row's `data-offers` (floating-panel.css), so the box seated in the page, or put
+  // away, moves nothing here. Rejected: a view of its own above the row, which stood a
+  // second field over the panel's own.
   const responseSeat = el("div", "lf-fp-response");
   row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
 
@@ -605,8 +606,12 @@ export function createFloatingPanel({
           ? statusParts(parts)
           : null;
       },
+      // Named for what a press there does, as the field's reading says it, once the
+      // editor this builds is the one the reading reads.
       accessibleName: () =>
-        selectedWords ? "Comment on the selection" : "Comment on the page",
+        general && fieldReading(null, input).says === "selection"
+          ? "Comment on the selection"
+          : "Comment on the page",
       busy: () => !errorCover.hidden,
       sends: "send",
       sendBtn: send,
@@ -709,19 +714,35 @@ export function createFloatingPanel({
   field.addEventListener("input", retype);
   // A press on the page's editor while words stand selected on the page comments on
   // them, as its placeholder says, rather than writing on the page (`selectedWords`).
-  // The words are the ones offered as the press began: the editor taking focus drops
-  // the page's selection, and with it the offer, before the press ends. The comment
-  // opens as the press completes, since the press's own mousedown puts away whatever
-  // comment box it finds open (composing/surface.js, `standDown`). A Tab through the
-  // row, or the runtime putting the caret there, writes on the page.
+  // The words are the ones the field quotes as the press begins, so the press does what
+  // the field says (an error the field says instead hides the words, and the press
+  // writes on the page). The press's mousedown is cancelled, so the editor never takes
+  // focus, a phone raises no keyboard for it, and the page's selection stands until the
+  // comment takes it. The comment opens as the press completes, since that mousedown
+  // still reaches the page, which puts away whatever comment box it finds open
+  // (composing/surface.js, `standDown`). A Tab through the row, or the runtime putting
+  // the caret there, writes on the page.
   let pressedWords = null;
+  const quotedWords = () =>
+    general &&
+    fieldInput() === general.input &&
+    fieldReading(null, general.input).says === "selection"
+      ? selectedWords
+      : null;
   field.addEventListener(
     "pointerdown",
     (event) => {
       pressedWords =
         event.isPrimary && event.composedPath().includes(general?.input)
-          ? selectedWords
+          ? quotedWords()
           : null;
+    },
+    true,
+  );
+  field.addEventListener(
+    "mousedown",
+    (event) => {
+      if (pressedWords) event.preventDefault();
     },
     true,
   );
@@ -2944,6 +2965,9 @@ export function createFloatingPanel({
     // (`pageStatus`, `asks`). The field's room cuts a long status short, so pointing at
     // the field says it in full, as the folded leaf's peek does.
     const reading = fieldReading(replying ? top.thread : null, input);
+    // The field quoting selected words stands in an open comment box's place
+    // (floating-panel.css, `data-offers`).
+    keeps(host, "data-offers", reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
     keeps(

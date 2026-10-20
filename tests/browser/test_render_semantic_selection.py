@@ -23,6 +23,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_control,
+    panel_field,
     resized,
     selection_field,
     sending,
@@ -305,6 +306,65 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
 
     page.keyboard.press("Escape")
     expect(page.locator(".lf-fab-input")).to_be_hidden()
+
+
+def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
+    """Words a script selects are quoted in the panel's field, and only a press there
+    comments on them: a Tab into the field writes on the page. A page draft hiding the
+    quote moves it to the line over the field, and on a page drawing its own
+    annotations the field stands in an open comment box's place while it quotes."""
+    source = leaf_page(
+        "Offered words",
+        '<p id="first">The first passage holds its words.</p>'
+        '<p id="second">A second passage comes after it.</p>',
+    )
+    page = open_page(browser, serve(source))
+    field = panel_field(page)
+    offered = selection_field(page)
+    composer = page.locator(".lf-fab-input")
+
+    def select(paragraph):
+        page.locator(paragraph).evaluate("el => getSelection().selectAllChildren(el)")
+
+    select("#first")
+    expect(offered).to_have_attribute(
+        "placeholder", "“The first passage holds its words.”"
+    )
+    expect(offered).to_have_attribute("aria-label", "Comment on the selection")
+    page.locator(".lf-fp-leaf").focus()
+    page.keyboard.press("Tab")
+    expect(field).to_be_focused()
+    page.keyboard.type("A page note")
+    expect(field).to_have_js_property("value", "A page note")
+    expect(field).to_have_attribute("aria-label", "Comment on the page")
+    expect(composer).to_be_hidden()
+
+    page.locator(".lf-fp-leaf").focus()
+    select("#first")
+    context = page.locator(".lf-fp-context-words")
+    expect(context).to_have_text("“The first passage holds its words.”")
+    field.click()
+    expect(composer).to_be_focused()
+    expect(field).to_have_js_property("value", "A page note")
+    expect(context).to_have_text("")
+
+    # Where the open box stands in the field's place, it leaves that place to the field
+    # while new words are offered.
+    page = open_page(
+        browser,
+        serve(source.replace("<body>", '<body data-annotations="page">', 1)),
+    )
+    offered = selection_field(page)
+    composer = page.locator(".lf-fab-input")
+    select("#first")
+    offered.click()
+    expect(composer).to_be_focused()
+    composer.blur()
+    select("#second")
+    expect(offered).to_be_visible()
+    offered.click()
+    expect(composer).to_be_focused()
+    expect(page.locator("#lf-composer-quote")).to_contain_text("A second passage")
 
 
 def test_a_passage_still_offers_suggest_when_the_layer_has_no_reactions(browser, serve):

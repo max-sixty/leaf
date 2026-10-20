@@ -2580,11 +2580,7 @@ function registerPageControl(row) {
   pageControlsChanged();
 }
 function pageControls() {
-  const offered = [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read2(row.offered) ?? true);
-  const nearest = Math.max(
-    ...offered.filter((row) => row.gesture).map((row) => row.rank)
-  );
-  return offered.filter((row) => !row.gesture || row.rank === nearest).map(
+  return [...rows.values()].sort((a, b) => a.rank - b.rank || a.sequence - b.sequence).filter((row) => read2(row.offered) ?? true).map(
     (row) => Object.freeze({
       key: row.key,
       label: read2(row.label),

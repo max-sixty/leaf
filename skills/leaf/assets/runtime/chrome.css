@@ -227,10 +227,10 @@
     min-width: 0;
     align-self: center;
   }
-  .lf-floating-panel:not([data-open]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
+  .lf-floating-panel:not([data-open], [data-offers]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-field {
     display: none;
   }
-  .lf-floating-panel:not([data-open]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-response {
+  .lf-floating-panel:not([data-open], [data-offers]) .lf-fp-row:has(> .lf-fp-response > .lf-fab-bar > .lf-composer[data-lf-open]) > .lf-fp-response {
     display: block;
   }
   .lf-fp-resolved {

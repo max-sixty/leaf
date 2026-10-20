@@ -21,14 +21,13 @@
    opens and focuses that field. On desktop, selecting a passage leaves the field open
    but unfocused. Selection observed outside a completed page gesture, and selection on
    touch screens, is offered in the floating panel's page field instead, whose
-   placeholder quotes it; a press on that field comments on the passage as it last
-   settled, which clears the native selection menu and opens this field
-   (`offerSelection`). Until that press the native handles and menu have the passage to
-   themselves. The
-   field grows in place and never transfers text into a second composer card. A
-   one-line note uses the shared action corner. A longer one widens within the thread
-   card’s measure and then wraps. A transparent envelope fits the first message and
-   the card’s metadata and reply slots before typing; only the editor paints then.
+   placeholder quotes it; a press on that field comments on the passage, which clears
+   the native selection menu and opens this field (`offerSelection`). Until that press
+   the native handles and menu have the passage to themselves. The field grows in place
+   and never transfers text into a second composer card. A one-line note uses the shared action corner. A longer one widens
+   within the thread card’s measure and then wraps. A transparent envelope fits the
+   first message and the card’s metadata and reply slots before typing; only the
+   editor paints then.
 
    The editor has one native seat, whether a widget, page or selected presentation
    holds it. Seating and restoring move that same node while retaining its draft,
@@ -571,20 +570,25 @@ export function createResponseSurface({
   // That menu can stand on either side of the words; never compete with it by raising
   // a second adjacent surface. The floating panel's page field offers the current
   // selection instead (floating-panel.js, `selectedWords`): its placeholder quotes the
-  // words, and a press there comments on them. The anchor is the one read when the
-  // selection last settled, never one read at that press, because the field taking
-  // focus is what drops the page's selection on iOS.
+  // words, and a press there comments on them. The press reads the selection again
+  // where it still stands, as a source refresh that kept its native endpoints leaves
+  // it, and otherwise takes the anchor read when it last settled, since a field taking
+  // focus, or a tap on iOS, can drop the page's selection before the press ends.
   let offeredSelection = null;
   const offerSelection = (anchor) => {
     if (anchor === offeredSelection) return;
     offeredSelection = anchor;
     pageComment.offer(
       anchor
-        ? { quote: anchor.quote, comment: () => commentOnSelection(anchor) }
+        ? { quote: anchor.quote, comment: () => commentOnOfferedSelection(anchor) }
         : null,
     );
   };
-  const commentOnOfferedSelection = () => commentOnSelection(offeredSelection);
+  function commentOnOfferedSelection(settled = offeredSelection) {
+    const selection = anchoringIsReady() ? pageSelection() : null;
+    const standing = selection ? selectionAnchor(selection) : null;
+    commentOnSelection(hasQuote(standing) ? standing : settled);
+  }
   const commentOnSelection = (anchor) => {
     offerSelection(null);
     if (!hasQuote(anchor)) return;

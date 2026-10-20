@@ -2352,10 +2352,14 @@ function createResponseSurface({
     if (anchor === offeredSelection) return;
     offeredSelection = anchor;
     pageComment.offer(
-      anchor ? { quote: anchor.quote, comment: () => commentOnSelection(anchor) } : null
+      anchor ? { quote: anchor.quote, comment: () => commentOnOfferedSelection(anchor) } : null
     );
   };
-  const commentOnOfferedSelection = () => commentOnSelection(offeredSelection);
+  function commentOnOfferedSelection(settled = offeredSelection) {
+    const selection = anchoringIsReady() ? pageSelection() : null;
+    const standing2 = selection ? selectionAnchor(selection) : null;
+    commentOnSelection(hasQuote(standing2) ? standing2 : settled);
+  }
   const commentOnSelection = (anchor) => {
     offerSelection(null);
     if (!hasQuote(anchor)) return;
@@ -6171,7 +6175,9 @@ function createFloatingPanel({
         const parts = status().summaryParts;
         return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
       },
-      accessibleName: () => selectedWords ? "Comment on the selection" : "Comment on the page",
+      // Named for what a press there does, as the field's reading says it, once the
+      // editor this builds is the one the reading reads.
+      accessibleName: () => general && fieldReading(null, input).says === "selection" ? "Comment on the selection" : "Comment on the page",
       busy: () => !errorCover.hidden,
       sends: "send",
       sendBtn: send,
@@ -6243,10 +6249,18 @@ function createFloatingPanel({
   }
   field.addEventListener("input", retype);
   let pressedWords = null;
+  const quotedWords = () => general && fieldInput() === general.input && fieldReading(null, general.input).says === "selection" ? selectedWords : null;
   field.addEventListener(
     "pointerdown",
     (event) => {
-      pressedWords = event.isPrimary && event.composedPath().includes(general?.input) ? selectedWords : null;
+      pressedWords = event.isPrimary && event.composedPath().includes(general?.input) ? quotedWords() : null;
+    },
+    true
+  );
+  field.addEventListener(
+    "mousedown",
+    (event) => {
+      if (pressedWords) event.preventDefault();
     },
     true
   );
@@ -7805,6 +7819,7 @@ function createFloatingPanel({
     keeps(expand, "title", expanded ? "Less room to write" : "More room to write");
     render(iconTemplate(expanded ? "fit" : "expand", "lf-action-icon"), expand);
     const reading = fieldReading(replying ? top.thread : null, input);
+    keeps(host, "data-offers", reading.says === "selection" ? "" : null);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
     keeps(

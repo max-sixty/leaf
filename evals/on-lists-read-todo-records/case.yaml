@@ -2,9 +2,9 @@
 # its thread's `attention`: a row names its to-do by `id`, and the record, with its
 # `title` and `running` start, is in `todos`. Scores conversation-loop.md, "The On
 # lists", reading those rows. The reading below lists `todos` in another order than
-# the rows, so only a join by id puts each to-do on its side. On Claude Code, base
-# 45ee9550e (whose instruction names only an item's record; since renamed obligation) passed 2 of 2 on the
-# shrunk reading, and the change passed 2 of 2.
+# the rows, so only a join by id puts each to-do on its side. On Claude Code the merge
+# base passed 2 of 2 on the shrunk reading, both at 45ee9550e and again at b734b68b2
+# after items became obligations, and the change passed 2 of 2 each time.
 description: on-lists-read-todo-records
 metadata:
   purpose: "Conversation loop: the agent reads On me and its own list from `page state`,

@@ -72,9 +72,10 @@ writes it. A change crosses that gap in one of two ways.
   page vendored at another number is refused until it is re-vendored, which the
   session holding the page does itself on its first command or hook naming the
   page. Bump it for
-  any change an earlier page would break on. It is Leaf's only version, so records
-  kept outside a page, such as a browser draft, carry it, and a change to one of
-  them bumps it too (`layer-registry.md`, "Page protocol", owns the rules).
+  any change an earlier page would break on. It is Leaf's only version, so a
+  record kept outside a page, such as a browser draft, carries the protocol at
+  which its own shape last changed (`layer-registry.md`, "Page protocol", owns
+  the rules).
   Bumps are rare, perhaps one in five hundred commits. Once Leaf is released,
   only a bump may break an existing page.
 - **Drift** may break an older page without a bump while Leaf is in alpha, as

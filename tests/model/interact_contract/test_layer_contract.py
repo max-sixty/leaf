@@ -895,6 +895,21 @@ def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, 
     assert found([finding], "fixed-events", key=key)
 
 
+@pytest.mark.parametrize("fact", ["$passages", "$names", "$marks"])
+def test_the_kernel_facts_are_not_a_layer_extension(page_dir, tmp_path, fact):
+    """Python reads the running Leaf's kernel facts and the browser a copy generated
+    from them, so a layer's change to one, even taking a member out, would reach
+    neither runtime; a page's older runtime still reads `$marks` from its vocabulary."""
+    overlay = tmp_path / ".leaf"
+    overlay.mkdir(parents=True)
+    shipped = json.loads((page_dir / "registry.json").read_text())[fact]
+    member = next(key for key in shipped if key != "description")
+    (overlay / "registry.json").write_text(json.dumps({fact: {member: None}}))
+
+    finding = init_refusal(page_dir)
+    assert found([finding], "fixed-kernel-fact", name=fact)
+
+
 def test_shared_package_declarations_compose_by_member():
     """One package can extend a shared declaration without copying its peers."""
     board = {"role": "holder", "state": "status"}

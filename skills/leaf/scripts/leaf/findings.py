@@ -992,6 +992,9 @@ _TEXT = {
             " be changed by a layer"
         )
     ),
+    "fixed-kernel-fact": _declared(
+        lambda v: f"{v['name']} is Leaf's own and cannot be changed by a layer"
+    ),
     "undeclared-event-kind": _declared(
         lambda v: (
             f"$events.{v['key']} names {v['kind']!r}, which is none of"

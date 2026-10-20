@@ -25,6 +25,11 @@ from .schema import (
 
 # The `$events` members a layer may restate; the rest are the kernel's.
 LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
+# The facts both runtimes read from the kernel registry, each whole and none from a
+# layer (`registry.kernel`): Python reads the running Leaf's own copy and the browser a
+# copy generated from it, so a layer's change would reach neither. A page's older
+# runtime reads `$marks` from the vocabulary it was vendored with.
+KERNEL_FACTS = frozenset({"$passages", "$names", "$marks"})
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -38,7 +43,7 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
     silently drop every shipped extension with it. Scalar and list members replace
     whole — a names list is one statement. `$events` is the exception: every member
     but `handling` and `answering` is Leaf's fixed kernel transport contract and its
-    `protocol`, which no layer changes.
+    `protocol`, which no layer changes; so is each of `KERNEL_FACTS`, whole.
 
     Inside a map member the merge is JSON merge-patch: a later layer's value
     replaces the key, a new key joins, and `null` removes one — which is the
@@ -49,6 +54,10 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
         earlier = merged.get(name)
         if not (name.startswith("$") and earlier is not None):
             merged[name] = entry
+            continue
+        if name in KERNEL_FACTS:
+            if _canonical(entry) != _canonical(earlier):
+                raise registry_error("fixed-kernel-fact", name=name)
             continue
         if name == "$events":
             # Only the kernel's own value passes, compared as JSON so that `true` or

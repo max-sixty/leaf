@@ -27,7 +27,9 @@ class DocumentReading(NamedTuple):
     floors: dict
 
 
-def read_document(page: PageReading, threads: dict, log: TodoReading) -> DocumentReading:
+def read_document(
+    page: PageReading, threads: dict, log: TodoReading
+) -> DocumentReading:
     """Resolve a document's durable state and its user's outstanding obligations.
 
     `spoken` retains authored words because retractions and action ownership are

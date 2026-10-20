@@ -7074,6 +7074,7 @@ function createFloatingPanel({
     const view = shownView();
     return rows2 && view ? [...view.querySelectorAll(rows2)] : [];
   };
+  const threadRows = () => trail.at(-1)?.view === "threads" ? listRows() : [];
   const openView = () => stage.querySelector('.lf-fp-view[data-view="thread"]:not([data-leaving])');
   const outletOf = () => openView()?.querySelector(".lf-fp-outlet") ?? null;
   function nominate(collection, parts) {
@@ -8289,7 +8290,18 @@ function createFloatingPanel({
     revealResponse: clearRow,
     // Where the reader stood before stepping into the panel, while they are in it
     // (navigation.js, `currentItem`).
-    heldPlace: () => standingIn(host) ? heldStanding : null
+    heldPlace: () => standingIn(host) ? heldStanding : null,
+    // The thread whose row in Threads the pointer is on, and the row Threads draws for
+    // a thread, through which hover links a row and its passage both ways
+    // (anchor-paint.js, `markRow`).
+    hoveredThread: () => {
+      const row2 = threadRows().find((candidate) => candidate.matches(":hover"));
+      return row2 ? threadByKey(row2.dataset.key)?.id ?? null : null;
+    },
+    threadRow: (id) => {
+      const key = threadByKey(id)?.key;
+      return threadRows().find((row2) => row2.dataset.key === key) ?? null;
+    }
   };
 }
 
@@ -10889,7 +10901,10 @@ var visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
 var anchorPaint = annotationRenderer?.createAnchorPaint({
   targetPaint: visualMarkPaint,
   pointer: pointerAt,
-  standingThreadId
+  standingThreadId,
+  rowThread: () => floatingPanel?.hoveredThread() ?? null,
+  threadRow: (id) => floatingPanel?.threadRow(id) ?? null,
+  marginThread: () => app?.overlay?.pointedThread() ?? null
 });
 var drawingPaint = createDrawingInk({
   drawings: () => [

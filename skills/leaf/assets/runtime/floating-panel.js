@@ -1905,6 +1905,7 @@ export function createFloatingPanel({
     const view = shownView();
     return rows && view ? [...view.querySelectorAll(rows)] : [];
   };
+  const threadRows = () => (trail.at(-1)?.view === "threads" ? listRows() : []);
   const openView = () =>
     stage.querySelector('.lf-fp-view[data-view="thread"]:not([data-leaving])');
   const outletOf = () => openView()?.querySelector(".lf-fp-outlet") ?? null;
@@ -3530,5 +3531,16 @@ export function createFloatingPanel({
     // Where the reader stood before stepping into the panel, while they are in it
     // (navigation.js, `currentItem`).
     heldPlace: () => (standingIn(host) ? heldStanding : null),
+    // The thread whose row in Threads the pointer is on, and the row Threads draws for
+    // a thread, through which hover links a row and its passage both ways
+    // (anchor-paint.js, `markRow`).
+    hoveredThread: () => {
+      const row = threadRows().find((candidate) => candidate.matches(":hover"));
+      return row ? (threadByKey(row.dataset.key)?.id ?? null) : null;
+    },
+    threadRow: (id) => {
+      const key = threadByKey(id)?.key;
+      return threadRows().find((row) => row.dataset.key === key) ?? null;
+    },
   };
 }

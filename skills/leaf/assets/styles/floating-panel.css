@@ -30,6 +30,9 @@
     /* The narrowest a mark or the leaf stands, larger under a finger. A mark with a
        count keeps its count's room besides, which is wider (`.lf-fp-on-user`). */
     --lf-fp-aim: 32px;
+    /* A press's face: as tall as a line of answers holding only words, so a press
+       arriving in one moves nothing. Under a finger it is the row's line. */
+    --lf-fp-press: 28px;
     --lf-fp-width: min(
       540px,
       calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
@@ -121,7 +124,7 @@
     cursor: pointer;
     white-space: nowrap;
     padding: 0 8px;
-    min-height: 28px;
+    min-height: var(--lf-fp-press);
   }
   /* Each press reaches the pointer's floor (`--aim-floor`) above and below a face that
      can be shorter: the crumb's back is a line of small words, and under a finger the
@@ -831,7 +834,7 @@
      its words, so its arrival grows no line: the room a pointer aims at reaches above
      and below them, as tall as a control's. */
   .lf-fp-news-outlet > .lf-thread-news {
-    --lf-fp-news-reach: calc((max(28px, var(--aim-floor)) - 1lh) / 2);
+    --lf-fp-news-reach: calc((max(var(--lf-fp-press), var(--aim-floor)) - 1lh) / 2);
     align-self: auto;
     min-height: 0;
     padding-block: var(--lf-fp-news-reach);
@@ -875,7 +878,7 @@
   .lf-fp-icon-btn {
     display: grid;
     place-items: center;
-    min-width: max(28px, var(--aim-floor));
+    min-width: max(var(--lf-fp-press), var(--aim-floor));
     padding: 0;
     color: var(--lf-fp-muted);
   }
@@ -1341,7 +1344,7 @@
     align-items: center;
     gap: 6px;
     margin-top: 9px;
-    min-height: 28px;
+    min-height: var(--lf-fp-press);
   }
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
@@ -1537,14 +1540,12 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-folded: 46px;
       --lf-fp-aim: var(--aim-floor);
+      --lf-fp-press: var(--lf-fp-line);
     }
     .lf-fp-item,
     .lf-fp-thread,
     .lf-fp-page {
       min-height: 44px;
-    }
-    :where(.lf-floating-panel) button:where(:not(.lf-fp-outlet *)) {
-      min-height: 34px;
     }
     .lf-fp-leaf {
       min-width: var(--lf-fp-aim);

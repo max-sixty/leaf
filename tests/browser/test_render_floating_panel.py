@@ -2782,6 +2782,42 @@ def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
     assert at["foot"] == pytest.approx(at["row"] + 2 * at["below"], abs=0.5), at
 
 
+@pytest.mark.parametrize("touch", [False, True])
+def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, touch):
+    """A line of answers holding only words is already a press tall, so the Undo a
+    reading brings later moves nothing beside it. Under a finger the panel's presses
+    are the row's 34px line, and the line kept the mouse's 28px, so a press arriving
+    grew it by 6px."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Should the rollout wait?")
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Which week suits?",
+        '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
+        '<lf-option id="this">This week</lf-option>'
+        '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
+    )
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 800}, has_touch=touch
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-fp-on-user").click()
+    answers = page.locator(".lf-fp-view[data-view=queue] .lf-fp-answers").first
+    expect(answers).to_be_visible()
+    heights = answers.evaluate("""line => {
+      line.replaceChildren('Answered.');
+      const words = line.getBoundingClientRect().height;
+      const press = document.createElement('button');
+      press.type = 'button';
+      press.className = 'lf-fp-answer';
+      press.textContent = 'Undo';
+      line.append(press);
+      return [words, line.getBoundingClientRect().height];
+    }""")
+    assert heights[1] == pytest.approx(heights[0], abs=0.5), heights
+
+
 def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
     """Each mark keeps its count's room whether or not it has a number, under a finger
     as under a mouse, so a question arriving in a reply puts On me's count in that room

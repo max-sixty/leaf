@@ -1375,6 +1375,9 @@
     margin-top: 9px;
     min-height: var(--lf-fp-press);
   }
+  .lf-fp-show {
+    margin-inline-start: auto;
+  }
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
     padding-inline: 11px;

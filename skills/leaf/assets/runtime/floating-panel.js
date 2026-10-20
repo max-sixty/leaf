@@ -294,6 +294,7 @@ export function createFloatingPanel({
   afterReadingPass,
   obligations: obligationView,
   queueActions,
+  arrivesAt,
   withdraw,
   settlement,
   placedAt,
@@ -2400,18 +2401,22 @@ export function createFloatingPanel({
           Discuss
         </button>`
       : nothing;
-    const arrive = html`<button
-      type="button"
-      class="lf-fp-quiet"
-      @click=${() => {
-        close();
-        void (record
-          ? obligationView.open(record.id)
-          : queueActions.open(queueItemKey(item)));
-      }}
-    >
-      Show
-    </button>`;
+    // Show takes the user to the item where `m` would, by the walk's own arrival
+    // (queue-walk.js, `arriveAtItem`), wherever that leads anywhere but this card. It
+    // stands at the end of the answers' line, where an answer replacing the choices
+    // before it moves it nowhere.
+    const show = arrivesAt(item)
+      ? html`<button
+          type="button"
+          class="lf-fp-quiet lf-fp-show"
+          @click=${() => {
+            close();
+            void queueActions.open(queueItemKey(item));
+          }}
+        >
+          Show
+        </button>`
+      : nothing;
     let answers;
     if (list === "done" && !record)
       answers = html`<span class="lf-fp-said"
@@ -2466,7 +2471,7 @@ export function createFloatingPanel({
           @click=${() => queueActions.done(queueItemKey(item))}
         >
           Done</button
-        >${discuss}${arrive}`;
+        >${discuss}`;
     else if (inWords && thread)
       answers = html`<button
         type="button"
@@ -2475,7 +2480,7 @@ export function createFloatingPanel({
       >
         Reply
       </button>`;
-    else answers = html`${arrive}${discuss}`;
+    else answers = discuss;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
     const stop = queueStop(item);
@@ -2507,7 +2512,7 @@ export function createFloatingPanel({
                 <p class="lf-fp-prompt">${prompt}</p>`
             : html`<p class="lf-fp-prompt">${title}</p>`
       }
-      <div class="lf-fp-answers">${answers}</div>
+      <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
   }
 

@@ -6018,6 +6018,10 @@ function createQueueWalk({
   actions
 }) {
   const stopElement = (stop) => stop.kind === "approval" ? approvalTarget() : stop.kind === "obligation" ? stop.thread !== null ? threadPlace(stop.thread) : obligationPlace(stop.obligation).node : stop.kind === "page" ? pageHead() : stop.thread !== null ? threadPlace(stop.thread) : elementById(stop.id);
+  const pagePlace = (stop) => {
+    const at = stopElement(stop);
+    return at?.isConnected && !inChrome(at) ? at : null;
+  };
   function stops() {
     const list = [];
     const listed2 = /* @__PURE__ */ new Set();
@@ -6025,8 +6029,7 @@ function createQueueWalk({
       const stop = queueStop(item);
       if (listed2.has(stop.key)) continue;
       listed2.add(stop.key);
-      const at = stopElement(stop);
-      list.push({ ...stop, place: at?.isConnected && !inChrome(at) ? at : null });
+      list.push({ ...stop, place: pagePlace(stop) });
     }
     return byRenderedOrder(list, (stop) => stop.place);
   }
@@ -6203,6 +6206,10 @@ function createQueueWalk({
     ]
   });
   const arriveAtItem = (item) => arriveAt(stopOf(item));
+  const arrivesAt = (item) => {
+    const stop = stopOf(item);
+    return Boolean(pagePlace(stop)) || stop.kind === "obligation" && stop.thread !== null;
+  };
   let wentTo = null;
   onStanding((node, cause) => {
     if (cause === "step") return;
@@ -6226,7 +6233,7 @@ function createQueueWalk({
     const shown = items2.map((item) => obligationPlace(item).node).find((node) => node && seenRect(node, clips));
     return shown ? walk(toward, within, { place: shown, kind: "at" }) : walk(toward, within, here);
   }
-  return { mount, arriveAtItem, nextWithin };
+  return { mount, arriveAtItem, arrivesAt, nextWithin };
 }
 
 // runtime/keyboard/status-context.js
@@ -6301,6 +6308,7 @@ function createFloatingPanel({
   afterReadingPass,
   obligations: obligationView,
   queueActions,
+  arrivesAt,
   withdraw,
   settlement,
   placedAt,
@@ -7715,16 +7723,16 @@ function createFloatingPanel({
         >
           Discuss
         </button>` : nothing;
-    const arrive = html`<button
-      type="button"
-      class="lf-fp-quiet"
-      @click=${() => {
+    const show = arrivesAt(item) ? html`<button
+          type="button"
+          class="lf-fp-quiet lf-fp-show"
+          @click=${() => {
       close();
-      void (record ? obligationView.open(record.id) : queueActions.open(queueItemKey(item)));
+      void queueActions.open(queueItemKey(item));
     }}
-    >
-      Show
-    </button>`;
+        >
+          Show
+        </button>` : nothing;
     let answers;
     if (list === "done" && !record)
       answers = html`<span class="lf-fp-said"
@@ -7774,7 +7782,7 @@ function createFloatingPanel({
           @click=${() => queueActions.done(queueItemKey(item))}
         >
           Done</button
-        >${discuss}${arrive}`;
+        >${discuss}`;
     else if (inWords && thread)
       answers = html`<button
         type="button"
@@ -7783,7 +7791,7 @@ function createFloatingPanel({
       >
         Reply
       </button>`;
-    else answers = html`${arrive}${discuss}`;
+    else answers = discuss;
     const key = queueItemKey(item);
     const approval = record?.source.kind === "approval";
     const stop = queueStop(item);
@@ -7803,7 +7811,7 @@ function createFloatingPanel({
                 data-message=${message.key}
               ></div>` : prompt ? html`<h3 class="lf-fp-on-title">${title}</h3>
                 <p class="lf-fp-prompt">${prompt}</p>` : html`<p class="lf-fp-prompt">${title}</p>`}
-      <div class="lf-fp-answers">${answers}</div>
+      <div class="lf-fp-answers">${answers}${show}</div>
     </section>`;
   }
   declareSide((node) => {
@@ -11335,11 +11343,9 @@ floatingPanel = createFloatingPanel({
   afterReadingPass: app.read.afterPass,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-  obligations: {
-    choicesOf: items.choicesOf,
-    open: (id) => app.openObligation(id)
-  },
+  obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
+  arrivesAt: (item) => queueWalk.arrivesAt(item),
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,

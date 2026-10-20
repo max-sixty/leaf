@@ -15,9 +15,10 @@
    lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
    onto the widget the action was made on, the element, or the page's head; the
    version's approval by the floating panel's own arrival (page-status.js,
-   `registerApprovalPresentation`). An On me row arrives through the same function
-   (`arriveAtItem`), for an item on either list or one that is done, and names its item
-   as the walk does (`queueStop`).
+   `registerApprovalPresentation`). An On me card's Show arrives through the same
+   function (`arriveAtItem`), for an item on either list or one that is done, and
+   offers itself where that arrival goes anywhere (`arrivesAt`); the card names its
+   item as the walk does (`queueStop`).
 
    A walk starts from the user's place, in this order:
 
@@ -157,6 +158,12 @@ export function createQueueWalk({
             ? threadPlace(stop.thread)
             : elementById(stop.id);
 
+  // Where a stop stands on the page, if anywhere.
+  const pagePlace = (stop) => {
+    const at = stopElement(stop);
+    return at?.isConnected && !inChrome(at) ? at : null;
+  };
+
   function stops() {
     const list = [];
     const listed = new Set();
@@ -166,8 +173,7 @@ export function createQueueWalk({
       // stop.
       if (listed.has(stop.key)) continue;
       listed.add(stop.key);
-      const at = stopElement(stop);
-      list.push({ ...stop, place: at?.isConnected && !inChrome(at) ? at : null });
+      list.push({ ...stop, place: pagePlace(stop) });
     }
     return byRenderedOrder(list, (stop) => stop.place);
   }
@@ -414,6 +420,17 @@ export function createQueueWalk({
 
   // An On me row arrives where the walk would, whichever list its obligation is on.
   const arriveAtItem = (item) => arriveAt(stopOf(item));
+  // Whether the walk takes the user somewhere for an item that its card does not already
+  // offer: its place on the page, or a widget in a thread the page draws no passage for,
+  // which the panel opens with the user on the widget. A thread with no place opens in
+  // the panel as the card's Discuss opens it, and the version's approval stands in On me
+  // (`stopElement`), so neither goes anywhere further.
+  const arrivesAt = (item) => {
+    const stop = stopOf(item);
+    return (
+      Boolean(pagePlace(stop)) || (stop.kind === "obligation" && stop.thread !== null)
+    );
+  };
 
   // The id of the obligation the user last went to, for a walk within a region pressed from
   // outside it. Sequential navigation passes over what it crosses, so it keeps the obligation.
@@ -450,5 +467,5 @@ export function createQueueWalk({
       : walk(toward, within, here);
   }
 
-  return { mount, arriveAtItem, nextWithin };
+  return { mount, arriveAtItem, arrivesAt, nextWithin };
 }

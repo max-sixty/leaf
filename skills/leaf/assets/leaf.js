@@ -468,11 +468,9 @@ floatingPanel = createFloatingPanel({
   afterReadingPass: app.read.afterPass,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
-  obligations: {
-    choicesOf: items.choicesOf,
-    open: (id) => app.openObligation(id),
-  },
+  obligations: { choicesOf: items.choicesOf },
   queueActions: app.queueActions,
+  arrivesAt: (item) => queueWalk.arrivesAt(item),
   withdraw: app.withdraw,
   settlement: app.settlement,
   placedAt: anchorPlacement.placedAt,

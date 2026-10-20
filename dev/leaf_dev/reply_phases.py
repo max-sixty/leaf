@@ -35,8 +35,13 @@ import shlex
 from datetime import datetime
 from pathlib import Path
 
-# A shell command that runs Leaf's launcher, bare or by its path, anywhere in it.
-LEAF_COMMAND = re.compile(r"(?:^|[\s;&|(/'\"])leaf\s")
+# A shell command that names Leaf's launcher, bare or by its path, anywhere in it,
+# including where it only assigns it to a variable the command then runs.
+LEAF_COMMAND = re.compile(r"(?:^|[\s;&|(/'\"=])leaf(?:[\s;&|)'\"]|$)")
+# The directory change an agent puts before a command, which says nothing of it.
+CD_PREFIX = re.compile(r"^cd \S+ && ")
+# How much of each call a reading keeps.
+SHOWN = 200
 
 
 def instant(ts: str) -> float:
@@ -44,16 +49,14 @@ def instant(ts: str) -> float:
 
 
 def call_label(part: dict) -> str:
-    """What a `tool_use` part ran: its shell command, the `leaf` words a Leaf MCP tool
-    ran, or the tool's name."""
+    """What a `tool_use` part ran: its shell command after any leading directory
+    change, the `leaf` words a Leaf MCP tool ran, or the tool's name."""
     arguments = part["input"]
     if "command" in arguments:
-        label = arguments["command"]
-    elif part["name"].startswith("mcp__leaf__") and "args" in arguments:
-        label = shlex.join(["leaf", *arguments["args"]])
-    else:
-        label = part["name"]
-    return label[:200]
+        return CD_PREFIX.sub("", arguments["command"])
+    if part["name"].startswith("mcp__leaf__") and "args" in arguments:
+        return shlex.join(["leaf", *arguments["args"]])
+    return part["name"]
 
 
 def leaf_call(call: str) -> bool:
@@ -134,7 +137,7 @@ def turn_phases(
             "phase": phase,
             "startMs": round((since - start) * 1000),
             "ms": round((until - since) * 1000),
-            **({"calls": calls} if phase == "tool" else {}),
+            **({"calls": [call[:SHOWN] for call in calls]} if phase == "tool" else {}),
         }
         for phase, since, until, calls in _phases(records, admitted, picked_up, replied)
     ]
@@ -183,7 +186,7 @@ def reply_breakdown(
                 model_calls.append({"ms": ms(until - since), "calls": []})
             previous = since
         elif phase == "tool" and model_calls:
-            model_calls[-1]["calls"].extend(calls)
+            model_calls[-1]["calls"].extend(call[:SHOWN] for call in calls)
     delivery = total("delivery")
     leaf_commands = total("tool", leaf=True)
     return {

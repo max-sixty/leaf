@@ -23,7 +23,6 @@ from datetime import datetime
 from pathlib import Path
 
 from .event_log import jsonl_line
-from .registry.schema import schema_error
 from .schema import INTERACTIONS_FILE
 from .state import now_iso, session_record
 
@@ -53,6 +52,10 @@ def append_interactions(page_dir: Path, records: list[dict]) -> list[dict]:
 def admit_batch(batch: object) -> dict:
     """The browser's batch, refused whole where it fails `BATCH_SCHEMA`, so the
     local server and leaf.page take the same batches."""
+    # A harness hook records diagnostics through this module and loads no schema
+    # engine (`test_hook_registration`), so only admission imports one.
+    from .registry.schema import schema_error
+
     if error := schema_error(BATCH_SCHEMA, batch):
         raise ValueError(f"interaction batch: {error}")
     return batch

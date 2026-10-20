@@ -35,9 +35,10 @@ import shlex
 from datetime import datetime
 from pathlib import Path
 
-# A shell command that names Leaf's launcher, bare or by its path, anywhere in it,
-# including where it only assigns it to a variable the command then runs.
-LEAF_COMMAND = re.compile(r"(?:^|[\s;&|(/'\"=])leaf(?:[\s;&|)'\"]|$)")
+# A shell command that names Leaf's launcher anywhere in it: bare, by its path
+# (including where it assigns the path to a variable the command then runs), or as
+# `$LEAF`, the variable a harness that sets one gives it (`SKILL.md`).
+LEAF_COMMAND = re.compile(r"(?:^|[\s;&|(/'\"=])leaf(?:[\s;&|)'\"]|$)|\$\{?LEAF\b")
 # The directory change an agent puts before a command, which says nothing of it.
 CD_PREFIX = re.compile(r"^cd \S+ && ")
 # How much of each call a reading keeps.

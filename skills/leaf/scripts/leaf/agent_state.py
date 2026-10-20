@@ -37,7 +37,7 @@ from .served_state.context import read_page
 from .served_state.page import read_served_page
 from .server import running_server
 from .service import PageTransaction, unacknowledged
-from .user_views import read_user_views
+from .user_views import read_user_views, viewed_at
 from .validation.admission import logged_id
 from .work import page_subject
 
@@ -342,22 +342,25 @@ def _page_state(
         )
     activity = served["activity"]
     # Select presence from the served reading instead of gathering mutable claim and
-    # lease evidence a second time.
+    # lease evidence a second time. When a browser last showed the page is the agent's
+    # alone; the browser never reads it.
     presence_reading = {
-        key: served[key]
-        for key in (
-            "status",
-            "listening",
-            "cursor",
-            "pending",
-            "agent",
-            "session_alive",
-            "claim_session",
-            "claim_turn",
-            "turn_closed",
-            "viewed",
-            "session_cwd",
-        )
+        **{
+            key: served[key]
+            for key in (
+                "status",
+                "listening",
+                "cursor",
+                "pending",
+                "agent",
+                "session_alive",
+                "claim_session",
+                "claim_turn",
+                "turn_closed",
+            )
+        },
+        "viewed": viewed_at(page_dir),
+        "session_cwd": served["session_cwd"],
     }
     state = _base_state(
         page_dir,

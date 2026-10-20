@@ -158,7 +158,6 @@
         "turn_closed": { "type": ["string", "null"] },
         "turn_opened": { "type": ["string", "null"] },
         "turn_takes_input": { "type": "boolean" },
-        "viewed": { "type": ["number", "null"] },
         "session_cwd": { "type": ["string", "null"] },
         "activity": { "$ref": "#/$defs/Activity" },
         "workflows": {
@@ -232,7 +231,6 @@
         "turn_closed",
         "turn_opened",
         "turn_takes_input",
-        "viewed",
         "session_cwd",
         "activity",
         "workflows",

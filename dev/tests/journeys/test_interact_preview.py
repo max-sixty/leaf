@@ -478,7 +478,7 @@ def test_preview_filters_feedback_before_discovering_inputs(tmp_path, monkeypatc
 
     def changes(_watched):
         count = len(readings)
-        for name in ("observations.jsonl", "user-views.json", "viewed.json"):
+        for name in ("observations.jsonl", "user-views.json"):
             yield {str(page / name)}
             assert len(readings) == count
         source.write_text(source.read_text().replace("Reading</h1>", "Revised</h1>"))

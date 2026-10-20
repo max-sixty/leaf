@@ -57,7 +57,6 @@ UNCLAIMED = {
     "turn_closed": None,
     "turn_opened": None,
     "turn_takes_input": False,
-    "viewed": None,
     "session_cwd": None,
 }
 

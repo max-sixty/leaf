@@ -126,7 +126,8 @@ read, such as one an earlier Leaf wrote before that change, reads as absent
   evidence and exports timing rows without message text.
 
 - `user-views.json` — replaceable per-document browser
-  observations (`user_views.USER_VIEWS`). These are author
+  observations (`user_views.USER_VIEWS`), and `viewed`, when a report last said a
+  document showed the page, which outlives the observations' pruning. These are author
   context, not event history or source inputs. They are excluded from page freshness
   and activation. `../../references/conversation-loop.md`, "The user's view", defines
   the agent reading.
@@ -170,11 +171,6 @@ ID PATH` (`file_bindings.BINDINGS`).
 
 - `waiter.lock` — stable bare-shell wait lease file; harness sessions instead
   use `<state-home>/sessions/<session>.wait`. See [session-lifetime.md](session-lifetime.md).
-
-- `viewed.json` — last visible browser attention (`presence.VIEWED`), written by
-  the server and absent until first viewed. `presence.py` owns throttled renewal,
-  which the server runs as a
-  visible tab asks for news; hidden tabs do not renew it.
 
 - `cursor.json` — durable acknowledged position in this page's event log
   (`event_log.CURSOR`), retained

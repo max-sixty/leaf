@@ -130,14 +130,11 @@ class LivePage:
             return artifact, page.events, read_data(self.page_dir, artifact.registry)
 
     def news(self) -> str:
-        """The token, after renewing the user lease: only this explicit attention
-        door proves a user is looking."""
+        """The token naming the page's current reading."""
         files = served_reading.page_reading(self.page_dir)
-        reading = served_reading.join_reading(
+        return served_reading.join_reading(
             files, presence_model.presence_reading(self.page_dir, files)
         )
-        presence_model.renew_viewed(self.page_dir)
-        return reading
 
     def other_pages(self) -> list[dict]:
         return presence_model.neighbor_reading(self.page_dir)

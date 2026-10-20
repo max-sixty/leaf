@@ -3092,16 +3092,6 @@ def _news(server):
         return response.read().decode()
 
 
-def test_a_freshness_read_records_that_the_page_was_visible(server, page_dir):
-    """Only the explicit attention door proves that the user is looking."""
-    events = event_model.read_events(page_dir)
-    assert presence_model.presence(page_dir, events)["viewed"] is None
-    fetch(f"{server}/api/state")
-    assert presence_model.presence(page_dir, events)["viewed"] is None
-    _news(server)
-    assert presence_model.presence(page_dir, events)["viewed"] is not None
-
-
 def test_freshness_names_the_state_reading_and_changes_with_the_page(server, page_dir):
     """A finite cheap token names the same view as state without carrying its log."""
     publish(page_dir)

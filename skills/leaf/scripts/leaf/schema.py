@@ -607,7 +607,6 @@ DATA_DIR = "data"
 # The diagnostic request and interaction trace (`interaction_log.py`).
 INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
-VIEWED_FILE = "viewed.json"
 USER_VIEWS_FILE = "user-views.json"
 USER_VIEWS_LOCK = "user-views.lock"
 RENDER_CHECKS_DIR = "checks"
@@ -626,7 +625,6 @@ WAITER_LOCK = "waiter.lock"
 SESSION_FILES = (
     STATUS_FILE,
     WAITER_LOCK,
-    VIEWED_FILE,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
     SERVICE_FILE,

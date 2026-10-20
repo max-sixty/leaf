@@ -53,8 +53,9 @@ function changed(edit, before = baseline) {
 }
 
 const note = (schemas) => schemas.events.kinds.note.record.properties;
+const browser = (schemas) => schemas.events.kinds.note.browser;
 
-test("what a vendored page sends or holds may loosen but not tighten", () => {
+test("an event record, which a page sends and is served, may change neither way", () => {
   assert.deepEqual(
     changed(() => {}),
     [],
@@ -68,14 +69,15 @@ test("what a vendored page sends or holds may loosen but not tighten", () => {
     ["event note.slug: maxLength 40 → 20"],
   );
   assert.deepEqual(
+    changed((s) => (note(s).slug.maxLength = 60)),
+    ["event note.slug: maxLength 40 → 60"],
+  );
+  assert.deepEqual(
     changed((s) => (note(s).tone.enum = ["plain"])),
     ['event note.tone: values ["plain","loud"] → ["plain"]'],
   );
   assert.deepEqual(
-    changed((s) => {
-      delete note(s).slug.pattern;
-      note(s).extra = { type: "string" };
-    }),
+    changed((s) => (note(s).extra = { type: "string" })),
     [],
   );
   assert.deepEqual(
@@ -85,6 +87,44 @@ test("what a vendored page sends or holds may loosen but not tighten", () => {
   assert.deepEqual(
     changed((s) => delete s.events.kinds.note),
     ["event note: the kind is gone"],
+  );
+  assert.deepEqual(
+    changed((s) => (s.events.kinds.other = s.events.kinds.note)),
+    ["event other: a page is served a kind it doesn't know"],
+  );
+});
+
+test("what the browser sends may loosen but not tighten", () => {
+  assert.deepEqual(
+    changed((s) => (browser(s).required = [])),
+    [],
+  );
+  assert.deepEqual(
+    changed((s) => (browser(s).properties = { tone: { const: "plain" } })),
+    ['event note.tone: values "none" → ["plain"]'],
+  );
+  // A field the contract newly names narrows its record's, whatever else it names.
+  const named = structuredClone(baseline);
+  browser(named).properties = { slug: { maxLength: 30 } };
+  assert.deepEqual(
+    changed((s) => (browser(s).properties.tone = { const: "plain" }), named),
+    ['event note.tone: values "none" → ["plain"]'],
+  );
+  assert.deepEqual(
+    changed((s) => delete browser(s).properties.slug, named),
+    [],
+  );
+  // A field new to the record was never sent, so the contract may bound it at once.
+  assert.deepEqual(
+    changed((s) => {
+      note(s).extra = { type: "string" };
+      browser(s).properties = { extra: { maxLength: 9 } };
+    }),
+    [],
+  );
+  assert.deepEqual(
+    changed((s) => (browser(s).additionalProperties = false)),
+    ["event note.*: a closed object refuses fields it took"],
   );
 });
 
@@ -107,18 +147,6 @@ test("what Leaf serves may tighten but not loosen", () => {
   );
 });
 
-test("an event the page is also served holds both ways", () => {
-  const serving = structuredClone(baseline);
-  serving.served.properties.notes = {
-    type: "array",
-    items: { $ref: "leaf:event/note" },
-  };
-  assert.deepEqual(
-    changed((s) => (note(s).slug.maxLength = 60), serving),
-    ["served state.notes[].slug: maxLength 40 → 60"],
-  );
-});
-
 test("a new protocol starts the comparison again", () => {
   assert.deepEqual(
     changed((s) => {
@@ -135,9 +163,11 @@ test("a record changes shape only with its since", () => {
     changed((s) => (pid(s).type = "string")),
     ['record claim.pid: type ["integer"] → ["string"]'],
   );
+  const cwd = (s) => (s.records.claim.schema.properties.cwd = { type: "string" });
+  assert.deepEqual(changed(cwd), []);
   assert.deepEqual(
-    changed((s) => (s.records.claim.schema.properties.cwd = { type: "string" })),
-    [],
+    changed((s) => cwd(s) && s.records.claim.schema.required.push("cwd")),
+    ["record claim.cwd: the field is now required"],
   );
   assert.deepEqual(
     changed((s) => {
@@ -156,48 +186,15 @@ test("a record changes shape only with its since", () => {
   );
 });
 
-test("a keyword the walk can't read fails loudly", () => {
+test("a keyword the comparison can't read fails loudly", () => {
   assert.throws(
     () => changed((s) => (note(s).slug.contentEncoding = "base64")),
     /can't read "contentEncoding"/,
   );
 });
 
-test("the walk sees through browser contracts, unions, references and maps", () => {
-  // The browser contract narrows a field the record declares.
-  assert.deepEqual(
-    changed(
-      (s) => (s.events.kinds.note.browser.properties = { tone: { const: "plain" } }),
-    ),
-    ['event note.tone: values ["plain","loud"] → ["plain"]'],
-  );
-  // A closed browser contract refuses the record's fields it doesn't name.
-  assert.deepEqual(
-    changed((s) => (s.events.kinds.note.browser.additionalProperties = false)),
-    [
-      "event note.kind: no value is taken where one was",
-      "event note.id: no value is taken where one was",
-      "event note.tone: no value is taken where one was",
-      "event note.slug: no value is taken where one was",
-    ],
-  );
-  // The browser door refuses a value two branches of a `oneOf` take, so a changed
-  // `oneOf` there breaks even where each branch loosens.
-  const exclusive = structuredClone(baseline);
-  note(exclusive).tone = {
-    anyOf: [{ oneOf: [{ const: "plain" }, { const: "loud" }] }],
-  };
-  const first = (s) => note(s).tone.anyOf[0].oneOf;
-  assert.deepEqual(
-    changed((s) => (first(s)[0] = { enum: ["plain", "loud"] }), exclusive),
-    ['event note.tone: "oneOf" changed'],
-  );
-  assert.deepEqual(
-    changed(() => {}, exclusive),
-    [],
-  );
-  // A field one closed variant drops is refused there, though another variant keeps
-  // it, and closing an open object refuses the fields it didn't name.
+test("the comparison sees through unions, references and maps", () => {
+  // A field one variant drops is gone, though another variant keeps it.
   const variant = (tag) => ({
     type: "object",
     properties: { tag: { const: tag }, x: { type: "string" } },
@@ -208,13 +205,14 @@ test("the walk sees through browser contracts, unions, references and maps", () 
   note(tagged).box = { type: "object", properties: { label: { type: "string" } } };
   assert.deepEqual(
     changed((s) => delete note(s).pick.anyOf[0].properties.x, tagged),
-    ["event note.pick.x: a closed object refuses the field"],
+    ["event note.pick.x: the field is gone"],
   );
+  // Closing an open object at the browser door refuses the fields it didn't name, even
+  // beside `unevaluatedProperties: false` where a map took them.
   assert.deepEqual(
     changed((s) => (note(s).box.additionalProperties = false), tagged),
     ["event note.box.*: a closed object refuses fields it took"],
   );
-  // A map beside `unevaluatedProperties: false` still takes the fields it matches.
   const sealed = structuredClone(tagged);
   Object.assign(note(sealed).box, {
     additionalProperties: { type: "string" },
@@ -224,12 +222,26 @@ test("the walk sees through browser contracts, unions, references and maps", () 
     changed((s) => (note(s).box.additionalProperties = false), sealed),
     ["event note.box.*: a closed object refuses fields it took"],
   );
+  // The browser door refuses a value two branches of a `oneOf` take, so a changed
+  // `oneOf` there breaks even where each branch loosens.
+  const exclusive = structuredClone(baseline);
+  note(exclusive).tone = {
+    anyOf: [{ oneOf: [{ const: "plain" }, { const: "loud" }] }],
+  };
+  const first = (s) => note(s).tone.anyOf[0].oneOf;
+  assert.deepEqual(
+    changed((s) => (first(s)[0] = { enum: ["plain", "loud"] }), exclusive),
+    [
+      'event note.tone: "oneOf" changed',
+      'event note.tone: values ["plain"] → ["plain","loud"]',
+    ],
+  );
   // A bound beside a union holds in every branch.
   const branched = structuredClone(baseline);
   note(branched).slug = { type: "string", anyOf: [{ maxLength: 100 }] };
   assert.deepEqual(
     changed((s) => (note(s).slug.maxLength = 5), branched),
-    ["event note.slug: maxLength 100 → 5"],
+    ['event note.slug: maxLength "none" → 5'],
   );
   // A served variant dropped takes its fields with it.
   const variants = structuredClone(baseline);
@@ -241,9 +253,19 @@ test("the walk sees through browser contracts, unions, references and maps", () 
   };
   assert.deepEqual(
     changed((s) => (s.served.properties.pick = { type: "null" }), variants),
+    [
+      'served state.pick: type ["object"] → ["null"]',
+      "served state.pick.x: the field is gone",
+    ],
+  );
+  // A served branch dropped takes the fields no other branch names.
+  const reordered = structuredClone(variants);
+  reordered.served.properties.pick.anyOf.reverse();
+  assert.deepEqual(
+    changed((s) => s.served.properties.pick.anyOf.pop(), reordered),
     ["served state.pick.x: the field is gone"],
   );
-  // A definition that holds itself, against an inline one that doesn't.
+  // A reference compares by its text, and its target where it is declared.
   const nested = structuredClone(baseline);
   nested.served.$defs.Tree = {
     type: "object",
@@ -253,19 +275,28 @@ test("the walk sees through browser contracts, unions, references and maps", () 
   const inline = { type: "object", properties: { child: { type: "string" } } };
   assert.deepEqual(
     changed((s) => (s.served.properties.tree = inline), nested),
-    ['served state.tree.child: type ["object"] → ["string"]'],
+    ['served state.tree: $ref "#/$defs/Tree" → "none"'],
   );
-  // A map's newly named field must take what the map took, and the browser door
-  // closing an object that declared no fields refuses the fields it held.
+  assert.deepEqual(
+    changed((s) => (s.served.$defs.Tree.properties.child = { type: "string" }), nested),
+    ['served Tree.child: $ref "#/$defs/Tree" → "none"'],
+  );
+  // A position `prefixItems` stops naming holds what `items` allows.
+  const tuple = structuredClone(baseline);
+  tuple.served.properties.pair = {
+    type: "array",
+    prefixItems: [{ type: "string" }],
+    items: { type: "number" },
+  };
+  assert.deepEqual(
+    changed((s) => (s.served.properties.pair.prefixItems = []), tuple),
+    ['served state.pair[0]: type ["string"] → ["number"]'],
+  );
+  // A map's newly named field must take what the map took.
   const mapped = structuredClone(baseline);
   note(mapped).counts = { type: "object", additionalProperties: { type: "number" } };
-  note(mapped).meta = { type: "object" };
   assert.deepEqual(
     changed((s) => (note(s).counts.properties = { x: { type: "string" } }), mapped),
     ['event note.counts.x: type ["number"] → ["string"]'],
-  );
-  assert.deepEqual(
-    changed((s) => (note(s).meta.additionalProperties = false), mapped),
-    ["event note.meta.*: a closed object refuses fields it took"],
   );
 });

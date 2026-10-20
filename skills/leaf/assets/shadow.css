@@ -1770,15 +1770,69 @@ html[data-lf-draw-mode] main {
   }
 }
 :root {
-  --lf-code-copy-size: max(32px, var(--aim-floor));
-  --lf-code-copy-inset: 4px;
+  --lf-mark: 26px;
+  --lf-mark-wide: max(var(--lf-mark), var(--aim-floor));
+  --lf-mark-bar: calc(var(--lf-mark) + 4px);
+  --lf-mark-bar-end: 8px;
+}
+.lf-mark-bar,
+.lf-code-copy {
+  box-sizing: border-box;
+  display: flex;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  background: var(--card);
+  box-shadow: var(--raise-1);
+}
+.lf-mark,
+.lf-code-copy::part(button) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  inline-size: var(--lf-mark-wide);
+  min-inline-size: 0;
+  block-size: var(--lf-mark);
+  min-block-size: 0;
+  padding: 0;
+  border: 0;
+  border-radius: calc(var(--r) - 2px);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--t-5);
+}
+.lf-mark::before {
+  content: "";
+  position: absolute;
+  inset: min(0px, (var(--lf-mark) - var(--aim-floor)) / 2) 0;
+}
+.lf-code-copy::part(button)::before {
+  content: "";
+  position: absolute;
+  inset: min(0px, (var(--lf-mark) - var(--aim-floor)) / 2) 0;
+}
+.lf-mark:hover,
+.lf-code-copy::part(button):hover {
+  color: var(--ink);
+  background: var(--chip);
+  box-shadow: none;
+}
+.lf-mark[data-lf-focus],
+.lf-code-copy::part(lf-focus) {
+  outline: var(--focus-ring);
+  outline-offset: calc(-1 * var(--focus-ring-w));
+}
+.lf-mark-icon {
+  inline-size: 16px;
+  block-size: 16px;
 }
 .lf-code-copy {
   position: absolute;
-  top: calc(anchor(top, -9999px) + var(--lf-code-copy-inset) + var(--lf-code-copy-dy, 0px));
-  left: calc(anchor(right, -9999px) - var(--lf-code-copy-size) - var(--lf-code-copy-inset) + var(--lf-code-copy-dx, 0px));
-  width: var(--lf-code-copy-size);
-  height: var(--lf-code-copy-size);
+  top: calc(anchor(top, -9999px) - var(--lf-mark-bar) / 2 + var(--lf-code-copy-dy, 0px));
+  left: calc(anchor(right, -9999px) - var(--lf-mark-bar-end) - var(--lf-mark-wide) - 4px + var(--lf-code-copy-dx, 0px));
   z-index: 1;
   white-space: normal;
   font-size: 0;
@@ -1806,22 +1860,14 @@ html[data-lf-draw-mode] main {
   opacity: 1;
   pointer-events: auto;
 }
-.lf-code-copy::part(button) {
-  width: var(--lf-code-copy-size);
-  height: var(--lf-code-copy-size);
-  padding: 6px;
-  border: 1px solid var(--code-border);
-  border-radius: var(--r);
-  background: var(--pre-bg);
-  color: var(--muted);
-  display: flex;
-  font-size: var(--t-5);
-}
-.lf-code-copy::part(button):hover {
-  color: var(--ink);
-}
-.lf-code-copy::part(lf-focus) {
-  outline: var(--focus-ring);
+.lf-mark-bar > .lf-code-copy {
+  position: static;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
 }
 .lf-msg-body a.detached {
   color: var(--muted-2);

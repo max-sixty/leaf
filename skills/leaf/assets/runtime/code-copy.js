@@ -19,12 +19,14 @@
    Document copies share one stable chrome child, including their clipping frames.
    Making every copy a sibling of transient chrome lets a new margin measurement
    invalidate structural selectors on every block's control in a long page.
-   The control follows the common pattern for code copy: hidden at rest, so it covers no
-   words, and shown while a pointer is over the block or the user stands on it. A finger
-   has no hover, so a tap on the block stands the user on it and shows the control in
-   its corner, the touch form of the same reveal. The control takes no room, since room
-   made for it would move the page's content (`../AGENTS.md`, "Nothing Leaf draws moves
-   the page's content"). */
+   The control follows the common pattern for code copy: hidden at rest, and shown while
+   a pointer is over the block or the user stands on it. A finger has no hover, so a tap
+   on the block stands the user on it and shows the control, the touch form of the same
+   reveal. Shown, it is a toolbar of one mark whose middle lies on the block's top
+   border at its right (`.lf-mark-bar`, integration.css), the seat and face a draft's
+   toolbar shares, so it covers the border and padding rather than the first line's
+   last words. The control takes no room, since room made for it would move the page's
+   content (`../AGENTS.md`, "Nothing Leaf draws moves the page's content"). */
 import { copyControl } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import {

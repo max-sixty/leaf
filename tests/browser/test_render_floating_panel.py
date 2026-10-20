@@ -864,8 +864,10 @@ def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
 
 
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
-    """Page search's box stands just over the panel's row, where its Previous, Next and
-    ✕ stand, rather than at the window's head."""
+    """Page search's box stands just over the panel's row, where its Select and ✕ stand,
+    rather than at the window's head. The box walks its own matches: its up and down
+    arrows move the count beside them and leave the query's field focused, so the next
+    letter still edits it, and the panel's row holds no Previous or Next."""
     page = floating(browser, serve(LONG_PAGE))
     page.locator("body").focus()
     page.keyboard.press("/")
@@ -876,6 +878,21 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     row = page.locator(".lf-fp-row").bounding_box()
     gap = row["y"] - (box["y"] + box["height"])
     assert 0 <= gap < 24, f"the search box stands {gap:.0f}px over the panel's row"
+
+    previous = search.get_by_role("button", name="Previous match")
+    following = search.get_by_role("button", name="Next match")
+    expect(following).to_have_attribute("aria-disabled", "true")
+    page.keyboard.type("Paragraph 1")
+    count = search.locator(".lf-page-search-status")
+    expect(count).to_have_text("1 of 11")
+    expect(page.locator(".lf-fp-step")).to_have_text(["Select"])
+    following.click()
+    expect(count).to_have_text("2 of 11")
+    previous.click()
+    previous.click()
+    expect(count).to_have_text("11 of 11")
+    page.keyboard.type("0")
+    expect(count).to_have_text("1 of 1")
 
 
 def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
@@ -3175,6 +3192,59 @@ def test_a_thread_whose_words_are_gone_keeps_its_quotation_in_the_panel(browser,
     disclosure.click()
     expect(disclosure).to_have_attribute("aria-expanded", "true")
     assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+
+
+def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
+    """In a thread's view the head's words, the quote's and each message's start on one
+    edge, the quote's rule standing left of it. A rewrite's frame reaches back only as
+    far as that rule, so its words keep the message's and its frame stays clear of the
+    panel's edge."""
+    url = serve(PAGE_ANNOTATED)
+    panel_comment(
+        serve.page_dir,
+        "Is the window long enough?",
+        anchor={"section": "p3", "quote": "Paragraph 3."},
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-msg")).to_contain_text("Is the window long enough?")
+    settled(page)
+    starts = """() => {
+      const edge = document.querySelector('.lf-fp-card').getBoundingClientRect().left;
+      const words = (node) => {
+        const text = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+          acceptNode: (t) => (t.textContent.trim() ? 1 : 3),
+        }).nextNode();
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        return range.getClientRects()[0].left - edge;
+      };
+      const view = document.querySelector('.lf-fp-view[data-view=thread]');
+      const quote = view.querySelector('.lf-fp-quote');
+      const frame = view.querySelector('.lf-msg-editor .lf-compose-field');
+      const text = frame?.querySelector('leaf-text');
+      return {
+        head: words(document.querySelector('.lf-fp-head')),
+        quote: words(quote),
+        message: words(view.querySelector('.lf-msg')),
+        rule: quote.getBoundingClientRect().left - edge,
+        frame: frame && frame.getBoundingClientRect().left - edge,
+        rewrite: text && text.getBoundingClientRect().left - edge
+          + parseFloat(getComputedStyle(text).paddingLeft),
+      };
+    }"""
+    at = page.evaluate(starts)
+    assert at["head"] == pytest.approx(at["quote"], abs=0.5), at
+    assert at["message"] == pytest.approx(at["head"], abs=0.5), at
+    assert 0 < at["rule"] < at["head"] - 4, at
+
+    view.locator(".lf-msg-body").dblclick()
+    expect(view.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    at = page.evaluate(starts)
+    assert at["rewrite"] == pytest.approx(at["message"], abs=0.5), at
+    assert at["frame"] == pytest.approx(at["rule"], abs=0.5), at
 
 
 def test_the_go_to_doors_open_the_panel_s_views(browser, serve):

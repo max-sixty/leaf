@@ -112,6 +112,6 @@
     return { notice, list, empty, rows, reading, restored: saved !== null };
   }
 
-  // skills/leaf/packages/default/initial.js
+  // skills/leaf/packages/default/initial/lf-activity.js
   document.documentElement.lfInitial.register("lf-activity", initialActivity);
 })();

@@ -6023,7 +6023,9 @@ function createFloatingPanel({
   const peek = el("div", "lf-fp-peek");
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
-  let peekAsked = false;
+  const STATUS = /* @__PURE__ */ Symbol("status");
+  let peekAsked = null;
+  let fieldSays = null;
   let peekReading = null;
   context2.append(contextWords);
   inner.append(opened, context2, row);
@@ -7818,11 +7820,7 @@ function createFloatingPanel({
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
-    keeps(
-      field,
-      "title",
-      reading.says === "status" ? status().explanation || status().summary : reading.says === "error" ? reading.words : null
-    );
+    fieldSays = writing || draftOf(input) !== "" ? null : reading.says === "status" ? STATUS : reading.says === "error" ? reading.words : null;
     const [error] = sayable();
     const covering = Boolean(error) && error.subject === input && draftOf(input) !== "";
     if (covering && errorCover.parentNode !== input.parentNode)
@@ -7981,6 +7979,7 @@ function createFloatingPanel({
       if (first) focusDestination(first, "move");
     }
   });
+  const peekAsks = () => menuOpen ? null : peekAsked === leaf ? STATUS : peekAsked === field && host.dataset.rest !== "mark" ? fieldSays : null;
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice2 = passing();
@@ -7989,19 +7988,31 @@ function createFloatingPanel({
     const parts = reading.explanationParts ?? [
       { text: reading.explanation || reading.summary }
     ];
-    if (!folded || !peekAsked || !readingIsContinuous()) peekReading = null;
-    if (folded && peekAsked && !telling && pagePresented()) peekReading ??= parts;
-    render(telling ? notice2.message : statusParts(peekReading ?? parts), peek);
-    keeps(peek, "data-shown", telling || folded && peekAsked ? "" : null);
+    const asked2 = peekAsks();
+    const said = asked2 === STATUS ? parts : asked2 ? [{ text: asked2 }] : null;
+    if (!asked2 || !readingIsContinuous() || peekReading?.asked !== asked2)
+      peekReading = null;
+    if (asked2 && !telling && pagePresented()) peekReading ??= { asked: asked2, parts: said };
+    render(
+      telling ? notice2.message : statusParts(peekReading?.parts ?? said ?? parts),
+      peek
+    );
+    keeps(peek, "data-shown", telling || asked2 ? "" : null);
   }
-  const showPeek = (on) => {
-    peekAsked = on;
-    paintPeek();
+  const showPeek = (asker) => {
+    const before = peekAsks();
+    peekAsked = asker;
+    if (peekAsks() !== before) paintPeek();
   };
-  leaf.addEventListener("pointerenter", () => showPeek(true));
-  leaf.addEventListener("pointerleave", () => showPeek(false));
-  leaf.addEventListener("focus", () => showPeek(leaf.matches(":focus-visible")));
-  leaf.addEventListener("blur", () => showPeek(false));
+  for (const asker of [leaf, field]) {
+    asker.addEventListener("pointerenter", () => showPeek(asker));
+    asker.addEventListener("pointerleave", () => showPeek(null));
+  }
+  leaf.addEventListener(
+    "focus",
+    () => showPeek(leaf.matches(":focus-visible") ? leaf : null)
+  );
+  leaf.addEventListener("blur", () => showPeek(null));
   pageRung("floating panel", () => {
     if (query && focused()?.matches?.(".lf-fp-search"))
       return {

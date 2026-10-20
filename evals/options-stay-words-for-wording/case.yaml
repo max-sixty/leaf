@@ -10,6 +10,9 @@
 # Once SKILL.md asked every page for pictures, the section drew the 68px shift above
 # the options (2/2) while the options stayed words; options-draw-nothing alone judges
 # the drawing, so comparison-labels no longer forbids a figure outside the options.
+# reason-beside-options: while the registry's examples wrote the reason into the
+# recommended card (`<em>My take: …</em>`), base 2c52f93ec kept it out of the cards
+# in 1 of 5 Claude Code runs; with the reason in the lf-ask's prose, 5 of 5.
 description: options-stay-words-for-wording
 metadata:
   purpose:
@@ -53,5 +56,16 @@ assert:
       strong titles. The labels compare the same factual distinction in the same
       order (for example actionable detail versus concise reporting), rather than
       duplicating the titles or labeling every option identically. Only the detailed,
-      actionable wording has a recommended small.tag; its reason remains available in
-      prose. Neither option has chosen, since the user has not picked.
+      actionable wording has a recommended small.tag. Neither option has chosen,
+      since the user has not picked.
+  - type: llm-rubric
+    metric: reason-beside-options
+    value: |
+      Find why the author recommends the detailed wording. Pass only if that reason is
+      prose outside every `lf-option`, such as a paragraph in the `lf-ask` before or
+      after the `lf-options` group. Inside the cards, each option may state its own
+      properties and consequences at a similar depth, such as naming the widget or
+      matching the other findings' form. Fail if any `lf-option` holds the author's
+      argument for picking it, such as "My take: …", "I'd pick this", or "recommended
+      because …", even when the same reason also appears outside, and fail if the
+      reason is missing.

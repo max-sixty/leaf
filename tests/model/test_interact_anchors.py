@@ -628,6 +628,21 @@ def test_a_reply_names_the_threads_a_save_already_moved(page_dir):
     )
     assert reply("--text", "And checked it.") == []
 
+    # Two saves move the first thread twice before the next reply, which names each
+    # thread once, where it stands now.
+    (page_dir / "index.html").write_text(
+        original.replace("Alpha and Gamma", "Beta and Epsilon")
+    )
+    assert activate_source(page_dir).created
+    (page_dir / "index.html").write_text(original.replace(
+        '<p id="wording">Alpha and Gamma</p>', ""
+    ))
+    assert activate_source(page_dir).created
+    assert [moved["values"] for moved in reply("--text", "Removed the wording.")] == [
+        {"thread": roots[0]["id"], "section": None},
+        {"thread": roots[1]["id"], "section": None},
+    ]
+
 
 def test_a_stamp_preserves_threads_its_restatement_reopens(page_dir):
     from leaf.events import build_threads

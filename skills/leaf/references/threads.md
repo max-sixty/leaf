@@ -98,8 +98,8 @@ it the `answer.ref` as that package's coordinator instructions say.
 
 When a revision rewrites a quoted passage, check every open thread on it, including
 ones you are not answering this turn. `leaf page check`, and the first reply on a
-revision, list each open thread whose anchor no longer resolves and where activation
-moves it: to its section if that survives, otherwise detached. The move adds no
+revision, list each open thread whose anchor no longer resolves and where the
+revision moves it: to its section if that survives, otherwise detached. The move adds no
 message and answers nothing.
 
 Where you know what replaced the passage, move the thread onto it in the reply that

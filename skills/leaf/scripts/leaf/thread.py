@@ -424,7 +424,7 @@ def post_reply(
         )
         if obligation is None:
             return None
-        record, advice = _compose_and_append(
+        record, published = _compose_and_append(
             page,
             obligation,
             posting_identity,
@@ -442,33 +442,34 @@ def post_reply(
             detach=detach,
             title=title,
         )
-    if advice is not None:
+    if published is not None:
         # Read apart from the page lease, so the user's page sees the reply at once.
-        note(*advice.moved, *source_advice(page_dir, advice.checked))
+        note(*_revision_advice(page_dir, published))
     return record
 
 
-class _RevisionAdvice(NamedTuple):
-    """What the first agent reply on a revision reports beside its result: the
-    threads the revisions since the agent's last reply moved, and the source whose
-    drift `validation.source.source_advice` reads."""
+class _Published(NamedTuple):
+    """A reply that published a checked source: the log before it, the revision it
+    published, the check, and the thread the reply moves itself, if it does."""
 
-    moved: list[Finding]
+    events: list
+    revision: int
     checked: SourceCheck
+    moving_thread: str | None
 
 
-def _revision_advice(
-    events: list, record: dict, checked: SourceCheck, moving_thread: str | None
-) -> _RevisionAdvice | None:
-    """Advice for the first agent reply on its revision, None for a later one.
+def _revision_advice(page_dir: Path, published: _Published) -> list[Finding]:
+    """What `page check` would advise on the revisions published since the agent's
+    last reply, which the first agent reply on a revision reports beside its result;
+    nothing for a later reply.
 
-    Every agent reply publishes the source it checked, so this reply reports what
-    `page check` would advise on the revisions published since the agent's last
-    reply, and a revision that answers a message needs no check before the reply.
-    The server may have activated the revision on save, before the reply, so the
-    threads it moved are read from the log's `reanchor` events as well as from the
-    moves this reply's own activation makes (`checked.advice`). A thread the reply
-    moves itself is left out."""
+    Every agent reply publishes the source it checked, so a revision that answers a
+    message needs no check before its reply. The server may have activated the
+    revision on save, before the reply, so the threads it moved are read from the
+    log's `reanchor` events, each where it stands now, as well as from the moves
+    this reply's own activation makes (`checked.advice`). A thread since resolved,
+    or one the reply moves itself, is left out."""
+    events, checked = published.events, published.checked
     last = max(
         (
             event.get("revision", 0)
@@ -477,26 +478,34 @@ def _revision_advice(
         ),
         default=0,
     )
-    if record["revision"] <= last:
-        return None
+    if published.revision <= last:
+        return []
+    activated = {finding.values["thread"]: finding for finding in checked.advice}
+    threads = build_threads(events, active_enclosing(page_dir))
     recorded = [
         Finding(
             "relocated-anchor",
             values={
-                "thread": event["thread"],
-                "section": (event["anchor"] or {}).get("section"),
+                "thread": thread,
+                "section": (threads[thread]["anchor"] or {}).get("section"),
             },
             severity="advice",
         )
-        for event in events
-        if event["kind"] == "reanchor" and event["revision"] > last
+        for thread in dict.fromkeys(
+            event["thread"]
+            for event in events
+            if event["kind"] == "reanchor" and event["revision"] > last
+        )
+        if thread not in activated and not threads[thread]["resolved"]
     ]
-    moved = [
-        finding
-        for finding in [*recorded, *checked.advice]
-        if finding.values["thread"] != moving_thread
+    return [
+        *(
+            finding
+            for finding in [*recorded, *activated.values()]
+            if finding.values["thread"] != published.moving_thread
+        ),
+        *source_advice(page_dir, checked),
     ]
-    return _RevisionAdvice(moved, checked)
 
 
 def _repeated_reply(
@@ -656,11 +665,11 @@ def _compose_and_append(
     part: str,
     detach: bool,
     title: str | None,
-) -> tuple[dict, "_RevisionAdvice | None"]:
+) -> tuple[dict, "_Published | None"]:
     """Check the reply's content against the page, compose its event and append it
     at `obligation`, publishing saved page edits first where `validate_source` or a
-    detach reads them; the appended record, with the advice its revision carries
-    (`_revision_advice`)."""
+    detach reads them; the appended record, and what it published for
+    `_revision_advice` to read."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand = obligation
     event = {
@@ -805,19 +814,19 @@ def _compose_and_append(
         event["anchor"] = anchor
     if title is not None:
         event["title"] = title
-    advice = None
+    published = None
     if checked is not None:
         from leaf.revisioning import publish_checked_event
 
         record = publish_checked_event(page, checked, event)
-        advice = _revision_advice(
-            events, record, checked, thread_id if relocating else None
+        published = _Published(
+            events, record["revision"], checked, thread_id if relocating else None
         )
     else:
         record, _ = append_admitted(page, event)
     if in_hand is not None and page.status["state"] == "idle":
         page.set_status("waiting", "")
-    return record, advice
+    return record, published
 
 
 def post_response(

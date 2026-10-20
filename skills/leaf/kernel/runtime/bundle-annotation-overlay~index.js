@@ -67,6 +67,7 @@ import {
   rowWalk,
   selectionAnchor,
   showLatestTurn,
+  standingThreadId,
   strongestWorkflow,
   tabStore,
   threadFocusDestination,
@@ -1971,14 +1972,19 @@ function createMarginProjection({
     const focusedHost = closestAcross(active, "[data-lf-margin-for]");
     const pointerHost = hoveredHost?.isConnected ? hoveredHost : null;
     const onTarget = previewOpen() && active && active === targetFor(card.selection()?.entry);
-    const source = pointerHost ?? focusedHost ?? ((renderedUnder(active, preview) || previewOpen()) && !onTarget ? hosts.get(card.selection()?.entry?.key) : null);
+    const marker = pointerHost ?? focusedHost;
+    const source = marker ?? ((renderedUnder(active, preview) || previewOpen()) && !onTarget ? hosts.get(card.selection()?.entry?.key) : null);
     const entry = pageInventory.find(
       (candidate) => candidate.key === source?.lfEntry?.key
     );
     const drawingOnly = entry?.items.length && entry.items.every(
       (item) => item.kind === "comment" && Boolean(sourceItem(item).thread?.root.drawing)
     );
-    highlight(drawingOnly ? null : targetFor(entry) ?? null);
+    const standing = standingThreadId();
+    const standingShown = !marker && entry && threadReading(entry)?.items.some(
+      (item) => sourceItem(item).thread.id === standing
+    );
+    highlight(drawingOnly || standingShown ? null : targetFor(entry) ?? null);
   }
   function previewChanged() {
     refreshHighlight();
@@ -2182,6 +2188,7 @@ function createMarginProjection({
     return thread && positioned && { thread, presented: positioned };
   }
   function paintSelectedMarginEntries(selections) {
+    refreshHighlight();
     const selected = /* @__PURE__ */ new Set();
     for (const selection of selections)
       for (const entry of pageInventory) {
@@ -2428,7 +2435,7 @@ var PENDING = "lf-pending";
 var REACT = "lf-react";
 var HOVER = "lf-mark-hover";
 var HERE = "lf-mark-here";
-function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
+function createAnchorPaint({ targetPaint, pointer, standingThreadId: standingThreadId2 }) {
   const marked = /* @__PURE__ */ new Map();
   const visualTargets = /* @__PURE__ */ new Map();
   let pendingMarks = [];
@@ -2496,7 +2503,7 @@ function createAnchorPaint({ targetPaint, pointer, standingThreadId }) {
     );
   }
   function paintStanding(repaintVisuals = true) {
-    const where = marksFor(standingThreadId());
+    const where = marksFor(standingThreadId2());
     const parts = where.filter((mark) => mark instanceof Element);
     for (const part of hereParts)
       if (!parts.includes(part)) part.classList.toggle(HERE, false);

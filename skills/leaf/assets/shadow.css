@@ -122,7 +122,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   scroll-margin-top: max(0px, var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
 }
 :where(:focus, [data-lf-focus]) {
-  scroll-margin-block: var(--focus-ring-landing);
+  scroll-margin: var(--focus-ring-landing);
 }
 :where([data-lf-sticks]) {
   --lf-head-inset: 0px;
@@ -643,6 +643,7 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) table {
   display: block;
   overflow-x: auto;
+  --lf-table-edge: max(var(--focus-ring-room), var(--raise-1-blur));
   container-type: inline-size;
   container-type: inline-size scroll-state;
   --lf-top: 0px;
@@ -678,10 +679,10 @@ button.lf-thread-notice[data-lf-focus] {
   }
 }
 :where(:root, .lf-thread-transcript) tr > :first-child {
-  padding-inline-start: 0;
+  padding-inline-start: var(--lf-table-edge);
 }
 :where(:root, .lf-thread-transcript) tr > :last-child {
-  padding-inline-end: 0;
+  padding-inline-end: var(--lf-table-edge);
 }
 :where(:root, .lf-thread-transcript) :where(th, td)[data-lf-focus] {
   outline-offset: calc(-1 * var(--focus-ring-w));
@@ -701,12 +702,6 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > th:not([scope=row]) {
   text-align: center;
   color: var(--ink);
-}
-:where(:root, .lf-thread-transcript) tr > td:first-child:has(img) {
-  padding-inline-start: var(--raise-1-blur);
-}
-:where(:root, .lf-thread-transcript) tr > td:last-child:has(img) {
-  padding-inline-end: var(--raise-1-blur);
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;

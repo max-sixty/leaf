@@ -2562,7 +2562,7 @@ var PAGE_CONTROL_RANK = Object.freeze({
   blanket: 80,
   versions: 90,
   keyboard: 95,
-  // The next steps in the mode or picker the user stands in.
+  // The next steps in the mode or picker the user stands in, and its way out.
   steps: 120,
   commentSelection: 130
 });
@@ -2595,6 +2595,7 @@ function pageControls() {
       copies: read2(row.copies) ?? "",
       urgent: read2(row.urgent) ?? null,
       gesture: Boolean(row.gesture),
+      exit: Boolean(row.exit),
       disabled: Boolean(read2(row.disabled)),
       press: row.press ?? null
     })

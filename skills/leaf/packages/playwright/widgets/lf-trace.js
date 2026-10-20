@@ -12,6 +12,14 @@
  * recorded time, intervals are bars from start to end, and labels only annotate.
  * Viewer.js owns image inspection.
  *
+ * Words at rest are the recording's facts, not how to read them. Times count from
+ * the recording's start, which a reader assumes, so nothing says so; a basis that
+ * departs from it, the first captured event or a clock per stream, stands under the
+ * point's heading. The zoom readout is the scale alone, since the image's grab
+ * cursor says it drags and its accessible name says how keys pan it. Rejected
+ * (2026-10-19): a muted line saying each of these at rest, and the default basis as
+ * the heading's hover title, which neither a key nor a finger reaches.
+ *
  * The playhead is a time. The shown evidence is the latest capture at or before
  * it. A checkpoint with an image stands at that image's capture time, which ends
  * the snapshot its DOM time begins; one without stands at its DOM time. Stepping,
@@ -1192,7 +1200,7 @@ customElements.define(
       keepsText(
         this.#zoomLabel.value,
         this.#picture?.viewed
-          ? `${Math.round(this.#picture.imageData.ratio * 100)}% · drag to inspect`
+          ? `${Math.round(this.#picture.imageData.ratio * 100)}%`
           : this.#pendingPicture
             ? "Loading capture…"
             : this.#pictureId
@@ -1833,10 +1841,18 @@ customElements.define(
           ? "Loading captured image…"
           : "No captured image at this point.";
       const playLabel = this.#playing ? "Pause" : "Play";
-      const clockLabel =
-        origin && origin.recordedStart !== null && origin.recordedStart === origin.start
+      // What the times count from, said only where it departs from the recording's
+      // start (the header's "Words at rest").
+      const fromStart =
+        origin &&
+        origin.recordedStart !== null &&
+        origin.recordedStart === origin.start;
+      const ownClocks = trace?.streams.length > 1;
+      const clockLabel = `${
+        fromStart
           ? "Times are elapsed since the recording started"
-          : "Times are elapsed from the first captured event";
+          : "Times are elapsed from the first captured event"
+      }${ownClocks ? " · each stream has its own clock" : ""}`;
       const controls = html`<div ${offered("lf-trace-controls")} ?hidden=${!trace}>
         <div ${offered("lf-trace-choices")} ?hidden=${choices.length < 2}>
           <wa-radio-group
@@ -2126,12 +2142,8 @@ customElements.define(
               <p class="lf-trace-error" ?hidden=${!metadataAction?.error}>
                 ${metadataAction?.error ?? ""}
               </p>
-              <p class="lf-trace-clock" ?hidden=${!origin}>
-                ${
-                  trace?.streams.length > 1
-                    ? `${clockLabel} · each stream has its own clock`
-                    : clockLabel
-                }
+              <p class="lf-trace-clock" ?hidden=${!origin || (fromStart && !ownClocks)}>
+                ${clockLabel}
               </p>
             </div>
           </div>

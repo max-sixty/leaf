@@ -168,11 +168,11 @@ def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve
         page.keyboard.press("Escape")
 
 
-def test_selection_cancel_stays_available_across_pointer_changes(browser, serve):
-    """The selection's Cancel stays in the panel's row as the primary pointer
-    changes under it."""
+def test_the_picker_s_way_out_stays_available_across_pointer_changes(browser, serve):
+    """The picker's ✕ stays in the panel's row as the primary pointer changes under
+    it."""
     page = open_page(browser, serve(TARGETS_PAGE))
-    cancel = page.locator(".lf-fp-step", has_text="Cancel selection")
+    cancel = page.locator('.lf-fp-exit[aria-label="Close picker"]')
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).to_have_count(3)
     expect(cancel).to_be_visible()

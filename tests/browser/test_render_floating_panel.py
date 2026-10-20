@@ -865,13 +865,13 @@ def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
 
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     """Page search's box stands just over the panel's row, where its Previous, Next and
-    Close search stand, rather than at the window's head."""
+    ✕ stand, rather than at the window's head."""
     page = floating(browser, serve(LONG_PAGE))
     page.locator("body").focus()
     page.keyboard.press("/")
     search = page.locator(".lf-page-search")
     expect(search).to_be_visible()
-    expect(page.locator(".lf-fp-step", has_text="Close search")).to_be_visible()
+    expect(page.locator('.lf-fp-exit[aria-label="Close search"]')).to_be_visible()
     box = search.bounding_box()
     row = page.locator(".lf-fp-row").bounding_box()
     gap = row["y"] - (box["y"] + box["height"])
@@ -2382,8 +2382,8 @@ def test_the_approval_is_arrived_at_in_sight_below_many_obligations(browser, ser
 
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):
     """Annotations, a row of the leaf's menu, opens a list whose Draw mode, while it
-    holds the gesture seat, stands its steps in the row in the counts' place;
-    Exit leaves the mode and the counts return. Picking an element is left to the page,
+    holds the gesture seat, stands its steps in the row in the counts' place and its ✕
+    at the row's end; the ✕ leaves the mode and the counts return. Picking an element is left to the page,
     where selecting words or pressing `s` starts it, so Annotations doesn't list it."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     page.locator(".lf-fp-leaf").click()
@@ -2391,11 +2391,16 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     expect(page.locator(".lf-fp-item", has_text="Capture area")).to_be_visible()
     expect(page.locator(".lf-fp-item", has_text="Select element")).to_have_count(0)
     page.locator(".lf-fp-item", has_text="Draw mode").click()
-    exit_step = page.locator(".lf-fp-step", has_text="Exit Draw mode")
+    exit_step = page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]')
     expect(exit_step).to_be_visible()
     expect(page.locator(".lf-fp-on-user")).to_have_count(0)
+    # The field names the mode in the status's place.
+    expect(field(page)).to_have_attribute("data-says", "stance")
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^In Draw mode"))
     exit_step.click()
     expect(page.locator(".lf-fp-step")).to_have_count(0)
+    expect(exit_step).to_have_count(0)
+    expect(field(page)).to_have_attribute("data-says", "status")
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
 

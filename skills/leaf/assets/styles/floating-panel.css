@@ -618,6 +618,14 @@
     text-underline-offset: 2px;
     text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   }
+  /* The way out of the stance the user stands in, after the counts or the steps. */
+  .lf-fp-exit-seat {
+    flex: none;
+    display: flex;
+  }
+  .lf-fp-exit-seat[hidden] {
+    display: none;
+  }
   /* A gesture's next step, in the counts' place while the gesture holds it. */
   .lf-fp-step {
     color: var(--ink);
@@ -655,6 +663,7 @@
     .lf-fp-field,
     .lf-fp-row-notice,
     .lf-fp-quick,
+    .lf-fp-exit-seat,
     .lf-fp-context,
     .lf-fp-opened {
       display: none;

@@ -195,7 +195,7 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     expect(page.locator('[data-thread^="pending:"]')).to_have_count(0)
     # Threads lists the saved conversation beside the two the tab sent early.
     # Draw mode's steps stand in the marks' place until the user leaves it.
-    page.locator(".lf-fp-step", has_text="Exit Draw mode").click()
+    page.locator('.lf-fp-exit[aria-label="Exit Draw mode"]').click()
     page.locator(".lf-fp-threads").click()
     panel_settled(page, view="threads")
     rows = page.locator('.lf-fp-view[data-view="threads"] .lf-fp-thread')

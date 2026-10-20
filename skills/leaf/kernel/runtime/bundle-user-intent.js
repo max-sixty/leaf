@@ -192,6 +192,7 @@ import {
   cancelRender,
   caretAtKey,
   carriedFrom,
+  deepFocus,
   drawn,
   focusDestination,
   focused,
@@ -570,7 +571,12 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
     if (band) {
       const { left, right, top, bottom } = band;
       const destination = where.getBoundingClientRect();
-      const byX = nearestScrollBy(destination.left, destination.right, left, right);
+      const byX = nearestScrollBy(
+        destination.left - scrollMargin(where, "Left"),
+        destination.right + scrollMargin(where, "Right"),
+        left,
+        right
+      );
       const byY = inside ? nearestScrollBy(destination.top, destination.bottom, top, bottom) : 0;
       if (byX || byY) land(box, localScrollBy(box, { x: byX, y: byY }), "instant");
     }
@@ -579,6 +585,13 @@ function scrollIntoView(where, { alignment = where, behavior = "auto", block = "
   }
   if (targetScroller) scrollIntoReadingBand(alignment, holder, block, behavior);
 }
+onStanding((node, cause) => {
+  if (cause !== "step" || !node) return;
+  nextRender(() => {
+    if (deepFocus() === node && !alreadyShown(node))
+      scrollIntoView(node, { block: "nearest" });
+  });
+});
 
 // runtime/reading-place.js
 var FOCUSED_PLACE = /* @__PURE__ */ Symbol("live focused place");
@@ -4046,19 +4059,23 @@ function pageScopes() {
   }
   return resolved;
 }
+var namedScopes = () => STACK.flatMap((name) => typeof name === "string" ? scopes.get(name) ?? [] : []);
+var exitOf = (scope) => scope.rows.find((row) => row.exit) ?? null;
 function touchPresses2() {
   pageScopes();
   return {
     commands: PAGE_COMMANDS.flatMap(
       (id) => commands.has(id) ? touchPresses(commands.get(id)) : []
     ),
-    steps: STACK.flatMap(
-      (name) => typeof name === "string" ? (scopes.get(name) ?? []).map((scope) => ({
-        scope,
-        presses: scope.rows.flatMap(touchPresses)
-      })) : []
-    ).filter(({ presses }) => presses.length)
+    steps: namedScopes().map((scope) => ({ scope, presses: scope.rows.flatMap(touchPresses) })).filter(({ scope, presses }) => presses.length || exitOf(scope))
   };
+}
+function stances() {
+  pageScopes();
+  return namedScopes().flatMap((scope) => {
+    const exit = exitOf(scope);
+    return exit ? [{ scope, exit }] : [];
+  });
 }
 var universalCommandReference = () => offlineInteractive ? void 0 : commands.get(COMMAND_REFERENCE);
 var textEntryScope = () => scopes.get("text entry")?.[0];
@@ -7311,6 +7328,7 @@ export {
   pageRung,
   pageScopes,
   touchPresses2 as touchPresses,
+  stances,
   universalCommandReference,
   textEntryScope,
   allButCommandReference,

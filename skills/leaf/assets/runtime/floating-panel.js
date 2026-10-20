@@ -25,7 +25,8 @@
  *   the notice waits while words stand there. The empty field says what the agent is
  *   doing or wants, in the status's words
  *   (`statusReading`), or what a passing notice says, where a placeholder would say
- *   "Comment"; in a thread it says whose turn it is. A status that reports reads dimmer
+ *   "Comment"; in a stance, such as Draw mode, it names the stance, whose way out is a ✕
+ *   at the row's end; in a thread it says whose turn it is. A status that reports reads dimmer
  *   than anything written, and while the agent works it carries the one sheen that marks
  *   work under way; one that asks the user to act reads in its tone's ink, and pointing
  *   at the field says any status in full. Clicking in gives the placeholder to where
@@ -232,10 +233,12 @@ const OWN_VIEWS = Object.freeze(["leaves", "versions"]);
 const FOLD = "panel.floating.fold";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
 const PICK = "command:target.picker.open";
-// A row the menu or a group lists: neither held elsewhere nor the next step of a
-// gesture, which stands in the counts' place instead.
+// A row the menu or a group lists: neither held elsewhere, nor the next step of a
+// gesture, which stands in the counts' place instead, nor a stance's way out, at the
+// row's end.
 const listed = (entry) =>
   !entry.gesture &&
+  !entry.exit &&
   !HELD_ELSEWHERE.includes(entry.key) &&
   !(entry.key === PICK && advertisesKeys());
 // A browser offers the clipboard only to a secure context (https or localhost), so a
@@ -261,8 +264,9 @@ const capital = (word) => word[0].toUpperCase() + word.slice(1);
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 // What passes in the panel's one seat for words that pass: a notice while one shows,
 // else what the status line says between notices, the Go-to filter's word or a walk's
-// position ("1 of 3 waiting on me · Options"). The user asked on 16 October that whatever
-// is not anchored to the page stand at the panel rather than against the window.
+// position ("1 of 3 waiting on me · Options"). The user asked on 16 October that
+// whatever is not anchored to the page stand at the panel rather than against the
+// window.
 function passing() {
   const notice = noticeReading();
   if (notice.visible) return { message: notice.message, visible: true };
@@ -431,6 +435,9 @@ export function createFloatingPanel({
   lengthWatch.observe(field);
   const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
+  // The way out of the stance the user stands in, at the row's end beside the counts or
+  // a gesture's steps, and there while the user types (touch-controls.js, `stance`).
+  const exitSeat = el("div", "lf-fp-exit-seat");
   // The anchored comment box's home on a page that draws its own annotations
   // (`data-annotations="page"`), where the page gives the box no seat of its own
   // (composing/surface.js, `responseHome`). While its composer is open it stands in the
@@ -442,7 +449,7 @@ export function createFloatingPanel({
   // here. Rejected: a view of its own above the row, which stood a second field over
   // the panel's own.
   const responseSeat = el("div", "lf-fp-response");
-  row.append(leaf, field, responseSeat, rowNoticeSeat, quick);
+  row.append(leaf, field, responseSeat, rowNoticeSeat, quick, exitSeat);
 
   const CONNECTING = {
     tone: "",
@@ -521,15 +528,24 @@ export function createFloatingPanel({
   // can say; once the caret is in a field that takes words, where they go; a passing
   // notice while one stands; a resolved thread's way back; else on the page what the
   // agent is doing or wants, in the status's words, and in a thread whose turn it is.
+  // On the page, the stance the user stands in, such as Draw mode, heads a passing
+  // notice and takes the status's place (keyboard/status-context.js); the leaf keeps
+  // the status's colour.
   function fieldReading(key, input) {
     const [error] = sayable();
     if (error) return { says: "error", words: error.message };
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
       return { says: "destination", words: whereTo(key) };
+    const stance = key ? null : statusContextReading().stance;
     const notice = passing();
-    if (notice.visible) return { says: "notice", words: notice.message };
+    if (notice.visible)
+      return {
+        says: "notice",
+        words: stance ? `${stance} · ${notice.message}` : notice.message,
+      };
     if (thread?.resolved) return { says: "turn", words: "Resolved · reopen to reply" };
+    if (stance) return { says: "stance", words: stance };
     if (!key) return { says: "status", words: status().summary };
     if (!thread) return { says: "turn", words: "Reply…" };
     const agent = agentName();
@@ -2926,10 +2942,28 @@ export function createFloatingPanel({
     keepsHidden(rowNoticeSeat, !standing);
     render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
 
-    // The next step of what the user is doing now, such as leaving Draw mode or
+    // The next step of what the user is doing now, such as walking a search's matches or
     // commenting on the words a finger selected, stands in the counts' place while that
     // gesture holds it (page-controls.js, `gesture`).
     const steps = rows().filter((entry) => entry.gesture);
+    const exit = rows().find((entry) => entry.exit);
+    render(
+      exit
+        ? html`<button
+            type="button"
+            class="lf-fp-chip lf-fp-exit"
+            aria-label=${exit.label}
+            title=${exit.label}
+            ?disabled=${exit.disabled}
+            @mousedown=${(event) => event.preventDefault()}
+            @click=${() => exit.press()}
+          >
+            ${iconTemplate("cross", "lf-action-icon")}
+          </button>`
+        : nothing,
+      exitSeat,
+    );
+    keepsHidden(exitSeat, !exit);
     keeps(quick, "data-steps", steps.length ? "" : null);
     if (steps.length) {
       render(

@@ -1,6 +1,7 @@
 import {
   ELEMENTS,
   pageScopes,
+  stances,
   textEntryScope,
   universalCommandReference
 } from "./bundle-user-intent.js";
@@ -177,6 +178,7 @@ var userIn = (scope) => {
   return !scope.at || scope.at();
 };
 var standing = (scope) => userIn(scope) && pageHas(scope);
+var innermostStance = () => stances().find(({ scope }) => standing(scope)) ?? null;
 var nativeBoundary = (claims) => ({
   get rows() {
     const reference = universalCommandReference();
@@ -480,6 +482,7 @@ export {
   sampleNotice,
   userIn,
   standing,
+  innermostStance,
   stack,
   keyReady,
   dispatchKey,

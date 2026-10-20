@@ -1595,7 +1595,7 @@
   color: var(--ok-ink);
 }
 @media screen {
-  :where(:scope:is(lf-tabs).lf-rendered) {
+  :where(:scope:is(lf-tabs).lf-rendered, html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab)) {
     margin: var(--sp-4) 0 32px;
     border: 1px solid var(--border-2);
     border-radius: var(--r);
@@ -1620,14 +1620,16 @@
     --lf-tabstrip-press: 36px;
     --lf-more-fade-to: #000;
   }
-  :scope:is(lf-tabs).lf-rendered > lf-tab::before {
+  :scope:is(lf-tabs).lf-rendered > lf-tab::before,
+  html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab) > lf-tab::before {
     content: none;
   }
   :scope:is(lf-tabs).lf-rendered > lf-tab {
     margin: 0;
     padding: 0;
   }
-  :scope:is(lf-tabs).lf-rendered > lf-tab:not([hidden]) {
+  :scope:is(lf-tabs).lf-rendered > lf-tab:not([hidden]),
+  html[data-lf-interactive] :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab) > lf-tab {
     padding: var(--sp-4);
     --lf-block-frame: 1;
   }
@@ -1670,13 +1672,15 @@
   :scope:is(lf-tabs)[list=side]:has(> lf-tab [data-lf-awaits]) {
     --lf-tab-outcome-h: var(--lf-tab-summary-h);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered {
+  :scope:is(lf-tabs)[list=side].lf-rendered,
+  html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab) {
     container-type: inline-size;
     display: grid;
     grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
     align-items: start;
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip,
+  html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab)::before {
     grid-column: 1;
     grid-row: 1;
     --lf-tabstrip-flow: column;
@@ -1763,12 +1767,14 @@
   :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-group {
     padding: 4px 12px 2px;
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > lf-tab {
+  :scope:is(lf-tabs)[list=side].lf-rendered > lf-tab,
+  html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab) > lf-tab {
     grid-column: 2;
     grid-row: 1;
   }
   @container (width < 36rem) {
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip {
+    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip,
+    html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab)::before {
       grid-column: 1 / -1;
       grid-row: auto;
       --lf-tabstrip-flow: row;
@@ -1781,7 +1787,8 @@
       border-bottom: 1px solid var(--border-2);
       border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip {
+    :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip,
+    html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab)::before {
       min-block-size: calc(var(--lf-tabstrip-h) + var(--lf-tab-context-h) + var(--lf-tab-outcome-h));
     }
     :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-btn {
@@ -1811,7 +1818,8 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    :scope:is(lf-tabs)[list=side].lf-rendered > lf-tab {
+    :scope:is(lf-tabs)[list=side].lf-rendered > lf-tab,
+    html[data-lf-interactive] :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab) > lf-tab {
       grid-column: 1 / -1;
       grid-row: auto;
     }
@@ -1842,7 +1850,7 @@
       --lf-holds-height: 1;
     }
   }
-  :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page]) {
+  :where(:scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page], html[data-lf-interactive] body > main > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab)) {
     margin-block: 0 32px;
     min-block-size: calc(100dvh - var(--lf-top));
     border: 0;
@@ -1947,7 +1955,8 @@
   .lf-tabstrip-scroll[data-to=end]:dir(rtl) > span::before {
     content: "‹" / "";
   }
-  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]) {
+  :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]),
+  html[data-lf-interactive] body > main > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab) > lf-tab {
     padding: var(--sp-4) 0 0;
     --lf-block-frame: trim;
   }
@@ -1959,7 +1968,8 @@
     pointer-events: none;
   }
   @container style(--lf-full-height: 1) {
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] {
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page],
+    html[data-lf-interactive] body > main > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab) {
       display: flex;
       flex-direction: column;
       min-block-size: 0;
@@ -1968,33 +1978,30 @@
       padding: 0 var(--focus-ring-room) var(--focus-ring-room);
       --lf-full-height: inherit;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > .lf-tabstrip {
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > .lf-tabstrip,
+    html[data-lf-interactive] body > main > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab)::before {
       flex: none;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]) {
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]),
+    html[data-lf-interactive] body > main > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab) > lf-tab[data-lf-opening] {
       flex: 1 0 auto;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]):has(> :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]):has(> :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))),
+    html[data-lf-interactive] body > main > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab) > lf-tab[data-lf-opening]:has(> [data-lf-sole-content]) {
       flex: 1 1 0;
       min-block-size: 0;
       display: flex;
       flex-direction: column;
       --lf-full-height: inherit;
     }
-    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]) > :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)) {
+    :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=page] > lf-tab:not([hidden]) > :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template)),
+    html[data-lf-interactive] body > main > :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab) > lf-tab[data-lf-opening] > [data-lf-sole-content] {
       flex: 1 1 0;
       margin-block: 0;
     }
   }
   @scope (html[data-lf-interactive] :scope) {
-    :where(:scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab)) {
-      margin: var(--sp-4) 0 32px;
-    }
     :scope:is(lf-tabs):not(.lf-rendered):has(> lf-tab) {
-      border: 1px solid var(--border-2);
-      border-radius: var(--r);
-      background: var(--card);
-      --lf-block-frame: 1;
       &::before {
         content: "";
         display: block;
@@ -2002,98 +2009,15 @@
         block-size: var(--lf-tabstrip-h);
         border-bottom: 1px solid var(--border-2);
       }
-      & > lf-tab {
-        padding: var(--sp-4);
-        --lf-block-frame: 1;
-      }
-      & > lf-tab::before {
-        content: none;
-      }
       & > lf-tab:not([data-lf-opening]) {
         display: none;
       }
     }
   }
   @scope (html[data-lf-interactive] body > main > :scope) {
-    :where(:scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab)) {
-      margin-block: 0 32px;
-    }
-    :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab) {
-      border: 0;
+    :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab)::before {
       border-radius: 0;
-      background: transparent;
-      min-block-size: calc(100dvh - var(--lf-top));
-      --lf-block-frame: 0;
-      &::before {
-        border-radius: 0;
-        background: var(--paper);
-      }
-      & > lf-tab {
-        padding: var(--sp-4) 0 0;
-        --lf-block-frame: trim;
-      }
-    }
-    @container style(--lf-full-height: 1) {
-      :scope:is(lf-tabs):not(.lf-rendered):nth-child(1 of lf-tabs):not([list=side]):has(> lf-tab) {
-        display: flex;
-        flex-direction: column;
-        min-block-size: 0;
-        margin-block: 0;
-        --lf-full-height: inherit;
-        &::before {
-          flex: none;
-        }
-        & > lf-tab[data-lf-opening] {
-          flex: 1 0 auto;
-        }
-        & > lf-tab[data-lf-opening]:has(> :nth-child(1 of :not(script, style, template)):nth-last-child(1 of :not(script, style, template))) {
-          flex: 1 1 0;
-          min-block-size: 0;
-          display: flex;
-          flex-direction: column;
-          --lf-full-height: inherit;
-        }
-        & > lf-tab[data-lf-opening] > [data-lf-sole-content] {
-          flex: 1 1 0;
-          margin-block: 0;
-        }
-      }
-    }
-  }
-  @scope (html[data-lf-interactive] :scope) {
-    :scope:is(lf-tabs)[list=side]:not(.lf-rendered):has(> lf-tab) {
-      container-type: inline-size;
-      display: grid;
-      grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr);
-      align-items: start;
-      &::before {
-        grid-column: 1;
-        grid-row: 1;
-        align-self: stretch;
-        border-bottom: 0;
-        border-inline-end: 1px solid var(--border-2);
-        border-radius: calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);
-      }
-      & > lf-tab {
-        grid-column: 2;
-        grid-row: 1;
-      }
-      @container (width < 36rem) {
-        &::before {
-          grid-column: 1 / -1;
-          grid-row: auto;
-          border-inline-end: 0;
-          border-bottom: 1px solid var(--border-2);
-          border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
-        }
-        &::before {
-          block-size: calc(var(--lf-tabstrip-h) + var(--lf-tab-context-h) + var(--lf-tab-outcome-h));
-        }
-        & > lf-tab {
-          grid-column: 1 / -1;
-          grid-row: auto;
-        }
-      }
+      background: var(--paper);
     }
   }
   :scope:is(lf-parts).lf-rendered > lf-part {

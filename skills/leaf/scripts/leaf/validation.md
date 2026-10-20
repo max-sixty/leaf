@@ -44,6 +44,13 @@ check that way; anything needing a browser belongs in the command's browser half
 The effective registry is validated where it differs from the active revision's
 captured copy, which was validated when that revision activated; vendored sheets are
 validated when `page init` composes them, not on each check.
+
+Progress messages admit their text and work start against the active revision,
+without checking or publishing mutable source. Failure reports also use the
+active revision, including for markup and anchor moves. Detaching a thread still
+checks saved source, and completed successful replies retain the
+source-publication checks below.
+
 The publisher additionally preflights the admitted reply or stamp's complete
 prospective log, so every thread it reopens is covered, and reads candidate
 passages at the candidate revision's cutoff. Required transitions journal the

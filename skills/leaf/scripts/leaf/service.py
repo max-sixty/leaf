@@ -27,7 +27,7 @@ from leaf.event_log import (
     read_cursor,
 )
 from leaf.files import read_json, unfinished_publications
-from leaf.interaction_log import session_context
+from leaf.interaction_log import append_interactions, session_context
 from leaf.machine import pid_alive, sandbox_remedy, state_home
 from leaf.refusals import Refused
 from leaf.schema import STATUS_FILE
@@ -527,10 +527,43 @@ class PageTransaction:
         reservations = self._reserved(stream, session_id, responds, attempt, turn_id)
         if previous == reply and reservations == stream.get("reply_reservations"):
             return
-        stream["reply"] = reply
         stream["reply_reservations"] = reservations
+        self._publish_stream_reply(status, stream, previous, reply)
+
+    def _publish_stream_reply(
+        self, status: dict, stream: dict, previous: dict, reply: dict
+    ) -> None:
+        """Publish provisional words and record their availability, not visibility.
+
+        A nonblank transition records no text. Reconnects may repeat it; readers
+        select the first observation for the exact input and attempt.
+        """
+        stream["reply"] = reply
         status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
+        if reply["text"].strip() and (
+            not previous.get("text", "").strip()
+            or any(
+                previous.get(key) != reply[key]
+                for key in ("session", "turn", "attempt", "responds")
+            )
+        ):
+            append_interactions(
+                self.page_dir,
+                [
+                    {
+                        "source": "server",
+                        "type": "reply_stream_words",
+                        "input_id": reply["responds"],
+                        "reply_to": reply["reply_to"],
+                        "attempt": reply["attempt"],
+                        "session": reply["session"],
+                        "turn": reply["turn"],
+                        "agent": reply["agent"],
+                        "context": session_context(reply["session"], self.claim),
+                    }
+                ],
+            )
 
     def reserve_delivery_reply(
         self,
@@ -607,9 +640,7 @@ class PageTransaction:
         }
         if finished == reply:
             return True
-        stream["reply"] = finished
-        status["stream"] = stream
-        write_json(self.page_dir / STATUS_FILE, status)
+        self._publish_stream_reply(status, stream, reply, finished)
         return True
 
     def clear_delivery_reply_reservation(

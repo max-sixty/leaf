@@ -4,6 +4,7 @@
 # This is a guard, not a separating measurement: the read-only eval loads the
 # normal Leaf skill on both arms, while hosted disables it. The live hosted
 # journey separately checks execution with the hosted model and tool transcript.
+# The prompt names no reference path, so each arm selects its own shipped contract.
 description: app-server-edit-before-final
 metadata:
   purpose: "App Server: a saved page edit is checked while the model can still correct it."
@@ -19,9 +20,8 @@ vars:
     passed its deployment checks. Record that on the board, and tell me when it's
     done." You already sent the opening message and saved an index.html edit
     adding the release to the board. A shell read confirmed the hash is present.
-    The task follows references/harness-codex-app-server.md. The hosted harness
-    serves the page and handles its status, so run no server, watcher or status
-    operation. No checkpoint was requested.
+    The hosted harness serves the page and handles its status, so run no server,
+    watcher or status operation. No checkpoint was requested.
 
     Read the contract and write the remaining steps you would take before ending
     the turn. Only reading instructions runs here; show any commands you would

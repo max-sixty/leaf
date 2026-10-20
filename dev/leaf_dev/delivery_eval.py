@@ -160,7 +160,7 @@ def execute_scenario(
                         if not ready:
                             continue
                         client = PageClient(live.url)
-                        attempt = f"delivery-eval-{move['name']}"
+                        attempt = f"delivery-eval-input-{move['name']}"
                         current = client.post(
                             {
                                 "kind": "comment",

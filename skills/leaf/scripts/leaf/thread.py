@@ -623,8 +623,9 @@ def _compose_and_append(
     title: str | None,
 ) -> dict:
     """Check the reply's content against the page, compose its event and append it
-    at `obligation`, publishing saved page edits first where `validate_source` or a
-    detach reads them."""
+    at `obligation`. Successful replies publish saved edits when `validate_source`
+    requests it. Progress and failure reports use the active revision; detaching
+    still checks saved source."""
     page_dir, events = page.page_dir, page.events
     to, thread_id, responds, in_hand = obligation
     opening = _messages(events)[thread_id]
@@ -647,7 +648,7 @@ def _compose_and_append(
     prospective_anchor = None
     source_events = events
     checked = None
-    if validate_source or detach:
+    if (validate_source and not ephemeral and failure is None) or detach:
         if relocating:
             source_events = [
                 *events,
@@ -699,7 +700,9 @@ def _compose_and_append(
             quote,
             section,
             part,
-            revision=reply_revision,
+            revision=require_revision(page_dir)
+            if failure is not None
+            else reply_revision,
             transaction=page,
         )
     elif detach:

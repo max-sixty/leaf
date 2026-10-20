@@ -75,8 +75,8 @@ thread may also carry `summary_hint`
 
 Confirm a delivery only once every part is in context, by following its
 `acknowledge` instruction, which a pointer shows on its last part. Reading it again
-does not confirm it. Inline hook input and App Server turns arrive with
-`acknowledge: null` because your harness has already confirmed them.
+does not confirm it. Input your harness already confirmed arrives with
+`acknowledge: null`; Codex hook input still requires your explicit confirmation.
 
 Confirming marks the user's updates **Picked up**; it does not answer them.
 

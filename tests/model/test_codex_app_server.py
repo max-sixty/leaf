@@ -10,7 +10,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import psutil
@@ -44,6 +44,7 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
+from leaf import interaction_log as interaction_log_model
 from leaf import leases as leases_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
@@ -52,6 +53,7 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf.refusals import Refused
 from leaf.served_state import page as served_page
+from leaf_dev.commands.response_times import page_timings
 
 
 def test_only_one_turn_reply_can_bind_the_app_server_final_message():
@@ -1479,6 +1481,7 @@ def test_reconnect_recovers_a_completed_delivery_reply(page_dir):
 
 
 def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
+    revisioning_model.activate_source(page_dir)
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "text": "Answer the first turn"},
@@ -1494,6 +1497,34 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
     stream = codex_model.AppServerReplyStream(
         "codex-thread", "turn-1", "delivery-1", target
     )
+    stream.restore(" \n")
+    [initial] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert "first_reply" not in initial["milestones"]
+    for text in ("I am checking.", "I am checking the report."):
+        stream.update(
+            {
+                "message": {
+                    "item": "opening",
+                    "phase": "commentary",
+                    "text": text,
+                    "complete": True,
+                }
+            }
+        )
+    [thread] = served_thread(page_state(page_dir)["browser"])["threads"]
+    assert thread["msgs"][-1]["provisional"]
+    assert thread["msgs"][-1]["text"] == "I am checking the report."
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == comment["id"]
+    assert marker["attempt"] == stream.attempt
+    assert "text" not in marker
+    [before] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert before["first_reply_kind"] == "stream"
+    assert before["milestones"]["first_reply"]["turn"] == "turn-1"
+    assert "answered" not in before["milestones"]
+    assert "send_to_visible" not in before["milestones"]
     cleanup_model.close_session_turn("codex-thread", "turn-1")
     cleanup_model.open_session_turn("codex-thread", "turn-2")
 
@@ -1508,6 +1539,9 @@ def test_a_completed_stream_reply_survives_the_claim_advancing(page_dir):
         (comment["id"], "First turn reply")
     ]
     assert service_model.page_claim(page_dir)["turn"] == "turn-2"
+    [after] = page_timings(page_dir, since=None, until=datetime.now(UTC))["samples"]
+    assert after["milestones"]["first_reply"] == before["milestones"]["first_reply"]
+    assert after["milestones"]["answered"]["event_id"] == replies[0]["id"]
 
 
 def test_an_interrupted_stream_reply_finishes_after_the_claim_advances(page_dir):
@@ -1694,6 +1728,11 @@ def test_a_streamed_final_rejects_invalid_source_without_stranding_the_draft(pag
         "I made the change.",
         False,
     )
+    [marker] = interaction_log_model.read_interactions(
+        page_dir, types=("reply_stream_words",)
+    )
+    assert marker["input_id"] == comment["id"]
+    assert marker["attempt"] == stream.attempt
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )

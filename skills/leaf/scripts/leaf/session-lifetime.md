@@ -327,14 +327,19 @@ unsettled. Every hook effect checks its captured session generation and revision
 including no-ID and same-ID prompt renewal, and the decision to publish is taken under
 that epoch guard.
 
-A hook hands a delivery over inline only when the harness will read all of it. A
-harness reads a hook's output only once it exits, discards it for a hook it times out,
-and Claude Code cuts a large context to a preview, so the hook hands a delivery over
-inline only once it fits, and only once the hook has confirmed every batch while well
-inside its timeout (`hook_transport.CONFIRM_WITHIN`); otherwise it hands over a
-pointer. After reading all its parts, the session confirms receipt with
-`leaf delivery ack`, which shows any refusal the hook met. Every hook envelope's
-`acknowledge` is null. Receipt revalidates current ownership and exact event
+A Claude Code or Pi hook hands a delivery over inline only when the harness will
+read all of it. A harness reads a hook's output only once it exits, discards it for
+a hook it times out, and Claude Code cuts a large context to a preview, so these
+hooks hand a delivery over inline only once it fits, and only once the hook has
+confirmed every batch while well inside its timeout
+(`hook_transport.CONFIRM_WITHIN`); otherwise they hand over a pointer. A Codex hook
+hands over the complete envelope as one line of JSON, or a pointer above Codex's
+context limit (`codex.HOOK_CONTEXT_BYTES`). Inline input carries the explicit reader
+acknowledgement that `delivery.reader_envelope` also gives a pointer reader.
+Neither printing nor reading Codex hook output confirms it; discarded output leaves
+the same frozen delivery pending for the idle adapter. After reading all input,
+the session follows its `acknowledge` instruction with `leaf delivery ack`.
+Receipt revalidates current ownership and exact event
 identities under page→session locks held through pickup and cursor commit, batch by
 batch, so a page the session no longer holds keeps its input pending. Hook and
 provider receipt observe an open turn and cannot open or replace one. Explicit reader

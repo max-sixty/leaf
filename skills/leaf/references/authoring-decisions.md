@@ -18,11 +18,13 @@ a record or system page, put each decision in the part of the page it decides: a
 decision about one entry goes with that entry, and one that turns on a claim contains
 the claim and its evidence. Only a decision about the whole record comes last.
 
-An `lf-ask` keeps the prose's width. When it frames a figure above its options, the
-options sit side by side under the figure, so question, figure and options share the
-window. Give a table, chart, playground or other wide surface inside an `lf-ask` its
-own `data-width`, such as `data-width="available"` for a playground that uses every
-column it gets (`page-layout.md`, "Bounds and widths"). A page whose subject is that
+An `lf-ask` keeps the prose's width. When it frames a figure above its options, or its
+options hold pictures of their own, the options sit side by side, so question, evidence
+and options share the window. Each card takes its share of that width, so where the
+pictures need more to be read, give the `lf-options` a `data-width`. Give a table,
+chart, playground or other wide surface inside an `lf-ask` its own `data-width`, such
+as `data-width="available"` for a playground that uses every column it gets
+(`page-layout.md`, "Bounds and widths"). A page whose subject is that
 surface is a workspace instead (`page-authoring.md`, "Composing a page").
 
 Write decisions the user can answer independently in page order. If a later one depends
@@ -62,11 +64,12 @@ work-item lists too:
 
 - For an interface or behavior choice, make the interaction work inside each option so
   the user can try every alternative.
-- For arrangements or mechanisms nothing can run yet, draw each option, all in one
-  frame at one scale.
-- For a proposal to accept or reject, show today beside the change, in one frame or in
-  the accepting option. A visible fault is a capture marked where it goes wrong, beside
-  a drawing or demonstration of the fix.
+- For arrangements or mechanisms nothing can run yet, draw each option, all in the
+  same frame at one scale.
+- For a proposal to accept or reject, show the change in the accepting option and
+  today in the option that keeps it, so the two stand side by side and each under its
+  own pick. A visible fault is a capture marked where it goes wrong, beside a drawing
+  or demonstration of the fix.
 - For a code or data change, show the text before and after when the text is what the
   user judges; otherwise show the change's effect before and after, with the code
   beside it.
@@ -74,8 +77,10 @@ work-item lists too:
 - For a change the user would neither see nor need to picture, such as a refactor
   judged by its reasons and cost, give what it gives them in words.
 
-Vary only the treatment in question, and show today's version, or no change, beside them
-as a neutral baseline. Put longer rationale in a disclosure after the decision. The
+Put each option's picture, capture or demonstration inside that option, so nothing can
+pair it with another option. Vary only the treatment in question, and show today's
+version, or no change, in the option that keeps it, or above the options as a neutral
+baseline where none does. Put longer rationale in a disclosure after the decision. The
 `lf-ask`, `lf-options` and `lf-option` entries give their markup and presentation.
 
 When the page exists for the user to choose among approaches, organize it around that

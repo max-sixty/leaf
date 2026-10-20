@@ -97,6 +97,56 @@ ACROSS_WIDE_ITEM_PAGE = leaf_page(
 )
 
 
+PICTURED_ITEM = """
+  <lf-ask id="{id}">
+    <h3>Should each item say where it sits in the plan?</h3>
+    <lf-options id="{id}-choice" choose{width}>
+      <lf-option id="{id}-yes"><strong>Show the goal and step</strong> A line over each item.
+        <figure><svg id="{id}-yes-picture" class="drawing" viewBox="0 0 480 240"
+          width="480" height="240" role="img" aria-label="Items under their step">
+          <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></figure>
+      </lf-option>
+      <lf-option id="{id}-no"><strong>Leave the list as it is</strong> Items as today.
+        <figure><svg id="{id}-no-picture" class="drawing" viewBox="0 0 480 240"
+          width="480" height="240" role="img" aria-label="Items as today">
+          <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></figure>
+      </lf-option>
+    </lf-options>
+  </lf-ask>
+"""
+
+
+PICTURED_ITEM_PAGE = leaf_page(
+    "options holding their pictures",
+    "<h1>Plan context</h1>"
+    + PICTURED_ITEM.format(id="pictured", width="")
+    + PICTURED_ITEM.format(id="widened", width=' data-width="wide"'),
+)
+
+
+def test_options_holding_pictures_lay_across(browser, serve):
+    """An item whose options each hold a picture of what choosing it gives, with no
+    figure before them, sets the cards side by side, so each picture stands over its
+    own pick and the two compare in one row. A group given `data-width` lays them
+    across its own width, where each picture draws at the size it was written."""
+    page = open_page(browser, serve(PICTURED_ITEM_PAGE))
+    resized(page, 1440, 900)
+    at = page.evaluate(
+        """() => Object.fromEntries(['pictured', 'widened'].map((id) => {
+          const box = (s) => document.getElementById(`${id}-${s}`).getBoundingClientRect();
+          return [id, {
+            tops: ['yes', 'no'].map((s) => Math.round(box(s).top)),
+            lefts: ['yes', 'no'].map((s) => Math.round(box(s).left)),
+            pictures: ['yes', 'no'].map((s) => Math.round(box(`${s}-picture`).width)),
+          }];
+        }))"""
+    )
+    for id in ("pictured", "widened"):
+        assert at[id]["tops"][0] == at[id]["tops"][1], at
+        assert at[id]["lefts"][0] < at[id]["lefts"][1], at
+    assert at["widened"]["pictures"] == [480, 480], at
+
+
 ACROSS_GEOMETRY = """(id) => {
   const box = (suffix) => document.getElementById(`${id}-${suffix}`).getBoundingClientRect();
   const cards = ['7', '30', '90'].map(box);

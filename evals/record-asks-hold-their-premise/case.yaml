@@ -48,6 +48,45 @@ assert:
       Fail if the figure or the numbered steps and demo stand before the `lf-ask`, with
       the `lf-ask` holding little more than the question and its options.
 variants:
+  # From session 498a60e2, whose decision on plan context put its two captures in a
+  # table above the options, so nothing tied each capture to its option. The user
+  # asked "why aren't the images within the options?"
+  option-captures:
+    metadata:
+      purpose: "Choices: each option's capture stands inside that option, today's in the option that keeps it, at a width it can be read."
+    vars:
+      prompt: |
+        Write the decision section of a Leaf page about drawing an agent's plan in
+        Leaf's floating panel. The user decides whether each item on their On me list
+        should carry a muted line naming the plan goal and step it belongs to, such
+        as "Ship the reconnect fix · step 3 of 5". You recommend adding the line.
+
+        You captured the panel's On me view both ways from the same page and log,
+        at 2x, each 540 CSS pixels wide:
+        - `/media/5c2f172f22c9e701.png`, 540 by 259: On me today, with "How should
+          retries back off" and its choices, and "Try the build" with Done.
+        - `/media/1caf95f363a5d13d.png`, 540 by 297: the same list with each item
+          headed "Ship the reconnect fix, step 3 of 5" and "step 4 of 5".
+
+        The page directory is not reachable here, so reply with the section's HTML.
+        Read the lf-ask, lf-options and lf-option registry entries before writing it.
+    assert:
+      - type: llm-rubric
+        metric: captures-in-options
+        value: |
+          Pass only if the decision offers adding the line and leaving On me as it
+          is, and each capture's `<img>` stands inside the `lf-option` whose choice
+          it shows: the capture with the plan line inside the option that adds it,
+          and today's capture inside the option that leaves On me as it is. Fail if
+          either capture stands outside the `lf-options`, such as in a table or
+          figure before or after it, even when an option also refers to it.
+      - type: llm-rubric
+        metric: captures-readable
+        value: |
+          Pass only if the block holding the captures is granted width past the
+          reading column: `data-width="wide"` or `data-width="available"` on the
+          `lf-options` that holds them, or on the table or figure that holds them.
+          Fail if no block holding a capture carries `data-width`.
   compact-values:
     metadata:
       purpose: "Choices: a value that names the whole outcome stays a compact label."

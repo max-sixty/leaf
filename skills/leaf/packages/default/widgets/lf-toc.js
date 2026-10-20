@@ -24,6 +24,10 @@
  * landing band changes. Where the browser has no scroll timeline (Firefox), the same
  * keyframes run as a paused animation whose time each scroll's paint sets, so the lens
  * follows a frame behind the scroll, still writing nothing to the page.
+ * The lens and the current entry follow the scroller of the document the outline
+ * covers, not the scroller of the box the widget stands in. A sidebar's sticking track
+ * scrolls only its own contents and usually stands at its scroll end, so an outline
+ * that read it marked the last section as current at every scroll.
  * ResizeObserver hears late diagrams, images, disclosures, and width changes in the
  * document, and the height of the track the rows are laid into, which the page's chrome
  * can shorten without the document moving at all; a widget whose view rearranges
@@ -116,7 +120,7 @@ customElements.define(
 
     connectedCallback() {
       const main = outlineDocument(this);
-      if (!once(this) && main === this.#main && scrollerFor(this) === this.#scroller)
+      if (!once(this) && main === this.#main && scrollerFor(main) === this.#scroller)
         return;
       // Moving to another reading region changes the resources, even if the
       // arrival batch keeps this element connected throughout the move.
@@ -174,7 +178,7 @@ customElements.define(
     #watch(signal) {
       this.#main = outlineDocument(this);
       if (!this.#main) return;
-      this.#scroller = scrollerFor(this);
+      this.#scroller = scrollerFor(this.#main);
       // Root scrolling is reported on Document; nested scrollports report on the
       // element itself. Keep one paint path while using the platform's event target for
       // each kind of scroller.

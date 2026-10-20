@@ -8,9 +8,12 @@ from interact_support import (
     add_test_widget,
 )
 from leaf import render_checks as render_checks_model
+from leaf.files import latest_revision
 from leaf.findings import Finding
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.preview import preview_server
+from leaf.revision_artifact import read_revision
 from playwright.sync_api import expect
 from render_cases_interaction import (
     CHANGE_SHAPES_PAGE,
@@ -820,7 +823,8 @@ def test_page_fixture_renders(browser, serve, source):
     still_page of it comes back from every journey as it was.
 
     The gate (render_gate.version.render_version) is the pass `page check --render`
-    runs on agent-authored pages, so this sweep also proves the gate a user's page
+    runs on agent-authored pages, served as that command serves it, from a read-only
+    capture (`preview_server`), so this sweep also proves the gate a user's page
     goes through: in both color schemes, no fail-soft error box, no console warning or
     error, every visible widget occupies real space, no sideways scroll, no unmarkable
     elements or undeclared text nodes under widget chrome. A widget that upgrades into
@@ -855,7 +859,11 @@ def test_page_fixture_renders(browser, serve, source):
     starting narrow needs a page that first painted narrow, so that journey gets a
     page of its own."""
     url = serve(source)
-    gate = render_gate_model.render_version(browser, url).failures
+    revision = latest_revision(serve.page_dir)
+    with preview_server(
+        serve.page_dir, read_revision(serve.page_dir, revision).document, revision
+    ) as preview:
+        gate = render_gate_model.render_version(browser, preview).failures
     # Reduced motion, which the still_page asks for, also holds the sort film still
     # while the scroll pass measures its writes.
     page = still_page(browser, url, width=RESIZE_PATH[0])

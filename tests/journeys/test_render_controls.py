@@ -2312,6 +2312,7 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
     expect(title).to_be_focused()
 
 
+@pytest.mark.watch_shifts
 def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, serve):
     """Axe covers semantic failures the render gate cannot see: an unnamed control,
     an invalid role relationship, or a contrast failure can occupy a perfectly good

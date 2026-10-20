@@ -53,6 +53,7 @@ from browser.startup import HELD_KEYS_PAGE, _hold_startup
 from browser.threads import open_panel_thread
 
 
+@pytest.mark.watch_shifts
 def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
     """Authored iframe markup opens a durable version rather than a practice copy."""
     url = live_url(serve(FEATURE_GALLERY))

@@ -638,6 +638,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
     }
 
 
+@pytest.mark.watch_shifts
 def test_the_feature_gallery_s_margin_atlas_and_layer_samples(browser, serve):
     """The gallery draws every kind of margin entry at once, and opening it is the
     suite's most expensive page open, so its readings share one page: the unchanged
@@ -874,7 +875,11 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     sample = page.locator("#bg-margin-layer-status")
     sample.scroll_into_view_if_needed()
     child = sample.frame_locator("iframe")
-    status = child.locator('.lf-margin-entry[data-lf-kinds="sent"]')
+    # The receipt reads Sent, and Waiting for pickup two minutes after the gallery
+    # opened, which a slow runner can reach by now; either pins the same way.
+    status = child.locator(
+        '.lf-margin-entry:is([data-lf-kinds="sent"], [data-lf-kinds="waiting"])'
+    )
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
     expect(child.get_by_role("button", name="On me", exact=True)).to_be_visible()

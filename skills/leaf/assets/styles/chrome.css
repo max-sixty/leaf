@@ -766,6 +766,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     padding: 3px 0;
     vertical-align: top;
   }
+  /* A walk lands a command's row (command-reference.js), and the command's ring stands
+     past the row's edge, so the row keeps the ring's room as a landing's margin. */
+  .lf-command-reference tr[data-lf-command] {
+    scroll-margin-block: var(--focus-ring-landing);
+  }
   .lf-command-reference tr.lf-sequence-command td {
     padding-top: 8px;
     border-top: 1px solid var(--rule);

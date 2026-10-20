@@ -95,7 +95,11 @@ it move, each revealing the item nearest. For a vertical move that keeps the sid
 scroll, use `scrollIntoReadingBand(target, holder, block, behavior)`, where `target` is
 an element or a Range and `holder` the element whose regions contain it. Unlike native
 `Element.scrollIntoView`, both stay inside a live sample. Use them only for a deliberate
-move; focusing a visible control or redrawing keeps the scroll.
+move; focusing a visible control or redrawing keeps the scroll. A landing keeps the
+target's `scroll-margin` clear on every side, which is where a focused control's ring
+stands. `fitsWhole(target)` says whether the target and those margins fit the room a
+landing has, so a widget can bring in a heading or label with an item where it fits,
+and the item alone where it does not.
 
 `scrollLimit(box)` is how far a box scrolls down, and `atScrollEnd(box)` whether it is
 there. `landingInsets(scroller)` reads a scroller's `scroll-padding`.

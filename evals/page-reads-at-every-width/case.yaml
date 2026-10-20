@@ -1,0 +1,32 @@
+# From TODO.md, "Measure how often agents produce bad pages": in the layout vocabulary
+# eval every page passed the render gate, yet the judge still found tiny text at 900px
+# and phone defects. Each context authors one ordinary page from a complete task's
+# request, and `page_defects.py` lists the defects a user would notice at three widths
+# beside what `page check` reported and what the author did about it. At e1ed34cec,
+# 23 of 37 pages had a defect outside Leaf's thread chrome (Claude Code 18 of 19,
+# mostly wrong facts; Codex 5 of 18), and the final checks reported 3 of 66 defects.
+# notes/agent-usability-evals.md, "Bad pages and the checks", has the runs.
+description: page-reads-at-every-width
+metadata:
+  purpose: "An ordinary page an agent writes has no defect its user would notice at a
+    wide, a middle or a phone width, with a thread showing."
+  authoring: true
+  tags:
+    - layout
+    - checks
+vars:
+  prompt: file://document/request.md
+assert:
+  - type: python
+    metric: no-noticeable-defect
+    value: file://../dev/leaf_dev/page_defects.py
+variants:
+  dashboard:
+    vars:
+      prompt: file://dashboard/request.md
+  queue:
+    vars:
+      prompt: file://queue/request.md
+  configuration:
+    vars:
+      prompt: file://configuration/request.md

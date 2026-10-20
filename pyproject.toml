@@ -176,8 +176,10 @@ ignore_names = [
   # pytest and its plugins
   "pytest_*",
   "pytestmark",
-  # Promptfoo's Python-provider entry point is called by the external runner.
+  # Promptfoo's Python provider and assertion entry points are called by the external
+  # runner.
   "call_api",
+  "get_assert",
   "image_snapshot_*",
   "show_differences",
   # a subject's module fixture another tier directory's module imports by its alias

@@ -212,7 +212,7 @@
     "runtime/thread/presentation.js": "ac99cb6b448f53904b071280e373672953d775556f6099a698e5e2e853836309",
     "runtime/thread/primary-reader.js": "51c8796949a4b5f30c579193840c039b3b5d0b595ce326d91e2f8ebf4ce87ad4",
     "runtime/thread/reaction-strips.js": "3889e3e548ce26c3496696703750d8d95644a0292692326b78fcfcf486ee5e39",
-    "runtime/thread/read.js": "ab0b926bca375cfdf977705df3fc8f84554d8a481ff819938ba8167e123ea574",
+    "runtime/thread/read.js": "7e10d6b383644eb0086d133eb034334a8646662e4730bf4641d496f38a272f08",
     "runtime/thread/replies.js": "bd5ccc93083b61e0e7be42bf43732a4a5a29919f6807116bdbe9c7b28146981b",
     "runtime/thread/reply-continuity.js": "96ba268026c37f43c5b7a7fbd31d0aebef096fa8e1d506049a4c14be833d2b26",
     "runtime/thread/reply-landing.js": "73b86cddfcf30b3e57dcfd5a2919a815ca3929b592835922c1ccf5baff95bcc0",

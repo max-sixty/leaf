@@ -1472,6 +1472,27 @@ def test_pane_grammar_rejects_misplaced_slots_and_split_content(page_dir):
     ] == [(11, ["p", "p"]), (12, ["#text"])]
 
 
+def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
+    """A page's parts arrange the page themselves, each part's child carrying its own
+    Layout, so a `main` holding them with a Layout of its own is refused; the same
+    parts under a `main` with none pass."""
+    parts = (
+        '<lf-parts id="parts"><lf-part id="read" label="Read">'
+        '<article class="layout-column"><p>Words.</p></article></lf-part></lf-parts>'
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<main>", '<main class="layout-column">' + parts)
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings, "parts-in-layout", "<lf-parts id=parts>", layout="layout-column"
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("<main>", "<main>" + parts))
+    _, findings = check_findings(page_dir)
+    assert not found(findings, "parts-in-layout")
+
+
 def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_dir):
     """A layer that names none colors none, so a page declaring one is asking for
     something it cannot get. The list is therefore read and indexed, never tested for

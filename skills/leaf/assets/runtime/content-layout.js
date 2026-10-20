@@ -62,6 +62,11 @@ function readBreakouts() {
   layoutChanged(pageDocument());
   repaintPage();
 }
+// A part shown or hidden can change which box the page's Layout arranges (prepaint.js,
+// `layoutBox`): a child of `main`, or a child of a part. Read before the frame paints,
+// so the open part stands in its own margin from its first frame.
+const mayHoldLayoutBox = (node) =>
+  node.matches('body > main > *, body > main > [data-lf-views="parts"] > *');
 export function openResidency({ onRead }) {
   readFinished = onRead;
   residencyOpen = true;
@@ -71,6 +76,15 @@ export function openResidency({ onRead }) {
   if (main)
     new MutationObserver((records) => {
       if (
+        records.some(
+          (record) =>
+            record.type === "attributes" &&
+            record.attributeName === "hidden" &&
+            mayHoldLayoutBox(record.target),
+        )
+      )
+        readResidency();
+      else if (
         records.some((record) =>
           record.type === "attributes"
             ? bringsBreakout(record.target)

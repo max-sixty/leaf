@@ -849,6 +849,11 @@ _TEXT = {
     "loose-text": lambda at, v: (
         f"{_line(at, v)}: loose text between its members isn't allowed"
     ),
+    "parts-in-layout": lambda at, v: (
+        f"{_line(at, v)}: stands in a <main> that carries {v['layout']}; a page of"
+        " parts needs a <main> with no Layout, since each part's child carries its"
+        ' own (page-layout.md, "A page of parts")'
+    ),
     "pane-ends": lambda at, v: (
         f"{_line(at, v)}: x-reading-role {v['role']} admits at most one direct"
         " <header> and one direct <footer>"

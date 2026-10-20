@@ -23,6 +23,10 @@
   slow development. Reduce their runtime and the work needed to run them while
   preserving useful coverage. `notes/shift-watch-cost.md` records what the
   Stability sensor costs and when a cheaper gate would be worth revisiting.
+  Sharing one page across a test's cases (`tests/AGENTS.md`, "One page for the
+  cases that can share it") reaches only cases that leave the log and the page's
+  own UI alone, so most of the time spent opening pages needs each opening to
+  cost less.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -224,9 +228,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
-  `page-layout.md` asks an author to trim or split
-  ([why a workspace doesn't scroll](notes/chrome-and-covers.md#decided-a-workspace-is-a-screen)).
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
@@ -325,11 +326,6 @@ that changes size after first paint, with its cause.
   then move them, since each row's share is the module's measurement of the document
   (`#measure` in `lf-toc.js`); taking that measurement once the document has parsed
   would put them in place.
-- **Check that margin markers paint in place in their first frame.** The shift watch
-  exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
-  startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
-  frame and then moved would fail nothing. Read `leaf-dev probe`'s startup readings on
-  a page with margin markers at a few widths.
 - **Fold a thread summary without moving the messages it covers.** Folding moves
   the covered messages into `.lf-summary-originals` (`thread-card.js`), so a text
   selection inside them is lost in Chromium, Firefox and WebKit, and WebKit, which
@@ -403,9 +399,6 @@ on 2026-10-07.
 
 ### The agent's text interface
 
-- **Answer a comment that arrived before the page changed hands.** Its new owner
-  has no delivery to answer it from. A command that hands out a fresh recovery
-  delivery for it would give one.
 - **Decide whether an owed answer may continue a turn whose answer is written.**
   Where a watch follows the turn, Stop no longer hands new input into it
   (`hook_transport`), but it still continues the turn once for an update picked up

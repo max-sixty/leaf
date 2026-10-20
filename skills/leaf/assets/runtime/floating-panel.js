@@ -28,10 +28,13 @@
  *   "Comment"; in a stance, such as Draw mode, it names the stance, whose way out is a ✕
  *   at the row's end; in a thread it says whose turn it is. A status that reports reads dimmer
  *   than anything written, and while the agent works it carries the one sheen that marks
- *   work under way; one that asks the user to act reads in its tone's ink, and pointing
- *   at the field says any status in full. Clicking in gives the placeholder to where
- *   the words go, and from then on nothing that passes is said while the caret is in
- *   the field: news, an acknowledgement, a walk's position and Go-to's word go unsaid
+ *   work under way; one that asks the user to act reads in its tone's ink. Pointing at
+ *   the leaf or the empty field says the status, or the field's error, in full in the
+ *   leaf's peek, the box the folded leaf shows, at once and above the row, so it covers
+ *   nothing the user aims at; the panel's review chose that on 19 October over
+ *   nothing on the leaf and the browser's own late tooltip on the field. Clicking in
+ *   gives the placeholder to where the words go, and from then on nothing that passes
+ *   is said while the caret is in the field: news, an acknowledgement, a walk's position and Go-to's word go unsaid
  *   there but for the live region, and the empty field says what still stands once the
  *   caret leaves. An error (errors.js) is no passing word: one about the field's
  *   editor covers its words, as at any box (composing/input.js), and the empty field
@@ -136,6 +139,7 @@ import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { turns } from "./thread/model.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { quoteReading } from "./thread/thread-card.js";
+import { inPageOrder } from "./thread/placement.js";
 import { dismissReply, replyAvailable } from "./thread/replies.js";
 import {
   PAGE_DRAFT,
@@ -275,13 +279,6 @@ function passing() {
 }
 const clock = (at) =>
   new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-// What the leaf's colour says, in a word, at the head of its menu.
-const TONE_WORDS = Object.freeze({
-  working: "Working",
-  listening: "Waiting on me",
-  away: "Away",
-  offline: "Not connected",
-});
 
 export function createFloatingPanel({
   wireInput,
@@ -325,7 +322,11 @@ export function createFloatingPanel({
   const peek = el("div", "lf-fp-peek");
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
-  let peekAsked = false; // the pointer or focus asking the folded leaf's peek to show
+  // The leaf or the field whose pointer or focus asks the leaf's peek to show, and what
+  // the field would have it say: the status, an error's words, or nothing (`paintPeek`).
+  const STATUS = Symbol("status");
+  let peekAsked = null;
+  let fieldSays = null;
   let peekReading = null;
   context.append(contextWords);
   inner.append(opened, context, row);
@@ -811,24 +812,27 @@ export function createFloatingPanel({
     caretToField = true;
     clearRow();
   }
-  // Resolving a thread opened from Threads moves the user on: to the open thread after it, or
-  // before it at the end, standing on its view so `r`, `t` and Escape go on from there;
-  // or, with none left, back to the list. A thread opened from elsewhere goes back to
-  // where it came from. Taking the resolve back, or the log refusing it, stands the
-  // user on its row in Threads, while they have not acted since (folding.js,
-  // `settleThread`).
+  // Resolving a thread opened from Threads moves the user on: to the open thread after it
+  // in the page's order, or before it at the end, standing on its view so `r`, `t` and
+  // Escape go on from there; or, with none left, back to the list. A thread opened from
+  // elsewhere goes back to where it came from. Taking the resolve back, or the log
+  // refusing it, stands the user on its row in Threads, while they have not acted since
+  // (folding.js, `settleThread`).
+  const openThreads = () =>
+    inPageOrder(
+      threads().filter((candidate) => !candidate.resolved),
+      placedAt,
+    );
   function resolveLanding(thread) {
     const route = trail.at(-1);
     const fromThreads = trail.at(-2)?.view === "threads";
-    const at = threads()
-      .filter((candidate) => !candidate.resolved)
-      .indexOf(thread);
+    const at = openThreads().indexOf(thread);
     const mayLand = retainUserIntent();
     let mayRestore = () => false;
     return {
       optimistic: () => {
         if (!mayLand() || trail.at(-1) !== route) return false;
-        const kept = threads().filter((candidate) => !candidate.resolved);
+        const kept = openThreads();
         const next = fromThreads ? (kept[at] ?? kept[at - 1]) : null;
         if (next) {
           open({ view: "thread", thread: next.key }, { replace: true, focus: false });
@@ -1239,8 +1243,8 @@ export function createFloatingPanel({
   // offers, such as the newer version, or a status re-wrapping the head. So while the
   // menu stands it holds what it showed with the first status it said (Connecting… is
   // not yet one). Its rows keep their seats: a row news takes off offer stands
-  // disabled, and one news offers joins at the next opening. Each part of its head under
-  // the word keeps its lines: a later status re-wraps inside them, ending in an ellipsis
+  // disabled, and one news offers joins at the next opening. Each part of its head
+  // keeps its lines: a later status re-wraps inside them, ending in an ellipsis
   // where it runs past them; a part the first status lacked stays out, and one a later
   // status lacks stands blank. Reopening the menu shows everything as it is. Rejected:
   // holding the head's height and scrolling what runs past it, which still moves the
@@ -1514,9 +1518,10 @@ export function createFloatingPanel({
     const groups = Object.keys(GROUPS).filter((group) =>
       all.some((entry) => groupOf(entry) === group && listed(entry)),
     );
-    // The state is said once: in a word, over its one line, and under that only what
+    // The state is said once: its one line, in its tone's ink, and under that only what
     // the status adds to the line (`statusModel`, `adds`), since the menu is reached by
-    // pointer, key and finger alike.
+    // pointer, key and finger alike. Each line names the state itself ("Codex away"),
+    // so no word for the tone stands over it.
     const { tone, summary, summaryParts, adds, addsParts, publication } = status();
     // A published page's introduction keeps its links.
     const explains = publication
@@ -1530,7 +1535,6 @@ export function createFloatingPanel({
       : adds && addsParts
         ? statusParts(addsParts)
         : adds;
-    const word = TONE_WORDS[tone];
     const part = (name, text) =>
       (held ? held[name] : text)
         ? html`<span
@@ -1591,10 +1595,10 @@ export function createFloatingPanel({
         data-tone=${tone || nothing}
         ?data-held=${held !== null}
       >
-        <b>${word ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
-          "summary",
-          word ? (summaryParts ? statusParts(summaryParts) : summary) : "",
-        )}${part("explain", explains)}
+        ${part("summary", summaryParts ? statusParts(summaryParts) : summary)}${part(
+          "explain",
+          explains,
+        )}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
@@ -1776,11 +1780,19 @@ export function createFloatingPanel({
     }`;
   }
 
+  // The rows read in the page's order, the one the `t` walk steps through
+  // (thread/placement.js), so each thread stands among its passage's neighbours. A
+  // search reads a thread's name, its messages and the words it is about, as its head
+  // quotes them (`quoteReading`).
   function shownThreads() {
     const words = query.trim().toLowerCase();
-    return threads().filter((thread) => {
+    const shown = threads().filter((thread) => {
       if (words) {
-        const text = [threadName(thread), ...thread.msgs.map((m) => m.text ?? "")]
+        const text = [
+          threadName(thread),
+          quoteReading(thread, { placedAt })?.label ?? "",
+          ...thread.msgs.map((m) => m.text ?? ""),
+        ]
           .join(" ")
           .toLowerCase();
         return text.includes(words);
@@ -1790,6 +1802,7 @@ export function createFloatingPanel({
       if (filter === "resolved") return thread.resolved;
       return !thread.resolved;
     });
+    return inPageOrder(shown, placedAt);
   }
   function threadsView() {
     const shown = shownThreads();
@@ -1880,6 +1893,7 @@ export function createFloatingPanel({
     const view = shownView();
     return rows && view ? [...view.querySelectorAll(rows)] : [];
   };
+  const threadRows = () => (trail.at(-1)?.view === "threads" ? listRows() : []);
   const openView = () =>
     stage.querySelector('.lf-fp-view[data-view="thread"]:not([data-leaving])');
   const outletOf = () => openView()?.querySelector(".lf-fp-outlet") ?? null;
@@ -2884,20 +2898,20 @@ export function createFloatingPanel({
     // Whose reading the empty field says, which its face follows (`saying`): a status
     // dims, and carries the sheen while the agent works, unless it asks the user to act,
     // such as to nudge the agent in its terminal, which it says in its tone's ink
-    // (`pageStatus`, `asks`). The field's room cuts a long status short, so pointing at
-    // the field says it in full, as the folded leaf's peek does.
+    // (`pageStatus`, `asks`). The field's room cuts a long status, or an error, short,
+    // so pointing at the field says it in full in the leaf's peek (`paintPeek`), while
+    // the field shows it: not while the user writes there or words hide it.
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-tone", status().tone || null);
     keeps(host, "data-asks", status().asks ? "" : null);
-    keeps(
-      field,
-      "title",
-      reading.says === "status"
-        ? status().explanation || status().summary
-        : reading.says === "error"
-          ? reading.words
-          : null,
-    );
+    fieldSays =
+      writing || draftOf(input) !== ""
+        ? null
+        : reading.says === "status"
+          ? STATUS
+          : reading.says === "error"
+            ? reading.words
+            : null;
     // The line over the field says the passing notice the field cannot, while words
     // hide its placeholder with the caret elsewhere and no view is open. While the
     // caret is in the field nothing passing is said there: an error, the one thing
@@ -3095,9 +3109,21 @@ export function createFloatingPanel({
       if (first) focusDestination(first, "move");
     }
   });
-  // The folded leaf's peek says the status in full while the pointer or focus asks for
-  // it, and a passing notice by itself, since a folded panel has no field to say it in.
-  // An error the folded panel holds waits under the leaf's dot.
+  // The leaf's peek says the status in full while the pointer or focus on the leaf asks
+  // for it, folded or in the row, and in the row what the field says cut short while
+  // the pointer is on the field: the status, or an error. It shows at once, where the
+  // browser's own tooltip on the field came late. The leaf's menu says the status
+  // itself, so the peek stands down while the menu stands. Folded, it says a passing
+  // notice by itself, since a folded panel has no field to say it in. An error the
+  // folded panel holds waits under the leaf's dot.
+  const peekAsks = () =>
+    menuOpen
+      ? null
+      : peekAsked === leaf
+        ? STATUS
+        : peekAsked === field && host.dataset.rest !== "mark"
+          ? fieldSays
+          : null;
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice = passing();
@@ -3106,19 +3132,36 @@ export function createFloatingPanel({
     const parts = reading.explanationParts ?? [
       { text: reading.explanation || reading.summary },
     ];
-    if (!folded || !peekAsked || !readingIsContinuous()) peekReading = null;
-    if (folded && peekAsked && !telling && pagePresented()) peekReading ??= parts;
-    render(telling ? notice.message : statusParts(peekReading ?? parts), peek);
-    keeps(peek, "data-shown", telling || (folded && peekAsked) ? "" : null);
+    const asked = peekAsks();
+    const said = asked === STATUS ? parts : asked ? [{ text: asked }] : null;
+    // The status it opened with stands through one exposure, so aging words move
+    // nothing being read; a different thing to say, such as the field's error once the
+    // pointer leaves the focused leaf for it, or a newer error, is said at once.
+    if (!asked || !readingIsContinuous() || peekReading?.asked !== asked)
+      peekReading = null;
+    if (asked && !telling && pagePresented()) peekReading ??= { asked, parts: said };
+    render(
+      telling ? notice.message : statusParts(peekReading?.parts ?? said ?? parts),
+      peek,
+    );
+    keeps(peek, "data-shown", telling || asked ? "" : null);
   }
-  const showPeek = (on) => {
-    peekAsked = on;
-    paintPeek();
+  // A pointer that asks nothing new, such as one passing over a field holding words,
+  // paints nothing: a repaint would register the status's words for exposure again
+  // (`statusParts`).
+  const showPeek = (asker) => {
+    const before = peekAsks();
+    peekAsked = asker;
+    if (peekAsks() !== before) paintPeek();
   };
-  leaf.addEventListener("pointerenter", () => showPeek(true));
-  leaf.addEventListener("pointerleave", () => showPeek(false));
-  leaf.addEventListener("focus", () => showPeek(leaf.matches(":focus-visible")));
-  leaf.addEventListener("blur", () => showPeek(false));
+  for (const asker of [leaf, field]) {
+    asker.addEventListener("pointerenter", () => showPeek(asker));
+    asker.addEventListener("pointerleave", () => showPeek(null));
+  }
+  leaf.addEventListener("focus", () =>
+    showPeek(leaf.matches(":focus-visible") ? leaf : null),
+  );
+  leaf.addEventListener("blur", () => showPeek(null));
   // What stands open, the menu first and then a view, is a step of the page's Escape,
   // taken wherever focus has fallen once the field has been left
   // (`panel.floating.leave`); with nothing open, the page's own foot of the ladder takes
@@ -3498,5 +3541,16 @@ export function createFloatingPanel({
     // Where the reader stood before stepping into the panel, while they are in it
     // (navigation.js, `currentItem`).
     heldPlace: () => (standingIn(host) ? heldStanding : null),
+    // The thread whose row in Threads the pointer is on, and the row Threads draws for
+    // a thread, through which hover links a row and its passage both ways
+    // (anchor-paint.js, `markRow`).
+    hoveredThread: () => {
+      const row = threadRows().find((candidate) => candidate.matches(":hover"));
+      return row ? (threadByKey(row.dataset.key)?.id ?? null) : null;
+    },
+    threadRow: (id) => {
+      const key = threadByKey(id)?.key;
+      return threadRows().find((row) => row.dataset.key === key) ?? null;
+    },
   };
 }

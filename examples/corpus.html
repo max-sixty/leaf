@@ -1435,19 +1435,20 @@
         opacity: 0.45;
         cursor: default;
       }
+      /* The inputs follow the player as a row that wraps. A floated legend is laid
+         out at the row's start as its label rather than drawn on a border. */
       lf-sort-film .sort-inputs {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 6px 16px;
         margin: 0;
-        padding: 8px 12px;
-        border: 1px solid var(--rule);
-        border-radius: var(--r);
-        background: var(--field);
+        padding: 0;
+        border: 0;
       }
       lf-sort-film .sort-inputs legend {
-        padding: 0 4px;
+        float: left;
+        padding: 0;
         color: var(--muted);
         font-size: var(--t-6);
       }
@@ -5457,7 +5458,7 @@ index b856171b57..cfa4f0448e 100644
 
 <lf-tab id="corpus-rust-sort" label="Explain Rust&#x27;s 2016 merge sort">
 <header>
-        <h1>How Rust's 2016 merge sort uses the order already in a slice</h1>
+        <h1>How Rust's 2016 merge sort uses natural runs</h1>
       </header>
       <div id="sort-regions">
         <lf-pane id="sort-stage-pane" label="The sort">

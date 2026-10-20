@@ -19,29 +19,24 @@ export async function initialOutputs() {
     const registry = JSON.parse(
       await readFile(path.join(directory, "registry.json"), "utf8"),
     );
-    const declared = [
-      ...new Set(
-        Object.values(registry).flatMap((entry) =>
-          entry?.["x-initial"] ? [entry["x-initial"]] : [],
-        ),
-      ),
-    ];
-    if (!declared.length) continue;
-    if (declared.length !== 1)
-      throw new Error(`${name} needs a source entry for each initial bundle`);
-    const entry = path.join(directory, "initial.js");
-    const result = await build({
-      entryPoints: [entry],
-      bundle: true,
-      format: "iife",
-      write: false,
-      minify: false,
-      target: "es2022",
-      legalComments: "inline",
-    });
-    const output = path.join("skills/leaf/packages", name, declared[0].slice(1));
-    checkModule(result.outputFiles[0].text, output);
-    outputs.set(output, Buffer.from(result.outputFiles[0].contents));
+    // Each tag's renderer is its own bundle, from `initial/<tag>.js`, so a document
+    // inlines only the renderers of the widgets it holds.
+    for (const [tag, entry] of Object.entries(registry)) {
+      if (!entry?.["x-initial"]) continue;
+      const output = path.join("skills/leaf/packages", name, entry["x-initial"].slice(1));
+      if (outputs.has(output)) throw new Error(`${output} is more than one tag's bundle`);
+      const result = await build({
+        entryPoints: [path.join(directory, "initial", `${tag}.js`)],
+        bundle: true,
+        format: "iife",
+        write: false,
+        minify: false,
+        target: "es2022",
+        legalComments: "inline",
+      });
+      checkModule(result.outputFiles[0].text, output);
+      outputs.set(output, Buffer.from(result.outputFiles[0].contents));
+    }
   }
   return outputs;
 }

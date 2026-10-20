@@ -154,7 +154,7 @@ const entryFields = {
   ),
   presentation_kind: kept(z.enum(["message_words", "working_words", "status_words"])),
   reply_kind: kept(z.enum(["progress", "answer", "failure", "stream", "work"])),
-  surface: kept(z.enum(["panel", "margin"])),
+  surface: kept(z.enum(["panel", "margin", "page", "outlet"])),
   durationMs: kept(z.number()),
   responseStatus: kept(z.number()),
   transferSize: kept(z.number()),

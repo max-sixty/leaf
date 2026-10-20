@@ -1093,8 +1093,8 @@ def test_a_watch_does_not_reopen_for_answered_unreceived_input(
             "recovered answer",
             settlement=thread_model.ProviderFinal("test-final"),
         )
-    assert thread_model.answered_by_reply(
-        events_model.read_events(claimed), source["id"]
+    assert bool(
+        thread_model.successful_replies(events_model.read_events(claimed), source["id"])
     ) is (failure != "turn_failed")
     cleanup_model.close_session_turn("s1")
     observed, waiting = threading.Event(), threading.Event()

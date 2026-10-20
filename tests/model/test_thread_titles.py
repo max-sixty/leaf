@@ -6,10 +6,13 @@ import contextlib
 import json
 import os
 import shutil
+import signal
+import subprocess
 import sys
 import threading
 from pathlib import Path
 
+import psutil
 from interact_support import (
     STATED_TIMEOUT,
     Prose,
@@ -26,6 +29,7 @@ from leaf import event_log as events_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
+from leaf import state as state_model
 from leaf import thread_titles
 
 
@@ -294,9 +298,9 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     either way its page server names the thread as the comment arrives, through an
     App Server of its own that runs none of the user's hooks or MCP servers and
     carries none of the session's identity. That server and its thread start before
-    the comment arrives, as the page server starts serving and again once each title
-    is answered, since starting them is most of a title's time."""
-    claim = record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    the comment arrives, while the Codex session holds the page and again once each
+    title is answered, since starting them is most of a title's time."""
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     assert stamp(page_dir, "first").exit_code == 0
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     servers = []
@@ -309,7 +313,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
     monkeypatch.setattr(thread_titles, "private_app_server", title_server)
     monkeypatch.setattr(thread_titles, "_next_codex_titles", {})
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
-    harness_model.claim_harness(claim).prepare_titles(page_dir)
+    thread_titles.prepare_for_claimant(page_dir)
     wait_for(
         lambda: [m for m in received if m.get("method") == "thread/start"],
         bool,
@@ -394,7 +398,7 @@ def test_a_codex_title_server_that_fails_to_start_leaves_the_title_to_a_new_one(
     """A title server started ahead of the comment that then fails to start,
     whether before the comment or while the comment waits on it, asked nothing, so
     the title is asked on a server started then."""
-    claim = record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
     assert stamp(page_dir, "first").exit_code == 0
     endpoint, _ = titling_app_server(app_server, '{"title": "Export speed"}')
     starts = []
@@ -410,7 +414,7 @@ def test_a_codex_title_server_that_fails_to_start_leaves_the_title_to_a_new_one(
 
     monkeypatch.setattr(thread_titles, "private_app_server", title_server)
     monkeypatch.setattr(thread_titles, "_next_codex_titles", {})
-    harness_model.claim_harness(claim).prepare_titles(page_dir)
+    thread_titles.prepare_for_claimant(page_dir)
 
     status, body = endpoint_model.accept_event(
         page_dir,
@@ -428,6 +432,10 @@ def test_a_codex_title_server_that_fails_to_start_leaves_the_title_to_a_new_one(
         lambda prepared: not prepared,
         failure="the comment never took the prepared server",
     )
+    # The comment's write wakes the page server's follower, which starts the next
+    # title's server only once this title is answered.
+    thread_titles.prepare_for_claimant(page_dir)
+    assert not thread_titles._next_codex_titles
     released.set()
     wait_for(
         lambda: [
@@ -443,6 +451,93 @@ def test_a_codex_title_server_that_fails_to_start_leaves_the_title_to_a_new_one(
         failure="the title was never logged",
     )
     assert record["prepared"] is False
+
+
+# An App Server that opens a title thread and records its pid, so a test can see
+# whether it runs.
+OPENING_CODEX = """\
+#!{python}
+import json, os, sys
+from websockets.sync.server import unix_serve
+
+RESULTS = {{
+    "initialize": {{}},
+    "config/read": {{"config": {{}}}},
+    "thread/start": {{"thread": {{"id": "title-thread"}}}},
+}}
+
+def handle(connection):
+    for raw in connection:
+        message = json.loads(raw)
+        if (result := RESULTS.get(message.get("method"))) is not None:
+            connection.send(json.dumps({{"id": message["id"], "result": result}}))
+
+with open(os.environ["TITLE_SERVERS"], "a") as record:
+    record.write(f"{{os.getpid()}}\\n")
+with unix_serve(handle, sys.argv[3].removeprefix("unix://")) as server:
+    server.serve_forever()
+"""
+
+
+def test_a_codex_title_server_runs_while_a_codex_session_holds_the_page(
+    page_dir, tmp_path, monkeypatch
+):
+    """A page server holds the next title's App Server only for a Codex claimant:
+    it starts one when a Codex session claims a page it already serves, and stops
+    it when a Claude Code session takes the page, which titles with Haiku, or the
+    Codex session ends, rather than leave an idle server of some 100 MB behind."""
+    programs = tmp_path / "programs"
+    programs.mkdir()
+    codex = programs / "codex"
+    codex.write_text(OPENING_CODEX.format(python=sys.executable))
+    codex.chmod(0o755)
+    started = tmp_path / "title-servers"
+    monkeypatch.setenv("TITLE_SERVERS", str(started))
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
+
+    def servers() -> list[int]:
+        return (
+            [int(pid) for pid in started.read_text().split()]
+            if started.exists()
+            else []
+        )
+
+    record_claim(page_dir, id="s1", harness="claude-code", agent="Claude")
+    # The page server's follower, run in a process of its own as it is there.
+    follow = """
+import sys
+from pathlib import Path
+from leaf.thread_titles import follow_claimant
+follow_claimant(Path(sys.argv[1]))
+"""
+    follower = subprocess.Popen([sys.executable, "-c", follow, str(page_dir)])
+    try:
+        endings = {
+            "Claude Code took the page": lambda: record_claim(
+                page_dir, id="s1", harness="claude-code", agent="Claude"
+            ),
+            "the Codex session ended": lambda: state_model.end_session("codex-thread"),
+        }
+        for claims, (ending, end) in enumerate(endings.items(), start=1):
+            record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+            *_, pid = wait_for(
+                servers,
+                lambda pids, claims=claims: len(pids) == claims,
+                failure="no title server started for the Codex claim",
+            )
+            assert psutil.pid_exists(pid)
+            end()
+            wait_for(
+                lambda pid=pid: psutil.pid_exists(pid),
+                lambda running: not running,
+                failure=f"the title server ran on after {ending}",
+            )
+    finally:
+        follower.kill()
+        follower.wait()
+        for pid in servers():
+            if psutil.pid_exists(pid):
+                os.kill(pid, signal.SIGTERM)
 
 
 # Pi's records in `--mode json`: a run that failed and that Pi retries, then the

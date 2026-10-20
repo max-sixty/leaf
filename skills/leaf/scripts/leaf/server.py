@@ -6,6 +6,7 @@ import re
 import secrets
 import time
 from pathlib import Path
+from typing import NoReturn
 
 from .file_changes import page_changes
 from .files import read_json
@@ -146,14 +147,22 @@ def loopback_only(page_dir: Path) -> bool:
         return False
 
 
-def stop_when_service_ends(page_dir: Path) -> None:
-    """Apply desired state and session ownership from inside the server.
+def exit_serving(status: int) -> NoReturn:
+    """End the serving process at once, which closes its listening socket, every
+    accepted keep-alive socket and its live lease together; a graceful `shutdown()`
+    can release the lease while a handler thread still owns an accepted connection.
 
-    The process exits as the shutdown operation. That closes the listening
-    socket, every accepted keep-alive socket, and the live lease together; a
-    graceful `shutdown()` can release the lease while a handler thread still
-    owns an accepted connection.
-    """
+    That exit runs no exit handler, so the App Servers the process started, each in
+    a session of its own, are stopped first (`codex.stop_private_app_servers`)."""
+    from .codex import stop_private_app_servers
+
+    stop_private_app_servers()
+    os._exit(status)
+
+
+def stop_when_service_ends(page_dir: Path) -> None:
+    """Apply desired state and session ownership from inside the server, exiting
+    as the shutdown operation (`exit_serving`)."""
     # Keep the shared native owner through neighboring gallery reads and LRU
     # eviction for this independent supervisor's entire service lifetime.
     _memory = memory_of(page_dir)
@@ -163,7 +172,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
         mark = changes.mark()
         service = read_service(page_dir)
         if not service or not service["enabled"]:
-            os._exit(0)
+            exit_serving(0)
         if service["lifetime"] == "persistent":
             changes.wait(mark, 2.0)
             continue
@@ -180,15 +189,15 @@ def stop_when_service_ends(page_dir: Path) -> None:
                 with PageTransaction(page_dir) as page:
                     service = read_service(page_dir)
                     if not service or not service["enabled"]:
-                        os._exit(0)
+                        exit_serving(0)
                     if service["lifetime"] == "persistent" or page.active_claim:
                         orphaned_at = None
                         continue
-                    os._exit(0)
+                    exit_serving(0)
             except FileNotFoundError:
                 # Deleting the page removes its successful-init identity. The
                 # service has nothing left to preserve and must not recreate it.
-                os._exit(0)
+                exit_serving(0)
         changes.wait(mark, min(2.0, ORPHAN_GRACE_SECS))
 
 

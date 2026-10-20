@@ -31,12 +31,15 @@ fetches the model list, about 0.4 s more. The model then answered in 1.3–2.2 s
 (codex-cli 0.160, gpt-6.1-sol at low effort, load average about 7). A server kept
 running saves only the model list, since each thread connects anew, so asking on a
 server that is already running, the task's own included, would save little. Instead
-each title's server and thread are started before its comment arrives
-(`prepare_codex_title`): when the page server starts serving a Codex session's page,
-and again once each title is answered. A title then took 2.0–2.3 s, against 3.3–3.9 s
-when started on request, as the first title still is on a page server that was
-already serving when a Codex session claimed the page. The cost is an idle App Server
-of about 105 MB for each page server that has served a Codex claimant.
+a page server holds the server and thread the next title is asked on while a Codex
+session holds the page's claim (`prepare_for_claimant`). It starts them when it
+starts serving a Codex session's page or a Codex session claims a page it serves,
+again once each title is answered, and stops them once the claim ends or passes to
+another harness's session, reading the claim on each of the page's writes
+(`follow_claimant`). A claimant that dies without ending its session leaves them
+until the page's next write or its server's exit. A title then took 2.0–2.3 s,
+against 3.3–3.9 s when started on request. The cost is an idle App Server of about
+105 MB for each served page a Codex session holds.
 
 Every harness is sent the same request (`title_request`): a system prompt saying to
 title the thread, then the passage the thread is on and its first spoken message,
@@ -70,6 +73,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -82,10 +86,11 @@ from .codex import (
 )
 from .event_log import EventRefused
 from .events import build_threads, spoken_turns
-from .harness import IDENTITY_VARIABLES
+from .file_changes import page_changes
+from .harness import IDENTITY_VARIABLES, claim_harness
 from .leases import titles_log
 from .revision_artifact import active_enclosing
-from .service import PageTransaction
+from .service import PageTransaction, claim_is_active, page_claim
 from .thread import name_untitled
 from .thread_context import thread_names
 
@@ -476,7 +481,7 @@ class TitleThreadUnopened(Exception):
 class CodexTitleThread:
     """One Codex title's App Server and thread, started from the `codex` on PATH on
     the user's own login and configuration before the request they answer, and
-    stopped once they have answered it (`prepare_codex_title`).
+    stopped once they have answered it or are closed (`prepare_for_claimant`).
 
     The page server's environment is that of whichever session started it, so the
     server is given none of that session's identity."""
@@ -509,7 +514,10 @@ class CodexTitleThread:
                 try:
                     thread_id = open_title_thread(socket, None, page_dir)
                     opened = True
-                    request, deadline = self._request.get()
+                    asked = self._request.get()
+                    if asked is None:
+                        return
+                    request, deadline = asked
                     self._answer.put(ask_title(socket, thread_id, request, deadline))
                 finally:
                     socket.close()
@@ -533,28 +541,61 @@ class CodexTitleThread:
             raise answer
         return answer
 
+    def close(self) -> None:
+        """Stop the server, having asked nothing on it, once its thread is open."""
+        self._request.put(None)
 
-# The thread each page's next Codex title is asked on, started ahead of it.
+
+# The thread each page's next Codex title is asked on, started ahead of it, and how
+# many titles each page is being asked for. The next title's thread starts once none
+# is, so it never competes for the machine with a title being answered.
 _next_codex_titles: dict[Path, CodexTitleThread] = {}
+_asking_codex_titles: Counter[Path] = Counter()
 _next_codex_titles_lock = threading.Lock()
 
 
-def prepare_codex_title(page_dir: Path) -> None:
-    """Start the App Server and thread the page's next Codex title is asked on,
-    unless they are started already."""
+def prepare_for_claimant(page_dir: Path) -> None:
+    """Hold the App Server and thread the page's next title is asked on while, and
+    only while, the page's active claimant asks Codex for its titles
+    (`codex_title`): start them unless they are started or a title is being asked,
+    and stop them once the claim ends or passes to a session of another harness.
+
+    The claim is read under the lock, so of two callers the later reading wins."""
     with _next_codex_titles_lock:
-        if page_dir not in _next_codex_titles:
+        claim = page_claim(page_dir)
+        codex = (
+            claim_is_active(claim)
+            and claim_harness(claim).title_generator() is codex_title
+        )
+        prepared = _next_codex_titles.get(page_dir)
+        if codex and prepared is None and not _asking_codex_titles[page_dir]:
             _next_codex_titles[page_dir] = CodexTitleThread(page_dir)
+        elif not codex and prepared is not None:
+            del _next_codex_titles[page_dir]
+            prepared.close()
+
+
+def follow_claimant(page_dir: Path) -> None:
+    """Prepare the page's next title for its claimant (`prepare_for_claimant`) for
+    as long as this process serves the page, again on each write to the page's
+    inputs, which include its claim and the claimant session's lifecycle
+    (`served_state.reading`)."""
+    while True:
+        changes = page_changes(page_dir)
+        mark = changes.mark()
+        prepare_for_claimant(page_dir)
+        changes.wait(mark, None)
 
 
 def codex_title(request: str, page_dir: Path) -> dict:
-    """Ask Codex for a title on the thread started for it (`prepare_codex_title`),
-    or on one started now where there is none or it failed to start, and start the
-    next title's once this one is answered."""
+    """Ask Codex for a title on the thread started for it (`prepare_for_claimant`),
+    or on one started now where there is none or it failed to start, and prepare
+    the next title's once this one is answered."""
     started = time.monotonic()
     deadline = started + TIMEOUT
     with _next_codex_titles_lock:
         prepared = _next_codex_titles.pop(page_dir, None)
+        _asking_codex_titles[page_dir] += 1
     try:
         reading = None
         if prepared is not None:
@@ -566,7 +607,9 @@ def codex_title(request: str, page_dir: Path) -> dict:
         if reading is None:
             reading = CodexTitleThread(page_dir).ask(request, deadline)
     finally:
-        prepare_codex_title(page_dir)
+        with _next_codex_titles_lock:
+            _asking_codex_titles[page_dir] -= 1
+        prepare_for_claimant(page_dir)
     return {
         **reading,
         "durationMs": round((time.monotonic() - started) * 1000),

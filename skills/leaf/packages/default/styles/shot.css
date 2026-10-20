@@ -461,6 +461,7 @@
   outline: var(--focus-ring);
   outline-offset: 1px;
   border-radius: var(--r);
+  --lf-wears-ring: 1;
 }
 
 @media print {

@@ -680,14 +680,14 @@ customElements.define(
       scrollIntoReadingBand(header, header, "start", scrollBehavior());
     }
 
-    async #review(id, disposition) {
+    #review(id, disposition) {
       if (!this.controller.read().actions.review.available) return;
-      const accepted = await this.controller.dispatch({
+      this.controller.dispatch({
         kind: "action",
         verb: "review",
         detail: { case: id, disposition },
-      })?.delivery;
-      if (accepted) notice(`${DISPOSITION[disposition]} — sent`);
+        says: DISPOSITION[disposition],
+      });
     }
 
     #caseView(record, index, total, remaining) {

@@ -208,6 +208,7 @@
     outline: var(--focus-ring);
     outline-offset: 0;
     border-radius: var(--r);
+    --lf-wears-ring: 1;
   }
   :is(.lf-fp-field, .lf-fp-response) {
     anchor-name: --lf-fp-field;

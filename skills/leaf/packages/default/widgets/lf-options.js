@@ -115,7 +115,6 @@ import {
   quoted,
   reachedForWords,
   rowWalk,
-  notice,
   worksInside,
   wrote,
   focusDestination,
@@ -217,9 +216,9 @@ customElements.define(
         available: () => this.#available("choose"),
         commit: (added, choice, attempt) => {
           if (!this.#available("add") || !this.#available("choose")) return null;
-          const add = this.#dispatch("add", added, attempt);
+          const add = this.#dispatch("add", added, attempt, `Added “${added.text}”`);
           if (!add) return null;
-          const pick = this.#dispatch("choose", choice);
+          const pick = this.#dispatch("choose", choice, null, `Chose “${added.text}”`);
           // A refused `add` answers the draft at once: its words go back to the box
           // while the pick behind it is still in the wire, and the door refuses that
           // pick too, since it names no option the group holds.
@@ -260,11 +259,7 @@ customElements.define(
           : next.has(option)
             ? `Chose “${name}”`
             : `Dropped “${name}”`;
-        this.#dispatch("choose", this.#addition.detailFor(next))?.delivery.then(
-          (ok) => {
-            if (ok) notice(`${said} — sent`);
-          },
-        );
+        this.#dispatch("choose", this.#addition.detailFor(next), null, said);
       });
     }
 
@@ -272,12 +267,13 @@ customElements.define(
       return Boolean(this.reading?.actions[verb]?.available);
     }
 
-    #dispatch(verb, detail, attempt) {
+    #dispatch(verb, detail, attempt = null, says = "") {
       return this.controller?.dispatch({
         kind: "action",
         verb,
         detail,
         ...(attempt && { attempt }),
+        ...(says && { says }),
       });
     }
 
@@ -342,13 +338,10 @@ customElements.define(
       const undo = this.#doneUndo();
       const dispatched = undo
         ? this.controller.dispatch({ kind: "undo", target: undo.attempt ?? undo.id })
-        : this.#dispatch("answer", {});
+        : this.#dispatch("answer", {}, null, "Marked answered");
       if (!dispatched) return Promise.resolve(false);
-      const sent = dispatched.delivery.then((accepted) => {
-        if (!accepted) return false; // reconciliation restored the prior state
-        if (!undo) notice("Marked answered — sent");
-        return true;
-      });
+      // A refusal answers false, and reconciliation has restored the prior state.
+      const sent = dispatched.delivery.then(Boolean);
       this.#answering = sent;
       this.#syncDone();
       const clear = () => {

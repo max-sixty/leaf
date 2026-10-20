@@ -152,9 +152,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     tabs = page.get_by_role("tab")
     expect(tabs.first).to_have_accessible_name("Ticket a")
-    expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
+    expect(tabs.first).to_have_text("Ticket asev a · suggested fixTo answer")
     expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. Unanswered"
+        "sev a · suggested fix. To answer"
     )
     rows = (
         "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
@@ -169,7 +169,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     answer = page.locator("#queue .lf-tab-btn").first.locator(".lf-tab-answer")
     expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("")
+    expect(answer).to_have_text("To answer")
     page.locator("#o-a-fix .lf-pick").click()
     told(page)
     expect(answer).to_be_visible()
@@ -179,7 +179,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         "sev a · suggested fix. Answered: Fix"
     )
     expect(tabs.nth(1)).to_have_accessible_description(
-        "sev b · suggested fix. Unanswered"
+        "sev b · suggested fix. To answer"
     )
     assert page.evaluate(rows) == heights
     page.keyboard.press("Tab")
@@ -228,9 +228,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page.unroute("**/api/event")
     round_trip(page)
     expect(answer).to_have_attribute("data-lf-obligations", "open")
-    expect(answer).to_have_text("")
+    expect(answer).to_have_text("To answer")
     expect(tabs.first).to_have_accessible_description(
-        "sev a · suggested fix. Unanswered"
+        "sev a · suggested fix. To answer"
     )
 
     page.locator("#o-a-fix .lf-pick").click()

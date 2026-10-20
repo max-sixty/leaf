@@ -13,7 +13,7 @@ import {
   projectionRegionsPresented,
   readPart,
 } from "./semantic-state.js";
-import { announce } from "./notifications.js";
+import { announce, notice } from "./notifications.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -165,6 +165,14 @@ export function mountApplication(dependencies) {
 
   commandDispatch.mount({
     afterEnqueue,
+    // A widget's gesture is acknowledged by the name the widget gave it, the name its
+    // undo is announced by too.
+    named: (entry, says) => {
+      undo.retainGesture(entry.event.attempt, { says });
+      void entry.answer.then((admitted) => {
+        if (admitted) notice(`${says} — sent`);
+      });
+    },
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
       raiseError(`Couldn't send — attempt ${attempt} is already in use`),
@@ -214,7 +222,7 @@ export function mountApplication(dependencies) {
   const settlementView = {
     pendingEntries: ledger.snapshot,
     actions: threadActions,
-    retainReversal: undo.retainReversal,
+    retainGesture: undo.retainGesture,
   };
   const reactionView = {
     registerSurface: dependencies.registerReactSurface,

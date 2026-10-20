@@ -7,7 +7,6 @@ import {
   offer,
   saveDraft,
   sendDraft,
-  notice,
   TEXT_FIELD,
   watchDraft,
   whileConnected,
@@ -132,14 +131,13 @@ export class OptionAddition {
    * and the log answers it as the same `add`. The pick is absolute state and needs no
    * such identity. */
   async #submit(text, owns) {
-    const accepted = await sendDraft(this.#context, owns, (attempt, payload) => {
+    await sendDraft(this.#context, owns, (attempt, payload) => {
       const id = `${this.#host.id}-option-${attempt}`;
       const choice = this.#draftChoice(payload);
       const picked = new Set(this.#host.hasAttribute("multiple") ? choice.value : []);
       picked.add(id);
       return this.#commit({ option: id, text }, { value: [...picked] }, attempt);
     });
-    if (accepted) notice(`Added and selected “${text}” — sent`);
   }
 
   detailFor(picked) {

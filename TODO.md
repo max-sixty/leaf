@@ -197,10 +197,11 @@ has tried; settle that before building it.
   show the native selection menu or software keyboard.
 - **Finish what a phone user still cannot reach.** Remove keyboard-only hints,
   hover-only reasons, clipped diagram content, and remaining undersized touch targets.
-  Hover-only today: why Approve version is disabled, and "Press z" once approved; a
-  reaction's word before it is sent; a margin marker's label and its status (Sent,
-  Stalled); the diff's line "+"; and the latest-edit error, a dead passage's reason, a
-  disabled menu row's reason, and the compare state. A finger can't comment on a whole
+  The hover-only reasons left are in Leaf's panel, whose phone design comes first: why
+  a thread view's passage is gone, the compare state, a disabled menu row's reason,
+  and On me's Approve version, whose title alone says why it is refused until a press
+  does, and "Press z" once approved. Outside the panel, a finger
+  holds a control to read its word (`held-word.js`). A finger can't comment on a whole
   block, since the leaf's menu leaves out Select element. A finger also lacks exits a
   key has: a mode's or search's steps take the counts off the panel's row until it ends, Android's back
   gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling

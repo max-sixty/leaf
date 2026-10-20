@@ -251,6 +251,36 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
     expect(next_thread).to_be_focused()
 
 
+def test_a_tap_on_a_reply_link_to_a_missing_section_says_why(browser, serve):
+    """A reply's link to a section the shown version lacks goes nowhere, and its title
+    says why only to a resting pointer. A tap on it says why as an error."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Where did it go?", {"section": "how-cap"})
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": root,
+            "text": "It moved; [see the old section](#removed-section).",
+        },
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    view = open_panel_thread(page, root)
+    link = view.get_by_role("link", name="see the old section")
+    expect(link).to_have_attribute("aria-disabled", "true")
+    link.tap(force=True)  # Playwright taps no aria-disabled control by itself.
+    expect(panel_field(page)).to_have_attribute("data-says", "error")
+    expect(panel_field(page)).to_have_attribute(
+        "placeholder", "§ removed-section isn't in the version shown"
+    )
+    assert not page.url.endswith("#removed-section")
+
+
 @pytest.mark.parametrize("shadow", [False, True], ids=["light", "shadow"])
 def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shadow):
     """A fresh fragment has no focused target or caret, but still names a reading place."""

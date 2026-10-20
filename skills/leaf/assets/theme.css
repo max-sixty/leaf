@@ -986,7 +986,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
     visibility 0s linear 90ms;
 }
 .lf-margin-entry-label-word,
-.lf-margin-entry-context {
+.lf-margin-entry-context,
+.lf-margin-entry-more {
   display: block;
 }
 .lf-margin-entry-label-word {
@@ -994,12 +995,16 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lf-margin-entry-context {
+.lf-margin-entry-context,
+.lf-margin-entry-more {
   margin-block-start: 2px;
   color: color-mix(in srgb, var(--paper) 72%, transparent);
   font-size: 10px;
   line-height: 1.25;
   font-weight: 450;
+}
+.lf-margin-entry-more:empty {
+  display: none;
 }
 .lf-margin-projection .lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
   inset: auto;

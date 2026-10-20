@@ -25,8 +25,9 @@ holds. New input wakes the session: it opens a turn, or joins a running one at i
 next tool result. If the user turned on Leaf's hooks module, the module watches
 instead, and its wake arrives as a message from the leaf plugin.
 
-Leaf's prompt hook, the tool-batch boundary while you work, or Stop as a turn ends
-puts the whole delivery in your context. The tool-batch boundary owns mid-turn
+Leaf's prompt hook, or the tool-batch boundary while you work, puts the whole
+delivery in your context; input that arrives after your last tool call opens the
+next turn. The tool-batch boundary owns mid-turn
 delivery under either watcher. The delivering hook confirms receipt, so `acknowledge`
 is null and you run no acknowledgement command. A delivery the hook could not
 confirm, or one too large for the context, arrives as a pointer instead: read every

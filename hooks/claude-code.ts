@@ -22,23 +22,16 @@
  *   wakes during a turn leaves pending input to the native PostToolBatch
  *   boundary, shared with the default registration. A wake while Stop hooks run
  *   waits for their decision before starting an idle turn. The module never
- *   makes a second mid-turn delivery;
- * - a delivery Leaf's Stop hook hands over inline as a turn ends, which Claude
- *   Code would print in full, goes into the session the same way, and the turn
- *   goes on with one line in its place. The hook's output names that delivery in
- *   a field of its own (`DELIVERY_FIELD` in `hook_transport.py`), which Claude
- *   Code leaves out of what it hands a module, so the module runs Leaf's Stop
- *   hook itself.
+ *   makes a second mid-turn delivery.
  *
  * Once it has Claude Code's parent process, each Stop payload it passes on carries
- * `leaf_watch: "module"`, which stands down both of Leaf's Stop registrations
- * beneath it: the background watch (`hooks/scripts/background-watch.py`) and the
- * Stop hook (`hooks.cmd_hook`). A Claude Code that does not load the module, or a
- * module without that parent process, passes the payload unmarked, so those
- * registrations go on watching and handing over. A native spawn handle does not
- * prove startup: a watch that fails later reports its error and releases the
- * owner's slot. The prompt, SessionStart and SessionEnd registrations do the same
- * work under either watch and stay in `hooks.json`.
+ * `leaf_watch: "module"`, which stands down the background watch beneath it
+ * (`hooks/scripts/background-watch.py`). A Claude Code that does not load the
+ * module, or a module without that parent process, passes the payload unmarked, so
+ * that registration goes on watching. A native spawn handle does not prove startup:
+ * a watch that fails later reports its error and releases the owner's slot. The
+ * prompt, Stop, SessionStart and SessionEnd registrations do the same work under
+ * either watch and stay in `hooks.json`.
  *
  * TODO: once Claude Code loads modules without an opt-in, make this module the
  * only watcher and transport and drop the background Stop registration,
@@ -55,12 +48,8 @@
 import type { EngineInterface, Register } from "claude-code";
 import { WatchOwner } from "./watch.ts";
 
-// `hooks.json`'s timeout for the prompt hook, inside which it confirms what it
-// hands over (`CONFIRM_WITHIN` in `hook_transport.py`).
+// `hooks.json`'s timeout for Leaf's hooks.
 const HOOK_TIMEOUT_MS = 20_000;
-// The line the turn goes on with once the module has appended a delivery.
-const DELIVERED =
-  "Leaf added the page's new input to your context above; answer it before you end the turn.";
 
 type Payload = { hook_event_name: string; session_id: string; ended_at?: number };
 
@@ -80,18 +69,8 @@ function launcher($: EngineInterface) {
   return `${$.plugin.root}/bin/leaf`;
 }
 
-/** What Leaf's hook prints: the context it puts in the turn (`Harness.hook_context`),
- * and the delivery that context hands over (`DELIVERY_FIELD` in `hook_transport.py`). */
-type HookOutput = {
-  hookSpecificOutput?: { additionalContext?: string };
-  leaf_delivery?: { id: string; inline: boolean };
-};
-
-/** Leaf's hook's output, or undefined where it printed nothing or failed. */
-async function hook(
-  $: EngineInterface,
-  payload: Payload,
-): Promise<HookOutput | undefined> {
+/** Run Leaf's hook on `payload`, an event no registration answers. */
+async function hook($: EngineInterface, payload: Payload): Promise<void> {
   try {
     const ran = await $.process.run(
       [launcher($), "hook", "--harness", "claude-code", "--if-claimed"],
@@ -105,13 +84,9 @@ async function hook(
       $.ui.log(
         `Leaf: ${payload.hook_event_name} hook exited with code ${ran.exitCode}${ran.stderr.trim() ? `: ${ran.stderr.trim()}` : ""}`,
       );
-      return undefined;
     }
-    if (!ran.stdout.trim()) return undefined;
-    return JSON.parse(ran.stdout);
   } catch (error) {
     $.ui.log(`Leaf: ${payload.hook_event_name} hook failed: ${error}`);
-    return undefined;
   }
 }
 
@@ -190,17 +165,11 @@ async function ensureWatch($: EngineInterface, session: string, interrupted: boo
 }
 
 /** Whether the turn goes on, once any Stop hooks now running have returned. They
- * hand over the input pending as they run, and decide whether the turn goes on,
- * so a wake waits for them rather than carrying that input beside them. */
+ * decide whether the turn goes on, so a wake waits for them rather than starting
+ * a turn beside one they continue. */
 async function turnGoesOn() {
   while (stopping) await stopping.catch(() => undefined);
   return running;
-}
-
-function append($: EngineInterface, text: string) {
-  return $.session.append({
-    message: { type: "user", content: [{ type: "text", text }] },
-  });
 }
 
 async function wake(
@@ -245,44 +214,15 @@ export const register: Register = (on, options) => {
 
   on("classic.Stop", ($, e, next) => {
     const ending = (async () => {
-      // Without Claude Code's process the watch cannot run, so the registrations
-      // beneath keep it and run Leaf's Stop hook.
-      if (!claudePid) {
-        const result = await next(e);
-        running =
-          (result.additionalContext ?? []).length > 0 || result.block !== undefined;
-        return result;
-      }
-      // Claude Code hands a module only the fields of a hook's output it knows, so
-      // the module runs Leaf's Stop hook itself to read the delivery it names, and
-      // the mark stands down both of Leaf's registrations beneath: this hook and
-      // the background watch. Leaf's hook runs first, so it hands over what is
-      // pending before the others hold the turn's end.
-      const leaf = await hook($, e as Payload);
-      const result = await next(Object.assign({}, e, { leaf_watch: "module" }));
-      const shown = [...(result.additionalContext ?? [])];
-      const context = leaf?.hookSpecificOutput?.additionalContext;
-      // Claude Code prints a Stop hook's context in the terminal, so a delivery
-      // handed over inline goes into the session as an appended row, which it does
-      // not show, and the turn goes on with one line.
-      if (context && leaf?.leaf_delivery?.inline) {
-        try {
-          await append($, context);
-          shown.push(DELIVERED);
-        } catch (error) {
-          $.ui.log(`Leaf: the Stop hook's delivery was not appended: ${error}`, {
-            to: "debug",
-          });
-          shown.push(context);
-        }
-      } else if (context) {
-        shown.push(context);
-      }
+      // The mark stands the background watch down, since the module keeps the
+      // watch; without Claude Code's process it cannot, and that registration does.
+      const result = await next(
+        claudePid ? Object.assign({}, e, { leaf_watch: "module" }) : e,
+      );
       // A Stop hook's context keeps the turn going.
-      running = shown.length > 0 || result.block !== undefined;
-      return shown.length
-        ? Object.assign({}, result, { additionalContext: shown })
-        : result;
+      running =
+        (result.additionalContext ?? []).length > 0 || result.block !== undefined;
+      return result;
     })();
     stopping = ending;
     const settled = () => {
